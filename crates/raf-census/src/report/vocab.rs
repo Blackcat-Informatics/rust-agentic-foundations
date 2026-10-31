@@ -4,7 +4,7 @@
 //! The closed RDF 1.2 vocabulary of census reports.
 
 /// Layout version of the vocabulary, shape and canonical spelling.
-pub const REPORT_FORM: u32 = 4;
+pub const REPORT_FORM: u32 = 5;
 /// Census class and property namespace.
 pub const CENSUS: &str = raf_rdf::vocab::REPORT;
 /// Named hexadecimal table namespace.
@@ -53,6 +53,7 @@ shapes! {
     ("baseline","Baseline","unitCount",1,1,"integer"),
     ("index","Index","normalForm",1,1,"u32"),
     ("index","Index","reportForm",1,1,"report version"),
+    ("index","Index","referenceSource",0,usize::MAX,"reference source"),
     ("job-query","JobQuery","normalForm",1,1,"u32"),
     ("job-query","JobQuery","reportForm",1,1,"report version"),
     ("job-query","JobQuery","jobId",1,1,"string"),
@@ -84,6 +85,19 @@ shapes! {
     ("index","Unit","tokens",1,1,"integer"),
     ("index","Unit","body",0,1,"body fingerprint"),
     ("index","Unit","shim",0,1,"shim fingerprint"),
+    ("index","Unit","referenceSource",0,1,"reference source"),
+    ("index","ReferenceSource","package",1,1,"string"),
+    ("index","ReferenceSource","version",1,1,"string"),
+    ("index","ReferenceSource","sourceKind",1,1,"string"),
+    ("index","ReferenceSource","repository",1,1,"string"),
+    ("index","ReferenceSource","selector",1,1,"string"),
+    ("index","ReferenceSource","revision",1,1,"string"),
+    ("index","ReferenceSource","manifest",1,1,"string"),
+    ("index","ReferenceSource","checksum",1,1,"string"),
+    ("index","ReferenceSource","observation",1,1,"string"),
+    ("index","ReferenceWitness","consumer",1,1,"unit"),
+    ("index","ReferenceWitness","reference",1,1,"unit"),
+    ("index","ReferenceWitness","fingerprint",1,1,"reference fingerprint"),
     ("index","Job","jobId",1,1,"string"),
     ("index","Job","homeSymbol",1,1,"string"),
     ("index","Job","copies",1,1,"integer"),

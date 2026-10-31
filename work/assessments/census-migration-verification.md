@@ -10,7 +10,7 @@ inputs:
     digest: 22a6e6741a99f57b47cff072895372a6f8e48b5214821abe41106b94bdc24e9a
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: f61234902fabe75be1d689dde0cbeb04ad87c65572363e18e03ee979e393c47f
+    digest: 037ca39bc2decc899ac260c6d2ddb1a6a3336ffa459e90e596b04703870134dd
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
     digest: cb58d331365384fa9d8622760a577dd2e7c325492179809d926aa80b24c436d3
@@ -55,7 +55,7 @@ inputs:
     digest: 364e55fe5ffc777b3f1a2d303e09169559b2d39c819c54b4381f9abe45ff23bd
   - kind: symbol
     name: raf_census::upgrade_report_form
-    digest: d03e37fbf2ddefbf404b4cc39d287e82cfae06c8655028f6a45abee4bd2ec799
+    digest: 3ec315b0c44c38540782e011dc65d1851b70962db5f5fb36cb0f62eb5127e04e
 verdict: accepted
 by: agent
 ---

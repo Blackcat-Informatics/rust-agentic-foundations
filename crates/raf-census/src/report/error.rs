@@ -8,6 +8,8 @@ use std::fmt;
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ReportError {
+    /// Native fallible storage could not admit report evidence.
+    Storage(purrdf_lex::allocation::StorageError),
     /// A shared canonical ground-profile refusal.
     Ground(raf_rdf::Error),
     /// Unsupported report layout version.
@@ -52,6 +54,7 @@ pub enum ReportError {
 impl fmt::Display for ReportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Storage(error) => write!(f, "native report evidence storage: {error}"),
             Self::Ground(error) => error.fmt(f),
             Self::Form {
                 declared,
@@ -96,6 +99,7 @@ impl std::error::Error for ReportError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Ground(error) => Some(error),
+            Self::Storage(error) => Some(error),
             _ => None,
         }
     }

@@ -13,6 +13,8 @@ use std::path::Path;
 mod builtin;
 #[path = "support/layout.rs"]
 mod layout;
+#[path = "support/reference.rs"]
+mod reference;
 #[path = "support/vocabulary.rs"]
 mod vocabulary;
 const BUILTIN: &str = include_str!("fixtures/reports/example.txt");
@@ -113,8 +115,23 @@ fn census_vocabulary_reports() -> Vec<String> {
             .to_ntriples()
             .unwrap(),
         shared_constant_report(),
+        reference_report(),
         debt.to_ntriples().unwrap(),
     ]
+}
+
+fn reference_report() -> String {
+    let tree = reference::fixture(
+        "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
+        "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
+    );
+    let report = raf_census::Gate::workspace(".").check_tree(&tree).unwrap();
+    report
+        .census()
+        .index(report.jobs())
+        .unwrap()
+        .to_ntriples()
+        .unwrap()
 }
 
 fn shared_constant_report() -> String {
@@ -661,7 +678,7 @@ fn duplicate_job_ids_are_refused() {
 #[test]
 fn a_report_of_another_report_form_is_refused_naming_both() {
     let (baseline, _) = halves();
-    for version in [1, 2, 3, raf_census::REPORT_FORM + 1] {
+    for version in [1, 2, 3, 4, raf_census::REPORT_FORM + 1] {
         let text = rewrite(&baseline, |mut t| {
             if t.predicate == property("reportForm") {
                 t.object = TermValue::integer(version);

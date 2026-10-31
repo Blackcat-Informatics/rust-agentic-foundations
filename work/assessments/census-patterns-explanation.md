@@ -10,7 +10,7 @@ inputs:
     digest: 37da2bb6bf3a09a341dc57ecb8ddd01e10233e4825579573e2fc156c723f0c95
   - kind: symbol
     name: raf_census::Gate::matching_limits
-    digest: b36a08396de07c020e7721365e1703183b13a4f8540f679284d3328a99c36963
+    digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
   - kind: symbol
     name: raf_census::gate::patterns
     digest: ad65d44f87b7929b3617be0027d480b3886bd0d1e42e0c00e88a281177cff54a

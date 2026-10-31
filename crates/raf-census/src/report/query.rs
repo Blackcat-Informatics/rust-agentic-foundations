@@ -107,12 +107,15 @@ impl Index {
                 )?;
                 write::text(&mut graph, "", "jobId", id)?;
                 if is_job {
+                    let mut selected = Vec::new();
                     for (site, unit) in units.ordered() {
                         let unit = unit.ok_or_else(|| {
                             E::Dangling(mint::unit(site.0, site.1, site.2, site.3))
                         })?;
                         write::index_unit(&mut graph, unit, self.normal_form)?;
+                        selected.push(unit);
                     }
+                    super::reference::project(self, &mut graph, &selected)?;
                     let job = write::job(&mut graph, job)?;
                     write::put(&mut graph, "", "job", TermValue::iri(job))?;
                 } else {
@@ -123,14 +126,17 @@ impl Index {
                 write::root(&mut graph, "FingerprintQuery", self.normal_form)?;
                 write::text(&mut graph, "", "symbol", symbol)?;
                 let mut found = false;
+                let mut selected = Vec::new();
                 for unit in self.units.iter().filter(|unit| unit.symbol == symbol) {
                     let id = write::index_unit(&mut graph, unit, self.normal_form)?;
                     write::put(&mut graph, "", "member", TermValue::iri(id))?;
                     found = true;
+                    selected.push(unit);
                 }
                 if !found {
                     return Err(E::UnknownSymbol(symbol.into()).into());
                 }
+                super::reference::project(self, &mut graph, &selected)?;
             }
         }
         QueryReport::from_graph(graph.finish().map_err(E::Ground)?)
@@ -229,6 +235,40 @@ fn validate(graph: &Graph) -> Result<(), E> {
     };
     let nf = shape::nf(graph, class)?;
     shape::validate(graph, report, nf)?;
+    let mut selected = OrderedTable::default();
+    let mut resident = Resident;
+    let mut memory = Memory::new(&mut resident);
+    let (original, property) = match class {
+        "JobQuery" => {
+            let job = shape::one(&root, "job")?
+                .iri()
+                .and_then(|id| graph.get(id))
+                .ok_or_else(|| E::Value("query job IRI".into()))?;
+            (job, "match")
+        }
+        "FingerprintQuery" => (root, "member"),
+        _ => (root, "match"),
+    };
+    for id in original
+        .values(&shape::property(property))
+        .filter_map(raf_rdf::Value::iri)
+    {
+        selected.insert(id, (), &mut memory).map_err(E::Storage)?;
+    }
+    for (_, node) in graph
+        .nodes()
+        .filter(|(_, node)| shape::class(node) == Ok("ReferenceWitness"))
+    {
+        if !["consumer", "reference"].iter().any(|key| {
+            node.values(&shape::property(key))
+                .any(|value| value.iri().is_some_and(|id| selected.get(&id).is_some()))
+        }) {
+            return Err(E::Inconsistent(
+                "query reference witness is unrelated to its selected job or symbol occurrences"
+                    .into(),
+            ));
+        }
+    }
     match class {
         "JobQuery" => {
             let selected = shape::string(&root, "jobId")?;

@@ -261,7 +261,7 @@ fn ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpret
             .check_tree(&tree)
             .unwrap_err()
             .to_string()
-            .contains("executable reference scan")
+            .contains("Cargo.lock")
     );
 }
 
@@ -3542,6 +3542,16 @@ fn nested_extension_validation(ledger: &impl Fn(&str) -> Builder, source: &str) 
             object: Term::simple_literal("source:immutable-original-pin"),
         })
         .unwrap();
+    let retained = retained.finish().unwrap();
+    let mut retained = Builder::from_graph(&retained);
+    for property in ["referenceSource", "referenceWitness"] {
+        put(
+            &mut retained,
+            "#b",
+            property,
+            Term::simple_literal("opaque original annotation"),
+        );
+    }
     let retained = retained.finish().unwrap();
     for format in [Format::Turtle, Format::NTriples] {
         layout::assert_upgrade(

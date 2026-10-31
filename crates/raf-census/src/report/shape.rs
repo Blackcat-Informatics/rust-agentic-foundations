@@ -55,7 +55,7 @@ fn is_string(value: Value<'_>) -> bool {
         .literal()
         .is_some_and(|(_, dt)| dt == raf_rdf::vocab::STRING)
 }
-fn quoted(value: Value<'_>) -> Result<(&str, &str, &str), E> {
+pub(super) fn quoted(value: Value<'_>) -> Result<(&str, &str, &str), E> {
     if let Some((s, p, o)) = value.quoted()
         && let (Some(s), Some(p), Some(o)) = (s.iri(), p.iri(), o.iri())
     {
@@ -102,7 +102,7 @@ pub(crate) fn count(node: &Node<'_>, key: &str) -> Result<usize, E> {
 fn target(value: Value<'_>) -> Result<&str, E> {
     value.iri().ok_or_else(|| E::Value("IRI expected".into()))
 }
-fn fp(term: Value<'_>, nf: u32, kind: GroupKind) -> Result<Fingerprint, E> {
+pub(super) fn fp(term: Value<'_>, nf: u32, kind: GroupKind) -> Result<Fingerprint, E> {
     let value = target(term)?;
     let prefix = vocab::fingerprint_namespace(nf, kind);
     let hex = value
@@ -117,7 +117,7 @@ fn fp(term: Value<'_>, nf: u32, kind: GroupKind) -> Result<Fingerprint, E> {
         .map_err(|_| E::Value(value.into()))?;
     Ok(fingerprint)
 }
-fn member(graph: &Graph, id: &str) -> Result<MemberRow, E> {
+pub(super) fn member(graph: &Graph, id: &str) -> Result<MemberRow, E> {
     let node = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
     if class(&node)? != "Unit" {
         return Err(E::Value(format!("{id}: unit expected")));
@@ -216,24 +216,13 @@ fn validate_properties(
                     referenced.insert(unit.to_owned());
                     true
                 }
-                "job" => {
-                    let id = target(value)?;
-                    let row = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
-                    if self::class(&row)? != "Job" {
-                        return Err(E::Class(format!("{id}: Job expected")));
-                    }
-                    referenced.insert(id.to_owned());
+                "job" => class_link(graph, value, "Job", referenced)?,
+                "reference source" => class_link(graph, value, "ReferenceSource", referenced)?,
+                "reference fingerprint" => {
+                    fp(value, nf, GroupKind::Body).or_else(|_| fp(value, nf, GroupKind::Shim))?;
                     true
                 }
-                "multiplicity" => {
-                    let id = target(value)?;
-                    let row = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
-                    if self::class(&row)? != "MemberMultiplicity" {
-                        return Err(E::Class(format!("{id}: MemberMultiplicity expected")));
-                    }
-                    referenced.insert(id.to_owned());
-                    true
-                }
+                "multiplicity" => class_link(graph, value, "MemberMultiplicity", referenced)?,
                 "body fingerprint" => {
                     fp(value, nf, GroupKind::Body)?;
                     true
@@ -272,6 +261,20 @@ fn validate_properties(
     }
     Ok(())
 }
+fn class_link(
+    graph: &Graph,
+    value: Value<'_>,
+    expected: &str,
+    referenced: &mut BTreeSet<String>,
+) -> Result<bool, E> {
+    let id = target(value)?;
+    let row = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
+    if class(&row)? != expected {
+        return Err(E::Class(format!("{id}: {expected} expected")));
+    }
+    referenced.insert(id.to_owned());
+    Ok(true)
+}
 fn applies(row: &vocab::Shape, report: &str) -> bool {
     row.report == report
         || (row.report == "both"
@@ -279,7 +282,9 @@ fn applies(row: &vocab::Shape, report: &str) -> bool {
                 || (matches!(report, "job-query" | "fingerprint-query") && row.class == "Unit")))
         || (row.report == "index"
             && ((row.class == "Unit" && matches!(report, "job-query" | "fingerprint-query"))
-                || (matches!(row.class, "Job" | "Match") && report == "job-query")))
+                || (matches!(row.class, "Job" | "Match") && report == "job-query")
+                || (matches!(row.class, "ReferenceSource" | "ReferenceWitness")
+                    && matches!(report, "job-query" | "fingerprint-query"))))
 }
 pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
     // Check every class before following references, so a foreign class is
@@ -380,6 +385,7 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
             "every asserted match requires exactly one named reifier".into(),
         ));
     }
+    super::reference::validate(graph, nf)?;
     Ok(())
 }
 pub(super) fn baseline(graph: &Graph) -> Result<Baseline, E> {
@@ -483,6 +489,11 @@ fn index_unit(graph: &Graph, id: &str, node: &Node<'_>, nf: u32) -> Result<Index
         return Err(E::Value(format!("{id}: shipping")));
     };
     Ok(IndexUnit {
+        reference_source: node
+            .values(&property("referenceSource"))
+            .next()
+            .map(|value| target(value).map(str::to_owned))
+            .transpose()?,
         symbol: m.symbol,
         file: m.file,
         line: m.line,
@@ -499,12 +510,20 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
     validate(graph, "index", nf)?;
     let mut report = Index {
         normal_form: nf,
+        reference_sources: Vec::new(),
+        reference_witnesses: Vec::new(),
         units: Vec::new(),
         groups: Vec::new(),
         jobs: Vec::new(),
     };
     for (id, node) in graph.nodes() {
         match class(&node)? {
+            "ReferenceSource" => report
+                .reference_sources
+                .push(super::reference::read_source(&node)?),
+            "ReferenceWitness" => report
+                .reference_witnesses
+                .push(super::reference::read_witness(graph, &node, nf)?),
             "Unit" => {
                 report.units.push(index_unit(graph, &id, &node, nf)?);
             }
@@ -578,9 +597,31 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
 }
 
 #[cfg(test)]
+#[path = "../../tests/support/reference.rs"]
+mod reference_fixture;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use raf_rdf::{Builder, Format, Triple};
+
+    fn with_reference_fixture(index: &Graph) -> Graph {
+        let tree = reference_fixture::fixture(
+            "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
+            "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
+        );
+        let report = crate::Gate::workspace(".").check_tree(&tree).unwrap();
+        let reference = report.census().index(report.jobs()).unwrap();
+        let reference = super::super::read::parse(&reference.to_turtle().unwrap(), Format::Turtle)
+            .expect("reference index");
+        let mut builder = Builder::from_graph(index);
+        for triple in reference.assertions() {
+            if !builder.contains(triple.clone()).unwrap() {
+                builder.insert(triple).unwrap();
+            }
+        }
+        builder.finish().unwrap()
+    }
 
     #[test]
     fn every_required_shape_property_has_a_missing_and_unknown_neighbor() {
@@ -594,6 +635,7 @@ mod tests {
             Format::Turtle,
         )
         .expect("index");
+        let index = with_reference_fixture(&index);
         let members = baseline
             .nodes()
             .find(|(_, n)| class(n).ok() == Some("BodyGroup"))

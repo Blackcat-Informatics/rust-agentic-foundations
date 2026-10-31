@@ -76,7 +76,7 @@ impl ReportKind {
     }
 }
 
-/// Convert a canonical form-3 carrier to the current layout, in the same syntax.
+/// Convert a canonical form-3 or form-4 carrier to the current layout.
 ///
 /// Every assertion other than `reportForm` survives. Canonical owned snapshot
 /// IRIs rebase; external IRIs, normal forms, fingerprints and pin literals do not
@@ -112,11 +112,30 @@ fn upgrade(kind: ReportKind, text: &str, format: Format) -> Result<String, Error
     }
     let declared = u32::try_from(shape::count(&root, "reportForm")?)
         .map_err(|_| E::Value("reportForm: u32 overflow".into()))?;
-    if declared != 3 {
-        return Err(E::Form {
-            declared,
-            implemented: 3,
-        }
+    if !matches!(declared, 3 | 4) {
+        return Err(E::Value(format!(
+            "layout conversion requires report form 3 or 4, found {declared}"
+        ))
+        .into());
+    }
+    if kind == ReportKind::Index
+        && graph.nodes().any(|(_, node)| {
+            matches!(
+                shape::class(&node),
+                Ok("ReferenceSource" | "ReferenceWitness")
+            ) || node
+                .values(&shape::property("referenceSource"))
+                .next()
+                .is_some()
+                || node
+                    .values(&shape::property("referenceWitness"))
+                    .next()
+                    .is_some()
+        })
+    {
+        return Err(E::Value(
+            "older report forms cannot carry reference source observations or witnesses".into(),
+        )
         .into());
     }
     let header = |form| Triple {
@@ -125,8 +144,11 @@ fn upgrade(kind: ReportKind, text: &str, format: Format) -> Result<String, Error
         object: shape::integer(form),
     };
     let mut updated = Builder::from_graph(&graph);
-    if !updated.remove(header(3)).map_err(E::Ground)? {
-        return Err(E::Missing("original form-3 header".into()).into());
+    if !updated
+        .remove(header(u128::from(declared)))
+        .map_err(E::Ground)?
+    {
+        return Err(E::Missing("original report-form header".into()).into());
     }
     updated
         .insert(header(u128::from(REPORT_FORM)))

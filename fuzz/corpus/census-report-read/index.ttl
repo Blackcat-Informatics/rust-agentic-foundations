@@ -1,8 +1,8 @@
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/bee7b5248b152eaa6020eb56a09155b8ee54f2f38c9e8fa30632cd7065ce677b>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/1d4a9287b6b0b6904447e2aff627c6cc6d79f5a2e73447ffe346633756aff68d>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Index> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyGroup> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::alpha@src/lib.rs:1:0> .

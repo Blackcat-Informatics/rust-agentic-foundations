@@ -3,6 +3,9 @@
 
 //! Checked source/manifest association and requested edges in the existing loader.
 
+mod reference;
+pub use reference::{ReferenceObservation, ReferenceRequest};
+
 use purrdf_lex::allocation::{Admission, Memory, StorageError};
 use purrdf_lex::walk::{try_equal_range_by, try_sort_unstable_by};
 

@@ -30,7 +30,7 @@ pub(super) fn num(graph: &mut Builder, id: &str, key: &str, value: usize) -> Res
 pub(super) fn text(graph: &mut Builder, id: &str, key: &str, value: &str) -> Result<(), E> {
     put(graph, id, key, Term::simple_literal(value))
 }
-fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {
+pub(super) fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {
     let (kind, hex) = match value {
         Fingerprint::Body(v) => (GroupKind::Body, v),
         Fingerprint::Shim(v) => (GroupKind::Shim, v),
@@ -151,6 +151,18 @@ pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
     for u in &report.units {
         index_unit(&mut graph, u, report.normal_form)?;
     }
+    for source in &report.reference_sources {
+        super::reference::source(&mut graph, source)?;
+        put(
+            &mut graph,
+            "",
+            "referenceSource",
+            Term::iri(source.identity()?),
+        )?;
+    }
+    for witness in &report.reference_witnesses {
+        super::reference::witness(&mut graph, witness, report.normal_form)?;
+    }
     for g in &report.groups {
         if !matches!(
             (&g.fingerprint, g.kind),
@@ -178,7 +190,7 @@ pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
     graph.finish().map_err(E::Ground)
 }
 
-fn has_unit(graph: &Builder, id: &str) -> Result<bool, E> {
+pub(super) fn has_unit(graph: &Builder, id: &str) -> Result<bool, E> {
     graph
         .contains(triple(id, "type", shape::iri("Unit")))
         .map_err(E::Ground)
@@ -197,6 +209,9 @@ pub(super) fn index_unit(graph: &mut Builder, u: &super::IndexUnit, nf: u32) -> 
     }
     unit(graph, &row)?;
     text(graph, &id, "package", &u.package)?;
+    if let Some(source) = &u.reference_source {
+        put(graph, &id, "referenceSource", Term::iri(source))?;
+    }
     num(graph, &id, "tokens", u.tokens)?;
     put(graph, &id, "shipping", Term::boolean(u.shipping))?;
     if let Some(fp) = &u.body {
