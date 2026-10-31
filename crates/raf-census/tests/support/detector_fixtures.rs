@@ -44,8 +44,8 @@ pub(crate) const RDF_NESTED: [(&str, &str, &str); 5] = [
     ),
     (
         "rdf-term-model",
-        "macro_rules! terms {()=>{enum Term<T> {Iri(T), BlankNode(T), Literal(T)}}}",
-        "macro_rules! terms {()=>{enum Term<T> {Iri(T), BlankNode(T), Literal(T), TripleTerm(Box<(Term<T>,Term<T>,Term<T>)>)}}}",
+        "macro_rules! terms {()=>{pub enum Term<T> {Iri(T), BlankNode(T), Literal(T)}}}",
+        "macro_rules! terms {()=>{pub enum Term<T> {Iri(T), BlankNode(T), Literal(T), TripleTerm(Box<(Term<T>,Term<T>,Term<T>)>)}}}",
     ),
 ];
 

@@ -49,20 +49,25 @@ impl Policy {
             let mut member = false;
             let mut colons = 0;
             while let Some(token) = tokens.next() {
+                if path_separator(&token, tokens.clone().next()) {
+                    tokens.next();
+                    variable = false;
+                    colons = if member { 0 } else { 2 };
+                    continue;
+                }
                 let next_variable = matches!(&token,
                     proc_macro2::TokenTree::Punct(mark) if mark.as_char() == '$');
-                let next_member = match &token {
-                    proc_macro2::TokenTree::Ident(_) => true,
-                    proc_macro2::TokenTree::Punct(mark) if mark.as_char() == ':' => member,
-                    _ => false,
-                };
-                let next_colons = if matches!(&token,
-                    proc_macro2::TokenTree::Punct(mark) if mark.as_char() == ':')
-                    && !member
-                {
-                    colons + 1
+                let next_member = if let proc_macro2::TokenTree::Ident(ident) = &token {
+                    let mut following = tokens.clone();
+                    following
+                        .next()
+                        .is_some_and(|first| path_separator(&first, following.next()))
+                        && syn::parse2::<syn::Path>(
+                            proc_macro2::TokenTree::Ident(ident.clone()).into(),
+                        )
+                        .is_ok()
                 } else {
-                    0
+                    false
                 };
                 match token {
                     proc_macro2::TokenTree::Group(group) => pending.push(group.stream()),
@@ -83,12 +88,7 @@ impl Policy {
                             colons = 0;
                             continue;
                         }
-                        let mut following = tokens.clone();
-                        let qualified = (0..2).all(|_| {
-                            matches!(following.next(),
-                            Some(proc_macro2::TokenTree::Punct(mark)) if mark.as_char() == ':')
-                        });
-                        if qualified && !member {
+                        if next_member && !member {
                             let written = self
                                 .names
                                 .resolve_written(vec![ident.unraw().to_string()], colons >= 2);
@@ -106,7 +106,7 @@ impl Policy {
                 }
                 variable = next_variable;
                 member = next_member;
-                colons = next_colons;
+                colons = 0;
             }
         }
     }
@@ -247,6 +247,12 @@ impl<'ast> Visit<'ast> for Policy {
             syn::visit::visit_item_enum(this, node);
         });
     }
+}
+
+fn path_separator(first: &proc_macro2::TokenTree, second: Option<proc_macro2::TokenTree>) -> bool {
+    matches!(first, proc_macro2::TokenTree::Punct(mark)
+        if mark.as_char() == ':' && mark.spacing() == proc_macro2::Spacing::Joint)
+        && matches!(second, Some(proc_macro2::TokenTree::Punct(mark)) if mark.as_char() == ':')
 }
 
 fn format_index(name: &str) -> Option<usize> {
