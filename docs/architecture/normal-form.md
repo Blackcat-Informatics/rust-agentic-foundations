@@ -351,7 +351,7 @@ include their normal-form version; table names are version-free.
 
 The [shared report profile](../capabilities/rdf-report-profile.md) owns the closed
 ground roles, canonical bytes, snapshot BASE and single normalized-body identity
-law used by both formats. Census report profile 4 uses that law without changing
+law used by both formats. Census report profile 5 uses that law without changing
 normal-form fingerprint bytes. Equal content mints equal snapshot IRIs.
 PurRDF supplies the native RDF terms, parser, traversal, term ordering, lexical
 output, standard vocabularies and BLAKE3 implementation. Domain validation reuses
@@ -384,6 +384,7 @@ reference must resolve, and minted node names must agree with their properties.
 | baseline | `census:Baseline` | `census:unitCount` | 1..1 | integer |
 | index | `census:Index` | `census:normalForm` | 1..1 | u32 |
 | index | `census:Index` | `census:reportForm` | 1..1 | report version |
+| index | `census:Index` | `census:referenceSource` | 0..unbounded | reference source |
 | job-query | `census:JobQuery` | `census:normalForm` | 1..1 | u32 |
 | job-query | `census:JobQuery` | `census:reportForm` | 1..1 | report version |
 | job-query | `census:JobQuery` | `census:jobId` | 1..1 | string |
@@ -415,6 +416,19 @@ reference must resolve, and minted node names must agree with their properties.
 | index | `census:Unit` | `census:tokens` | 1..1 | integer |
 | index | `census:Unit` | `census:body` | 0..1 | body fingerprint |
 | index | `census:Unit` | `census:shim` | 0..1 | shim fingerprint |
+| index | `census:Unit` | `census:referenceSource` | 0..1 | reference source |
+| index | `census:ReferenceSource` | `census:package` | 1..1 | string |
+| index | `census:ReferenceSource` | `census:version` | 1..1 | string |
+| index | `census:ReferenceSource` | `census:sourceKind` | 1..1 | string |
+| index | `census:ReferenceSource` | `census:repository` | 1..1 | string |
+| index | `census:ReferenceSource` | `census:selector` | 1..1 | string |
+| index | `census:ReferenceSource` | `census:revision` | 1..1 | string |
+| index | `census:ReferenceSource` | `census:manifest` | 1..1 | string |
+| index | `census:ReferenceSource` | `census:checksum` | 1..1 | string |
+| index | `census:ReferenceSource` | `census:observation` | 1..1 | string |
+| index | `census:ReferenceWitness` | `census:consumer` | 1..1 | unit |
+| index | `census:ReferenceWitness` | `census:reference` | 1..1 | unit |
+| index | `census:ReferenceWitness` | `census:fingerprint` | 1..1 | reference fingerprint |
 | index | `census:Job` | `census:jobId` | 1..1 | string |
 | index | `census:Job` | `census:homeSymbol` | 1..1 | string |
 | index | `census:Job` | `census:copies` | 1..1 | integer |
@@ -438,22 +452,28 @@ units use those same Unit rows. A count query has only its root. Each query
 root is the only root in its graph; every node must belong to its selected
 result, with no unrelated groups, jobs, matches or units.
 
+Reference units name their source receipt. A source without indexed units has no
+receipt node. Witnesses link a first-party consumer and reference unit with their
+equal complete body or shim fingerprint. Selected queries retain each incident
+witness and its endpoint/source closure.
+
 A debt group contains at least two physical members. Distinct sites sharing one
 canonical symbol use an owned `MemberMultiplicity` with at least two copies;
 ordinary symbols imply one. Every multiplicity belongs to exactly one group,
-and redundant count-one nodes are refused. Report form 3 includes this counted
+and redundant count-one nodes are refused. Report form 5 includes this counted
 shape. Earlier report layouts are refused by the ordinary readers; baseline and
 index reports can be regenerated from source without changing fingerprints.
 
 ## Version-bump rule
 
-The current Census report form is 4. The explicit native layout conversion
-accepts only form 3 for Baseline, Index, Ledger and DebtRecord. Those existing
-payload shapes are unchanged; only their form header changes. Conversion edits
+The current Census report form is 5. The explicit native layout conversion
+accepts forms 3 and 4 for Baseline, Index, Ledger and DebtRecord. Conversion edits
 and returns the original graph, validates the selected current shape and
 preserves every normalized assertion except reportForm. Owned snapshot IRIs
 rebase; external IRIs, literal pins and historical normalForm values do not
-change. Ordinary readers require form 4. Layout conversion never authorizes
+change. Opaque Ledger extension assertions remain intact. Historical Index
+carriers cannot contain reference observations or witnesses; conversion never
+invents them. Ordinary readers require form 5. Layout conversion never authorizes
 policy execution or debt growth.
 
 A change to report vocabulary, shape or canonical layout bumps `census:reportForm`,
@@ -486,7 +506,7 @@ without a fixture.
 The report reader returns its declared `census:normalForm` without gating it; callers
 apply `check_normal_form`, so migration can read another normal form. Its body and
 shim namespaces must agree with that version. `census:reportForm` gates the layout
-and must equal the implemented `REPORT_FORM` (4).
+and must equal the implemented `REPORT_FORM` (5).
 
 A ledger names the version it was written for with `normal_form`. If the value differs
 from the version the census implements, the census fails hard before reading any job.

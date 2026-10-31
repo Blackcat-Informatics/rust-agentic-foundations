@@ -48,6 +48,7 @@ fn path_references_preserve_all_witnesses_with_one_physical_consumer_count() {
     let decoded = Index::from_ntriples(&encoded).unwrap();
     assert_eq!(decoded.to_ntriples().unwrap(), encoded);
     witness_limits_require_complete_evidence(&tree, &decoded);
+    unitless_references_keep_a_complete_index(&tree);
     reference_names_must_belong_to_the_owning_graph(&tree);
     direct_parent_path_keeps_the_same_reference_evidence(&tree, &decoded);
     reject_unrelated_report_evidence(&decoded);
@@ -106,6 +107,42 @@ fn witness_limits_require_complete_evidence(tree: &raf_source::MemoryTree, expec
         .check_tree(tree)
         .unwrap();
     assert_eq!(complete.census().index(complete.jobs()).unwrap(), *expected);
+}
+
+fn unitless_references_keep_a_complete_index(tree: &raf_source::MemoryTree) {
+    let mut unitless = tree.clone();
+    unitless
+        .replace(&RelPath::new("helper/src/lib.rs").unwrap(), String::new())
+        .unwrap();
+    let ledger = RelPath::new("helpers-ledger.ttl").unwrap();
+    let original =
+        Graph::from_text(&unitless.read(&ledger, 1_048_576).unwrap(), Format::Turtle).unwrap();
+    let home = original
+        .assertions()
+        .find(|triple| triple.predicate == TermValue::iri(format!("{}homeSymbol", vocab::REPORT)))
+        .unwrap();
+    let mut policy = Builder::from_graph(&original);
+    assert!(policy.remove(home.clone()).unwrap());
+    policy
+        .insert(Triple {
+            object: TermValue::simple_literal("app::copy"),
+            ..home
+        })
+        .unwrap();
+    unitless
+        .replace(
+            &ledger,
+            policy.finish().unwrap().to_text(Format::Turtle).unwrap(),
+        )
+        .unwrap();
+    let report = Gate::workspace(".").check_tree(&unitless).unwrap();
+    let index = report.census().index(report.jobs()).unwrap();
+    assert_eq!(index.units.len(), 2);
+    assert_eq!(index.jobs[0].home, "app::copy");
+    assert_eq!(index.reference_sources, []);
+    assert_eq!(index.reference_witnesses, []);
+    let text = index.to_ntriples().unwrap();
+    assert_eq!(Index::from_ntriples(&text).unwrap(), index);
 }
 
 fn direct_parent_path_keeps_the_same_reference_evidence(

@@ -265,6 +265,9 @@ impl<'a> References<'a> {
         let storage = |source| Error::SourceIndexStorage { source };
         let mut by_print = OrderedTable::<&Fingerprint, Vec<&Unit>>::default();
         for package in &self.packages {
+            if package.units.is_empty() {
+                continue;
+            }
             memory
                 .push(&mut census.reference_sources, package.source.clone())
                 .map_err(storage)?;
