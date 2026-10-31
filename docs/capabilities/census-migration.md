@@ -251,7 +251,7 @@ containing an unprojectable timestamp retains all of its sibling proof values.
 
 ## Constraints
 
-- Explicit layout conversion accepts only stored form 3 carriers of the named
+- Explicit layout conversion accepts stored form 3 or 4 carriers of the named
   kind and applies that kind's byte ceiling to both input and output. Historical
   normal forms remain data; conversion does not execute policy or renew pins.
   <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy -->

@@ -90,9 +90,11 @@ fn reference_observations_verify_manifests_without_admitting_provider_routes() {
     );
     let git_work = committed_reference_neighbors();
     committed_reference_budget_neighbor(git_work);
+    #[cfg(unix)]
     parent_path_directory_context_neighbors(&request);
 }
 
+#[cfg(unix)]
 fn parent_path_directory_context_neighbors(request: &ReferenceRequest<'_>) {
     use raf_source::Tree as _;
     let parent = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -47,6 +47,7 @@ fn path_references_preserve_all_witnesses_with_one_physical_consumer_count() {
     let encoded = index.to_ntriples().unwrap();
     let decoded = Index::from_ntriples(&encoded).unwrap();
     assert_eq!(decoded.to_ntriples().unwrap(), encoded);
+    witness_limits_require_complete_evidence(&tree, &decoded);
     reference_names_must_belong_to_the_owning_graph(&tree);
     direct_parent_path_keeps_the_same_reference_evidence(&tree, &decoded);
     reject_unrelated_report_evidence(&decoded);
@@ -64,6 +65,47 @@ fn path_references_preserve_all_witnesses_with_one_physical_consumer_count() {
             selected
         );
     }
+}
+
+fn witness_limits_require_complete_evidence(tree: &raf_source::MemoryTree, expected: &Index) {
+    use purrdf_jsonschema::ecma::MatchLimits;
+    for (limits, cause) in [
+        (
+            MatchLimits {
+                steps: 0,
+                ..MatchLimits::default()
+            },
+            "matching step limit",
+        ),
+        (
+            MatchLimits {
+                steps: 1024,
+                ..MatchLimits::default()
+            },
+            "reference-witness-storage",
+        ),
+        (
+            MatchLimits {
+                states: 1,
+                ..MatchLimits::default()
+            },
+            "witness-state limit",
+        ),
+    ] {
+        let error = Gate::workspace(".")
+            .matching_limits(limits)
+            .check_tree(tree)
+            .unwrap_err();
+        assert!(error.to_string().contains(cause), "{error}");
+    }
+    let complete = Gate::workspace(".")
+        .matching_limits(MatchLimits {
+            states: 2,
+            ..MatchLimits::default()
+        })
+        .check_tree(tree)
+        .unwrap();
+    assert_eq!(complete.census().index(complete.jobs()).unwrap(), *expected);
 }
 
 fn direct_parent_path_keeps_the_same_reference_evidence(
@@ -327,28 +369,33 @@ fn reject_historical_reference_provenance(current: &Graph) {
                 && triple.predicate == TermValue::iri(format!("{}reportForm", vocab::REPORT))
         })
         .unwrap();
-    let mut older = Builder::from_graph(current);
-    assert!(older.remove(header.clone()).unwrap());
-    older
-        .insert(Triple {
-            object: TermValue::integer(4),
-            ..header
-        })
-        .unwrap();
-    let text = older.finish().unwrap().to_text(Format::NTriples).unwrap();
-    let error = raf_census::upgrade_report_form(
-        raf_census::ReportKind::Index,
-        raf_census::MigrationInput {
-            path: "historical-reference-provenance",
-            text: &text,
-        },
-        Format::NTriples,
-    )
-    .unwrap_err();
-    assert!(
-        error
-            .to_string()
-            .contains("older report forms cannot carry reference"),
-        "{error}"
-    );
+    for form in [3, 4] {
+        let mut older = Builder::from_graph(current);
+        assert!(older.remove(header.clone()).unwrap());
+        older
+            .insert(Triple {
+                object: TermValue::integer(form),
+                ..header.clone()
+            })
+            .unwrap();
+        let older = older.finish().unwrap();
+        for format in [Format::Turtle, Format::NTriples] {
+            let text = older.to_text(format).unwrap();
+            let error = raf_census::upgrade_report_form(
+                raf_census::ReportKind::Index,
+                raf_census::MigrationInput {
+                    path: "historical-reference-provenance",
+                    text: &text,
+                },
+                format,
+            )
+            .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("older report forms cannot carry reference"),
+                "{form} {format:?}: {error}"
+            );
+        }
+    }
 }

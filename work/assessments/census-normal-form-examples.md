@@ -370,7 +370,7 @@ inputs:
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
     name: raf_census::report
-    digest: dd307da4ad6d31701175d005fc42365769a5d4847cdc8599a0da006ed166080f
+    digest: c5514e69a7303486f40e55f5ea5526d5cd4095ee1b911170c8cef576017172a7
   - kind: symbol
     name: raf_census::report::vocab
     digest: 3a8b165a958a908b1b903c3d4d5541a051cf4fa58369b373fae00d674b478630

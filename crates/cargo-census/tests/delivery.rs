@@ -340,12 +340,12 @@ fn ledger_inspection() {
             .unwrap(),
         native.graph().snapshot().unwrap()
     );
+    let error = Gate::workspace(root).check().unwrap_err();
     assert!(
-        Gate::workspace(root)
-            .check()
-            .unwrap_err()
-            .to_string()
-            .contains("reference packages")
+        matches!(&error, raf_census::Error::Load(source)
+            if source.file.as_str() == "src/lib.rs"
+                && matches!(&source.kind, raf_source::LoadErrorKind::Syntax { .. })),
+        "{error}"
     );
     let caller = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))

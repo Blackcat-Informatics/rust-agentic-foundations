@@ -678,7 +678,7 @@ fn duplicate_job_ids_are_refused() {
 #[test]
 fn a_report_of_another_report_form_is_refused_naming_both() {
     let (baseline, _) = halves();
-    for version in [1, 2, 3, raf_census::REPORT_FORM + 1] {
+    for version in [1, 2, 3, 4, raf_census::REPORT_FORM + 1] {
         let text = rewrite(&baseline, |mut t| {
             if t.predicate == property("reportForm") {
                 t.object = TermValue::integer(version);

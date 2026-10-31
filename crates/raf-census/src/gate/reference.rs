@@ -4,12 +4,13 @@
 //! Reference-only package collection and cross-boundary evidence.
 
 pub(super) mod acquire;
+mod witness;
 pub use acquire::ReferenceRoot;
 
 use crate::{
-    Census, Error, Fingerprint, IndexUnit, JobReport, Ledger, MatchClass, MemberRow,
-    ReferenceSource, ReferenceWitness, Unit,
+    Census, Error, Fingerprint, IndexUnit, JobReport, Ledger, MatchClass, ReferenceSource, Unit,
 };
+use purrdf_jsonschema::ecma::MatchLimits;
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use raf_source::{
     LockedCatalog, LockedGitReference, LockedPackage, LockedSourceKind, PackageId,
@@ -254,7 +255,11 @@ impl<'a> References<'a> {
         Ok(result)
     }
 
-    pub(super) fn attach(&self, census: &mut Census) -> Result<(), Error> {
+    pub(super) fn attach(
+        &self,
+        census: &mut Census,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
         let mut resident = Resident;
         let mut memory = Memory::new(&mut resident);
         let storage = |source| Error::SourceIndexStorage { source };
@@ -302,56 +307,7 @@ impl<'a> References<'a> {
                 }
             }
         }
-        let mut witnessed = OrderedTable::default();
-        for consumer in census.units() {
-            for fingerprint in prints(consumer) {
-                if let Some(references) = by_print.get(&fingerprint) {
-                    for reference in references {
-                        witnessed
-                            .insert(
-                                (
-                                    consumer.symbol.clone(),
-                                    consumer.file.clone(),
-                                    consumer.line,
-                                    consumer.start_byte,
-                                    reference.symbol.clone(),
-                                    reference.file.clone(),
-                                    reference.line,
-                                    reference.start_byte,
-                                    fingerprint.clone(),
-                                ),
-                                (),
-                                &mut memory,
-                            )
-                            .map_err(storage)?;
-                    }
-                }
-            }
-        }
-        for ((symbol, file, line, start_byte, rsymbol, rfile, rline, rstart, fingerprint), ()) in
-            witnessed.ordered()
-        {
-            memory
-                .push(
-                    &mut census.reference_witnesses,
-                    ReferenceWitness {
-                        consumer: MemberRow {
-                            symbol: symbol.clone(),
-                            file: file.clone(),
-                            line: *line,
-                            start_byte: *start_byte,
-                        },
-                        reference: MemberRow {
-                            symbol: rsymbol.clone(),
-                            file: rfile.clone(),
-                            line: *rline,
-                            start_byte: *rstart,
-                        },
-                        fingerprint: fingerprint.clone(),
-                    },
-                )
-                .map_err(storage)?;
-        }
+        census.reference_witnesses = witness::collect(census.units(), &by_print, limits)?;
         Ok(())
     }
 

@@ -118,19 +118,21 @@ fn upgrade(kind: ReportKind, text: &str, format: Format) -> Result<String, Error
         ))
         .into());
     }
-    if graph.nodes().any(|(_, node)| {
-        matches!(
-            shape::class(&node),
-            Ok("ReferenceSource" | "ReferenceWitness")
-        ) || node
-            .values(&shape::property("referenceSource"))
-            .next()
-            .is_some()
-            || node
-                .values(&shape::property("referenceWitness"))
+    if kind == ReportKind::Index
+        && graph.nodes().any(|(_, node)| {
+            matches!(
+                shape::class(&node),
+                Ok("ReferenceSource" | "ReferenceWitness")
+            ) || node
+                .values(&shape::property("referenceSource"))
                 .next()
                 .is_some()
-    }) {
+                || node
+                    .values(&shape::property("referenceWitness"))
+                    .next()
+                    .is_some()
+        })
+    {
         return Err(E::Value(
             "older report forms cannot carry reference source observations or witnesses".into(),
         )

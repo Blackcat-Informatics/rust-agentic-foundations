@@ -46,6 +46,9 @@
 
 mod census;
 mod detectors;
+#[cfg(test)]
+extern crate self as raf_census;
+
 mod error;
 mod gate;
 mod group;

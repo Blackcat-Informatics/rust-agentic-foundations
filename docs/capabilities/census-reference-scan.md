@@ -112,12 +112,20 @@ complete native Index and query round trips.
 Name a dependency and its job home in the native ledger:
 
 ```turtle
-@prefix c: <https://blackcatinformatics.ca/raf/report/1#> .
-<> a c:Ledger ; c:normalForm 1 ; c:reportForm 5 ;
-   c:root "." ; c:reference "acme-core" ; c:job <#parse> .
-<#parse> a c:LedgerJob ; c:jobId "iri-parse" ;
-   c:summary "IRI parsing" ; c:homeSymbol "acme_core::iri::parse" ;
-   c:enforced true .
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/4a9ae8720de8c714365401e1d1b156942dcbdb3667864cc9cf861b136250bf85>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
+<> <https://blackcatinformatics.ca/raf/report/1#job> <#job> .
+<> <https://blackcatinformatics.ca/raf/report/1#minTokens> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reference> "acme-core" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#root> "." .
+<#job> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LedgerJob> .
+<#job> <https://blackcatinformatics.ca/raf/report/1#enforced> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#job> <https://blackcatinformatics.ca/raf/report/1#homeSymbol> "acme_core::iri::parse" .
+<#job> <https://blackcatinformatics.ca/raf/report/1#jobId> "iri-parse" .
+<#job> <https://blackcatinformatics.ca/raf/report/1#summary> "Shared dependency implementations" .
 ```
 
 `Gate::workspace(root).check()` acquires contained path dependencies.
@@ -151,6 +159,10 @@ locators and source receipts in the native Index.
   <!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes,raf_source::test_crate::locked_sources::local_reference_owner_selection_spends_its_original_work_allowance -->
 - Source roots retain workspace manifests needed for inherited package metadata.
   <!-- raf:tested-by raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
+- Witness pair work, retained states and native storage growth consume the same
+  explicit matching grant as subsequent policy matching. Exhaustion refuses the
+  entire scan; witness evidence is never truncated.
+  <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count -->
 - Parent traversal through a directory symlink requires an explicit manifest
   locator; matching manifest file identity does not admit a different directory.
   <!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->

@@ -312,7 +312,7 @@ creating an absent one; choosing a directory as the output reports a write error
 
 A declared ledger with an extension payload and reference package remains
 inspectable when src/lib.rs cannot parse. Its native graph appears unchanged in
-both carriers, while Gate execution still refuses the unavailable reference scan.
+both carriers, while Gate execution refuses the malformed Rust source.
 Selecting --out policy.ttl from another directory writes that caller-relative
 destination after complete validation. Missing, malformed, oversized and
 version-invalid ledger inputs preserve prior output or leave an absent output

@@ -3543,6 +3543,16 @@ fn nested_extension_validation(ledger: &impl Fn(&str) -> Builder, source: &str) 
         })
         .unwrap();
     let retained = retained.finish().unwrap();
+    let mut retained = Builder::from_graph(&retained);
+    for property in ["referenceSource", "referenceWitness"] {
+        put(
+            &mut retained,
+            "#b",
+            property,
+            Term::simple_literal("opaque original annotation"),
+        );
+    }
+    let retained = retained.finish().unwrap();
     for format in [Format::Turtle, Format::NTriples] {
         layout::assert_upgrade(
             raf_census::ReportKind::Ledger,

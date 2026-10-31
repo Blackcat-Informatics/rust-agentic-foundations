@@ -152,9 +152,10 @@ impl Gate {
         self
     }
 
-    /// Set the shared native step/state grant for names and ledger patterns.
+    /// Set the shared native step/state grant for witnesses, names and ledger patterns.
     ///
-    /// Token comparisons and pending pattern hits use this same grant. Source
+    /// Witness pairs, retained states, storage growth, token comparisons and pending
+    /// pattern hits use this same grant. Source
     /// loading keeps its separate original limits; exhausted matching is an error.
     #[must_use]
     pub const fn matching_limits(mut self, limits: MatchLimits) -> Self {
@@ -369,14 +370,15 @@ impl Gate {
             .copied()
             .collect();
         let mut census = Census::from_packages(&workspace, ledger.options(), &consumers)?;
-        references.attach(&mut census)?;
+        let mut limits = self.matching_limits;
+        references.attach(&mut census, &mut limits)?;
         evaluate::evaluate(
             &ledger,
             &workspace,
             census,
             &self.rules,
             &self.extensions,
-            self.matching_limits,
+            limits,
             &references,
         )
     }
@@ -428,14 +430,15 @@ impl Gate {
         };
         let mut census =
             Census::from_packages(&workspace, ledger.options(), &references.consumers)?;
-        references.attach(&mut census)?;
+        let mut limits = self.matching_limits;
+        references.attach(&mut census, &mut limits)?;
         evaluate::evaluate(
             &ledger,
             &workspace,
             census,
             &self.rules,
             &self.extensions,
-            self.matching_limits,
+            limits,
             &references,
         )
     }

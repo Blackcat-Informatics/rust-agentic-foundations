@@ -597,9 +597,31 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
 }
 
 #[cfg(test)]
+#[path = "../../tests/support/reference.rs"]
+mod reference_fixture;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use raf_rdf::{Builder, Format, Triple};
+
+    fn with_reference_fixture(index: &Graph) -> Graph {
+        let tree = reference_fixture::fixture(
+            "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
+            "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
+        );
+        let report = crate::Gate::workspace(".").check_tree(&tree).unwrap();
+        let reference = report.census().index(report.jobs()).unwrap();
+        let reference = super::super::read::parse(&reference.to_turtle().unwrap(), Format::Turtle)
+            .expect("reference index");
+        let mut builder = Builder::from_graph(index);
+        for triple in reference.assertions() {
+            if !builder.contains(triple.clone()).unwrap() {
+                builder.insert(triple).unwrap();
+            }
+        }
+        builder.finish().unwrap()
+    }
 
     #[test]
     fn every_required_shape_property_has_a_missing_and_unknown_neighbor() {
@@ -613,6 +635,7 @@ mod tests {
             Format::Turtle,
         )
         .expect("index");
+        let index = with_reference_fixture(&index);
         let members = baseline
             .nodes()
             .find(|(_, n)| class(n).ok() == Some("BodyGroup"))

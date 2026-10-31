@@ -886,8 +886,8 @@ The report-reader fuzz target exercises the current valid and invalid seeds
 alongside query result parsing.
 <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
 
-Report fixtures pin layout 4, including its counted debt shape. The report reader
-refuses layouts 1, 2, 3 and a newer layout beside successful round trips of the
+Report fixtures pin layout 5, including its counted debt shape. The report reader
+refuses layouts 1, 2, 3, 4 and a newer layout beside successful round trips of the
 current layout; normal-form golden tests continue to pin the unchanged
 fingerprint bytes.
 

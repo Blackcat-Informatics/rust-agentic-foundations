@@ -7,7 +7,7 @@ subject: cap:census-migration#constraints
 inputs:
   - kind: section
     name: cap:census-migration#constraints
-    digest: b6a170acbd97240ff40bd0a9476686be50a19f96fc02b8cc4efff92fa891b143
+    digest: 0f673290a16083c7da348a9d2277b0e49871073205ca24cd04fdbe0e53995a88
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
     digest: 037ca39bc2decc899ac260c6d2ddb1a6a3336ffa459e90e596b04703870134dd
