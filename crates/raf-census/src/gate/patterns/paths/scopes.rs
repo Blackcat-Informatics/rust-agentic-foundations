@@ -404,6 +404,8 @@ impl Scopes {
                                     path: expanded.segments,
                                     absolute: expanded.absolute,
                                     source_byte: key.alias.source_byte,
+                                    external: key.alias.external,
+                                    frame: key.alias.frame,
                                 },
                                 key.namespace,
                             )?

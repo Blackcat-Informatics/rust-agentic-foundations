@@ -11,14 +11,14 @@ use raf_source::{RelPath, Workspace};
 use super::{GateReport, LedgerExtension, SYMBOL_ANCHOR_PREFIX, owners, rules};
 use crate::{
     Census, DebtGroup, DebtRecord, Error, Fingerprint, Job, JobReport, Ledger, LedgerJob,
-    MatchClass, NORMAL_FORM, Rule, Unit,
+    MatchClass, NORMAL_FORM, Unit,
 };
 
 pub(super) fn evaluate(
     ledger: &Ledger,
     workspace: &Workspace,
     census: Census,
-    registered: &[Box<dyn Rule>],
+    selected: rules::Selected<'_>,
     extensions: &[Box<dyn LedgerExtension>],
     mut limits: MatchLimits,
     references: &super::reference::References<'_>,
@@ -26,7 +26,7 @@ pub(super) fn evaluate(
     let owners = owners::index(&census);
     let code = workspace.code_resolver()?;
     let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
-    let mut collected = rules::collect(workspace, &census, registered, &owners, ledger)?;
+    let mut collected = rules::collect(workspace, &census, &selected, &owners, ledger)?;
     collect_patterns(
         ledger,
         workspace,
@@ -37,7 +37,7 @@ pub(super) fn evaluate(
         &mut limits,
     )?;
     let hits = &collected.hits;
-    let mut findings = Vec::new();
+    let mut findings = selected.findings(hits);
     let mut reports = Vec::new();
     let mut copies = BTreeMap::new();
     for row in ledger.jobs() {

@@ -2708,6 +2708,8 @@ fn default_hasher_detector_uses_visible_std_paths_and_lexical_aliases() {
 
 #[test]
 fn byte_layout_detectors_execute_with_shipping_and_home_package_boundaries() {
+    required_rdf_rules_have_no_home_or_test_exemption();
+    required_rdf_macro_paths_follow_lexical_context();
     let cases = detector_fixtures::LAYOUT;
     let home = "/// Approved implementation.\npub fn home() {}";
     for (id, positive, negative) in cases {
@@ -2737,6 +2739,119 @@ fn byte_layout_detectors_execute_with_shipping_and_home_package_boundaries() {
             .check_tree(&detector_tree(id, &own, ""))
             .unwrap();
         assert!(clean.is_clean(), "{id}: {:?}", clean.findings());
+    }
+}
+
+fn required_rdf_macro_paths_follow_lexical_context() {
+    for (imports, body, forbidden) in [
+        ("", "fn load(value: serde_json::Value){}", true),
+        (
+            "use serde_json as json;",
+            "fn load(value: json::Value){}",
+            true,
+        ),
+        (
+            "mod serde_json {}",
+            "fn load(value: ::serde_json::Value){}",
+            true,
+        ),
+        ("", "use serde_json::Value;", true),
+        ("", "use ::serde_json::Value;", true),
+        (
+            "extern crate purrdf_lex as serde_json;",
+            "fn load(value: ::serde_json::allocation::Resident){}",
+            false,
+        ),
+        (
+            "use purrdf_lex as json;",
+            "fn load(value: json::allocation::Resident){}",
+            false,
+        ),
+        (
+            "mod wrapper {pub mod serde_json {pub struct Value;}}",
+            "fn load(value: wrapper::serde_json::Value){}",
+            false,
+        ),
+        (
+            "mod wrapper {pub mod serde_json {pub struct Value;}}",
+            "use wrapper::serde_json::Value;",
+            false,
+        ),
+        (
+            "mod serde_json {pub struct Value;}",
+            "use crate::serde_json::Value;",
+            false,
+        ),
+    ] {
+        let source = format!("{imports}\nmacro_rules! typed {{()=>{{\n{body}\n}}}}");
+        let report = Gate::workspace(".")
+            .require_rules(["serde-json"])
+            .check_tree(&detector_fixture(base(), "pub fn home(){}", &source))
+            .unwrap();
+        let annotation_hit = report.findings().iter().any(|finding| {
+            finding.starts_with("required rule serde-json:")
+                && finding.contains("consumer/src/lib.rs:3:")
+        });
+        assert_eq!(annotation_hit, forbidden, "{body}: {:?}", report.findings());
+        if !forbidden {
+            assert!(report.is_clean(), "{body}: {:?}", report.findings());
+        }
+    }
+}
+
+fn required_rdf_rules_have_no_home_or_test_exemption() {
+    let home = "/// Home.\npub fn home() {}";
+    for (id, positive, negative) in detector_fixtures::RDF
+        .into_iter()
+        .chain(detector_fixtures::RDF_NESTED)
+    {
+        let gate = Gate::workspace(".").require_rules([id]);
+        for source in [
+            positive.to_owned(),
+            format!("#[cfg(test)] mod oracle {{{positive}}}"),
+        ] {
+            let report = gate
+                .check_tree(&detector_fixture(base(), home, &source))
+                .unwrap();
+            assert_eq!(report.jobs(), []);
+            assert!(
+                report
+                    .findings()
+                    .iter()
+                    .any(|finding| finding.contains(&format!("required rule {id}:"))),
+                "{id}: {:?}",
+                report.findings()
+            );
+        }
+        let clean = gate
+            .check_tree(&detector_fixture(base(), home, negative))
+            .unwrap();
+        assert!(clean.is_clean(), "{id}: {:?}", clean.findings());
+        let report = gate
+            .check_tree(&detector_fixture(detector_ledger(id), home, positive))
+            .unwrap();
+        assert!(
+            report
+                .findings()
+                .iter()
+                .any(|finding| finding.contains(&format!("required rule {id}:")))
+        );
+    }
+    let tree = detector_fixture(base(), home, "");
+    let refused: &[&[&str]] = &[
+        &["missing-rule"],
+        &["home-literal"],
+        &["vocabulary-literal"],
+        &["sole-name"],
+        &["serde-json", "serde-json"],
+    ];
+    for ids in refused {
+        assert!(
+            Gate::workspace(".")
+                .require_rules(ids.iter().copied())
+                .check_tree(&tree)
+                .is_err()
+        );
     }
 }
 

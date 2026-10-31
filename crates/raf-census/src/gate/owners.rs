@@ -303,7 +303,10 @@ mod tests {
                 &ledger,
                 &workspace,
                 census,
-                &[],
+                super::super::rules::Selected {
+                    registered: &[],
+                    required: &[],
+                },
                 &[],
                 purrdf_jsonschema::ecma::MatchLimits::default(),
                 &super::super::reference::References::empty(&workspace),
