@@ -5,8 +5,8 @@
 
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use raf_census::{
-    Census, CensusOptions, ForeignField, ForeignLedgerAdapter, Ledger, MAX_LEDGER_BYTES, Migration,
-    MigrationInput, migrate_legacy, migrate_legacy_with_extensions,
+    Census, CensusOptions, ForeignField, ForeignLedgerAdapter, Ledger, MAX_INDEX_BYTES,
+    MAX_LEDGER_BYTES, Migration, MigrationInput, migrate_legacy, migrate_legacy_with_extensions,
 };
 use raf_source::MemoryTree;
 use std::sync::Mutex;
@@ -479,11 +479,20 @@ fn both_foreign_inputs_enforce_size_and_exact_container_depth_bounds() {
             .len(),
         64
     );
-    let oversized = " ".repeat(MAX_LEDGER_BYTES + 1);
-    for (ledger, baseline) in [(oversized.as_str(), BASELINE), (ROW, oversized.as_str())] {
-        let error = import(ledger, baseline).unwrap_err().to_string();
-        assert!(error.contains("exceeds"), "{error}");
-    }
+    let oversized = " ".repeat(MAX_INDEX_BYTES + 1);
+    let error = import(&oversized[..=MAX_LEDGER_BYTES], BASELINE)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("foreign-ledger.toml") && error.contains("exceeds"),
+        "{error}"
+    );
+    let error = import(ROW, &oversized).unwrap_err().to_string();
+    assert!(
+        error.contains("foreign-baseline.json") && error.contains("exceeds"),
+        "{error}"
+    );
+    drop(oversized);
     for (count, valid) in [(31usize, true), (32, false)] {
         let nested = format!("{}0{}", "[".repeat(count), "]".repeat(count));
         let ledger = format!("nested={nested}\n{ROW}");

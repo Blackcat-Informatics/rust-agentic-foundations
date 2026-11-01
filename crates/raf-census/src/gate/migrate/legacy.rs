@@ -28,8 +28,9 @@ use fields::Fields;
 /// validate. Unknown fields and unmapped fingerprints remain visible for review.
 ///
 /// # Errors
-/// Refuses inputs above one MiB or 32 levels, malformed syntax, ambiguous field
-/// aliases, invalid known fields, source failures or output above the ledger cap.
+/// Refuses ledgers above one MiB, baselines above [`crate::MAX_INDEX_BYTES`],
+/// containers beyond the admitted depth, malformed syntax, ambiguous field aliases,
+/// invalid known fields, source failures or output above the ledger cap.
 /// Neither input nor the source tree is written.
 ///
 /// ```rust

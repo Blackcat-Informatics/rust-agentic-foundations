@@ -142,7 +142,7 @@ metadata fields and retains them in an owned native Extension. Ordered repeated
 array metadata retains order and multiplicity. Dialects are import inputs; the
 Gate does not support their grammars as alternative policy formats.
 
-The native profile admits one MiB of source, 1,048,576 nodes and statements,
+The foreign TOML ledger profile admits one MiB of source, 1,048,576 nodes and statements,
 32 semantic levels and 256 MiB of retained model data. Foreign containers at
 depth 32 refuse while scalars at that depth remain valid. Native signed integer,
 float, signed zero, NaN and temporal distinctions survive parsing. Only the exact
@@ -172,9 +172,12 @@ remain unmapped with their original values; import does not renew source pins.
 
 The actual cargo census migrate command takes --ledger and --index for modern
 migration, or --legacy, --ledger and --baseline for foreign import. --workspace
-selects a directory for native root discovery. Input ledger and foreign baseline
-caps are one MiB; foreign containers allow at most 32 levels. The modern index
-cap equals Source's default total-byte budget, MAX_INDEX_BYTES. Output, including
+selects a directory for native root discovery. Input ledgers are capped at one
+MiB. Native indexes and foreign baselines share the report input cap,
+MAX_INDEX_BYTES, equal to Source's default total-byte budget of 256 MiB. The CLI
+and library enforce that same baseline byte cap. The baseline JSON decoder
+retains at most 32 container levels, 1,048,576 values and one MiB per decoded
+string or member name, and refuses duplicate object members. Output, including
 review comments, is at most the ledger's one-MiB cap. Inputs are read through
 verified DiskTree handles. The command writes only stdout: exit 0 means all rows
 mapped, exit 1 means unmapped rows or an execution/input failure, and exit 2 is

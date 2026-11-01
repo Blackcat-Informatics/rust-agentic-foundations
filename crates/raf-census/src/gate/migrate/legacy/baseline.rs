@@ -11,21 +11,25 @@ use purrdf_lex::json::{
 };
 
 use super::super::{MigrationInput, input};
-use crate::{Error, MAX_LEDGER_BYTES};
+use crate::{Error, MAX_INDEX_BYTES};
+
+// Report length and JSON structural limits are independent.
+const MAX_JSON_VALUES: u64 = 1_048_576;
+const MAX_JSON_STRING_BYTES: usize = 1024 * 1024;
 
 pub(super) type Historical = BTreeMap<String, BTreeSet<String>>;
 
 pub(super) fn read(source: MigrationInput<'_>) -> Result<Historical, Error> {
     let decoded = || {
-        if source.text.len() > MAX_LEDGER_BYTES {
+        if source.text.len() > MAX_INDEX_BYTES {
             return Err(Error::Options(format!(
-                "foreign baseline exceeds {MAX_LEDGER_BYTES} bytes"
+                "foreign baseline exceeds {MAX_INDEX_BYTES} bytes"
             )));
         }
         let limits = json::Limits {
             max_depth: 32,
-            max_values: MAX_LEDGER_BYTES as u64,
-            max_string_bytes: MAX_LEDGER_BYTES,
+            max_values: MAX_JSON_VALUES,
+            max_string_bytes: MAX_JSON_STRING_BYTES,
             unique_members: true,
         };
         let value = json::read_slice(source.text.as_bytes(), limits).map_err(Error::ImportJson)?;

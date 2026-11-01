@@ -180,8 +180,16 @@ fn migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy()
     );
     let foreign = "[census]\n[[job]]\nid='number'\nsummary='The approved constant'\nhome='demo::home'\nentry_points=[]\nenforced=true\n";
     let baseline = r#"{"min_tokens":20,"units":3,"body_groups":[],"shim_groups":[],"hex_tables":[],"shared_constants":[]}"#;
+    // Separate report values exceed the ledger byte cap without
+    // exceeding the baseline decoder's per-string or value-count bounds.
+    let metric = format!("\"{}\",", "x".repeat(MAX_LEDGER_BYTES / 8));
+    let baseline = baseline.replace(
+        "\"hex_tables\":[]",
+        &format!("\"hex_tables\":[{}null]", metric.repeat(9)),
+    );
+    assert!(baseline.len() > MAX_LEDGER_BYTES);
     fs::write(root.join("old.toml"), foreign).unwrap();
-    fs::write(root.join("old.json"), baseline).unwrap();
+    fs::write(root.join("old.json"), &baseline).unwrap();
     let words = [
         "migrate",
         "--legacy",
