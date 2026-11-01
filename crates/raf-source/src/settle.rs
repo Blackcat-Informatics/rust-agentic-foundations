@@ -1578,7 +1578,7 @@ impl Index {
         if targets.is_empty() {
             // Removal may retain an empty tree root. Drop it while the
             // construction lease still owns the original allocation grant.
-            targets = BTreeSet::new();
+            drop(std::mem::take(&mut targets));
         }
         Ok(targets)
     }
@@ -3260,11 +3260,7 @@ impl Index {
             // held imports: tables settled again for a newly held import are
             // thrown away.
             let first = (0..self.uses.len()).find(|at| ambiguous[*at] && !held[*at]);
-            let reconstruct = if first.is_none() {
-                self.drops_need_reconstruction(meter)?
-            } else {
-                false
-            };
+            let reconstruct = first.is_none() && self.drops_need_reconstruction(meter)?;
             let Some(first) = first.or_else(|| reconstruct.then(|| self.glob_imports[0])) else {
                 #[cfg(debug_assertions)]
                 {
