@@ -1371,7 +1371,7 @@ impl Index {
         text: &str,
         steps: Steps<'_>,
     ) -> ResolveError {
-        if let Err(error) = self.record_failed_routes(missing.iter().chain(reads), steps) {
+        if let Err(error) = self.record_failed_routes(reads.iter().chain(missing), steps) {
             return ResolveError::storage(error);
         }
         let mut unsettled = None;

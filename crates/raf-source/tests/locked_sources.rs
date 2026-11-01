@@ -30,13 +30,13 @@ fn reference_observations_verify_manifests_without_admitting_provider_routes() {
         ),
         (
             "app/src/lib.rs",
-            "use renamed::missing as unavailable; mod facade {pub use renamed::missing as alias;} use facade::alias as chained; use std::missing as external; pub fn run() {}",
+            "use renamed::missing as unavailable; mod facade {pub use renamed::missing as alias;} use facade::alias as chained; pub use renamed::api as api_alias; use std::missing as external; pub fn run() {}",
         ),
         (
             "helper/Cargo.toml",
             "[package]\nname='helper'\nversion.workspace=true\nedition='2024'\n",
         ),
-        ("helper/src/lib.rs", "pub fn provided() {}"),
+        ("helper/src/lib.rs", "pub mod api {} pub fn provided() {}"),
         (
             "Cargo.lock",
             "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['helper']\n[[package]]\nname='helper'\nversion='1.0.0'\n",
@@ -104,6 +104,7 @@ fn unresolved_routes_preserve_target_identity_and_query_grants(workspace: &Works
     for (path, expected) in [
         ("app::unavailable", vec!["app", "helper"]),
         ("app::chained", vec!["app", "helper"]),
+        ("app::api_alias::missing", vec!["app", "helper"]),
         ("app::external", vec!["app"]),
     ] {
         assert!(matches!(
@@ -116,11 +117,11 @@ fn unresolved_routes_preserve_target_identity_and_query_grants(workspace: &Works
         else {
             panic!("missing alias acquired a definition");
         };
-        let actual: std::collections::BTreeSet<_> = attempted_targets
+        let actual: Vec<_> = attempted_targets
             .into_iter()
             .map(|id| workspace.target(id).unwrap().package.as_str())
             .collect();
-        assert_eq!(actual, expected.into_iter().collect());
+        assert_eq!(actual, expected, "{path}");
     }
     assert_eq!(
         workspace
