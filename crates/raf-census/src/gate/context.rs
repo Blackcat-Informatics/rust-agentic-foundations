@@ -76,11 +76,8 @@ pub(super) fn collect<'a>(
     }
     for unit in census.units() {
         let key = owners::key(unit);
-        let named = if matches!(unit.kind, UnitKind::Fn | UnitKind::Method | UnitKind::Const) {
-            name_matches(row, &unit.name, limits)?
-        } else {
-            false
-        };
+        let named = matches!(unit.kind, UnitKind::Fn | UnitKind::Method | UnitKind::Const)
+            && name_matches(row, &unit.name, limits)?;
         if named {
             result.names.insert(key.clone());
         }
