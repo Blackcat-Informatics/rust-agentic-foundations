@@ -3,6 +3,8 @@
 
 //! Explicit locally available sources; no Cargo metadata, downloads or cache search.
 
+mod namespace;
+
 use super::refusal;
 use crate::{Error, Ledger};
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
@@ -55,6 +57,50 @@ pub(crate) struct Acquired {
     pub(crate) catalog: LockedCatalog,
     pub(crate) owners: Vec<(PackageId, ReferenceObservation)>,
     pub(crate) references: Vec<ReferenceObservation>,
+    pub(crate) namespace: Option<namespace::Namespace>,
+    origins: OrderedTable<LockedPackageId, Origin>,
+    edges: Vec<NamespaceEdge>,
+    remaining: LoadOptions,
+}
+
+struct NamespaceEdge {
+    owner: LockedPackageId,
+    key: String,
+    registry: Option<(Option<String>, String)>,
+}
+
+impl NamespaceEdge {
+    fn record(
+        edges: &mut Vec<Self>,
+        owner: LockedPackageId,
+        key: &str,
+        registry: Option<&(Option<String>, String)>,
+        memory: &mut Memory<'_, Resident>,
+    ) -> Result<(), Error> {
+        let storage = |source| Error::SourceIndexStorage { source };
+        let registry = if let Some((name, index)) = registry {
+            Some((
+                name.as_deref()
+                    .map(|name| memory.string(name))
+                    .transpose()
+                    .map_err(storage)?,
+                memory.string(index).map_err(storage)?,
+            ))
+        } else {
+            None
+        };
+        let key = memory.string(key).map_err(storage)?;
+        memory
+            .push(
+                edges,
+                Self {
+                    owner,
+                    key,
+                    registry,
+                },
+            )
+            .map_err(storage)
+    }
 }
 
 fn effective_path<'a>(
@@ -228,6 +274,7 @@ struct Sources<'a> {
     origins: OrderedTable<LockedPackageId, Origin>,
     loaded: Rows,
     queue: Vec<LockedPackageId>,
+    edges: Vec<NamespaceEdge>,
 }
 
 fn reference_owners(
@@ -449,14 +496,9 @@ impl<'a> Sources<'a> {
             origins,
             loaded,
             queue,
+            edges,
         } = self;
-        let Inputs {
-            catalog,
-            tree,
-            host,
-            supplied,
-            ..
-        } = *inputs;
+        let Inputs { tree, host, .. } = *inputs;
         let storage = |source| Error::SourceIndexStorage { source };
 
         let spec = declaration
@@ -470,6 +512,15 @@ impl<'a> Sources<'a> {
             return Ok(());
         }
         let (request, row, locator) = inputs.select(owner, declaration, name, options)?;
+        if needed.get(&row).is_some() {
+            NamespaceEdge::record(
+                edges,
+                owner,
+                &declaration.key,
+                locator.and_then(|root| root.registry.as_ref()),
+                memory,
+            )?;
+        }
         if needed.get(&row).is_none()
             || (loaded.get(&row).is_some()
                 && effective_path(declaration, owner_manifest).is_none()
@@ -477,20 +528,7 @@ impl<'a> Sources<'a> {
         {
             return Ok(());
         }
-        let locked = catalog
-            .package(row)
-            .ok_or_else(|| refusal("selected reference row is absent"))?;
-        let mut supplied_matches = supplied.iter().filter(|input| {
-            input.name() == locked.name()
-                && input.version() == locked.version()
-                && input.source() == locked.source()
-        });
-        let supplied_match = supplied_matches.next();
-        if supplied_matches.next().is_some() {
-            return Err(refusal(format!(
-                "multiple supplied observations of {name:?}"
-            )));
-        }
+        let supplied_match = inputs.supplied_observation(row, name)?;
         if locator.is_none()
             && effective_path(declaration, owner_manifest).is_none()
             && let Some(input) = supplied_match
@@ -531,10 +569,13 @@ impl<'a> Sources<'a> {
         loaded.insert(row, (), memory).map_err(storage)?;
         charge(options, &observation)?;
         memory.push(queue, row).map_err(storage)?;
+        // A verified equivalent locator must not move an original consumer
+        // into a dependency authority or change its original manifest base.
+        if owners.iter().any(|(_, input)| input.row() == row) {
+            return Ok(());
+        }
         origins.insert(row, origin, memory).map_err(storage)?;
-        if let Some((_, existing)) = owners.iter_mut().find(|(_, input)| input.row() == row) {
-            *existing = observation;
-        } else if let Some(existing) = references.iter_mut().find(|input| input.row() == row) {
+        if let Some(existing) = references.iter_mut().find(|input| input.row() == row) {
             *existing = observation;
         } else {
             memory.push(references, observation).map_err(storage)?;
@@ -580,7 +621,30 @@ fn verify_existing(
     Ok(())
 }
 
-impl Inputs<'_, '_> {
+impl<'a> Inputs<'a, '_> {
+    fn supplied_observation(
+        &self,
+        row: LockedPackageId,
+        name: &str,
+    ) -> Result<Option<&'a ReferenceObservation>, Error> {
+        let locked = self
+            .catalog
+            .package(row)
+            .ok_or_else(|| refusal("selected reference row is absent"))?;
+        let mut matches = self.supplied.iter().filter(|input| {
+            input.name() == locked.name()
+                && input.version() == locked.version()
+                && input.source() == locked.source()
+        });
+        let selected = matches.next();
+        if matches.next().is_some() {
+            return Err(refusal(format!(
+                "multiple supplied observations of {name:?}"
+            )));
+        }
+        Ok(selected)
+    }
+
     fn needs(&self, owner: LockedPackageId, name: &str, needed: &Rows) -> Result<bool, Error> {
         Ok(self
             .catalog
@@ -827,6 +891,7 @@ pub(crate) fn acquire(
         origins,
         loaded,
         queue,
+        edges: Vec::new(),
     };
     while let Some(owner) = sources.queue.pop() {
         if processed
@@ -852,5 +917,9 @@ pub(crate) fn acquire(
         catalog,
         owners: sources.owners,
         references: sources.references,
+        namespace: None,
+        origins: sources.origins,
+        edges: sources.edges,
+        remaining: options,
     })
 }

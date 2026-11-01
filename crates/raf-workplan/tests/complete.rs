@@ -2773,6 +2773,17 @@ fn a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written() {
         matches!(&failures[0], Failure::Changed { .. }),
         "the change is named first: {refused}"
     );
+    assert!(
+        matches!(&failures[0], Failure::Changed { what }
+        if what.contains("revalidate virtual source")
+            && what.contains("file bytes changed") && what.contains(CAP)),
+        "the original view refusal retains its concrete changed input: {refused}"
+    );
+    assert!(
+        matches!(&failures[0], Failure::Changed { what }
+        if what.contains(&format!("generated rewrite differs at {CAP}"))),
+        "the generated rewrite mismatch names its first path: {refused}"
+    );
     assert_eq!(
         kinds(&refused),
         [ObligationKind::TenseMismatch],

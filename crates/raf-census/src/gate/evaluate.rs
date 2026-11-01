@@ -234,9 +234,15 @@ fn collect_patterns(
         }
         collected.hits.insert(pattern.id.clone(), BTreeMap::new());
     }
-    for found in
-        super::patterns::collect(ledger.patterns(), workspace, census, code, owners, limits)?
-    {
+    for found in super::patterns::collect(
+        ledger.patterns(),
+        workspace,
+        census,
+        code,
+        owners,
+        ledger.reference(),
+        limits,
+    )? {
         rules::record_hit(
             workspace,
             found.file,

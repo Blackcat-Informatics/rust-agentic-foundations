@@ -298,6 +298,55 @@ impl std::fmt::Debug for DiskTree {
 }
 
 impl DiskTree {
+    /// Host-locator size for admitting a structural cross-root path check.
+    pub(crate) fn root_path_bytes(&self) -> usize {
+        self.root.as_os_str().len()
+    }
+
+    fn directory_identity(&self, path: &RelPath) -> Result<FileId, TreeError> {
+        let shown = path.to_string();
+        let handle = self.open(path, Want::Dir, &shown)?;
+        self.used(&handle, &shown, |handle| {
+            handle.identity(&self.root, &shown)
+        })
+    }
+
+    /// Compare package directories, never merely their manifest-file identities.
+    pub(crate) fn dependency_directory_matches(
+        &self,
+        base_manifest: &RelPath,
+        relative: &str,
+        destination: &Self,
+        destination_manifest: &RelPath,
+    ) -> Result<bool, TreeError> {
+        super::require_first_party(base_manifest)?;
+        super::require_first_party(destination_manifest)?;
+        let missing_parent = |path: &RelPath| TreeError::NotRegular {
+            path: path.to_string(),
+        };
+        let base = base_manifest
+            .parent()
+            .ok_or_else(|| missing_parent(base_manifest))?;
+        let target = destination_manifest
+            .parent()
+            .ok_or_else(|| missing_parent(destination_manifest))?;
+        let before = self.directory_identity(&base)?;
+        let declared = Self::new(self.root.join(base.as_str()).join(relative))?;
+        let expected = declared.directory_identity(&RelPath::root())?;
+        let target_identity = destination.directory_identity(&target)?;
+        let actual = Self::new(destination.root.join(target.as_str()))?;
+        let same_directory = actual.directory_identity(&RelPath::root())? == target_identity
+            && expected == target_identity
+            && declared.root == actual.root;
+        if self.directory_identity(&base)? != before {
+            return Err(TreeError::from_io(
+                &base_manifest.to_string(),
+                std::io::Error::other("owning directory changed while checking a reference path"),
+            ));
+        }
+        Ok(same_directory)
+    }
+
     /// Open a tree rooted at `root`, canonicalising it once.
     ///
     /// A symlinked root is followed: the tree is rooted at its target.

@@ -30,6 +30,8 @@ use crate::work::{self, Work};
 
 mod determinacy;
 mod glob_facts;
+mod observation;
+pub use observation::ResolutionAttempt;
 
 /// The items a walk reached, and the modules a keyword path named.
 #[derive(Debug, Default)]
@@ -1369,6 +1371,9 @@ impl Index {
         text: &str,
         steps: Steps<'_>,
     ) -> ResolveError {
+        if let Err(error) = self.record_failed_routes(reads.iter().chain(missing), steps) {
+            return ResolveError::storage(error);
+        }
         let mut unsettled = None;
         for source in missing {
             match self.unsettled_at(source, steps) {
@@ -1431,6 +1436,9 @@ impl Index {
                 return self.refused(refused);
             }
             ambiguous.extend(items);
+            if let Err(error) = self.record_failed_routes(reads.iter(), steps) {
+                return ResolveError::storage(error);
+            }
             for position in following {
                 if let Err(error) = push_work(&mut work, position, stack_steps) {
                     return ResolveError::storage(error);

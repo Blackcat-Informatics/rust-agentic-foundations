@@ -161,8 +161,13 @@ fn prepared_platform_queries() {
     );
     runner.revalidate_view(&prepared).unwrap();
     std::fs::write(root.path().join("input"), b"changed").unwrap();
+    let changed = runner.revalidate_view(&prepared).unwrap_err();
     assert!(
-        matches!(runner.revalidate_view(&prepared), Err(super::ExecError::View(error)) if error.kind() == super::ViewErrorKind::Changed)
+        matches!(&changed, super::ExecError::View(error) if error.kind() == super::ViewErrorKind::Changed)
+    );
+    assert!(
+        changed.to_string().contains("file bytes changed at input"),
+        "{changed}"
     );
     runner.finish_view(&prepared).unwrap();
     assert!(matches!(

@@ -5,8 +5,8 @@
 
 mod locked;
 pub use locked::{
-    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceObservation,
-    ReferenceRequest,
+    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceBinding,
+    ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree,
 };
 
 use std::cmp::Ordering;
@@ -33,7 +33,7 @@ use crate::modtree::{Reach, TargetId, Visited, Walked, Walker, tidy};
 use crate::options::LoadOptions;
 use crate::path::{PathError, RelPath};
 use crate::reach::{self, Node, ReachError, Reachability};
-use crate::resolve::{Resolution, ResolveError};
+use crate::resolve::{Resolution, ResolutionAttempt, ResolveError};
 use crate::target::TargetKind;
 use crate::target::{Context, Package, PackageId, Target, check_crate_paths, derive_targets};
 use crate::tree::Tree;
@@ -91,6 +91,7 @@ pub struct Workspace {
     packages: Vec<Package>,
     dependencies: Vec<Vec<DependencyDeclaration>>,
     locked: Vec<LockedBinding>,
+    references: Vec<LockedBinding>,
     /// Package IDs sorted by display name, then by their exact load-local ID.
     package_names: Vec<PackageId>,
     targets: Vec<Target>,
@@ -107,6 +108,7 @@ impl PartialEq for Workspace {
         self.packages == other.packages
             && self.dependencies == other.dependencies
             && self.locked == other.locked
+            && self.references == other.references
             && self.package_names == other.package_names
             && self.targets == other.targets
             && self.files == other.files
@@ -290,12 +292,11 @@ impl Workspace {
         if let Some(binding) = binding {
             locked::install_edges(
                 binding,
-                found,
+                &reader,
                 &dependencies,
                 &locked,
                 &targets,
                 &mut infos,
-                meter,
             )?;
         }
         let index = Index::build(
@@ -306,10 +307,16 @@ impl Workspace {
             found_files.paths,
             meter,
         )?;
+        let (locked, references) = if binding.is_some_and(locked::BindingLoad::structural) {
+            (Vec::new(), locked)
+        } else {
+            (locked, Vec::new())
+        };
         Ok(Self {
             packages,
             dependencies,
             locked,
+            references,
             package_names,
             targets,
             files,
@@ -527,6 +534,25 @@ impl Workspace {
     pub fn resolve_in(&self, path: &str, namespace: Namespace) -> Result<Resolution, ResolveError> {
         self.index
             .resolve(path, Some(namespace), None, &Meter::query(&self.options))
+    }
+
+    /// Resolve once while observing the native indexed targets of missing routes.
+    ///
+    /// Private aliases participate. Missing dependency items and generated items
+    /// remain unresolved; their attempted routes never establish a definition or
+    /// provider identity. Ordinary [`Self::resolve_in`] behavior is unchanged.
+    /// Observation storage and work share this lookup's original query budgets.
+    ///
+    /// # Errors
+    /// Preserves ambiguity, cycles, broken globs, invalid paths and resource
+    /// refusals. Only ordinary not-found results become observations.
+    pub fn resolve_in_observed(
+        &self,
+        path: &str,
+        namespace: Namespace,
+    ) -> Result<ResolutionAttempt, ResolveError> {
+        self.index
+            .resolve_observed(path, namespace, &Meter::query(&self.options))
     }
 
     /// Resolve a canonical path among the crates of one package, named by its

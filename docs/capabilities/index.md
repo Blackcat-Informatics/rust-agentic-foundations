@@ -14,9 +14,11 @@
 | [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. |  |
 | [census-patterns](./census-patterns.md) | Native RDF declarations for call, path, macro, type, string and balanced-token syntax bans. |  |
 | [census-reference-scan](./census-reference-scan.md) | Compare first-party code with exact dependency identities selected through lock files and manifest declarations. |  |
+| [census-rule-api](./census-rule-api.md) | The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test. |  |
 | [okf-profile](./okf-profile.md) | The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically. |  |
 | [rdf-report-profile](./rdf-report-profile.md) | The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections. |  |
 | [repository-contract](./repository-contract.md) | The tracked document inventory, repository policy gates and accepted assessment check of the unpublished root package. |  |
+| [source-reference-namespace](./source-reference-namespace.md) | One source index across exact first-party and reference contexts without configured provider authority. |  |
 | [workplan-cargo-documentation](./workplan-cargo-documentation.md) | Typed selected Cargo documentation with bounded metadata, complete output and contained HTML observations. |  |
 | [workplan-cli](./workplan-cli.md) | The cargo workplan subcommands, options and exit codes. |  |
 | [workplan-code-reviews](./workplan-code-reviews.md) | Record reviews against actual source revisions and query item currency, coverage and required review policy. |  |
@@ -35,7 +37,6 @@
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
-| [census-rule-api](./census-rule-api.md) | The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test. |  |
 | [source-index](./source-index.md) | The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #\[path\], and a symbol and use-alias index. |  |
 
 ## Designed

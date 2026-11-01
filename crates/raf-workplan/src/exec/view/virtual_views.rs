@@ -93,11 +93,11 @@ impl VirtualViews {
         if actual.captured().capture == view.captured().capture {
             Ok(())
         } else {
-            Err(ViewError::changed(
-                "revalidate virtual source",
-                "the original selected source changed",
-            )
-            .into())
+            Err(view
+                .captured()
+                .capture
+                .changed(&actual.captured().capture, "revalidate virtual source")
+                .into())
         }
     }
 

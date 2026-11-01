@@ -50,7 +50,7 @@ bindings:
     - raf_census::test_crate::census_gate::call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_guessing
   examples:
     - raf_census::example_crate::patterns
-depends: [cap:census-detectors, cap:census-ledger, cap:source-index]
+depends: [cap:census-detectors, cap:census-ledger, cap:source-index, cap:source-reference-namespace]
 ---
 
 # Declarative census patterns
@@ -63,6 +63,17 @@ and variants.
 <!-- raf:tested-by raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours -->
 
 ## Contract
+
+Selected reference packages participate in the same structural source index
+as first-party path and call occurrences. Renamed dependencies and public
+reexports match actual definition identities. A selected reference target
+without an indexed definition refuses rather than becoming an unverified
+spelling match. Admission uses the native failed lookup's attempted targets,
+including private aliases whose declared paths begin in a first-party crate.
+Unrelated unindexed external spellings retain their syntax policy.
+Rule subjects, consumers and debt retain their original
+first-party scope.
+<!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
 
 **Closed declarations.** A ledger links each Pattern through raf:pattern. A declaration has a unique
 raf:patternId, one-line raf:summary and exactly one matcher:
@@ -127,6 +138,18 @@ normal-form version are unchanged.
 
 ## Usage
 
+Select indexed reference definitions for call and path policies. An alias whose
+native route reaches a selected reference but has no definition refuses during
+admission. Supply its missing source context or correct the symbol; changing
+the alias spelling cannot convert missing identity into a syntax observation.
+<!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
+
+Select the reference packages and supply their actual locally available roots
+when an indexed matcher crosses a dependency boundary. The host gate verifies
+cross-root disk paths; an opaque caller-owned tree must contain the path in
+its own authority or supply an actual supported context.
+<!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
+
 Run `raf_census::example_crate::patterns` for a memory-backed canonical ledger
 and paired direct-call and wrapper-call checks.
 
@@ -138,6 +161,15 @@ its original separate allowance.
 <!-- raf:tested-by raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours,raf_census::test_crate::census_gate::lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans -->
 
 ## Examples
+
+A call through a first-party facade and a renamed reference dependency matches
+the referenced function. A same-spelled local function remains a distinct
+definition. Path matching also includes actual import sites; importing a
+forbidden definition is itself an occurrence even if its call is shadowed.
+Both private and public aliases to a missing selected reference definition
+refuse beside the same aliases to an indexed definition. An unindexed standard
+library call through an alias still matches its declared external spelling.
+<!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
 
 The runnable `raf_census::example_crate::patterns` constructs this policy with
 `raf_rdf::Builder`, serializes its canonical snapshot and checks both a direct
@@ -165,6 +197,12 @@ for every matcher, renamed imports and actual cross-crate reexports.
 <!-- raf:tested-by raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours,raf_census::test_crate::census_gate::lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run,raf_census::test_crate::census_gate::lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes,raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
 
 ## Constraints
+
+Namespace lookup requires actual source contexts, not only precomputed
+reference body observations. Missing source contexts or selected definitions
+refuse with a remedy. Structural navigation never supplies configured provider
+proof, and reference files do not become first-party rule subjects.
+<!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
 
 Source ownership queries reuse the native index once per file and byte across
 patterns and constant observations. Candidate scans spend the matching step
@@ -216,6 +254,11 @@ parallel regex engine or second Rust tokenizer is used.
 
 ## Explanation
 
+Fingerprint evidence can compare independent observations. Definition identity
+needs one source index and the actual declaration routes between its packages.
+The original consumer set remains separate from this larger lookup domain.
+<!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
+
 The closed matcher set keeps syntax policy beside the job it protects. Workspace
 definition lookup stays in Source. Shared import observations serve the built-in
 hasher detector and declared patterns; normal-form tokens and literal decoding
@@ -223,6 +266,12 @@ are reused. Native matching limits make unsupported work visible.
 <!-- raf:tested-by raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases,raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours -->
 
 ## Verification
+
+The existing cross-crate pattern case includes selected reference call and
+path aliases, provider reexports, local-definition neighbors and an unresolved
+selected-target refusal. It also checks that reference bodies remain outside
+the first-party census.
+<!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
 
 Production Gate fixtures cover every matcher's positive and negative case,
 balanced wildcards, parameter/local normalization, decoded strings and byte/C
@@ -271,5 +320,5 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::token_patterns_normalize_body_local_declarations_without_renaming_module_items` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
 <!-- raf:generated:end -->

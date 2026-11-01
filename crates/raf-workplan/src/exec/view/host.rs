@@ -395,7 +395,10 @@ impl HostViews {
             )?;
             let actual = Capture::read(&lease.copied_request, &excluded, Some(selection))?;
             if actual != lease.baseline {
-                return Err(ViewError::changed("revalidate completed physical view", "copied bytes, modes, links, directory membership, index or provenance changed during bound execution").into());
+                return Err(lease
+                    .baseline
+                    .changed(&actual, "revalidate completed physical view")
+                    .into());
             }
         }
         Ok(())
@@ -446,7 +449,11 @@ impl HostViews {
         excluded.push(own_exclusion);
         let actual = Capture::read(&prepared.view.request, &excluded, Some(selection))?;
         if actual != prepared.view.capture {
-            return Err(ViewError::changed("revalidate original repository", "selected bytes, modes, links, membership, index or exclusion provenance changed while verification ran").into());
+            return Err(prepared
+                .view
+                .capture
+                .changed(&actual, "revalidate original repository")
+                .into());
         }
         Ok(())
     }

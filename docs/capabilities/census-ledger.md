@@ -151,6 +151,12 @@ context. A physical consumer shared with an ordinary library must also prove
 that ordinary reach; the development target cannot supply the library's missing
 route. Shared physical syntax must have compatible declared configurations.
 
+A selected build script resolves providers only through eligible build
+dependencies. Ordinary and development dependencies cannot authorize its calls,
+and it has no implicit route through its package's ordinary library. A body
+shared with that library must independently prove the library's eligible route;
+the build dependency cannot authorize both contexts.
+
 ### Closed native policy
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation -->
 
@@ -245,6 +251,13 @@ the final nonmutating native result through immutable locals.
 Keep every native call on the returned value's argument/state path; unused
 constructor or observation calls do not establish returned native computation.
 
+For a build script, select `TargetKind::BuildScript` and the Cargo name
+`build-script-build`, supply its independent complete host cfg with
+`DeclaredConfiguration::with_host`, and request its exact `build-dependencies`
+edge. Keep the ordinary library's context and dependencies separate when that
+library also participates.
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library -->
+
 Call Gate::workspace(directory).rules(rules).extensions(extensions).check() for
 a report, or assert_clean() from a repository test. check_tree applies the same
 policy to a caller-owned workspace-root Tree. Ledger exposes validated typed
@@ -295,6 +308,15 @@ Use `Hasher::update(&mut state, input);` as a statement. Binding its borrowed
 result or first assigning `&mut state` to a local is outside the proof grammar.
 An extra unused `Hasher::new()` or finalization call also refuses because its
 receipt does not reach the returned value.
+
+The native Hasher case uses the compiled PurRDF dependency's workspace locator
+and exact lock row to open sealed committed source. The declared APIs resolve
+through `Hasher = Streaming<16384>` to their actual definitions. The same
+consumer source is compiled against that dependency and judged by the Gate;
+its returned `Hash` supplies the bytes checked against a frozen nonempty BLAKE3
+vector. Unavailable committed source refuses instead of substituting a fixture
+implementation or searching a shared package cache.
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation -->
 
 A job may name demo_util::encode as its home, demo_util::public_encode as an
 entry point and a body fingerprint as forbidden. Reexports resolve to physical
@@ -428,8 +450,8 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 | `raf_census::test_crate::census_gate::configured_provider_missing_paths_keep_the_original_typed_source_failure` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::configured_provider_targets::development_routes_prove_selected_consumers_but_never_their_ordinary_reach` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library` | test | [Contract](#contract), [Usage](#usage) |
+| `raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract), [Examples](#examples) |

@@ -25,6 +25,40 @@ pub(super) struct ReferencePackage<'a> {
     pub(super) units: Vec<Unit>,
 }
 
+impl<'a> ReferencePackage<'a> {
+    fn collect(
+        workspace: &'a Workspace,
+        package: PackageId,
+        row: &LockedPackage,
+        ledger: &Ledger,
+    ) -> Result<Self, Error> {
+        let manifest = &workspace
+            .package(package)
+            .ok_or_else(|| refusal("reference package is absent from its observation"))?
+            .manifest;
+        let source = receipt(row, manifest.as_str());
+        let identity = source.identity()?;
+        let mut units = crate::units::collect_packages(
+            workspace,
+            ledger.options(),
+            &BTreeSet::from([package]),
+        )?;
+        for unit in &mut units {
+            unit.file = format!(
+                "reference:{}/{}",
+                crate::report::mint::part(&identity),
+                unit.file
+            );
+        }
+        Ok(Self {
+            workspace,
+            package,
+            source,
+            units,
+        })
+    }
+}
+
 pub(super) struct References<'a> {
     packages: Vec<ReferencePackage<'a>>,
     pub(super) consumers: BTreeSet<PackageId>,
@@ -73,18 +107,33 @@ pub(super) fn receipt(row: &LockedPackage, manifest: &str) -> ReferenceSource {
     }
 }
 
+// Reference navigation accepts both source roles. Provider validation continues
+// to require locked_binding alone; a structural row cannot supply that proof.
+fn reference_row(workspace: &Workspace, package: PackageId) -> Option<raf_source::LockedPackageId> {
+    workspace
+        .reference_binding(package)
+        .map(|binding| binding.row())
+        .or_else(|| {
+            workspace
+                .locked_binding(package)
+                .map(raf_source::LockedBinding::row)
+        })
+}
+
 fn consumer_graph(
     ledger: &Ledger,
     workspace: &Workspace,
     catalog: &LockedCatalog,
     owners: &[(PackageId, ReferenceObservation)],
+    consumers: &BTreeSet<PackageId>,
     memory: &mut Memory<'_, Resident>,
 ) -> Result<OrderedTable<raf_source::LockedPackageId, ()>, Error> {
     let storage = |source| Error::SourceIndexStorage { source };
     let mut reachable = OrderedTable::default();
     let mut pending = Vec::new();
-    for row in workspace
-        .package_ids()
+    for row in consumers
+        .iter()
+        .copied()
         .filter_map(|package| {
             let package_info = workspace.package(package)?;
             if package_info.manifest.authority() != raf_source::SourceAuthorityId::FIRST_PARTY
@@ -92,9 +141,7 @@ fn consumer_graph(
             {
                 return None;
             }
-            workspace
-                .locked_binding(package)
-                .map(raf_source::LockedBinding::row)
+            reference_row(workspace, package)
         })
         .chain(
             owners
@@ -150,7 +197,7 @@ impl<'a> References<'a> {
         let borrowed = Memory::new(&mut resident)
             .collect(observed.iter())
             .map_err(|source| Error::SourceIndexStorage { source })?;
-        Self::prepare_borrowed(ledger, workspace, catalog, &borrowed, owners)
+        Self::prepare_borrowed(ledger, workspace, catalog, &borrowed, owners, None)
     }
 
     pub(super) fn prepare_borrowed(
@@ -159,17 +206,26 @@ impl<'a> References<'a> {
         catalog: &LockedCatalog,
         observed: &[&'a ReferenceObservation],
         owners: &'a [(PackageId, ReferenceObservation)],
+        consumers: Option<&BTreeSet<PackageId>>,
     ) -> Result<Self, Error> {
         let mut resident = Resident;
         let mut memory = Memory::new(&mut resident);
         let storage = |source| Error::SourceIndexStorage { source };
-        let reachable = consumer_graph(ledger, workspace, catalog, owners, &mut memory)?;
         let mut result = Self::empty(workspace);
         result.consumers.retain(|package| {
-            workspace.package(*package).is_some_and(|package| {
-                package.manifest.authority() == raf_source::SourceAuthorityId::FIRST_PARTY
-            })
+            consumers.is_none_or(|subset| subset.contains(package))
+                && workspace.package(*package).is_some_and(|package| {
+                    package.manifest.authority() == raf_source::SourceAuthorityId::FIRST_PARTY
+                })
         });
+        let reachable = consumer_graph(
+            ledger,
+            workspace,
+            catalog,
+            owners,
+            &result.consumers,
+            &mut memory,
+        )?;
         for name in ledger.reference() {
             let mut rows = catalog
                 .packages()
@@ -185,11 +241,11 @@ impl<'a> References<'a> {
                 )));
             }
             let internal = memory
-                .collect(workspace.package_ids().filter(|package| {
+                .collect(
                     workspace
-                        .locked_binding(*package)
-                        .is_some_and(|binding| binding.row() == row.id())
-                }))
+                        .package_ids()
+                        .filter(|package| reference_row(workspace, *package) == Some(row.id())),
+                )
                 .map_err(storage)?;
             let (reference_workspace, package) = if let [package] = internal.as_slice() {
                 result.consumers.remove(package);
@@ -222,33 +278,10 @@ impl<'a> References<'a> {
                     "package {name:?} has multiple loaded manifests"
                 )));
             };
-            let manifest = &reference_workspace
-                .package(package)
-                .ok_or_else(|| refusal("reference package is absent from its observation"))?
-                .manifest;
-            let source = receipt(row, manifest.as_str());
-            let identity = source.identity()?;
-            let mut units = crate::units::collect_packages(
-                reference_workspace,
-                ledger.options(),
-                &BTreeSet::from([package]),
-            )?;
-            for unit in &mut units {
-                unit.file = format!(
-                    "reference:{}/{}",
-                    crate::report::mint::part(&identity),
-                    unit.file
-                );
-            }
             memory
                 .push(
                     &mut result.packages,
-                    ReferencePackage {
-                        workspace: reference_workspace,
-                        package,
-                        source,
-                        units,
-                    },
+                    ReferencePackage::collect(reference_workspace, package, row, ledger)?,
                 )
                 .map_err(storage)?;
         }

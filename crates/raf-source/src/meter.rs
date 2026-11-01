@@ -3,7 +3,7 @@
 
 //! What one load spends against its work and memory budgets.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use purrdf_lex::allocation::{Admission, StorageError};
@@ -11,6 +11,7 @@ use purrdf_lex::walk::WorkList;
 
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
+use crate::modtree::TargetId;
 use crate::options::LoadOptions;
 use crate::path::RelPath;
 use crate::prescan::Scan;
@@ -76,6 +77,49 @@ pub(crate) struct Meter {
 pub(crate) struct Transient<'m> {
     meter: &'m Meter,
     bytes: Cell<usize>,
+}
+
+/// Optional failed-route observations owned by one original query grant.
+pub(crate) struct QueryObservation<'m> {
+    memory: Transient<'m>,
+    targets: RefCell<Vec<TargetId>>,
+}
+
+impl<'m> QueryObservation<'m> {
+    pub(crate) const fn new(meter: &'m Meter) -> Self {
+        Self {
+            memory: Transient::new(meter),
+            targets: RefCell::new(Vec::new()),
+        }
+    }
+
+    pub(crate) fn record(
+        &self,
+        target: TargetId,
+        file: &RelPath,
+        line: Option<usize>,
+    ) -> Result<(), LoadError> {
+        let mut targets = self.targets.borrow_mut();
+        self.memory
+            .work(targets.len().saturating_add(1), file, line)?;
+        if targets.contains(&target) {
+            return Ok(());
+        }
+        let bytes = targets.capacity() * size_of::<TargetId>();
+        let steps = Steps::QueryAt {
+            memory: &self.memory,
+            file,
+            line,
+        };
+        let mut admission = NativeAdmission::resume(steps, bytes);
+        purrdf_lex::allocation::Memory::resume(&mut admission, bytes)
+            .push(&mut targets, target)
+            .map_err(|error| admission.graph_error(error.into()))
+    }
+
+    pub(crate) fn finish(self) -> Vec<TargetId> {
+        self.targets.into_inner()
+    }
 }
 
 impl<'m> Transient<'m> {
@@ -215,7 +259,7 @@ impl<'m> NativeAdmission<'m> {
                     Steps::QueryAt { file, line, .. } | Steps::QueryItems { file, line, .. } => {
                         (file.clone(), line)
                     }
-                    Steps::Load | Steps::Query(_) => (RelPath::root(), None),
+                    Steps::Load | Steps::Query(_) | Steps::Observed(_) => (RelPath::root(), None),
                 }
             };
             LoadError::new(&file, line, LoadErrorKind::Graph(error))
@@ -344,6 +388,8 @@ pub(crate) enum Steps<'m> {
     /// A query after the load: on the query's own meter, against the limit
     /// of the work of one query.
     Query(&'m Meter),
+    /// The same query, with opt-in observations of native failed routes.
+    Observed(&'m QueryObservation<'m>),
     /// Post-load traversal storage charged cumulatively to `ItemBytes`.
     QueryItems {
         meter: &'m Meter,
@@ -364,7 +410,7 @@ impl<'m> Steps<'m> {
             Self::LoadAt { memory, file, line } => memory.charge(bytes, file, Some(line)),
             Self::QueryAt { memory, file, line } => memory.charge(bytes, file, line),
             Self::QueryItems { meter, file, line } => meter.items(bytes, file, line),
-            Self::Load | Self::Query(_) => Ok(()),
+            Self::Load | Self::Query(_) | Self::Observed(_) => Ok(()),
         }
     }
 
@@ -385,14 +431,14 @@ impl<'m> Steps<'m> {
                 crate::work::add(crate::work::Work::LookupCharges, units);
                 Ok(())
             }
-            Self::Load | Self::Query(_) => Ok(()),
+            Self::Load | Self::Query(_) | Self::Observed(_) => Ok(()),
         }
     }
 
     pub(crate) fn temporary(self) -> Option<Transient<'m>> {
         match self {
             Self::LoadAt { memory, .. } | Self::QueryAt { memory, .. } => Some(memory.child()),
-            Self::Load | Self::Query(_) | Self::QueryItems { .. } => None,
+            Self::Load | Self::Query(_) | Self::Observed(_) | Self::QueryItems { .. } => None,
         }
     }
 
@@ -400,13 +446,14 @@ impl<'m> Steps<'m> {
         match self {
             Self::LoadAt { file, line, .. } => Self::LoadAt { memory, file, line },
             Self::QueryAt { file, line, .. } => Self::QueryAt { memory, file, line },
-            Self::Load | Self::Query(_) | Self::QueryItems { .. } => self,
+            Self::Load | Self::Query(_) | Self::Observed(_) | Self::QueryItems { .. } => self,
         }
     }
 
     pub(crate) fn query_meter(self) -> Option<&'m Meter> {
         match self {
             Self::Query(meter) | Self::QueryItems { meter, .. } => Some(meter),
+            Self::Observed(observation) => Some(observation.memory.meter),
             Self::QueryAt { memory, .. } => Some(memory.meter),
             Self::Load | Self::LoadAt { .. } => None,
         }

@@ -85,7 +85,7 @@ inputs:
     digest: d6094a34be80b07cd33928aa689b34ef8cf6e8e8396d61a13ae26318b3d48da7
   - kind: symbol
     name: raf_census::gate::evaluate
-    digest: b2c6a623e8354eb1011498bca138a9a9c8060f12bca702b55aed68a2acfbe76e
+    digest: 73b27c45302b72961699514b5921bef7cc8dea95998dc2a3294ece8d9182365e
   - kind: symbol
     name: raf_census::gate::owners
     digest: 4b4dfa5fa054de94ba02c843d0250930207a6d6595f839521760cf646c41c1ac

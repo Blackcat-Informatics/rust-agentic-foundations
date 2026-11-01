@@ -202,44 +202,41 @@ use crate::work::{self as tally, Work};
 /// module inside it, or nowhere. A level also tells whether the item it is
 /// held at is there only as a companion of an ambiguity (see
 /// [`Index::exposed`]), which does not change how far it is accessible.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Level(usize);
 
 impl Level {
-    /// The mark of a companion on the level of a module.
-    const COMPANION: usize = 1 << (usize::BITS - 1);
+    /// The low bit marks a companion at any visibility.
+    const COMPANION: usize = 1;
     /// Accessible everywhere.
-    pub(crate) const PUBLIC: Self = Self(usize::MAX);
+    pub(crate) const PUBLIC: Self = Self(usize::MAX - 1);
     /// Accessible nowhere: a restriction that names no module.
-    pub(crate) const NOBODY: Self = Self(usize::MAX - 1);
+    pub(crate) const NOBODY: Self = Self(usize::MAX - 3);
 
     /// Accessible within `module`.
     pub(crate) const fn within(module: usize) -> Self {
-        Self(module)
+        // Real module indices come from a Vec<Module>, whose allocation
+        // bound is smaller than this representation's reserved range.
+        assert!(
+            module < Self::NOBODY.0 >> 1,
+            "module index does not fit a visibility level"
+        );
+        Self(module << 1)
     }
 
     /// The level of a companion that is accessible as far as `self` is.
     pub(crate) const fn companion(self) -> Self {
-        match self.plain().0 {
-            usize::MAX => Self(usize::MAX - 2),
-            v if v == usize::MAX - 1 => Self(usize::MAX - 3),
-            v => Self(v | Self::COMPANION),
-        }
+        Self(self.0 | Self::COMPANION)
     }
 
     /// The level without the mark of a companion.
     const fn plain(self) -> Self {
-        match self.0 {
-            v if v == usize::MAX - 2 => Self::PUBLIC,
-            v if v == usize::MAX - 3 => Self::NOBODY,
-            v if v < usize::MAX - 3 => Self(v & !Self::COMPANION),
-            _ => self,
-        }
+        Self(self.0 & !Self::COMPANION)
     }
 
     /// True when the item is held as a companion only.
     const fn is_companion(self) -> bool {
-        self.plain().0 != self.0
+        self.0 & Self::COMPANION != 0
     }
 
     /// The module the level is within, if it is one.
@@ -248,8 +245,29 @@ impl Level {
         if plain.0 >= Self::NOBODY.0 {
             None
         } else {
-            Some(plain.0)
+            Some(plain.0 >> 1)
         }
+    }
+
+    /// Preserve the visibility ordering independently of packed storage.
+    fn order_key(self) -> (u8, usize) {
+        match self.plain() {
+            Self::PUBLIC => (if self.is_companion() { 3 } else { 5 }, 0),
+            Self::NOBODY => (if self.is_companion() { 2 } else { 4 }, 0),
+            plain => (u8::from(self.is_companion()), plain.0 >> 1),
+        }
+    }
+}
+
+impl PartialOrd for Level {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Level {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.order_key().cmp(&other.order_key())
     }
 }
 
@@ -956,17 +974,171 @@ struct Supply<'m> {
     memory: Transient<'m>,
 }
 
+/// A raw name row is unqueried, known absent or known present.
+#[derive(Clone, Copy)]
+enum NameRow<'i> {
+    Unqueried,
+    Known(Option<&'i [Vec<Held>; 3]>),
+}
+
+/// Dense raw-row scratch allocated once for immutable drop discovery.
+struct RowScratch<'i, 'm> {
+    rows: Vec<NameRow<'i>>,
+    touched: Vec<usize>,
+    name: Option<SharedStr>,
+    memory: Transient<'m>,
+}
+
+impl<'i, 'm> RowScratch<'i, 'm> {
+    fn new(
+        views: usize,
+        memory: Transient<'m>,
+        decl: &UseDecl,
+        charge: &dyn Fn(usize) -> Result<(), LoadError>,
+    ) -> Result<Self, LoadError> {
+        charge(views)?;
+        let mut scratch = Self {
+            rows: Vec::new(),
+            touched: Vec::new(),
+            name: None,
+            memory,
+        };
+        let mut admission = NativeAdmission::new(Steps::LoadAt {
+            memory: &scratch.memory,
+            file: &decl.file,
+            line: decl.line,
+        });
+        let result = {
+            let mut native = purrdf_lex::allocation::Memory::new(&mut admission);
+            native
+                .reserve(&mut scratch.rows, views)
+                .and_then(|()| native.reserve(&mut scratch.touched, views))
+        };
+        result.map_err(|error| admission.graph_error(error.into()))?;
+        scratch.rows.resize(views, NameRow::Unqueried);
+        Ok(scratch)
+    }
+
+    /// Insert an unqueried view once, within the pre-admitted capacity.
+    /// Both callers of `fill_raw_row` have already matched `Unqueried`.
+    fn insert(&mut self, view: usize, row: Option<&'i [Vec<Held>; 3]>) {
+        self.touched.push(view);
+        self.rows[view] = NameRow::Known(row);
+    }
+}
+
+/// Raw immutable rows for the active spelling, retaining all three namespaces.
+struct QueryRows<'q, 'i, 'm> {
+    index: &'i Index,
+    name: &'q str,
+    scratch: &'q mut RowScratch<'i, 'm>,
+}
+
+impl<'q, 'i, 'm> QueryRows<'q, 'i, 'm> {
+    fn new(
+        index: &'i Index,
+        name: &'q SharedStr,
+        phase: &'q mut Option<RowScratch<'i, 'm>>,
+        memory: &Transient<'m>,
+        decl: &UseDecl,
+        charge: &dyn Fn(usize) -> Result<(), LoadError>,
+    ) -> Result<Self, LoadError> {
+        if phase.is_none() {
+            *phase = Some(RowScratch::new(
+                index.globs.views.len(),
+                memory.child(),
+                decl,
+                charge,
+            )?);
+        }
+        let scratch = phase.as_mut().expect("the phase row scratch was admitted");
+        charge(1)?;
+        // Equal immutable slices can retain raw rows across namespaces. A
+        // different allocation conservatively resets even for equal text.
+        let same = scratch
+            .name
+            .as_ref()
+            .is_some_and(|previous| std::ptr::eq(previous.as_str(), name.as_str()));
+        if !same {
+            charge(1 + scratch.touched.len())?;
+            for view in scratch.touched.drain(..) {
+                scratch.rows[view] = NameRow::Unqueried;
+            }
+            scratch.name = Some(name.clone());
+        }
+        Ok(Self {
+            index,
+            name,
+            scratch,
+        })
+    }
+
+    /// Whether the caller requests this cache's spelling.
+    fn matches(&self, name: &str) -> bool {
+        std::ptr::eq(name, self.name) || name == self.name
+    }
+
+    /// Read or populate one already-admitted raw name slot without allocating.
+    fn raw_row(&mut self, view: usize) -> Option<&'i [Vec<Held>; 3]> {
+        match self.scratch.rows[view] {
+            NameRow::Known(row) => row,
+            NameRow::Unqueried => self.fill_raw_row(view),
+        }
+    }
+
+    /// Populate an unqueried slot; callers charge before this actual mutation.
+    fn fill_raw_row(&mut self, view: usize) -> Option<&'i [Vec<Held>; 3]> {
+        let row = self.index.globs.views[view]
+            .names
+            .get(self.name)
+            .map(Box::as_ref);
+        self.scratch.insert(view, row);
+        row
+    }
+
+    fn level(
+        &mut self,
+        view: usize,
+        name: &str,
+        at: usize,
+        id: ItemId,
+        charge: &mut dyn FnMut(usize) -> Result<(), LoadError>,
+    ) -> Result<Option<Level>, LoadError> {
+        charge(1)?;
+        if !std::ptr::eq(name, self.name) {
+            charge(1 + name.len().min(self.name.len()))?;
+            if name != self.name {
+                return Ok(self.index.held_level(view, name, at, id));
+            }
+        }
+        charge(1)?;
+        let row = if let NameRow::Known(row) = self.scratch.rows[view] {
+            row
+        } else {
+            charge(1)?;
+            self.fill_raw_row(view)
+        };
+        Ok(row.and_then(|lists| {
+            let held = &lists[at];
+            held.binary_search_by_key(&id, |entry| entry.0)
+                .ok()
+                .map(|place| held[place].1)
+        }))
+    }
+}
+
 /// One discovery query context; all retained proofs remain owned by Supply.
-struct Routing<'a, 'm> {
-    index: &'a Index,
+struct Routing<'a, 'i, 'm> {
+    index: &'i Index,
     supply: &'a mut Supply<'m>,
     reader: usize,
     name: &'a SharedStr,
     at: usize,
     charge: &'a dyn Fn(usize) -> Result<(), LoadError>,
+    rows: QueryRows<'a, 'i, 'm>,
 }
 
-impl Routing<'_, '_> {
+impl Routing<'_, '_, '_> {
     fn ask(&mut self, from: usize, id: ItemId, level: Level, returning: bool) -> bool {
         self.index.supplied(
             self.supply,
@@ -978,6 +1150,7 @@ impl Routing<'_, '_> {
             id,
             level,
             returning,
+            Some(&mut self.rows),
         )
     }
 
@@ -993,9 +1166,13 @@ impl Routing<'_, '_> {
         }
         if self.supply.cut_reader == Some(self.reader) {
             let key = (id, self.name.clone(), self.at, required, true);
-            let proof = self
-                .index
-                .retained_cut(self.supply, self.charge, self.reader, &key)?;
+            let proof = self.index.retained_cut(
+                self.supply,
+                self.charge,
+                self.reader,
+                &key,
+                Some(&mut self.rows),
+            )?;
             return apply(cut::Returning::Cut(proof));
         }
         let other = (id, self.name.clone(), self.at, required, false);
@@ -1009,9 +1186,9 @@ impl Routing<'_, '_> {
         } else {
             (id, self.name.clone(), self.at, required, true)
         };
-        let proof = self
-            .index
-            .retained_holding(self.supply, self.charge, &key)?;
+        let proof =
+            self.index
+                .retained_holding(self.supply, self.charge, &key, Some(&mut self.rows))?;
         let reader = proof.span.get(&self.reader).copied();
         apply(cut::Returning::Full(proof, reader))
     }
@@ -1419,6 +1596,20 @@ impl Index {
         }
     }
 
+    /// Compare widths directly for equal levels and the reserved endpoints.
+    fn width_order(&self, left: Level, right: Level) -> std::cmp::Ordering {
+        let (left, right) = (left.plain(), right.plain());
+        if left == right {
+            std::cmp::Ordering::Equal
+        } else {
+            match (left, right) {
+                (Level::PUBLIC, _) | (_, Level::NOBODY) => std::cmp::Ordering::Less,
+                (_, Level::PUBLIC) | (Level::NOBODY, _) => std::cmp::Ordering::Greater,
+                _ => self.width(left).cmp(&self.width(right)),
+            }
+        }
+    }
+
     /// Whether an offered route covers every importer of the required level.
     /// Holder routes cross module branches, so depth alone cannot establish
     /// containment as it can for two levels on one ancestor chain.
@@ -1453,7 +1644,7 @@ impl Index {
     /// Of two levels of one chain of ancestors the one more modules can
     /// access.
     pub(crate) fn wider(&self, left: Level, right: Level) -> Level {
-        if self.width(right) < self.width(left) {
+        if self.width_order(right, left).is_lt() {
             right
         } else {
             left
@@ -1464,7 +1655,7 @@ impl Index {
     /// access: what a binding is accessible at when it is imported at one
     /// level a binding that is accessible at the other.
     pub(crate) fn meet(&self, left: Level, right: Level) -> Level {
-        if self.width(right) > self.width(left) {
+        if self.width_order(right, left).is_gt() {
             right
         } else {
             left
@@ -1706,6 +1897,22 @@ impl Index {
             .map(|place| held[place].1)
     }
 
+    /// Reuse only raw rows of the current immutable discovery query.
+    fn routed_level(
+        &self,
+        view: usize,
+        name: &str,
+        at: usize,
+        id: ItemId,
+        rows: &mut Option<&mut QueryRows<'_, '_, '_>>,
+        charge: &mut dyn FnMut(usize) -> Result<(), LoadError>,
+    ) -> Result<Option<Level>, LoadError> {
+        match rows {
+            Some(rows) => rows.level(view, name, at, id, charge),
+            None => Ok(self.held_level(view, name, at, id)),
+        }
+    }
+
     /// A hidden route can carry ambiguity at a wider level without becoming
     /// an independent route there. Only a settled companion view witnesses
     /// that widening; a plain route of the same identity cannot do so.
@@ -1715,10 +1922,11 @@ impl Index {
         id: ItemId,
         required: Level,
         charge: &mut dyn FnMut(usize) -> Result<(), LoadError>,
+        rows: &mut Option<&mut QueryRows<'_, '_, '_>>,
     ) -> Result<bool, LoadError> {
         for view in self.exports_of(place.0) {
             charge(1)?;
-            if let Some(level) = self.held_level(*view, &place.1, place.2, id)
+            if let Some(level) = self.routed_level(*view, &place.1, place.2, id, rows, charge)?
                 && level.is_companion()
                 && self.level_covers(level, required, charge)?
             {
@@ -1876,6 +2084,24 @@ impl Index {
             .or_else(|| self.globs.strings.get(name).map(AsRef::as_ref))
     }
 
+    /// Admit the holder-place cursor before constructing its borrowed lists.
+    fn admitted_holders(
+        &self,
+        module: usize,
+        name: &str,
+        steps: Steps<'_>,
+    ) -> Result<Holders<'_>, Fail> {
+        if let Some(views) = self.globs.holding.get(name)
+            && views.len() < self.reads_of(module).len()
+        {
+            steps.storage_work(views.len()).map_err(Fail::Storage)?;
+            steps
+                .reserve(vec_first::<&[usize]>() + views.len() * vec_slot::<&[usize]>())
+                .map_err(Fail::Storage)?;
+        }
+        Ok(self.reads_holding(module, name))
+    }
+
     /// Reserve a lookup's owned buffers from the routes it will actually
     /// visit. Per-route bounds cover Routes/RouteVis, up to three concurrent
     /// visibility buffers while widening/filtering, and the original and
@@ -1889,15 +2115,7 @@ impl Index {
         at: usize,
         steps: Steps<'_>,
     ) -> Result<(), Fail> {
-        if let Some(views) = self.globs.holding.get(name)
-            && views.len() < self.reads_of(module).len()
-        {
-            steps.storage_work(views.len()).map_err(Fail::Storage)?;
-            steps
-                .reserve(vec_first::<&[usize]>() + views.len() * vec_slot::<&[usize]>())
-                .map_err(Fail::Storage)?;
-        }
-        let reads = self.reads_holding(module, name);
+        let reads = self.admitted_holders(module, name, steps)?;
         steps.storage_work(reads.len()).map_err(Fail::Storage)?;
         let mut bytes = vec_first::<Routes<'_>>()
             + 2 * vec_first::<(ItemId, Origin)>()
@@ -2066,7 +2284,7 @@ impl Index {
         class: Option<&[bool]>,
         visits: Work,
     ) -> Vec<(&'a GlobRead, Cow<'a, [Held]>)> {
-        let mut found = self.read_lists(reads, name, at, visits);
+        let mut found = self.read_lists(reads, name, at, visits, None);
         for (read, held) in &mut found {
             self.filter_delivered((module, name, at), read, class, held, Work::ListCopies);
         }
@@ -2130,6 +2348,34 @@ impl Index {
         }
     }
 
+    /// Borrow a frozen, sorted row after applying its recorded support.
+    /// No accessible support leaves the entire source unchanged. Otherwise
+    /// only supported IDs survive, firm within the intersection of their
+    /// carried visibility and the independently recorded support.
+    fn known_delivered<'a>(
+        &'a self,
+        module: usize,
+        class: &'a [bool],
+        replacements: &'a [Held],
+        held: &'a [Held],
+    ) -> impl Iterator<Item = Held> + 'a {
+        let active = replacements
+            .iter()
+            .any(|entry| self.allowed(module, class, entry.1));
+        let mut position = 0;
+        held.iter().copied().filter_map(move |entry| {
+            if !active {
+                return Some(entry);
+            }
+            while position < replacements.len() && replacements[position].0 < entry.0 {
+                position += 1;
+            }
+            let &(id, support) = replacements.get(position)?;
+            (id == entry.0 && self.allowed(module, class, support))
+                .then(|| (entry.0, self.meet(entry.1.plain(), support)))
+        })
+    }
+
     /// The items of the view each of the glob reads `reads` of a module
     /// reads under `name` in the name space at `at`, for the reads whose view
     /// holds any. Each glob read looked at is counted as `visits`; the
@@ -2140,11 +2386,29 @@ impl Index {
         name: &str,
         at: usize,
         visits: Work,
+        rows: Option<&mut QueryRows<'_, 'a, '_>>,
     ) -> Vec<(&'a GlobRead, Cow<'a, [Held]>)> {
         let mut found = Vec::new();
+        let mut previous = None;
+        // Discovery prepays this match and each possible cache access. Other
+        // callers retain the direct lookup and persisted delivery filtering.
+        let mut rows = rows.filter(|rows| rows.matches(name));
         for read in reads {
             tally::add(visits, 1);
-            let Some(lists) = self.globs.views[read.view].names.get(name) else {
+            // Holder places keep one view's reads together. Its immutable
+            // name row is shared while each individual read is still visited.
+            let lists = match previous {
+                Some((view, lists)) if view == read.view => lists,
+                _ => {
+                    let lists = match &mut rows {
+                        Some(rows) => rows.raw_row(read.view),
+                        None => self.globs.views[read.view].names.get(name).map(Box::as_ref),
+                    };
+                    previous = Some((read.view, lists));
+                    lists
+                }
+            };
+            let Some(lists) = lists else {
                 continue;
             };
             if !lists[at].is_empty() {
@@ -2187,7 +2451,7 @@ impl Index {
         (module, name, at): (usize, &str, usize),
         found: &[(&GlobRead, Cow<'_, [Held]>)],
         memory: &Transient<'_>,
-        routed: &mut Routing<'_, '_>,
+        routed: &mut Routing<'_, '_, '_>,
         charge: &dyn Fn(usize) -> Result<(), LoadError>,
     ) -> Result<Redelivery<'a>, LoadError> {
         let decl = &self.uses[self.glob_imports[0]];
@@ -2201,7 +2465,19 @@ impl Index {
         // whose returning canonical candidate is marked as a companion.
         for (this, (read, held)) in found.iter().enumerate() {
             charge(1 + held.len())?;
-            let glob = self.level_of(&self.uses[read.glob].vis, module, Steps::Load);
+            let glob = {
+                let visibility_memory = memory.child();
+                self.read_level_of(
+                    &self.uses[read.glob].vis,
+                    module,
+                    Steps::LoadAt {
+                        memory: &visibility_memory,
+                        file: &decl.file,
+                        line: decl.line,
+                    },
+                )
+                .map_err(crate::settle::storage_failure)?
+            };
             for (id, level) in held.iter() {
                 charge(search_units(carriers.len()) + search_units(supporters.len()))?;
                 carriers.entry(*id).or_default().push(this);
@@ -2215,7 +2491,10 @@ impl Index {
         }
         for list in supporters.values_mut() {
             charge(sort_units(list.len()))?;
-            list.sort_by_key(|(level, other)| (self.width(*level), *other));
+            list.sort_by(|(left, left_other), (right, right_other)| {
+                self.width_order(*left, *right)
+                    .then_with(|| left_other.cmp(right_other))
+            });
         }
         let groups_memory = memory.child();
         let groups = self.selection_groups(found, &answer, &supporters, &groups_memory, charge)?;
@@ -2332,7 +2611,7 @@ impl Index {
         id: ItemId,
         best: [Option<(Level, usize)>; 2],
         module: usize,
-        routed: &mut Routing<'_, '_>,
+        routed: &mut Routing<'_, '_, '_>,
         selected: &mut [Option<Level>],
         charge: &dyn Fn(usize) -> Result<(), LoadError>,
     ) -> Result<bool, LoadError> {
@@ -2435,7 +2714,7 @@ impl Index {
         supporters: &[(Level, usize)],
         (excluded, generation): (&[usize], usize),
         id: ItemId,
-        routed: &mut Routing<'_, '_>,
+        routed: &mut Routing<'_, '_, '_>,
         charge: &dyn Fn(usize) -> Result<(), LoadError>,
     ) -> Result<[Option<(Level, usize)>; 2], LoadError> {
         let mut best = [None, None];
@@ -2497,7 +2776,7 @@ impl Index {
     ) -> Result<bool, LoadError> {
         charge(held.len())?;
         Ok(!held.iter().any(|(other, original)| {
-            *other != id && !original.is_companion() && self.width(*original) < self.width(level)
+            *other != id && !original.is_companion() && self.width_order(*original, level).is_lt()
         }))
     }
 
@@ -2508,7 +2787,7 @@ impl Index {
         found: &(&GlobRead, Cow<'_, [Held]>),
         id: ItemId,
         level: Level,
-        routed: &mut Routing<'_, '_>,
+        routed: &mut Routing<'_, '_, '_>,
         charge: &dyn Fn(usize) -> Result<(), LoadError>,
     ) -> Result<bool, LoadError> {
         let Some(required) = self.carrier_requirement(found, id, level, charge)? else {
@@ -2585,6 +2864,7 @@ impl Index {
         };
         let companions = self.companion_names(&memory, meter, first)?;
         let mut supply: Option<Supply<'_>> = None;
+        let mut row_scratch = None;
         let mut due: Vec<Replacement> = Vec::new();
         for module in 0..self.globs.reads.len() {
             let reads = self.reads_of(module);
@@ -2592,51 +2872,35 @@ impl Index {
                 continue;
             }
             meter.work(reads.len(), &file, Some(line))?;
-            let entries = reads
-                .iter()
-                .map(|read| companions[read.view].len())
-                .sum::<usize>();
             let names_memory = memory.child();
-            names_memory.charge(
-                hash_map::<(*const u8, usize)>()
-                    + vec_first::<&(SharedStr, usize)>()
-                    + entries
-                        * (hash_entry::<(*const u8, usize)>() + vec_slot::<&(SharedStr, usize)>()),
-                &file,
-                Some(line),
-            )?;
-            meter.work(entries, &file, Some(line))?;
-            // View keys share the canonical text in globs.strings. Its
-            // allocation identity is therefore a constant-size membership
-            // key; hashing it never walks the identifier text again. Keep
-            // processing order in the vector, independent of hash iteration.
-            let mut seen = HashSet::with_hasher(FixedState::new());
-            let names: Vec<_> = reads
-                .iter()
-                .flat_map(|read| &companions[read.view])
-                .filter(|name| seen.insert((name.0.as_ptr(), name.1)))
-                .collect();
+            let names = self.companion_queries(reads, &companions, &names_memory, meter, first)?;
             for (name, at) in names {
                 let query_memory = Transient::new(meter);
-                self.reserve_glob_lookup(
-                    module,
-                    name,
-                    *at,
-                    Steps::LoadAt {
-                        memory: &query_memory,
-                        file: &file,
-                        line,
-                    },
-                )
-                .map_err(crate::settle::storage_failure)?;
-                let holders = self.reads_holding(module, name);
-                meter.work(holders.scanned() + holders.len(), &file, Some(line))?;
-                let found = self.read_lists(holders, name, *at, Work::DropReads);
+                let query_steps = Steps::LoadAt {
+                    memory: &query_memory,
+                    file: &file,
+                    line,
+                };
+                let holders = self
+                    .admitted_holders(module, name, query_steps)
+                    .map_err(crate::settle::storage_failure)?;
+                meter.work(holders.len(), &file, Some(line))?;
+                query_steps.reserve(
+                    vec_first::<(&GlobRead, Cow<'_, [Held]>)>()
+                        + holders.len() * vec_slot::<(&GlobRead, Cow<'_, [Held]>)>(),
+                )?;
+                let charge = |steps: usize| meter.work(steps, &file, Some(line));
+                let mut rows =
+                    QueryRows::new(self, name, &mut row_scratch, &memory, decl, &charge)?;
+                // These are the context's exact constructor inputs, so its
+                // match is constant work. Slot lookup/insertion allocates
+                // nothing; admit both operations per holder before the loop.
+                charge(holders.len().saturating_mul(2).saturating_add(1))?;
+                let found = self.read_lists(holders, name, *at, Work::DropReads, Some(&mut rows));
                 if supply.is_none() {
                     supply = Some(self.supply(meter, first)?);
                 }
                 let supply = supply.as_mut().expect("the supply graph was constructed");
-                let charge = |steps: usize| meter.work(steps, &file, Some(line));
                 let redelivered = self.redelivered(
                     (module, name, *at),
                     &found,
@@ -2648,6 +2912,7 @@ impl Index {
                         name,
                         at: *at,
                         charge: &charge,
+                        rows,
                     },
                     &|units| self.candidate_steps(units, first, meter),
                 )?;
@@ -2662,7 +2927,7 @@ impl Index {
                         };
                         meter.work(search_units(selected.known.len()), &file, Some(line))?;
                         let known = replacement_level(selected.known, *id);
-                        if known.is_none_or(|known| self.width(level) < self.width(known)) {
+                        if known.is_none_or(|known| self.width_order(level, known).is_lt()) {
                             reserve_next(&mut due, steps)?;
                             due.push((read.glob, read.target, name.clone(), *at, *id, level));
                         }
@@ -2670,7 +2935,7 @@ impl Index {
                 }
             }
         }
-        drop((supply, companions));
+        drop((supply, companions, row_scratch));
         self.record_replacements(due, meter, first)
     }
 
@@ -2688,6 +2953,43 @@ impl Index {
         #[cfg(test)]
         reference::discovered();
         Ok(recorded)
+    }
+
+    /// Collect distinct companion queries under the caller's retained lease.
+    fn companion_queries<'a>(
+        &self,
+        reads: &[GlobRead],
+        companions: &'a [Vec<(SharedStr, usize)>],
+        names_memory: &Transient<'_>,
+        meter: &Meter,
+        first: usize,
+    ) -> Result<Vec<&'a (SharedStr, usize)>, LoadError> {
+        let decl = &self.uses[first];
+        let (file, line) = (&decl.file, decl.line);
+        let entries = reads
+            .iter()
+            .map(|read| companions[read.view].len())
+            .sum::<usize>();
+        names_memory.charge(
+            hash_map::<(*const u8, usize)>()
+                + vec_first::<&(SharedStr, usize)>()
+                + entries
+                    * (hash_entry::<(*const u8, usize)>() + vec_slot::<&(SharedStr, usize)>()),
+            file,
+            Some(line),
+        )?;
+        meter.work(entries, file, Some(line))?;
+        // View keys share the canonical text in globs.strings. Its
+        // allocation identity is therefore a constant-size membership
+        // key; hashing it never walks the identifier text again. Keep
+        // processing order in the vector, independent of hash iteration.
+        let mut seen = HashSet::with_hasher(FixedState::new());
+        let names: Vec<_> = reads
+            .iter()
+            .flat_map(|read| &companions[read.view])
+            .filter(|name| seen.insert((name.0.as_ptr(), name.1)))
+            .collect();
+        Ok(names)
     }
 
     /// Admit the names of potentially replaceable views before collecting.
@@ -2756,13 +3058,21 @@ impl Index {
         if self.globs.replaced_names.is_empty() {
             bytes += hash_map::<(SharedStr, [bool; 3])>();
         }
-        if !self.globs.replaced_names.contains_key(name.as_str()) {
+        let recorded = self.globs.replaced_names.get(name.as_str());
+        if recorded.is_none() {
             bytes += hash_entry::<(SharedStr, [bool; 3])>();
         }
+        let publish_name = recorded.is_none_or(|spaces| !spaces[at]);
         if self.globs.drops.is_empty() {
             bytes += btree_map::<(usize, usize), DropNames>();
         }
-        let names = self.globs.drops.get(&(glob, target));
+        // Retain the placement while admitting the row. Publication then uses
+        // the same search, without allocating before the complete grant.
+        let placement = self.globs.drops.entry((glob, target));
+        let names = match &placement {
+            std::collections::btree_map::Entry::Occupied(entry) => Some(entry.get()),
+            std::collections::btree_map::Entry::Vacant(_) => None,
+        };
         if names.is_none() {
             bytes += btree_entry::<(usize, usize), DropNames>()
                 + hash_map::<(SharedStr, [Vec<Held>; 3])>();
@@ -2779,9 +3089,10 @@ impl Index {
             &decl.file,
             Some(decl.line),
         )?;
-        let existing =
-            known.and_then(|entries| entries.binary_search_by_key(&id, |entry| entry.0).ok());
-        if existing.is_none() {
+        let position = known.map_or(Err(0), |entries| {
+            entries.binary_search_by_key(&id, |entry| entry.0)
+        });
+        if position.is_err() {
             bytes += vec_slot::<Held>()
                 + if known.is_none_or(Vec::is_empty) {
                     vec_first::<Held>()
@@ -2790,15 +3101,11 @@ impl Index {
                 };
         }
         meter.items(bytes, &decl.file, Some(decl.line))?;
-        self.globs.replaced_names.entry(name.clone()).or_default()[at] = true;
-        let entries = &mut self
-            .globs
-            .drops
-            .entry((glob, target))
-            .or_default()
-            .entry(name)
-            .or_default()[at];
-        match entries.binary_search_by_key(&id, |entry| entry.0) {
+        if publish_name {
+            self.globs.replaced_names.entry(name.clone()).or_default()[at] = true;
+        }
+        let entries = &mut placement.or_default().entry(name).or_default()[at];
+        match position {
             Ok(place) => entries[place].1 = level,
             Err(place) => {
                 entries.reserve_exact(1);
@@ -2903,6 +3210,7 @@ impl Index {
                     supply,
                     &charge,
                     &(answer.id, name.clone(), at, answer.level, false),
+                    None,
                 )?;
                 if !holding.holds(decl.module) {
                     continue;
@@ -2924,6 +3232,7 @@ impl Index {
                             answer.level,
                             false,
                         ),
+                        None,
                     )?;
                     if !holding.holds(source.module) {
                         continue;
@@ -2977,6 +3286,7 @@ impl Index {
                     Level::within(cut.source.module),
                     false,
                 ),
+                None,
             )?;
             if !holding.holds(cut.source.module) {
                 return Ok(false);
@@ -3108,6 +3418,7 @@ impl Index {
         id: ItemId,
         required: Level,
         returning: bool,
+        rows: Option<&mut QueryRows<'_, '_, '_>>,
     ) -> bool {
         let required = required.plain();
         if supply.refused.is_some() || from == reader || required == Level::NOBODY {
@@ -3145,7 +3456,7 @@ impl Index {
         if supply.cut_reader == Some(reader) {
             let key = (id, name.clone(), at, required, returning);
             return match self
-                .retained_cut(supply, charge, reader, &key)
+                .retained_cut(supply, charge, reader, &key, rows)
                 .and_then(|proof| proof.answer(from, returning, charge))
             {
                 Ok(answer) => answer,
@@ -3165,7 +3476,7 @@ impl Index {
         } else {
             (id, name.clone(), at, required, returning)
         };
-        let holding = match self.retained_holding(supply, charge, &key) {
+        let holding = match self.retained_holding(supply, charge, &key, rows) {
             Ok(holding) => holding,
             Err(refused) => {
                 supply.refused = Some(refused);
@@ -3188,11 +3499,12 @@ impl Index {
         supply: &'s mut Supply<'_>,
         charge: &dyn Fn(usize) -> Result<(), LoadError>,
         key: &HoldingKey,
+        rows: Option<&mut QueryRows<'_, '_, '_>>,
     ) -> Result<&'s Holding, LoadError> {
         #[cfg(test)]
         reference::retrieved_holder();
         if !supply.holdings.contains_key(key) {
-            let holding = self.holding(supply, charge, key)?;
+            let holding = self.holding(supply, charge, key, rows)?;
             let decl = &self.uses[self.glob_imports[0]];
             supply.memory.charge(
                 btree_entry::<HoldingKey, Holding>(),
@@ -3216,6 +3528,7 @@ impl Index {
         supply: &Supply<'_>,
         charge: &dyn Fn(usize) -> Result<(), LoadError>,
         query: &HoldingKey,
+        mut rows: Option<&mut QueryRows<'_, '_, '_>>,
     ) -> Result<Holding, LoadError> {
         let (id, name, at, required, carried) = query;
         let (id, at, required, carried) = (*id, *at, *required, *carried);
@@ -3253,10 +3566,14 @@ impl Index {
         }
         let mut next = 1;
         while let Some(held) = graph.nodes.get(next).cloned() {
-            firm_equivalent &=
-                self.visit_holder_routes(supply, query, &held, &mut step, |destination, step| {
-                    graph.edge(next, destination, step, &admit)
-                })?;
+            firm_equivalent &= self.visit_holder_routes(
+                supply,
+                query,
+                &held,
+                &mut step,
+                &mut rows,
+                |destination, step| graph.edge(next, destination, step, &admit),
+            )?;
             next += 1;
         }
         let stack_steps = Steps::LoadAt {
@@ -3342,7 +3659,7 @@ impl Index {
                 tally::add(Work::LookupCharges, units);
                 meter.count_query(units, module);
             }
-            Steps::QueryAt { .. } | Steps::QueryItems { .. } => {
+            Steps::Observed(_) | Steps::QueryAt { .. } | Steps::QueryItems { .. } => {
                 tally::add(Work::LookupCharges, units);
                 steps
                     .query_meter()
@@ -3416,7 +3733,7 @@ impl Index {
         held.sort_unstable_by(|left, right| {
             left.0
                 .cmp(&right.0)
-                .then(self.width(left.1).cmp(&self.width(right.1)))
+                .then_with(|| self.width_order(left.1, right.1))
         });
         held.dedup_by(|later, retained| {
             if later.0 != retained.0 {
@@ -3442,16 +3759,28 @@ impl Index {
         held: &[Held],
         into: (&mut Vec<Held>, &mut Vec<Held>),
     ) {
+        self.glob_held_iter(module, class, glob, held.iter().copied(), into);
+    }
+
+    /// The same exposure policy for an admitted borrowed selection.
+    fn glob_held_iter(
+        &self,
+        module: usize,
+        class: &[bool],
+        glob: Level,
+        held: impl Iterator<Item = Held>,
+        into: (&mut Vec<Held>, &mut Vec<Held>),
+    ) {
         let (seen, hidden) = into;
         for (id, level) in held {
-            let mut met = self.meet(glob, *level).plain();
+            let mut met = self.meet(glob, level).plain();
             if level.is_companion() {
                 met = met.companion();
             }
             if self.allowed(module, class, met) {
-                seen.push((*id, met));
+                seen.push((id, met));
             } else {
-                hidden.push((*id, met));
+                hidden.push((id, met));
             }
         }
     }
@@ -3652,19 +3981,27 @@ impl Index {
         self.charge_steps(ids.len(), self.globs.views[view].site, meter)?;
         tally::add(Work::CandidateSteps, ids.len());
         let held = self.globs.views[view].names.get(name);
+        let mut new = 0;
         let fresh: Vec<Held> = ids
             .iter()
             .copied()
             .filter(|(id, level)| {
-                held.is_none_or(|lists| {
+                let known = held.and_then(|lists| {
                     lists[at]
                         .binary_search_by_key(id, |known| known.0)
-                        .map_or(true, |place| {
-                            let known = lists[at][place].1;
-                            self.width(*level) < self.width(known)
-                                || known.is_companion() && !level.is_companion()
-                        })
-                })
+                        .ok()
+                        .map(|place| lists[at][place].1)
+                });
+                match known {
+                    None => {
+                        new += 1;
+                        true
+                    }
+                    Some(known) => {
+                        self.width_order(*level, known).is_lt()
+                            || known.is_companion() && !level.is_companion()
+                    }
+                }
             })
             .collect();
         if fresh.is_empty() {
@@ -3673,14 +4010,6 @@ impl Index {
                 _memory: memory,
             });
         }
-        let new = fresh
-            .iter()
-            .filter(|(id, _)| {
-                held.is_none_or(|lists| {
-                    lists[at].binary_search_by_key(id, |known| known.0).is_err()
-                })
-            })
-            .count();
         let mut bytes = new * vec_slot::<Held>();
         if held.is_none_or(|lists| lists[at].is_empty()) {
             bytes += vec_first::<Held>();
@@ -3696,7 +4025,7 @@ impl Index {
                 bytes += shared_text(name.len()) + hash_entry::<SharedStr>();
             }
             let text = known.is_none();
-            Some((known.unwrap_or_else(|| SharedStr::from(name)), text))
+            Some((known, text))
         };
         // A companion may be the first held under the name.
         if fresh.iter().any(|entry| entry.1.is_companion())
@@ -3713,6 +4042,8 @@ impl Index {
             )?;
         }
         self.charge_tables(bytes, self.globs.views[view].site, meter)?;
+        // Text construction belongs to the complete table/name grant too.
+        let key = key.map(|(known, text)| (known.unwrap_or_else(|| SharedStr::from(name)), text));
         // Each entry as the view holds it once added: an item new to the
         // view as it comes, and one it holds as wide as the wider of the two
         // routes, a companion only if both are.
@@ -3729,17 +4060,20 @@ impl Index {
 
     /// The levels retained after incoming routes widen existing entries.
     fn widened_entries(&self, view: usize, name: &str, at: usize, fresh: &[Held]) -> Vec<Held> {
+        let held = self.globs.views[view]
+            .names
+            .get(name)
+            .map(|lists| &lists[at]);
         fresh
             .iter()
             .map(|entry| {
-                let known = self.globs.views[view].names.get(name).and_then(|lists| {
-                    lists[at]
-                        .binary_search_by_key(&entry.0, |known| known.0)
+                let known = held.and_then(|held| {
+                    held.binary_search_by_key(&entry.0, |known| known.0)
                         .ok()
-                        .map(|place| lists[at][place].1)
+                        .map(|place| held[place].1)
                 });
                 let Some(known) = known else { return *entry };
-                let mut level = if self.width(entry.1) < self.width(known) {
+                let mut level = if self.width_order(entry.1, known).is_lt() {
                     entry.1.plain()
                 } else {
                     known.plain()
@@ -3811,7 +4145,7 @@ impl Index {
             if let Ok(place) = lists[at].binary_search_by_key(id, |known| known.0) {
                 let known = lists[at][place].1;
                 assert!(
-                    self.width(*level) <= self.width(known)
+                    self.width_order(*level, known).is_le()
                         && (known.is_companion() || !level.is_companion()),
                     "the view {view} narrows {id:?} under {name} in the name space {at}: \
                      {known:?} to {level:?}"
@@ -5007,6 +5341,7 @@ impl Index {
         let plain = !self.flagged(name, at) && !self.exports_by_path(module);
         for place in 0..self.globs.exports[module].len() {
             let view = self.globs.exports[module][place];
+            let exact = self.is_exact(view, name, at);
             let own = &self.globs.views[view];
             let held = own
                 .names
@@ -5015,7 +5350,7 @@ impl Index {
                 .filter(|held| !held.is_empty());
             if let Some(held) = held
                 && !self.exports_by_path(module)
-                && !self.is_exact(view, name, at)
+                && !exact
             {
                 self.charge_steps(ids.len(), glob, meter)?;
                 tally::add(Work::CandidateSteps, ids.len());
@@ -5028,13 +5363,13 @@ impl Index {
                 }
             }
             let passed = match held {
-                Some(_) if plain && !self.is_exact(view, name, at) => {
+                Some(_) if plain && !exact => {
                     self.delta(module, view, name, at, level, ids, glob, meter)?
                 }
                 held => {
                     let holds = held.is_some();
                     self.arrival(
-                        module, view, name, at, level, ids, holds, plain, glob, meter,
+                        module, view, name, at, level, ids, holds, plain, exact, glob, meter,
                     )?
                 }
             };
@@ -5072,7 +5407,7 @@ impl Index {
             let kept = held
                 .binary_search_by_key(id, |known| known.0)
                 .is_ok_and(|place| {
-                    self.width(held[place].1) <= self.width(met)
+                    self.width_order(held[place].1, met).is_le()
                         && (!shown || item.is_companion() || !held[place].1.is_companion())
                 });
             if !kept {
@@ -5175,10 +5510,11 @@ impl Index {
         ids: &[Held],
         holds: bool,
         plain: bool,
+        exact: bool,
         glob: usize,
         meter: &Meter,
     ) -> Result<Option<Vec<Held>>, LoadError> {
-        if self.is_exact(view, name, at) || self.replaced(name, at) {
+        if exact || self.replaced(name, at) {
             let class = &self.globs.views[view].class;
             return self
                 .export_ids(module, class, name, at, glob, meter)
@@ -5188,7 +5524,7 @@ impl Index {
         let class: &[bool] = &own.class;
         let (mut seen, mut hidden) = (Vec::new(), Vec::new());
         self.glob_held(module, class, level, ids, (&mut seen, &mut hidden));
-        let fresh = plain && !holds && !self.is_exact(view, name, at);
+        let fresh = plain && !holds;
         let (passed, hide) = if !seen.is_empty() {
             if own.hidden
                 && hidden.is_empty()
