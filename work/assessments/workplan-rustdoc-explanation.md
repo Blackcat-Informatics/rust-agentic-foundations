@@ -7,7 +7,7 @@ subject: cap:workplan-rustdoc#explanation
 inputs:
   - kind: section
     name: cap:workplan-rustdoc#explanation
-    digest: 6867d1dc8c72aeab0e452141d2eebd4eb8b813f92fa3ddada5e211386669c618
+    digest: 59b78dbd0e0265500b90a2d6a0076ad264c09ee09094ae4015387e573549d86c
 verdict: accepted
 by: agent
 ---

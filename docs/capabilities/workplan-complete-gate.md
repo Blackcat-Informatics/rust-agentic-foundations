@@ -8,6 +8,8 @@ description: "change complete and verify: the six completion conditions, lighter
 state: delivered
 bindings:
   code:
+    - raf_workplan::build_script::main
+    - raf_workplan::bin_crate::raf_exec_host::main
     - raf_workplan::Gate::open
     - raf_workplan::Gate::open_with_runner
     - raf_workplan::Gate::tracked_list
@@ -169,6 +171,7 @@ bindings:
     - raf_workplan::test_crate::exec::stubs::a_failing_exit_code_and_a_signal_are_outputs_and_not_errors
     - raf_workplan::test_crate::exec::stubs::a_file_that_cannot_be_executed_is_a_spawn_error
     - raf_workplan::exec::system::tests::a_process_inside_its_limit_passes
+    - raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_is_killed_with_its_namespace
     - raf_workplan::exec::system::tests::a_process_that_never_stops_writing_is_killed_at_the_bound
     - raf_workplan::exec::system::tests::both_streams_are_drained_at_once
     - raf_workplan::test_crate::exec::stubs::nothing_else_is_added_to_the_environment
@@ -498,7 +501,8 @@ containment or supervision after the runner exits.
 <!-- raf:tested-by raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table,raf_workplan::test_crate::exec::every_pattern_accepts_what_it_states,raf_workplan::test_crate::exec::every_pattern_refuses_what_it_does_not_state,raf_workplan::test_crate::exec::every_pattern_refuses_hostile_values,raf_workplan::test_crate::exec::a_test_filter_always_follows_a_separator_and_never_leads,raf_workplan::test_crate::exec::stubs::every_row_reaches_a_process_as_exactly_its_argv -->
 
 Bound tests and examples run only through the argv forms below. Each
-process is spawned directly with no shell and with its arguments as an argv vector.
+payload is launched through native containment with no shell and with its
+arguments as an argv vector.
 The program is the one named by `$CARGO` when that is set, and `cargo` from `PATH`
 otherwise. Every call carries `--frozen`, so completion never reaches the network or
 rewrites `Cargo.lock`. The placeholders are filled only from the source index, never
@@ -580,7 +584,7 @@ cargo configuration as `cargo test` would, so the workspace is trusted build inp
 Each list pass and run pass of `cargo test` may compile first and has a
 timeout of 1800 seconds. The standard output and the standard error of every process
 of a bound run are each read up to 16 MiB. A process that runs past its timeout or
-writes more than the bound is killed, its process group with it on Unix, and the
+writes more than the bound is killed with its native PID namespace, and the
 binding counts as failing with the time it ran; a process that cannot be started is
 an error and not a verdict.
 
@@ -676,7 +680,20 @@ captured child permissions are restored before its root is exposed. Failed or
 interrupted population therefore retains that private boundary.
 <!-- raf:tested-by cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way -->
 
-Native Linux execution requires `bwrap`. Its process-local mount view exposes
+Native Linux execution requires `bwrap`, pidfds, working PID and mount namespaces,
+executable sealed memfds and `/proc` access. This applies to Git and compiler
+information queries as well as commands and bound verification. The runner
+opens a pidfd of its unreaped outer launcher before any wait and retains that
+identity through execution and teardown. Controlled termination signals that
+handle rather than a numeric process or group identity from launcher metadata.
+Every native runner invocation uses parent-death termination and a namespace
+reaper, including commands outside a prepared filesystem view. Detached
+descendants remain inside that namespace. Missing capability or incomplete
+launcher admission refuses execution rather than using an uncontained process.
+Completed payload status uses shell encoding, including 128 + N for signal N;
+an explicit exit with that number has the same status and remains a failure.
+The runner does not infer signal identity from an encoded status.
+Its process-local mount view exposes
 checked copied inputs at their original logical paths and keeps ambient paths
 above the selected Git top unchanged. Cargo discovers the same first-party
 configuration once, including absolute input paths and configured executable
@@ -794,7 +811,8 @@ ellipsis identifies an excerpt rather than a complete process transcript.
 
 
 For native completion, configure SystemRunner for the original repository and
-keep selected inputs stable until the operation finishes. Completion prepares
+provide `bwrap` with working Linux PID and mount namespaces. Keep selected
+inputs stable until the operation finishes. Completion prepares
 and releases its detached execution view; callers do not create a second
 worktree or redirect bound commands to the original root.
 
@@ -805,6 +823,13 @@ on_view answers for prepared invocations. Ordinary on answers do not satisfy
 prepared invocations.
 
 ## Examples
+
+A bound command's detached descendants remain in its native PID namespace.
+They terminate when the initial command exits or the controlled limit is
+reached. Missing containment or incomplete executable admission produces an
+execution error, while an admitted command that returns a nonzero encoded
+status remains a failed binding.
+<!-- raf:tested-by raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_is_killed_with_its_namespace,raf_workplan::exec::system::tests::a_process_inside_its_limit_passes -->
 
 A named grouped view synchronizes its assets and then has no further edits.
 Removing its declaration and block yields exact owned removals; an unrelated
@@ -1110,9 +1135,9 @@ Further checks:
   runner asks for, so the limit passes after a bounded number of looks and nothing
   waits for it. Each fails its binding with the reason `ran 5.0 s of its 5 s
   limit`, pinned word for word, as a run that timed out after exactly 5 seconds;
-  the test binary that `cargo` started is in the group `cargo` leads, ignores
+  the test binary that `cargo` started remains in its PID namespace, ignores
   SIGHUP, SIGINT and SIGTERM, and never runs the rest of its test after the kill,
-  so only SIGKILL to the group passes; and the passing test beside the one that
+  so namespace termination must reach it; and the passing test beside the one that
   never ends passes. On other systems the mapping of a kill to a failed binding is
   pinned through the fake runner only.
 - A `verify` fixture with one passing and one failing bound test, asserting per-binding
@@ -1143,7 +1168,8 @@ Further checks:
   the rest of their script after the kill, though the script ignores SIGHUP,
   SIGINT and SIGTERM and each process is sent SIGCONT afterwards, so only
   SIGKILL passes; this holds also with no `kill` program on `PATH`, and the
-  process the runner started is reaped. A group signal that finds no live
+  process the runner started is reaped. Separate low-level signal fixtures
+  retain the process-group semantics: a group signal that finds no live
   member is done, and so is one refused with `EPERM` once the leader has ended on
   macOS, which answers so while the only member is exiting: the leader is then sent
   SIGKILL itself and collected, and counts as ended only when that signal is
@@ -1262,11 +1288,12 @@ Further checks:
 | `raf_workplan::bound::tests::zero_passed_is_unresolved_even_with_exit_status_zero` | test | [Verification](#verification) |
 | `raf_workplan::exec` | doctest | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_is_killed_with_its_namespace` | test | [Examples](#examples) |
 | `raf_workplan::exec::system::tests::a_group_that_already_exited_is_done` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_group_whose_leader_exited_before_the_kill_is_killed_without_error` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_leader_still_running_is_killed_and_collected_before_it_counts_as_ended` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_leader_that_exited_has_ended_and_is_collected` | test | [Verification](#verification) |
-| `raf_workplan::exec::system::tests::a_process_inside_its_limit_passes` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_process_inside_its_limit_passes` | test | [Examples](#examples) |
 | `raf_workplan::exec::system::tests::a_process_that_never_stops_writing_is_killed_at_the_bound` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed` | test | [Contract](#contract) |
 | `raf_workplan::exec::system::tests::a_refused_signal_is_done_only_when_the_leader_has_exited` | test | [Verification](#verification) |
@@ -1436,6 +1463,7 @@ Further checks:
 | Depended on by | [workplan-cli](./workplan-cli.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-rustdoc](./workplan-rustdoc.md) |
+| Depended on by | [workplan-rustdoc-observation](./workplan-rustdoc-observation.md) |
 | Depended on by | [workplan-strict](./workplan-strict.md) |
 <!-- raf:generated:end -->
 

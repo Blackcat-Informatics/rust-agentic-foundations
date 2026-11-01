@@ -695,5 +695,6 @@ original hardlink relationship while retaining the ignored alias's original byte
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-rustdoc](./workplan-rustdoc.md) |
+| Depended on by | [workplan-rustdoc-includes](./workplan-rustdoc-includes.md) |
 | Depended on by | [workplan-strict](./workplan-strict.md) |
 <!-- raf:generated:end -->

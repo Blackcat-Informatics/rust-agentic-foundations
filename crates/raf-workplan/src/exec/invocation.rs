@@ -7,6 +7,9 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+mod rustdoc;
+pub use rustdoc::{RustdocObservationOptions, RustdocObservationOptionsError};
+
 use super::ViewContext;
 
 use super::pattern::{
@@ -25,8 +28,9 @@ pub enum Program {
     Cargo,
     /// `git`, from `PATH`.
     Git,
-    /// The caller's own command, a [`TrustedArgv`] from the command line of
-    /// the process (see [`Invocation::trusted`]).
+    /// The caller's own command from [`Invocation::trusted`], or the observing
+    /// driver's internal delegation of Cargo arguments to its selected compiler.
+    /// Public callers can supply only a [`TrustedArgv`] from their command line.
     Trusted,
 }
 
@@ -182,6 +186,8 @@ pub struct Invocation {
     directory: Option<PathBuf>,
     filesystem: Option<std::sync::Arc<super::view::FilesystemView>>,
     git: Option<super::view::GitContext>,
+    rustdoc: Option<RustdocObservationOptions>,
+    rustdoc_delegate: bool,
 }
 
 /// Closed package, feature and output-directory selection for Cargo documentation.
@@ -333,6 +339,8 @@ impl Invocation {
             directory: None,
             filesystem: None,
             git: None,
+            rustdoc: None,
+            rustdoc_delegate: false,
         }
     }
 
@@ -340,6 +348,57 @@ impl Invocation {
     #[must_use]
     pub fn view(&self) -> Option<&ViewContext> {
         self.view.as_ref()
+    }
+
+    /// Scoped instrumentation of an explicitly selected documentation compiler.
+    #[must_use]
+    pub fn rustdoc_observation(&self) -> Option<&RustdocObservationOptions> {
+        self.rustdoc.as_ref()
+    }
+
+    pub(crate) const fn is_rustdoc_delegate(&self) -> bool {
+        self.rustdoc_delegate
+    }
+
+    pub(crate) fn rustdoc_delegate(
+        observer: &RustdocObservationOptions,
+        argv: &[String],
+        directory: &Path,
+    ) -> Self {
+        let mut invocation = Self::host(Program::Trusted, argv, directory);
+        invocation.rustdoc = Some(observer.clone());
+        invocation.rustdoc_delegate = true;
+        invocation
+    }
+
+    /// Ask the selected compiler for its native verbose version/host identity.
+    pub(crate) fn rustdoc_compiler_version(
+        observer: &RustdocObservationOptions,
+        directory: &Path,
+    ) -> Result<Self, super::ExecError> {
+        let delegate = observer
+            .delegate()
+            .to_str()
+            .ok_or_else(|| super::ExecError::Io {
+                command: "Rustdoc compiler identity".into(),
+                message: "selected compiler locator must be UTF-8".into(),
+            })?;
+        Ok(Self::rustdoc_delegate(
+            observer,
+            &[delegate.into(), "-vV".into()],
+            directory,
+        ))
+    }
+
+    pub(crate) fn validate_rustdoc_context(&self) -> Result<(), super::ExecError> {
+        if self.rustdoc.is_some() && (self.view.is_some() || self.filesystem.is_some()) {
+            return Err(super::ViewError::refusal(
+                "Rustdoc observation",
+                "host driver locators require an original-root documentation operation",
+            )
+            .into());
+        }
+        Ok(())
     }
 
     pub(crate) fn in_view(mut self, view: &ViewContext) -> Self {
@@ -379,6 +438,8 @@ impl Invocation {
             directory: Some(directory.to_path_buf()),
             filesystem: None,
             git: None,
+            rustdoc: None,
+            rustdoc_delegate: false,
         }
     }
 
@@ -447,6 +508,20 @@ impl Invocation {
         ]);
         args.extend(options.packages.iter().cloned().map(Arg::Package));
         Self::cargo(args)
+    }
+
+    /// Document selected libraries through an explicitly selected observing driver.
+    ///
+    /// Environment controls apply only to this invocation. Observation receipt
+    /// admission remains the responsibility of the documentation operation.
+    #[must_use]
+    pub fn cargo_doc_observed(
+        options: &CargoDocOptions,
+        observer: &RustdocObservationOptions,
+    ) -> Self {
+        let mut invocation = Self::cargo_doc(options);
+        invocation.rustdoc = Some(observer.clone());
+        invocation
     }
 
     fn git(args: Vec<Arg>) -> Self {

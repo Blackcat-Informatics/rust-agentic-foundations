@@ -43,7 +43,7 @@ inputs:
     digest: 16d434d5f5097cfb1bd87978c7ec00fd7c747cade1363709099e3979b7feb561
   - kind: symbol
     name: raf_source::CodeResolver::with_configured_syntax
-    digest: e3f59df047170cddcb876e3921663360894e99e9a0b7e8d9f5a8ee8c4cf83800
+    digest: 35c9a85662ee7b6c80838931cd9c4c57e8dc7da7146eefbd67d8ab6858226258
   - kind: symbol
     name: raf_source::CommittedGitTree
     digest: 833e147810cf66c5220fdec06ffeaa2eab08aa699ba7fddce0bb185d6bbfad5f
@@ -334,7 +334,7 @@ inputs:
     digest: 8942fde727fab96a3c0dad2ae30198f9adb717868189f69716dac5314bf4fedc
   - kind: symbol
     name: raf_source::Workspace
-    digest: 24088ae66c0bcebb5ccdab1344053badbf0da29b2455cf7d77c1048fe0f31198
+    digest: 8ea5019a18360e0db3123e26c9fc768f80df20595fbdbbb1f56c436d1158662f
   - kind: symbol
     name: raf_source::Workspace::code_resolver
     digest: e1b516fb173d981ee22520060699be7f1d8fb140f51a2802c835e50eafa9d88c
@@ -397,7 +397,7 @@ inputs:
     digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
   - kind: symbol
     name: raf_source::code
-    digest: c7b100ef9191d8edd970e534cd3fe06f03640d921eb0ba2c5d24c8bcddb01472
+    digest: 08638a775c39f5dc17f13c2ddee5f6b3cf96ceb6252bebdd1b841af3dba4d470
   - kind: symbol
     name: raf_source::cost::shared_text
     digest: 417543dec94f58efe64575df018bc4b13589e906d90c4db5a4f0693d372ab4f1

@@ -135,8 +135,12 @@ migrate_legacy reads a foreign TOML ledger with an explicitly selected legacy JS
 baseline. Native `purrdf-toml::analyze` parses foreign syntax into its typed flat
 arena; the importer tracks consumed child indices without another TOML value
 tree. PurRDF's bounded JSON
-reader and strict Record decoder read the baseline. Eight-byte historical and
-32-byte complete digests map through their member symbols to current body/shim
+reader and strict Record decoder read the baseline. Native syntax and resource
+refusals retain their JSON byte offset. Before record decoding, the native
+set-based object check refuses repeated decoded names throughout the complete
+baseline, including ignored metadata, with the enclosing JSON Pointer.
+Eight-byte historical and 32-byte complete digests map through their member
+symbols to current body/shim
 fingerprints. The importer recognizes the PurRDF, katamari and decodes-shaped
 metadata fields and retains them in an owned native Extension. Ordered repeated
 array metadata retains order and multiplicity. Dialects are import inputs; the
@@ -206,6 +210,13 @@ Read each unmapped occurrence and its table declarations together. Array indices
 distinguish repeated equal values; native spans retain the original numeric and
 temporal spelling, and decoded key identities retain quoted or dotted names.
 
+For a duplicate baseline member, use the diagnostic's JSON Pointer to find the
+enclosing object and remove or rename the repeated decoded name. Escaped and
+unescaped spellings of the same name count as duplicates, including in ignored
+metadata. Syntax and resource diagnostics instead identify a JSON byte offset.
+Correct the input before retrying; a refused import emits no migrated document.
+<!-- raf:tested-by raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
+
 For repository-specific policy, implement `ForeignLedgerAdapter::claim` over
 the borrowed native field and call `migrate_legacy_with_extensions` with the
 adapter references. Return the predicate that names the retained field root;
@@ -217,6 +228,13 @@ registration flag and retains the explicit unmapped result for unknown fields.
 <!-- raf:tested-by raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 
 ## Examples
+
+In a foreign baseline, `"hex_tables":[{"nested":[{"a":0,"\u0061":1}]}]`
+refuses because both member names decode to `a`. The diagnostic names
+`/hex_tables/0/nested/0`, the enclosing object. Replacing `\u0061` with
+`\u0062` gives distinct names and admits that metadata. The same refusal and
+correction apply under `shared_constants`, with the corresponding pointer.
+<!-- raf:tested-by raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success -->
 
 The layout conversion cases carry canonical Baseline, Index, Ledger and
 DebtRecord data through form 3 or 4 to 5 in both syntaxes. Complete assertion equality
@@ -314,7 +332,7 @@ validator and CLI, including input and zero-debt preservation.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::migrate_legacy` | doctest | [Usage](#usage) |
@@ -329,7 +347,7 @@ validator and CLI, including input and zero-debt preservation.
 | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Examples](#examples) |
 | `raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate` | test | [Examples](#examples) |
 | `raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
-| `raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::migration_legacy::both_foreign_inputs_enforce_size_and_exact_container_depth_bounds` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::migration_legacy::unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible` | test | [Contract](#contract), [Examples](#examples) |

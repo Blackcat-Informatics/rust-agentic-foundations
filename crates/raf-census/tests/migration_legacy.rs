@@ -463,11 +463,37 @@ fn ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_
         let error = import(ROW, baseline).unwrap_err().to_string();
         assert!(error.contains("foreign-baseline.json"), "{error}");
     }
+    for field in ["hex_tables", "shared_constants"] {
+        let prefix = format!("\"{field}\":[]");
+        let baseline = BASELINE.replace(
+            &prefix,
+            &format!(r#""{field}":[{{"nested":[{{"a":0,"\u0061":1}}]}}]"#),
+        );
+        let error = import(ROW, &baseline).unwrap_err().to_string();
+        assert!(
+            error.contains("foreign-baseline.json")
+                && error.contains("duplicate field")
+                && error.contains(&format!("/{field}/0/nested/0")),
+            "{error}"
+        );
+        assert!(import(ROW, &baseline.replace(r"\u0061", r"\u0062")).is_ok());
+    }
     assert!(import(ROW, BASELINE).is_ok());
 }
 
 #[test]
 fn both_foreign_inputs_enforce_size_and_exact_container_depth_bounds() {
+    let descending = (0..100_000)
+        .rev()
+        .map(|index| format!("\"field_{index:06}\":0"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let baseline = BASELINE.replace(
+        "\"hex_tables\":[]",
+        &format!("\"hex_tables\":[{{{descending}}}]"),
+    );
+    assert!(baseline.len() > MAX_LEDGER_BYTES);
+    assert!(import(ROW, &baseline).is_ok());
     let wide = (0..64)
         .map(|index| format!("field_{index}='retained'"))
         .collect::<Vec<_>>()

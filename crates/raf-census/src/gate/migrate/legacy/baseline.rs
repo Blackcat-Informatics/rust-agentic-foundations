@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use purrdf_lex::json::{
     self, Value,
-    record::{DecodeError, FromJson, Record},
+    record::{DecodeError, FromJson, Record, Within},
 };
 
 use super::super::{MigrationInput, input};
@@ -30,7 +30,9 @@ pub(super) fn read(source: MigrationInput<'_>) -> Result<Historical, Error> {
             max_depth: 32,
             max_values: MAX_JSON_VALUES,
             max_string_bytes: MAX_JSON_STRING_BYTES,
-            unique_members: true,
+            // Check the complete decoded tree with the native set-based API;
+            // the reader's sorted-vector tracking shifts wide object suffixes.
+            unique_members: false,
         };
         let value = json::read_slice(source.text.as_bytes(), limits).map_err(Error::ImportJson)?;
         let (bodies, shims) = decode(&value).map_err(Error::ImportRecord)?;
@@ -83,6 +85,7 @@ pub(super) fn read(source: MigrationInput<'_>) -> Result<Historical, Error> {
 }
 
 fn decode(value: &Value) -> Result<(Vec<Group>, Vec<Group>), DecodeError> {
+    unique_members(value)?;
     let mut root = Record::new(value, "legacy census baseline")?;
     let _: usize = root.required("min_tokens")?;
     let _: usize = root.required("units")?;
@@ -98,6 +101,28 @@ fn decode(value: &Value) -> Result<(Vec<Group>, Vec<Group>), DecodeError> {
     let _: Vec<Value> = root.defaulted("shared_constants")?;
     root.deny_unknown()?;
     Ok((bodies, shims))
+}
+
+/// Refuse repeated decoded names in every object, including ignored metadata.
+/// The native reader has already bounded nesting to 32 containers.
+fn unique_members(value: &Value) -> Result<(), DecodeError> {
+    match value {
+        Value::Array(items) => {
+            for (index, value) in items.iter().enumerate() {
+                unique_members(value).map_err(|error| error.within(&index.to_string()))?;
+            }
+        }
+        Value::Object(object) => {
+            if let Some(name) = object.first_duplicate() {
+                return Err(DecodeError::duplicate_field(name));
+            }
+            for (name, value) in object {
+                unique_members(value).map_err(|error| error.within(name))?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 struct Group {

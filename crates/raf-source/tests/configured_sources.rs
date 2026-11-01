@@ -289,6 +289,7 @@ fn active<'a>(ws: &'a Workspace, name: &str) -> &'a ActiveConfiguration {
 
 #[test]
 fn configured_aliases_resolve_only_active_real_definitions_and_paths() {
+    exact_target_keeps_unobserved_packages_and_targets_out();
     let tree = fixture(MANIFEST, SOURCE);
     let ws = load(
         &tree,
@@ -331,6 +332,131 @@ fn configured_aliases_resolve_only_active_real_definitions_and_paths() {
         )
         .is_err()
     );
+}
+
+fn exact_target_keeps_unobserved_packages_and_targets_out() {
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='chosen'\nversion='1.0.0'\nedition.workspace=true\n[workspace]\nmembers=['unobserved']\n[workspace.package]\nedition='2024'\n[lib]\nname='named_api'\n[[bin]]\nname='unobserved-bin'\npath='src/not-read.rs'\n[[bin]]\nname='requires-shown'\npath='src/requires.rs'\nrequired-features=['shown']\n[features]\nshown=[]\n[dependencies]\nsibling={path='unobserved'}\n",
+        ),
+        (
+            "src/lib.rs",
+            "mod inner { #[cfg(feature=\"shown\")] pub struct Selected; #[cfg(not(feature=\"shown\"))] pub struct Other; #[doc(hidden)] pub struct Hidden; pub(crate) struct Private; } #[cfg(feature=\"shown\")] pub use inner::Selected as Alias; #[cfg(not(feature=\"shown\"))] pub use inner::Other as Alias; pub use inner::Hidden; #[cfg(doc)] pub struct DocumentationOnly;",
+        ),
+        (
+            "src/not-read.rs",
+            "this unselected target must not be parsed",
+        ),
+        (
+            "src/requires.rs",
+            "#[cfg(feature=\"shown\")] pub fn chosen() {} fn main() {}",
+        ),
+        (
+            "unobserved/Cargo.toml",
+            "[package]\nname='sibling'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        (
+            "unobserved/src/lib.rs",
+            "this unobserved sibling must not be parsed",
+        ),
+    ]);
+    let manifest = RelPath::new("Cargo.toml").unwrap();
+    let atoms = [CfgAtom::Name("unix"), CfgAtom::Name("doc")];
+    for (features, expected) in [(&["shown"][..], "Selected"), (&[][..], "Other")] {
+        let selection = DeclaredConfiguration::new(
+            DeclaredCfg::complete("linux-target", &atoms),
+            features,
+            TargetKind::Lib,
+            "named_api",
+        );
+        let ws =
+            Workspace::load_configured_target(&tree, &manifest, selection, &LoadOptions::default())
+                .expect("exact target retains inherited edition and declared selection");
+        assert_eq!(ws.packages().len(), 1);
+        let targets: Vec<_> = ws.targets().collect();
+        assert_eq!(targets.len(), 1);
+        assert_eq!(targets[0].name, "named_api");
+        assert!(ws.files().all(|file| file.path.as_str() == "src/lib.rs"));
+        let package = ws.package_ids().next().unwrap();
+        assert!(ws.locked_binding(package).is_none());
+        assert!(matches!(
+            ws.resolve_active_from_package_id_in(package, "named_api", "Alias", Namespace::Type),
+            Err(ResolveError::UnconfiguredPackage(_))
+        ));
+        let resolved = ws.resolve("named_api::Alias").unwrap();
+        assert!(resolved.path.ends_with(expected));
+        let target = ws.item(resolved.sites[0]).unwrap().target;
+        let exports = ws.exported_items(target).unwrap();
+        assert!(
+            exports
+                .items
+                .iter()
+                .any(|item| item.path == "named_api::Alias")
+        );
+        assert!(
+            !exports
+                .items
+                .iter()
+                .any(|item| item.path.ends_with("Hidden") || item.path.ends_with("Private"))
+        );
+        assert!(ws.resolve_from("named_api", "sibling::Anything").is_err());
+        ws.code_resolver()
+            .unwrap()
+            .with_configured_syntax(target, &RelPath::new("src/lib.rs").unwrap(), |_, syntax| {
+                assert!(syntax.items.iter().any(|item| matches!(item,
+                    syn::Item::Struct(item) if item.ident == "DocumentationOnly")));
+            })
+            .expect("configured syntax reuses the exact target's original declaration");
+    }
+    exact_target_required_features(&tree, &manifest, &atoms);
+    assert!(
+        Workspace::load_configured_target(
+            &tree,
+            &manifest,
+            context(&[], "missing"),
+            &LoadOptions::default(),
+        )
+        .is_err()
+    );
+    assert!(
+        Workspace::load_configured_target(
+            &tree,
+            &RelPath::new("not-a-manifest").unwrap(),
+            context(&[], "named_api"),
+            &LoadOptions::default(),
+        )
+        .is_err()
+    );
+}
+
+fn exact_target_required_features(tree: &MemoryTree, manifest: &RelPath, atoms: &[CfgAtom<'_>]) {
+    for features in [&[][..], &["shown"][..]] {
+        let selection = DeclaredConfiguration::new(
+            DeclaredCfg::complete("linux-target", atoms),
+            features,
+            TargetKind::Bin,
+            "requires-shown",
+        );
+        let selected =
+            Workspace::load_configured_target(tree, manifest, selection, &LoadOptions::default());
+        if features.is_empty() {
+            let error = selected.expect_err("required feature is inactive");
+            assert!(
+                error.to_string().contains("requires an inactive feature"),
+                "{error}"
+            );
+        } else {
+            let ws = selected.expect("enabled required feature admits the same target");
+            let targets: Vec<_> = ws.targets().collect();
+            assert_eq!(targets.len(), 1);
+            assert_eq!(targets[0].name, "requires-shown");
+            assert!(
+                ws.files()
+                    .all(|file| file.path.as_str() == "src/requires.rs")
+            );
+        }
+    }
 }
 
 #[test]

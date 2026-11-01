@@ -7,7 +7,7 @@ subject: cap:workplan-evidence-claims#examples
 inputs:
   - kind: section
     name: cap:workplan-evidence-claims#examples
-    digest: 71a60970846884e7323ab7dbb49fb8c55e7cd696b1db9d2b2267051147412df7
+    digest: b8ce86c7afbddd697cb725f8d2004adbf4c563f89c60b73bb172fbd38de4e52b
   - kind: symbol
     name: raf_workplan::Workplan::diagram
     digest: 94df0d471aed7e82ad8b144680276c50213154a1e49f8db36a2fb3442ca08c5f
@@ -28,10 +28,10 @@ inputs:
     digest: 0de25df175ceeac46f846d270ae5655bc2aa5a10334e8c5f9912e327a2a0be6a
   - kind: symbol
     name: raf_workplan::diagram
-    digest: 0258a5f6604ff59b79c8e80077dfd600388455e7ff2728fad745c27542b6bef5
+    digest: 47d303c25adf27d3fe6da84fb19ba3ea35f958a6f3ebad9a002a700fc3e37f66
   - kind: symbol
     name: raf_workplan::evidence
-    digest: e69103c36771ea94c9a7b25e8697339d2a2c5df9efd01b33b05975bd7c57be94
+    digest: ae27a4e1752dd824cd8d9950e597bab7b357525844dfb956fb1195a342bc1e46
   - kind: symbol
     name: raf_workplan::evidence::claims_dataset
     digest: 09747dcb55e94233a10361cffc2fe400cb99b283e3cb5e08699f471deca5000f

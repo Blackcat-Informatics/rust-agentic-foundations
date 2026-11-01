@@ -37,7 +37,7 @@ inputs:
     digest: 866ef48e0fd38b0cf973154ac083374c203f96c6a26983e604aae4eaeb3f15c1
   - kind: symbol
     name: raf_source::workspace::locked::reference
-    digest: d6a1b3b05ba664da197d5722e2f7ec53cdf7282f21d254beed12db8c59959365
+    digest: 3b0aeb89d8dbfa2309a08ad29247b4b1f90cb1a740ef8b37de9a23b420ede5f9
 verdict: accepted
 by: agent
 ---

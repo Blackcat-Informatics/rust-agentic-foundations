@@ -70,7 +70,7 @@ inputs:
     digest: d62d27cd413b4d8f5478fc8b8c57cf3d3019600d2a8f4656ba41a73b70ecc665
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::main
-    digest: 5b81323eef09e9a46dca7e4ffb23b48e8fdcf09f08650f139dd74db40c4acafa
+    digest: 68aa5f8de3f41d4d98cf46700883282ed88a0f3b710e38b48199f48c285fdc84
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::mdbook
     digest: a660bb651a35ea668dffb02f3c5cdcee82749046a4fd843a98dabc3872d26b56

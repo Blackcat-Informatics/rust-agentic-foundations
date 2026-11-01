@@ -43,7 +43,7 @@ inputs:
     digest: d88de92b0beefbf7e1559f7bbc139e4066bc0292bae5970c6e596d424bc0d599
   - kind: symbol
     name: raf_census::gate::migrate
-    digest: 4f8b862a9e062a38c41c893ef4c0eb59eef6695081ff3728222139e303450cbd
+    digest: b0509a285c4dab8d06eb01c4a2724aa17db64aa390f2954a5fb11c78ba722c1b
   - kind: symbol
     name: raf_census::migrate_index
     digest: 81cda6ca66752c2b1fe050b23fb780d1c79f76342e9e02b374c049f19106534a

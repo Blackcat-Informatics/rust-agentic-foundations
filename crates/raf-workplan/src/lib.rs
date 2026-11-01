@@ -309,6 +309,8 @@ mod links;
 mod load;
 mod lookup;
 mod model;
+#[cfg(target_os = "linux")]
+mod native_image;
 pub mod obligation;
 pub mod plain;
 mod preview;

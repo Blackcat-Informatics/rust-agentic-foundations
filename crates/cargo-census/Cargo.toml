@@ -23,5 +23,8 @@ purrdf-lex.workspace = true
 purrdf-testkit.workspace = true
 syn = { version = "3", default-features = false, features = ["full", "parsing"] }
 
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+rustix = { version = "1.1.5", default-features = false, features = ["fs", "event", "net", "process", "std"] }
+
 [lints]
 workspace = true

@@ -39,7 +39,24 @@ const VOCAB: &str = "https://blackcatinformatics.ca/raf/workplan/documentation#"
 /// be completed. An orphan temporary file or a directory lacking its manifest
 /// instead fails with its path for inspection; unknown files are never removed.
 pub fn publish(bundle: &DiagramBundle, root: &Path) -> Result<PathBuf, DiagramError> {
+    publish_files(documentation::build(bundle)?, root)
+}
+
+/// Share native publication while keeping compiler environments out of public files.
+pub(crate) fn publish_assembly(
+    bundle: &DiagramBundle,
+    root: &Path,
+    record: &raf_rdf::Graph,
+) -> Result<PathBuf, DiagramError> {
     let mut files = documentation::build(bundle)?;
+    files.push((
+        relative("assembly.ttl")?,
+        record.to_text(Format::Turtle).map_err(DiagramError::data)?,
+    ));
+    publish_files(files, root)
+}
+
+fn publish_files(mut files: Vec<(RelPath, String)>, root: &Path) -> Result<PathBuf, DiagramError> {
     let manifest = manifest(&files)?;
     let digest = ContentDigest::of(manifest.as_bytes());
     files.push((relative(MANIFEST)?, manifest));

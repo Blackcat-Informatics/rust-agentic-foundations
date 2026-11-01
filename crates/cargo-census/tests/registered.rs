@@ -11,6 +11,10 @@ mod policy;
 #[path = "../../raf-census/tests/support/reference_ledger.rs"]
 mod reference_ledger;
 
+#[cfg(target_os = "linux")]
+#[path = "registered/containment.rs"]
+mod containment;
+
 use policy::ledger;
 use std::{fmt::Write as _, fs, path::Path, process::Command};
 
@@ -54,6 +58,14 @@ const TARGET: &str = r#"#[path="support/registration.rs"]
 mod registration;
 use std::{error::Error, io::Write as _, process::ExitCode};
 fn main() -> Result<ExitCode, Box<dyn Error>> {
+    #[cfg(target_os = "linux")]
+    if let Some(root) = std::env::var_os("RAF_REGISTERED_CONTAINMENT_ROOT") {
+        let root = std::path::Path::new(&root);
+        std::os::unix::net::UnixDatagram::unbound()?.send_to(b"registered", root.join("ready"))?;
+        let mut release = [0];
+        std::io::Read::read_exact(&mut std::fs::File::open(root.join("hold"))?, &mut release)?;
+        std::fs::write(root.join("continued"), b"continued")?;
+    }
     let result = registration::registered_gate(".").check();
     let response = raf_census::RegisteredCheck::from_check(&result)?;
     std::io::stdout().lock().write_all(response.to_ntriples()?.as_bytes())?;
@@ -92,7 +104,7 @@ fn fixture() -> purrdf_testkit::TempDir {
         include_bytes!("../../raf-census/examples/support/registration.rs"),
     )
     .unwrap();
-    let lock = Command::new("cargo")
+    let lock = Command::new(env!("CARGO"))
         .args(["generate-lockfile", "--offline"])
         .current_dir(root)
         .output()
@@ -170,6 +182,9 @@ fn actual_registered_target_preserves_rule_extension_root_and_read_only_parity()
     assert_eq!(clean.stdout, b"census: clean\n");
     assert_eq!(snapshot(root), before);
     assert!(!root.join("census-debt.ttl").exists());
+
+    #[cfg(target_os = "linux")]
+    containment::parent_death(root, caller.path());
 
     imported_policy_parity(root, caller.path());
 
@@ -328,7 +343,7 @@ fn writer_fixture() -> purrdf_testkit::TempDir {
     fs::write(root.join("examples/registered.rs"), WRITE_TARGET).unwrap();
     fs::write(root.join("helpers-ledger.ttl"), writer_ledger("demo")).unwrap();
     writer_source(root, &["first", "second"], "");
-    let lock = Command::new("cargo")
+    let lock = Command::new(env!("CARGO"))
         .args(["generate-lockfile", "--offline"])
         .current_dir(root)
         .output()
@@ -443,7 +458,7 @@ fn write_authorization(root: &Path, caller: &Path) {
         vec!["--census-debt-write-v1", "extra"],
         vec!["--census-debt-write-v1", "--census-debt-write-v1"],
     ] {
-        let result = Command::new("cargo")
+        let result = Command::new(env!("CARGO"))
             .current_dir(root)
             .args([
                 "run",
@@ -768,7 +783,7 @@ fn registered_writes(caller: &Path) {
     assert!(String::from_utf8_lossy(&result.stdout).contains("1 jobs with copies"));
     let direct = writer_fixture();
     let before = writer_snapshot(direct.path());
-    let result = Command::new("cargo")
+    let result = Command::new(env!("CARGO"))
         .current_dir(direct.path())
         .args([
             "run",
@@ -789,7 +804,7 @@ fn registered_writes(caller: &Path) {
     assert!(write_cli(root, caller).status.success());
     assert_eq!(fs::read(root.join("census-debt.ttl")).unwrap(), adopted);
     // Empty target arguments remain a read-only check after adoption.
-    let checked = Command::new("cargo")
+    let checked = Command::new(env!("CARGO"))
         .current_dir(root)
         .args(["run", "--frozen", "--package=demo", "--example=registered"])
         .output()

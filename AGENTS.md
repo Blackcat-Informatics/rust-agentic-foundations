@@ -203,8 +203,11 @@ make hooks   # point core.hooksPath at .githooks for this clone
   interpreter shebangs, including extensionless scripts. The commit and merge
   hooks judge the staged snapshot; CI applies the same Rust gate. Implement
   repository tooling in Rust.
-- Native completed execution views require Git 2.36 or newer for NUL-delimited
-  worktree inventory, `bwrap` and host support for its mount namespace. Native
+- Every native `SystemRunner` invocation, including Git and compiler queries,
+  requires Linux pidfds, PID and mount namespaces, `bwrap`, executable sealed
+  memfds and `/proc` access. Missing capability is a hard execution failure.
+  Native completed execution views require Git 2.36 or newer for NUL-delimited
+  worktree inventory. Native
   signed fixtures also require OpenSSH's `ssh-keygen`. Ordinary Git-backed opening
   and tracked-oracle queries retain their Git 2.30 minimum. The Linux test job
   installs these prerequisites and runs a native

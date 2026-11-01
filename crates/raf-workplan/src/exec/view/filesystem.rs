@@ -146,7 +146,7 @@ impl FilesystemView {
         &self,
         directory: &Path,
         program: &Path,
-        argv: &[String],
+        argv: &[OsString],
     ) -> Result<Vec<OsString>, ViewError> {
         // These are fresh path observations, not an atomic filesystem snapshot.
         // Bubblewrap may create an absent external cache mountpoint on the host;
@@ -180,7 +180,8 @@ impl FilesystemView {
                 [
                     OsString::from("--remount-ro"),
                     self.original.as_os_str().to_owned(),
-                    OsString::from("--die-with-parent"),
+                    OsString::from("--proc"),
+                    OsString::from("/proc"),
                     OsString::from("--chdir"),
                     self.logical(directory)?.into_os_string(),
                     OsString::from("--"),
@@ -191,7 +192,7 @@ impl FilesystemView {
             .push(&mut words, program.as_os_str().to_owned())
             .map_err(|e| ViewError::new("allocate native program argv", e))?;
         memory
-            .extend(&mut words, argv.iter().map(OsString::from))
+            .extend(&mut words, argv.iter().cloned())
             .map_err(|e| ViewError::new("allocate native caller argv", e))?;
         Ok(words)
     }

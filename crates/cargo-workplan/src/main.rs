@@ -312,6 +312,14 @@ use std::process::ExitCode;
 use exit::{Exit, Failure};
 
 fn main() -> ExitCode {
+    if let Some(observed) = raf_workplan::diagram::cargo::observation::dispatch_driver() {
+        return match observed {
+            Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(2)),
+            Err(error) => ExitCode::from(
+                fail(&Failure::new(error.to_string()), &mut io::stderr().lock()).code(),
+            ),
+        };
+    }
     let args = match cli::parse(std::env::args_os()) {
         Ok(args) => args,
         Err(error) => {
