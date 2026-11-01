@@ -68,7 +68,10 @@ Selected reference packages participate in the same structural source index
 as first-party path and call occurrences. Renamed dependencies and public
 reexports match actual definition identities. A selected reference target
 without an indexed definition refuses rather than becoming an unverified
-spelling match. Rule subjects, consumers and debt retain their original
+spelling match. Admission uses the native failed lookup's attempted targets,
+including private aliases whose declared paths begin in a first-party crate.
+Unrelated unindexed external spellings retain their syntax policy.
+Rule subjects, consumers and debt retain their original
 first-party scope.
 <!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
 
@@ -135,6 +138,12 @@ normal-form version are unchanged.
 
 ## Usage
 
+Select indexed reference definitions for call and path policies. An alias whose
+native route reaches a selected reference but has no definition refuses during
+admission. Supply its missing source context or correct the symbol; changing
+the alias spelling cannot convert missing identity into a syntax observation.
+<!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
+
 Select the reference packages and supply their actual locally available roots
 when an indexed matcher crosses a dependency boundary. The host gate verifies
 cross-root disk paths; an opaque caller-owned tree must contain the path in
@@ -157,6 +166,9 @@ A call through a first-party facade and a renamed reference dependency matches
 the referenced function. A same-spelled local function remains a distinct
 definition. Path matching also includes actual import sites; importing a
 forbidden definition is itself an occurrence even if its call is shadowed.
+Both private and public aliases to a missing selected reference definition
+refuse beside the same aliases to an indexed definition. An unindexed standard
+library call through an alias still matches its declared external spelling.
 <!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
 
 The runnable `raf_census::example_crate::patterns` constructs this policy with

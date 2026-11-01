@@ -33,7 +33,7 @@ use crate::modtree::{Reach, TargetId, Visited, Walked, Walker, tidy};
 use crate::options::LoadOptions;
 use crate::path::{PathError, RelPath};
 use crate::reach::{self, Node, ReachError, Reachability};
-use crate::resolve::{Resolution, ResolveError};
+use crate::resolve::{Resolution, ResolutionAttempt, ResolveError};
 use crate::target::TargetKind;
 use crate::target::{Context, Package, PackageId, Target, check_crate_paths, derive_targets};
 use crate::tree::Tree;
@@ -534,6 +534,25 @@ impl Workspace {
     pub fn resolve_in(&self, path: &str, namespace: Namespace) -> Result<Resolution, ResolveError> {
         self.index
             .resolve(path, Some(namespace), None, &Meter::query(&self.options))
+    }
+
+    /// Resolve once while observing the native indexed targets of missing routes.
+    ///
+    /// Private aliases participate. Missing dependency items and generated items
+    /// remain unresolved; their attempted routes never establish a definition or
+    /// provider identity. Ordinary [`Self::resolve_in`] behavior is unchanged.
+    /// Observation storage and work share this lookup's original query budgets.
+    ///
+    /// # Errors
+    /// Preserves ambiguity, cycles, broken globs, invalid paths and resource
+    /// refusals. Only ordinary not-found results become observations.
+    pub fn resolve_in_observed(
+        &self,
+        path: &str,
+        namespace: Namespace,
+    ) -> Result<ResolutionAttempt, ResolveError> {
+        self.index
+            .resolve_observed(path, namespace, &Meter::query(&self.options))
     }
 
     /// Resolve a canonical path among the crates of one package, named by its

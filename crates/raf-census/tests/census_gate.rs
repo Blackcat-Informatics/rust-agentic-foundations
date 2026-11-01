@@ -1726,6 +1726,48 @@ fn selected_reference_patterns_follow_actual_exports() {
         error.to_string().contains("selected reference target"),
         "{error}"
     );
+    selected_reference_alias_admission();
+}
+
+fn selected_reference_alias_admission() {
+    for visibility in ["", "pub "] {
+        for name in ["provided", "missing"] {
+            let imports = format!("{visibility}use renamed::{name} as blocked;");
+            let tree =
+                selected_reference_pattern_tree("call", "demo::blocked", &imports, "blocked();");
+            let result = Gate::workspace(".").check_tree(&tree);
+            if name == "missing" {
+                let Err(error) = result else {
+                    panic!("an unresolved selected-reference alias must refuse");
+                };
+                assert!(
+                    error.to_string().contains("selected reference target"),
+                    "{error}"
+                );
+            } else {
+                let report = result.unwrap();
+                assert!(
+                    report.jobs()[0]
+                        .matches
+                        .iter()
+                        .any(|hit| hit.symbol == "demo::other")
+                );
+            }
+        }
+    }
+    let external = selected_reference_pattern_tree(
+        "call",
+        "std::mem::drop",
+        "use std::mem::drop as blocked;",
+        "blocked(7);",
+    );
+    let report = Gate::workspace(".").check_tree(&external).unwrap();
+    assert!(
+        report.jobs()[0]
+            .matches
+            .iter()
+            .any(|hit| hit.symbol == "demo::other")
+    );
 }
 
 fn selected_reference_pattern_tree(

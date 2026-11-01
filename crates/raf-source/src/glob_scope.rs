@@ -3342,7 +3342,7 @@ impl Index {
                 tally::add(Work::LookupCharges, units);
                 meter.count_query(units, module);
             }
-            Steps::QueryAt { .. } | Steps::QueryItems { .. } => {
+            Steps::Observed(_) | Steps::QueryAt { .. } | Steps::QueryItems { .. } => {
                 tally::add(Work::LookupCharges, units);
                 steps
                     .query_meter()

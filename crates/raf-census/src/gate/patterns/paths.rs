@@ -11,7 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use purrdf_jsonschema::ecma::MatchLimits;
 use raf_source::{
-    CodeResolveError, CodeResolver, ItemId, Namespace, ResolveError, SourceFile, Workspace,
+    CodeResolveError, CodeResolver, ItemId, Namespace, ResolutionAttempt, ResolveError, SourceFile,
+    Workspace,
 };
 use syn::ext::IdentExt;
 
@@ -99,17 +100,36 @@ fn compile<'p>(
             }
         };
         let mut sites = BTreeMap::new();
+        let mut selected_reference = false;
         for namespace in Namespace::ALL {
             charge(
                 &pattern.id,
                 limits,
                 text.len().try_into().unwrap_or(u64::MAX),
             )?;
-            match workspace.resolve_in(text.trim_start_matches("::"), namespace) {
-                Ok(resolution) => {
+            match workspace.resolve_in_observed(text.trim_start_matches("::"), namespace) {
+                Ok(ResolutionAttempt::Resolved(resolution)) => {
                     sites.insert(namespace, resolution.sites.into_iter().collect());
                 }
-                Err(ResolveError::NotFound(_)) => {}
+                Ok(ResolutionAttempt::NotFound {
+                    attempted_targets, ..
+                }) => {
+                    for id in attempted_targets {
+                        let target = workspace.target(id).ok_or_else(|| {
+                            failure(
+                                &pattern.id,
+                                "failed lookup observed a target absent from its source index",
+                            )
+                        })?;
+                        selected_reference |= references.contains(&target.package);
+                    }
+                }
+                Ok(_) => {
+                    return Err(failure(
+                        &pattern.id,
+                        "unsupported native resolution observation",
+                    ));
+                }
                 Err(error) => {
                     return Err(failure(
                         &pattern.id,
@@ -118,19 +138,7 @@ fn compile<'p>(
                 }
             }
         }
-        let head = text
-            .trim_start_matches("::")
-            .split("::")
-            .next()
-            .unwrap_or("")
-            .trim_start_matches("r#");
-        if sites.is_empty()
-            && workspace.targets().any(|target| {
-                target.kind == raf_source::TargetKind::Lib
-                    && target.crate_path == head
-                    && references.contains(&target.package)
-            })
-        {
+        if sites.is_empty() && selected_reference {
             return Err(failure(
                 &pattern.id,
                 &format!(

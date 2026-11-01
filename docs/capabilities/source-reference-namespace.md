@@ -13,6 +13,8 @@ bindings:
     - raf_source::ReferenceTree
     - raf_source::ReferencePackageRoots
     - raf_source::ReferenceBinding
+    - raf_source::Workspace::resolve_in_observed
+    - raf_source::ResolutionAttempt
   tests:
     - raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes
   examples:
@@ -49,6 +51,18 @@ different package directories. Opaque trees cannot assert a cross-authority
 host relationship. Supplied configurations refuse in this structural mode.
 <!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
 
+### Observed missing routes
+
+`Workspace::resolve_in_observed` performs one canonical namespace lookup and
+returns a `ResolutionAttempt`. A resolved attempt retains ordinary definition
+identity. A not-found attempt records distinct load-local target identities in
+first observation order from the native failed walk and its transitive private
+and public import routes. These identities establish which indexed scopes were
+read, not a definition, generated item or configured provider. Ordinary resolution
+still reports `ResolveError::NotFound`. Ambiguity, cycles, invalid paths, broken
+globs and resource refusals remain errors without partial observations.
+<!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
+
 ## Usage
 
 Borrow contained disk roots, opaque trees or sealed committed trees through
@@ -56,6 +70,13 @@ Borrow contained disk roots, opaque trees or sealed committed trees through
 and provide their retained declaration keys. Inspect `reference_binding` for
 navigation metadata; configured provider consumers still need the separate
 locked/configured entry point and its real context evidence.
+<!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
+
+Use `resolve_in_observed` when admission must distinguish a missing dependency
+definition from an unrelated unindexed spelling. Inspect attempted targets through
+the same workspace's `target` accessor; their package identities remain local to
+that load. A failed private alias can read a reference scope even when its own
+written path begins in a first-party crate.
 <!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
 
 Call `Workspace::load_reference_sources_under` with the catalog, first-party
@@ -82,6 +103,13 @@ package lacks a configured locked binding. It starts no Cargo subprocess and
 writes only inside its owned temporary directory.
 <!-- raf:tested-by raf_source::example_crate::reference_namespace -->
 
+A private import of a missing reference function yields a not-found observation
+containing both consumer and reference target identities. The same observation
+through an intermediate facade retains those identities. A missing standard
+library import reads the consumer scope without inventing a standard-library
+target, and a real reference function still returns its indexed definition.
+<!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
+
 ## Constraints
 
 - Structural optional and conditional declarations are observed syntax, not
@@ -90,6 +118,11 @@ writes only inside its owned temporary directory.
 <!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
 - All source reads, retained descriptors and index construction share the supplied
   load limits. No source is fetched and no registry cache is enumerated.
+<!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
+- Failed-route observations share the original lookup's query work and live
+  scratch-byte grants. Native vector growth is admitted before allocation;
+  exhaustion refuses rather than returning a partial target list. Ordinary
+  lookups allocate no observation collector.
 <!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
 
 ## Explanation
@@ -100,12 +133,23 @@ Merging independent settled indexes would preserve unresolved lookup caches;
 joining observation rows alone would lose their actual directory context.
 <!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
 
+The failed-route observation reuses the same native unresolved-import traversal.
+It does not reconstruct aliases from exported spellings, which would omit private
+imports, or replay a lookup under a fresh resource grant.
+<!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
+
 ## Verification
 
 The existing reference-observation case exercises renamed library exports,
 local shadows and separate reference/configured identities. It pairs admitted
 disk paths with opaque cross-authority, wrong-directory and configured-input
 refusals. A hardlinked manifest does not substitute for its package directory.
+<!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
+
+The same case pairs missing direct and transitive private reference aliases with
+an unrelated external import and an actual resolved definition. It preserves the
+ordinary not-found and invalid-path contracts and requires zero query-work and
+scratch-byte grants to refuse observed lookup without returning partial evidence.
 <!-- raf:tested-by raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
 
 The public example resolves the renamed export to its actual item and consumes

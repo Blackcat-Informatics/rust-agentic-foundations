@@ -94,7 +94,7 @@ inputs:
     digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a
   - kind: symbol
     name: raf_source::resolve
-    digest: b74acafafe497e155a9df0c68bd02425e0ae312fb61e26d8b95d51ab9ecf290f
+    digest: f962c4b5224d729c060e952e2871d5a271f942473a917bff22e4a78331019415
   - kind: symbol
     name: raf_source::tree
     digest: 27cc6ed4e3736fcf1062b02b8c1abf18d8af636de5bdf60e8a09c24acbfa1563

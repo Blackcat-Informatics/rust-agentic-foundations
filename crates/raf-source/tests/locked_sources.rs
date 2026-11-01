@@ -12,7 +12,7 @@ use raf_source::{
     Budget, CommittedGitTree, GitPackageRoots, LoadError, LoadErrorKind, LoadOptions,
     LockedCatalog, LockedEdge, LockedManifest, LockedPackageId, MemoryTree, Namespace,
     ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree, RegistryIndex,
-    RelPath, ResolveError, Workspace,
+    RelPath, ResolutionAttempt, ResolveError, Workspace,
 };
 use std::fmt::Write as _;
 
@@ -28,7 +28,10 @@ fn reference_observations_verify_manifests_without_admitting_provider_routes() {
             "app/Cargo.toml",
             "[package]\nname='app'\nversion.workspace=true\nedition='2024'\n[dependencies]\nrenamed.workspace=true\n",
         ),
-        ("app/src/lib.rs", "pub fn run() {}"),
+        (
+            "app/src/lib.rs",
+            "use renamed::missing as unavailable; mod facade {pub use renamed::missing as alias;} use facade::alias as chained; use std::missing as external; pub fn run() {}",
+        ),
         (
             "helper/Cargo.toml",
             "[package]\nname='helper'\nversion.workspace=true\nedition='2024'\n",
@@ -40,6 +43,7 @@ fn reference_observations_verify_manifests_without_admitting_provider_routes() {
         ),
     ]);
     let workspace = Workspace::load(&tree, &["."]).unwrap();
+    unresolved_routes_preserve_target_identity_and_query_grants(&workspace);
     let app = workspace
         .package_ids()
         .find(|id| workspace.package(*id).unwrap().name == "app")
@@ -94,6 +98,67 @@ fn reference_observations_verify_manifests_without_admitting_provider_routes() {
     #[cfg(unix)]
     parent_path_directory_context_neighbors(&request);
     structural_reference_resolution_uses_actual_directories(&catalog, owner, observed.row());
+}
+
+fn unresolved_routes_preserve_target_identity_and_query_grants(workspace: &Workspace) {
+    for (path, expected) in [
+        ("app::unavailable", vec!["app", "helper"]),
+        ("app::chained", vec!["app", "helper"]),
+        ("app::external", vec!["app"]),
+    ] {
+        assert!(matches!(
+            workspace.resolve_in(path, Namespace::Value),
+            Err(ResolveError::NotFound(_))
+        ));
+        let ResolutionAttempt::NotFound { attempted_targets } = workspace
+            .resolve_in_observed(path, Namespace::Value)
+            .unwrap()
+        else {
+            panic!("missing alias acquired a definition");
+        };
+        let actual: std::collections::BTreeSet<_> = attempted_targets
+            .into_iter()
+            .map(|id| workspace.target(id).unwrap().package.as_str())
+            .collect();
+        assert_eq!(actual, expected.into_iter().collect());
+    }
+    assert_eq!(
+        workspace
+            .resolve_in_observed("helper::provided", Namespace::Value)
+            .unwrap(),
+        ResolutionAttempt::Resolved(
+            workspace
+                .resolve_in("helper::provided", Namespace::Value)
+                .unwrap()
+        ),
+    );
+    assert!(matches!(
+        workspace.resolve_in_observed("app::self::missing", Namespace::Value),
+        Err(ResolveError::Invalid(_))
+    ));
+    let files = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("src/lib.rs", "pub fn present(){}"),
+    ]);
+    for budget in [Budget::Work, Budget::GlobBytes] {
+        let mut options = LoadOptions::default();
+        match budget {
+            Budget::Work => options.max_query_work = 0,
+            Budget::GlobBytes => options.max_glob_bytes = 0,
+            _ => unreachable!(),
+        }
+        let bounded = Workspace::load_with(&files, &["."], &options).unwrap();
+        let error = bounded
+            .resolve_in_observed("demo::missing", Namespace::Value)
+            .unwrap_err();
+        assert!(
+            matches!(error, ResolveError::Budget { budget: actual, .. } if actual == budget),
+            "{error}"
+        );
+    }
 }
 
 fn structural_reference_resolution_uses_actual_directories(
