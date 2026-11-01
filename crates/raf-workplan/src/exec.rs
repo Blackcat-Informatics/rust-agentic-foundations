@@ -22,14 +22,12 @@
 //! the selected `RUSTDOC` with those observer controls removed. Standard output and
 //! standard error are captured, each up to a bound; a process that writes more,
 //! or runs longer than its wall-clock limit, is killed and the run is an
-//! [`ExecError`]. On Unix an ordinary process leads a process group of its own and a
-//! kill (SIGKILL to the group, sent directly and not through a `kill` program)
-//! reaches the group, so a test binary that `cargo` started does not outlive its
-//! timeout. Internal Rustdoc delegation instead inherits its outer Cargo group;
-//! its inner watchdog kills only its own child, leaving group ownership with the
-//! outer operation. A descendant that leaves the group, as one that calls `setsid` or
-//! `setpgid` does, is not reached and may outlive the kill; elsewhere than Unix
-//! only the process itself is killed. A kill that cannot be sent is an
+//! [`ExecError`]. On native Linux every command runs in a PID namespace admitted
+//! through `bwrap`. Termination sends SIGKILL through the owned launcher's pidfd;
+//! namespace teardown reaches its descendants, including those that call `setsid`
+//! or `setpgid`. Internal Rustdoc delegation has its own contained namespace, and
+//! teardown of the outer Cargo namespace also reaches that nested execution.
+//! Execution refuses unavailable containment or an unsupported host. A kill that cannot be sent is an
 //! [`ExecError::Io`] that says the process may still be running.
 //!
 //! [`FakeRunner`] answers invocations from a script, in process and on every
