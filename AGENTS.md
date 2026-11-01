@@ -203,6 +203,11 @@ make hooks   # point core.hooksPath at .githooks for this clone
   interpreter shebangs, including extensionless scripts. The commit and merge
   hooks judge the staged snapshot; CI applies the same Rust gate. Implement
   repository tooling in Rust.
+- **Dependency policy uses native TOML.** The first-party manifest gate reads
+  the PurRDF typed arena under its standard source, node, depth and model bounds.
+  Malformed manifests and exhausted bounds refuse; dependency aliases and target
+  keys are inspected in lexical order. Cargo-specific field selection and decimal
+  float-overflow refusal remain repository policy, including in metadata.
 - Every native `SystemRunner` invocation, including Git and compiler queries,
   requires Linux pidfds, PID and mount namespaces, `bwrap`, executable sealed
   memfds and `/proc` access. Missing capability is a hard execution failure.

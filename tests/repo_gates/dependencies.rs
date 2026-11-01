@@ -4,17 +4,57 @@
 //! First-party manifests cannot restore the obsolete JSON result dependency.
 
 use super::{gate_root, read_text, tracked_paths};
+use purrdf_lex::assoc::get_sorted as get;
+use purrdf_toml::{Document, Float, Kind, Node, Profile, Scalar, SourceDocument};
+
+// Cargo policy selects fields from the native arena; it owns no TOML grammar.
+fn table<'a>(
+    document: &'a Document<'_>,
+    node: &Node,
+    section: &str,
+) -> Result<Vec<(&'a str, &'a Node)>, String> {
+    if !matches!(node.kind, Kind::Table(_)) {
+        return Err(format!("{section} is not a table"));
+    }
+    let mut fields: Vec<_> = node
+        .children
+        .iter()
+        .map(|id| {
+            let child = &document.nodes()[*id];
+            (
+                child
+                    .key
+                    .as_ref()
+                    .expect("native table member key")
+                    .decoded
+                    .as_str(),
+                child,
+            )
+        })
+        .collect();
+    // Preserve the dependency and target order of the original manifest gate.
+    purrdf_lex::walk::try_sort_unstable_by(&mut fields, |a, b| {
+        Ok::<_, std::convert::Infallible>(a.0.cmp(b.0))
+    })
+    .expect("infallible field ordering");
+    Ok(fields)
+}
 
 fn check_table(
-    table: &toml::Table,
+    document: &Document<'_>,
+    node: &Node,
     section: &str,
     findings: &mut Vec<String>,
 ) -> Result<(), String> {
-    for (alias, dependency) in table {
-        let package = match dependency {
-            toml::Value::String(_) => alias.as_str(),
-            toml::Value::Table(fields) => match fields.get("package") {
-                Some(toml::Value::String(package)) => package,
+    for (alias, dependency) in table(document, node, section)? {
+        let package = match &dependency.kind {
+            Kind::Scalar(Scalar::String(_)) => alias,
+            Kind::Table(_) => match get(&table(document, dependency, section)?, "package").copied()
+            {
+                Some(Node {
+                    kind: Kind::Scalar(Scalar::String(package)),
+                    ..
+                }) => package,
                 Some(_) => {
                     return Err(format!(
                         "{section}: package for {} is not a string",
@@ -41,42 +81,50 @@ fn check_table(
 }
 
 fn dependency_problems(manifest: &str) -> Result<Vec<String>, String> {
-    let root: toml::Table = manifest
-        .parse()
-        .map_err(|e| format!("invalid Cargo manifest: {e}"))?;
+    let profile = Profile::standard().map_err(|e| format!("invalid manifest profile: {e}"))?;
+    let document = purrdf_toml::analyze(
+        SourceDocument {
+            id: "urn:raf:dependency-policy:manifest",
+            bytes: manifest.as_bytes(),
+        },
+        &profile,
+    )
+    .map_err(|e| format!("invalid Cargo manifest: {e}"))?;
+    // Cargo refuses decimal float overflow even in unrelated metadata. Explicit
+    // TOML infinity remains valid; the native model retains its original span.
+    for node in document.nodes() {
+        if matches!(
+            node.kind,
+            Kind::Scalar(Scalar::Float(Float::Infinity { .. }))
+        ) && !["inf", "+inf", "-inf"].contains(&&manifest[node.span.clone()])
+        {
+            return Err(format!(
+                "invalid Cargo manifest at byte {}: floating-point overflow; explicit inf is required",
+                node.span.start
+            ));
+        }
+    }
+    let root = table(&document, &document.nodes()[0], "manifest")?;
     let mut findings = Vec::new();
     for name in ["dependencies", "build-dependencies", "dev-dependencies"] {
-        if let Some(value) = root.get(name) {
-            check_table(
-                value
-                    .as_table()
-                    .ok_or_else(|| format!("{name} is not a table"))?,
-                name,
-                &mut findings,
-            )?;
+        if let Some(value) = get(&root, name) {
+            check_table(&document, value, name, &mut findings)?;
         }
     }
-    if let Some(workspace) = root.get("workspace") {
-        let workspace = workspace.as_table().ok_or("workspace is not a table")?;
-        if let Some(value) = workspace.get("dependencies") {
-            check_table(
-                value
-                    .as_table()
-                    .ok_or("workspace.dependencies is not a table")?,
-                "workspace.dependencies",
-                &mut findings,
-            )?;
+    if let Some(workspace) = get(&root, "workspace") {
+        let workspace = table(&document, workspace, "workspace")?;
+        if let Some(value) = get(&workspace, "dependencies") {
+            check_table(&document, value, "workspace.dependencies", &mut findings)?;
         }
     }
-    if let Some(targets) = root.get("target") {
-        for (target, value) in targets.as_table().ok_or("target is not a table")? {
-            let target_table = value.as_table().ok_or("target entry is not a table")?;
+    if let Some(targets) = get(&root, "target") {
+        for (target, value) in table(&document, targets, "target")? {
+            let target_table = table(&document, value, "target entry")?;
             for name in ["dependencies", "build-dependencies", "dev-dependencies"] {
-                if let Some(value) = target_table.get(name) {
+                if let Some(value) = get(&target_table, name) {
                     check_table(
-                        value
-                            .as_table()
-                            .ok_or("target dependencies is not a table")?,
+                        &document,
+                        value,
                         &format!("target.{}.{name}", target.escape_debug()),
                         &mut findings,
                     )?;
@@ -131,13 +179,62 @@ fn rdf_dependency_refusal_covers_aliases_targets_workspace_and_every_dependency_
         .unwrap(),
         [] as [String; 0]
     );
+    let ordered = dependency_problems(
+        "[target.z.dependencies]\nz={package='serde_json'}\na={package='serde_json'}\n[target.a.dependencies]\nb={package='serde_json'}\n[workspace.dependencies]\nw={package='serde_json'}\n[dev-dependencies]\nd={package='serde_json'}\n[build-dependencies]\nb={package='serde_json'}\n[dependencies]\nz={package='serde_json'}\na={package='serde_json'}\n",
+    ).unwrap();
+    let sections: Vec<_> = ordered
+        .iter()
+        .map(|finding| finding.split_once(':').unwrap().0)
+        .collect();
+    assert_eq!(
+        sections,
+        [
+            "dependencies.a",
+            "dependencies.z",
+            "build-dependencies.b",
+            "dev-dependencies.d",
+            "workspace.dependencies.w",
+            "target.a.dependencies.b",
+            "target.z.dependencies.a",
+            "target.z.dependencies.z"
+        ]
+    );
 }
 
 #[test]
 fn rdf_dependency_scan_refuses_malformed_manifests_instead_of_skipping_them() {
-    assert!(dependency_problems("[dependencies\n").is_err());
-    assert!(dependency_problems("[dependencies]\ncarrier={package=false,version='1'}\n").is_err());
-    assert!(dependency_problems("workspace=false\n").is_err());
+    for invalid in [
+        "[dependencies\n",
+        "[dependencies]\ncarrier={package=false,version='1'}\n",
+        "workspace=false\n",
+        "dependencies=false\n",
+        "[dependencies]\ncarrier=false\n",
+        "[workspace]\ndependencies=false\n",
+        "target=false\n",
+        "[target]\nlinux=false\n",
+        "[target.linux]\ndependencies=false\n",
+        "[dependencies]\ncarrier='1'\ncarrier='2'\n",
+        "[package.metadata]\nvalue=1e999\n",
+    ] {
+        assert!(dependency_problems(invalid).is_err(), "{invalid}");
+    }
+    for infinity in ["inf", "+inf", "-inf"] {
+        assert_eq!(
+            dependency_problems(&format!("[package.metadata]\nvalue={infinity}\n")).unwrap(),
+            [] as [String; 0]
+        );
+    }
+    let nested = |depth| {
+        format!(
+            "[package.metadata]\nvalue={}0{}\n",
+            "[".repeat(depth),
+            "]".repeat(depth)
+        )
+    };
+    let limit = Profile::standard().unwrap().bounds().max_depth as usize;
+    let error = dependency_problems(&nested(limit + 1)).expect_err("native depth admission");
+    assert!(error.contains("depth"), "{error}");
+    assert_eq!(dependency_problems(&nested(2)).unwrap(), [] as [String; 0]);
     assert_eq!(
         dependency_problems("[dependencies]\ncarrier={package='raf-rdf',version='1'}\n").unwrap(),
         [] as [String; 0]
