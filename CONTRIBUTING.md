@@ -50,6 +50,12 @@ and pull requests are welcome.
 
 ## Development
 
+The [supported-target policy](docs/TARGETS.md) limits implementation and
+qualification through the 0.9 release to the primary native Linux target.
+WebAssembly, other operating systems and secondary compilation targets are
+subject to reassessment after that release. Native Cargo target kinds and the
+stable MSRV and nightly toolchains remain covered.
+
 ```bash
 make check   # fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, licenses, issue-refs
 make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath = .githooks)

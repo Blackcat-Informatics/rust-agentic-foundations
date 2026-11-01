@@ -95,6 +95,10 @@ fn no_new_duplicate_helpers() {
 
 ## Development
 
+The supported target through the 0.9 release is the primary native Linux target.
+Additional targets are subject to reassessment after that release; see
+[supported targets](docs/TARGETS.md).
+
 See [CONTRIBUTING.md](CONTRIBUTING.md). Run `make check` before sending a change
 and `make hooks` once to install the pre-commit hook. Agents should also read
 [AGENTS.md](AGENTS.md).

@@ -143,6 +143,12 @@ bindings.
   exercises only its native strategy. Cross-platform testing and cross-compilation
   are forbidden. Other platform adapters remain in source without standard
   validation claims.
+- **Primary target through the 0.9 release.** Implementation and qualification
+  cover the primary native Linux target. WebAssembly, other operating systems,
+  secondary architectures and cross-compilation are subject to reassessment
+  after that release; they are not current completion requirements. Existing
+  adapters may remain without support claims. Native Cargo target kinds and
+  compiler versions remain covered. See [`docs/TARGETS.md`](docs/TARGETS.md).
 
 ---
 
