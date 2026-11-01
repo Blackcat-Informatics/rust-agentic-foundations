@@ -4,9 +4,11 @@
 //! Constructive terminal validation in the PUBLIC-level peer-glob interval.
 
 use super::{
-    Bound, Cow, GlobRead, Held, Index, Level, LoadError, Meter, NativeAdmission, Steps, Transient,
-    Vis, Work, WorkList, push_work, search_units, size_of, sort_units, tally,
+    Bound, DropNames, GlobRead, Held, Index, Level, Lists, LoadError, Meter, NativeAdmission,
+    SharedStr, Steps, Transient, Vis, Work, WorkList, push_work, size_of, sort_units, tally,
 };
+use crate::{error::LoadErrorKind, settle::Entry};
+use std::{cmp::Ordering, collections::btree_map::Iter, iter::Peekable};
 
 #[cfg(test)]
 mod tests;
@@ -24,7 +26,6 @@ struct Ranked<'a, 'm> {
 struct Scratch {
     seen: Vec<Held>,
     hidden: Vec<Held>,
-    copied: Vec<Held>,
     #[cfg(test)]
     closure_calls: usize,
 }
@@ -42,7 +43,7 @@ struct Read<'a> {
 
 /// Read structure and written visibility do not depend on a name or namespace.
 struct Topology<'a> {
-    reads: Vec<(&'a GlobRead, Level)>,
+    reads: Vec<(&'a GlobRead, Level, Option<&'a DropNames>)>,
     offsets: Vec<usize>,
 }
 
@@ -56,6 +57,12 @@ struct NameInputs<'a> {
 struct Resident<'a> {
     held: Option<&'a [Vec<Held>; 3]>,
     defs: Option<&'a [Bound; 3]>,
+}
+
+/// Ordered cursors over the immutable rows of one resident view.
+struct ResidentCursor<'a> {
+    held: Peekable<Iter<'a, SharedStr, Lists>>,
+    defs: Peekable<Iter<'a, String, Box<Entry>>>,
 }
 
 impl<'a> NameInputs<'a> {
@@ -74,7 +81,7 @@ impl<'a> NameInputs<'a> {
 /// Borrowed only while all definitions, resident payload and recorded rows freeze.
 struct Inputs<'a, 'b> {
     rows: &'b [Resident<'a>],
-    reads: &'b [(&'a GlobRead, Level)],
+    reads: &'b [(&'a GlobRead, Level, Option<&'a DropNames>)],
     known: &'b [Option<&'a [Vec<Held>; 3]>],
     offsets: &'b [usize],
     at: usize,
@@ -101,7 +108,7 @@ impl<'a> Inputs<'a, '_> {
         self.reads[range.clone()]
             .iter()
             .zip(&self.known[range])
-            .map(|((source, glob), known)| Read {
+            .map(|((source, glob, _), known)| Read {
                 source,
                 known: known.map_or(&[], |spaces| spaces[self.at].as_slice()),
                 glob: *glob,
@@ -147,15 +154,113 @@ impl<'a> Ranked<'a, '_> {
         }
         let memory = self.memory.child();
         let topology = self.topology(&memory)?;
+        let mut cursors = self.cursors(&memory)?;
         let mut scratch = Scratch::default();
         for name in names {
             let name_memory = self.memory.child();
-            let facts = self.name_inputs(name, &topology, &name_memory)?;
-            for at in 0..3 {
+            let facts = self.name_inputs(name, &topology, &name_memory, &mut cursors)?;
+            'namespaces: for at in 0..3 {
+                if facts.bottom[at] {
+                    continue;
+                }
                 let inputs = facts.namespace(&topology, at);
+                for previous in 0..at {
+                    if self.same_inputs(&inputs, &facts.namespace(&topology, previous))? {
+                        continue 'namespaces;
+                    }
+                }
                 if !self.certify(&inputs, &mut scratch, &memory)? {
                     return Ok(false);
                 }
+            }
+        }
+        self.complete_cursors(&mut cursors)?;
+        Ok(true)
+    }
+
+    fn cursors(&self, memory: &Transient<'_>) -> Result<Vec<ResidentCursor<'a>>, LoadError> {
+        let count = self.index.globs.views.len();
+        let mut cursors = Vec::new();
+        self.reserve(&mut cursors, count, memory)?;
+        self.work(Work::ProofReads, count.saturating_mul(2))?;
+        self.work(Work::ProofCopies, count)?;
+        for view in &self.index.globs.views {
+            cursors.push(ResidentCursor {
+                held: view.names.iter().peekable(),
+                defs: self.index.scopes[view.target].iter().peekable(),
+            });
+        }
+        Ok(cursors)
+    }
+
+    fn incomplete_names(&self) -> LoadError {
+        let decl = &self.index.uses[self.site];
+        LoadError::new(
+            &decl.file,
+            Some(decl.line),
+            LoadErrorKind::Internal {
+                what: "ranked input cursors did not consume every frozen name in order".into(),
+            },
+        )
+    }
+
+    fn complete_cursors(&self, cursors: &mut [ResidentCursor<'_>]) -> Result<(), LoadError> {
+        self.work(Work::ProofReads, cursors.len().saturating_mul(2))?;
+        if cursors
+            .iter_mut()
+            .any(|cursor| cursor.held.peek().is_some() || cursor.defs.peek().is_some())
+        {
+            return Err(self.incomplete_names());
+        }
+        Ok(())
+    }
+
+    /// Reuse a successful namespace proof only for the same complete inputs.
+    /// The public peer interval makes own definitions depend on their IDs alone;
+    /// topology, classes and visibility are shared by all namespaces of a name.
+    fn same_inputs(
+        &self,
+        left: &Inputs<'_, '_>,
+        right: &Inputs<'_, '_>,
+    ) -> Result<bool, LoadError> {
+        self.work(Work::ProofSteps, 1)?;
+        if left.bottom != right.bottom
+            || left.rows.len() != right.rows.len()
+            || left.known.len() != right.known.len()
+        {
+            return Ok(false);
+        }
+        if left.bottom {
+            return Ok(true);
+        }
+        for view in 0..left.rows.len() {
+            let left = left.row(view);
+            let right = right.row(view);
+            if !self.same(left.held, right.held)? {
+                return Ok(false);
+            }
+            self.work(Work::ProofSteps, 1)?;
+            match (left.defs, right.defs) {
+                (Some(left), Some(right)) => {
+                    self.work(Work::ProofSteps, 1 + left.len().min(right.len()))?;
+                    if !left
+                        .iter()
+                        .map(|entry| entry.0)
+                        .eq(right.iter().map(|entry| entry.0))
+                    {
+                        return Ok(false);
+                    }
+                }
+                (None, None) => {}
+                _ => return Ok(false),
+            }
+        }
+        for (left_known, right_known) in left.known.iter().zip(right.known) {
+            if !self.same(
+                left_known.map_or(&[], |spaces| spaces[left.at].as_slice()),
+                right_known.map_or(&[], |spaces| spaces[right.at].as_slice()),
+            )? {
+                return Ok(false);
             }
         }
         Ok(true)
@@ -344,8 +449,12 @@ impl<'a> Ranked<'a, '_> {
                 let glob =
                     self.index
                         .level_of(&self.index.uses[source.glob].vis, module, Steps::Load);
+                // Recorded rows stay frozen for this entire validation. Resolve
+                // their outer key once rather than again for every input name.
+                self.work(Work::ProofReads, 1)?;
+                let known = self.index.globs.drops.get(&(source.glob, source.target));
                 self.work(Work::ProofCopies, 1)?;
-                topology.reads.push((source, glob));
+                topology.reads.push((source, glob, known));
             }
         }
         self.work(Work::ProofCopies, 1)?;
@@ -358,6 +467,7 @@ impl<'a> Ranked<'a, '_> {
         name: &str,
         topology: &Topology<'a>,
         memory: &Transient<'_>,
+        cursors: &mut [ResidentCursor<'a>],
     ) -> Result<NameInputs<'a>, LoadError> {
         let mut inputs = NameInputs {
             rows: Vec::new(),
@@ -365,12 +475,30 @@ impl<'a> Ranked<'a, '_> {
             bottom: [true; 3],
         };
         self.reserve(&mut inputs.rows, self.index.globs.views.len(), memory)?;
-        for view in &self.index.globs.views {
+        for cursor in cursors {
             self.work(Work::ProofReads, 8)?;
-            let held: Option<&[Vec<Held>; 3]> = view.names.get(name).map(AsRef::as_ref);
-            let defs = self.index.scopes[view.target]
-                .get(name)
-                .map(|entry| &entry.defs);
+            let held_order = cursor.held.peek().map(|(key, _)| key.as_str().cmp(name));
+            let defs_order = cursor.defs.peek().map(|(key, _)| key.as_str().cmp(name));
+            if held_order == Some(Ordering::Less) || defs_order == Some(Ordering::Less) {
+                return Err(self.incomplete_names());
+            }
+            // A matching peek remains present until this iterator's next call.
+            let held = (held_order == Some(Ordering::Equal)).then(|| {
+                cursor
+                    .held
+                    .next()
+                    .expect("matching frozen held row")
+                    .1
+                    .as_ref()
+            });
+            let defs = (defs_order == Some(Ordering::Equal)).then(|| {
+                &cursor
+                    .defs
+                    .next()
+                    .expect("matching frozen scope row")
+                    .1
+                    .defs
+            });
             for (at, bottom) in inputs.bottom.iter_mut().enumerate() {
                 *bottom &= held.is_none_or(|spaces| spaces[at].is_empty())
                     && defs.is_none_or(|spaces| spaces[at].is_empty());
@@ -382,14 +510,9 @@ impl<'a> Ranked<'a, '_> {
             return Ok(inputs);
         }
         self.reserve(&mut inputs.known, topology.reads.len(), memory)?;
-        for (source, _) in &topology.reads {
+        for (_, _, names) in &topology.reads {
             self.work(Work::ProofReads, 1)?;
-            let known = self
-                .index
-                .globs
-                .drops
-                .get(&(source.glob, source.target))
-                .and_then(|names| names.get(name));
+            let known = names.and_then(|names| names.get(name));
             self.work(Work::ProofCopies, 1)?;
             inputs.known.push(known);
         }
@@ -517,7 +640,6 @@ impl<'a> Ranked<'a, '_> {
         self.work(Work::ProofSteps, 3)?;
         scratch.seen.clear();
         scratch.hidden.clear();
-        scratch.copied.clear();
         if let Some(defs) = inputs.row(view).defs {
             self.reserve(&mut scratch.seen, defs.len(), memory)?;
             self.work(Work::ProofReads, defs.len())?;
@@ -547,38 +669,33 @@ impl<'a> Ranked<'a, '_> {
                 continue;
             }
             let source = inputs.row(read.source.view).held;
-            self.work(Work::ProofReads, source.len())?;
-            scratch.copied.clear();
-            self.reserve(&mut scratch.copied, source.len(), memory)?;
-            self.work(Work::ProofCopies, source.len())?;
-            scratch.copied.extend_from_slice(source);
-            let mut held = Cow::Owned(std::mem::take(&mut scratch.copied));
+            if source.is_empty() {
+                continue;
+            }
             let known = read.known;
+            // Selection scans the known row once for accessible support and
+            // once while merging the sorted IDs. Admit both scans and the
+            // maximum possible output before the borrowed transfer begins.
+            self.work(
+                Work::ProofReads,
+                source.len().saturating_add(known.len().saturating_mul(2)),
+            )?;
             self.work(
                 Work::ProofSteps,
-                known.len().saturating_add(
-                    source
-                        .len()
-                        .saturating_mul(3 * search_units(known.len()) + 3),
-                ),
+                known
+                    .len()
+                    .saturating_mul(2)
+                    .saturating_add(source.len().saturating_mul(4)),
             )?;
-            self.index.filter_known_delivered(
-                module,
-                Some(&own.class),
-                known,
-                &mut held,
-                Work::ProofCopies,
-            );
-            self.work(Work::ProofCopies, held.len())?;
-            self.work(Work::ProofSteps, held.len())?;
-            self.index.glob_held(
+            self.work(Work::ProofCopies, source.len())?;
+            self.index.glob_held_iter(
                 module,
                 &own.class,
                 read.glob,
-                &held,
+                self.index
+                    .known_delivered(module, &own.class, known, source),
                 (&mut scratch.seen, &mut scratch.hidden),
             );
-            scratch.copied = held.into_owned();
         }
         self.index
             .expose_in_place(&mut scratch.seen, &mut scratch.hidden, &|units| {

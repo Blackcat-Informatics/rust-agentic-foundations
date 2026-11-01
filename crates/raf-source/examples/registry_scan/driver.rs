@@ -35,10 +35,9 @@
 //! the work counter does not see is not stopped; parsing, the one such stretch
 //! the index has, is bounded by the token budget.
 //!
-//! The counter also does not see the lookups of settling: a module with n globs
-//! and n named imports of a name the globs re-export makes a work count of 4n+2
-//! and visits about 25n^2 glob reads, so a crate of that shape is not refused by
-//! `--max-work`. Such a load can run long.
+//! Lookups made while settling, including visited glob reads and retained route
+//! proofs, spend the load's work grant. A query after the load has its own
+//! [`LoadOptions::max_query_work`] grant.
 //!
 //! There is no `--timeout` flag and no `timeout` outcome: a bound by time
 //! needs a clock and a child stopped from outside, and a count needs neither,
@@ -179,31 +178,10 @@ pub(super) struct Options {
     max_memory: u64,
 }
 
-/// The example's unsigned decimal subset, including `+` and leading zeroes,
-/// narrowed through the native exact integer reader to the requested width.
-fn unsigned<T: TryFrom<u128>>(text: &str) -> Option<T> {
-    let digits = text.strip_prefix('+').unwrap_or(text);
-    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
-        return None;
-    }
-    let significant = digits.trim_start_matches('0');
-    let significant = if significant.is_empty() {
-        "0"
-    } else {
-        significant
-    };
-    if significant.len() > 39 {
-        return None;
-    }
-    let value = purrdf_xsd::numeric::parse_integer_typed(
-        significant,
-        purrdf_xsd::XsdDatatype::NonNegativeInteger,
-    )
-    .ok()?
-    .into_bigint()
-    .unsigned_abs_u128()?;
-    T::try_from(value).ok()
-}
+#[path = "../../tests/support/number.rs"]
+mod number;
+
+use number::unsigned;
 
 /// A whole number of at least 1: the work steps of one load.
 pub(super) fn parse_work(text: &str) -> Result<usize, String> {

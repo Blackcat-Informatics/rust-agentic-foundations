@@ -45,7 +45,7 @@ const BASES: [u64; 2] = [0x0a11_ce00, 0xc0ff_ee00];
 
 /// The orders of the declarations each program is loaded in besides the
 /// order as written.
-const ORDERS: usize = 2;
+const ORDERS: usize = 12;
 
 /// The seed the orders of each program are drawn from.
 const ORDER_SEED: u64 = 0x0de2_0001;
@@ -184,7 +184,7 @@ fn judge(programs: &[(String, Program)]) -> Judged {
 }
 
 #[test]
-fn the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_three_orders()
+fn the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_thirteen_orders()
  {
     let programs = programs();
     let corpus = programs
