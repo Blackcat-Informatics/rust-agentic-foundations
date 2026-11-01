@@ -7,7 +7,7 @@ subject: cap:workplan-complete-gate#examples
 inputs:
   - kind: section
     name: cap:workplan-complete-gate#examples
-    digest: f4e7bfd0c16772ae8c8bde3b47c09999b9097d319d0a707652a643ae29a5d5f2
+    digest: 0295ffabc8fa981e1ccf973a537d258b482239d0052c470157ed888439593169
   - kind: symbol
     name: raf_workplan::Gate::capture_request
     digest: 84c9fe170a83134edcf59068edcfa38f60c34db62408afa38d48bd09c3efa70c
@@ -27,6 +27,9 @@ inputs:
     name: raf_workplan::Opened::workplan_after
     digest: 5178bc0715f78c9211ed26735550f8a7d12951c58343e4208ef445e4ee8081a8
   - kind: symbol
+    name: raf_workplan::bin_crate::raf_exec_host::main
+    digest: 00860203f9d65e200645c7f1ca552fb088b8ca6c0037b20ce85d5f580579cadc
+  - kind: symbol
     name: raf_workplan::bound
     digest: 527af1fe798e4e4e31e75e59e0dec664c5ae70b54cbac73725d86f324a33bdda
   - kind: symbol
@@ -36,11 +39,14 @@ inputs:
     name: raf_workplan::bound::Executor
     digest: 20b6cc8961435186ea18afcfc09e02482591beb2cff584e4d808ec10dc06df47
   - kind: symbol
+    name: raf_workplan::build_script::main
+    digest: e5a82d61084587826d7bbe6771fb4d522607a7f257805ea2cbbb6e58dae71823
+  - kind: symbol
     name: raf_workplan::exec
-    digest: e83ba826ee66105d29fa0aef73c7398e02c23be8298e2c056048788f90a725d9
+    digest: e40b30cf9aa69a3e4779977036348ab1726c1fd5c5fc0325e350c17a3b72605a
   - kind: symbol
     name: raf_workplan::exec::Invocation
-    digest: 7480140c0e9f3a70870b993d388ad604bc37f3148bd301945b39b15b66bd27b0
+    digest: bfe36f3884482b0c528cb5e7893e5502a6194993760c740bb1f10c45dc6f1a59
   - kind: symbol
     name: raf_workplan::exec::Limits
     digest: 5aa3fa838885868be1b202101d540a731f95ea25a8eb4cde1add45228ce426f6
@@ -52,10 +58,10 @@ inputs:
     digest: d12e51e212911a55e4199733f3904510ed109d548196f6d19c30acafe2511abe
   - kind: symbol
     name: raf_workplan::exec::SystemRunner
-    digest: 6e0a6317bc3638cfded91014aee9b5d161bdfc6aea57c72ffe61356445434d19
+    digest: 4856cc6fa546e261544ed9e36df63b6ab45c46d85706634b0de572460557b022
   - kind: symbol
     name: raf_workplan::exec::view
-    digest: f52e7d2f01959db03e8f2a65450a9ebaea49c2e4378a03577e95632e459f3e71
+    digest: 1a41bdcf4a26e3d0a43fcf74ec9c0cf5f5d2f6b0964094b436181d1736fd6cc0
   - kind: symbol
     name: raf_workplan::git::head
     digest: 8f71ef108fb1cc9fc6e44490690d3ef38b4bf30bbd3cbc96742676fcee3fe104

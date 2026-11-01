@@ -74,7 +74,9 @@ make help    # list every target
   hook change takes effect on the branch that carries it.
 - **Native execution prerequisites.** Install `bubblewrap` for the `bwrap`
   executable, Git 2.36 or newer and OpenSSH's `ssh-keygen`. The host must support
-  the required mount namespace. Fixtures create and verify an ephemeral SSH
+  Linux pidfds, PID and mount namespaces, executable sealed memfds and `/proc`
+  access. These requirements apply to every native `SystemRunner` invocation,
+  including Git and compiler information queries. Fixtures create and verify an ephemeral SSH
   signing authority inside their Git administration; no maintainer private key
   is used. Ordinary Git-backed opening and tracked-oracle queries retain their
   Git 2.30 minimum; completed views need NUL-delimited worktree inventory.

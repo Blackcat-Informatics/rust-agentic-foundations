@@ -13,8 +13,8 @@
 //! of looks whatever the speed of the host, and nothing waits for it.
 //!
 //! The test and the example of the crate call one function of its library: it
-//! ignores SIGHUP, SIGINT and SIGTERM, writes the id of its process to the pid
-//! FIFO of a [`Subject`], blocks reading the hold FIFO and then writes the
+//! ignores SIGHUP, SIGINT and SIGTERM, sends its kernel credentials to the
+//! socket of a [`Subject`], blocks reading the hold FIFO and then writes the
 //! marker. The gate of the stepped clock ([`Watch`]) takes a pidfd of the
 //! process the runner starts (`cargo`) as it starts, and blocks until the id
 //! is written or that process has ended, so a `cargo` that ends first ends the
@@ -31,9 +31,10 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use raf_source::{DiskTree, MemoryTree, Workspace};
-use rustix::io::Errno;
 
-use super::{Opening, Process, Seen, Settled, Stepped, Subject, nothing_outlived_the_kill};
+use super::{
+    Opening, Process, Seen, Settled, Stepped, Subject, nothing_outlived_the_kill, receipt,
+};
 use crate::Workplan;
 use crate::bound::{BoundOutcome, Ended, Evidence, Executor};
 use crate::exec::clock::WallClock;
@@ -111,11 +112,8 @@ impl Runner for Clocked {
 /// writes to the pid FIFO. A turn blocks until the id is written or the
 /// started process has ended, events of the kernel and not a time.
 struct Watch {
-    /// The pid FIFO, open for reading and writing since before the build and
-    /// read without blocking once the poll has found it readable.
-    pids: std::fs::File,
-    /// What has been read of the line.
-    line: Vec<u8>,
+    /// The readiness socket carries host-translated process credentials.
+    pids: std::os::unix::net::UnixDatagram,
     /// The process the runner started, until the gate opens.
     leader: Option<Process>,
     /// Whether the process the runner started ended before the id came.
@@ -125,8 +123,10 @@ struct Watch {
 impl Watch {
     fn new(subject: &Subject) -> Self {
         Self {
-            pids: subject.pids.try_clone().expect("a FIFO is shared"),
-            line: Vec::new(),
+            pids: subject
+                .pids
+                .try_clone()
+                .expect("a readiness socket is shared"),
             leader: None,
             leader_ended: false,
         }
@@ -144,9 +144,6 @@ impl Opening for Watch {
     }
 
     fn turn(&mut self) -> Option<Seen> {
-        use rustix::event::{PollFd, PollFlags, poll};
-        use std::io::Read as _;
-
         if self.leader_ended {
             return None;
         }
@@ -154,47 +151,22 @@ impl Opening for Watch {
             .leader
             .as_ref()
             .expect("the runner names the process it started");
-        let (written, ended) = {
-            let mut fds = [
-                PollFd::new(&self.pids, PollFlags::IN),
-                PollFd::new(&leader.fd, PollFlags::IN),
-            ];
-            match poll(&mut fds, None) {
-                Ok(_) => {}
-                Err(Errno::INTR) => return None,
-                Err(error) => panic!("poll of the pid FIFO and of `cargo`: {error}"),
-            }
-            (
-                fds[0].revents().contains(PollFlags::IN),
-                fds[1].revents().contains(PollFlags::IN),
-            )
-        };
-        if written {
-            let mut chunk = [0_u8; 64];
-            match (&self.pids).read(&mut chunk) {
-                // The test holds a writer, so a read never finds the end.
-                Ok(0) => panic!("the pid FIFO ended"),
-                Ok(read) => self.line.extend_from_slice(&chunk[..read]),
-                Err(error)
-                    if matches!(
-                        error.kind(),
-                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted
-                    ) => {}
-                Err(error) => panic!("the pid FIFO is read: {error}"),
-            }
-        }
-        if !self.line.contains(&b'\n') {
-            self.leader_ended = ended;
+        let Some((role, pid)) = receipt::until_receipt(&self.pids, &leader.fd)
+            .expect("wait for the owned Cargo target receipt")
+        else {
+            self.leader_ended = true;
             return None;
-        }
-        let line = String::from_utf8(std::mem::take(&mut self.line)).expect("a process id");
-        let word = line.trim();
+        };
+        assert_eq!(role, "cargo");
         let leader = self.leader.take()?;
-        // `cargo run` on Unix replaces itself with the example, which then
-        // writes the id of the process the runner started.
-        let descendant = (word != leader.pid.as_raw_pid().to_string()).then(|| Process::open(word));
+        let descendant = Some(Process::open(&pid.as_raw_pid().to_string()));
         assert!(!leader.ended(), "`cargo` ended before the limit could pass");
-        Some(Seen { leader, descendant })
+        Some(Seen {
+            leader,
+            payload: None,
+            descendant,
+            teardown: None,
+        })
     }
 }
 
@@ -327,14 +299,14 @@ fn library(subject: &Subject) -> String {
     format!(
         r#"//! A crate whose test and example never end by themselves.
 
-use std::io::{{Read as _, Write as _}};
+use std::io::Read as _;
 
 extern "C" {{
     fn signal(signum: i32, handler: usize) -> usize;
 }}
 
-/// Ignore SIGHUP, SIGINT and SIGTERM, write the id of this process to the
-/// pid FIFO, block reading the hold FIFO, then write the marker.
+/// Ignore SIGHUP, SIGINT and SIGTERM, publish this process's credentials,
+/// block reading the hold FIFO, then write the marker.
 pub fn outlive() {{
     for signum in [1, 2, 15] {{
         // SIG_IGN is 1.
@@ -342,12 +314,8 @@ pub fn outlive() {{
             signal(signum, 1);
         }}
     }}
-    // The test holds the FIFO open for reading, so the open does not block.
-    let mut pids = std::fs::OpenOptions::new()
-        .write(true)
-        .open({pids})
-        .expect("the pid FIFO opens");
-    writeln!(pids, "{{}}", std::process::id()).expect("the process id is written");
+    std::os::unix::net::UnixDatagram::unbound().unwrap()
+        .send_to(b"cargo", {pids}).expect("send kernel-translated process credentials");
     // The test holds the FIFO open for writing, so only the read blocks.
     let mut hold = std::fs::File::open({hold}).expect("the hold FIFO opens");
     let _ = hold.read(&mut [0_u8; 1]);

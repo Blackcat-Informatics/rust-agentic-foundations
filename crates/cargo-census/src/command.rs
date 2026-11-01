@@ -129,14 +129,7 @@ fn migrate(
     .ok_or_else(|| {
         Error::Options("migration requires its explicitly selected baseline or index".into())
     })?;
-    let previous = read(
-        companion,
-        if args.legacy {
-            MAX_LEDGER_BYTES
-        } else {
-            MAX_INDEX_BYTES
-        },
-    )?;
+    let previous = read(companion, MAX_INDEX_BYTES)?;
     let old_path = ledger.display().to_string();
     let previous_path = companion.display().to_string();
     let old = MigrationInput {

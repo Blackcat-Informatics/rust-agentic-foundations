@@ -16,7 +16,8 @@ use raf_source::{LoadOptions, Tree, Workspace};
 use super::owners;
 use crate::{Census, Error, Fingerprint, Index, Ledger, MAX_LEDGER_BYTES, ReportError};
 
-/// Maximum canonical index input, matching the source load's total-byte budget.
+/// Maximum migration report input (native index or foreign baseline), matching
+/// the source load's total-byte budget.
 pub const MAX_INDEX_BYTES: usize = raf_source::Budget::TotalBytes.limit();
 
 /// A named, borrowed migration input. Input bytes are never modified.

@@ -15,6 +15,10 @@ use std::path::{Path, PathBuf};
 
 mod artifact;
 pub use artifact::LibraryArtifact;
+/// Checked pre-HTML include preparation from actual compiler observations.
+pub mod assembly;
+/// Explicit compiler invocation and configuration observations for Cargo documentation.
+pub mod observation;
 
 /// One exact workspace library selected from Cargo's format-v1 metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -262,6 +266,14 @@ pub fn document(
     selection: &Selection,
 ) -> Result<DocumentationRun, DiagramError> {
     let invocation = Invocation::cargo_doc(&selection.options).at_directory(&selection.root);
+    document_invocation(runner, selection, invocation)
+}
+
+fn document_invocation(
+    runner: &dyn Runner,
+    selection: &Selection,
+    invocation: Invocation,
+) -> Result<DocumentationRun, DiagramError> {
     let output = execute(runner, &invocation)?;
     let messages = messages(&output.stdout)?;
     let after = capture(runner, &selection.root, &selection.options)?;

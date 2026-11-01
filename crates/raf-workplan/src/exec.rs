@@ -4,9 +4,11 @@
 //! The one place a process is started.
 //!
 //! Every `cargo` and `git` process of the workplan is an [`Invocation`] given to
-//! a [`Runner`], and so is the one further process, the caller's own command of
-//! `evidence record` ([`Invocation::trusted`] of a [`TrustedArgv`], which only
-//! the command line of the running process can give). The invocation is a [`Program`] and a list of [`Arg`]s; an
+//! a [`Runner`]. The caller's own `evidence record` command uses
+//! [`Invocation::trusted`] of a [`TrustedArgv`], which only the running process's
+//! command line can give. The observing Rustdoc driver delegates its actual
+//! Cargo arguments to its explicitly selected compiler through the same runner.
+//! The invocation is a [`Program`] and a list of [`Arg`]s; an
 //! argument is fixed text or a validated value, and a value can be built only
 //! through one of the patterns of the completion gate (see [`Pattern`]), so text
 //! from a document cannot reach a command line by any other route.
@@ -15,15 +17,17 @@
 //! vector as given, with its working directory set to [`Programs::cwd`] and its
 //! standard input null. The environment is the caller's, plus `LC_ALL=C` for a
 //! `cargo` or `git` process whose output is parsed ([`Limits::c_locale`]); the
-//! caller's own command always runs in the caller's environment unchanged. Standard output and
+//! caller's own command runs in the caller's environment unchanged. Observed
+//! documentation carries scoped driver controls; the delegated compiler receives
+//! the selected `RUSTDOC` with those observer controls removed. Standard output and
 //! standard error are captured, each up to a bound; a process that writes more,
 //! or runs longer than its wall-clock limit, is killed and the run is an
-//! [`ExecError`]. On Unix the process leads a process group of its own and a
-//! kill (SIGKILL to the group, sent directly and not through a `kill` program)
-//! reaches the group, so a test binary that `cargo` started does not outlive its
-//! timeout. A descendant that leaves the group, as one that calls `setsid` or
-//! `setpgid` does, is not reached and may outlive the kill; elsewhere than Unix
-//! only the process itself is killed. A kill that cannot be sent is an
+//! [`ExecError`]. On native Linux every command runs in a PID namespace admitted
+//! through `bwrap`. Termination sends SIGKILL through the owned launcher's pidfd;
+//! namespace teardown reaches its descendants, including those that call `setsid`
+//! or `setpgid`. Internal Rustdoc delegation has its own contained namespace, and
+//! teardown of the outer Cargo namespace also reaches that nested execution.
+//! Execution refuses unavailable containment or an unsupported host. A kill that cannot be sent is an
 //! [`ExecError::Io`] that says the process may still be running.
 //!
 //! [`FakeRunner`] answers invocations from a script, in process and on every
@@ -59,7 +63,10 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 pub use fake::{Call, FakeRunner};
-pub use invocation::{Arg, CargoDocOptions, CargoDocOptionsError, Invocation, Literal, Program};
+pub use invocation::{
+    Arg, CargoDocOptions, CargoDocOptionsError, Invocation, Literal, Program,
+    RustdocObservationOptions, RustdocObservationOptionsError,
+};
 pub use pattern::{
     Commit, Date, DocFilter, ExampleName, Filter, Identifier, LineRange, Package, Pattern,
     PatternError, RefName, SourcePath, Target, TargetName, TreePath,
@@ -262,7 +269,10 @@ impl GitSelector {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Output {
-    /// The exit code, or `None` when a signal ended the process.
+    /// The reported exit code. Native contained execution uses bubblewrap's
+    /// shell encoding, including `128 + signal` for a signalled payload. An
+    /// explicit exit with that code is indistinguishable. Other runners may
+    /// report `None` for termination without an exit code.
     pub code: Option<i32>,
     /// What it wrote to standard output.
     pub stdout: Vec<u8>,

@@ -625,8 +625,13 @@ fn recorded_binding_outcomes(found: &mut BTreeSet<String>) {
         }
         // Preserve the real test output and status while controlling the
         // build diagnostics that otherwise embed paths and variable durations.
+        // Parallel libtest output omits the unfinished test's progress prefix;
+        // retain that mode even when the enclosing suite runs serially.
         let cargo = repo.root().join("cargo-without-build-diagnostics");
-        support::stubs::script(&cargo, "exec \"$RAF_REGISTRY_CARGO\" \"$@\" 2>/dev/null");
+        support::stubs::script(
+            &cargo,
+            "RUST_TEST_THREADS=2 exec \"$RAF_REGISTRY_CARGO\" \"$@\" 2>/dev/null",
+        );
         let mut command = support::command(
             repo.root(),
             support::Shape::Direct,

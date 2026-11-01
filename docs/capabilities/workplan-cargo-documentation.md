@@ -87,7 +87,9 @@ metadata and documentation, while metadata supplies the effective absolute root.
 ## Examples
 
 Run `cargo run -p raf-workplan --example cargo_documentation` without arguments.
-It documents two local libraries with an explicit feature request, admits their
+It deliberately selects Rustup's native Rustdoc, retains its actual configuration
+queries beside compiler receipts, and documents two local libraries with an
+explicit feature request. It admits their
 reported HTML and checks actual output containing a documented alias, a macro
 item, generated source and a documentation-only item. It then documents just one
 library under the reported output directory and checks that the other entry's

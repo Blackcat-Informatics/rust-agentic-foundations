@@ -16,10 +16,10 @@
 //! instead of spinning.
 //!
 //! A process that has to outlive its limit first ignores SIGHUP, SIGINT and
-//! SIGTERM, writes its process id to a FIFO (the pids) and blocks reading
+//! SIGTERM, publishes its kernel credentials over a socket and blocks reading
 //! another that the test holds open (the hold); a leader that exits and leaves
 //! it behind first waits on a third (go) until its pidfd is taken. On Linux the
-//! stepped clock reads the pids without blocking and does not move until it
+//! stepped clock reads the receipts without blocking and does not move until it
 //! has a pidfd of each process, so a script that ends early ends the run
 //! instead of stopping the test. Once the run is over the test releases the
 //! hold, sends SIGCONT to each process and blocks on each pidfd until the
@@ -36,6 +36,18 @@ use std::time::Duration;
 
 use super::{Capture, Look, POLL_CEILING, next_pause, verdict};
 use crate::exec::Stream;
+
+#[cfg(target_os = "linux")]
+#[path = "../../../../../tests/support/process_receipt.rs"]
+mod receipt;
+
+#[cfg(target_os = "linux")]
+#[path = "../../../../../tests/support/process_teardown.rs"]
+#[allow(
+    dead_code,
+    reason = "shared teardown also supplies the actual CLI-death fixtures"
+)]
+mod teardown;
 
 /// The direct-child termination path is shared by every platform. A pipe
 /// controlled by this test keeps the descendant alive until after its leader
@@ -476,6 +488,9 @@ struct Stepped {
     gate: Option<Box<dyn Opening>>,
     #[cfg(target_os = "linux")]
     seen: Option<Seen>,
+    /// An already-ended launcher leaves only asynchronous reader completion.
+    #[cfg(target_os = "linux")]
+    completed: bool,
 }
 
 #[cfg(unix)]
@@ -488,13 +503,20 @@ impl Stepped {
     }
 
     /// A clock that moves from its first pause, for a run of `limit`.
-    #[cfg(not(target_os = "linux"))]
     fn new(limit: Duration) -> Self {
         let (looks, pauses) = Self::moving(stepped_ceiling(limit));
         Self {
             now: Duration::ZERO,
             looks,
             pauses,
+            #[cfg(target_os = "linux")]
+            ceiling: stepped_ceiling(limit),
+            #[cfg(target_os = "linux")]
+            gate: None,
+            #[cfg(target_os = "linux")]
+            seen: None,
+            #[cfg(target_os = "linux")]
+            completed: false,
         }
     }
 
@@ -508,6 +530,7 @@ impl Stepped {
             ceiling: stepped_ceiling(limit),
             gate: Some(Box::new(gate)),
             seen: None,
+            completed: false,
         }
     }
 }
@@ -523,14 +546,26 @@ impl Clock for Stepped {
         #[cfg(target_os = "linux")]
         if let Some(gate) = &mut self.gate {
             if let Some(seen) = gate.turn() {
+                self.completed = seen.leader.ended();
                 self.seen = Some(seen);
                 self.gate = None;
-                (self.looks, self.pauses) = Self::moving(self.ceiling);
+                if !self.completed {
+                    (self.looks, self.pauses) = Self::moving(self.ceiling);
+                }
             } else {
                 self.pauses.tick();
                 std::thread::yield_now();
                 return;
             }
+        }
+        #[cfg(target_os = "linux")]
+        if self.completed {
+            // The process has ended. Let capture/admission threads deliver
+            // their end events under the original counted frozen allowance;
+            // advancing synthetic time here would assert scheduling latency.
+            self.pauses.tick();
+            std::thread::yield_now();
+            return;
         }
         self.pauses.tick();
         self.now += pause;
@@ -665,10 +700,8 @@ fn killed_at_the_limit(run: &Outlived) {
 #[cfg(target_os = "linux")]
 struct Subject {
     scratch: Scratch,
-    /// The pid FIFO, open for reading and writing since before the spawn, so
-    /// the script's write never blocks, and without blocking, so the gate
-    /// never waits on it.
-    pids: std::fs::File,
+    /// Kernel credentials identify the sender in the receiving host namespace.
+    pids: std::os::unix::net::UnixDatagram,
     /// The hold FIFO, open for reading and writing, so the release is a plain
     /// write that lands whether or not the script has opened it yet.
     hold: std::fs::File,
@@ -702,7 +735,8 @@ impl Subject {
                 .open(&path)
                 .unwrap_or_else(|error| panic!("{}: {error}", path.display()))
         };
-        let pids = fifo("pids", rustix::fs::OFlags::NONBLOCK);
+        let pids =
+            receipt::listener(&scratch.0.path().join("pids")).expect("process receipt socket");
         let hold = fifo("hold", rustix::fs::OFlags::empty());
         let go = fifo("go", rustix::fs::OFlags::empty());
         Self {
@@ -726,36 +760,37 @@ impl Subject {
         self.scratch.0.path().join("marker")
     }
 
-    /// The script: it first ignores SIGHUP, SIGINT and SIGTERM, before any
-    /// fork, so that only a signal that cannot be ignored ends it or what it
-    /// starts; the process ids go to the pid FIFO, the process that blocks
-    /// reads the hold FIFO, and after the hold it writes the marker. A leader
-    /// that exits reads the go FIFO first. Every word is a builtin of the
-    /// shell, so it runs with an empty `PATH`.
+    /// Ignore catchable terminal signals, then replace the shell with the
+    /// native fixture role. Its descendants inherit the ignored dispositions.
+    /// Kernel credential receipts precede the controlled FIFO releases.
     fn script(&self, shape: Shape) -> String {
-        let (pids, hold, go, marker) = (
-            self.quoted("pids"),
-            self.quoted("hold"),
-            self.quoted("go"),
-            self.quoted("marker"),
-        );
-        let blocks = format!("read x < {hold}; echo survived > {marker}");
-        let body = match shape {
-            Shape::Alone => format!("echo $$ > {pids}; {blocks}; exit 0"),
-            Shape::Waits => format!("{{ {blocks}; }} & echo \"$$ $!\" > {pids}; wait"),
-            Shape::Leaves => {
-                format!("{{ {blocks}; }} & echo \"$$ $!\" > {pids}; read y < {go}; exit 0")
-            }
-        };
-        format!("trap '' HUP INT TERM; {body}")
+        let command = TrustedArgv::new(vec![
+            std::env::current_exe()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned(),
+            "--exact".into(),
+            "exec::system::tests::a_process_that_outlives_its_limit_is_killed".into(),
+            "--nocapture".into(),
+        ])
+        .unwrap()
+        .text();
+        format!(
+            "trap '' HUP INT TERM; RAF_EXEC_SUBJECT_ROOT={} RAF_EXEC_SUBJECT_SHAPE={shape:?} RAF_EXEC_SUBJECT_ROLE=leader exec {command}",
+            self.quoted("")
+        )
     }
 
     /// The gate of a stepped clock for a process of `shape`.
     fn gate(&self, shape: Shape) -> Gate {
         let clone = |file: &std::fs::File| file.try_clone().expect("a FIFO is shared");
         Gate {
-            pids: clone(&self.pids),
-            line: Vec::new(),
+            pids: self.pids.try_clone().expect("process receipt socket clone"),
+            leader: None,
+            payload: None,
+            descendant: None,
+            expects_descendant: shape != Shape::Alone,
             go: (shape == Shape::Leaves).then(|| clone(&self.go)),
             found: None,
         }
@@ -802,15 +837,17 @@ trait Opening {
     fn turn(&mut self) -> Option<Seen>;
 }
 
-/// The gate of a [`Subject`] script: the process ids the script writes, a
+/// The gate of a [`Subject`] script: the process credentials it publishes, a
 /// pidfd of each, and for a leader that exits, its end. Each turn looks
 /// without blocking.
 #[cfg(target_os = "linux")]
 struct Gate {
-    /// The pid FIFO, read without blocking.
-    pids: std::fs::File,
-    /// What has been read of the line of process ids.
-    line: Vec<u8>,
+    /// The readiness socket, read without blocking.
+    pids: std::os::unix::net::UnixDatagram,
+    leader: Option<Process>,
+    payload: Option<Process>,
+    descendant: Option<Process>,
+    expects_descendant: bool,
     /// The go FIFO, for a leader that exits.
     go: Option<std::fs::File>,
     /// The processes, once their pidfds are taken.
@@ -819,29 +856,40 @@ struct Gate {
 
 #[cfg(target_os = "linux")]
 impl Opening for Gate {
+    fn spawned(&mut self, process: u32) {
+        self.leader = Some(Process::open(&process.to_string()));
+    }
+
     fn turn(&mut self) -> Option<Seen> {
-        use std::io::{Read as _, Write as _};
+        use std::io::Write as _;
 
         if self.found.is_none() {
-            let mut chunk = [0_u8; 64];
-            match (&self.pids).read(&mut chunk) {
-                // The test holds a writer, so a read never finds the end.
-                Ok(0) => panic!("the pid FIFO ended"),
-                Ok(read) => self.line.extend_from_slice(&chunk[..read]),
+            match receipt::receive(&self.pids) {
+                Ok((role, pid)) => {
+                    let process = Process::open(&pid.as_raw_pid().to_string());
+                    match role.as_str() {
+                        "leader" => assert!(self.payload.replace(process).is_none()),
+                        "descendant" => assert!(self.descendant.replace(process).is_none()),
+                        _ => panic!("unknown process receipt role {role:?}"),
+                    }
+                }
                 Err(error)
                     if matches!(
                         error.kind(),
                         io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
                     ) => {}
-                Err(error) => panic!("the pid FIFO is read: {error}"),
+                Err(error) => panic!("the credential receipt is read: {error}"),
             }
-            if !self.line.contains(&b'\n') {
+            if self.payload.is_none() || (self.expects_descendant && self.descendant.is_none()) {
                 return None;
             }
-            let line = String::from_utf8(std::mem::take(&mut self.line)).expect("process ids");
-            let mut pids = line.split_whitespace().map(Process::open);
-            let leader = pids.next().expect("the leader's process id");
-            let descendant = pids.next();
+            let leader = self.leader.take().expect("the runner's actual launcher");
+            let payload = self.payload.take();
+            let descendant = self.descendant.take();
+            let teardown = descendant.as_ref().map(|process| {
+                teardown::Teardown::capture(process.pid, rustix::process::getpid())
+                    .expect("capture the owned namespace before releasing any process")
+            });
             if let Some(go) = &self.go {
                 (&*go).write_all(b"\n").expect("the leader is let go");
             } else {
@@ -850,7 +898,12 @@ impl Opening for Gate {
                     "the process ended before its limit could pass"
                 );
             }
-            self.found = Some(Seen { leader, descendant });
+            self.found = Some(Seen {
+                leader,
+                payload,
+                descendant,
+                teardown,
+            });
         }
         let leader_exits = self.go.is_some();
         let seen = self.found.as_ref()?;
@@ -868,13 +921,17 @@ impl Opening for Gate {
 #[cfg(target_os = "linux")]
 struct Seen {
     leader: Process,
+    payload: Option<Process>,
     descendant: Option<Process>,
+    teardown: Option<teardown::Teardown>,
 }
 
 #[cfg(target_os = "linux")]
 impl Seen {
     fn processes(&self) -> impl Iterator<Item = &Process> {
-        std::iter::once(&self.leader).chain(&self.descendant)
+        std::iter::once(&self.leader)
+            .chain(&self.payload)
+            .chain(&self.descendant)
     }
 }
 
@@ -941,16 +998,7 @@ impl Process {
     /// It is asked for only after the hold is released and SIGCONT sent, when
     /// a process that survived the kill has nothing left to wait on.
     fn wait_for_end(&self) {
-        use rustix::event::{PollFd, PollFlags, poll};
-
-        let mut fds = [PollFd::new(&self.fd, PollFlags::IN)];
-        loop {
-            match poll(&mut fds, None) {
-                Ok(_) if fds[0].revents().contains(PollFlags::IN) => return,
-                Ok(_) | Err(Errno::INTR) => {}
-                Err(error) => panic!("poll of the pidfd of {}: {error}", self.pid.as_raw_pid()),
-            }
-        }
+        receipt::wait(&self.fd).expect("owned process terminates");
     }
 }
 
@@ -1002,6 +1050,11 @@ fn nothing_outlived_the_kill(seen: &Seen, settled: &Settled) {
 #[cfg(unix)]
 #[test]
 fn a_process_that_outlives_its_limit_is_killed() {
+    #[cfg(target_os = "linux")]
+    if let Some(root) = std::env::var_os("RAF_EXEC_SUBJECT_ROOT") {
+        subject_process(std::path::Path::new(&root));
+        return;
+    }
     let run = outlive(Shape::Alone);
     killed_at_the_limit(&run);
     let text = run.result.as_ref().unwrap_err().to_string();
@@ -1016,9 +1069,98 @@ fn a_process_that_outlives_its_limit_is_killed() {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn subject_process(root: &std::path::Path) {
+    use std::io::BufRead as _;
+    use std::os::unix::net::UnixDatagram;
+
+    let role = std::env::var("RAF_EXEC_SUBJECT_ROLE").expect("owned process role");
+    let shape = std::env::var("RAF_EXEC_SUBJECT_SHAPE").expect("owned process shape");
+    if role == "descendant"
+        && let Ok(method) = std::env::var("RAF_EXEC_SUBJECT_ESCAPE")
+    {
+        match method.as_str() {
+            "setsid" => {
+                rustix::process::setsid().expect("detach owned descendant");
+            }
+            "setpgid" => {
+                rustix::process::setpgid(None, None).expect("detach owned group");
+            }
+            _ => panic!("unknown escape operation {method:?}"),
+        }
+    }
+    let mut descendant = if role == "leader" && shape != "Alone" {
+        Some(
+            Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "exec::system::tests::a_process_that_outlives_its_limit_is_killed",
+                    "--nocapture",
+                ])
+                .env("RAF_EXEC_SUBJECT_ROLE", "descendant")
+                .stdin(Stdio::null())
+                .spawn()
+                .expect("owned descendant starts"),
+        )
+    } else {
+        None
+    };
+    UnixDatagram::unbound()
+        .unwrap()
+        .send_to(role.as_bytes(), root.join("pids"))
+        .expect("send kernel process credentials");
+    let leaving = role == "leader" && shape == "Leaves";
+    if role == "leader" && shape == "Waits" {
+        assert!(descendant.as_mut().unwrap().wait().unwrap().success());
+    } else {
+        let mut released = String::new();
+        io::BufReader::new(
+            std::fs::File::open(root.join(if leaving { "go" } else { "hold" })).unwrap(),
+        )
+        .read_line(&mut released)
+        .unwrap();
+        assert_eq!(released, "\n");
+        if !leaving {
+            std::fs::write(root.join("marker"), "survived\n").unwrap();
+        }
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn a_process_inside_its_limit_passes() {
+    #[cfg(target_os = "linux")]
+    if let Some(mode) = std::env::var_os("RAF_EXEC_CONTAINMENT_PREREQUISITE") {
+        let limits = Limits::trusted().with_max_output(if mode == "overflow" { 8 } else { 4096 });
+        let result = if mode == "hang" {
+            let mut clock = Stepped::new(limits.timeout());
+            runner().run_with(&sh("exit 17"), &limits, || &mut clock)
+        } else {
+            let mut clock = Frozen::at(Duration::ZERO);
+            runner().run_with(&sh("exit 17"), &limits, || &mut clock)
+        };
+        let error = result.expect_err("unavailable containment cannot become a payload verdict");
+        if mode == "missing" {
+            assert!(matches!(
+                error,
+                ExecError::Spawn {
+                    kind: io::ErrorKind::NotFound,
+                    ..
+                }
+            ));
+        } else {
+            let diagnostic = error.to_string();
+            assert!(matches!(error, ExecError::Io { .. }), "{diagnostic}");
+            assert!(diagnostic.contains("Linux PID containment"), "{diagnostic}");
+            if mode == "denied" {
+                assert!(
+                    diagnostic.contains("fixture namespace unavailable"),
+                    "{diagnostic}"
+                );
+            }
+        }
+        return;
+    }
     let mut clock = Frozen::at(Duration::from_millis(7));
     let limits = Limits::trusted().with_timeout(Duration::from_secs(20));
     let output = runner()
@@ -1032,6 +1174,56 @@ fn a_process_inside_its_limit_passes() {
         Duration::from_millis(7),
         "the clock's reading"
     );
+    #[cfg(target_os = "linux")]
+    for (script, code) in [("exit 137", 137), ("kill -KILL $$", 137), ("exit 0", 0)] {
+        let mut clock = Frozen::at(Duration::ZERO);
+        let output = runner()
+            .run_with(&sh(script), &limits.with_max_output(0), || &mut clock)
+            .expect("successful namespace admission is distinct from payload failure");
+        assert_eq!(output.code, Some(code));
+        assert_eq!(output.success(), code == 0);
+        assert!(output.stdout.is_empty() && output.stderr.is_empty());
+    }
+    #[cfg(target_os = "linux")]
+    containment_prerequisite_neighbors();
+}
+
+#[cfg(target_os = "linux")]
+fn containment_prerequisite_neighbors() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    for mode in ["missing", "denied", "overflow", "hang"] {
+        let directory = Scratch::new();
+        if mode != "missing" {
+            let launcher = directory.0.path().join("bwrap");
+            let body = match mode {
+                "overflow" => {
+                    "#!/bin/sh\nprintf 'fixture namespace unavailable overflow\\n' >&2\nexit 1\n"
+                }
+                "hang" => "#!/bin/sh\nwhile :; do :; done\n",
+                _ => "#!/bin/sh\nprintf 'fixture namespace unavailable\\n' >&2\nexit 1\n",
+            };
+            std::fs::write(&launcher, body).unwrap();
+            std::fs::set_permissions(launcher, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "exec::system::tests::a_process_inside_its_limit_passes",
+                "--nocapture",
+            ])
+            .env("RAF_EXEC_CONTAINMENT_PREREQUISITE", mode)
+            .env("PATH", directory.0.path())
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            output.stdout.escape_ascii(),
+            output.stderr.escape_ascii()
+        );
+    }
 }
 
 /// The process starts one that holds the output pipes, as a test binary that
@@ -1064,6 +1256,17 @@ fn the_group_is_killed_when_no_kill_program_is_on_the_path() {
         // Start this test again in a process whose `PATH` is an empty
         // directory; the `PATH` of this process is left as it is.
         let empty = Scratch::new();
+        #[cfg(target_os = "linux")]
+        {
+            let path = std::env::var_os("PATH").expect("the native containment tool is installed");
+            let bwrap = std::env::split_paths(&path)
+                .map(|directory| directory.join("bwrap"))
+                .find(|path| path.is_file())
+                .expect("mandatory bwrap is on PATH")
+                .canonicalize()
+                .unwrap();
+            std::os::unix::fs::symlink(bwrap, empty.0.path().join("bwrap")).unwrap();
+        }
         let output = Command::new(std::env::current_exe().expect("the test binary"))
             .args(["--exact", NAME, "--nocapture"])
             .env("PATH", empty.0.path())
@@ -1092,11 +1295,15 @@ fn the_group_is_killed_when_no_kill_program_is_on_the_path() {
 #[cfg(unix)]
 #[test]
 fn a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit() {
-    // The leader exits at once (on Linux the gate waits for that) and leaves a
-    // process holding the pipes: the status is in, the streams are not, and the
-    // run is killed at the limit, not waited for.
+    // The initial command exits after both pidfds are held. Namespace teardown
+    // ends the descendant that retained the pipes without waiting for the limit.
     let run = outlive(Shape::Leaves);
-    killed_at_the_limit(&run);
+    assert!(
+        run.result
+            .as_ref()
+            .expect("the initial command exits")
+            .success()
+    );
     #[cfg(target_os = "linux")]
     {
         assert!(run.seen.descendant.is_some());
@@ -1106,106 +1313,59 @@ fn a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_l
 
 #[cfg(target_os = "linux")]
 #[test]
-fn a_descendant_that_leaves_its_group_survives_the_group_kill() {
-    use std::io::{BufRead as _, Write as _};
-
-    const ROOT: &str = "RAF_EXEC_ESCAPED_GROUP_ROOT";
-    const LEADER: &str = "RAF_EXEC_ESCAPED_GROUP_LEADER";
-    const METHOD: &str = "RAF_EXEC_ESCAPED_GROUP_METHOD";
-    const NAME: &str =
-        "exec::system::tests::a_descendant_that_leaves_its_group_survives_the_group_kill";
-    if let Some(root) = std::env::var_os(ROOT) {
-        let root = std::path::PathBuf::from(root);
-        match std::env::var(METHOD)
-            .expect("the selected escape operation")
-            .as_str()
-        {
-            "setsid" => {
-                rustix::process::setsid().expect("a nonleader starts a session");
-            }
-            "setpgid" => {
-                rustix::process::setpgid(None, None).expect("a nonleader starts a group");
-            }
-            other => panic!("unrecognized fixture escape operation: {other:?}"),
-        }
-        assert_eq!(
-            rustix::process::getpgrp().as_raw_pid(),
-            i32::try_from(std::process::id()).unwrap()
-        );
-        let leader = std::env::var(LEADER).expect("the original leader's pid");
-        let mut pids = std::fs::OpenOptions::new()
-            .write(true)
-            .open(root.join("pids"))
-            .expect("the parent holds the receipt FIFO");
-        writeln!(pids, "{leader} {}", std::process::id()).unwrap();
-        drop(pids);
-        let hold =
-            std::fs::File::open(root.join("hold")).expect("the parent holds the release FIFO");
-        let mut released = String::new();
-        io::BufReader::new(hold).read_line(&mut released).unwrap();
-        assert_eq!(
-            released, "\n",
-            "the parent explicitly releases the escaped process"
-        );
-        std::fs::write(root.join("marker"), "survived\n").unwrap();
-        return;
-    }
-
+fn a_descendant_that_leaves_its_group_is_killed_with_its_namespace() {
     for method in ["setsid", "setpgid"] {
-        let subject = Subject::new();
-        let child = TrustedArgv::new(vec![
-            std::env::current_exe()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string(),
-            "--exact".to_string(),
-            NAME.to_string(),
-            "--nocapture".to_string(),
-        ])
-        .unwrap()
-        .text();
-        // The shell starts a nonleader in its group. That child acknowledges its
-        // new group before the gate releases the original leader to exit.
-        let invocation = sh(&format!(
-            "{ROOT}={} {LEADER}=$$ {METHOD}={method} {child} & read release < {}; exit 0",
-            subject.quoted(""),
-            subject.quoted("go")
-        ));
-        let mut clock = Stepped::gated(subject.gate(Shape::Leaves), LIMIT);
-        let result = runner().run_with(&invocation, &Limits::trusted().with_timeout(LIMIT), || {
-            &mut clock
-        });
-        let seen = clock
-            .seen
-            .take()
-            .expect("both processes acknowledged before the controlled limit");
-        assert_eq!(
-            result,
-            Err(ExecError::Timeout {
-                command: invocation.to_string(),
-                timeout: LIMIT,
-                elapsed: LIMIT,
-            })
-        );
-        let escaped = seen.descendant.as_ref().expect("the escaped descendant");
-        assert_ne!(escaped.pgrp, seen.leader.pgrp);
-        assert_eq!(escaped.pgrp, escaped.pid.as_raw_pid());
-        assert!(
-            !escaped.ended(),
-            "the group kill cannot reach the new group"
-        );
-        assert!(
-            !subject.marker().exists(),
-            "the escaped child is still held"
-        );
-        let settled = subject.settle(&seen);
-        assert!(settled.leader_reaped);
-        assert!(
-            settled.marker,
-            "the escaped process continued after the group kill"
-        );
-        assert!(escaped.ended(), "the released escaped process has ended");
+        for shape in [Shape::Waits, Shape::Leaves] {
+            let subject = Subject::new();
+            let invocation = sh(&format!(
+                "export RAF_EXEC_SUBJECT_ESCAPE={method}; {}",
+                subject.script(shape)
+            ));
+            let mut clock = Stepped::gated(subject.gate(shape), LIMIT);
+            let result =
+                runner().run_with(&invocation, &Limits::trusted().with_timeout(LIMIT), || {
+                    &mut clock
+                });
+            let seen = clock
+                .seen
+                .take()
+                .expect("both processes acknowledged before the controlled limit");
+            if shape == Shape::Leaves {
+                assert!(
+                    result
+                        .expect("the command exits after its receipt")
+                        .success()
+                );
+            } else {
+                assert_eq!(
+                    result,
+                    Err(ExecError::Timeout {
+                        command: invocation.to_string(),
+                        timeout: LIMIT,
+                        elapsed: LIMIT,
+                    })
+                );
+            }
+            let escaped = seen.descendant.as_ref().expect("the escaped descendant");
+            assert_ne!(escaped.pgrp, seen.leader.pgrp);
+            assert_eq!(escaped.pgrp, escaped.pid.as_raw_pid());
+            seen.teardown
+                .as_ref()
+                .expect("the detached process has an owned namespace receipt")
+                .after_launcher_death()
+                .expect("the namespace init cannot survive its reaped launcher");
+            assert!(
+                !subject.marker().exists(),
+                "the detached child did not continue"
+            );
+            let settled = subject.settle(&seen);
+            assert!(settled.leader_reaped);
+            assert!(
+                !settled.marker,
+                "the detached process cannot continue after namespace teardown"
+            );
+            assert!(escaped.ended(), "the released escaped process has ended");
+        }
     }
 }
 

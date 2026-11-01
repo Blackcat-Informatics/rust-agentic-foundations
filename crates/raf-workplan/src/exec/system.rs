@@ -18,6 +18,9 @@ use super::{
     ExecError, GitSelector, Invocation, Limits, Output, Program, Programs, Runner, Stream,
 };
 
+mod containment;
+mod control;
+
 /// The longest pause between two looks at a running process.
 const POLL_CEILING: Duration = Duration::from_millis(20);
 
@@ -34,6 +37,10 @@ fn inherited_git_selector() -> Option<GitSelector> {
 /// Starts real processes: no shell, the argv vector as given, standard input
 /// null, standard output and standard error captured within the bound of
 /// [`Limits`], and a kill when the wall-clock limit passes.
+/// Native Linux execution requires bubblewrap PID namespaces and binds the
+/// command's lifetime to this host. Other hosts refuse execution. Completed
+/// payload status uses bubblewrap's shell encoding: a signal is `128 + signal`,
+/// indistinguishable from an explicit exit with that same code.
 ///
 /// A bare program name is looked up by the operating system on the `PATH` of
 /// this process, or on the directories given to [`SystemRunner::search_path`].
@@ -42,6 +49,13 @@ pub struct SystemRunner {
     programs: Programs,
     search_path: Option<OsString>,
     views: Arc<super::view::HostViews>,
+}
+
+struct Launch {
+    command: Command,
+    program: PathBuf,
+    admission: containment::Admission,
+    git_selector: Option<GitSelector>,
 }
 
 impl SystemRunner {
@@ -161,16 +175,37 @@ impl SystemRunner {
             .flatten()
     }
 
-    fn run_process<C: Clock>(
+    fn configure_environment(invocation: &Invocation, limits: &Limits, command: &mut Command) {
+        // The caller's own command keeps the caller's environment.
+        if limits.c_locale() && invocation.program() != Program::Trusted {
+            command.env("LC_ALL", "C");
+        }
+        if let Some(observer) = invocation.rustdoc_observation() {
+            if invocation.is_rustdoc_delegate() {
+                command.env("RUSTDOC", observer.delegate());
+                command.env_remove(super::RustdocObservationOptions::MARKER);
+                command.env_remove(super::RustdocObservationOptions::DELEGATE);
+                command.env_remove(super::RustdocObservationOptions::RECEIPTS);
+                command.env_remove(super::RustdocObservationOptions::ASSEMBLY);
+                command.env_remove(super::RustdocObservationOptions::ASSEMBLY_DIGEST);
+            } else {
+                command.env_remove(super::RustdocObservationOptions::ASSEMBLY);
+                command.env_remove(super::RustdocObservationOptions::ASSEMBLY_DIGEST);
+                command.envs(observer.environment());
+            }
+        }
+    }
+
+    fn prepare_command(
         &self,
         invocation: &Invocation,
         limits: &Limits,
-        start: impl FnOnce() -> C,
-    ) -> Result<Output, ExecError> {
+    ) -> Result<Launch, ExecError> {
+        invocation.validate_rustdoc_context()?;
         let command_text = invocation.to_string();
         let program = self.program_path(invocation)?;
         let trusted = invocation.program() == Program::Trusted;
-        let mut argv = invocation.argv();
+        let mut argv: Vec<OsString> = invocation.argv().into_iter().map(OsString::from).collect();
         if trusted {
             // The first word of the caller's own command is its program.
             argv.remove(0);
@@ -188,61 +223,136 @@ impl SystemRunner {
         } else {
             invocation.filesystem()
         };
-        let spawned_program = if filesystem.is_some() {
-            PathBuf::from("bwrap")
-        } else {
-            program.clone()
-        };
+        let spawned_program = PathBuf::from("bwrap");
         let mut command = Command::new(&spawned_program);
+        let admission =
+            containment::Admission::prepare(&mut command).map_err(|error| ExecError::Spawn {
+                command: command_text.clone(),
+                program: spawned_program.display().to_string(),
+                kind: error.kind(),
+                message: format!("cannot prepare mandatory Linux PID containment: {error}"),
+            })?;
         let git_selector = self.apply_git_context(invocation, filesystem.as_deref(), &mut command);
+        argv.insert(0, program.as_os_str().to_owned());
         if let Some(filesystem) = &filesystem {
-            command.args(filesystem.command(&directory, &program, &argv)?);
+            command.args(filesystem.command(
+                &directory,
+                containment::Admission::program(),
+                &argv,
+            )?);
         } else {
-            command.args(argv);
+            command
+                .args(["--dev-bind", "/", "/", "--proc", "/proc", "--"])
+                .arg(containment::Admission::program())
+                .args(argv);
         }
         command
             .current_dir(directory)
-            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        // The caller's own command keeps the caller's environment.
-        if limits.c_locale() && !trusted {
-            command.env("LC_ALL", "C");
-        }
+        Self::configure_environment(invocation, limits, &mut command);
         #[cfg(unix)]
         {
             use std::os::unix::process::CommandExt as _;
             command.process_group(0);
         }
+        Ok(Launch {
+            command,
+            program,
+            admission,
+            git_selector,
+        })
+    }
+
+    fn run_process<C: Clock>(
+        &self,
+        invocation: &Invocation,
+        limits: &Limits,
+        start: impl FnOnce() -> C,
+    ) -> Result<Output, ExecError> {
+        let command_text = invocation.to_string();
+        let Launch {
+            mut command,
+            program,
+            admission,
+            git_selector,
+        } = self.prepare_command(invocation, limits)?;
         let mut clock = start();
-        let mut child = command.spawn().map_err(|error| ExecError::Spawn {
+        let child = command.spawn().map_err(|error| ExecError::Spawn {
             command: command_text.clone(),
-            program: spawned_program.display().to_string(),
+            program: "bwrap".into(),
             kind: error.kind(),
-            message: error.to_string(),
+            message: format!("cannot start mandatory Linux PID containment launcher: {error}"),
         })?;
-        clock.spawned(child.id());
-        let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
+        // FD mappings are owned by Command. Keeping it alive would retain the
+        // metadata writer and prevent EOF even after the launcher has exited.
+        drop(command);
+        let mut supervised =
+            containment::Supervised::admit(child).map_err(|error| ExecError::Spawn {
+                command: command_text.clone(),
+                program: "bwrap".into(),
+                kind: error.kind(),
+                message: error.to_string(),
+            })?;
+        let mut admission = admission.capture();
+        clock.spawned(supervised.child.id());
+        let (Some(stdout), Some(stderr)) = (
+            supervised.child.stdout.take(),
+            supervised.child.stderr.take(),
+        ) else {
             let failure = ExecError::Io {
                 command: command_text.clone(),
                 message: "a standard stream was not captured".to_string(),
             };
-            return Err(abandon(&mut child, failure, command_text));
+            return Err(abandon(&mut supervised, failure, command_text));
         };
         let bound = limits.max_output();
         let out = Capture::start(stdout, bound);
         let err = Capture::start(stderr, bound);
-        let outcome = wait(&mut child, &out, &err, limits.timeout(), &mut clock);
+        let mut stderr = None;
+        let outcome = wait(
+            &mut supervised.child,
+            &out,
+            &err,
+            &mut stderr,
+            &mut admission,
+            limits.timeout(),
+            &mut clock,
+        );
+        if let Wait::Done(code, stdout) = outcome {
+            admission.drain();
+            let stderr = stderr.unwrap_or_default();
+            admission.verify(&command_text, &program, code, &stderr, true)?;
+            return Ok(Output {
+                code,
+                stdout,
+                stderr,
+                elapsed: clock.elapsed(),
+                git_selector,
+            });
+        }
+        // Termination must precede draining: PID-namespace teardown closes all
+        // inherited metadata and output writers, including escaped descendants.
+        if let Err(error) = supervised.terminate() {
+            return Err(ExecError::Io {
+                command: command_text,
+                message: format!(
+                    "{outcome:?}; process termination failed, so it may still be running: {error}"
+                ),
+            });
+        }
+        admission.drain();
+        let stderr = match stderr {
+            Some(bytes) => bytes,
+            None => err.finish(&command_text)?,
+        };
+        admission.verify(&command_text, &program, None, &stderr, false)?;
         let failure = match outcome {
-            Wait::Done(code, stdout, stderr) => {
-                return Ok(Output {
-                    code,
-                    stdout,
-                    stderr,
-                    elapsed: clock.elapsed(),
-                    git_selector,
-                });
-            }
+            Wait::Done(_, _) => std::panic::panic_any("completed runs returned above"),
+            Wait::Admission => ExecError::Io {
+                command: command_text.clone(),
+                message: "private admission channel ended unexpectedly".into(),
+            },
             Wait::Over(stream) => ExecError::OutputTooLarge {
                 command: command_text.clone(),
                 stream,
@@ -259,14 +369,14 @@ impl SystemRunner {
                 message: error.to_string(),
             },
         };
-        Err(abandon(&mut child, failure, command_text))
+        Err(failure)
     }
 }
 
 /// Kill the process that `failure` gave up on. When it cannot be killed the
 /// error says so, since the process may still be running.
-fn abandon(child: &mut Child, failure: ExecError, command: String) -> ExecError {
-    match terminate(child) {
+fn abandon(child: &mut containment::Supervised, failure: ExecError, command: String) -> ExecError {
+    match child.terminate() {
         Ok(()) => failure,
         Err(error) => ExecError::Io {
             command,
@@ -310,12 +420,29 @@ impl Capture {
     fn overflowed(&self) -> bool {
         self.overflow.load(Ordering::SeqCst)
     }
+
+    /// Receive the final captured bytes after namespace teardown closes writers.
+    fn finish(&self, command: &str) -> Result<Vec<u8>, ExecError> {
+        self.result
+            .recv()
+            .map_err(|error| ExecError::Io {
+                command: command.to_owned(),
+                message: error.to_string(),
+            })?
+            .map_err(|error| ExecError::Io {
+                command: command.to_owned(),
+                message: error.to_string(),
+            })
+    }
 }
 
 /// How the wait for a process ended.
+#[derive(Debug)]
 enum Wait {
     /// The process exited and both streams reached their end.
-    Done(Option<i32>, Vec<u8>, Vec<u8>),
+    Done(Option<i32>, Vec<u8>),
+    /// Private admission failed or ended before readiness.
+    Admission,
     /// A stream passed its bound.
     Over(Stream),
     /// The wall-clock limit passed.
@@ -379,15 +506,22 @@ fn wait<C: Clock>(
     child: &mut Child,
     out: &Capture,
     err: &Capture,
+    stderr: &mut Option<Vec<u8>>,
+    admission: &mut containment::Status,
     timeout: Duration,
     clock: &mut C,
 ) -> Wait {
     let mut status: Option<ExitStatus> = None;
     let mut stdout: Option<Vec<u8>> = None;
-    let mut stderr: Option<Vec<u8>> = None;
     let mut pause = Duration::from_millis(1);
     loop {
-        if let Some(stream) = overflow(out.overflowed(), err.overflowed()) {
+        admission.poll();
+        if admission.failed() || (admission.closed() && !admission.confirmed()) {
+            return Wait::Admission;
+        }
+        if let Some(stream) =
+            overflow(out.overflowed(), err.overflowed()).filter(|_| admission.confirmed())
+        {
             return Wait::Over(stream);
         }
         if status.is_none() {
@@ -396,7 +530,7 @@ fn wait<C: Clock>(
                 Err(error) => return Wait::Failed(error),
             }
         }
-        for (capture, slot) in [(out, &mut stdout), (err, &mut stderr)] {
+        for (capture, slot) in [(out, &mut stdout), (err, &mut *stderr)] {
             if slot.is_none() {
                 match capture.result.try_recv() {
                     Ok(Ok(bytes)) => *slot = Some(bytes),
@@ -409,18 +543,25 @@ fn wait<C: Clock>(
             }
         }
         // A stream that overflowed has just been reported as a result too.
-        let done = status.is_some() && stdout.is_some() && stderr.is_some();
+        let done = status.is_some() && stdout.is_some() && stderr.is_some() && admission.closed();
         let elapsed = clock.elapsed();
-        match verdict(out.overflowed(), err.overflowed(), done, elapsed, timeout) {
+        match verdict(
+            out.overflowed() && admission.confirmed(),
+            err.overflowed() && admission.confirmed(),
+            done,
+            elapsed,
+            timeout,
+        ) {
             Look::Over(stream) => return Wait::Over(stream),
             Look::Done => {
                 return Wait::Done(
                     status.and_then(|status| status.code()),
                     stdout.unwrap_or_default(),
-                    stderr.unwrap_or_default(),
                 );
             }
-            Look::Late => return Wait::Late,
+            Look::Late => {
+                return overflow(out.overflowed(), err.overflowed()).map_or(Wait::Late, Wait::Over);
+            }
             Look::Again => {}
         }
         clock.pause(pause.min(timeout.saturating_sub(elapsed)));
@@ -431,6 +572,7 @@ fn wait<C: Clock>(
 /// Kill the process, and on Unix the group it leads, and collect it.
 ///
 /// A failure to signal is reported: the process may then still be running.
+#[cfg(test)]
 fn terminate(child: &mut Child) -> io::Result<()> {
     #[cfg(unix)]
     let group = kill_group(child);
@@ -441,6 +583,7 @@ fn terminate(child: &mut Child) -> io::Result<()> {
 }
 
 /// Kill and reap only the direct child, without signalling its descendants.
+#[cfg(test)]
 fn terminate_process(child: &mut Child) -> io::Result<()> {
     // `Child::kill` succeeds on a process that has already exited. Still wait
     // after a signal failure, and report a wait failure when signalling worked.
@@ -453,7 +596,7 @@ fn terminate_process(child: &mut Child) -> io::Result<()> {
 /// with `process_group(0)` (see `run`), so its id is the group id. The group
 /// holds what `cargo` started, such as a test binary that keeps the output
 /// pipes open. A group with no member left is not an error.
-#[cfg(unix)]
+#[cfg(all(test, unix))]
 fn kill_group(child: &mut Child) -> io::Result<()> {
     use rustix::process::{Pid, Signal, kill_process_group};
 
@@ -479,7 +622,7 @@ fn kill_group(child: &mut Child) -> io::Result<()> {
 /// leader already on its way out, the leader ends and the wait that follows
 /// returns once it has (`terminate` waits for it in any case). A leader that
 /// refuses its own signal has not ended and is not waited for.
-#[cfg(unix)]
+#[cfg(all(test, unix))]
 fn leader_ended(child: &mut Child) -> bool {
     if matches!(child.try_wait(), Ok(Some(_))) {
         return true;
@@ -490,7 +633,7 @@ fn leader_ended(child: &mut Child) -> bool {
 /// Whether a SIGKILL sent to the leader itself means it ends: it was delivered,
 /// or the leader has no live process left (`ESRCH`). Any other failure, such as
 /// `EPERM`, means the leader may go on running.
-#[cfg(unix)]
+#[cfg(all(test, unix))]
 fn leader_signal_ends_it(signalled: &io::Result<()>) -> bool {
     match signalled {
         Ok(()) => true,
@@ -504,7 +647,7 @@ fn leader_signal_ends_it(signalled: &io::Result<()>) -> bool {
 /// leader could be signalled, so it was already exiting (macOS only: `kill_group` passes `leader_ended` as
 /// false elsewhere). Any other
 /// failure means the group may still be running and is reported.
-#[cfg(unix)]
+#[cfg(all(test, unix))]
 fn group_signal_outcome(
     signalled: Result<(), rustix::io::Errno>,
     leader_ended: bool,

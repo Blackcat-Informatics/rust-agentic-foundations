@@ -16,9 +16,23 @@ pub struct Call {
     args: Vec<String>,
     limits: Limits,
     view: Option<super::ViewContext>,
+    rustdoc: Option<super::RustdocObservationOptions>,
+    rustdoc_delegate: bool,
 }
 
 impl Call {
+    /// Scoped documentation compiler controls retained by the actual invocation.
+    #[must_use]
+    pub fn rustdoc_observation(&self) -> Option<&super::RustdocObservationOptions> {
+        self.rustdoc.as_ref()
+    }
+
+    /// Whether the selected compiler runs directly with observer controls removed.
+    #[must_use]
+    pub const fn is_rustdoc_delegate(&self) -> bool {
+        self.rustdoc_delegate
+    }
+
     /// Explicit prepared context, absent for original-root calls.
     #[must_use]
     pub fn view(&self) -> Option<&super::ViewContext> {
@@ -181,6 +195,7 @@ impl Runner for FakeRunner {
         self.views.finish(view)
     }
     fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
+        invocation.validate_rustdoc_context()?;
         if let Some(context) = invocation.view() {
             self.views.validate(context)?;
         }
@@ -189,6 +204,8 @@ impl Runner for FakeRunner {
             args: invocation.argv(),
             limits: *limits,
             view: invocation.view().cloned(),
+            rustdoc: invocation.rustdoc_observation().cloned(),
+            rustdoc_delegate: invocation.is_rustdoc_delegate(),
         };
         let command = call.command();
         let answer = self

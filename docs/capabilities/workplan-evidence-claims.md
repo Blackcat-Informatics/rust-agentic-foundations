@@ -67,9 +67,9 @@ bindings:
     - raf_workplan::test_crate::evidence::a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound
     - raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication
     - raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication
-    - raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_survives_the_group_kill
+    - raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_is_killed_with_its_namespace
     - raf_workplan::exec::system::tests::killing_only_the_direct_child_leaves_its_descendant_running
-    - cargo_workplan::test_crate::evidence::supervisor::a_command_survives_its_supervisor_but_records_only_while_it_is_alive
+    - cargo_workplan::test_crate::evidence::supervisor::a_command_is_killed_when_its_supervisor_dies_and_records_only_while_alive
     - raf_workplan::evidence::tests::a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs
     - raf_workplan::evidence::tests::evidence_through_the_gate_never_replaces_a_capability_document_through_a_link
     - raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing
@@ -121,6 +121,12 @@ which current statements depend on which result, so that when a result changes, 
 statements that rested on it are known and are reopened.
 
 ## Contract
+
+Native Linux evidence commands run in a mandatory PID namespace bound to the
+supervising process. Detached descendants terminate with that namespace when
+the command exits, reaches a limit or loses its supervisor. Launcher setup
+failure cannot become execution evidence for a payload that did not run.
+<!-- raf:tested-by raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_is_killed_with_its_namespace,cargo_workplan::test_crate::evidence::supervisor::a_command_is_killed_when_its_supervisor_dies_and_records_only_while_alive -->
 
 The library's `record_evidence_in` publishes through an injected `RecordStore`.
 The store exposes its checked native `Tree` view, destination inspection,
@@ -300,6 +306,12 @@ referenced evidence document exists.
 
 ## Usage
 
+Install `bwrap` and provide Linux pidfds, PID and mount namespaces, executable
+sealed memfds and `/proc` access before recording native execution.
+Unsupported containment fails actionably;
+scripted runner evidence continues to use its explicitly supplied answers.
+<!-- raf:tested-by raf_workplan::exec::system::tests::a_process_inside_its_limit_passes -->
+
 Construct a `NamedDiagramView` with `DiagramScope::Evidence`, then call
 the loaded `Workplan` value's `diagram` method. Read `dataset`, `export`, `svg`, `text` or `json` from the
 returned bundle. Use `with_limits` with positive statement and term counts when
@@ -334,6 +346,14 @@ The runnable API example `raf_workplan::evidence::parse_limit` validates the exe
   a capability the change lists whose evidence changed.
 
 ## Examples
+
+An evidence command that creates a new session still terminates with its
+namespace at the controlled limit or when its initial command exits. Killing
+the supervising CLI also terminates the command without publishing an
+unfinished evidence record. An explicit exit 137 and SIGKILL both produce
+the launcher's encoded status 137 and fail; that number does not identify
+which event occurred.
+<!-- raf:tested-by raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_is_killed_with_its_namespace,raf_workplan::exec::system::tests::a_process_inside_its_limit_passes,cargo_workplan::test_crate::evidence::supervisor::a_command_is_killed_when_its_supervisor_dies_and_records_only_while_alive -->
 
 A view named `memory-claims` with evidence scope `memory-bound` produces the same
 semantic artifacts when the scope is spelled `evidence:memory-bound`. Two authored
@@ -407,9 +427,9 @@ before stdout; a physical stdout write failure can still leave partial output.
   `--from-binding` path reaches `cargo` only as the test filter of the rows the
   completion gate runs.
   <!-- raf:tested-by cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views,raf_workplan::exec::trusted::tests::the_command_is_every_word_after_the_first_separator,raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing -->
-- A run lasts until the command exits and its standard output and standard error are
-  closed: a background process that keeps them open after the command exits holds
-  the run until the time limit, which records `fail`.
+- A native run lasts until the contained command exits and its standard output
+  and standard error are closed. Its PID namespace terminates descendants when
+  the initial command exits, including descendants that retained the pipes.
   <!-- raf:tested-by raf_workplan::exec::system::tests::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit,raf_workplan::exec::system::tests::a_process_inside_its_limit_passes,raf_workplan::evidence::tests::a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes -->
 - Before the command or binding runs, any existing `work` and `work/evidence`
   directories must be real directories. A missing directory is admitted and
@@ -417,16 +437,30 @@ before stdout; a physical stdout write failure can still leave partial output.
   of it, or a file is refused with nothing run and nothing written. This is
   path-based preflight, subject to the publication limitation below.
   <!-- raf:tested-by raf_workplan::evidence::tests::a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs,raf_workplan::evidence::tests::a_regular_file_on_the_way_to_the_record_refuses_before_any_command_runs,raf_workplan::evidence::tests::evidence_through_the_gate_never_replaces_a_capability_document_through_a_link,raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests -->
-- The command is supervised only while `cargo-workplan` runs. On Unix it leads a
-  process group of its own, so an interrupt or a hang-up from the terminal, such
-  as Ctrl-C, reaches `cargo-workplan` and not the command: once `cargo-workplan`
-  has died the command runs on with no time limit and no record is written.
-  <!-- raf:tested-by cargo_workplan::test_crate::evidence::supervisor::a_command_survives_its_supervisor_but_records_only_while_it_is_alive -->
-- On Unix, a descendant that leaves the group, as one that calls `setsid` or
-  `setpgid` does, is not reached by the kill at the time limit and may outlive it.
-  <!-- raf:tested-by raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_survives_the_group_kill -->
-- Elsewhere than Unix, only the process itself is killed.
+- Native Linux commands use an admitted pidfd of the owned outer `bwrap`
+  launcher for controlled termination. It is opened before any wait, retained
+  with the child and never derived from a PID reported in launcher metadata.
+  PID namespaces provide descendant reach with parent-death
+  termination. If the supervising CLI dies, the command and its descendants
+  terminate and no unfinished record is published.
+  <!-- raf:tested-by cargo_workplan::test_crate::evidence::supervisor::a_command_is_killed_when_its_supervisor_dies_and_records_only_while_alive -->
+- Descendants that call `setsid` or `setpgid` remain inside that PID namespace.
+  Their separate process groups cannot escape namespace termination.
+  <!-- raf:tested-by raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_is_killed_with_its_namespace -->
+- Other hosts refuse native execution before starting a payload. Direct-child
+  termination alone cannot supply the descendant containment contract.
   <!-- raf:tested-by raf_workplan::exec::system::tests::killing_only_the_direct_child_leaves_its_descendant_running -->
+- Missing `bwrap`, unavailable pidfds, namespaces, executable sealed memfds or
+  `/proc` access, and incomplete setup or executable
+  admission fail without a verdict. A separate bounded launcher channel
+  establishes namespace identity and successful executable admission; payload
+  stderr is diagnostic text and cannot establish admission. Launcher metadata
+  is excluded from the payload's output limits and captured streams.
+  Completed native status uses the launcher's shell encoding: termination by
+  signal N reports 128 + N. An explicit exit with the same number, such as
+  exit 137 and SIGKILL, is indistinguishable. Both nonzero outcomes are failures;
+  a high exit code is never interpreted as proof of a signal.
+  <!-- raf:tested-by raf_workplan::exec::system::tests::a_process_inside_its_limit_passes,cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record -->
 - The command runs with the workspace root as its directory, so a relative
   program, such as `./tool.sh` typed in a directory below the root, resolves
   against the root and not the caller's directory, and with `.` on `PATH` a bare
@@ -559,9 +593,9 @@ The existing sink case verifies failing output beside successful output.
 | `cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::evidence::supervisor::a_command_survives_its_supervisor_but_records_only_while_it_is_alive` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::evidence::supervisor::a_command_is_killed_when_its_supervisor_dies_and_records_only_while_alive` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::evidence::the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::process::a_usage_error_starts_no_process` | test | [Contract](#contract) |
@@ -603,8 +637,8 @@ The existing sink case verifies failing output beside successful output.
 | `raf_workplan::evidence::tests::the_exit_status_and_the_limits_decide_the_verdict` | test | [Contract](#contract) |
 | `raf_workplan::evidence::tests::the_recorded_line_says_why_a_verdict_is_fail` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit` | test | [Constraints](#constraints) |
-| `raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_survives_the_group_kill` | test | [Constraints](#constraints) |
-| `raf_workplan::exec::system::tests::a_process_inside_its_limit_passes` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_is_killed_with_its_namespace` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `raf_workplan::exec::system::tests::a_process_inside_its_limit_passes` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed` | test | [Contract](#contract) |
 | `raf_workplan::exec::system::tests::killing_only_the_direct_child_leaves_its_descendant_running` | test | [Constraints](#constraints) |
 | `raf_workplan::exec::trusted::tests::a_line_with_no_command_is_refused_and_one_with_a_command_is_not` | test | [Verification](#verification) |

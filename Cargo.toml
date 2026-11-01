@@ -34,6 +34,7 @@ members = ["crates/cargo-census", "crates/cargo-workplan", "crates/raf-census", 
 exclude = ["fuzz"]
 
 [workspace.dependencies]
+command-fds = "0.3.3"
 pulldown-cmark = { version = "0.13.5", default-features = false }
 purrdf-toml = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "f6220a74255f93b59f4250df2790ee0e66ae51a2" }
 purrdf-alloc-probe = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "f6220a74255f93b59f4250df2790ee0e66ae51a2" }

@@ -1358,7 +1358,16 @@ echo to-stderr >&2"#;
             .runner(&signalled)
             .run(&Invocation::git_version(), &Limits::query())
             .unwrap();
-        assert_eq!(output.code, None);
+        assert_eq!(output.code, Some(137));
+        assert!(!output.success());
+
+        // Shell status encoding also represents an ordinary exit with this code.
+        let encoded = scratch.stub("encoded", "exit 137");
+        let output = scratch
+            .runner(&encoded)
+            .run(&Invocation::git_version(), &Limits::query())
+            .unwrap();
+        assert_eq!(output.code, Some(137));
         assert!(!output.success());
 
         // The neighbour exits 0.

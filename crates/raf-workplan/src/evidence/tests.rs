@@ -292,10 +292,16 @@ fn the_exit_status_and_the_limits_decide_the_verdict() {
             ],
         ),
         (
+            "echo peak=41; exit 137",
+            "64",
+            EvidenceVerdict::Fail,
+            vec![Failed::Exited(Some(137))],
+        ),
+        (
             "echo peak=41; kill -9 $$",
             "64",
             EvidenceVerdict::Fail,
-            vec![Failed::Exited(None)],
+            vec![Failed::Exited(Some(137))],
         ),
     ] {
         let root = Root::new("verdict");
@@ -765,12 +771,17 @@ fn relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_ca
             .expect("an executable fixture");
     }
     let before = root.files();
+    let mut paths = vec![PathBuf::from(".")];
+    paths.extend(std::env::split_paths(
+        &std::env::var_os("PATH").expect("native tool path"),
+    ));
+    let path = std::env::join_paths(paths).expect("the fixture and native dependency paths");
     for program in ["./fixture-tool", "fixture-tool"] {
         let output = std::process::Command::new(std::env::current_exe().expect("the current test binary"))
             .args(["--exact", "evidence::tests::relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_caller", "--nocapture"])
             .env(CHILD, root.path())
             .env(PROGRAM, program)
-            .env("PATH", ".")
+            .env("PATH", &path)
             .current_dir(root.path().join("nested"))
             .output()
             .expect("the isolated nested caller runs");

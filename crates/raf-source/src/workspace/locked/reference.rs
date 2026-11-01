@@ -380,7 +380,7 @@ impl ReferenceObservation {
             purpose: super::Purpose::Configured,
         };
         let mut workspace =
-            Workspace::build_discovered(tree, options, meter, Some(&binding), discovered)?;
+            Workspace::build_discovered(tree, options, meter, Some(&binding), discovered, None)?;
         let identity = workspace.locked.pop().ok_or_else(|| {
             failure(
                 &manifest,

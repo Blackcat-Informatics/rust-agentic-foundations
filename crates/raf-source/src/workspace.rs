@@ -4,6 +4,7 @@
 //! The loaded workspace: packages, targets and the files of every module tree.
 
 mod locked;
+mod selected;
 pub use locked::{
     GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceBinding,
     ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree,
@@ -92,6 +93,7 @@ pub struct Workspace {
     dependencies: Vec<Vec<DependencyDeclaration>>,
     locked: Vec<LockedBinding>,
     references: Vec<LockedBinding>,
+    selected_configuration: Option<crate::ActiveConfiguration>,
     /// Package IDs sorted by display name, then by their exact load-local ID.
     package_names: Vec<PackageId>,
     targets: Vec<Target>,
@@ -109,6 +111,7 @@ impl PartialEq for Workspace {
             && self.dependencies == other.dependencies
             && self.locked == other.locked
             && self.references == other.references
+            && self.selected_configuration == other.selected_configuration
             && self.package_names == other.package_names
             && self.targets == other.targets
             && self.files == other.files
@@ -119,6 +122,11 @@ impl PartialEq for Workspace {
 impl Eq for Workspace {}
 
 impl Workspace {
+    /// The separately retained declaration of an exact-target load.
+    pub(crate) fn selected_configuration(&self) -> Option<&crate::ActiveConfiguration> {
+        self.selected_configuration.as_ref()
+    }
+
     /// Prepare module-level code lookup from actual source owner identities.
     /// The retained reading table is admitted under this load's original limit.
     /// This does not classify lexical shadows or prove provider delegation.
@@ -216,7 +224,7 @@ impl Workspace {
         }
         meter.items(LOAD_BASE_BYTES, &root, None)?;
         let discovered = discover(tree, roots, meter)?;
-        Self::build_discovered(tree, options, meter, binding, &discovered)
+        Self::build_discovered(tree, options, meter, binding, &discovered, None)
     }
 
     fn build_discovered(
@@ -225,6 +233,7 @@ impl Workspace {
         meter: &Meter,
         binding: Option<&locked::BindingLoad<'_>>,
         discovered: &crate::discovery::Discovered,
+        selected: Option<crate::DeclaredConfiguration<'_>>,
     ) -> Result<Self, LoadError> {
         let root = RelPath::root();
         let found = &discovered.packages;
@@ -280,31 +289,26 @@ impl Workspace {
             )?);
             packages.push(entry.package.clone());
         }
-        if let Some(binding) = binding
-            && locked::configure(binding, found, &dependencies, &mut locked, meter)?
-        {
-            locked::select_targets(&locked, &mut derived, meter)?;
-        }
+        let selected = configure_targets(
+            &reader,
+            &dependencies,
+            binding,
+            &mut locked,
+            &mut infos,
+            &mut derived,
+            selected,
+        )?;
         let package_names = package_name_index(&packages, meter)?;
         let (targets, origins) = selected_targets(derived)?;
-        let found_files = walk_sources(tree, &targets, &origins, &locked, meter)?;
-        let files = source_files(found_files.files, &targets)?;
-        if let Some(binding) = binding {
-            locked::install_edges(
-                binding,
-                &reader,
-                &dependencies,
-                &locked,
-                &targets,
-                &mut infos,
-            )?;
-        }
+        let walked = walk_sources(tree, &targets, &origins, &locked, selected.as_ref(), meter)?;
+        let files = source_files(walked.files, &targets)?;
+        reader.install_edges(binding, &dependencies, &locked, &targets, &mut infos)?;
         let index = Index::build(
             &targets,
             &files,
-            &found_files.visits,
+            &walked.visits,
             &infos,
-            found_files.paths,
+            walked.paths,
             meter,
         )?;
         let (locked, references) = if binding.is_some_and(locked::BindingLoad::structural) {
@@ -317,6 +321,7 @@ impl Workspace {
             dependencies,
             locked,
             references,
+            selected_configuration: selected,
             package_names,
             targets,
             files,
@@ -1095,6 +1100,22 @@ struct Reader<'a> {
     found: &'a [Found],
 }
 
+impl Reader<'_> {
+    fn install_edges(
+        &self,
+        binding: Option<&locked::BindingLoad<'_>>,
+        dependencies: &[Vec<DependencyDeclaration>],
+        locked: &[LockedBinding],
+        targets: &[Target],
+        infos: &mut [PackageInfo],
+    ) -> Result<(), LoadError> {
+        if let Some(binding) = binding {
+            locked::install_edges(binding, self, dependencies, locked, targets, infos)?;
+        }
+        Ok(())
+    }
+}
+
 /// The nearest workspace manifest above a package, as far as the package can
 /// inherit from it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1438,23 +1459,51 @@ fn selected_targets(
         .unzip())
 }
 
+fn configure_targets(
+    reader: &Reader<'_>,
+    dependencies: &[Vec<DependencyDeclaration>],
+    binding: Option<&locked::BindingLoad<'_>>,
+    locked: &mut [LockedBinding],
+    infos: &mut [PackageInfo],
+    derived: &mut Vec<(&RelPath, crate::target::Derived)>,
+    selected: Option<crate::DeclaredConfiguration<'_>>,
+) -> Result<Option<crate::ActiveConfiguration>, LoadError> {
+    if let Some(binding) = binding
+        && locked::configure(binding, reader.found, dependencies, locked, reader.meter)?
+    {
+        locked::select_targets(locked, derived, reader.meter)?;
+    }
+    selected
+        .map(|configuration| {
+            selected::configure(reader, dependencies, infos, derived, configuration)
+        })
+        .transpose()
+}
+
 fn walk_sources(
     tree: &dyn Tree,
     targets: &[Target],
     origins: &[Origin],
     bindings: &[LockedBinding],
+    selected: Option<&crate::ActiveConfiguration>,
     meter: &Meter,
 ) -> Result<Walked, LoadError> {
     let mut walker = Walker::new(tree, meter);
     for (index, (target, origin)) in targets.iter().zip(origins).enumerate() {
         walker.configure(
-            bindings
-                .get(target.package_id.index())
-                .map(|proof| {
-                    proof.configuration_for_under(target.kind, &target.name, meter, &target.root)
-                })
-                .transpose()?
-                .flatten()
+            selected
+                .or(bindings
+                    .get(target.package_id.index())
+                    .map(|proof| {
+                        proof.configuration_for_under(
+                            target.kind,
+                            &target.name,
+                            meter,
+                            &target.root,
+                        )
+                    })
+                    .transpose()?
+                    .flatten())
                 .map(|config| (target.package_id, config)),
         );
         walker.root(TargetId(index), &target.root, &target.crate_path, origin)?;

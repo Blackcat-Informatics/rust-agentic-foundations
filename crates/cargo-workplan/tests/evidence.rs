@@ -396,6 +396,31 @@ fn output_the_tool_cannot_read_is_exit_two_and_writes_no_record() {
         .expect(2);
     assert!(run.stderr.contains("/no/such/program"), "{run:#?}");
     assert_eq!(repo.snapshot(), before);
+    #[cfg(target_os = "linux")]
+    {
+        let empty = Scratch::new("missing-containment");
+        for shape in [Shape::Direct, Shape::Cargo] {
+            let mut command = support::command(
+                repo.root(),
+                shape,
+                &record(&["--", "/bin/sh", "-c", "echo peak=1"]),
+            );
+            command.env("PATH", empty.path());
+            let refused = support::finish(&mut command).expect(2);
+            assert!(refused.stdout.is_empty(), "{refused:?}");
+            assert!(refused.stderr.contains("bwrap"), "{refused:?}");
+            assert!(
+                refused.stderr.contains("Linux PID containment"),
+                "{refused:?}"
+            );
+            assert_eq!(
+                repo.snapshot(),
+                before,
+                "missing containment publishes nothing"
+            );
+            assert!(!repo.root().join(RECORD).exists());
+        }
+    }
     // The neighbour: the same limit and one number within it.
     repo.both_writing(&record(&["--", "/bin/sh", "-c", "echo peak=1"]))
         .expect(0);

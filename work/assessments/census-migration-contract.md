@@ -7,13 +7,13 @@ subject: cap:census-migration#contract
 inputs:
   - kind: section
     name: cap:census-migration#contract
-    digest: d8a075d9aa3788185706bc712a45e167c73ca380780c05a57d4396a4f69b012f
+    digest: beea7a6e3fd49243611604924a7c6615d6cb4023687bb666fc64a6362e5feded
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
     digest: 037ca39bc2decc899ac260c6d2ddb1a6a3336ffa459e90e596b04703870134dd
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: cb58d331365384fa9d8622760a577dd2e7c325492179809d926aa80b24c436d3
+    digest: 3b43da408cf641014ce3b2a3727aa0340e83de73246e170db8151fb29aacf53b
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1
@@ -25,7 +25,7 @@ inputs:
     digest: 49e905e6d6d0eb8ed6592aef9309c62e4d0b23b28fda185f0b988ca60dcfc7bf
   - kind: symbol
     name: raf_census::MAX_INDEX_BYTES
-    digest: 305a3ed3655f4e199b01edfd1a6f46d556489f2adf354a8689889b8380c16449
+    digest: efed7ed0974ed665e9f3871c20d5db193a9fed4bb3d1e065723002a833619423
   - kind: symbol
     name: raf_census::Migration
     digest: a4b1700f9a59e69ba8b39c160bb236149fedd0f144060174483147a9ca8db047
@@ -43,13 +43,13 @@ inputs:
     digest: d88de92b0beefbf7e1559f7bbc139e4066bc0292bae5970c6e596d424bc0d599
   - kind: symbol
     name: raf_census::gate::migrate
-    digest: 6b7697993e33a5ac9b7efdc6b42f8af1fd93940a7754494f1a80eb822aebaa9d
+    digest: b0509a285c4dab8d06eb01c4a2724aa17db64aa390f2954a5fb11c78ba722c1b
   - kind: symbol
     name: raf_census::migrate_index
     digest: 81cda6ca66752c2b1fe050b23fb780d1c79f76342e9e02b374c049f19106534a
   - kind: symbol
     name: raf_census::migrate_legacy
-    digest: 41f2701832008a48c16b163a812547e6a88b4fdd9fd0fd22a55517d3c4816804
+    digest: 289e55e08375165f0af1f32d88721e53123573b8975a06270bd7cf66dff1f88d
   - kind: symbol
     name: raf_census::migrate_legacy_with_extensions
     digest: 364e55fe5ffc777b3f1a2d303e09169559b2d39c819c54b4381f9abe45ff23bd

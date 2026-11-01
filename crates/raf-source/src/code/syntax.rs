@@ -62,14 +62,16 @@ impl CodeResolver<'_> {
         if !file.reached.iter().any(|reach| reach.target == target_id) {
             return Err(missing("target does not reach this source file"));
         }
-        let binding = self
-            .workspace
-            .locked_binding(target.package_id)
-            .ok_or_else(|| missing("supply its exact locked declared configuration"))?;
-        let configuration = binding
-            .configuration_for_under(target.kind, &target.name, &meter, path)
-            .map_err(refused)?
-            .ok_or_else(|| missing("supply its exact locked declared configuration"))?;
+        let configuration = if let Some(configuration) = self.workspace.selected_configuration() {
+            configuration
+        } else {
+            self.workspace
+                .locked_binding(target.package_id)
+                .ok_or_else(|| missing("supply its exact declared configuration"))?
+                .configuration_for_under(target.kind, &target.name, &meter, path)
+                .map_err(refused)?
+                .ok_or_else(|| missing("supply its exact declared configuration"))?
+        };
         let options = self.options;
         let usage = meter.usage();
         crate::parse::parse_counted_mut(path, &file.text, options.max_file_tokens, move |syntax| {

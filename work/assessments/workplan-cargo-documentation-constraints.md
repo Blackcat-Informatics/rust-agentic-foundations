@@ -10,7 +10,7 @@ inputs:
     digest: 535aeec3f376339a8ebd418699d43cb873ba81e220f8d472c98849421103d811
   - kind: symbol
     name: raf_workplan::diagram::cargo
-    digest: 0fd87801c18df8faadabdb33eb6ed0a4c4ef4e7b1329c1ba811ca6b9d4fae396
+    digest: b4e1fa38d43f7c520d3fb0a930983e930a54dfe80f896425c5270777a9e2519a
   - kind: symbol
     name: raf_workplan::exec::CargoDocOptions
     digest: adb1f20e41f71ffaacd2e43fe79d9fd7c8e6ea504fe516a406175436ba9c881e

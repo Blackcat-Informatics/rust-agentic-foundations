@@ -16,7 +16,7 @@ inputs:
     digest: ccf7d8ddbd4d7ebbbe395615b508aab0b15d044ea583729560f42f4cc6d8a9eb
   - kind: symbol
     name: raf_source::CodeResolver::with_configured_syntax
-    digest: e3f59df047170cddcb876e3921663360894e99e9a0b7e8d9f5a8ee8c4cf83800
+    digest: 35c9a85662ee7b6c80838931cd9c4c57e8dc7da7146eefbd67d8ab6858226258
   - kind: symbol
     name: raf_source::DeclaredCfg::complete
     digest: cda8942e14f277a29a8a502005071bb9b0d464c4b2650db52cd7a12d5a284d37

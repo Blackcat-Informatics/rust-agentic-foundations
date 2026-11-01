@@ -28,7 +28,7 @@ inputs:
     digest: 16d434d5f5097cfb1bd87978c7ec00fd7c747cade1363709099e3979b7feb561
   - kind: symbol
     name: raf_source::CodeResolver::with_configured_syntax
-    digest: e3f59df047170cddcb876e3921663360894e99e9a0b7e8d9f5a8ee8c4cf83800
+    digest: 35c9a85662ee7b6c80838931cd9c4c57e8dc7da7146eefbd67d8ab6858226258
   - kind: symbol
     name: raf_source::CommittedGitTree::open
     digest: 12a46ef9424da32d2016681c6e19fc908384c02bb2fd3aa5968002afd6c41936

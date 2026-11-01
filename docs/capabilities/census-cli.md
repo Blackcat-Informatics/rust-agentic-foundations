@@ -138,8 +138,15 @@ validated Cargo names. The repository example registers its own Gate and evaluat
 the full requested policy. The CLI never substitutes a built-in-only Gate.
 The existing bounded SystemRunner supplies null stdin and C locale, build
 execution limits and a 16 MiB cap on each captured output stream. Cargo may create
-build artifacts. The protocol grants no source or debt write and the host performs
-none. The target is trusted repository executable code, not a sandbox.
+build artifacts. Native Linux execution requires Bubblewrap, pidfds, executable
+sealed memfds, `/proc` access, PID and mount namespaces and
+parent-death termination. If the CLI dies, its registered target and descendants
+terminate; descendants cannot escape by changing their session or process group.
+Setup and executable admission use a separate bounded launcher channel, excluded
+from the response and payload output limits. Missing containment fails before a
+check can report success. The protocol grants no source or debt write and the host
+performs none. The target remains trusted repository executable code with host
+filesystem access.
 
 ### Closed native response
 <!-- raf:tested-by raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors,raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors,raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct -->
@@ -244,6 +251,13 @@ capability defines fact and snapshot preservation.
 
 ## Usage
 
+Provide `bwrap`, Linux pidfds, executable sealed memfds, `/proc` access and
+working PID and mount namespaces for a registered
+repository command. A host without admitted containment refuses execution.
+Keep the registered target's output limited to its native response; launcher
+metadata uses the runner's separate channel.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+
 Use baseline for structural discovery without a registered target or ledger.
 Select --format turtle for the human-readable carrier or --out PATH to select a
 file instead of stdout. Both formats preserve the same complete native baseline.
@@ -292,6 +306,12 @@ with migrate --report-form ledger --input old.ttl --format turtle before using
 it with ordinary current-form readers or fingerprint migration.
 
 ## Examples
+
+If the supervising Census CLI is killed while its registered example is
+running, the example and its detached descendants terminate. No successful
+response is published after supervisor death. Normal completion still returns
+the same complete native response.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 
 In a repository whose registered example owns the job copies, these commands
 produce the library's native selected reports, even when copies are present:
@@ -400,7 +420,7 @@ the native Gate ratchet, runner, RDF storage and canonical codec.
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Contract](#contract) |
-| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::registered` | example target | [Usage](#usage) |
 | `raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings` | test | [Contract](#contract) |
