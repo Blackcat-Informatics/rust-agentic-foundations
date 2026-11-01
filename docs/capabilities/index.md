@@ -8,13 +8,16 @@
 | --- | --- | --- |
 | [census-cli](./census-cli.md) | Native baseline and registered index reports, ledger inspection, repository-owned checks, migration and explicit debt recording. |  |
 | [census-debt-ratchet](./census-debt-ratchet.md) | An exact RDF record of duplication that can only shrink. |  |
+| [census-detectors](./census-detectors.md) | Seventeen built-in detectors for recurring helpers and RDF representation, each with positive and negative fixtures. |  |
 | [census-ledger](./census-ledger.md) | Closed RDF policy declarations, exact sanctions, source classification and staleness. |  |
 | [census-migration](./census-migration.md) | Read-only fingerprint migration and foreign dialect import to one native RDF ledger. |  |
 | [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. |  |
 | [census-patterns](./census-patterns.md) | Native RDF declarations for call, path, macro, type, string and balanced-token syntax bans. |  |
+| [census-reference-scan](./census-reference-scan.md) | Compare first-party code with exact dependency identities selected through lock files and manifest declarations. |  |
 | [okf-profile](./okf-profile.md) | The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically. |  |
 | [rdf-report-profile](./rdf-report-profile.md) | The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections. |  |
 | [repository-contract](./repository-contract.md) | The tracked document inventory, repository policy gates and accepted assessment check of the unpublished root package. |  |
+| [workplan-cargo-documentation](./workplan-cargo-documentation.md) | Typed selected Cargo documentation with bounded metadata, complete output and contained HTML observations. |  |
 | [workplan-cli](./workplan-cli.md) | The cargo workplan subcommands, options and exit codes. |  |
 | [workplan-code-reviews](./workplan-code-reviews.md) | Record reviews against actual source revisions and query item currency, coverage and required review policy. |  |
 | [workplan-complete-gate](./workplan-complete-gate.md) | change complete and verify: the six completion conditions, lighter obligations for changes that leave the contract alone, deletion of the record, and the acceptance scenarios. |  |
@@ -32,7 +35,6 @@
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
-| [census-detectors](./census-detectors.md) | The fourteen generic detectors the RAF census ships, each with a positive and a negative fixture. |  |
 | [census-rule-api](./census-rule-api.md) | The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test. |  |
 | [source-index](./source-index.md) | The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #\[path\], and a symbol and use-alias index. |  |
 
@@ -40,6 +42,5 @@
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
-| [census-reference-scan](./census-reference-scan.md) | Compare first-party code with the source of named dependency packages, resolved through cargo metadata. |  |
 | [workplan-rustdoc](./workplan-rustdoc.md) | Compiler-observed configuration, generated inputs and public API links for shared documentation bundles. |  |
 <!-- raf:generated:end -->

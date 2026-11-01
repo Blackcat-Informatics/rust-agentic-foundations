@@ -7,6 +7,11 @@ mod format;
 mod hasher;
 mod hex;
 mod layout;
+mod names;
+mod rdf;
+
+#[cfg(test)]
+mod tests;
 
 pub(crate) fn ids() -> impl Iterator<Item = &'static str> {
     layout::RULES
@@ -15,6 +20,7 @@ pub(crate) fn ids() -> impl Iterator<Item = &'static str> {
         .chain(["hex-table", "json-pointer-escape"])
         .chain(["home-literal", "sole-name", "vocabulary-literal"])
         .chain(["std-default-hasher"])
+        .chain(rdf::RULES)
 }
 
 pub(crate) fn implements(id: &str) -> bool {
@@ -22,18 +28,28 @@ pub(crate) fn implements(id: &str) -> bool {
 }
 
 pub(crate) fn home_exempt(id: &str) -> bool {
-    implements(id) && id != "sole-name"
+    implements(id) && id != "sole-name" && !rdf::RULES.contains(&id)
 }
 
 pub(crate) fn needs_syntax(id: &str) -> bool {
-    layout::RULES.contains(&id) || hex::RULES.contains(&id) || id == "std-default-hasher"
+    layout::RULES.contains(&id)
+        || hex::RULES.contains(&id)
+        || id == "std-default-hasher"
+        || rdf::RULES.contains(&id)
 }
 
 pub(crate) fn shipping_only(id: &str) -> bool {
     implements(id)
         && !matches!(
             id,
-            "std-default-hasher" | "hex-format-loop" | "hex-pair-radix" | "hex-table" | "sole-name"
+            "std-default-hasher"
+                | "hex-format-loop"
+                | "hex-pair-radix"
+                | "hex-table"
+                | "sole-name"
+                | "serde-json"
+                | "rdf-text-writer"
+                | "rdf-term-model"
         )
 }
 
@@ -77,9 +93,34 @@ pub(crate) struct RawHit {
     pub(crate) message: String,
 }
 
-pub(crate) fn collect(file: &syn::File) -> Vec<RawHit> {
-    let mut hits = layout::collect(file);
-    hits.extend(hex::collect(file));
-    hits.extend(hasher::collect(file));
+impl RawHit {
+    fn push(hits: &mut Vec<Self>, rule: &'static str, span: proc_macro2::Span, message: &str) {
+        hits.push(Self {
+            rule,
+            byte: span.byte_range().start,
+            line: span.start().line,
+            message: message.into(),
+        });
+    }
+}
+
+pub(crate) fn collect(
+    file: &syn::File,
+    requested: &std::collections::BTreeSet<&str>,
+) -> Vec<RawHit> {
+    let mut hits = Vec::new();
+    if layout::RULES.iter().any(|id| requested.contains(id)) {
+        hits.extend(layout::collect(file));
+    }
+    if hex::RULES.iter().any(|id| requested.contains(id)) {
+        hits.extend(hex::collect(file));
+    }
+    if requested.contains("std-default-hasher") {
+        hits.extend(hasher::collect(file));
+    }
+    if rdf::RULES.iter().any(|id| requested.contains(id)) {
+        hits.extend(rdf::collect(file));
+    }
+    hits.retain(|hit| requested.contains(hit.rule));
     hits
 }

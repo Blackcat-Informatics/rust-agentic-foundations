@@ -298,6 +298,63 @@ pub(crate) fn discover(
     })
 }
 
+/// Read exactly the selected package header, retaining its workspace context
+/// for the ordinary loader without discovering neighbouring packages.
+pub(crate) fn single(
+    tree: &dyn Tree,
+    manifest: &RelPath,
+    meter: &Meter,
+) -> Result<Discovered, LoadError> {
+    let dir = manifest
+        .parent()
+        .ok_or_else(|| LoadError::new(manifest, None, LoadErrorKind::NoRoots))?;
+    if manifest.file_name() != Some("Cargo.toml") {
+        return Err(LoadError::new(
+            manifest,
+            None,
+            LoadErrorKind::Internal {
+                what: "select an actual Cargo.toml manifest".into(),
+            },
+        ));
+    }
+    meter.items(
+        size_of::<OrderedTable<(SourceAuthorityId, String), RelPath>>(),
+        manifest,
+        None,
+    )?;
+    let mut walk = Walk {
+        tree,
+        meter,
+        found: BTreeMap::new(),
+        names: OrderedTable::default(),
+        name_bytes: 0,
+    };
+    match tree
+        .entry(&dir)
+        .map_err(|error| LoadError::tree(&dir, None, &Origin::Discovery, error))?
+    {
+        Some(EntryKind::Dir) => {}
+        Some(EntryKind::Symlink) => {
+            return Err(LoadError::new(&dir, None, LoadErrorKind::DirSymlink)
+                .reached_by(&Origin::Discovery));
+        }
+        _ => return Err(LoadError::new(&dir, None, LoadErrorKind::NoRoots)),
+    }
+    walk.manifest(&dir)?;
+    if walk.found.len() != 1 {
+        return Err(LoadError::new(
+            manifest,
+            None,
+            LoadErrorKind::Internal {
+                what: "selected manifest has no package identity".into(),
+            },
+        ));
+    }
+    Ok(Discovered {
+        packages: walk.found.into_values().collect(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

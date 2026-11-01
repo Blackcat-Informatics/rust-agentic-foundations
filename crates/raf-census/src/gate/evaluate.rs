@@ -11,21 +11,22 @@ use raf_source::{RelPath, Workspace};
 use super::{GateReport, LedgerExtension, SYMBOL_ANCHOR_PREFIX, owners, rules};
 use crate::{
     Census, DebtGroup, DebtRecord, Error, Fingerprint, Job, JobReport, Ledger, LedgerJob,
-    MatchClass, NORMAL_FORM, Rule, Unit,
+    MatchClass, NORMAL_FORM, Unit,
 };
 
 pub(super) fn evaluate(
     ledger: &Ledger,
     workspace: &Workspace,
     census: Census,
-    registered: &[Box<dyn Rule>],
+    selected: rules::Selected<'_>,
     extensions: &[Box<dyn LedgerExtension>],
     mut limits: MatchLimits,
+    references: &super::reference::References<'_>,
 ) -> Result<GateReport, Error> {
     let owners = owners::index(&census);
     let code = workspace.code_resolver()?;
     let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
-    let mut collected = rules::collect(workspace, &census, registered, &owners, ledger)?;
+    let mut collected = rules::collect(workspace, &census, &selected, &owners, ledger)?;
     collect_patterns(
         ledger,
         workspace,
@@ -36,7 +37,7 @@ pub(super) fn evaluate(
         &mut limits,
     )?;
     let hits = &collected.hits;
-    let mut findings = Vec::new();
+    let mut findings = selected.findings(hits);
     let mut reports = Vec::new();
     let mut copies = BTreeMap::new();
     for row in ledger.jobs() {
@@ -44,13 +45,13 @@ pub(super) fn evaluate(
         extension(ledger, row, extensions)?;
         stale_matchers(&census, row, hits, &mut findings);
         let Some(resolved) = resolve_job(
-            workspace,
-            &code,
+            (workspace, &code),
             &owners,
             row,
             &providers,
             &mut limits,
             &mut findings,
+            references,
         )?
         else {
             continue;
@@ -84,6 +85,7 @@ pub(super) fn evaluate(
         job.variants.clear();
         let matched = matching_units(&census, &job, row, &hits, detector_exempt_packages);
         let mut report = collect_report(&job, matched, &homes, &variants);
+        append_reference_homes(&census, &homes, &mut report);
         super::subjects::append(
             row,
             &hits,
@@ -106,8 +108,49 @@ pub(super) fn evaluate(
         }
         reports.push(report);
     }
-    let sanctioned = resolve_distinct(ledger, workspace, &owners, &mut findings)?;
-    let groups = debt_groups(&census)?;
+    findings.extend(super::reference::References::unclassified(
+        &census, &reports,
+    )?);
+    let debt = collect_debt(ledger, workspace, &owners, &census, copies, &mut findings)?;
+    Ok(GateReport {
+        census,
+        jobs: reports,
+        findings,
+        debt,
+    })
+}
+
+fn append_reference_homes(
+    census: &Census,
+    homes: &BTreeSet<rules::UnitKey>,
+    report: &mut JobReport,
+) {
+    for unit in &census.reference_raw_units {
+        if homes.contains(&owners::key(unit)) {
+            report.matches.push(crate::JobMatch {
+                symbol: unit.symbol.clone(),
+                file: unit.file.clone(),
+                line: unit.line,
+                start_byte: unit.start_byte,
+                class: MatchClass::Home,
+            });
+        }
+    }
+    report.matches.sort_by(|a, b| {
+        (&a.symbol, &a.file, a.line, a.start_byte).cmp(&(&b.symbol, &b.file, b.line, b.start_byte))
+    });
+}
+
+fn collect_debt(
+    ledger: &Ledger,
+    workspace: &Workspace,
+    owners: &owners::Owners<'_>,
+    census: &Census,
+    copies: BTreeMap<String, usize>,
+    findings: &mut Vec<String>,
+) -> Result<DebtRecord, Error> {
+    let sanctioned = resolve_distinct(ledger, workspace, owners, findings)?;
+    let groups = debt_groups(census)?;
     for row in &sanctioned {
         if !groups.contains(row) {
             findings.push(format!(
@@ -117,13 +160,7 @@ pub(super) fn evaluate(
             ));
         }
     }
-    let debt = DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)?;
-    Ok(GateReport {
-        census,
-        jobs: reports,
-        findings,
-        debt,
-    })
+    DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)
 }
 
 fn debt_groups(census: &Census) -> Result<BTreeSet<DebtGroup>, Error> {
@@ -405,19 +442,23 @@ fn resolve_home<'a>(
 }
 
 fn resolve_job(
-    workspace: &Workspace,
-    code: &raf_source::CodeResolver<'_>,
+    source: (&Workspace, &raf_source::CodeResolver<'_>),
     owners: &owners::Owners<'_>,
     row: &LedgerJob,
     providers: &super::providers::Providers<'_>,
     limits: &mut MatchLimits,
     findings: &mut Vec<String>,
+    references: &super::reference::References<'_>,
 ) -> Result<Option<ResolvedJob>, Error> {
+    let (workspace, code) = source;
     let provider_homes = providers.home_sites(row, limits)?;
     let mut resolve = |symbol: &str| -> Result<_, Error> {
         Ok(match providers.api_home(owners, row, symbol, limits)? {
             Some(home) => Some(home),
-            None => resolve_home(workspace, code, owners, symbol, findings),
+            None => match references.home(symbol)? {
+                Some(home) => Some(home),
+                None => resolve_home(workspace, code, owners, symbol, findings),
+            },
         })
     };
     let home = resolve(&row.job.home)?;
@@ -468,6 +509,18 @@ fn resolve_job(
                 )
                 .collect();
             let mut job = row.job.clone();
+            for unit in home
+                .units
+                .iter()
+                .chain(entries.iter().flat_map(|entry| &entry.units))
+            {
+                if unit.file.starts_with("reference:") {
+                    job.forbidden
+                        .fingerprints
+                        .extend(unit.print.as_ref().and_then(|print| print.body.clone()));
+                    job.forbidden.fingerprints.extend(unit.shim_key.clone());
+                }
+            }
             job.home = home.path;
             job.entry_points = entries.iter().map(|entry| entry.path.clone()).collect();
             let home_units = home.units.iter().copied().map(owners::key).collect();
@@ -528,7 +581,12 @@ fn stale_matchers(
         if matches!(fingerprint, Fingerprint::Body(_) | Fingerprint::Shim(_)) {
             let mut probe = Job::new("fingerprint", "");
             probe.forbidden.fingerprints.push(fingerprint.clone());
-            if !census.units().iter().any(|unit| probe.matches(unit)) {
+            if !census
+                .units()
+                .iter()
+                .chain(&census.reference_raw_units)
+                .any(|unit| probe.matches(unit))
+            {
                 findings.push(format!(
                     "job {:?}: fingerprint {fingerprint} matches no unit",
                     row.job.id

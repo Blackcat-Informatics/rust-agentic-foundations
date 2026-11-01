@@ -1,8 +1,8 @@
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/8d7b008668671e9b11aaa0dcbbb2888921f4f101fd182adc44eb307f30b912d6>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/6ab4863932dbcf2770f59b00f841c0ab208fa4a7e3676dbbcd1ca0fae25d80f1>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#DebtRecord> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#debt/body/cargo_census::test_crate::delivery::put,raf_census::test_crate::census_gate::put> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyDebt> .
 <#debt/body/cargo_census::test_crate::delivery::put,raf_census::test_crate::census_gate::put> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "cargo_census::test_crate::delivery::put" .
 <#debt/body/cargo_census::test_crate::delivery::put,raf_census::test_crate::census_gate::put> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "raf_census::test_crate::census_gate::put" .

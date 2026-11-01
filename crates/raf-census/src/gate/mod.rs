@@ -9,6 +9,7 @@ mod migrate;
 mod owners;
 mod patterns;
 mod providers;
+mod reference;
 mod rules;
 mod subjects;
 
@@ -16,6 +17,7 @@ pub use migrate::{
     ForeignField, ForeignLedgerAdapter, MAX_INDEX_BYTES, Migration, MigrationInput, UnmappedRow,
     migrate_index, migrate_legacy, migrate_legacy_with_extensions,
 };
+pub use reference::ReferenceRoot;
 
 use std::io::Write as _;
 use std::path::{Component, Path, PathBuf};
@@ -23,8 +25,8 @@ use std::path::{Component, Path, PathBuf};
 use purrdf_jsonschema::ecma::MatchLimits;
 
 use raf_source::{
-    DiskTree, GitPackageRoots, LoadOptions, LockedCatalog, LockedManifest, RelPath,
-    SourceAuthorityId, Tree, Workspace, discover_root,
+    DiskTree, GitPackageRoots, LoadOptions, LockedCatalog, LockedManifest, ReferenceObservation,
+    RelPath, SourceAuthorityId, Tree, Workspace, discover_root,
 };
 
 use crate::{
@@ -114,8 +116,10 @@ impl GateReport {
 
 /// The census builder used by repositories as a dev-dependency.
 pub struct Gate {
+    reference_roots: Vec<ReferenceRoot>,
     dir: PathBuf,
     rules: Vec<Box<dyn Rule>>,
+    required_rules: Vec<String>,
     extensions: Vec<Box<dyn LedgerExtension>>,
     matching_limits: MatchLimits,
 }
@@ -132,16 +136,28 @@ impl Gate {
     #[must_use]
     pub fn workspace(dir: impl AsRef<Path>) -> Self {
         Self {
+            reference_roots: Vec::new(),
             dir: dir.as_ref().to_path_buf(),
             rules: Vec::new(),
+            required_rules: Vec::new(),
             extensions: Vec::new(),
             matching_limits: MatchLimits::default(),
         }
     }
 
-    /// Set the shared native step/state grant for names and ledger patterns.
+    /// Supply explicit locally available reference repositories/directories.
+    /// Path declarations inside the selected Tree need no extra locator.
+    /// Nothing searches a shared package cache or acquires data from the network.
+    #[must_use]
+    pub fn reference_roots(mut self, roots: impl IntoIterator<Item = ReferenceRoot>) -> Self {
+        self.reference_roots.extend(roots);
+        self
+    }
+
+    /// Set the shared native step/state grant for witnesses, names and ledger patterns.
     ///
-    /// Token comparisons and pending pattern hits use this same grant. Source
+    /// Witness pairs, retained states, storage growth, token comparisons and pending
+    /// pattern hits use this same grant. Source
     /// loading keeps its separate original limits; exhausted matching is an error.
     #[must_use]
     pub const fn matching_limits(mut self, limits: MatchLimits) -> Self {
@@ -153,6 +169,18 @@ impl Gate {
     #[must_use]
     pub fn rules(mut self, rules: impl IntoIterator<Item = Box<dyn Rule>>) -> Self {
         self.rules.extend(rules);
+        self
+    }
+
+    /// Require rules independently of ledger jobs.
+    ///
+    /// Their findings cannot be exempted by a home, variant or debt record.
+    /// Each detector retains its documented source eligibility.
+    /// Execution refuses unknown rules and detectors that need a job's home.
+    #[must_use]
+    pub fn require_rules(mut self, rules: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.required_rules
+            .extend(rules.into_iter().map(Into::into));
         self
     }
 
@@ -177,7 +205,10 @@ impl Gate {
             file: root.display().to_string(),
             source,
         })?;
-        self.check_tree(&tree)
+        check_debt(
+            &tree,
+            self.evaluate_reference_tree(&tree, Some(&root), &[])?,
+        )
     }
 
     /// Check a caller-owned workspace-root tree through the production path.
@@ -188,6 +219,20 @@ impl Gate {
     /// The ledger, source, rules and debt failures of [`Self::check`].
     pub fn check_tree(&self, tree: &impl Tree) -> Result<GateReport, Error> {
         check_debt(tree, self.evaluate_tree(tree)?)
+    }
+
+    /// Evaluate caller-owned reference observations through the ordinary Gate.
+    /// Each observation must match a reachable exact row in this Tree's lock file.
+    ///
+    /// # Errors
+    /// Refuses incomplete acquisition and every source, policy, report or debt
+    /// failure of [`Self::check_tree`]. Observations cannot authorize provider proof.
+    pub fn check_tree_with_references(
+        &self,
+        tree: &impl Tree,
+        references: &[ReferenceObservation],
+    ) -> Result<GateReport, Error> {
+        check_debt(tree, self.evaluate_reference_tree(tree, None, references)?)
     }
 
     /// Check the ledger's complete first-party roots with supplied locked sources.
@@ -237,7 +282,8 @@ impl Gate {
     /// filesystem failure. The target is replaced only after a complete
     /// canonical record has been written.
     pub fn write_debt(&self) -> Result<DebtWrite, Error> {
-        self.write_debt_with(|tree| self.evaluate_tree(tree))
+        let root = self.root()?;
+        self.write_debt_with(|tree| self.evaluate_reference_tree(tree, Some(&root), &[]))
     }
 
     /// Write present debt after complete configured locked-source evaluation.
@@ -320,7 +366,7 @@ impl Gate {
             .collect::<Result<Vec<_>, _>>()?;
         let workspace =
             Workspace::load_locked_sources_under(catalog, tree, &roots, local, sources, &options)?;
-        let consumers = workspace
+        let consumers: std::collections::BTreeSet<_> = workspace
             .package_ids()
             .filter(|id| {
                 workspace.package(*id).is_some_and(|package| {
@@ -328,31 +374,92 @@ impl Gate {
                 })
             })
             .collect();
-        let census = Census::from_packages(&workspace, ledger.options(), &consumers)?;
+        let references = if ledger.reference().is_empty() {
+            reference::References::empty(&workspace)
+        } else {
+            reference::References::prepare(&ledger, &workspace, catalog, &[], &[])?
+        };
+        let consumers = consumers
+            .intersection(&references.consumers)
+            .copied()
+            .collect();
+        let mut census = Census::from_packages(&workspace, ledger.options(), &consumers)?;
+        let mut limits = self.matching_limits;
+        references.attach(&mut census, &mut limits)?;
         evaluate::evaluate(
             &ledger,
             &workspace,
             census,
-            &self.rules,
+            rules::Selected {
+                registered: &self.rules,
+                required: &self.required_rules,
+            },
             &self.extensions,
-            self.matching_limits,
+            limits,
+            &references,
         )
     }
 
     fn evaluate_tree(&self, tree: &impl Tree) -> Result<GateReport, Error> {
+        self.evaluate_reference_tree(tree, None, &[])
+    }
+
+    fn evaluate_reference_tree(
+        &self,
+        tree: &impl Tree,
+        host: Option<&Path>,
+        supplied: &[ReferenceObservation],
+    ) -> Result<GateReport, Error> {
         let ledger = read_ledger(tree)?;
         let mut options = LoadOptions::default();
         options.max_file_bytes = ledger.options().max_file_bytes;
         let roots: Vec<_> = ledger.roots().iter().map(String::as_str).collect();
         let workspace = Workspace::load_with(tree, &roots, &options)?;
-        let census = Census::from_workspace(&workspace, ledger.options())?;
+        let acquired = if ledger.reference().is_empty() {
+            None
+        } else {
+            Some(reference::acquire::acquire(
+                &ledger,
+                &workspace,
+                tree,
+                host,
+                &self.reference_roots,
+                supplied,
+            )?)
+        };
+        let mut observed = Vec::new();
+        if let Some(acquired) = &acquired {
+            observed.extend(acquired.references.iter());
+        }
+        observed.extend(supplied.iter());
+        // The owned acquired observations and caller observations share one
+        // borrowed view; neither can contribute configured provider bindings.
+        let references = if let Some(acquired) = &acquired {
+            reference::References::prepare_borrowed(
+                &ledger,
+                &workspace,
+                &acquired.catalog,
+                &observed,
+                &acquired.owners,
+            )?
+        } else {
+            reference::References::empty(&workspace)
+        };
+        let mut census =
+            Census::from_packages(&workspace, ledger.options(), &references.consumers)?;
+        let mut limits = self.matching_limits;
+        references.attach(&mut census, &mut limits)?;
         evaluate::evaluate(
             &ledger,
             &workspace,
             census,
-            &self.rules,
+            rules::Selected {
+                registered: &self.rules,
+                required: &self.required_rules,
+            },
             &self.extensions,
-            self.matching_limits,
+            limits,
+            &references,
         )
     }
 }
@@ -410,11 +517,6 @@ fn read_ledger(tree: &impl Tree) -> Result<Ledger, Error> {
         file: LEDGER_FILE.into(),
         source: Box::new(source),
     })?;
-    if !ledger.reference().is_empty() {
-        return Err(evaluate::policy(
-            "reference packages require an executable reference scan; no first-party-only fallback is permitted",
-        ));
-    }
     Ok(ledger)
 }
 

@@ -3,7 +3,6 @@
 
 //! Base16 syntax recognition over the gate's existing bounded parse.
 
-use proc_macro2::Span;
 use syn::visit::Visit;
 
 use super::RawHit;
@@ -16,15 +15,6 @@ struct Hex {
 }
 
 impl Hex {
-    fn hit(&mut self, rule: &'static str, span: Span, message: &str) {
-        self.hits.push(RawHit {
-            rule,
-            byte: span.byte_range().start,
-            line: span.start().line,
-            message: message.into(),
-        });
-    }
-
     fn repeated(&mut self, walk: impl FnOnce(&mut Self)) {
         self.repeated += 1;
         walk(self);
@@ -75,7 +65,8 @@ impl<'ast> Visit<'ast> for Hex {
             let segments = &function.path.segments;
             let u8_type = segments.iter().rev().nth(1).is_some_and(|segment| segment.ident == "u8")
                 || function.qself.as_ref().is_some_and(|qualified| matches!(qualified.ty.as_ref(), syn::Type::Path(path) if path.path.is_ident("u8")));
-            self.hit(
+            RawHit::push(
+                &mut self.hits,
                 if u8_type {
                     "hex-pair-radix"
                 } else {
@@ -93,7 +84,8 @@ impl<'ast> Visit<'ast> for Hex {
             && node.args.len() == 1
             && node.args.first().is_some_and(sixteen)
         {
-            self.hit(
+            RawHit::push(
+                &mut self.hits,
                 "hex-digit-radix",
                 node.method.span(),
                 "a single hex digit decoded through a general radix conversion",
@@ -132,7 +124,8 @@ impl<'ast> Visit<'ast> for Hex {
                 })) = arguments.iter().nth(format_at)
                     && super::format::has_hex_pair(&format.value())
                 {
-                    self.hit(
+                    RawHit::push(
+                        &mut self.hits,
                         "hex-format-loop",
                         format.span(),
                         "two-digit hexadecimal formatting inside a loop or closure",

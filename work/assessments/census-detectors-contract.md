@@ -7,16 +7,16 @@ subject: cap:census-detectors#contract
 inputs:
   - kind: section
     name: cap:census-detectors#contract
-    digest: 42dc8e93b307cb26acba9556829765781b905afa607eed8e63a15a9a8b7c42c7
+    digest: c510a20f75def83e067a949c22b7014dca4c5e62a6d1745375db8272331c5c16
   - kind: symbol
     name: raf_census::Unit::string_initializer
     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
   - kind: symbol
     name: raf_census::detectors
-    digest: 34be8cc42a1659ce2145d22dfec4669ac17c941879ad5e6be743b25de879e217
+    digest: 7b8c1a768480a93c2cebd6426d6b06a8ed3b6b7805955ce289743ba8c52d0179
   - kind: symbol
     name: raf_census::gate::context
-    digest: bca4601671d78291f83b0e9450c1f77354e80c56fffba3954b520e6c5281d5d2
+    digest: e8ad5f85448435017dd62b8d0da0da80a68553bd74c0ced28023b647844dc51f
   - kind: symbol
     name: raf_census::gate::subjects
     digest: cdf722617b0a72c6767cdd4c46ff265376ba05fcc59974ad5c43407a8c3db17e

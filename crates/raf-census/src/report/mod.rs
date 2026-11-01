@@ -9,6 +9,7 @@ mod ledger;
 pub(crate) mod mint;
 mod query;
 mod read;
+pub(crate) mod reference;
 pub(crate) mod shape;
 mod upgrade;
 /// The report vocabulary and closed shapes.
@@ -22,6 +23,7 @@ pub use ledger::{
     MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
 };
 pub use query::{Query, QueryReport};
+pub use reference::{ReferenceSource, ReferenceWitness};
 pub use upgrade::{ReportKind, upgrade_report_form};
 pub use vocab::REPORT_FORM;
 
@@ -113,6 +115,9 @@ pub struct Baseline {
 /// One unit of the index report.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexUnit {
+    /// Reference receipt for an external comparison unit; `None` denotes an
+    /// ordinary first-party row in this index, without external source proof.
+    pub reference_source: Option<String>,
     /// The symbol of the unit.
     pub symbol: String,
     /// The package of the unit.
@@ -180,6 +185,10 @@ pub struct JobRow {
 pub struct Index {
     /// The normal form the fingerprints belong to.
     pub normal_form: u32,
+    /// Exact dependency identity and observation kind for reference units.
+    pub reference_sources: Vec<ReferenceSource>,
+    /// Every full-fingerprint cross-boundary match, independently of job counts.
+    pub reference_witnesses: Vec<ReferenceWitness>,
     /// Every unit, ordered by symbol, then file, then line.
     pub units: Vec<IndexUnit>,
     /// Every group, in the order of [`Census::groups`].
@@ -304,6 +313,7 @@ impl Census {
             .units()
             .iter()
             .map(|unit| IndexUnit {
+                reference_source: None,
                 symbol: unit.symbol.clone(),
                 package: unit.package.clone(),
                 file: unit.file.clone(),
@@ -319,9 +329,12 @@ impl Census {
                 shim: unit.shim_key.clone(),
             })
             .collect();
+        units.extend(self.reference_units.iter().cloned());
         units.sort_by(|a, b| (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line)));
         let mut report = Index {
             normal_form: NORMAL_FORM,
+            reference_sources: self.reference_sources.clone(),
+            reference_witnesses: self.reference_witnesses.clone(),
             units,
             groups: self
                 .groups()

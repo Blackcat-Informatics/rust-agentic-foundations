@@ -4,7 +4,10 @@
 //! The loaded workspace: packages, targets and the files of every module tree.
 
 mod locked;
-pub use locked::{GitPackageRoots, LockedBinding, LockedEdge, LockedManifest};
+pub use locked::{
+    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceObservation,
+    ReferenceRequest,
+};
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -211,6 +214,17 @@ impl Workspace {
         }
         meter.items(LOAD_BASE_BYTES, &root, None)?;
         let discovered = discover(tree, roots, meter)?;
+        Self::build_discovered(tree, options, meter, binding, &discovered)
+    }
+
+    fn build_discovered(
+        tree: &dyn Tree,
+        options: &LoadOptions,
+        meter: &Meter,
+        binding: Option<&locked::BindingLoad<'_>>,
+        discovered: &crate::discovery::Discovered,
+    ) -> Result<Self, LoadError> {
+        let root = RelPath::root();
         let found = &discovered.packages;
         let dirs = package_directory_index(found, meter)?;
         let mut infos = Vec::new();

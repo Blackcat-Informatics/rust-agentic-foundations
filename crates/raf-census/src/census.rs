@@ -32,6 +32,10 @@ pub struct FileCtx {
 /// The units and files of one workspace, under the options of one run.
 #[derive(Debug)]
 pub struct Census {
+    pub(crate) reference_raw_units: Vec<Unit>,
+    pub(crate) reference_units: Vec<crate::IndexUnit>,
+    pub(crate) reference_sources: Vec<crate::ReferenceSource>,
+    pub(crate) reference_witnesses: Vec<crate::ReferenceWitness>,
     options: CensusOptions,
     units: Vec<Unit>,
     files: Vec<FileCtx>,
@@ -112,6 +116,10 @@ impl Census {
             });
         }
         Ok(Self {
+            reference_raw_units: Vec::new(),
+            reference_units: Vec::new(),
+            reference_sources: Vec::new(),
+            reference_witnesses: Vec::new(),
             options: options.clone(),
             units,
             files,

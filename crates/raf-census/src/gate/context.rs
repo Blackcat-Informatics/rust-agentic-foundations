@@ -49,6 +49,7 @@ pub(super) fn collect<'a>(
         census
             .units()
             .iter()
+            .chain(&census.reference_raw_units)
             .filter(|unit| scope.home_units.contains(&owners::key(unit)))
             .flat_map(literals)
             .map(|literal| literal.value.as_str())
@@ -142,6 +143,7 @@ fn namespaces<'a>(
     census
         .units()
         .iter()
+        .chain(&census.reference_raw_units)
         .filter(|unit| {
             scope.homes.contains(&owners::key(unit))
                 && unit.kind == UnitKind::Const

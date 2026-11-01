@@ -184,6 +184,144 @@ pub struct Invocation {
     git: Option<super::view::GitContext>,
 }
 
+/// Closed package, feature and output-directory selection for Cargo documentation.
+///
+/// Values are validated before becoming arguments. No arbitrary Cargo flags,
+/// target triples, compiler flags or shell fragments enter this request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CargoDocOptions {
+    packages: Vec<Package>,
+    features: Vec<String>,
+    no_default_features: bool,
+    target_directory: Option<String>,
+}
+
+/// Why a documentation request cannot become a typed Cargo invocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CargoDocOptionsError(String);
+
+impl fmt::Display for CargoDocOptionsError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+impl std::error::Error for CargoDocOptionsError {}
+
+impl CargoDocOptions {
+    /// Validate an explicit nonempty package selection and its Cargo options.
+    ///
+    /// Feature arguments name `package/feature`; qualification gives metadata
+    /// and documentation the same explicit workspace feature request.
+    ///
+    /// # Errors
+    /// Refuses duplicate/invalid names, more than 256 packages or features,
+    /// unqualified features, and empty, non-UTF-8, control-bearing or oversized
+    /// target-directory spellings. Paths remain locators until Cargo observes them.
+    pub fn new(
+        packages: &[&str],
+        features: &[&str],
+        no_default_features: bool,
+        target_directory: Option<&Path>,
+    ) -> Result<Self, CargoDocOptionsError> {
+        if packages.is_empty() || packages.len() > 256 || features.len() > 256 {
+            return Err(CargoDocOptionsError(
+                "select 1 to 256 packages and at most 256 qualified features".into(),
+            ));
+        }
+        let mut selected = Vec::new();
+        for name in packages {
+            let package =
+                Package::new(name).map_err(|error| CargoDocOptionsError(error.to_string()))?;
+            if selected.contains(&package) {
+                return Err(CargoDocOptionsError(format!(
+                    "package `{name}` is repeated"
+                )));
+            }
+            selected.push(package);
+        }
+        let mut requested: Vec<String> = Vec::new();
+        for feature in features {
+            let (package, name) = feature
+                .split_once('/')
+                .ok_or_else(|| CargoDocOptionsError("features must name package/feature".into()))?;
+            if !packages.contains(&package)
+                || name.is_empty()
+                || feature.len() > 4096
+                || !name.chars().all(|character| {
+                    character.is_alphanumeric() || matches!(character, '_' | '-' | '+' | '.')
+                })
+                || requested.iter().any(|previous| previous == *feature)
+            {
+                return Err(CargoDocOptionsError(format!(
+                    "invalid, unselected or repeated qualified feature `{feature}`"
+                )));
+            }
+            requested.push((*feature).to_owned());
+        }
+        let directory = target_directory.map(|path| -> Result<String, CargoDocOptionsError> {
+            let text = path.to_str().ok_or_else(|| CargoDocOptionsError("target directory must be UTF-8".into()))?;
+            if text.is_empty() || text.len() > 4096 || text.chars().any(char::is_control) {
+                return Err(CargoDocOptionsError("target directory must be nonempty, at most 4096 bytes and contain no controls".into()));
+            }
+            Ok(text.to_owned())
+        }).transpose()?;
+        Ok(Self {
+            packages: selected,
+            features: requested,
+            no_default_features,
+            target_directory: directory,
+        })
+    }
+
+    /// Exact package names retained by the request.
+    #[must_use]
+    pub fn packages(&self) -> &[Package] {
+        &self.packages
+    }
+
+    /// Qualified Cargo feature requests, without inferring their activation.
+    #[must_use]
+    pub fn features(&self) -> &[String] {
+        &self.features
+    }
+
+    /// Whether both Cargo operations disable default features.
+    #[must_use]
+    pub const fn no_default_features(&self) -> bool {
+        self.no_default_features
+    }
+
+    /// Requested output locator; metadata supplies the effective absolute path.
+    #[must_use]
+    pub fn target_directory(&self) -> Option<&str> {
+        self.target_directory.as_deref()
+    }
+
+    fn arguments(&self, command: &'static str) -> Vec<Arg> {
+        let mut args = Vec::new();
+        if let Some(directory) = &self.target_directory {
+            // JSON basic strings with controls refused are also TOML basic
+            // strings. Both operations receive the same Cargo configuration.
+            let quoted = purrdf_lex::json::write_compact(&purrdf_lex::json::Value::from(directory));
+            args.push(Arg::lit("--config"));
+            args.push(Arg::Host(HostArgument(format!(
+                "build.target-dir={quoted}"
+            ))));
+        }
+        args.extend([Arg::lit(command), Arg::lit("--locked")]);
+        if self.no_default_features {
+            args.push(Arg::lit("--no-default-features"));
+        }
+        if !self.features.is_empty() {
+            args.push(Arg::Host(HostArgument(format!(
+                "--features={}",
+                self.features.join(",")
+            ))));
+        }
+        args
+    }
+}
+
 impl Invocation {
     /// An invocation of `program` with these arguments.
     #[must_use]
@@ -288,6 +426,27 @@ impl Invocation {
     /// A cargo invocation of these literals, a package and the tail.
     fn cargo(args: Vec<Arg>) -> Self {
         Self::new(Program::Cargo, args)
+    }
+
+    /// Bounded consumers read format-v1 Cargo metadata for this exact request.
+    #[must_use]
+    pub fn cargo_doc_metadata(options: &CargoDocOptions) -> Self {
+        let mut args = options.arguments("metadata");
+        args.push(Arg::lit("--format-version=1"));
+        Self::cargo(args)
+    }
+
+    /// Document only the requested workspace libraries, preserving cumulative output.
+    #[must_use]
+    pub fn cargo_doc(options: &CargoDocOptions) -> Self {
+        let mut args = options.arguments("doc");
+        args.extend([
+            Arg::lit("--no-deps"),
+            Arg::lit("--lib"),
+            Arg::lit("--message-format=json"),
+        ]);
+        args.extend(options.packages.iter().cloned().map(Arg::Package));
+        Self::cargo(args)
     }
 
     fn git(args: Vec<Arg>) -> Self {
