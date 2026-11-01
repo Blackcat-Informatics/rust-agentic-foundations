@@ -229,6 +229,7 @@ fn a_missing_git_is_exit_two_and_names_it() {
     let _lock = serial();
     let repo = Repo::synced("process-no-git", false);
     let empty = Scratch::new("process-no-git-path");
+    containment_launcher(empty.path());
     let target = repo.root().to_string_lossy().into_owned();
     for shape in [Shape::Direct, Shape::Cargo] {
         let mut command =
@@ -237,6 +238,7 @@ fn a_missing_git_is_exit_two_and_names_it() {
         let run = support::finish(&mut command).expect(2);
         assert_eq!(run.stdout, "");
         assert!(run.stderr.contains("git"), "{run:#?}");
+        assert!(!run.stderr.contains("`bwrap` cannot start"), "{run:#?}");
     }
     // The neighbour: with git on PATH the same run checks.
     let run = support::run_in(
@@ -401,6 +403,13 @@ fn old_git(path: &std::path::Path, record: &std::path::Path, version: &str) {
             record.display()
         ),
     );
+    containment_launcher(path.parent().expect("the stub directory"));
+}
+
+/// Keep mandatory containment available on an otherwise isolated command path.
+fn containment_launcher(bin: &std::path::Path) {
+    std::os::unix::fs::symlink(support::stubs::which("bwrap"), bin.join("bwrap"))
+        .expect("the native containment launcher");
 }
 
 #[test]
@@ -789,6 +798,7 @@ fn history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30
                 real.display()
             ),
         );
+        containment_launcher(&scratch.path().join("bin"));
         let mut command = support::command(
             &support::elsewhere(),
             Shape::Direct,

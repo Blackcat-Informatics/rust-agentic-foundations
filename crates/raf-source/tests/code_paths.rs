@@ -551,7 +551,7 @@ fn code_context_tables_spend_only_the_original_load_allowance_and_preserve_usage
     assert!(matches!(
         code.with_configured_syntax(item.target, &item.file, |_, _| ()),
         Err(CodeResolveError::SyntaxContext {
-            reason: "supply its exact locked declared configuration",
+            reason: "supply its exact declared configuration",
             ..
         })
     ));
