@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use purrdf_hash::frame::frame_le_into as part;
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use purrdf_lex::walk::{WorkList, try_equal_range_by, try_sort_unstable_by};
 use raf_source::{
@@ -509,10 +510,6 @@ impl Capture {
     }
 }
 
-fn part(hash: &mut purrdf_hash::blake3::Hasher, bytes: &[u8]) {
-    hash.update(&bytes.len().to_le_bytes());
-    hash.update(bytes);
-}
 #[cfg(unix)]
 fn mode(value: &std::fs::Permissions) -> Vec<u8> {
     use std::os::unix::fs::PermissionsExt as _;
