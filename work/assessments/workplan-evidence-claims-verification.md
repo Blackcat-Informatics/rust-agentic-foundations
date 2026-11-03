@@ -13,7 +13,7 @@ inputs:
     digest: 20411767995f2fa3ccd9c5b72ac4cfd2be17133a5956b8948c59b7a4c483cfb0
   - kind: symbol
     name: raf_workplan::evidence
-    digest: ae27a4e1752dd824cd8d9950e597bab7b357525844dfb956fb1195a342bc1e46
+    digest: 940053b63792f8d83e7e1eb28ffaa6cfe64259058e04d9b97e6772975395c220
 verdict: accepted
 by: agent
 ---
