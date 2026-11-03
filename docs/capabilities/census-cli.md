@@ -20,6 +20,7 @@ bindings:
     - raf_census::DEBT_WRITE_PROTOCOL_VERSION
     - raf_census::CHECK_PROTOCOL_VERSION
     - raf_census::MAX_CHECK_RESPONSE_BYTES
+    - raf_census::MAX_INDEX_BYTES
     - raf_workplan::exec::Invocation::example_debt_write
     - raf_workplan::exec::Invocation::example_index
   tests:
@@ -37,6 +38,7 @@ bindings:
     - cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record
   examples:
     - raf_census::example_crate::registered
+    - rust_agentic_foundations::example_crate::repository_census
 depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-reference-scan, cap:census-migration, cap:census-rule-api]
 ---
 
@@ -51,6 +53,8 @@ migration, ledger inspection and explicit debt recording. The selected target ow
 locked source inputs; the host owns process execution and complete response
 validation. Baseline discovery uses the native report directly; registered index
 queries retain the target's complete configured job reports.
+The caller can explicitly admit larger index response streams within a finite
+ceiling while ordinary requests retain their default allowance.
 
 ## Contract
 
@@ -75,7 +79,7 @@ Load and serialization failures also return exit one. Unknown formats or malform
 arguments return exit two. Stdout mode writes no workspace source, ledger or debt.
 
 ### Registered native index
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table -->
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record,raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table -->
 
 The command cargo census index --package PACKAGE --example EXAMPLE requests
 the complete native Index from the repository's registered Gate. Its fixed
@@ -88,8 +92,17 @@ policy with an empty job list or a built-in-only Gate. A complete query returns
 exit zero even when the evaluation has findings; it does not claim policy is
 clean and does not publish debt. Evaluation failures return exit one.
 
-The same bounded runner, null input, frozen Cargo invocation and 16 MiB stream
-ceiling govern the operation. Success requires target exit zero and a complete
+The same bounded runner, null input and frozen Cargo invocation govern the
+operation. Each captured standard output and standard error stream has a
+16 MiB allowance by default. Index, job, count and fingerprint accept
+--max-index-bytes BYTES to select an explicit positive allowance no larger than
+MAX_INDEX_BYTES, currently 256 MiB. The selected allowance applies separately
+to both streams of the Cargo invocation, including build diagnostics. It does
+not bound native graph allocation or final rendered-output size. Invalid
+allowances and use on check or debt are usage errors before target execution.
+Check and debt retain their fixed 16 MiB allowances.
+
+Success requires target exit zero and a complete
 closed native Index in canonical N-Triples 1.2 at the current normal form.
 Unknown versions, invalid shape, noncanonical bytes, malformed or oversized
 responses, missing targets and process failures refuse with captured diagnostics.
@@ -218,7 +231,9 @@ The commands job ID, count ID and fingerprint SYM require the same --package
 and --example selectors as index. They acquire and fully validate exactly the
 same complete registered Index, through the existing index-v1 operation. They
 then call Index::query; no second evaluation or structural fallback exists.
-Findings remain query data and do not change successful exit zero.
+Their selected --max-index-bytes allowance governs the complete index
+acquisition, even when the query's rendered result is small.
+Successful query output does not establish a clean Gate verdict.
 
 JobQuery contains the selected job, exact copy count, every classified match
 and its complete physical unit. CountQuery contains its job identity and exact
@@ -273,6 +288,15 @@ bytes to stdout and return ExitCode::from(response.exit_code()). Build diagnosti
 belong on stderr. Prepare the actual Cargo.lock before using the frozen command.
 The library example `raf_census::example_crate::registered` demonstrates response generation on an owned
 MemoryTree; the real-target integration test demonstrates Cargo execution.
+
+The repository's `repository_census` example shares its self-Census gate policy
+and declared roots. It supports read-only check and index operations and refuses
+debt publication. For its complete index, explicitly admit 64 MiB per captured
+stream:
+
+```text
+cargo census --workspace . index --package rust-agentic-foundations --example repository_census --max-index-bytes 67108864
+```
 
 ~~~text
 cargo census --workspace . baseline
@@ -353,6 +377,13 @@ the same report; repeated requests yield identical bytes. An invalid owner
 refuses before replacing an existing destination, beside successful caller-relative
 output. Index inspection preserves source, lock, ledger and absent debt.
 
+The valid canonical index fixture is admitted at its exact carrier length and
+refused with one byte less. A one-byte allowance on the real registered target
+fails without replacing the selected destination. The maximum allowed grant
+preserves the same complete report in both requested formats; zero,
+above-ceiling and unsupported-command grants are usage errors.
+<!-- raf:tested-by cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
+
 Explicit registered writing adopts the actual configured debt, preserves equal
 bytes, records strict shrink and refuses growth, a custom-rule hit, an invalid
 owner or an unlisted native competitor. Direct target and CLI publication produce
@@ -377,9 +408,19 @@ fallback or implicit debt adoption exists. Provider identities/configurations
 are supplied by the target; this transport does not authenticate a compiler
 invocation or acquire its complete source closure. Unsupported proof syntax
 retains the native Gate refusal.
+Index allowances govern captured transport bytes only. Their finite maximum
+reuses the complete-index input policy; the native Index parser is not claimed
+to impose that policy itself. A response exceeding its selected allowance has
+no verdict and cannot publish a partial destination.
 <!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
 
 ## Explanation
+
+A complete index can be larger than a check receipt because it describes every
+physical unit, group and configured job. Explicit admission lets the caller
+account for that workload while ordinary calls retain their default limit.
+The allowance travels with index acquisition for each query, so selecting one
+count cannot silently discard the rest of the index before validation.
 
 An authorized trusted target may publish successfully before its receipt is
 lost, malformed, exceeds capture limits or cannot be rendered by the host.
@@ -412,12 +453,19 @@ the native Gate ratchet, runner, RDF storage and canonical codec.
 
 ## Verification
 
+Existing native response cases retain the default overflow refusals and exercise
+an exact-length index allowance beside one byte less. Existing executable cases
+cover scoped argument bounds, complete native report parity under the maximum
+grant and preservation of destinations when a selected allowance is exceeded.
+The repository example executes its shared read-only self-Census policy.
+<!-- raf:tested-by cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
+
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause` | test | [Contract](#contract) |
-| `cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Contract](#contract) |
 | `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
@@ -428,6 +476,7 @@ the native Gate ratchet, runner, RDF storage and canonical codec.
 | `raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table` | test | [Contract](#contract) |
+| `rust_agentic_foundations::example_crate::repository_census` | example target | [Verification](#verification) |
 <!-- raf:generated:end -->
 
 The existing executable usage case compares baseline output with the native

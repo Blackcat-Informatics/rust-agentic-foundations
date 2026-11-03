@@ -586,7 +586,12 @@ fn registered_index(root: &Path, caller: &Path) {
         expected.to_ntriples().unwrap()
     );
     assert_eq!(index_cli(root, caller, &[]).stdout, first.stdout);
-    let turtle = index_cli(root, caller, &["--format", "turtle"]);
+    let maximum = raf_census::MAX_INDEX_BYTES.to_string();
+    let turtle = index_cli(
+        root,
+        caller,
+        &["--format", "turtle", "--max-index-bytes", &maximum],
+    );
     assert!(turtle.status.success(), "{turtle:?}");
     assert_eq!(
         raf_census::Index::from_turtle(std::str::from_utf8(&turtle.stdout).unwrap()).unwrap(),
@@ -669,13 +674,12 @@ fn registered_queries(root: &Path, caller: &Path, expected: &raf_census::Index) 
             ("ntriples", expected.to_ntriples().unwrap()),
             ("turtle", expected.to_turtle().unwrap()),
         ] {
-            let result = query_cli_for(
-                root,
-                caller,
-                "registered",
-                &[command, selector],
-                &["--format", format],
-            );
+            let maximum = raf_census::MAX_INDEX_BYTES.to_string();
+            let mut options = vec!["--format", format];
+            if format == "turtle" {
+                options.extend(["--max-index-bytes", maximum.as_str()]);
+            }
+            let result = query_cli_for(root, caller, "registered", &[command, selector], &options);
             assert!(result.status.success(), "{result:?}");
             assert_eq!(result.stdout, text.as_bytes());
         }
@@ -754,6 +758,15 @@ fn registered_queries(root: &Path, caller: &Path, expected: &raf_census::Index) 
 fn index_refusals(root: &Path, caller: &Path, valid: &[u8]) {
     let destination = caller.join("preserved.nt");
     fs::write(&destination, valid).unwrap();
+    let bounded = index_cli(
+        root,
+        caller,
+        &["--max-index-bytes", "1", "--out", "preserved.nt"],
+    );
+    assert_eq!(bounded.status.code(), Some(1), "{bounded:?}");
+    assert!(String::from_utf8_lossy(&bounded.stderr).contains("wrote more than"));
+    assert_eq!(bounded.stdout, b"");
+    assert_eq!(fs::read(&destination).unwrap(), valid);
     let original = fs::read(root.join("helpers-ledger.ttl")).unwrap();
     fs::write(root.join("helpers-ledger.ttl"), writer_ledger("other")).unwrap();
     let failed = index_cli(root, caller, &["--out", "preserved.nt"]);
