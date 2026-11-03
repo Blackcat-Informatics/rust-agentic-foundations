@@ -45,20 +45,7 @@ pub(crate) enum Command {
         out: Option<PathBuf>,
     },
     /// Read the complete native index from the repository's registered Gate.
-    Index {
-        /// Package containing the repository-owned index example.
-        #[arg(long, value_parser = package)]
-        package: Package,
-        /// Example accepting the explicit index-v1 request.
-        #[arg(long, value_parser = example)]
-        example: ExampleName,
-        /// Native RDF 1.2 report carrier.
-        #[arg(long, value_enum, default_value = "ntriples")]
-        format: RdfFormat,
-        /// Write the complete report here instead of stdout, relative to the caller.
-        #[arg(long)]
-        out: Option<PathBuf>,
-    },
+    Index(QueryTarget),
     /// Inspect every classified physical match of one configured job.
     Job {
         /// Exact configured job identity.
@@ -113,12 +100,20 @@ pub(crate) struct QueryTarget {
     /// Example accepting the existing index-v1 request.
     #[arg(long, value_parser = example)]
     pub(crate) example: ExampleName,
-    /// Native RDF 1.2 query carrier.
+    /// Native RDF 1.2 report or query carrier.
     #[arg(long, value_enum, default_value = "ntriples")]
     pub(crate) format: RdfFormat,
-    /// Write the complete query here, relative to the caller, instead of stdout.
+    /// Write the complete result here, relative to the caller, instead of stdout.
     #[arg(long)]
     pub(crate) out: Option<PathBuf>,
+    /// Maximum bytes in each captured index stream: stdout and stderr separately.
+    #[arg(
+        long,
+        default_value_t = raf_census::MAX_CHECK_RESPONSE_BYTES,
+        value_parser = clap::builder::RangedU64ValueParser::<usize>::new()
+            .range(1..=raf_census::MAX_INDEX_BYTES as u64)
+    )]
+    pub(crate) max_index_bytes: usize,
 }
 
 #[derive(ClapArgs)]

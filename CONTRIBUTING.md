@@ -62,6 +62,24 @@ make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath
 make help    # list every target
 ```
 
+The registered `repository_census` example shares the self-Census policy, including
+its required syntax rules, workspace and fuzz roots, and exact debt ratchet. Run
+its read-only check or complete index through the actual CLI:
+
+```bash
+cargo run --locked -p cargo-census -- census --workspace . check \
+  --package rust-agentic-foundations --example repository_census
+cargo run --locked -p cargo-census -- census --workspace . index \
+  --package rust-agentic-foundations --example repository_census \
+  --max-index-bytes 67108864
+```
+
+A complete index is emitted even when the check has findings; run `check` for
+the policy verdict. This example refuses debt publication.
+The index command explicitly admits 64 MiB for each captured target stream,
+including standard error; the default allowance is 16 MiB. The allowance does
+not bound native graph allocation or the final rendered report.
+
 - **`make check` is the gate.** It stops at the first failure. CI runs the
   documented compilation, test and policy checks; local `make check` additionally
   runs optimized instrumented fuzzing. The pre-commit hook runs fmt and reuse on a checkout of the staged

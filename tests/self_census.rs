@@ -3,7 +3,10 @@
 
 //! The production Census gate over the selected repository snapshot.
 
-use raf_census::{CensusOptions, Gate, LEDGER_FILE, Ledger, MAX_LEDGER_BYTES};
+#[path = "../examples/support/census.rs"]
+mod policy;
+
+use raf_census::{CensusOptions, LEDGER_FILE, Ledger, MAX_LEDGER_BYTES};
 use raf_source::{DiskTree, MemoryTree, RelPath, Tree};
 
 #[test]
@@ -21,8 +24,7 @@ fn repository_census_is_clean_and_duplicate_growth_is_refused() {
     let defaults = CensusOptions::default();
     assert_eq!(ledger.options().min_tokens, defaults.min_tokens);
     assert_eq!(ledger.options().max_file_bytes, defaults.max_file_bytes);
-    let report = Gate::workspace(&root)
-        .require_rules(["serde-json", "rdf-text-writer", "rdf-term-model"])
+    let report = policy::gate(&root)
         .check_tree(&tree)
         .expect("evaluate the real repository through the production gate");
     assert!(report.is_clean(), "{}", report.findings().join("\n"));
@@ -57,8 +59,7 @@ fn repository_census_is_clean_and_duplicate_growth_is_refused() {
     };
     let source = "pub fn original(values: &[u64]) -> u64 { let mut sum = 0; for value in values { sum += value * 3; } sum }";
     let valid = fixture(source);
-    let gate =
-        Gate::workspace(".").require_rules(["serde-json", "rdf-text-writer", "rdf-term-model"]);
+    let gate = policy::gate(".");
     let before = gate.check_tree(&valid).expect("evaluate the valid fixture");
     assert!(before.is_clean(), "{:?}", before.findings());
     let duplicate = format!(
