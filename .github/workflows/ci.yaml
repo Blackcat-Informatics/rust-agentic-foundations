@@ -73,7 +73,8 @@ jobs:
               {package: .name, label: .name, args: [], docs: false,
                examples: any(.targets[]; (.kind | index("example")) != null),
                build_examples: false} as $base |
-              if .name == "raf-workplan" or .name == "rust-agentic-foundations" then
+              if .name == "raf-workplan" or .name == "rust-agentic-foundations" or
+                 .name == "raf-source" then
                 (if .name == "raf-workplan" then 3 else 2 end) as $parts |
                 if any(.targets[]; (.test | type) != "boolean" or
                        (.doctest | type) != "boolean")
