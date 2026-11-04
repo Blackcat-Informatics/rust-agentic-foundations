@@ -7,7 +7,7 @@ subject: cap:source-index#usage
 inputs:
   - kind: section
     name: cap:source-index#usage
-    digest: 9fc6e8a1f76bc603b07241c3219e6cbed8a1ddd9beb2c727ada04dcf49a4f7c2
+    digest: 31d088fee33f32a512233d9845b3689df7da18343d5e8b079211fdda230a2762
   - kind: symbol
     name: raf_source::CfgAtom
     digest: d36cd070e76abf89aa638ebe1dc5acff34ddaae19f6d22e8410100a04eaa0ea6
