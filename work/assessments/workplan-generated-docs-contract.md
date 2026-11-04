@@ -25,7 +25,7 @@ inputs:
     digest: 9ba560131a4fedddffd7453172f167de21c0f3559a1cd0417572f82d00b2ded4
   - kind: symbol
     name: raf_workplan::diagram
-    digest: 47d303c25adf27d3fe6da84fb19ba3ea35f958a6f3ebad9a002a700fc3e37f66
+    digest: 2c1fea1c6a3fd74de35047252ae6776ac75160cda0f7d79e484e9a0ec47b2fd8
 verdict: accepted
 by: agent
 ---

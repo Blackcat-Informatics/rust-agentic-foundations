@@ -562,7 +562,7 @@ fn source_displays(
 pub(crate) fn validate(
     plan: &Workplan<'_>,
     model: AuthoredModel<'_>,
-) -> Result<(), (String, DiagramError)> {
+) -> Result<(), (String, Box<DiagramError>)> {
     if model.declarations == &raf_okf::ArchitectureModel::default() {
         return Ok(());
     }
@@ -571,17 +571,18 @@ pub(crate) fn validate(
         max_terms: 30000,
         ..VizSpec::default()
     };
-    let overview = scene(plan, model, None, &spec).map_err(|error| ("model".into(), error))?;
+    let overview =
+        scene(plan, model, None, &spec).map_err(|error| ("model".into(), Box::new(error)))?;
     viz::build_presented_scene(&overview.projection, &spec, &overview.presentation)
-        .map_err(|error| (location(model, None, &error), error.into()))?;
+        .map_err(|error| (location(model, None, &error), Box::new(error.into())))?;
     for (index, row) in model.declarations.scenarios.iter().enumerate() {
         let mut presentation = overview.presentation.clone();
         presentation.scenario = Some(
             scenario(model, &overview.projection, row)
-                .map_err(|error| (format!("model.scenarios[{index}]"), error))?,
+                .map_err(|error| (format!("model.scenarios[{index}]"), Box::new(error)))?,
         );
         viz::build_presented_scene(&overview.projection, &spec, &presentation)
-            .map_err(|error| (location(model, Some(index), &error), error.into()))?;
+            .map_err(|error| (location(model, Some(index), &error), Box::new(error.into())))?;
     }
     Ok(())
 }
