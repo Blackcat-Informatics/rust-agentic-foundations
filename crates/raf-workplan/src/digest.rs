@@ -31,8 +31,8 @@
 //! digest is a pure function of the text: equal on every run and every
 //! platform.
 //!
-//! SHA-256 uses the same streaming implementation as `PurRDF`; its public
-//! content-store API supplies one-shot hashing, not a streaming state. The digest detects change; it is not a secret, and its
+//! SHA-256 streams through [`purrdf_core::ContentHasher`]. The digest detects
+//! change; it is not a secret, and its
 //! comparison is not constant-time.
 //!
 //! Semantic identifiers and diagram asset identities separately use unframed
@@ -40,7 +40,7 @@
 //! That internal identity path applies no record-input framing or line-ending
 //! normalization and does not change the SHA-256 record-input contract.
 
-use sha2::{Digest as _, Sha256};
+use purrdf_core::ContentHasher;
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
@@ -85,9 +85,9 @@ impl Digest {
     pub fn section(body: &Body, section: CapabilitySection) -> Option<Self> {
         // `section_digest` has replaced CRLF already; the text is hashed as it is.
         let authored = section_digest(body, section)?;
-        let mut hasher = Sha256::new();
+        let mut hasher = ContentHasher::default();
         field(&mut hasher, "section", section.slug(), authored.text());
-        Some(Self(hasher.finalize().into()))
+        Some(Self(*hasher.finish().as_bytes()))
     }
 
     /// The digest of the source text of the symbol `path`, resolved through
@@ -156,7 +156,7 @@ impl Digest {
     /// # Errors
     /// Returns [`SymbolDigestError::Source`] if an indexed span has no source.
     pub fn review_item(source: &Workspace, item: &Item) -> Result<Self, SymbolDigestError> {
-        let mut hasher = Sha256::new();
+        let mut hasher = ContentHasher::default();
         let text = review_residual(
             source,
             item,
@@ -182,7 +182,7 @@ impl Digest {
                 );
             }
         }
-        Ok(Self(hasher.finalize().into()))
+        Ok(Self(*hasher.finish().as_bytes()))
     }
 
     /// The review digest of every definition of one canonical item path.
@@ -219,22 +219,22 @@ impl Digest {
                 path: path.to_string(),
             });
         }
-        let mut hasher = Sha256::new();
+        let mut hasher = ContentHasher::default();
         for item in items {
             let name = format!("{}:{}:{}", item.namespace, item.file, item.path);
             let digest = Self::review_item(source, item)?;
             field(&mut hasher, "review-definition", &name, &digest.to_string());
         }
-        Ok(Self(hasher.finalize().into()))
+        Ok(Self(*hasher.finish().as_bytes()))
     }
 
     /// The digest of the text of a record file, with CRLF read as LF: the
     /// field `record NUL NUL <length> NUL <text>`.
     #[must_use]
     pub fn record(text: &str) -> Self {
-        let mut hasher = Sha256::new();
+        let mut hasher = ContentHasher::default();
         field(&mut hasher, "record", "", &lf(text));
-        Self(hasher.finalize().into())
+        Self(*hasher.finish().as_bytes())
     }
 
     /// The versioned closed architecture declarations, independent of prose.
@@ -247,9 +247,9 @@ impl Digest {
     pub fn declaration(model: &ArchitectureModel) -> Self {
         use purrdf_lex::json::record::ToJson as _;
         let text = purrdf_lex::json::write_compact(&model.to_json());
-        let mut hasher = Sha256::new();
+        let mut hasher = ContentHasher::default();
         field(&mut hasher, "declaration", "architecture-model-1", &text);
-        Self(hasher.finalize().into())
+        Self(*hasher.finish().as_bytes())
     }
 
     /// A capability's native binding declarations and architecture model.
@@ -265,14 +265,14 @@ impl Digest {
                 .with("bindings", capability.bindings.to_json())
                 .with("model", capability.model.to_json()),
         );
-        let mut hasher = Sha256::new();
+        let mut hasher = ContentHasher::default();
         field(
             &mut hasher,
             "declaration",
             "capability-declaration-1",
             &purrdf_lex::json::write_compact(&value),
         );
-        Self(hasher.finalize().into())
+        Self(*hasher.finish().as_bytes())
     }
 
     /// The 32 bytes of the digest.
@@ -517,11 +517,11 @@ pub(crate) fn symbol_texts(
 fn symbol_of(path: &str, mut sites: Vec<Site<'_>>) -> Digest {
     sites.sort_by(|a, b| a.0.cmp(&b.0));
     sites.dedup_by(|a, b| a.0 == b.0);
-    let mut hasher = Sha256::new();
+    let mut hasher = ContentHasher::default();
     for (_, text) in sites {
         field(&mut hasher, "symbol", path, &lf(text));
     }
-    Digest(hasher.finalize().into())
+    Digest(*hasher.finish().as_bytes())
 }
 
 /// `text` with each CRLF replaced by LF, in one pass.
@@ -531,22 +531,20 @@ fn lf(text: &str) -> String {
 
 /// Feed one field `kind NUL name NUL length NUL text` to `hasher`. The text
 /// is hashed as given: the callers have replaced its CRLF line endings once.
-fn field(hasher: &mut Sha256, kind: &str, name: &str, text: &str) {
+fn field(hasher: &mut ContentHasher, kind: &str, name: &str, text: &str) {
     hasher.update(kind.as_bytes());
-    hasher.update([0]);
+    hasher.update(&[0]);
     hasher.update(name.as_bytes());
-    hasher.update([0]);
+    hasher.update(&[0]);
     hasher.update(text.len().to_string().as_bytes());
-    hasher.update([0]);
+    hasher.update(&[0]);
     hasher.update(text.as_bytes());
 }
 
 /// Identity framing and the shared SHA-256 implementation's known vectors.
 #[cfg(test)]
 mod tests {
-    use sha2::Digest as _;
-
-    use super::{Digest, Sha256, field, symbol_of};
+    use super::{ContentHasher, Digest, field, symbol_of};
 
     /// A review owns each leaf once, including a first declaration at byte zero.
     #[test]
@@ -599,10 +597,6 @@ mod tests {
         }
     }
 
-    fn hex(bytes: &[u8]) -> String {
-        purrdf_hash::hex::encode(bytes)
-    }
-
     fn sha256(bytes: &[u8]) -> String {
         purrdf_core::content_store::ContentDigest::of(bytes).to_hex()
     }
@@ -636,12 +630,12 @@ mod tests {
         for length in [0, 1, 55, 56, 63, 64, 65, 119, 120, 128, 1000] {
             let whole = sha256(&message[..length]);
             for piece in [1, 3, 64, 100] {
-                let mut hasher = Sha256::new();
+                let mut hasher = ContentHasher::default();
                 for chunk in message[..length].chunks(piece) {
                     hasher.update(chunk);
                 }
                 assert_eq!(
-                    hex(&hasher.finalize()),
+                    hasher.finish().to_hex(),
                     whole,
                     "{length} in pieces of {piece}"
                 );
@@ -656,11 +650,11 @@ mod tests {
     }
 
     fn digest_of(fields: &[(&str, &str, &str)]) -> Digest {
-        let mut hasher = Sha256::new();
+        let mut hasher = ContentHasher::default();
         for (kind, name, text) in fields {
             field(&mut hasher, kind, name, text);
         }
-        Digest(hasher.finalize().into())
+        Digest(*hasher.finish().as_bytes())
     }
 
     /// The kind separates the domains: equal names and equal bytes give
