@@ -212,6 +212,10 @@ One cached named bundle supplies Markdown SVG and readable alternatives,
 standard mdBook transformation and a self-contained explorer. All presentations
 retain native identities, geometry and provenance. Owned versioned output
 preserves unrelated files and cumulative documentation.
+The mdBook adapter parses each chapter once through bounded native Markdown
+syntax. It projects root paragraphs and protected code/HTML ranges; RAF owns
+the directive spelling, named-view selection and output budgets. Native resource
+refusals preserve their positioned cause and return no transformed book.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 Completed execution views use this same checked publication writer for their
@@ -364,7 +368,9 @@ Opened computes reconciled diagram blocks and asset edits/removals without write
 
 
 Configure mdBook to invoke `cargo workplan docs mdbook`; standalone references
-use `{{#workplan-diagram cap:api#workspace}}`. Publish the explorer and static
+use `{{#workplan-diagram cap:api#workspace}}`. A native Markdown resource refusal
+names the source position and exhausted resource; split or simplify that chapter
+before retrying. Publish the explorer and static
 artifacts through `cargo workplan docs build standalone --view cap:api#workspace
 --output-dir <existing-directory>`.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
@@ -430,6 +436,11 @@ A multi-crate workspace publishes the standalone explorer beside existing host
 files. Publication preserves those files, refuses changed owned bytes and
 restores missing owned assets. Failed commands emit no machine output; JSON is
 refused before root loading.
+An mdBook chapter can quote a directive inside fenced or indented code, a
+multiline code span, or raw HTML and place a standalone reference after it. The
+quoted bytes survive unchanged; the standalone paragraph expands to the shared
+view. Plain prose at the 1 MiB source ceiling is admitted; a smaller chapter can
+still exceed native storage or work admission and refuse without output.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 If a capability document has a hardlink alias, rewriting its generated table
@@ -451,8 +462,16 @@ The relationship table below links the current dependencies and dependants to th
 
 The mdBook adapter admits at most 4096 chapters, 64 chapter levels and 256
 diagram references. A chapter admits 1 MiB of source; aggregate source admits
-16 MiB and transformed chapter content admits 64 MiB. Markdown nesting is
-limited to 64 containers. Unsupported renderers, malformed references and
+16 MiB and transformed chapter content admits 64 MiB. Native Markdown block
+depth is limited to 64, counting each quote/list-item container and its leaf
+block. Thus 63 nested quotes containing a paragraph pass and 64 refuse.
+Each chapter separately admits 64 MiB of native auxiliary storage, including
+construction scratch, and 67,108,864 deterministic native work units. These
+additional ceilings can refuse a chapter within the source bound. The native
+inline-opener ceiling equals the 1 MiB source ceiling, and raw/decoded link
+parts admit 8 MiB, derived from at most two Unicode scalars per source byte.
+Those parser ceilings are separate from the transformed output budget.
+Unsupported renderers, malformed references and
 unavailable named views refuse before returning transformed content.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
@@ -505,6 +524,13 @@ boundary; no atomic snapshot or multi-file transaction is claimed.
   <!-- raf:tested-by raf_workplan::test_crate::preview::a_fenced_code_block_in_a_block_of_the_change_is_refused_with_its_line,raf_workplan::test_crate::preview::a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line,raf_workplan::test_crate::preview::a_block_in_a_list_item_keeps_its_indentation -->
 
 ## Explanation
+
+The mdBook adapter reads native Markdown source syntax once per chapter. It
+merges the native block and inline ranges in source order, then advances cursors
+through those ranges as it finds RAF directives. Source text is not reparsed or
+normalized. Native admission covers the whole chapter, including syntax outside
+directives, so its storage or work ceiling can refuse before named-view lookup.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 Generation is limited to what a program can get right. A table that restates the
 bindings is correct by construction, and it cannot drift from the bindings it
@@ -590,7 +616,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
 | `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping` | test | [Contract](#contract) |
 | `raf_workplan::example_crate::component_model` | example target | [Examples](#examples) |

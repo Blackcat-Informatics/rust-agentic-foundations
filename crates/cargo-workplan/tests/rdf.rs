@@ -469,7 +469,18 @@ fn mdbook_preserves_the_book_and_uses_the_shared_view() {
         .named_diagram("cap:alpha#dependencies")
         .unwrap();
     let fragment = raf_workplan::diagram::documentation::static_fragment(&bundle).unwrap();
-    let literal = "```text\n{{#workplan-diagram cap:alpha#dependencies}}\n```\n\n";
+    let reference = "{{#workplan-diagram cap:alpha#dependencies}}";
+    let indented = format!("    {reference}");
+    let literal = format!(
+        "```text\n{reference}\n```\n\n\
+         ~~~text\n{reference}\n~~~\n\n\
+         {indented}\n\n\
+         `{reference}`\n\n\
+         `open\n{reference}\nclose`\n\n\
+         <div>\n{reference}\n</div>\n\n\
+         literal <span title=\"{reference}\">example</span> text\n\n\
+         <!--\n{reference}\n-->\n\n"
+    );
     let chapter = Object::new()
         .with("name", "Nested page")
         .with("path", "nested/page.md")
@@ -477,7 +488,7 @@ fn mdbook_preserves_the_book_and_uses_the_shared_view() {
         .with("sub_items", Vec::<Value>::new())
         .with(
             "content",
-            format!("{literal}{{{{#workplan-diagram cap:alpha#dependencies}}}}\n\n# After\n"),
+            format!("{literal}[label]: target\n{{{{#workplan-diagram cap:alpha#dependencies}}}}\n\n# After\n"),
         );
     let mut expected = Value::from(
         Object::new()
@@ -508,7 +519,8 @@ fn mdbook_preserves_the_book_and_uses_the_shared_view() {
         .unwrap()[2]
         .get_mut("Chapter")
         .unwrap();
-    *chapter.get_mut("content").unwrap() = Value::from(format!("{literal}{fragment}\n# After\n"));
+    *chapter.get_mut("content").unwrap() =
+        Value::from(format!("{literal}[label]: target\n{fragment}\n# After\n"));
     assert_eq!(json::read(&result.stdout).unwrap(), expected);
     assert_eq!(repo.snapshot(), before);
     for (request, reason) in [
@@ -516,6 +528,20 @@ fn mdbook_preserves_the_book_and_uses_the_shared_view() {
         (
             request.replace("cap:alpha#dependencies", "cap:alpha#missing"),
             "no declared diagram",
+        ),
+        (
+            json::write_compact(&book_request(vec![book_chapter(
+                "\n".repeat(raf_okf::MAX_TEXT_BYTES),
+                Vec::new(),
+            )])),
+            "auxiliary bytes",
+        ),
+        (
+            json::write_compact(&book_request(vec![book_chapter(
+                format!("[label]: target \"{reference}\"\n"),
+                Vec::new(),
+            )])),
+            "top-level prose paragraph",
         ),
     ] {
         repo.put("book-request.json", &request);
@@ -525,7 +551,40 @@ fn mdbook_preserves_the_book_and_uses_the_shared_view() {
         assert!(refused.stderr.contains(reason), "{refused:#?}");
     }
     mdbook_request_limits(&opened.workplan());
+    mdbook_native_limits(&opened.workplan());
     mdbook_output_limit(opened.workspace());
+}
+
+/// Native model storage and work refuse atomically while retaining the cause.
+fn mdbook_native_limits(plan: &raf_workplan::Workplan<'_>) {
+    use raf_workplan::diagram::book::preprocess;
+    let unmatched_code_runs = |count| {
+        let mut source = String::from("prose ");
+        for length in 1..=count {
+            source.push_str(&"`".repeat(length));
+            source.push('x');
+        }
+        source
+    };
+    for (resource, valid, invalid) in [
+        (
+            "auxiliary bytes",
+            "\n".repeat(4096),
+            "\n".repeat(raf_okf::MAX_TEXT_BYTES),
+        ),
+        ("work", unmatched_code_runs(128), unmatched_code_runs(1024)),
+    ] {
+        preprocess(plan, book_request(vec![book_chapter(valid, Vec::new())])).unwrap();
+        let error =
+            preprocess(plan, book_request(vec![book_chapter(invalid, Vec::new())])).unwrap_err();
+        let cause = std::error::Error::source(&error).expect("the native refusal is retained");
+        assert!(cause.to_string().contains(resource), "{resource}: {cause}");
+    }
+    // Inline opener and link-part admission follows the source bound, rather
+    // than the body-authoring profile's smaller limits.
+    for source in ["[".repeat(65), format!("[link]({})", "x".repeat(4097))] {
+        preprocess(plan, book_request(vec![book_chapter(source, Vec::new())])).unwrap();
+    }
 }
 
 fn book_chapter(

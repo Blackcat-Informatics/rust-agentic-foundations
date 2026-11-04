@@ -13,7 +13,7 @@ use super::{Format, Gate, Term, Triple, provider_policy, put, vocab};
 #[path = "../support/native_hash.rs"]
 mod native_hash;
 
-const PIN: &str = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572";
+const PIN: &str = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c";
 const CONSUMER: &str = include_str!("../support/native_hash.rs");
 
 fn context(name: &str) -> DeclaredConfiguration<'_> {

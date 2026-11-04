@@ -325,7 +325,7 @@ pub enum DiagramError {
         /// Actionable policy reason.
         reason: String,
     },
-    /// Native dataset storage, identity or RDF validation error.
+    /// Native data, identity or source-syntax validation error.
     Data(Box<dyn Error + Send + Sync>),
 }
 

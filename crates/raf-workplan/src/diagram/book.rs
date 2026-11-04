@@ -5,8 +5,8 @@
 
 use super::{DiagramError, documentation::static_fragment};
 use crate::Workplan;
-use pulldown_cmark::{Event, Parser, Tag};
 use purrdf_lex::json::{Object, Value};
+use purrdf_markdown::{Span, SyntaxLimits, syntax::BlockKind};
 use std::ops::Range;
 
 const DIRECTIVE: &str = "{{#workplan-diagram ";
@@ -15,12 +15,14 @@ const MAX_DEPTH: usize = 64;
 const MAX_REFERENCES: usize = 256;
 const MAX_SOURCE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
+const MAX_MARKDOWN_AUXILIARY_BYTES: usize = 64 * 1024 * 1024;
+const MAX_MARKDOWN_WORK: u64 = 64 * 1024 * 1024;
 
 /// Transform an mdBook `[context, book]` request into the output book alone.
 ///
 /// An unindented standalone `{{#workplan-diagram cap:slug#name}}` line embeds
 /// the same named bundle's packaged static fragment. Architecture references
-/// use `arch:slug#name`. [CommonMark](https://spec.commonmark.org/) byte offsets leave inline code,
+/// use `arch:slug#name`. Native Markdown source spans leave inline code,
 /// including multiline spans, fenced and indented code, and raw HTML blocks and
 /// tags unchanged.
 /// A directive must form its own top-level paragraph, outside other markup.
@@ -32,7 +34,9 @@ const MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 /// Markdown/rendering failures. Books are bounded to 4096 chapters, 64 nested
 /// chapter levels, 256 references, 16 MiB source and 64 MiB transformed content.
 /// Each chapter is limited to the native document bound of 1 MiB, with no more
-/// than 64 nested Markdown containers. The sole parser follows that specification.
+/// than 64 nested Markdown blocks, including the leaf paragraph. Native parsing
+/// also admits at most 64 MiB of auxiliary storage and 67,108,864 work units
+/// per chapter; a chapter within the source bound can exceed either resource.
 /// A refusal returns no partially transformed book.
 pub fn preprocess(plan: &Workplan<'_>, mut request: Value) -> Result<Value, DiagramError> {
     let pair = request
@@ -179,35 +183,82 @@ struct MarkdownSpans {
     paragraphs: Vec<Range<usize>>,
 }
 
-/// The host's Markdown parser alone decides which bytes are literal content.
+/// Native Markdown syntax alone decides which bytes are literal content.
 fn markdown_spans(source: &str) -> Result<MarkdownSpans, DiagramError> {
+    let document = purrdf_markdown::syntax(
+        source,
+        SyntaxLimits {
+            source_bytes: raf_okf::MAX_TEXT_BYTES,
+            auxiliary_bytes: MAX_MARKDOWN_AUXILIARY_BYTES,
+            work: MAX_MARKDOWN_WORK,
+            containers: MAX_DEPTH,
+            // Every opener occupies a source byte. This is distinct from the
+            // native block-depth policy below.
+            nesting: raf_okf::MAX_TEXT_BYTES,
+            // Character references emit at most two Unicode scalars. Eight
+            // bytes per source byte also covers virtual indentation spaces.
+            link_part_bytes: 8 * raf_okf::MAX_TEXT_BYTES,
+        },
+    )
+    .map_err(DiagramError::data)?;
     let mut spans = MarkdownSpans {
         protected: Vec::new(),
         paragraphs: Vec::new(),
     };
-    let mut depth = 0;
-    for (event, range) in Parser::new(source).into_offset_iter() {
-        match event {
-            Event::Start(tag) => {
-                if depth == MAX_DEPTH {
-                    return Err(refused("Markdown nesting exceeds 64 containers"));
-                }
-                if tag == Tag::Paragraph && depth == 0 {
-                    spans.paragraphs.push(range.clone());
-                }
-                if matches!(tag, Tag::CodeBlock(_) | Tag::HtmlBlock) {
-                    spans.protected.push(range);
-                }
-                depth += 1;
+    let mut depths: Vec<usize> = Vec::with_capacity(document.blocks().len());
+    let mut inlines = document.inlines().iter().peekable();
+    // Definition arena order need not be source order. Native spans and lines
+    // identify a paragraph's consumed prefix without parsing its spelling.
+    let mut definitions: Vec<_> = document.definitions().iter().collect();
+    definitions.sort_unstable_by_key(|definition| definition.source.start);
+    let mut definitions = definitions.into_iter().peekable();
+    for block in document.blocks() {
+        // The native arena guarantees that a parent precedes its children.
+        let depth = block.parent.map_or(1, |parent| depths[parent] + 1);
+        if depth > MAX_DEPTH {
+            return Err(refused("Markdown nesting exceeds 64 containers"));
+        }
+        depths.push(depth);
+        if block.parent.is_none() && matches!(block.kind, BlockKind::Paragraph) {
+            let mut prefix_end = block.source.start;
+            while let Some(definition) =
+                definitions.next_if(|definition| definition.source.start < block.source.end)
+            {
+                prefix_end = prefix_end.max(definition.source.end);
             }
-            Event::End(_) => depth -= 1,
-            Event::Code(_) | Event::Html(_) | Event::InlineHtml(_) => {
-                spans.protected.push(range);
+            if let Some(line) = document
+                .content_lines(block)
+                .iter()
+                .find(|line| line.source.start >= prefix_end)
+            {
+                let mut range = source_range(block.source)?;
+                range.start = usize::try_from(line.source.start).map_err(DiagramError::data)?;
+                spans.paragraphs.push(range);
             }
-            _ => {}
+        }
+        if matches!(
+            block.kind,
+            BlockKind::FencedCode { .. } | BlockKind::IndentedCode | BlockKind::Html { .. }
+        ) {
+            // Both native streams follow source order. Merge them once so
+            // each directive advances the existing range cursor linearly.
+            while let Some(inline) =
+                inlines.next_if(|inline| inline.source.start < block.source.start)
+            {
+                spans.protected.push(source_range(inline.source)?);
+            }
+            spans.protected.push(source_range(block.source)?);
         }
     }
+    for inline in inlines {
+        spans.protected.push(source_range(inline.source)?);
+    }
     Ok(spans)
+}
+
+fn source_range(span: Span) -> Result<Range<usize>, DiagramError> {
+    Ok(usize::try_from(span.start).map_err(DiagramError::data)?
+        ..usize::try_from(span.end).map_err(DiagramError::data)?)
 }
 
 /// Parser ranges arrive in source order; advancing cursors avoids rescanning

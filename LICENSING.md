@@ -87,6 +87,17 @@ notices and their redistribution conditions remain
 controlling. The dependency policy admits the additional Unicode and BSD terms
 only for their named packages; it does not add them to the general license list.
 
+The `purrdf-hash` package also carries word data derived from the Electronic
+Frontier Foundation's [long wordlist](https://www.eff.org/files/2016/07/18/eff_large_wordlist.txt),
+created by Joseph Bonneau. PurRDF selects and orders a subset of 4,096 words and
+generates lookup metadata and selection reports; these modifications do not
+imply EFF endorsement. The inherited data retains
+[Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/)
+under [EFF's copyright policy](https://www.eff.org/copyright). Its bundled
+`EFF-NOTICE.txt`, license text and provenance record remain controlling and must
+accompany redistribution of that material. The dependency policy admits these
+additional terms only for the audited `purrdf-hash` package.
+
 A [Simplified Chinese explanation](docs/LICENSING.zh-Hans.md) accompanies this
 document. It is an explanatory draft and has not undergone legal review.
 The completed [independent model backtranslation record](docs/LICENSING-BACKTRANSLATION.md)

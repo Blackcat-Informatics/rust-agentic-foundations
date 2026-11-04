@@ -35,19 +35,19 @@ exclude = ["fuzz"]
 
 [workspace.dependencies]
 command-fds = "0.3.3"
-pulldown-cmark = { version = "0.13.6", default-features = false }
-purrdf-toml = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-alloc-probe = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-hash = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-lex = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-jsonschema = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-xsd = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-rdf = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-core = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-iri = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-deflate = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-text = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
-purrdf-testkit = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "511f8af4efafe7e9e1c4e673c28afb1f5b4f9572" }
+purrdf-markdown = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-toml = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-alloc-probe = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-hash = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-lex = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-jsonschema = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-xsd = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-rdf = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-core = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-iri = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-deflate = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-text = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
+purrdf-testkit = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "10d03f63090b8ec2e7cba67d5baa2d6c2d05c28c" }
 
 [workspace.package]
 version = "0.1.0"
