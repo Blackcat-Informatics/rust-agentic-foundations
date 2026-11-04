@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/157-raf-source-admit-exact-native",
+  "branch": "paudley/157-raf-source-admit-exact-native",
+  "base_ref": "origin/main",
+  "head": "fe3b1d0a953654cf52c7315049ab443bca577e5e",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/157-raf-source-admit-exact-native/.stage/native-counter-sync/sync/20261104T201631-301e7a1d65c3442b83359d7c103d193f",
+  "conflicts": [],
+  "status": "fast_forward",
+  "base": "cacf55004824f4d1dd0862555498805ffb8b5d44",
+  "merge_bases": [
+    "fe3b1d0a953654cf52c7315049ab443bca577e5e"
+  ],
+  "commit": "cacf55004824f4d1dd0862555498805ffb8b5d44"
+}
