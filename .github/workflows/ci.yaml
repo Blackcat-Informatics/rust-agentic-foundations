@@ -74,21 +74,22 @@ jobs:
                examples: any(.targets[]; (.kind | index("example")) != null),
                build_examples: false} as $base |
               if .name == "raf-workplan" or .name == "rust-agentic-foundations" then
+                (if .name == "raf-workplan" then 3 else 2 end) as $parts |
                 if any(.targets[]; (.test | type) != "boolean" or
                        (.doctest | type) != "boolean")
                 then error("missing Cargo test or doctest decision") else . end |
                 [.targets[] | select(.test) | selector] as $tests |
-                if ($tests | length) < 2 then error("insufficient package test targets for splitting")
+                if ($tests | length) < $parts then error("insufficient package test targets for splitting")
                 elif .name == "rust-agentic-foundations" and
                      ([$tests[] | select(. == ["--test", "docs_contract"])] | length) != 1
                 then error("root package must declare one document-contract test target")
-                else range(0; 2) as $part |
+                else range(0; $parts) as $part |
                   $base + {
-                    label: (.name + " " + (($part + 1) | tostring) + "/2"),
+                    label: (.name + " " + (($part + 1) | tostring) + "/" + ($parts | tostring)),
                     args: [$tests | to_entries[] |
                       select(if $package.name == "rust-agentic-foundations"
                         then (.value == ["--test", "docs_contract"]) == ($part == 0)
-                        else .key % 2 != $part end) | .value[]],
+                        else .key % $parts == $part end) | .value[]],
                     docs: ($part == 1 and any($package.targets[]; .doctest)),
                     examples: ($part == 1 and $base.examples),
                     build_examples: ($part == 1 and $base.examples)
