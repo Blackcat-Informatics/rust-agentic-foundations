@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/155-update-purrdf-pins-to-current-main",
+  "branch": "paudley/155-update-purrdf-pins-to-current-main",
+  "base_ref": "origin/main",
+  "head": "e7d5d1c01e418cb2e484ed6cb32f9bad1da9328d",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/155-update-purrdf-pins-to-current-main/.stage/purrdf-head-sync/sync/20261104T173714-951e85b286c64343af427c5158e5fce4",
+  "conflicts": [],
+  "status": "fast_forward",
+  "base": "fe3b1d0a953654cf52c7315049ab443bca577e5e",
+  "merge_bases": [
+    "e7d5d1c01e418cb2e484ed6cb32f9bad1da9328d"
+  ],
+  "commit": "fe3b1d0a953654cf52c7315049ab443bca577e5e"
+}
