@@ -744,7 +744,6 @@ dependencies = [
  "raf-rdf",
  "raf-source",
  "rustix",
- "sha2",
 ]
 
 [[package]]

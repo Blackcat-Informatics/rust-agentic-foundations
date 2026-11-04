@@ -127,16 +127,16 @@ inputs:
     digest: 116bcb10c96cebf7344e2a3ca0746921d0265d7a9e4fd01bfbfc96697e1ad64c
   - kind: symbol
     name: raf_workplan::digest
-    digest: 3eacf371ffd3329a94b80d792ff8e94a9cbe378bd548dd5975dc566d568a21de
+    digest: c1a5374c5fa19aba4acca92daa229a5e3af8a5d7f3d791f9338ad083f7d7d11b
   - kind: symbol
     name: raf_workplan::digest::Digest
     digest: 6c7d21b4cba7380d4dcffe0adcc0a59123376b9416b489895f3bbed78b3bba9c
   - kind: symbol
     name: raf_workplan::digest::Digest::record
-    digest: 70cb737a4a587a8311a37e3bc94d4bb311afde23eff1496a7565ed594aa98a6b
+    digest: 197534208a3fe1b73066dd95c0f47868835a74f33dd6b3f07a0efb89e4280e72
   - kind: symbol
     name: raf_workplan::digest::Digest::section
-    digest: e6533bc6187ff50b72506d15de58ba69145086918b1f87fd5a73923a718a8a50
+    digest: c98fea2ab434c7ccb75cf381055a852c94838d4e45b52b2c4ca754a0eb8aba66
   - kind: symbol
     name: raf_workplan::digest::Digest::symbol
     digest: 03836b1413fd2dff869e8f5fb030a5b3309023e6a5f8d441a577bcb56b3cb1a8

@@ -19,10 +19,10 @@ inputs:
     digest: d27c74481b3bbdbb3bec433bfe492acefcfe36a695fee7c99aee061fc8411b0a
   - kind: symbol
     name: raf_workplan::digest::Digest::review_item
-    digest: 2a9b9238bebcd16eb589d08789f77b7f1c048d62de50d1fe114022da259475e1
+    digest: a4e74334f794403d154e9aef2495a2d4dd68e9699eb1dd7fa7ec58559be39398
   - kind: symbol
     name: raf_workplan::digest::Digest::review_symbol
-    digest: 03e70ecd985e4ae4ef693bfa964836e1b8731c53032dbc2284a045d12fc8f35f
+    digest: 3607a8d0ab7e94b4e21adbfc2e5ddd868c38b5d69d40f5fea59c9ca7d6d93b52
   - kind: symbol
     name: raf_workplan::git::head
     digest: 8f71ef108fb1cc9fc6e44490690d3ef38b4bf30bbd3cbc96742676fcee3fe104
