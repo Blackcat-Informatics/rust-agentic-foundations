@@ -533,6 +533,15 @@ impl Stepped {
             completed: false,
         }
     }
+
+    /// Take the owned process proof after the run, including a completed gate
+    /// whose final receipt transfer needed no further pause from the runner.
+    #[cfg(target_os = "linux")]
+    fn take_seen(&mut self) -> Option<Seen> {
+        self.seen
+            .take()
+            .or_else(|| self.gate.as_mut().and_then(|gate| gate.finish()))
+    }
 }
 
 #[cfg(unix)]
@@ -649,7 +658,7 @@ fn outlive(shape: Shape) -> Outlived {
     let mut clock = Stepped::gated(subject.gate(shape), LIMIT);
     let limits = Limits::trusted().with_timeout(LIMIT);
     let result = runner().run_with(&invocation, &limits, || &mut clock);
-    let Some(seen) = clock.seen.take() else {
+    let Some(seen) = clock.take_seen() else {
         panic!("the run ended before the gate opened on the processes of its script: {result:?}");
     };
     let settled = subject.settle(&seen);
@@ -835,6 +844,12 @@ trait Opening {
     /// One turn, at a pause of the runner: the processes once the limit may
     /// pass, or `None` to look again at the next pause.
     fn turn(&mut self) -> Option<Seen>;
+
+    /// Collect only proof already retained by a completed opening. An opening
+    /// that returns all its proof from `turn` has nothing left to transfer.
+    fn finish(&mut self) -> Option<Seen> {
+        None
+    }
 }
 
 /// The gate of a [`Subject`] script: the process credentials it publishes, a
@@ -911,6 +926,13 @@ impl Opening for Gate {
             return None;
         }
         self.found.take()
+    }
+
+    fn finish(&mut self) -> Option<Seen> {
+        // Never receive fresh credentials or open a pidfd after execution.
+        // A pending proof already owns every identity and released `go`.
+        self.found.as_ref()?;
+        self.turn()
     }
 }
 
@@ -1326,10 +1348,11 @@ fn a_descendant_that_leaves_its_group_is_killed_with_its_namespace() {
                 runner().run_with(&invocation, &Limits::trusted().with_timeout(LIMIT), || {
                     &mut clock
                 });
-            let seen = clock
-                .seen
-                .take()
-                .expect("both processes acknowledged before the controlled limit");
+            let Some(seen) = clock.take_seen() else {
+                panic!(
+                    "the run ended before both process receipts for {method} ({shape:?}): {result:?}"
+                );
+            };
             if shape == Shape::Leaves {
                 assert!(
                     result
