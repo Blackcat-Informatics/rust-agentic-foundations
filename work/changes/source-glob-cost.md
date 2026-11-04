@@ -19,6 +19,9 @@ items:
   - claim: "Counted operations cover rereads, copied lists, drops, lookup routes, queue attempts, subscriptions and undecided-import graph work, with exact budget success and one-step-short refusal."
   - claim: "Native allocation admission bounds retained import reads, queue growth, subscriptions and graph scratch under the original grants."
   - claim: "Reference-mode and incremental loads return equal probe and exported-surface answers over both differential seed families and the committed corpus, including thirteen declaration orders for the full comparison."
+  - claim: "The instruction comparator uses native admission of unscaled counts with exact enabled/running equality and matching retained CSV and verbose metadata over each complete driver process."
+    outcome: implemented
+    reason: "Both retained streams feed the native reader, which requires exact full coverage before admitting a count."
   - claim: "The nine admitted shapes have paired release-build instruction counts at 100, 200, 400 and 800 elements against the fixed resolver baseline; every count includes complete counter coverage."
   - claim: "At 800 elements each of the nine shapes costs at most 1.5 times its baseline; doubling from 400 to 800 costs at most 2.15 times for linear shapes, 3.4 times for the prelude, 4.3 times for either hub and 4.4 times for lookup fan-in."
   - claim: "The holder-scan diagnostic has paired complete-counter measurements at 100 and 200 elements, a typed FileTokens refusal at 400 and a typed TooLarge refusal at 800 under unchanged default limits. Refused inputs supply no numerical performance verdict."

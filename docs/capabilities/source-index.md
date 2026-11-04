@@ -1100,6 +1100,14 @@ distinguish that query from a structural inventory of all alternatives.
 > The native Linux release instruction profile compares identical generated inputs at 100, 200, 400 and 800 elements. Its nine admitted populations are chain, many-items, public fan-in, private fan-in, companion fan-in, prelude, hub, ambiguous hub and lookup fan-in. At 800 elements each costs at most 1.5 times its fixed reference. The final doubling costs at most 2.15 times for the linear populations, 3.4 times for prelude, 4.3 times for either hub and 4.4 times for lookup fan-in. Every accepted measurement has complete counter coverage; integer comparisons preserve the exact limits without rounding.
 > <!-- raf:tested-by raf_source::test_crate::glob_instruction_gate::bounds_enforce_original_ratios_and_growth_without_rounding,raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event,raf_source::glob_scope::work_budget::actual_work_from_100_to_800_stays_within_each_shapes_doubling_bound -->
 
+The instruction comparator invokes `perf stat --no-scale -v` over each complete
+driver process. Admission uses the native
+`purrdf_testkit::bench::counter::InstructionSample::from_perf` reader. CSV and
+verbose metadata must agree on one positive instruction count and its running
+value; enabled and running values must be nonzero and equal, with displayed
+coverage `100.00`. Missing, duplicate, inconsistent or partial samples refuse.
+<!-- raf:tested-by raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event -->
+
 Named imports publish no namespace peer while their complete import remains
 indeterminate. Private forwarding preserves hidden competitors and namespace
 companions. Queries share their enclosing work account and propagate native
@@ -3184,8 +3192,9 @@ their resolution and exported-surface digests.
 `glob_instruction_gate <reference-driver> <candidate-driver> <new-output-dir>`
 uses `perf` to compare the nine admitted fixtures. Both drivers must use the same
 generator and compiler. The output directory must be new; it retains each answer,
-diagnostic and counter record. A missing or partial count, failed child, excessive
-ratio or excessive final doubling refuses the comparison.
+diagnostic and counter record, including the exact verbose metadata used by native
+admission. A missing or partial count, failed child, excessive ratio or excessive
+final doubling refuses the comparison.
 <!-- raf:tested-by raf_source::test_crate::glob_instruction_gate::bounds_enforce_original_ratios_and_growth_without_rounding,raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event -->
 
 The runnable `raf_source::example_crate::corpus_generate` checks the actual shape
@@ -3276,8 +3285,10 @@ executable emitted by Cargo with the fixed reference driver:
 cargo run --release --locked -p raf-source --example glob_instruction_gate -- REFERENCE CANDIDATE NEW_OUTPUT
 ```
 
-A counter with `99.99` percent coverage refuses beside one with `100.00` percent
-coverage. A candidate count of `1200` beside a reference count of `800` meets the
+A counter with matching exact enabled/running metadata and `100.00` percent
+coverage is admitted. Enabled `20001` beside running `20000` refuses even when
+displayed coverage rounds to `100.00`; displayed `99.99` also refuses.
+A candidate count of `1200` beside a reference count of `800` meets the
 ratio limit; `1201` refuses. These examples describe the comparator's exact
 boundaries, rather than supply instruction measurements of a workspace.
 <!-- raf:tested-by raf_source::test_crate::glob_instruction_gate::bounds_enforce_original_ratios_and_growth_without_rounding,raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event -->
@@ -4924,7 +4935,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::glob_causality::private_forwarding_preserves_distinct_glob_ambiguity` | test | [Verification](#verification) |
 | `raf_source::test_crate::glob_causality::rustc_refuses_the_named_import_of_the_ambiguous_type` | test | [Verification](#verification) |
 | `raf_source::test_crate::glob_instruction_gate::bounds_enforce_original_ratios_and_growth_without_rounding` | test | [Usage](#usage), [Examples](#examples) |
-| `raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event` | test | [Usage](#usage), [Examples](#examples) |
+| `raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_source::test_crate::import_determinacy::a_direct_visible_definition_makes_the_neighboring_import_determinate` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_source::test_crate::import_determinacy::a_fixed_module_prefix_decides_absence_before_an_unrelated_glob_widens_a_name` | test | [Verification](#verification) |
 | `raf_source::test_crate::import_determinacy::a_late_bound_peer_cannot_escape_through_named_and_glob_copies_or_exports` | test | [Contract](#contract) |

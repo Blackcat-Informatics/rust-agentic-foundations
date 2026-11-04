@@ -6,15 +6,13 @@
 //! Both drivers must use the same shape generator, caller and compiler. Run
 //! `glob_instruction_gate <baseline-driver> <candidate-driver> <new-output-dir>`.
 //! The output directory retains every counter record, answer and diagnostic.
-//! A missing measurement, failed child, reported partial coverage, excessive growth
+//! A missing measurement, failed child, partial coverage, excessive growth
 //! or excessive candidate/baseline ratio fails the gate. No clock is read.
 //! Answer differences are reported for separate native semantic qualification;
-//! an older resolver can have incorrect answers. Perf rounds its coverage field.
+//! an older resolver can have incorrect answers. Exact enabled/running metadata
+//! must agree alongside the displayed full-coverage percentage.
 //! With no arguments, the example demonstrates the real counter parser and
 //! integer bounds using explicitly unmeasured sample data, without creating files.
-
-#[path = "../tests/support/number.rs"]
-mod number;
 
 use std::fs::{self, File};
 use std::path::Path;
@@ -33,37 +31,29 @@ const SHAPES: [(&str, u128); 9] = [
     ("lookups", 440),
 ];
 
-pub(crate) fn counter(text: &str) -> Result<u64, String> {
-    let mut counts = None;
-    for line in text
-        .lines()
-        .filter(|line| !line.starts_with('#') && !line.is_empty())
-    {
-        let fields: Vec<_> = line.split(',').collect();
-        if fields.get(2) != Some(&"instructions:u") {
-            return Err(format!("unexpected counter record: {line}"));
-        }
-        if fields.get(4) != Some(&"100.00") {
-            return Err(format!("instruction counter lacks full coverage: {line}"));
-        }
-        let count = number::unsigned::<u64>(fields[0])
-            .filter(|count| *count != 0)
-            .ok_or_else(|| format!("invalid instruction count: {line}"))?;
-        if counts.replace(count).is_some() {
-            return Err("duplicate instruction counter".to_owned());
-        }
-    }
-    counts.ok_or_else(|| "missing instruction counter".to_owned())
+pub(crate) fn counter(csv: &str, verbose: &str) -> Result<u64, String> {
+    purrdf_testkit::bench::counter::InstructionSample::from_perf(csv, verbose)
+        .map(|sample| sample.instructions)
 }
 
 fn measure(driver: &str, label: &str, shape: &str, n: usize, out: &Path) -> Result<u64, String> {
     let stem = out.join(format!("{label}-{shape}-{n}"));
     let csv = stem.with_extension("csv");
+    let stderr = stem.with_extension("stderr");
     let answers = File::create(stem.with_extension("answers")).map_err(|e| e.to_string())?;
-    let errors = File::create(stem.with_extension("stderr")).map_err(|e| e.to_string())?;
+    let errors = File::create(&stderr).map_err(|e| format!("{}: {e}", stderr.display()))?;
     let status = Command::new("perf")
         .env("LC_ALL", "C")
-        .args(["stat", "--no-big-num", "-x,", "-e", "instructions:u", "-o"])
+        .args([
+            "stat",
+            "--no-big-num",
+            "--no-scale",
+            "-v",
+            "-x,",
+            "-e",
+            "instructions:u",
+            "-o",
+        ])
         .arg(&csv)
         .arg("--")
         .arg(driver)
@@ -79,7 +69,9 @@ fn measure(driver: &str, label: &str, shape: &str, n: usize, out: &Path) -> Resu
             stem.display()
         ));
     }
-    counter(&fs::read_to_string(&csv).map_err(|e| format!("{}: {e}", csv.display()))?)
+    let csv_text = fs::read_to_string(&csv).map_err(|e| format!("{}: {e}", csv.display()))?;
+    let verbose = fs::read_to_string(&stderr).map_err(|e| format!("{}: {e}", stderr.display()))?;
+    counter(&csv_text, &verbose)
 }
 
 pub(crate) fn bounds(baseline: &[u64; 4], candidate: &[u64; 4], growth: u128) -> Vec<String> {
@@ -150,7 +142,10 @@ fn main() -> ExitCode {
 }
 
 fn sample() -> Result<(), String> {
-    let count = counter("1200,,instructions:u,0,100.00,,\n")?;
+    let count = counter(
+        "1200,,instructions:u,9,100.00,,\n",
+        "instructions:u:1200 9 9\n",
+    )?;
     let failures = bounds(&[100, 200, 400, 800], &[150, 300, 600, 1200], 215);
     if !failures.is_empty() {
         return Err(failures.join("\n"));

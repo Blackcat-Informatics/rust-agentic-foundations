@@ -14,19 +14,36 @@ use driver::{bounds, counter};
 
 #[test]
 fn counter_requires_one_positive_fully_counted_event() {
+    let complete = "instructions:u:42 9 9\n";
     assert_eq!(
-        counter("# header\n\n42,,instructions:u,9,100.00,,\n"),
+        counter("# header\n\n42,,instructions:u,9,100.00,,\n", complete),
         Ok(42)
     );
-    for text in [
-        "",
-        "0,,instructions:u,9,100.00,,",
-        "<not counted>,,instructions:u,0,0.00,,",
-        "42,,instructions:u,9,99.99,,",
-        "42,,cycles:u,9,100.00,,",
-        "42,,instructions:u,9,100.00,,\n42,,instructions:u,9,100.00,,",
+    assert_eq!(
+        counter(
+            "42,,instructions:u,20000,100.00,,",
+            "instructions:u:42 20000 20000",
+        ),
+        Ok(42)
+    );
+    for (text, metadata) in [
+        ("", complete),
+        ("0,,instructions:u,9,100.00,,", "instructions:u:0 9 9"),
+        ("<not counted>,,instructions:u,0,0.00,,", complete),
+        ("42,,instructions:u,9,99.99,,", complete),
+        ("42,,cycles:u,9,100.00,,", complete),
+        (
+            "42,,instructions:u,9,100.00,,\n42,,instructions:u,9,100.00,,",
+            complete,
+        ),
+        ("42,,instructions:u,9,100.00,,", ""),
+        ("42,,instructions:u,9,100.00,,", "instructions:u:43 9 9"),
+        (
+            "42,,instructions:u,20000,100.00,,",
+            "instructions:u:42 20001 20000",
+        ),
     ] {
-        assert!(counter(text).is_err(), "{text}");
+        assert!(counter(text, metadata).is_err(), "{text}\n{metadata}");
     }
 }
 
