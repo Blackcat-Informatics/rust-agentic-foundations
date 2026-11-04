@@ -7,13 +7,13 @@ subject: cap:census-cli#explanation
 inputs:
   - kind: section
     name: cap:census-cli#explanation
-    digest: fec69794e1b87d54797f83baa44b85d4d318f5605999cbcfdbe28840d5d5cca2
+    digest: 0769634dc5b39dbc470bd2c161664b115a66fa5759c0e7f714922c3983313ca4
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: 037ca39bc2decc899ac260c6d2ddb1a6a3336ffa459e90e596b04703870134dd
+    digest: 470a7e2bccfc4e02bdd9bd470837872b0d056398e0791cdfafd0340a78ef3aa3
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: 3b43da408cf641014ce3b2a3727aa0340e83de73246e170db8151fb29aacf53b
+    digest: 98968aef0837208f073bb0037b0684f516f29c2e4a7d90910c85c7364bda5e91
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::error
     digest: 9c6652c4357da47724fbb7253f5c56be9ba95a3d6a0eab82bb65dde1c971755c
@@ -22,7 +22,7 @@ inputs:
     digest: 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::registered
-    digest: d3b8361c67e06368afb9b6e849a7edb2d610ca72576fd537a4002dab80c58d8f
+    digest: 3d06a8b38c10e200ed990491ed30f3c71064fab0644b04230bccf930af74bf65
   - kind: symbol
     name: raf_census::CHECK_PROTOCOL_VERSION
     digest: f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f
@@ -32,6 +32,9 @@ inputs:
   - kind: symbol
     name: raf_census::MAX_CHECK_RESPONSE_BYTES
     digest: c8a061c28be622be14d14f7667e80cf9fa3c2b5f3bc44a9dcbc0a5b5561caa0c
+  - kind: symbol
+    name: raf_census::MAX_INDEX_BYTES
+    digest: efed7ed0974ed665e9f3871c20d5db193a9fed4bb3d1e065723002a833619423
   - kind: symbol
     name: raf_census::RegisteredCheck
     digest: 0cf0dafd2c191031bf6850d83d15f5b4a10b6c044d03d412a3038423cc7445ba

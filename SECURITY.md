@@ -98,9 +98,11 @@ guarantees are these, and no wider:
     directory and climbs back into the root reads the in-root file when the
     directory exists and is `NotFound` when it does not.
 
-  A Linux host runs the Linux strategy natively and the other two through a test
-  override. On macOS and Windows hosts the native strategies are run only by the CI
-  jobs that test the crate there; for FreeBSD they are compiled and not run.
+  Through the 0.9 release, standard repository gates support and qualify the
+  primary native Linux target and exercise its native containment strategy.
+  Other platform adapters remain in source without qualification claims;
+  cross-platform testing and cross-compilation are outside that release scope.
+  See [Supported targets](docs/TARGETS.md).
 - **Bounds.** Input size and nesting depth are bounded. For Rust source the source
   index reads each file under a byte cap, runs a pre-scan that refuses a file over a
   budget (delimiter nesting, nested `<`, prefix operators, closure bars, `else if`
@@ -165,9 +167,12 @@ guarantees are these, and no wider:
   admission limit. The readers check canonical bytes and the content digest,
   followed by census shape and reference consistency. File-reading callers bound
   report input size; the string reader accepts text already held in memory.
-- **Subprocesses.** Every spawned `cargo` or `git` process runs with no shell and
-  takes its arguments as an argv vector, and `cargo` runs with `--frozen`. The one
-  further process is the caller's own command of `evidence record`: the words after
+- **Subprocesses.** Processes started by `raf_workplan::exec::SystemRunner` run
+  with no shell and take their arguments as an argv vector, and its modeled
+  `cargo` invocations run with `--frozen`. These native execution guarantees apply
+  to `SystemRunner`; a caller-supplied runner owns its execution behavior, and
+  separate Git operations in `raf-source` are not covered by this runner contract.
+  The additional process is the caller's own command of `evidence record`: the words after
   `--` on its command line, which only the command line of the running process can
   supply (`raf_workplan::exec::TrustedArgv` is built from `std::env::args_os` and
   from no text a document or record holds, which a compile-fail test pins). It is
@@ -178,14 +183,29 @@ guarantees are these, and no wider:
   set only for `git` and the `cargo` passes whose output the tool parses), each
   stream bounded to 16 MiB (more is an error that says the time it ran, and no
   record) and a 1800-second limit
-  (a kill there is recorded as `fail`, whatever its limits; a background process
-  that keeps its output open after it exits holds the run until then). The limit
-  holds only while `cargo-workplan` runs: on Unix the command leads a process group
-  of its own, so an interrupt or a hang-up from the terminal (Ctrl-C) reaches
-  `cargo-workplan` and not the command, which then runs on with no limit and leaves
-  no record; and a descendant that leaves the group (`setsid`, `setpgid`) is not
-  reached by the kill at the limit, as it is not for a bound test. With the root as
-  its directory, a relative program (`./tool.sh` typed below the root) resolves
+  (a kill there is recorded as `fail`, whatever its limits). Native Linux
+  `SystemRunner` execution requires `bwrap`, Linux pidfds, PID and mount
+  namespaces, executable sealed memfds and `/proc` access. The command runs inside
+  a mandatory PID namespace with parent-death termination. When the initial
+  command exits, its descendants terminate, including those retaining output
+  pipes. Descendants that call `setsid` or `setpgid` remain inside the namespace;
+  changing process groups cannot escape namespace termination. If the supervising
+  CLI dies, the command and its descendants terminate and no unfinished record
+  is published.
+
+  Controlled termination signals an admitted pidfd of the owned outer `bwrap`
+  launcher, opened before any wait and never obtained from launcher metadata.
+  A separate bounded launcher channel establishes namespace identity and
+  successful executable admission. Payload stderr is diagnostic text, not
+  admission evidence; launcher metadata is excluded from captured payload streams
+  and their output limits. Missing prerequisites or incomplete admission fail
+  without a verdict. Other hosts refuse native execution before starting the
+  payload. Completed native status uses the launcher's shell encoding:
+  termination by signal N reports 128 + N. An explicit exit with the same code,
+  such as exit 137 and SIGKILL, is indistinguishable; both nonzero outcomes fail,
+  and a high exit code alone does not prove a signal.
+
+  With the root as its directory, a relative program (`./tool.sh` typed below the root) resolves
   against the root, not the caller's directory, and with `.` on `PATH` a bare name
   is looked for in the root, while the record keeps the command as typed. A message
   about the command quotes its words as the record stores them

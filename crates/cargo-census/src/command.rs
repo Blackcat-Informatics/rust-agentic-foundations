@@ -25,14 +25,15 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
         Command::Check { package, example } => {
             crate::registered::check(&gate.root()?, package, example, output)
         }
-        Command::Index {
-            package,
-            example,
-            format,
-            out,
-        } => {
-            let text = crate::registered::index(&gate.root()?, package, example, *format)?;
-            write_report(&text, out.as_deref(), output)?;
+        Command::Index(target) => {
+            let text = crate::registered::index(
+                &gate.root()?,
+                &target.package,
+                &target.example,
+                target.format,
+                target.max_index_bytes,
+            )?;
+            write_report(&text, target.out.as_deref(), output)?;
             Ok(0)
         }
         Command::Job { id, target } => {
@@ -75,7 +76,12 @@ fn query(
     selector: raf_census::Query<'_>,
     output: &mut dyn Write,
 ) -> Result<u8, crate::error::Error> {
-    let index = crate::registered::index_report(root, &target.package, &target.example)?;
+    let index = crate::registered::index_report(
+        root,
+        &target.package,
+        &target.example,
+        target.max_index_bytes,
+    )?;
     let result = index.query(selector)?;
     let text = match target.format {
         RdfFormat::Ntriples => result.to_ntriples()?,

@@ -278,8 +278,39 @@ fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
         vec!["baseline", "--out"],
         vec!["dump-ledger", "--format", "json"],
         vec!["dump-ledger", "--out"],
+        vec![
+            "check",
+            "--package",
+            "demo",
+            "--example",
+            "registered",
+            "--max-index-bytes",
+            "1",
+        ],
+        vec!["debt", "--write", "--max-index-bytes", "1"],
     ] {
         assert_eq!(run(root, &words).status.code(), Some(2), "{words:?}");
+    }
+    let above = (raf_census::MAX_INDEX_BYTES + 1).to_string();
+    for (command, selector) in [
+        ("index", None),
+        ("job", Some("copies")),
+        ("count", Some("copies")),
+        ("fingerprint", Some("demo::home")),
+    ] {
+        for limit in ["0", above.as_str()] {
+            let mut words = vec![command];
+            words.extend(selector);
+            words.extend([
+                "--package",
+                "demo",
+                "--example",
+                "registered",
+                "--max-index-bytes",
+                limit,
+            ]);
+            assert_eq!(run(root, &words).status.code(), Some(2), "{words:?}");
+        }
     }
     for words in [vec!["--help"], vec!["census", "--version"]] {
         assert!(run(root, &words).status.success());

@@ -4,10 +4,10 @@
 //! The measured values a command prints and the limits a caller gives: the
 //! text `name=number`, read with no guessing.
 
-use std::collections::HashSet;
 use std::error::Error;
 use std::fmt;
 
+use purrdf_core::FastSet;
 use raf_okf::{Measure, Number};
 
 /// Why a measure or a limit cannot be read, or the limits do not fit what
@@ -130,7 +130,7 @@ pub fn parse_limit(text: &str) -> Result<Measure, MeasureError> {
 
 /// The limits `limits`, refused when a name is given twice.
 pub(crate) fn check_limits(limits: &[Measure]) -> Result<(), MeasureError> {
-    let mut seen = HashSet::new();
+    let mut seen = FastSet::default();
     for limit in limits {
         if !is_name(&limit.name) {
             return Err(MeasureError::NotAMeasure {
@@ -157,7 +157,7 @@ pub(crate) fn check_limits(limits: &[Measure]) -> Result<(), MeasureError> {
 /// a value that is not a number and more than [`MAX_VALUES`] values.
 pub(crate) fn printed(stdout: &[u8]) -> Result<Vec<Measure>, MeasureError> {
     let mut values = Vec::new();
-    let mut seen = HashSet::new();
+    let mut seen = FastSet::default();
     for line in stdout.split(|byte| *byte == b'\n') {
         let line = line.strip_suffix(b"\r").unwrap_or(line);
         let Some(at) = line.iter().position(|byte| *byte == b'=') else {

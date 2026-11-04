@@ -55,12 +55,14 @@ pub(crate) fn index(
     package: &Package,
     example: &ExampleName,
     format: RdfFormat,
+    max_index_bytes: usize,
 ) -> Result<String, Error> {
     index_with(
         &SystemRunner::new(Programs::new(root)),
         package,
         example,
         format,
+        max_index_bytes,
     )
 }
 
@@ -69,8 +71,9 @@ fn index_with(
     package: &Package,
     example: &ExampleName,
     format: RdfFormat,
+    max_index_bytes: usize,
 ) -> Result<String, Error> {
-    let response = read_index_with(runner, package, example)?;
+    let response = read_index_with(runner, package, example, max_index_bytes)?;
     match format {
         RdfFormat::Ntriples => Ok(response.canonical),
         RdfFormat::Turtle => response
@@ -84,8 +87,15 @@ pub(crate) fn index_report(
     root: &Path,
     package: &Package,
     example: &ExampleName,
+    max_index_bytes: usize,
 ) -> Result<Index, Error> {
-    Ok(read_index_with(&SystemRunner::new(Programs::new(root)), package, example)?.report)
+    Ok(read_index_with(
+        &SystemRunner::new(Programs::new(root)),
+        package,
+        example,
+        max_index_bytes,
+    )?
+    .report)
 }
 
 struct IndexResponse {
@@ -98,8 +108,15 @@ fn read_index_with(
     runner: &dyn Runner,
     package: &Package,
     example: &ExampleName,
+    max_index_bytes: usize,
 ) -> Result<IndexResponse, Error> {
-    let (captured, context) = capture(runner, RegisteredOperation::Index, package, example)?;
+    let (captured, context) = capture(
+        runner,
+        RegisteredOperation::Index,
+        package,
+        example,
+        max_index_bytes,
+    )?;
     let context = diagnostics(&context, &captured.stderr);
     if captured.code != Some(0) {
         return Err(Error::Transport(format!(
@@ -135,6 +152,7 @@ fn capture(
     operation: RegisteredOperation,
     package: &Package,
     example: &ExampleName,
+    max_output: usize,
 ) -> Result<(Output, String), Error> {
     let (name, invocation) = match operation {
         RegisteredOperation::Check => ("check", Invocation::example_run(package, example)),
@@ -146,10 +164,7 @@ fn capture(
     };
     let context = format!("registered {name} {package}/{example}");
     let captured = runner
-        .run(
-            &invocation,
-            &Limits::build().with_max_output(MAX_CHECK_RESPONSE_BYTES),
-        )
+        .run(&invocation, &Limits::build().with_max_output(max_output))
         .map_err(|source| input(&context, source))?;
     Ok((captured, context))
 }
@@ -161,7 +176,13 @@ fn run(
     example: &ExampleName,
     output: &mut dyn Write,
 ) -> Result<u8, Error> {
-    let (captured, context) = capture(runner, operation, package, example)?;
+    let (captured, context) = capture(
+        runner,
+        operation,
+        package,
+        example,
+        MAX_CHECK_RESPONSE_BYTES,
+    )?;
     if !matches!(captured.code, Some(0 | 1)) {
         return Err(Error::Transport(format!(
             "{context}: target failed with exit {:?}; stderr: {}",
