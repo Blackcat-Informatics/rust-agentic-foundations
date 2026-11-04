@@ -89,18 +89,17 @@ pub(crate) fn parse_integer(text: &str) -> Option<Integer<'_>> {
 }
 
 /// Rust binary/octal grammar around the native bounded scalar radix reader.
-fn based<'a>(digits: &str, suffix: &'a str, radix: u32) -> Option<Integer<'a>> {
+fn based<'a>(digits: &str, suffix: &'a str, radix: u8) -> Option<Integer<'a>> {
     let limit = if radix == 2 { 128 } else { 43 };
-    let mut scalar = [b'0'; 130];
-    scalar[1] = if radix == 2 { b'b' } else { b'o' };
+    let mut scalar = [b'0'; 128];
     let mut significant = 0_usize;
     let mut seen = false;
     for byte in digits.bytes().filter(|byte| *byte != b'_') {
-        let digit = purrdf_hash::hex::nibble(byte).filter(|digit| u32::from(*digit) < radix)?;
+        let digit = purrdf_hash::hex::nibble(byte).filter(|digit| *digit < radix)?;
         seen = true;
         if digit != 0 || significant != 0 {
             if significant < limit {
-                scalar[2 + significant] = byte;
+                scalar[significant] = byte;
             }
             significant = (significant + 1).min(limit + 1);
         }
@@ -114,40 +113,12 @@ fn based<'a>(digits: &str, suffix: &'a str, radix: u32) -> Option<Integer<'a>> {
             suffix,
         });
     }
-    let scalar = std::str::from_utf8(&scalar[..2 + significant.max(1)])
-        .expect("validated binary/octal bytes");
-    let resolved = purrdf_lex::yaml::read_with(
-        scalar,
-        purrdf_lex::yaml::Limits {
-            max_nodes: 1,
-            max_depth: 0,
-            aliases: false,
-            scalar_keys: false,
-        },
-    )
-    .expect("a validated bounded scalar must reach native radix resolution");
-    let value = match &resolved {
-        purrdf_lex::json::Value::Number(number) => Some(
-            purrdf_xsd::numeric::parse_integer_typed(
-                number.lexeme(),
-                purrdf_xsd::XsdDatatype::NonNegativeInteger,
-            )
-            .expect("native radix resolution yields an unsigned decimal")
-            .into_bigint()
-            .unsigned_abs_u128()
-            .expect("native radix values fit u128"),
-        ),
-        purrdf_lex::json::Value::String(text) => {
-            // The native scalar resolver preserves the validated radix text
-            // when its magnitude overflows u128.
-            assert_eq!(
-                text.as_str(),
-                scalar,
-                "unexpected native radix scalar rewrite"
-            );
-            None
-        }
-        _ => panic!("native resolution changed a validated Rust radix scalar's kind"),
+    let value = match purrdf_lex::integer_text::parse_u128(&scalar[..significant.max(1)], radix) {
+        Ok(value) => Some(value),
+        Err(purrdf_lex::integer_text::RadixError::Overflow) => None,
+        // The caller selects radix 2 or 8, the scan validated every digit,
+        // and the zero-filled buffer supplies one digit for all-zero input.
+        Err(error) => panic!("validated Rust radix digits violated native parsing: {error}"),
     };
     Some(Integer { value, suffix })
 }
