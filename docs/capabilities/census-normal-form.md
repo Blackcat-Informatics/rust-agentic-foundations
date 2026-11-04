@@ -26,6 +26,9 @@ bindings:
     - raf_census::Census::hex_tables
     - raf_census::Census::index
     - raf_census::Census::load
+    - raf_census::Census::unexpanded
+    - raf_census::Census::unexpanded_target
+    - raf_census::Census::unexpanded_package
     - raf_census::Census::match_jobs
     - raf_census::Census::options
     - raf_census::Census::shared_constants
@@ -133,6 +136,7 @@ bindings:
     - raf_source_fuzz::bin_crate::census_normalize::exercise
     - raf_source_fuzz::bin_crate::census_report_read::exercise
   tests:
+    - raf_census::census::tests::unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units
     - raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success
     - raf_census::error::tests::each_variant_renders_its_facts
     - raf_census::error::tests::an_options_error_has_no_nested_source
@@ -440,6 +444,20 @@ or static has no print and no fingerprint. A unit holds its integer constants by
 value, its string literals with their lines (string, byte string and C string)
 and the tables it holds.
 
+### Unexpanded module syntax
+<!-- raf:tested-by raf_census::census::tests::unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units -->
+
+`Census::unexpanded()` retains the source index's module macro occurrences for
+the selected packages, separately from fingerprinted units. Each occurrence
+keeps its exact syntax location, module, target and argument observations.
+`unexpanded_target` and `unexpanded_package` resolve its original load-local
+identities through metadata retained by this Census after source loading ends.
+Those tables contain occurrence owners only. A target or package without a
+selected occurrence has no entry; another load's identities are not substitutes.
+Missing owning metadata is a source error and native storage refusal is returned.
+These observations do not expand macros, create units, change fingerprint bytes
+or add records to the canonical RDF unit index.
+
 ### Deterministic groups
 <!-- raf:tested-by raf_census::test_crate::groups::groups_of_one_are_dropped_and_members_follow_symbol_order,raf_census::test_crate::groups::groups_order_by_count_then_tokens_then_fingerprint,raf_census::group::tests::members_order_by_symbol_then_file_then_line,raf_census::group::tests::digest_suffixes_are_distinct_group_keys -->
 
@@ -498,6 +516,10 @@ a migration path.
 
 ## Usage
 
+Inspect `Census::unexpanded()` beside `Census::units()`. Resolve an occurrence's
+target with `unexpanded_target`, then its package with `unexpanded_package` on
+the same Census to read the captured source context after loading has returned.
+
 For foreign import failures, inspect the input path and the native TOML cause
 through the error's source chain. A refused import produces no successful report.
 
@@ -546,6 +568,12 @@ held-value passes. The ordinary load computes only its selected form. The
 does not mint fingerprints for candidate policies or change production defaults.
 
 ## Examples
+
+A source containing `make_one!(Generated);` retains that invocation even though
+no unit named `Generated` exists. Selecting another package excludes both that
+occurrence and its owner metadata. Canonical baseline and index output continue
+to describe their existing units and fingerprints.
+<!-- raf:tested-by raf_census::census::tests::unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units -->
 
 A job query carries its home, variants and copies with their physical source
 identities. Its copy total agrees with Copy roles. A count query for a known
@@ -983,6 +1011,7 @@ and escapes controls beside a plain diagnostic neighbor.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `raf_census::census::tests::unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::error::tests::an_options_error_has_no_nested_source` | test | [Verification](#verification) |
 | `raf_census::error::tests::each_variant_renders_its_facts` | test | [Contract](#contract) |
 | `raf_census::example_crate::baseline` | example target | [Usage](#usage) |

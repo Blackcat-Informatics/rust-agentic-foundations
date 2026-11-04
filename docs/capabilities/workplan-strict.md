@@ -24,6 +24,7 @@ bindings:
     - raf_workplan::Opened::write_debt
     - raf_workplan::work
   tests:
+    - raf_workplan::test_crate::lines::macro_lines_follow_indexed_configuration_instead_of_raw_file_reaches
     - raf_workplan::strict::tests::the_default_check_judges_each_policy_unit_once_without_policy_work_during_load
     - raf_workplan::test_crate::strict::the_complete_policy_accepts_the_documented_repository
     - raf_workplan::test_crate::strict::a_capability_with_no_example_is_refused_and_one_with_one_example_is_not
@@ -485,13 +486,17 @@ capability binds included, on every check. `cargo workplan coverage
 lists (library, binaries, integration tests, examples, benches and build script):
 every indexed item except a module and an `extern crate`, every `impl` block from its first
 attribute to its closing brace, and every macro invocation and `const _` at the item
-level of a module, which a parse of the file finds. The counted lines of a file are
+level of a module. Macro occurrences and their actual target/module reaches come
+from `Workspace::unexpanded()` over the selected syntax; a bounded auxiliary
+parse still finds unnamed constants and direct allocator registrations. A
+cfg-pruned invocation is not restored from its raw file or another reach.
+The counted lines of a file are
 the union of the lines of its units, and a file is counted once, for the package of
 the first target that reaches it, however many targets and module paths reach it.
 Other lines (blank lines, `use` and `mod` declarations, inner doc comments, the braces
 of an inline module and the SPDX header) are structural: neither covered nor orphan,
 and not counted.
-<!-- raf:tested-by raf_workplan::test_crate::lines::every_target_is_counted_and_shared_module_units_are_unioned_once,raf_workplan::test_crate::lines::a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line,raf_workplan::test_crate::lines::binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it,raf_workplan::test_crate::lines::an_unreferenced_private_helper_is_exactly_its_span_and_the_same_helper_called_by_a_bound_function_is_not -->
+<!-- raf:tested-by raf_workplan::test_crate::lines::macro_lines_follow_indexed_configuration_instead_of_raw_file_reaches,raf_workplan::test_crate::lines::every_target_is_counted_and_shared_module_units_are_unioned_once,raf_workplan::test_crate::lines::a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line,raf_workplan::test_crate::lines::binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it,raf_workplan::test_crate::lines::an_unreferenced_private_helper_is_exactly_its_span_and_the_same_helper_called_by_a_bound_function_is_not -->
 
 **Coverage roots and closure.** A line is covered when a covered unit holds it, and a unit is
 covered when any item or impl block of its source is in the closure that
@@ -700,6 +705,10 @@ contract effects remain obligations of the completion lifecycle.
 
 ## Usage
 
+Read macro rows in `Workplan::lines_report` as observations of the source index's
+selected syntax. Their existing module-opening and generated-name coverage rules
+apply only to the recorded target and module reaches.
+
 Inspect required review obligations through the ordinary check and reconciliation APIs. Correct the source selection or supply the required current review; writing prose debt does not discharge this requirement.
 <!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
 
@@ -722,6 +731,11 @@ cargo workplan --format turtle coverage lines --crate raf-okf
 ~~~
 
 ## Examples
+
+Two mutually exclusive feature predicates around module macro invocations leave
+one macro row under each declared configuration. The row keeps the active
+invocation's original physical line; the inactive invocation contributes no row.
+<!-- raf:tested-by raf_workplan::test_crate::lines::macro_lines_follow_indexed_configuration_instead_of_raw_file_reaches -->
 
 The shared obligation fixtures run valid and invalid required-review neighbors through complete policy. Their outcomes distinguish a current findings review from blocked, missing and stale records.
 <!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
@@ -1031,6 +1045,7 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `raf_workplan::test_crate::lines::crlf_reads_as_lf_and_two_runs_give_the_same_bytes` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lines::every_target_is_counted_and_shared_module_units_are_unioned_once` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lines::indirect_field_dispatch_does_not_infer_a_callee_but_an_explicit_path_reaches_it` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::lines::macro_lines_follow_indexed_configuration_instead_of_raw_file_reaches` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_workplan::test_crate::lines::malformed_allocator_registrations_refuse_without_partial_line_results` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::lines::missing_or_invalid_coverage_and_unloaded_capabilities_defer_ceiling_judgment` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lines::orphan_lines_are_enforced_without_a_policy_switch` | test | [Verification](#verification) |

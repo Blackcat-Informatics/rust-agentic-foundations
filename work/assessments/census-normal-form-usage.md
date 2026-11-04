@@ -7,7 +7,7 @@ subject: cap:census-normal-form#usage
 inputs:
   - kind: section
     name: cap:census-normal-form#usage
-    digest: 8460cff9766689132fa3baef4c483cd515867e7bcabb29cc95782b1ecc015db4
+    digest: 158ec8c18b815cfd907379f8cc1ca9ab6d9cc021d01ffb9654403ab0853f41fd
   - kind: symbol
     name: raf_census::Baseline::from_ntriples
     digest: 3d3d3fb2dfab3d7633af1135ed8520921e9ca26b02095d00e6267964ae215b69
@@ -35,6 +35,18 @@ inputs:
   - kind: symbol
     name: raf_census::Census::options
     digest: 2b20fda60a5cf765894630605403652db730ae52e1dcaa16fb22e4dad6f60a11
+  - kind: symbol
+    name: raf_census::Census::unexpanded
+    digest: f396ebd00c626fc70352650c7acfc658d6bebb1cb9dd2f7dafea355cc31164a4
+  - kind: symbol
+    name: raf_census::Census::unexpanded_package
+    digest: d1302240c4a2448013033c2fdf3c6c2d62b0060dac655afb36385fa56b7b4a24
+  - kind: symbol
+    name: raf_census::Census::unexpanded_target
+    digest: 6615191edd46f454f95fb0fb4fb922c7c66c0db3f3934b25bc5ae6b836fe6e6d
+  - kind: symbol
+    name: raf_census::Census::units
+    digest: 675d80fbc16cdd1d51784a395151f41dfa5172ab8d383588f4b07a45d12a0e05
   - kind: symbol
     name: raf_census::Index::from_ntriples
     digest: 6de0c429c5cd414a37a015a5cc93673fdc7b52b7eec328f11f1a4b5155f22567

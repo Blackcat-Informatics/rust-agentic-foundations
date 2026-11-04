@@ -228,6 +228,42 @@ fn forwarding_default_and_inherited_feature_requirements_are_validated_at_the_ac
 }
 const MANIFEST: &str = "[package]\nname='consumer'\nversion='1.0.0'\n[dependencies]\nrenamed={package='provider',path='../provider',version='1',optional=true,default-features=false,features=['api']}\n[features]\ndefault=['native']\nnative=['dep:renamed']\n";
 const SOURCE: &str = "pub mod reader {#[cfg(feature=\"native\")] pub use renamed::Native as Alias;}\n#[cfg(feature=\"native\")] pub mod chosen;\n#[cfg(not(feature=\"native\"))] mod never_opened;\n#[cfg_attr(target_os=\"linux\",path=\"linux.rs\")] pub mod platform;";
+
+#[test]
+fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
+    let tree = fixture(
+        MANIFEST,
+        "#[cfg(feature=\"native\")] make_native!();\n\
+         #[cfg(not(feature=\"native\"))] make_portable!();\n\
+         mod inner { #[cfg_attr(feature=\"native\", cfg(test))] make_inner!(); }\n\
+         #[cfg(test)] mod tests { make_test!(); }",
+    );
+    for enabled in [false, true] {
+        let source = load(
+            &tree,
+            Some(context(if enabled { &["native"] } else { &[] }, "consumer")),
+            Some(context(&["api"], "provider")),
+            "",
+            &LoadOptions::default(),
+        )
+        .expect("declared syntax");
+        let actual: Vec<_> = source
+            .unexpanded()
+            .iter()
+            .filter(|occurrence| occurrence.module.starts_with("consumer"))
+            .map(|occurrence| occurrence.invoked.as_str())
+            .collect();
+        assert_eq!(
+            actual,
+            if enabled {
+                vec!["make_native"]
+            } else {
+                vec!["make_portable", "make_inner"]
+            }
+        );
+    }
+}
+
 fn load(
     tree: &MemoryTree,
     consumer: Option<DeclaredConfiguration<'_>>,

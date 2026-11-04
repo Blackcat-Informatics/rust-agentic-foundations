@@ -188,6 +188,33 @@ pub enum SymbolKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ItemId(pub(crate) usize);
 
+/// An unexpanded item-producing macro invocation in a module.
+///
+/// Each target/module reach has its own record. This syntax observation defines
+/// no name and makes no claim about expansion, resolution or generated items.
+/// Macro definitions and macros inside traits, impls, foreign blocks or function
+/// bodies are not module-level occurrences and are not included.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Unexpanded {
+    /// The source file, relative to the workspace root.
+    pub file: RelPath,
+    /// The whole invocation, including its attributes.
+    pub span: SpanFact,
+    /// The actual enclosing module path for this reach.
+    pub module: SharedStr,
+    /// The target whose selected module tree contains the invocation.
+    pub target: TargetId,
+    /// The written macro path, retaining a leading `::` and raw identifiers.
+    pub invoked: SharedStr,
+    /// The test role, including enclosing modules and the file's reach.
+    pub test: TestRole,
+    /// Argument identifiers in token order, including nested groups, with raw
+    /// prefixes removed. These are syntax observations, never generated names
+    /// or resolved references.
+    pub identifiers: Vec<SharedStr>,
+}
+
 impl ItemId {
     /// The number of the item.
     #[must_use]

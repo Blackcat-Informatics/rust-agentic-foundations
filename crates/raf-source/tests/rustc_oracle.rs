@@ -72,6 +72,54 @@ fn fixture(text: &str) -> Program {
     Program::parse(text).expect("a fixture parses")
 }
 
+#[test]
+fn compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions() {
+    const SOURCE: &str = "macro_rules! make { () => { pub struct Generated; } }\n\
+                          mod inner { make!(); }\n\
+                          pub fn use_generated(_: inner::Generated) {}\n";
+    let diagnostics = rustc::compile(SOURCE);
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.level != "error"),
+        "{diagnostics:?}"
+    );
+    let source = raf_source::Workspace::load(
+        &raf_source::MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'",
+            ),
+            ("src/lib.rs", SOURCE),
+        ]),
+        &["."],
+    )
+    .expect("written source");
+    let occurrences = source.unexpanded();
+    assert_eq!(occurrences.len(), 1);
+    assert_eq!(occurrences[0].module.as_str(), "demo::inner");
+    assert_eq!(occurrences[0].invoked.as_str(), "make");
+    assert!(source.resolve("demo::inner::Generated").is_err());
+    let invalid = SOURCE.replace("make!();", "make!(invalid);");
+    assert!(
+        rustc::compile(&invalid)
+            .iter()
+            .any(|diagnostic| diagnostic.level == "error")
+    );
+    let source = raf_source::Workspace::load(
+        &raf_source::MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'",
+            ),
+            ("src/lib.rs", invalid.as_str()),
+        ]),
+        &["."],
+    )
+    .expect("unexpanded invalid invocation still has readable syntax");
+    assert_eq!(source.unexpanded().len(), 1);
+}
+
 const TWO_STRUCTS: &str = "\
 // probe demo crate::m0::A
 // probe demo crate::m1::A

@@ -28,7 +28,7 @@ inputs:
     digest: 49f626817760b07fbe7afaafe97572109be37839609006150d1faae79f2fe61d
   - kind: symbol
     name: raf_workplan::coverage::lines
-    digest: 357ce3edf897f37b9ebdca6def3897ec26e8f4a6c310ac847094985349fb13bb
+    digest: 476960a095b6316de9cd97b95743e62389a437b1fd99e39c6f82592b4d3f1154
   - kind: symbol
     name: raf_workplan::coverage::render::claims_table
     digest: ec714c03844e0af34c41358c7e1819d20cd86bdaa606446bad1eca24256e3e86
