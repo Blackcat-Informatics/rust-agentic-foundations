@@ -396,7 +396,7 @@ fn never_ending(
         .ran
         .take()
         .expect("the binding ran under the stepped clock");
-    let Some(seen) = clock.seen.take() else {
+    let Some(seen) = clock.take_seen() else {
         panic!("the run ended before the gate opened on the process that never ends: {evidence}");
     };
     let settled = subject.settle(&seen);
