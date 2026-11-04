@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/151-delegate-workplan-streaming-sha-256-to",
+  "branch": "paudley/151-delegate-workplan-streaming-sha-256-to",
+  "base_ref": "origin/paudley/152-delegate-mdbook-markdown-syntax-to",
+  "head": "b78bdca5eb3d0f8e4bf88be8e1db2f9da7782e76",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/151-delegate-workplan-streaming-sha-256-to/.stage/delegate-workplan-streaming-sha-256-to/sync/20261104T083618-228293118b8a42a5abb0742be47fdd72",
+  "conflicts": [],
+  "status": "fast_forward",
+  "base": "f770b8cfce7b2532bf502305e32a13d16c5f0226",
+  "merge_bases": [
+    "b78bdca5eb3d0f8e4bf88be8e1db2f9da7782e76"
+  ],
+  "commit": "f770b8cfce7b2532bf502305e32a13d16c5f0226"
+}
