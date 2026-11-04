@@ -39,6 +39,9 @@ pub struct Census {
     options: CensusOptions,
     units: Vec<Unit>,
     files: Vec<FileCtx>,
+    unexpanded: Vec<raf_source::Unexpanded>,
+    unexpanded_targets: OrderedTable<raf_source::TargetId, raf_source::Target>,
+    unexpanded_packages: OrderedTable<PackageId, raf_source::Package>,
     source_files: OrderedTable<RelPath, usize>,
     grouping: Grouping,
 }
@@ -81,11 +84,45 @@ impl Census {
         packages: &BTreeSet<PackageId>,
     ) -> Result<Self, Error> {
         let units = units::collect_packages(workspace, options, packages)?;
+        let mut unexpanded = Vec::new();
+        let mut unexpanded_targets = OrderedTable::default();
+        let mut unexpanded_packages = OrderedTable::default();
+        let mut resident = Resident;
+        let mut memory = Memory::new(&mut resident);
+        for occurrence in workspace.unexpanded() {
+            let target = workspace
+                .target(occurrence.target)
+                .ok_or_else(|| Error::Source {
+                    file: occurrence.file.to_string(),
+                    line: occurrence.span.lines.start,
+                    reason: "an unexpanded occurrence has no owning target".into(),
+                })?;
+            if packages.contains(&target.package_id) {
+                let package =
+                    workspace
+                        .package(target.package_id)
+                        .ok_or_else(|| Error::Source {
+                            file: occurrence.file.to_string(),
+                            line: occurrence.span.lines.start,
+                            reason: "an unexpanded occurrence's target has no owning package"
+                                .into(),
+                        })?;
+                if unexpanded_targets.get(&occurrence.target).is_none() {
+                    unexpanded_targets
+                        .insert(occurrence.target, target.clone(), &mut memory)
+                        .map_err(|source| Error::SourceIndexStorage { source })?;
+                }
+                if unexpanded_packages.get(&target.package_id).is_none() {
+                    unexpanded_packages
+                        .insert(target.package_id, package.clone(), &mut memory)
+                        .map_err(|source| Error::SourceIndexStorage { source })?;
+                }
+                unexpanded.push(occurrence.clone());
+            }
+        }
         let grouping = group::group(&units);
         let mut files = Vec::new();
         let mut source_files = OrderedTable::default();
-        let mut resident = Resident;
-        let mut memory = Memory::new(&mut resident);
         for file in workspace.files() {
             let mut selected = Vec::new();
             for reach in &file.reached {
@@ -123,6 +160,9 @@ impl Census {
             options: options.clone(),
             units,
             files,
+            unexpanded,
+            unexpanded_targets,
+            unexpanded_packages,
             source_files,
             grouping,
         })
@@ -142,6 +182,28 @@ impl Census {
     #[must_use]
     pub fn units(&self) -> &[Unit] {
         &self.units
+    }
+
+    /// Unexpanded module macro occurrences in the selected packages, in Source
+    /// order. They are syntax evidence, separate from fingerprinted units, and
+    /// are not included in the canonical RDF unit index.
+    #[must_use]
+    pub fn unexpanded(&self) -> &[raf_source::Unexpanded] {
+        &self.unexpanded
+    }
+
+    /// Original target metadata for an unexpanded occurrence owned by this
+    /// Census. IDs belong to this load; targets without occurrences are absent.
+    #[must_use]
+    pub fn unexpanded_target(&self, id: raf_source::TargetId) -> Option<&raf_source::Target> {
+        self.unexpanded_targets.get(&id)
+    }
+
+    /// Original package metadata for a retained occurrence target. Package IDs
+    /// belong to this load; packages without occurrences are absent.
+    #[must_use]
+    pub fn unexpanded_package(&self, id: PackageId) -> Option<&raf_source::Package> {
+        self.unexpanded_packages.get(&id)
     }
 
     /// The first unit with `symbol`, in the order of file and position. Two
@@ -201,5 +263,84 @@ impl Census {
     #[must_use]
     pub fn shared_constants(&self) -> &[SharedConstant] {
         &self.grouping.shared_constants
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use raf_source::MemoryTree;
+
+    #[test]
+    fn unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units() {
+        let tree = MemoryTree::from([
+            ("Cargo.toml", "[workspace]\nmembers=['one','two']"),
+            ("one/Cargo.toml", "[package]\nname='one'\nversion='0.1.0'"),
+            ("one/src/lib.rs", "make_one!(Generated);\npub fn kept() {}"),
+            ("two/Cargo.toml", "[package]\nname='two'\nversion='0.1.0'"),
+            ("two/src/lib.rs", "make_two!(Other);"),
+        ]);
+        let options = CensusOptions::default();
+        let all = Census::load(&tree, &["."], &options).expect("public load");
+        assert_eq!(all.unexpanded().len(), 2);
+        for occurrence in all.unexpanded() {
+            let target = all
+                .unexpanded_target(occurrence.target)
+                .expect("retained original target");
+            let package = all
+                .unexpanded_package(target.package_id)
+                .expect("retained original package");
+            assert_eq!(target.package, package.name);
+            assert_eq!(target.kind, TargetKind::Lib);
+            assert_eq!(
+                package.manifest.as_str(),
+                format!("{}/Cargo.toml", package.name)
+            );
+        }
+        assert!(
+            all.units()
+                .iter()
+                .all(|unit| !unit.symbol.contains("Generated"))
+        );
+        let source = Workspace::load(&tree, &["."]).expect("original source");
+        let package = source
+            .package_ids()
+            .find(|id| source.package(*id).expect("package").name == "one")
+            .expect("selected package");
+        let selected = Census::from_packages(&source, &options, &BTreeSet::from([package]))
+            .expect("actual package-selected collection");
+        assert_eq!(selected.unexpanded().len(), 1);
+        let target = selected
+            .unexpanded_target(selected.unexpanded()[0].target)
+            .expect("selected owner");
+        assert_eq!(
+            selected
+                .unexpanded_package(target.package_id)
+                .expect("package owner")
+                .name,
+            "one"
+        );
+        let omitted = source
+            .target_ids()
+            .find(|id| source.target(*id).expect("target").package == "two")
+            .expect("omitted owner");
+        assert!(selected.unexpanded_target(omitted).is_none());
+        assert!(
+            selected
+                .unexpanded_package(source.target(omitted).expect("target").package_id)
+                .is_none()
+        );
+        assert_eq!(selected.unexpanded()[0].invoked.as_str(), "make_one");
+        assert_eq!(selected.unexpanded()[0].span.lines, 1..2);
+        assert_eq!(
+            selected.unexpanded()[0].identifiers[0].as_str(),
+            "Generated"
+        );
+        assert!(
+            selected
+                .units()
+                .iter()
+                .all(|unit| unit.symbol.starts_with("one::"))
+        );
     }
 }

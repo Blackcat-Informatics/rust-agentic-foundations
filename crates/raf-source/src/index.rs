@@ -30,7 +30,7 @@ use crate::glob_scope::{GlobTables, ImportReach};
 use crate::intern::Interner;
 use crate::item::{
     ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
-    UnresolvedImpl,
+    Unexpanded, UnresolvedImpl,
 };
 use crate::manifest::DependencyKind;
 use crate::meter::{ItemAdmission, LookupCount, Meter, NativeAdmission, push_item_work};
@@ -88,6 +88,7 @@ pub(crate) const LOAD_BASE_BYTES: usize = size_of::<Vec<Option<(usize, &str)>>>(
     + 2 * hash_map::<SharedStr>()
     + hash_map::<(*const PathFact, Arc<PathFact>)>()
     + vec_first::<Item>()
+    + vec_first::<Unexpanded>()
     + 3 * vec_first::<ItemId>()
     + vec_first::<Module>()
     + vec_first::<Scope>()
@@ -294,6 +295,7 @@ pub(crate) struct Module {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Index {
     pub(crate) items: Vec<Item>,
+    pub(crate) unexpanded: Vec<Unexpanded>,
     /// The items in the order of [`crate::Workspace::items`].
     pub(crate) order: Vec<ItemId>,
     pub(crate) modules: Vec<Module>,
@@ -840,6 +842,33 @@ impl<'a> Builder<'a> {
                     for fact in &body.items {
                         self.item(fact, module, cx)?;
                     }
+                    for fact in &body.unexpanded {
+                        let line = Some(fact.span.lines.start);
+                        let (invoked, cost) = self.store.intern(&fact.invoked);
+                        self.store.charge(cost, cx.file, line)?;
+                        let mut identifiers = Vec::new();
+                        self.store.reserve_items(
+                            &mut identifiers,
+                            fact.identifiers.len(),
+                            cx.file,
+                            line,
+                        )?;
+                        for name in &fact.identifiers {
+                            let (name, cost) = self.store.intern(name);
+                            self.store.charge(cost, cx.file, line)?;
+                            identifiers.push(name);
+                        }
+                        self.store.charge(vec_slot::<Unexpanded>(), cx.file, line)?;
+                        self.index.unexpanded.push(Unexpanded {
+                            file: cx.file.clone(),
+                            span: fact.span.clone(),
+                            module: self.index.modules[module].path.clone(),
+                            target: cx.target,
+                            invoked,
+                            test: combine(fact.test, cx.reach_test),
+                            identifiers,
+                        });
+                    }
                     push(&mut stack, Emit::Rest(body, module), line)?;
                     push(&mut stack, Emit::Mods(body, module, 0), line)?;
                 }
@@ -974,6 +1003,7 @@ impl Index {
     fn empty(targets: &[Target]) -> Self {
         Self {
             items: Vec::new(),
+            unexpanded: Vec::new(),
             order: Vec::new(),
             modules: Vec::new(),
             module_by_path: BTreeMap::new(),
@@ -1114,6 +1144,25 @@ impl Index {
         index.build_scopes();
         index.settle_agreed(store.meter)?;
         index.attach_impls(impls, &mut store)?;
+        purrdf_lex::walk::try_sort_unstable_by(&mut index.unexpanded, |a, b| {
+            store.meter.work(
+                a.file
+                    .as_str()
+                    .len()
+                    .saturating_add(b.file.as_str().len())
+                    .saturating_add(a.module.len())
+                    .saturating_add(b.module.len())
+                    .saturating_add(1),
+                &a.file,
+                Some(a.span.lines.start),
+            )?;
+            Ok::<_, LoadError>((&a.file, a.span.start_byte, &a.module, a.target).cmp(&(
+                &b.file,
+                b.span.start_byte,
+                &b.module,
+                b.target,
+            )))
+        })?;
         index.finish();
         index.settle_glob_facts(store.meter)?;
         index.lookups_charged()?;

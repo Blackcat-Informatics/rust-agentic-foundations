@@ -81,6 +81,51 @@ fn lines_of(source: &Workspace, code: &[&str], tests: &[&str], record: &str) -> 
     report
 }
 
+#[test]
+fn macro_lines_follow_indexed_configuration_instead_of_raw_file_reaches() {
+    use raf_source::{CfgAtom, DeclaredCfg, DeclaredConfiguration, LoadOptions, TargetKind};
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n[features]\nenabled=[]",
+        ),
+        (
+            "src/lib.rs",
+            "macro_rules! make { ($name:ident) => { pub struct $name; } }\n\
+                        mod api {\n\
+                        #[cfg(feature=\"enabled\")] make!(Enabled);\n\
+                        #[cfg(not(feature=\"enabled\"))] make!(Disabled);\n\
+                        }\n\
+                        pub fn run() {}",
+        ),
+    ]);
+    let atoms = [CfgAtom::Name("unix"), CfgAtom::Value("target_os", "linux")];
+    for enabled in [false, true] {
+        let declared = DeclaredConfiguration::new(
+            DeclaredCfg::complete("declared-linux", &atoms),
+            if enabled { &["enabled"] } else { &[] },
+            TargetKind::Lib,
+            "demo",
+        );
+        let source = Workspace::load_configured_target(
+            &tree,
+            &RelPath::new("Cargo.toml").expect("path"),
+            declared,
+            &LoadOptions::default(),
+        )
+        .expect("selected syntax");
+        let report = lines_of(&source, &["demo::run"], &[], "");
+        let macros: Vec<_> = report
+            .orphans()
+            .iter()
+            .filter(|unit| unit.kind() == "macro")
+            .collect();
+        assert_eq!(macros.len(), 1);
+        assert_eq!(macros[0].item(), "demo::api::make!");
+        assert_eq!(macros[0].ranges_text(), if enabled { "3-3" } else { "4-4" });
+    }
+}
+
 /// Each orphan unit as its item and ranges.
 fn orphans(report: &LinesReport) -> Vec<(String, String)> {
     report

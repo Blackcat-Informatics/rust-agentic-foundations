@@ -200,7 +200,7 @@ pub use facts::visit_pattern_bindings;
 pub use facts::{FieldShape, SpanFact, TestRole, Vis};
 pub use item::{
     ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
-    UnresolvedImpl,
+    Unexpanded, UnresolvedImpl,
 };
 pub use locked::{
     LockedCatalog, LockedGitReference, LockedPackage, LockedPackageId, LockedSource,

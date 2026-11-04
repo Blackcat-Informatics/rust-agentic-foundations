@@ -407,6 +407,15 @@ fn unconditional_self(block: &syn::ItemImpl) -> bool {
         })
 }
 
+/// One item-producing module macro invocation observed on the parse worker.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct UnexpandedFact {
+    pub(crate) invoked: String,
+    pub(crate) span: SpanFact,
+    pub(crate) test: TestRole,
+    pub(crate) identifiers: Vec<String>,
+}
+
 /// The contents of a module, in source order within each list.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct ModBody {
@@ -418,6 +427,8 @@ pub(crate) struct ModBody {
     pub(crate) uses: Vec<UseFact>,
     /// `impl` blocks.
     pub(crate) impls: Vec<ImplFact>,
+    /// Item-producing macro invocations, without generated definitions.
+    pub(crate) unexpanded: Vec<UnexpandedFact>,
 }
 
 /// The facts of one file.
@@ -1101,7 +1112,8 @@ impl Extractor<'_> {
         let room = slack(&mut body.items)
             + slack(&mut body.mods)
             + slack(&mut body.uses)
-            + slack(&mut body.impls);
+            + slack(&mut body.impls)
+            + slack(&mut body.unexpanded);
         self.meter.charge(room, line)?;
         Ok(body)
     }
@@ -1300,8 +1312,6 @@ impl Extractor<'_> {
         let whole = item.span();
         match item {
             Item::Macro(m) => {
-                // A macro invocation at item level is not expanded and defines
-                // no name the index can see; only `macro_rules!` names one.
                 if let Some(ident) = &m.ident {
                     body.items.push(self.item(
                         ident,
@@ -1313,6 +1323,8 @@ impl Extractor<'_> {
                         inherited,
                         Vec::new(),
                     )?);
+                } else {
+                    body.unexpanded.push(self.unexpanded(m, inherited)?);
                 }
             }
             Item::ExternCrate(e) => {
@@ -1379,6 +1391,52 @@ impl Extractor<'_> {
             other => return Err(unsupported(other)),
         }
         Ok(())
+    }
+
+    /// Observe module syntax without claiming the invocation's generated names.
+    fn unexpanded(&self, item: &syn::ItemMacro, inherited: TestRole) -> Found<UnexpandedFact> {
+        let line = item.span().start().line;
+        let summary = summarize(&item.attrs, &FactMeter::scratch())?;
+        let mut invoked = if item.mac.path.leading_colon.is_some() {
+            "::".to_owned()
+        } else {
+            String::new()
+        };
+        invoked.push_str(&path_text(&item.mac.path));
+        let invoked = fit(invoked);
+        self.meter
+            .charge(size_of::<UnexpandedFact>() + invoked.capacity(), line)?;
+        let mut identifiers = Vec::new();
+        let mut stack =
+            purrdf_lex::walk::WorkList::<_, 8>::with(item.mac.tokens.clone().into_iter());
+        while let Some(mut tokens) = stack.pop() {
+            while let Some(token) = tokens.next() {
+                match token {
+                    proc_macro2::TokenTree::Ident(ident) => {
+                        let name = unraw(&ident);
+                        self.meter
+                            .charge(size_of::<String>() + name.capacity(), line)?;
+                        identifiers.push(name);
+                    }
+                    proc_macro2::TokenTree::Group(group) => {
+                        // Conservatively charge spill room before growing the native stack.
+                        self.meter
+                            .charge(4 * size_of::<proc_macro2::token_stream::IntoIter>(), line)?;
+                        stack.push(tokens);
+                        stack.push(group.stream().into_iter());
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        self.meter.charge(slack(&mut identifiers), line)?;
+        Ok(UnexpandedFact {
+            invoked,
+            span: self.positions.span(item.span())?,
+            test: role(summary.own_test, inherited),
+            identifiers,
+        })
     }
 
     /// The fact of one `use` declaration spanning `whole`, of the test role

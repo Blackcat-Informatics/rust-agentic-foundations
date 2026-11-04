@@ -422,6 +422,13 @@ impl Workspace {
             .map(|id| &self.index.items[id.index()])
     }
 
+    /// Unexpanded module-level macro occurrences in the selected syntax, sorted
+    /// by file, byte position, module and target. These define no index names.
+    #[must_use]
+    pub fn unexpanded(&self) -> &[crate::Unexpanded] {
+        &self.index.unexpanded
+    }
+
     /// The items at `prefix` or below it, in the order of [`Workspace::items`].
     /// The prefix matches whole path segments: `demo::a` selects `demo::a` and
     /// `demo::a::b`, not `demo::ab`. An empty prefix selects every item.

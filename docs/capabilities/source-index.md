@@ -8,6 +8,8 @@ description: "The raf-source crate: a Tree abstraction, package discovery, mod-t
 state: implementing
 bindings:
   code:
+    - raf_source::Unexpanded
+    - raf_source::Workspace::unexpanded
     - raf_source::cargo_version
     - raf_source::resolve
     - raf_source::Tree
@@ -151,6 +153,10 @@ bindings:
     - raf_source::work
     - raf_source_fuzz::bin_crate::load_workspace::exercise
   tests:
+    - raf_source::test_crate::symbol_index::module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions
+    - raf_source::test_crate::symbol_index::unexpanded_payloads_obey_original_fact_and_item_allowances
+    - raf_source::test_crate::configured_sources::unexpanded_occurrences_follow_the_exact_declared_syntax
+    - raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions
     - raf_source::test_crate::glob_instruction_gate::bounds_enforce_original_ratios_and_growth_without_rounding
     - raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event
     - raf_source::exports::tests::native_surface_storage_preserves_physical_failure_and_budget_ownership
@@ -2061,12 +2067,31 @@ struct is a type and also a value, through its field shape; a `macro_rules!` mac
 a macro, and a `#[macro_export]` macro is indexed at the crate root wherever it is
 written. A name can be in all three at once. `const _` defines no
 name and is not indexed; it stays in the facts of its file. A macro invocation that
-defines items is not expanded, so what it generates is not indexed; in a module, an
-impl block, a trait and an `extern` block alike it is skipped. `documented` is
+defines items is not expanded, so what it generates is not indexed. `documented` is
 true for a non-blank `#[doc]` or `///` text and for `#[doc = include_str!(..)]`, and
 `doc(hidden)` alone does not count; a module that has its own file is documented by the
 file's inner `//!` text as well. The `test` role is `CfgTest` also for an item in a file
 that is reached only through test code.
+
+### Unexpanded module macro occurrences
+<!-- raf:tested-by raf_source::test_crate::symbol_index::module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions,raf_source::test_crate::symbol_index::unexpanded_payloads_obey_original_fact_and_item_allowances,raf_source::test_crate::configured_sources::unexpanded_occurrences_follow_the_exact_declared_syntax,raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions -->
+
+`Workspace::unexpanded()` retains every item-producing macro invocation directly
+inside a module, including inline modules, once per actual target and module
+reach. Each `Unexpanded` records its file, whole invocation span with attributes,
+enclosing module, target, written invocation path and inherited test role. The
+path retains a leading `::` and raw identifier spelling. Argument identifiers
+are recorded in token order through nested groups, with raw prefixes removed;
+they establish neither resolved references nor generated definitions.
+
+Records come from the same selected syntax as the named index. A configured load
+does not retain an invocation removed by its declared predicates. Records sort
+by file, starting byte, module and target. Their facts, argument strings, index
+storage and ordering work use the original load allowances and refuse when
+those allowances are exhausted. Shared strings retain the ordinary interning
+account. Macro definitions remain named items. Invocations inside functions,
+traits, impls and foreign blocks are outside this module occurrence inventory.
+No expansion or namespace completeness follows from these observations.
 
 ### Written bodiless declarations
 <!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written -->
@@ -3065,6 +3090,10 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Use `Workspace::unexpanded()` to inspect module macro syntax alongside named
+items. Retain its owning workspace when reading a record's target identity;
+target numbers from another load do not identify the same occurrence context.
+
 Write Cargo version constraints in dependency declarations, validated by
 `cargo_version`, and select an outgoing
 lock row with `LockedCatalog::select_dependency`. Retain the complete package
@@ -3232,6 +3261,12 @@ for id in ws.target_ids() {
 Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
 
 ## Examples
+
+For `mod generated { make!(Made); }`, the occurrence names module
+`demo::generated`, invocation `make` and argument identifier `Made`. The index
+does not invent `demo::generated::Made`. A compiler may accept that generated
+declaration while the source index retains only the unexpanded invocation.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions -->
 
 Build a candidate fixture driver with
 `cargo build --release --locked -p raf-source --example shape_cost`. Compare the
@@ -4720,6 +4755,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::configured_sources::nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
+| `raf_source::test_crate::configured_sources::unexpanded_occurrences_follow_the_exact_declared_syntax` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_source::test_crate::configured_targets::conditional_and_optional_edges_keep_each_targets_actual_activation` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_targets::configured_syntax_queries_select_the_actual_target_and_preserve_budget_causes` | test | [Contract](#contract) |
@@ -5126,6 +5162,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::an_index_answer_that_changes_with_the_order_is_reported_as_index_order` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_source::test_crate::rustc_oracle::diagnostic_levels_are_required_beside_a_valid_null_code` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` | test | [Constraints](#constraints) |
@@ -5170,12 +5207,14 @@ one-byte-short refusal.
 | `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::items_that_share_a_source_item_are_grouped_by_its_identity` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::items_under_matches_whole_path_segments` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::read_only_resolution_keeps_workspace_equality_and_distinguishes_changed_definitions` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::shipping_is_the_target_and_not_a_test_role` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::test_roles_follow_the_module_tree_and_the_item` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::symbol_index::unexpanded_payloads_obey_original_fact_and_item_allowances` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::unit_and_tuple_structs_are_also_values_and_named_structs_are_not` | test | [Contract](#contract) |
 | `raf_source::test_crate::target_resolution::a_helper_resolves_from_a_nested_module_of_a_binary` | test | [Contract](#contract) |
 | `raf_source::test_crate::target_resolution::a_helper_resolves_from_an_integration_test_root_and_from_a_module_below_it` | test | [Contract](#contract) |

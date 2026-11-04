@@ -12,8 +12,9 @@
 //!
 //! The units of a file are the units of every target the source index lists:
 //! every item except a module and an `extern crate`, every impl block from its
-//! first attribute to its closing brace, and every item-level macro invocation
-//! and `const _` of a module, found by parsing the file. The counted lines of a
+//! first attribute to its closing brace, and the index's unexpanded module macro
+//! occurrences. A bounded parse also finds module-level `const _` declarations.
+//! The counted lines of a
 //! file are the union of the lines of its units; a file is counted once, for
 //! the package of the first target that reaches it, however many targets and
 //! module paths reach it. Every other line (a blank line, a `use` or `mod`
@@ -79,7 +80,8 @@ use raf_source::syn::visit::Visit;
 use raf_source::syn::{self, Item as SynItem};
 use raf_source::{
     ImplBlock, ImplId, Item, ItemId, Namespace, Node, PARSE_STACK_BYTES, RelPath, ResolveError,
-    SelfType, SourceFile, SymbolKind, TargetId, TargetKind, TestRole, Workspace, parse_source,
+    SelfType, SourceFile, SymbolKind, TargetId, TargetKind, TestRole, Unexpanded, Workspace,
+    parse_source,
 };
 
 use crate::finding::kind;
@@ -525,15 +527,12 @@ struct File<'s> {
     exception: Option<usize>,
 }
 
-/// The item-level macro invocations and `const _` items one parse of a file
-/// found.
+/// The `const _` items one parse of a file found.
 struct Found {
     first: usize,
     last: usize,
     /// The inline modules around it, outermost first.
     modules: Vec<String>,
-    invoked: Option<String>,
-    idents: Vec<String>,
 }
 
 /// Compiler registrations observed during the same bounded source parse.
@@ -591,7 +590,7 @@ impl<'ast> Visit<'ast> for Allocators {
     }
 }
 
-/// Module units and direct allocator registrations from one bounded parse.
+/// Unnamed constants and direct allocator registrations from one bounded parse.
 fn module_units(path: &RelPath, text: &str) -> Result<ParsedUnits, String> {
     parse_source(path, text, |tree| {
         let mut out = ParsedUnits::default();
@@ -619,27 +618,12 @@ fn module_units(path: &RelPath, text: &str) -> Result<ParsedUnits, String> {
 fn found_in(items: &[SynItem], modules: &mut Vec<String>, out: &mut Vec<Found>) {
     for item in items {
         match item {
-            SynItem::Macro(invocation) if invocation.ident.is_none() => {
-                let span = item.span();
-                let mut idents = Vec::new();
-                idents_of(invocation.mac.tokens.clone(), &mut idents);
-                let path: String = quote_path(&invocation.mac.path);
-                out.push(Found {
-                    first: span.start().line,
-                    last: span.end().line,
-                    modules: modules.clone(),
-                    invoked: Some(path),
-                    idents,
-                });
-            }
             SynItem::Const(constant) if constant.ident == "_" => {
                 let span = item.span();
                 out.push(Found {
                     first: span.start().line,
                     last: span.end().line,
                     modules: modules.clone(),
-                    invoked: None,
-                    idents: Vec::new(),
                 });
             }
             SynItem::Mod(module) => {
@@ -651,40 +635,6 @@ fn found_in(items: &[SynItem], modules: &mut Vec<String>, out: &mut Vec<Found>) 
                 }
             }
             _ => {}
-        }
-    }
-}
-
-/// A macro path as written, without spaces: `kinds`, `crate::kinds`.
-fn quote_path(path: &syn::Path) -> String {
-    let mut text = String::new();
-    if path.leading_colon.is_some() {
-        text.push_str("::");
-    }
-    let segments: Vec<String> = path
-        .segments
-        .iter()
-        .map(|segment| segment.ident.to_string())
-        .collect();
-    text.push_str(&segments.join("::"));
-    text
-}
-
-/// Every identifier of `stream`, nested groups included, walked on an
-/// explicit stack.
-fn idents_of(stream: TokenStream, out: &mut Vec<String>) {
-    let mut stack = vec![stream.into_iter()];
-    while let Some(tokens) = stack.last_mut() {
-        match tokens.next() {
-            Some(TokenTree::Ident(ident)) => {
-                let name = ident.to_string();
-                out.push(name.strip_prefix("r#").unwrap_or(&name).to_string());
-            }
-            Some(TokenTree::Group(group)) => stack.push(group.stream().into_iter()),
-            Some(_) => {}
-            None => {
-                stack.pop();
-            }
         }
     }
 }
@@ -1185,9 +1135,8 @@ fn impl_unit(source: &Workspace, file: usize, copies: &[&ImplBlock]) -> Unit {
     }
 }
 
-/// The unit of a macro invocation or a `const _` that a parse of `file`
-/// found, once for each module path the file is reached under.
-fn module_unit(source: &Workspace, index: usize, file: &SourceFile, found: Found) -> Unit {
+/// An unnamed constant found by the auxiliary parse, once for each reach.
+fn module_unit(source: &Workspace, index: usize, file: &SourceFile, found: &Found) -> Unit {
     let suffix = found.modules.join("::");
     let mut copies: Vec<(String, TargetId, bool)> = file
         .reached
@@ -1220,23 +1169,58 @@ fn module_unit(source: &Workspace, index: usize, file: &SourceFile, found: Found
     let module = copies
         .first()
         .map_or_else(String::new, |(module, _, _)| module.clone());
-    let (item, kind) = match &found.invoked {
-        Some(path) => (format!("{module}::{path}!"), "macro"),
-        None => (format!("{module}::_"), "const"),
-    };
     Unit {
         file: index,
         first: found.first,
         last: found.last.max(found.first),
         bytes: (0, 0),
+        item: format!("{module}::_"),
         module,
-        item,
-        kind,
+        kind: "const",
         shipping,
         what: What::Module(ModuleUnit {
             copies,
-            invoked: found.invoked,
-            idents: found.idents,
+            invoked: None,
+            idents: Vec::new(),
+        }),
+        covered: false,
+        exception: None,
+    }
+}
+
+/// One physical macro invocation, retaining only the reaches the index observed.
+fn unexpanded_unit(source: &Workspace, file: usize, copies: &[&Unexpanded]) -> Unit {
+    let first = copies[0];
+    let copies: Vec<_> = copies
+        .iter()
+        .map(|copy| {
+            (
+                copy.module.to_string(),
+                copy.target,
+                copy.test != TestRole::None,
+            )
+        })
+        .collect();
+    Unit {
+        file,
+        first: first.span.lines.start,
+        last: first
+            .span
+            .lines
+            .end
+            .saturating_sub(1)
+            .max(first.span.lines.start),
+        bytes: (first.span.start_byte, first.span.end_byte),
+        module: first.module.to_string(),
+        item: format!("{}::{}!", first.module, first.invoked),
+        kind: "macro",
+        shipping: copies.iter().any(|(_, target, test)| {
+            !test && source.target(*target).is_some_and(|target| target.shipping)
+        }),
+        what: What::Module(ModuleUnit {
+            copies,
+            invoked: Some(first.invoked.to_string()),
+            idents: first.identifiers.iter().map(ToString::to_string).collect(),
         }),
         covered: false,
         exception: None,
@@ -1271,6 +1255,16 @@ fn collect<'s>(source: &'s Workspace, judged: &BTreeSet<&str>) -> Result<Gathere
             .entry((block.span.start_byte, block.span.end_byte))
             .or_default()
             .push(block);
+    }
+    let mut unexpanded: BTreeMap<&RelPath, BTreeMap<(usize, usize), Vec<&Unexpanded>>> =
+        BTreeMap::new();
+    for occurrence in source.unexpanded() {
+        unexpanded
+            .entry(&occurrence.file)
+            .or_default()
+            .entry((occurrence.span.start_byte, occurrence.span.end_byte))
+            .or_default()
+            .push(occurrence);
     }
     let mut out = Gathered {
         files: Vec::new(),
@@ -1315,8 +1309,15 @@ fn collect<'s>(source: &'s Workspace, judged: &BTreeSet<&str>) -> Result<Gathere
         {
             out.units.push(impl_unit(source, index, copies));
         }
-        for found in parsed.modules {
+        for found in &parsed.modules {
             out.units.push(module_unit(source, index, file, found));
+        }
+        for copies in unexpanded
+            .get(&file.path)
+            .into_iter()
+            .flat_map(BTreeMap::values)
+        {
+            out.units.push(unexpanded_unit(source, index, copies));
         }
         out.of_file.push(begin..out.units.len());
     }

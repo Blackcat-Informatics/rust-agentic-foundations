@@ -324,6 +324,9 @@ inputs:
     name: raf_source::TreeError
     digest: 8135b0612ef9b904eb592193661a1f447eb1c82277f06ad42d7ee2622aa6e144
   - kind: symbol
+    name: raf_source::Unexpanded
+    digest: 0c3dd15b9470b84d513f38691cfb3c8c4d48ba5218034438cdd81ec9d7e7fa38
+  - kind: symbol
     name: raf_source::UnresolvedImpl
     digest: beca7608d91c3df8942b099ecb15b5e5c0ed36eef6a06c11276dc2926f1d986c
   - kind: symbol
@@ -390,6 +393,9 @@ inputs:
     name: raf_source::Workspace::test_platform_guard
     digest: deaa8c08fe44c196d7c9556a65e7f64362021177a895d61d543c22cd78599615
   - kind: symbol
+    name: raf_source::Workspace::unexpanded
+    digest: 319c712f328fa22754437114086c2aa7155d14bdc56f78e68a1d87e14d832fec
+  - kind: symbol
     name: raf_source::Workspace::unresolved_impls
     digest: b935908e0bf18a62f32f8ce6447950753e6452a8c1fd0aeb0cd92ea522b0f7ea
   - kind: symbol
@@ -406,7 +412,7 @@ inputs:
     digest: decf25b8720addc5994dca976c46ea7f846dbd6c1321f82887c7990c29ab9c7f
   - kind: symbol
     name: raf_source::item
-    digest: 0824de012072f2753f951b9aeb16be8d072dc6ef7d8857a67dc53bf16f2394e9
+    digest: eeb4dbf4ecd9533f117b217f3e3e5b43df9f71d5c9213fa88ffae92681a5eb4f
   - kind: symbol
     name: raf_source::parse_source
     digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a

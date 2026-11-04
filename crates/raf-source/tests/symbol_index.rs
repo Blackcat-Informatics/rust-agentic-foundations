@@ -29,6 +29,106 @@ fn lib(text: &str) -> Workspace {
 }
 
 #[test]
+fn module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions() {
+    let text = "macro_rules! make { () => { pub struct Generated; } }\n\
+                make!();\n\
+                mod inner { ::external::r#make!(r#Type, (nested token)); }\n\
+                #[cfg(test)] mod tests { make!(); }\n\
+                fn f() { make!(); }\n\
+                trait T { make!(); }\n\
+                impl T for () { make!(); }\n\
+                extern \"C\" { make!(); }\n";
+    let source = ok(&[
+        ("src/lib.rs", "mod common;"),
+        ("src/main.rs", "mod common;"),
+        ("src/common.rs", text),
+    ]);
+    let occurrences = source.unexpanded();
+    assert_eq!(
+        occurrences.len(),
+        6,
+        "three module occurrences in each target"
+    );
+    for target in source.target_ids() {
+        let copies: Vec<_> = occurrences
+            .iter()
+            .filter(|copy| copy.target == target)
+            .collect();
+        assert_eq!(copies.len(), 3);
+        let root = &copies[0];
+        assert_eq!(root.invoked.as_str(), "make");
+        assert_eq!(&text[root.span.start_byte..root.span.end_byte], "make!();");
+        assert_eq!(root.span.lines, 2..3);
+        assert_eq!(root.test, TestRole::None);
+        let inner = &copies[1];
+        assert_eq!(inner.module.as_str(), format!("{}::inner", root.module));
+        assert_eq!(inner.invoked.as_str(), "::external::r#make");
+        assert_eq!(
+            inner
+                .identifiers
+                .iter()
+                .map(raf_source::SharedStr::as_str)
+                .collect::<Vec<_>>(),
+            ["Type", "nested", "token"]
+        );
+        assert_eq!(copies[2].test, TestRole::CfgTest);
+        assert!(copies.iter().all(|copy| copy.target == root.target));
+    }
+    assert_ne!(occurrences[0].target, occurrences[1].target);
+    assert!(
+        source
+            .items()
+            .all(|item| !item.path.ends_with("::Generated"))
+    );
+    assert!(source.resolve("demo::Generated").is_err());
+}
+
+#[test]
+fn unexpanded_payloads_obey_original_fact_and_item_allowances() {
+    let tree = MemoryTree::from([
+        ("Cargo.toml", DEMO),
+        (
+            "src/lib.rs",
+            "generate!((one two) [three four] {five six});",
+        ),
+    ]);
+    let usage = Workspace::load(&tree, &["."])
+        .expect("default allowance")
+        .usage();
+    for budget in [raf_source::Budget::FactBytes, raf_source::Budget::ItemBytes] {
+        let limit = if budget == raf_source::Budget::FactBytes {
+            usage.fact_bytes
+        } else {
+            usage.item_bytes
+        };
+        for admitted in [true, false] {
+            let mut options = raf_source::LoadOptions::default();
+            let cap = limit - usize::from(!admitted);
+            if budget == raf_source::Budget::FactBytes {
+                options.max_fact_bytes = cap;
+            } else {
+                options.max_item_bytes = cap;
+            }
+            let loaded = Workspace::load_with(&tree, &["."], &options);
+            if admitted {
+                assert_eq!(
+                    loaded
+                        .expect("exact allowance retains the occurrence")
+                        .unexpanded()
+                        .len(),
+                    1
+                );
+            } else {
+                assert!(
+                    matches!(loaded.expect_err("one byte below the original allowance").kind,
+                    LoadErrorKind::Budget { budget: actual, .. } if actual == budget)
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn read_only_resolution_keeps_workspace_equality_and_distinguishes_changed_definitions() {
     let text = "pub mod api { pub fn run() {} } pub use api::*;";
     let left = lib(text);
