@@ -535,6 +535,104 @@ pub fn run() {}
 ";
 
 #[test]
+fn associated_macro_lines_follow_the_exact_owner_without_global_argument_inference() {
+    let ws = source(&[(
+        "src/lib.rs",
+        "macro_rules! members { ($name:ident) => { fn $name() {} }; }\n\
+         pub trait Api {\n    members!(generated);\n}\n\
+         pub struct A;\n\
+         pub struct B;\n\
+         impl A {\n    members!(generated);\n}\n\
+         impl B {\n    members!(generated);\n}\n\
+         pub fn run() { A::generated(); }\n",
+    )]);
+    let report = lines_of(&ws, &["demo::run", "demo::A"], &[], "");
+    let macros: Vec<_> = report
+        .orphans()
+        .iter()
+        .filter(|unit| unit.kind() == "macro")
+        .map(UnitLines::ranges_text)
+        .collect();
+    assert_eq!(
+        macros,
+        ["3-3", "11-11"],
+        "the unrelated owners remain uncovered"
+    );
+    let report = lines_of(
+        &ws,
+        &["demo::run", "demo::Api", "demo::A", "demo::B"],
+        &[],
+        "",
+    );
+    assert!(report.orphans().iter().all(|unit| unit.kind() != "macro"));
+    assert!(
+        ws.resolve("demo::A::generated").is_err(),
+        "no generated member is invented"
+    );
+}
+
+#[test]
+fn incomplete_associated_macro_ownership_refuses_beside_complete_owner_reaches() {
+    // A misplaced export relocates the trait. When this file is also a library
+    // root, that root's reach still matches while the nested binary reach does
+    // not; the single-reach case has no matching owner at all.
+    for shared_root in [false, true] {
+        for misplaced in [false, true] {
+            let attribute = if misplaced { "#[macro_export] " } else { "" };
+            let declaration = format!("{attribute}pub trait Api {{ members!(generated); }}");
+            let nested = format!("pub mod inner {{ {declaration} }}");
+            let files = if shared_root {
+                vec![
+                    (
+                        "Cargo.toml",
+                        "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n[lib]\npath='src/shared.rs'",
+                    ),
+                    ("src/shared.rs", declaration.as_str()),
+                    ("src/main.rs", "#[path=\"shared.rs\"] mod inner;"),
+                ]
+            } else {
+                vec![("src/lib.rs", nested.as_str())]
+            };
+            let ws = source(&files);
+            assert_eq!(ws.unexpanded().len(), if shared_root { 2 } else { 1 });
+            let docs = documents(&[], &[], "");
+            let plan = Workplan::load(&docs, &ws);
+            let report = plan.lines_report();
+            if misplaced {
+                assert_eq!(report.errors().len(), 1);
+                assert!(report.errors()[0].contains("no exact owner for every indexed reach"));
+            } else {
+                assert!(report.errors().is_empty(), "{:?}", report.errors());
+            }
+        }
+    }
+}
+
+#[test]
+fn foreign_macro_lines_require_an_opened_module_instead_of_argument_name_inference() {
+    let ws = source(&[(
+        "src/lib.rs",
+        "macro_rules! foreign { ($name:ident) => { fn $name(); }; }\n\
+         pub mod api { unsafe extern \"C\" { foreign!(made); } }\n\
+         pub fn run() { unsafe { api::made(); } }\n",
+    )]);
+    let report = lines_of(&ws, &["demo::run"], &[], "");
+    let macros: Vec<_> = report
+        .orphans()
+        .iter()
+        .filter(|unit| unit.kind() == "macro")
+        .map(UnitLines::ranges_text)
+        .collect();
+    assert_eq!(macros, ["2-2"]);
+    let report = lines_of(&ws, &["demo::run", "demo::api"], &[], "");
+    assert!(report.orphans().iter().all(|unit| unit.kind() != "macro"));
+    assert!(
+        ws.resolve("demo::api::made").is_err(),
+        "no foreign declaration is invented"
+    );
+}
+
+#[test]
 fn a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates()
  {
     let ws = source(&[("src/lib.rs", MACRO_LIB)]);

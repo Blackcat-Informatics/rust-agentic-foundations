@@ -276,13 +276,19 @@ mod tests {
         let tree = MemoryTree::from([
             ("Cargo.toml", "[workspace]\nmembers=['one','two']"),
             ("one/Cargo.toml", "[package]\nname='one'\nversion='0.1.0'"),
-            ("one/src/lib.rs", "make_one!(Generated);\npub fn kept() {}"),
+            (
+                "one/src/lib.rs",
+                "make_one!(Generated);\npub fn kept() {}\n\
+                trait Api { trait_items!(TraitGenerated); }\n\
+                impl Api for () { impl_items!(ImplGenerated); }\n\
+                extern \"C\" { foreign_items!(ForeignGenerated); }",
+            ),
             ("two/Cargo.toml", "[package]\nname='two'\nversion='0.1.0'"),
             ("two/src/lib.rs", "make_two!(Other);"),
         ]);
         let options = CensusOptions::default();
         let all = Census::load(&tree, &["."], &options).expect("public load");
-        assert_eq!(all.unexpanded().len(), 2);
+        assert_eq!(all.unexpanded().len(), 5);
         for occurrence in all.unexpanded() {
             let target = all
                 .unexpanded_target(occurrence.target)
@@ -309,7 +315,12 @@ mod tests {
             .expect("selected package");
         let selected = Census::from_packages(&source, &options, &BTreeSet::from([package]))
             .expect("actual package-selected collection");
-        assert_eq!(selected.unexpanded().len(), 1);
+        assert_eq!(selected.unexpanded().len(), 4);
+        assert_eq!(
+            selected.units().len(),
+            1,
+            "inventory creates no structural units"
+        );
         let target = selected
             .unexpanded_target(selected.unexpanded()[0].target)
             .expect("selected owner");

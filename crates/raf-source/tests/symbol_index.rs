@@ -35,9 +35,9 @@ fn module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definition
                 mod inner { ::external::r#make!(r#Type, (nested token)); }\n\
                 #[cfg(test)] mod tests { make!(); }\n\
                 fn f() { make!(); }\n\
-                trait T { make!(); }\n\
-                impl T for () { make!(); }\n\
-                extern \"C\" { make!(); }\n";
+                #[cfg(test)] trait T { #[doc = \"trait\"] make!(TraitName); }\n\
+                #[cfg(test)] impl T for () { make!(ImplName); }\n\
+                #[cfg(test)] extern \"C\" { make!(ForeignName); }\n";
     let source = ok(&[
         ("src/lib.rs", "mod common;"),
         ("src/main.rs", "mod common;"),
@@ -46,15 +46,15 @@ fn module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definition
     let occurrences = source.unexpanded();
     assert_eq!(
         occurrences.len(),
-        6,
-        "three module occurrences in each target"
+        12,
+        "three module and three associated or foreign occurrences in each target"
     );
     for target in source.target_ids() {
         let copies: Vec<_> = occurrences
             .iter()
             .filter(|copy| copy.target == target)
             .collect();
-        assert_eq!(copies.len(), 3);
+        assert_eq!(copies.len(), 6);
         let root = &copies[0];
         assert_eq!(root.invoked.as_str(), "make");
         assert_eq!(&text[root.span.start_byte..root.span.end_byte], "make!();");
@@ -72,6 +72,20 @@ fn module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definition
             ["Type", "nested", "token"]
         );
         assert_eq!(copies[2].test, TestRole::CfgTest);
+        for (copy, line, argument) in [
+            (copies[3], 6, "TraitName"),
+            (copies[4], 7, "ImplName"),
+            (copies[5], 8, "ForeignName"),
+        ] {
+            assert_eq!(copy.module, root.module);
+            assert_eq!(copy.span.lines, line..line + 1);
+            assert_eq!(copy.test, TestRole::CfgTest);
+            assert_eq!(copy.identifiers[0].as_str(), argument);
+        }
+        assert_eq!(
+            &text[copies[3].span.start_byte..copies[3].span.end_byte],
+            "#[doc = \"trait\"] make!(TraitName);"
+        );
         assert!(copies.iter().all(|copy| copy.target == root.target));
     }
     assert_ne!(occurrences[0].target, occurrences[1].target);
@@ -89,7 +103,10 @@ fn unexpanded_payloads_obey_original_fact_and_item_allowances() {
         ("Cargo.toml", DEMO),
         (
             "src/lib.rs",
-            "generate!((one two) [three four] {five six});",
+            "generate!((one two) [three four] {five six});\n\
+             trait T { generate!((seven eight)); }\n\
+             impl T for () { generate!([nine ten]); }\n\
+             extern \"C\" { generate!({eleven twelve}); }",
         ),
     ]);
     let usage = Workspace::load(&tree, &["."])
@@ -116,7 +133,7 @@ fn unexpanded_payloads_obey_original_fact_and_item_allowances() {
                         .expect("exact allowance retains the occurrence")
                         .unexpanded()
                         .len(),
-                    1
+                    4
                 );
             } else {
                 assert!(

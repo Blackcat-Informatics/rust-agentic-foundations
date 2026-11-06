@@ -236,7 +236,10 @@ fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
         "#[cfg(feature=\"native\")] make_native!();\n\
          #[cfg(not(feature=\"native\"))] make_portable!();\n\
          mod inner { #[cfg_attr(feature=\"native\", cfg(test))] make_inner!(); }\n\
-         #[cfg(test)] mod tests { make_test!(); }",
+         #[cfg(test)] mod tests { make_test!(); }\n\
+         trait Api { #[cfg(feature=\"native\")] trait_native!(); #[cfg(not(feature=\"native\"))] trait_portable!(); }\n\
+         impl Api for () { #[cfg(feature=\"native\")] impl_native!(); #[cfg(not(feature=\"native\"))] impl_portable!(); }\n\
+         extern \"C\" { #[cfg(feature=\"native\")] foreign_native!(); #[cfg(not(feature=\"native\"))] foreign_portable!(); }",
     );
     for enabled in [false, true] {
         let source = load(
@@ -256,9 +259,20 @@ fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
         assert_eq!(
             actual,
             if enabled {
-                vec!["make_native"]
+                vec![
+                    "make_native",
+                    "trait_native",
+                    "impl_native",
+                    "foreign_native",
+                ]
             } else {
-                vec!["make_portable", "make_inner"]
+                vec![
+                    "make_portable",
+                    "make_inner",
+                    "trait_portable",
+                    "impl_portable",
+                    "foreign_portable",
+                ]
             }
         );
     }

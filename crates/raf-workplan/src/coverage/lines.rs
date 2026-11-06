@@ -12,8 +12,9 @@
 //!
 //! The units of a file are the units of every target the source index lists:
 //! every item except a module and an `extern crate`, every impl block from its
-//! first attribute to its closing brace, and the index's unexpanded module macro
-//! occurrences. A bounded parse also finds module-level `const _` declarations.
+//! first attribute to its closing brace, and the index's unexpanded item macro
+//! occurrences in modules, traits, impls and foreign blocks. A bounded parse also
+//! finds module-level `const _` declarations and foreign-block owner envelopes.
 //! The counted lines of a
 //! file are the union of the lines of its units; a file is counted once, for
 //! the package of the first target that reaches it, however many targets and
@@ -33,11 +34,16 @@
 //! source is reached. A macro invocation or a `const _` is covered when one of
 //! its module paths is a module that a root opens (a bound module, or one
 //! below it), when its target is an example target an `examples` binding
-//! names, or, for an invocation, when a covered unit names a path that resolves
+//! names, or, for a module invocation, when a covered unit names a path that resolves
 //! to nothing from the module of that unit and whose last segment is an
 //! identifier inside the invocation; the `macro_rules!` a covered invocation
 //! invokes is then a root too, and the closure is taken again until no
 //! invocation is newly covered.
+//! Associated invocation lines also inherit the exact enclosing indexed owner's
+//! reach. A missing owner correspondence refuses the report. Foreign invocations
+//! use module/example opening alone. Associated and foreign invocation units gain
+//! no coverage through global unresolved-name inference and prove no generated
+//! member identity.
 //! A direct `#[global_allocator]` static is also a root of its participating
 //! target. Test-only registration requires a participating test context. The
 //! static retains its source role and reaches its real initializer dependencies.
@@ -489,11 +495,11 @@ enum What {
     Item(Vec<ItemId>),
     /// An impl block, by the blocks of its source.
     Impl(Vec<ImplId>),
-    /// A macro invocation or a `const _` of a module.
+    /// An item macro invocation or a `const _` of a module.
     Module(ModuleUnit),
 }
 
-/// A macro invocation or a `const _` at the item level of a module.
+/// An item macro invocation or a module-level `const _`.
 struct ModuleUnit {
     /// Each module path the unit is reached under, with its target and
     /// whether it is test code there.
@@ -502,6 +508,9 @@ struct ModuleUnit {
     invoked: Option<String>,
     /// The identifiers inside the invocation.
     idents: Vec<String>,
+    /// None retains module-level inference; associated invocations retain exact
+    /// owner nodes, and foreign invocations have an empty owner list.
+    owners: Option<Vec<Node>>,
 }
 
 /// One unit of a file.
@@ -540,6 +549,7 @@ struct Found {
 struct ParsedUnits {
     modules: Vec<Found>,
     allocators: Vec<(usize, usize)>,
+    foreign: Vec<(usize, usize)>,
 }
 
 #[derive(Default)]
@@ -548,9 +558,16 @@ struct Allocators {
     attached: BTreeSet<usize>,
     statics: Vec<(usize, usize)>,
     error: Option<String>,
+    foreign: Vec<(usize, usize)>,
 }
 
 impl<'ast> Visit<'ast> for Allocators {
+    fn visit_item_foreign_mod(&mut self, item: &'ast syn::ItemForeignMod) {
+        let bytes = item.span().byte_range();
+        self.foreign.push((bytes.start, bytes.end));
+        syn::visit::visit_item_foreign_mod(self, item);
+    }
+
     fn visit_attribute(&mut self, attribute: &'ast syn::Attribute) {
         if attribute.path().is_ident("global_allocator") {
             self.attributes.insert(
@@ -610,6 +627,8 @@ fn module_units(path: &RelPath, text: &str) -> Result<ParsedUnits, String> {
             ));
         }
         out.allocators = allocators.statics;
+        out.foreign = allocators.foreign;
+        out.foreign.sort_unstable();
         Ok(out)
     })
     .map_err(|error| error.to_string())?
@@ -1182,6 +1201,7 @@ fn module_unit(source: &Workspace, index: usize, file: &SourceFile, found: &Foun
             copies,
             invoked: None,
             idents: Vec::new(),
+            owners: None,
         }),
         covered: false,
         exception: None,
@@ -1189,8 +1209,18 @@ fn module_unit(source: &Workspace, index: usize, file: &SourceFile, found: &Foun
 }
 
 /// One physical macro invocation, retaining only the reaches the index observed.
-fn unexpanded_unit(source: &Workspace, file: usize, copies: &[&Unexpanded]) -> Unit {
+fn unexpanded_unit(
+    source: &Workspace,
+    file: usize,
+    copies: &[&Unexpanded],
+    owners: Option<Vec<Node>>,
+) -> Unit {
     let first = copies[0];
+    let idents = if owners.is_none() {
+        first.identifiers.iter().map(ToString::to_string).collect()
+    } else {
+        Vec::new()
+    };
     let copies: Vec<_> = copies
         .iter()
         .map(|copy| {
@@ -1220,7 +1250,8 @@ fn unexpanded_unit(source: &Workspace, file: usize, copies: &[&Unexpanded]) -> U
         what: What::Module(ModuleUnit {
             copies,
             invoked: Some(first.invoked.to_string()),
-            idents: first.identifiers.iter().map(ToString::to_string).collect(),
+            idents,
+            owners,
         }),
         covered: false,
         exception: None,
@@ -1295,10 +1326,7 @@ fn collect<'s>(source: &'s Workspace, judged: &BTreeSet<&str>) -> Result<Gathere
                 .push(item);
         }
         let parsed = module_units(&file.path, &file.text)?;
-        for bytes in parsed.allocators {
-            let copies = groups.get(&bytes).filter(|copies| copies.iter().all(|item| item.kind == SymbolKind::Static)).ok_or_else(|| format!("{}: global_allocator static at bytes {}..{} has no exact indexed static definition", file.path, bytes.0, bytes.1))?;
-            out.allocators.extend(copies.iter().map(|item| item.id));
-        }
+        collect_allocators(&file.path, &parsed.allocators, &groups, &mut out.allocators)?;
         for copies in groups.into_values() {
             out.units.push(item_unit(source, index, copies, &block_of));
         }
@@ -1312,20 +1340,34 @@ fn collect<'s>(source: &'s Workspace, judged: &BTreeSet<&str>) -> Result<Gathere
         for found in &parsed.modules {
             out.units.push(module_unit(source, index, file, found));
         }
-        for copies in unexpanded
-            .get(&file.path)
-            .into_iter()
-            .flat_map(BTreeMap::values)
-        {
-            out.units.push(unexpanded_unit(source, index, copies));
-        }
+        let invocations = indexed_invocations(
+            source,
+            index,
+            &out.units,
+            begin..out.units.len(),
+            unexpanded.get(&file.path),
+            &parsed.foreign,
+        )?;
+        out.units.extend(invocations);
         out.of_file.push(begin..out.units.len());
     }
+    collect_runs(source, judged, &mut out)?;
+    Ok(out)
+}
+
+/// Collect reference runs only for the unchanged module-level name heuristic.
+fn collect_runs(
+    source: &Workspace,
+    judged: &BTreeSet<&str>,
+    out: &mut Gathered<'_>,
+) -> Result<(), String> {
     let wanted: BTreeSet<String> = out
         .units
         .iter()
         .filter_map(|unit| match &unit.what {
-            What::Module(module) if module.invoked.is_some() => Some(&module.idents),
+            What::Module(module) if module.invoked.is_some() && module.owners.is_none() => {
+                Some(&module.idents)
+            }
             _ => None,
         })
         .flatten()
@@ -1339,10 +1381,51 @@ fn collect<'s>(source: &'s Workspace, judged: &BTreeSet<&str>) -> Result<Gathere
         {
             let runs = runs_of(&file.path, &file.text, &wanted)?;
             let range = out.of_file[index].clone();
-            place(&out.units, range, runs, &mut out.runs);
+            place(&out.units, range, runs, &mut out.runs)?;
         }
     }
-    Ok(out)
+    Ok(())
+}
+
+/// Match compiler registrations to exact indexed static definitions.
+fn collect_allocators(
+    path: &RelPath,
+    spans: &[(usize, usize)],
+    groups: &BTreeMap<(usize, usize), Vec<&Item>>,
+    out: &mut Vec<ItemId>,
+) -> Result<(), String> {
+    for bytes in spans {
+        let copies = groups.get(bytes)
+            .filter(|copies| copies.iter().all(|item| item.kind == SymbolKind::Static))
+            .ok_or_else(|| format!("{path}: global_allocator static at bytes {}..{} has no exact indexed static definition", bytes.0, bytes.1))?;
+        out.extend(copies.iter().map(|item| item.id));
+    }
+    Ok(())
+}
+
+/// Project indexed occurrences after the file's real item/impl units exist.
+fn indexed_invocations(
+    source: &Workspace,
+    file: usize,
+    units: &[Unit],
+    range: std::ops::Range<usize>,
+    occurrences: Option<&BTreeMap<(usize, usize), Vec<&Unexpanded>>>,
+    foreign: &[(usize, usize)],
+) -> Result<Vec<Unit>, String> {
+    let occurrences: Vec<_> = occurrences.into_iter().flat_map(BTreeMap::values).collect();
+    let mut invocations = Vec::with_capacity(occurrences.len());
+    within_units(
+        units,
+        range,
+        occurrences,
+        |copies| copies[0].span.start_byte,
+        |copies, open| {
+            let owners = invocation_owners(source, units, copies, open, foreign)?;
+            invocations.push(unexpanded_unit(source, file, copies, owners));
+            Ok(())
+        },
+    )?;
+    Ok(invocations)
 }
 
 /// Give each run of a file to the innermost item or impl unit of `range`
@@ -1350,31 +1433,124 @@ fn collect<'s>(source: &'s Workspace, judged: &BTreeSet<&str>) -> Result<Gathere
 fn place(
     units: &[Unit],
     range: std::ops::Range<usize>,
-    mut runs: Vec<Run>,
+    runs: Vec<Run>,
     out: &mut Vec<(Run, Option<usize>)>,
-) {
+) -> Result<(), String> {
+    within_units(
+        units,
+        range,
+        runs,
+        |run| run.start,
+        |run, open| {
+            out.push((run, open.last().map(|span| span.2)));
+            Ok(())
+        },
+    )
+}
+
+/// Visit positions with their containing physical units, outermost first.
+fn within_units<T>(
+    units: &[Unit],
+    range: std::ops::Range<usize>,
+    mut values: Vec<T>,
+    position: impl Fn(&T) -> usize,
+    mut visit: impl FnMut(T, &[(usize, usize, usize)]) -> Result<(), String>,
+) -> Result<(), String> {
+    if values.is_empty() {
+        return Ok(());
+    }
     let mut spans: Vec<(usize, usize, usize)> = range
         .filter(|at| !matches!(units[*at].what, What::Module(_)))
         .map(|at| (units[at].bytes.0, units[at].bytes.1, at))
         .collect();
     // Outer units first where two start at one byte.
     spans.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
-    runs.sort_by_key(|run| run.start);
+    values.sort_by_key(&position);
     let mut open: Vec<(usize, usize, usize)> = Vec::new();
     let mut next = 0;
-    for run in runs {
-        while let Some(&span) = spans.get(next).filter(|span| span.0 <= run.start) {
+    for value in values {
+        let start = position(&value);
+        while let Some(&span) = spans.get(next).filter(|span| span.0 <= start) {
             while open.last().is_some_and(|top| top.1 <= span.0) {
                 open.pop();
             }
             open.push(span);
             next += 1;
         }
-        while open.last().is_some_and(|top| top.1 <= run.start) {
+        while open.last().is_some_and(|top| top.1 <= start) {
             open.pop();
         }
-        let holder = open.last().map(|span| span.2);
-        out.push((run, holder));
+        visit(value, &open)?;
+    }
+    Ok(())
+}
+
+/// Associated owners are exact load-local nodes for each observed reach.
+fn invocation_owners(
+    source: &Workspace,
+    units: &[Unit],
+    copies: &[&Unexpanded],
+    open: &[(usize, usize, usize)],
+    foreign: &[(usize, usize)],
+) -> Result<Option<Vec<Node>>, String> {
+    let first = copies[0];
+    let start = first.span.start_byte;
+    let end = first.span.end_byte;
+    let preceding = foreign.partition_point(|span| span.0 <= start);
+    // Foreign item lists cannot nest another foreign block: their function
+    // declarations have no bodies, so these native AST envelopes are disjoint.
+    if preceding > 0 && foreign[preceding - 1].1 >= end {
+        return Ok(Some(Vec::new()));
+    }
+    let reaches: BTreeSet<_> = copies
+        .iter()
+        .map(|copy| (copy.target, copy.module.as_str()))
+        .collect();
+    let mut owners = BTreeMap::new();
+    let mut associated = false;
+    for &(_, outer_end, at) in open.iter().rev() {
+        if outer_end < end {
+            continue;
+        }
+        match &units[at].what {
+            What::Item(ids) => {
+                for id in ids {
+                    let item = source.item(*id).ok_or_else(|| {
+                        format!("{}: an invocation owner has no indexed item", first.file)
+                    })?;
+                    if item.kind == SymbolKind::Trait {
+                        associated = true;
+                        let reach = (item.target, parent(&item.path));
+                        if reaches.contains(&reach) {
+                            owners.entry(reach).or_insert(Node::Item(*id));
+                        }
+                    }
+                }
+            }
+            What::Impl(ids) => {
+                associated = true;
+                for id in ids {
+                    let block = source.impl_block(*id).ok_or_else(|| {
+                        format!("{}: an invocation owner has no indexed impl", first.file)
+                    })?;
+                    let reach = (block.target, block.module.as_str());
+                    if reaches.contains(&reach) {
+                        owners.entry(reach).or_insert(Node::Impl(*id));
+                    }
+                }
+            }
+            What::Module(_) => {}
+        }
+    }
+    if !associated {
+        Ok(None)
+    } else if owners.len() == reaches.len() {
+        Ok(Some(owners.into_values().collect()))
+    } else {
+        Err(format!(
+            "{}:{}: an associated macro invocation has no exact owner for every indexed reach",
+            first.file, first.span.lines.start
+        ))
     }
 }
 
@@ -1482,10 +1658,16 @@ fn cover(
             unit.covered = match &unit.what {
                 What::Item(ids) => ids.iter().any(|id| reach.contains(Node::Item(*id))),
                 What::Impl(ids) => ids.iter().any(|id| reach.contains(Node::Impl(*id))),
-                What::Module(module) => module.copies.iter().any(|(path, target, _)| {
-                    roots.whole.contains(target)
-                        || ancestors(path).any(|at| roots.opened.contains(at))
-                }),
+                What::Module(module) => {
+                    module
+                        .owners
+                        .as_ref()
+                        .is_some_and(|owners| owners.iter().any(|owner| reach.contains(*owner)))
+                        || module.copies.iter().any(|(path, target, _)| {
+                            roots.whole.contains(target)
+                                || ancestors(path).any(|at| roots.opened.contains(at))
+                        })
+                }
             };
         }
         let mut named: BTreeSet<String> = BTreeSet::new();
@@ -1514,7 +1696,10 @@ fn cover(
             let What::Module(module) = &unit.what else {
                 continue;
             };
-            if !unit.covered && module.idents.iter().any(|ident| named.contains(ident)) {
+            if !unit.covered
+                && module.owners.is_none()
+                && module.idents.iter().any(|ident| named.contains(ident))
+            {
                 unit.covered = true;
             }
             let (true, Some(invoked)) = (unit.covered, &module.invoked) else {

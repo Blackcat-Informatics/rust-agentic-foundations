@@ -407,7 +407,7 @@ fn unconditional_self(block: &syn::ItemImpl) -> bool {
         })
 }
 
-/// One item-producing module macro invocation observed on the parse worker.
+/// One item-producing macro invocation observed on the parse worker.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct UnexpandedFact {
     pub(crate) invoked: String,
@@ -1180,13 +1180,21 @@ impl Extractor<'_> {
         t: &syn::ItemTrait,
         whole: proc_macro2::Span,
         inherited: TestRole,
+        unexpanded: &mut Vec<UnexpandedFact>,
     ) -> Found<ItemFact> {
         let own = summarize(&t.attrs, &FactMeter::scratch())?;
         let inside = role(own.own_test, inherited);
         let mut members = Vec::new();
         for member in &t.items {
-            if let Some(fact) = self.trait_member(member, inside)? {
-                members.push(fact);
+            if let syn::TraitItem::Macro(invocation) = member {
+                unexpanded.push(self.unexpanded(
+                    &invocation.attrs,
+                    &invocation.mac,
+                    member.span(),
+                    inside,
+                )?);
+            } else {
+                members.push(self.trait_member(member, inside)?);
             }
         }
         self.meter
@@ -1204,7 +1212,12 @@ impl Extractor<'_> {
     }
 
     /// The items that are one named item with no further structure.
-    fn named(&self, item: &Item, inherited: TestRole) -> Found<Option<ItemFact>> {
+    fn named(
+        &self,
+        item: &Item,
+        inherited: TestRole,
+        unexpanded: &mut Vec<UnexpandedFact>,
+    ) -> Found<Option<ItemFact>> {
         let whole = item.span();
         let fact = match item {
             Item::Fn(f) => {
@@ -1235,7 +1248,7 @@ impl Extractor<'_> {
                 self.with_nominal(fact, &e.generics)?
             }
             Item::Union(u) => self.union_fact(u, whole, inherited)?,
-            Item::Trait(t) => self.trait_fact(t, whole, inherited)?,
+            Item::Trait(t) => self.trait_fact(t, whole, inherited, unexpanded)?,
             Item::Type(t) => {
                 let mut fact = self.item(
                     &t.ident,
@@ -1305,7 +1318,7 @@ impl Extractor<'_> {
     }
 
     fn one(&self, item: &Item, inherited: TestRole, body: &mut ModBody) -> Found<()> {
-        if let Some(fact) = self.named(item, inherited)? {
+        if let Some(fact) = self.named(item, inherited, &mut body.unexpanded)? {
             body.items.push(fact);
             return Ok(());
         }
@@ -1324,7 +1337,8 @@ impl Extractor<'_> {
                         Vec::new(),
                     )?);
                 } else {
-                    body.unexpanded.push(self.unexpanded(m, inherited)?);
+                    body.unexpanded
+                        .push(self.unexpanded(&m.attrs, &m.mac, whole, inherited)?);
                 }
             }
             Item::ExternCrate(e) => {
@@ -1353,7 +1367,9 @@ impl Extractor<'_> {
                 }
             }
             Item::Mod(m) => body.mods.push(self.module_fact(m, inherited)?),
-            Item::Impl(i) => body.impls.push(self.impl_fact(i, inherited)?),
+            Item::Impl(i) => body
+                .impls
+                .push(self.impl_fact(i, inherited, &mut body.unexpanded)?),
             Item::Use(u) => {
                 let role = use_role(&u.attrs, inherited)?;
                 body.uses.push(self.use_fact(
@@ -1393,22 +1409,28 @@ impl Extractor<'_> {
         Ok(())
     }
 
-    /// Observe module syntax without claiming the invocation's generated names.
-    fn unexpanded(&self, item: &syn::ItemMacro, inherited: TestRole) -> Found<UnexpandedFact> {
-        let line = item.span().start().line;
-        let summary = summarize(&item.attrs, &FactMeter::scratch())?;
-        let mut invoked = if item.mac.path.leading_colon.is_some() {
+    /// Observe item syntax without claiming the invocation's generated names.
+    fn unexpanded(
+        &self,
+        attrs: &[Attribute],
+        invocation: &syn::Macro,
+        whole: proc_macro2::Span,
+        inherited: TestRole,
+    ) -> Found<UnexpandedFact> {
+        let line = whole.start().line;
+        let summary = summarize(attrs, &FactMeter::scratch())?;
+        let mut invoked = if invocation.path.leading_colon.is_some() {
             "::".to_owned()
         } else {
             String::new()
         };
-        invoked.push_str(&path_text(&item.mac.path));
+        invoked.push_str(&path_text(&invocation.path));
         let invoked = fit(invoked);
         self.meter
             .charge(size_of::<UnexpandedFact>() + invoked.capacity(), line)?;
         let mut identifiers = Vec::new();
         let mut stack =
-            purrdf_lex::walk::WorkList::<_, 8>::with(item.mac.tokens.clone().into_iter());
+            purrdf_lex::walk::WorkList::<_, 8>::with(invocation.tokens.clone().into_iter());
         while let Some(mut tokens) = stack.pop() {
             while let Some(token) = tokens.next() {
                 match token {
@@ -1433,7 +1455,7 @@ impl Extractor<'_> {
         self.meter.charge(slack(&mut identifiers), line)?;
         Ok(UnexpandedFact {
             invoked,
-            span: self.positions.span(item.span())?,
+            span: self.positions.span(whole)?,
             test: role(summary.own_test, inherited),
             identifiers,
         })
@@ -1538,21 +1560,20 @@ impl Extractor<'_> {
                 inherited,
                 Vec::new(),
             )?),
-            // A macro invocation inside an `extern` block names nothing the
-            // index can see.
-            syn::ForeignItem::Macro(_) => {}
+            syn::ForeignItem::Macro(invocation) => body.unexpanded.push(self.unexpanded(
+                &invocation.attrs,
+                &invocation.mac,
+                whole,
+                inherited,
+            )?),
             other => return Err(unsupported(other)),
         }
         Ok(())
     }
 
-    fn trait_member(
-        &self,
-        member: &syn::TraitItem,
-        inherited: TestRole,
-    ) -> Found<Option<ItemFact>> {
+    fn trait_member(&self, member: &syn::TraitItem, inherited: TestRole) -> Found<ItemFact> {
         let whole = member.span();
-        let fact = match member {
+        match member {
             syn::TraitItem::Fn(f) => self
                 .item(
                     &f.sig.ident,
@@ -1592,15 +1613,11 @@ impl Extractor<'_> {
                 inherited,
                 Vec::new(),
             ),
-            // A macro invocation in a trait body defines nothing visible, as
-            // in an impl block.
-            syn::TraitItem::Macro(_) => return Ok(None),
             other => Err(unsupported(other)),
-        };
-        fact.map(Some)
+        }
     }
 
-    fn impl_member(&self, member: &syn::ImplItem, inherited: TestRole) -> Found<Option<ItemFact>> {
+    fn impl_member(&self, member: &syn::ImplItem, inherited: TestRole) -> Found<ItemFact> {
         let whole = member.span();
         let fact = match member {
             syn::ImplItem::Fn(f) => {
@@ -1639,26 +1656,36 @@ impl Extractor<'_> {
                 inherited,
                 Vec::new(),
             )?,
-            // A macro invocation in an impl block defines nothing visible.
-            syn::ImplItem::Macro(_) => return Ok(None),
             syn::ImplItem::Verbatim(tokens) => match verbatim::member(tokens) {
                 Some(read) => self.bodiless(&read, whole, inherited, true)?,
                 None => return Err(unsupported(member)),
             },
             other => return Err(unsupported(other)),
         };
-        Ok(Some(fact))
+        Ok(fact)
     }
 
-    fn impl_fact(&self, block: &syn::ItemImpl, inherited: TestRole) -> Found<ImplFact> {
+    fn impl_fact(
+        &self,
+        block: &syn::ItemImpl,
+        inherited: TestRole,
+        unexpanded: &mut Vec<UnexpandedFact>,
+    ) -> Found<ImplFact> {
         let whole = block.span();
         let line = block.impl_token.span.start().line;
         let summary = summarize(&block.attrs, &FactMeter::scratch())?;
         let test = role(summary.own_test, inherited);
         let mut items = Vec::new();
         for member in &block.items {
-            if let Some(fact) = self.impl_member(member, test)? {
-                items.push(fact);
+            if let syn::ImplItem::Macro(invocation) = member {
+                unexpanded.push(self.unexpanded(
+                    &invocation.attrs,
+                    &invocation.mac,
+                    member.span(),
+                    test,
+                )?);
+            } else {
+                items.push(self.impl_member(member, test)?);
             }
         }
         let written_path = self_path_of(&block.self_ty);
