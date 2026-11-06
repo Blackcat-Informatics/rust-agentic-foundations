@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/162-source-retain-unexpanded-macros-in",
+  "branch": "paudley/162-source-retain-unexpanded-macros-in",
+  "base_ref": "origin/main",
+  "head": "2f045edd80a00df8250dd2c1b424fcf1a616da3f",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/162-source-retain-unexpanded-macros-in/.stage/source-retain-unexpanded-macros-in/sync/20261106T031427-74b393d0f882402ba8f445b684c9960a",
+  "conflicts": [],
+  "status": "fast_forward",
+  "base": "387eab8f2414e4a46b8e283017171bacd292c0a1",
+  "merge_bases": [
+    "2f045edd80a00df8250dd2c1b424fcf1a616da3f"
+  ],
+  "commit": "387eab8f2414e4a46b8e283017171bacd292c0a1"
+}
