@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/166-parse-an-explicit-source-corpus-on-one",
+  "branch": "paudley/166-parse-an-explicit-source-corpus-on-one",
+  "base_ref": "origin/main",
+  "head": "e0b01a4f5f3f8e7e7656a2fa67a9adeb529ad1b2",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/166-parse-an-explicit-source-corpus-on-one/.stage/parse-an-explicit-source-corpus-on-one/sync/20261106T010009-13ddb4d0cd7841998f01b5058e626d2e",
+  "conflicts": [],
+  "status": "fast_forward",
+  "base": "2f045edd80a00df8250dd2c1b424fcf1a616da3f",
+  "merge_bases": [
+    "e0b01a4f5f3f8e7e7656a2fa67a9adeb529ad1b2"
+  ],
+  "commit": "2f045edd80a00df8250dd2c1b424fcf1a616da3f"
+}

@@ -1,0 +1,5 @@
+The existing coverage satisfies the parser contract, so no additional tests are being added. `parse_sources` invokes the same native `prescan` for every input. Its recursion boundaries and overflow behavior are already exercised in debug and release; the existing corpus API case covers admission, owned trees, failed-corpus atomicity, empty input and panic propagation.
+
+The PR description now identifies the real consumer exercise: Decodes moved 746 selected files into owned source records, built a call graph across the production corpus, and used it for her-path reachability and reader checks before comparing stderr and seam baselines. All nine site reports matched the previous analyzer, including caller provenance, ordering, keys, ordinals and classifications. The baseline retained 1,027 seams and 234 rows.
+
+Public API documentation is complete and passes the repository's denied missing-documentation lint. A percentage target for private helper docstrings does not identify missing API behavior or justify a source change. The optional language scan reported incomplete coverage; the authored prose passed prose-check and manual review.
