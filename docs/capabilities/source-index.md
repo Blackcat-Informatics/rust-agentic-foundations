@@ -48,6 +48,8 @@ bindings:
     - raf_source::TestPlatformGuard
     - raf_source::Workspace::test_platform_guard
     - raf_source::parse_source
+    - raf_source::parse_sources
+    - raf_source::ParsedSource
     - raf_source::Resolution
     - raf_source::ResolveError
     - raf_source::LoadOptions
@@ -1784,6 +1786,23 @@ The retained index, source text, facts and glob tables are bounded by their item
 ### Parser stack and admission
 <!-- raf:tested-by raf_source::test_crate::overflow_harness::every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts,raf_source::test_crate::overflow_harness::every_shape_family_loads_at_its_largest_admitted_size_and_one_size_more_is_refused,raf_source::test_crate::overflow_harness::a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols,raf_source::test_crate::overflow_harness::a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread,raf_source::test_crate::overflow_harness::the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure,raf_source::test_crate::overflow_harness::the_parse_thread_is_named_after_the_file_and_has_the_stated_stack,raf_source::test_crate::overflow_harness::a_panic_in_the_visitor_is_raised_again_with_its_payload,raf_source::test_crate::overflow_harness::deep_but_admitted_source_parses_on_the_dedicated_stack_not_the_callers,raf_source::test_crate::prescan_budgets::every_operator_counts_one_for_each_of_its_characters_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::every_counted_keyword_counts_one_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::a_level_returns_to_zero_where_its_constructs_end_beside_the_same_count_without_the_end,raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count,raf_source::test_crate::prescan_budgets::chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget -->
 
+`parse_sources` accepts an owned vector of explicit `(RelPath, String)` inputs.
+It preserves input order and identities, including duplicates, without discovering
+modules or selecting Cargo targets. Before parsing any source it applies the
+native byte, token and recursion checks to every input and charges cumulative
+source lengths to `max_total_bytes`. The result vector uses native fallible
+allocation under `max_item_bytes`. This accounts for input and container storage,
+not the aggregate heap retained by syntax trees or allocations by the callback.
+Each file retains the native per-file parser bounds.
+
+One worker parses the complete corpus and gives its `Vec<ParsedSource>` to one
+callback. The callback owns every syntax tree and can move them into cross-file
+analysis structures. Only its `Send` result leaves the worker. A failed file never
+produces a partial callback; an empty corpus calls it once with an empty vector.
+Native errors retain the failing path and syntax position. Parser and callback
+panics resume on the caller with their original payload.
+<!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
+
 Parsing then runs on a dedicated thread, named after the file, with a stack of 64
 MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
 caller. `parse_source` runs a visitor on the syntax tree on that thread and
@@ -3088,6 +3107,12 @@ parent. A final link leaving that parent refuses beside an ordinary index file.
 Native decoding reopens the index by name, so concurrent swaps are not an atomic
 observation guarantee.
 
+For a caller-selected corpus, pass its paths and source texts to `parse_sources`
+with `LoadOptions`. Consume each `ParsedSource.syntax` on the worker and return
+owned report data. The source texts and paths move with their trees, so analysis
+can preserve source-based keys without rereading files. `parse_source` retains
+its borrowed single-file visitor contract.
+
 Use `Workspace::unexpanded()` to inspect module macro syntax alongside named
 items. Retain its owning workspace when reading a record's target identity;
 target numbers from another load do not identify the same occurrence context.
@@ -3264,6 +3289,12 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 A committed snapshot remains readable with an empty executable search path.
 Replacement references and working-tree edits leave the selected committed bytes
 unchanged. A missing local object refuses beside its complete neighboring view.
+
+An offline policy tool can read active and inactive sources selected by its own
+rules, then call `parse_sources(inputs, &options, |sources| { ... })`. Its callback
+can move all function items into a shared table, resolve calls across those files
+in a second pass, and return path-qualified findings. Returning a typed `Result`
+from the callback preserves analysis failures separately from parser failures.
 
 For `mod generated { make!(Made); }`, the occurrence names module
 `demo::generated`, invocation `make` and argument identifier `Made`. The index
@@ -5245,7 +5276,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::target_roots::unreadable_target_roots_name_explicit_paths_or_table_names_and_build_discovery` | test | [Contract](#contract) |
 | `raf_source::test_crate::this_repository::a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle` | test | [Verification](#verification) |
 | `raf_source::test_crate::this_repository::an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_module` | test | [Verification](#verification) |
-| `raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::this_repository::the_surface_of_each_library_and_binary_of_this_repository_lists_its_public_items` | test | [Verification](#verification) |
 | `raf_source::test_crate::this_repository::this_repository_loads_from_its_root_with_the_crates_directory_as_the_root` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key` | test | [Contract](#contract) |

@@ -8,8 +8,10 @@ use std::thread;
 
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
+use crate::meter::{Meter, NativeAdmission};
 use crate::path::RelPath;
 use crate::prescan::{Scan, prescan};
+use crate::{LoadOptions, TreeError};
 
 /// The stack of the thread that parses, in bytes: 64 MiB.
 ///
@@ -46,6 +48,83 @@ pub fn parse_source<R: Send>(
     parse_counted(file, text, Budget::FileTokens.limit(), visit).map(|(result, _)| result)
 }
 
+/// One explicitly selected source and its owned syntax tree.
+///
+/// The syntax and its spans stay on the worker that parsed them. A batch visitor
+/// can move these records into its own analysis structures and return `Send`
+/// report data through [`parse_sources`].
+pub struct ParsedSource {
+    /// The caller's source identity; no discovery or module selection is performed.
+    pub path: RelPath,
+    /// The original source text, moved from the input without copying.
+    pub text: String,
+    /// The syntax tree, owned by the visitor.
+    pub syntax: syn::File,
+}
+
+/// Parse an explicit corpus once and give all its syntax trees to one visitor.
+///
+/// Input order and identities are preserved, including repeated identities.
+/// Before parsing any file, the complete input is checked against
+/// `options.max_file_bytes`, `options.max_total_bytes`, `options.max_file_tokens`
+/// and the native recursion budgets. The result-vector allocation is charged to
+/// `options.max_item_bytes`. This bounds source input and corpus-container storage;
+/// it does not meter the aggregate heap of retained `syn` trees or allocations
+/// made by `visit`. Each file retains the parser's per-file resource bounds.
+///
+/// Parsing, visiting and dropping the trees run on one scoped worker with
+/// [`PARSE_STACK_BYTES`]. The visitor runs exactly once, after every file parses,
+/// including for an empty corpus. Only its `Send` result leaves the worker.
+/// A visitor returning a `Result` retains its own typed error in that result.
+/// No filesystem, Cargo, target selection or duplicate policy is involved.
+///
+/// # Errors
+///
+/// Returns the native [`LoadError`] naming the input that exceeded a limit or
+/// failed to parse. Worker startup and corpus-vector allocation failures are
+/// also errors. No failed corpus reaches the visitor as a partial success.
+///
+/// # Panics
+///
+/// A parser or visitor panic resumes on the caller with its original payload.
+pub fn parse_sources<R: Send>(
+    inputs: Vec<(RelPath, String)>,
+    options: &LoadOptions,
+    visit: impl FnOnce(Vec<ParsedSource>) -> R + Send,
+) -> Result<R, LoadError> {
+    let meter = Meter::new(options);
+    for (file, text) in &inputs {
+        if text.len() as u64 > options.max_file_bytes {
+            return Err(LoadError::new(
+                file,
+                None,
+                LoadErrorKind::Tree(Box::new(TreeError::TooLarge {
+                    path: file.to_string(),
+                    limit: options.max_file_bytes,
+                })),
+            ));
+        }
+        meter.read(file, text)?;
+        prescan(file, text, options.max_file_tokens)?;
+    }
+    let file = inputs
+        .first()
+        .map_or_else(RelPath::root, |(file, _)| file.clone());
+    let worker_name = file.clone();
+    on_worker(&worker_name, move || {
+        let mut trees = Vec::new();
+        let mut admission = NativeAdmission::items(&meter, &file, None, 0);
+        purrdf_lex::allocation::Memory::new(&mut admission)
+            .reserve(&mut trees, inputs.len())
+            .map_err(|error| admission.graph_error(error.into()))?;
+        for (path, text) in inputs {
+            let syntax = parse_syntax(&path, &text)?;
+            trees.push(ParsedSource { path, text, syntax });
+        }
+        Ok(visit(trees))
+    })
+}
+
 /// [`parse_source`] with a token limit of `max_tokens`, also returning what
 /// the pre-scan counted.
 pub(crate) fn parse_counted<R: Send>(
@@ -65,43 +144,39 @@ pub(crate) fn parse_counted_mut<R: Send>(
     visit: impl FnOnce(&mut syn::File) -> R + Send,
 ) -> Result<(R, Scan), LoadError> {
     let scan = prescan(file, text, max_tokens)?;
+    on_worker(file, || {
+        parse_syntax(file, text).map(|mut tree| (visit(&mut tree), scan))
+    })
+}
+
+fn on_worker<R: Send>(
+    file: &RelPath,
+    work: impl FnOnce() -> Result<R, LoadError> + Send,
+) -> Result<R, LoadError> {
     thread::scope(|scope| {
         let worker = thread::Builder::new()
             .name(file.to_string())
             .stack_size(PARSE_STACK_BYTES)
-            .spawn_scoped(scope, move || {
-                // Span data belongs to the thread that parsed, so the error's
-                // message and position are read here and leave as plain data.
-                syn::parse_file(text)
-                    .map(|mut tree| visit(&mut tree))
-                    .map_err(|error| {
-                        let start = error.span().start();
-                        SyntaxFailure {
-                            message: error.to_string(),
-                            line: start.line,
-                            column: start.column + 1,
-                        }
-                    })
-            })
+            .spawn_scoped(scope, work)
             .map_err(|source| LoadError::new(file, None, LoadErrorKind::Spawn(source)))?;
         match worker.join() {
-            Ok(Ok(result)) => Ok((result, scan)),
-            Ok(Err(failure)) => Err(LoadError::new(
-                file,
-                Some(failure.line),
-                LoadErrorKind::Syntax {
-                    message: failure.message,
-                    column: failure.column,
-                },
-            )),
+            Ok(result) => result,
             Err(payload) => panic::resume_unwind(payload),
         }
     })
 }
 
-/// A parse error as plain data.
-struct SyntaxFailure {
-    message: String,
-    line: usize,
-    column: usize,
+fn parse_syntax(file: &RelPath, text: &str) -> Result<syn::File, LoadError> {
+    syn::parse_file(text).map_err(|error| {
+        // Read thread-local span data before returning the error to the caller.
+        let start = error.span().start();
+        LoadError::new(
+            file,
+            Some(start.line),
+            LoadErrorKind::Syntax {
+                message: error.to_string(),
+                column: start.column + 1,
+            },
+        )
+    })
 }
