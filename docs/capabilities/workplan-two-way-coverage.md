@@ -25,7 +25,6 @@ bindings:
     - raf_workplan::test_crate::coverage::a_bound_item_is_covered_and_its_unbound_neighbour_is_a_gap
     - raf_workplan::test_crate::coverage::trait_members_alias_order_and_foreign_reexports_keep_their_defining_owners
     - raf_workplan::test_crate::coverage::an_unresolved_bare_reexport_keeps_its_edition_specific_module_origin
-    - raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not
     - raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not
     - raf_workplan::test_crate::coverage::binary_public_items_follow_visibility_rather_than_their_names
     - raf_workplan::test_crate::coverage::cyclic_imports_and_empty_public_globs_are_report_errors_beside_listable_neighbors
@@ -175,7 +174,7 @@ internals is a gap like any other until it is bound or its module is excluded wi
 the reason.
 
 ### Module input identity
-<!-- raf:tested-by raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not,raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not -->
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not -->
 
 A bound module's digest for evidence and assessment inputs covers its whole
 text, including child-module text. An edit inside it moves those inputs, while
@@ -346,8 +345,9 @@ documentation describes the supported result. A planned feature stays visibly pl
 until its implementation and documentation justify a stronger description. The
 coverage reports keep the unfinished part visible, and they turn documentation
 maintenance into work the system can identify: when a referenced API disappears,
-the affected section receives a `binding-missing` obligation, and when a bound example
-stops compiling or running it receives an `example-failing` obligation.
+the affected section receives a `binding-missing` obligation. Example bindings
+resolve statically; their bodies remain inspected data, and coverage never claims
+that compilation or execution succeeded.
 
 ## Verification
 
@@ -478,7 +478,6 @@ stops compiling or running it receives an `example-failing` obligation.
 | `raf_workplan::test_crate::coverage::this_repository_enforces_all_packages_with_zero_coverage_debt` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::coverage::trait_members_alias_order_and_foreign_reexports_keep_their_defining_owners` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::coverage::without_a_record_check_has_exactly_one_finding_that_says_to_add_it` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lines::an_excluded_item_that_nothing_covers_is_orphan_until_an_exception_names_it` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::obligations::the_binding_obligations_are_the_gaps_of_the_roadmap` | test | [Contract](#contract) |

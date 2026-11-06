@@ -401,15 +401,6 @@ impl Stored {
             .map_err(|error| finding(path, error))?;
         Ok(Some(format!("{head}{}", body.text())))
     }
-    pub(crate) fn inputs(&self) -> impl Iterator<Item = &RelPath> {
-        self.current
-            .ordered()
-            .filter_map(|(path, text)| text.as_ref().map(|_| path))
-    }
-
-    pub(crate) fn has_manifest(&self) -> bool {
-        self.manifest_text.is_some()
-    }
     pub(crate) fn analyze(&self, options: Option<&SyncOptions>) -> Analysis {
         match self.expected(options) {
             Ok(analysis) => analysis,

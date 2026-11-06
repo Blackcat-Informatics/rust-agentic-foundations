@@ -14,7 +14,7 @@ bindings:
     - raf_census::Unit::string_initializer
   tests:
     - raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures
-    - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
+
     - raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases
     - raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries
     - raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order
@@ -25,6 +25,7 @@ bindings:
     - raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package
     - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
     - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
+    - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
   examples:
     - raf_census::example_crate::providers
 depends: [cap:census-normal-form]
@@ -109,7 +110,7 @@ block; computed or unavailable values are errors. Sole-name includes test
 targets in the home package and exempts the actual home and entry-point units.
 
 ### Complete fixture coverage
-<!-- raf:tested-by raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+<!-- raf:tested-by raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures -->
 
 Every executable built-in has positive and negative Gate fixtures. The fixture
 inventory is checked against the executable registry, rejecting missing sides,
@@ -209,11 +210,11 @@ The native ledger is read by `Gate::workspace(directory).check()` or by
 `check_tree` for a caller-owned tree. Each hit retains its file, line and
 `rule:<id>`. The declared home must resolve in that workspace.
 
-A repository-owned registered check reports selected built-ins through the same
-command as custom rules: `cargo census --workspace DIR check --package PACKAGE
---example EXAMPLE`. Its registered target evaluates the ledger's chosen built-in
-ids and returns their native findings to the command.
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+Select built-in requirements directly with `Gate::require_rules` and install
+custom rules through `Gate::rules`. The native CLI evaluates its built-in Gate
+without starting repository targets; package/example selectors are refused.
+<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
+
 
 For a preferred-provider job, evaluate the configured locked Gate described in
 [the ledger](./census-ledger.md) and retain the functionality detector on the job.
@@ -266,6 +267,12 @@ call inside the helper cannot exempt it; a neighbouring nonmatching byte string
 remains clean. Only proved native consumers and approved API definitions receive
 home or entry-point exemptions.
 <!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package,raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis -->
+
+A direct `Gate::workspace(root).require_rules(["serde-json"])` check applies the
+required built-in without a repository target. The native CLI likewise reads
+its own Gate and refuses package/example selectors instead of compiling that
+repository's source to obtain detector implementations.
+<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 ## Constraints
 
@@ -322,8 +329,9 @@ registry completeness check. The real self-Census selects these same rule IDs.
 The registry check compares executable built-in ids against the fixture
 families consumed by the behavioral Gate tests. Missing or duplicate families,
 unregistered ids and missing positive or negative fixture sets fail the check.
-The real registered command transports built-in and custom-rule findings
-unchanged from the native Gate, and accepts the neighbouring clean source.
+The behavioral Gate cases consume the registered built-ins directly and pair
+required findings with neighbouring clean source.
+<!-- raf:tested-by raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures,raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
 
 - Each detector has a positive fixture that yields exactly one hit with the right
   `rule:<id>`, and a negative fixture that yields none.
@@ -344,7 +352,7 @@ unchanged from the native Gate, and accepts the neighbouring clean source.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Usage](#usage) |
+| `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
 | `raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::example_crate::providers` | example target | [Usage](#usage) |
 | `raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |

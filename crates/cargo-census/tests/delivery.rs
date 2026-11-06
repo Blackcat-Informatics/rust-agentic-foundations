@@ -103,6 +103,82 @@ fn run(root: &Path, words: &[&str]) -> Output {
 }
 
 #[test]
+fn native_index_never_builds_or_executes_consumer_targets() {
+    let scratch = fixture();
+    let root = scratch.path();
+    fs::create_dir(root.join("examples")).unwrap();
+    fs::create_dir(root.join("tests")).unwrap();
+    let dangerous = "fn main() { std::fs::write(\"consumer-executed\", b\"bad\").unwrap(); panic!(\"must not execute\"); }\n";
+    for path in ["build.rs", "examples/registered.rs", "tests/destructive.rs"] {
+        fs::write(root.join(path), dangerous).unwrap();
+    }
+    let report = Gate::workspace(root).check().unwrap();
+    let expected = report
+        .census()
+        .index(report.jobs())
+        .unwrap()
+        .to_ntriples()
+        .unwrap();
+    let result = run(root, &["index"]);
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(result.stdout, expected.as_bytes());
+    let checked = run(root, &["check"]);
+    assert_eq!(checked.status.code(), Some(i32::from(!report.is_clean())));
+    let bounded = run(root, &["index", "--max-index-bytes", "1"]);
+    assert_eq!(bounded.status.code(), Some(1));
+    assert_eq!(bounded.stdout, Vec::<u8>::new());
+    assert!(!root.join("consumer-executed").exists());
+    assert!(!root.join("target").exists());
+    for path in ["build.rs", "examples/registered.rs", "tests/destructive.rs"] {
+        assert_eq!(fs::read_to_string(root.join(path)).unwrap(), dangerous);
+    }
+    let refused = run(
+        root,
+        &["check", "--package", "demo", "--example", "registered"],
+    );
+    assert_eq!(refused.status.code(), Some(2));
+}
+
+#[test]
+fn report_exports_refuse_source_existing_files_and_git_administration() {
+    let scratch = fixture();
+    let root = scratch.path();
+    let original = fs::read(root.join("src/lib.rs")).unwrap();
+    for path in ["src/lib.rs", "Cargo.toml", "helpers-ledger.ttl"] {
+        let result = run(root, &["baseline", "--out", path]);
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+    }
+    fs::create_dir(root.join(".git")).unwrap();
+    let result = run(root, &["baseline", "--out", ".git/report.ttl"]);
+    assert_eq!(result.status.code(), Some(1));
+    assert!(!root.join(".git/report.ttl").exists());
+    fs::remove_dir(root.join(".git")).unwrap();
+    let administration = scratch.path().join("bare-administration");
+    fs::create_dir_all(administration.join("objects")).unwrap();
+    fs::create_dir_all(administration.join("refs/heads")).unwrap();
+    fs::write(administration.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+    fs::write(
+        administration.join("config"),
+        "[core]\nrepositoryformatversion=0\nbare=true\n",
+    )
+    .unwrap();
+    let destination = administration.join("report.ttl");
+    let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+        .current_dir(root)
+        .arg("baseline")
+        .arg("--out")
+        .arg(&destination)
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(1), "{result:?}");
+    assert!(!destination.exists());
+    let result = run(root, &["baseline", "--out", "report.ttl"]);
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(result.stdout, Vec::<u8>::new());
+    assert_eq!(fs::read(root.join("src/lib.rs")).unwrap(), original);
+}
+
+#[test]
 fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate() {
     let scratch = fixture();
     let root = scratch.path();
@@ -273,7 +349,6 @@ fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
         vec!["debt"],
         vec!["migrate", "--legacy", "--ledger", "missing"],
         vec!["migrate", "--ledger", "missing"],
-        vec!["check"],
         vec!["baseline", "--format", "json"],
         vec!["baseline", "--out"],
         vec!["dump-ledger", "--format", "json"],
@@ -301,14 +376,7 @@ fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
         for limit in ["0", above.as_str()] {
             let mut words = vec![command];
             words.extend(selector);
-            words.extend([
-                "--package",
-                "demo",
-                "--example",
-                "registered",
-                "--max-index-bytes",
-                limit,
-            ]);
+            words.extend(["--max-index-bytes", limit]);
             assert_eq!(run(root, &words).status.code(), Some(2), "{words:?}");
         }
     }

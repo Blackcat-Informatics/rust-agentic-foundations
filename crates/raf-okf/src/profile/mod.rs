@@ -29,6 +29,7 @@ pub use model::{
     ArchitectureModel, ArtifactFlow, Component, ComponentKind, DeclaredRelation, ExternalActor,
     ModelBindings, Scenario, ScenarioRegion, ScenarioRegionKind, ScenarioStep,
 };
+pub use records::is_commit_id;
 pub use review::{
     ReviewDisposition, ReviewFinding, ReviewKind, ReviewLocation, ReviewRecord, ReviewScope,
     ReviewSeverity, ReviewVerdict,

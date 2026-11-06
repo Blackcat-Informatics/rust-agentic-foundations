@@ -98,7 +98,8 @@ const BINDING_EVIDENCE: &str = "a binding that resolves through the source index
 const SYNC_EVIDENCE: &str = "a docs sync run";
 const TENSE_EVIDENCE: &str = "text rewritten as the supported behaviour";
 const CLAIM_EVIDENCE: &str = "a passing record within its limits for each evidence id the claim names, or the claim reworded or removed";
-const STALE_EVIDENCE: &str = "the evidence recorded again with evidence record";
+const STALE_EVIDENCE: &str =
+    "the authored evidence metadata reviewed and updated against its current inputs";
 
 const BLOCK: &str = "\n> [!PROPOSED change:shape]\n> The candidate contract.\n";
 
@@ -1015,7 +1016,7 @@ fn the_baseline_owes_nothing_and_check_agrees() {
 // --- every kind, in both directions ------------------------------------------
 
 #[test]
-fn every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none() {
+fn every_document_local_kind_is_raised_and_history_kinds_are_not() {
     let mut raised: BTreeSet<&str> = BTreeSet::new();
     let mut names = BTreeSet::new();
     for case in cases() {
@@ -1041,19 +1042,18 @@ fn every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by
         .collect();
     let unraised: Vec<&&str> = statics.difference(&raised).collect();
     assert!(unraised.is_empty(), "no fixture raises {unraised:?}");
-    // The kinds that start a process are in the closed set and are not raised
-    // from the documents.
-    let dynamic: BTreeSet<&str> = known.difference(&statics).copied().collect();
+    // Historical comparisons need native Git data beyond the loaded documents.
+    // They remain static and start no process.
+    let historical: BTreeSet<&str> = known.difference(&statics).copied().collect();
     assert_eq!(
-        dynamic,
+        historical,
         BTreeSet::from([
             "section-untouched",
             "contract-effect-understated",
-            "example-failing",
             "evidence-changed"
         ])
     );
-    assert!(raised.is_disjoint(&dynamic), "{raised:?}");
+    assert!(raised.is_disjoint(&historical), "{raised:?}");
 }
 
 // --- derived, not re-implemented ---------------------------------------------
@@ -1835,9 +1835,6 @@ fn needed_is_a_typed_value_whose_text_starts_with_the_contract_string() {
             text.starts_with(obligation.evidence.contract_text()),
             "{text}"
         );
-        assert!(!matches!(
-            obligation.evidence,
-            Needed::SectionDiff | Needed::PassingRun { .. }
-        ));
+        assert!(!matches!(obligation.evidence, Needed::SectionDiff));
     }
 }

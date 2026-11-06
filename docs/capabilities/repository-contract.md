@@ -10,9 +10,10 @@ bindings:
   code:
     - rust_agentic_foundations
     - rust_agentic_foundations::gate_root
-    - rust_agentic_foundations::bin_crate::raf_ci::main
-    - rust_agentic_foundations::bin_crate::raf_ci::run_examples
   tests:
+    - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority
+    - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths
+    - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
     - rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling
     - rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory
     - rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back
@@ -140,6 +141,12 @@ assessments to the same complete workplan policy that the libraries provide.
 
 ## Contract
 
+**Runtime authority.** Analysis-library source rejects process-launch imports,
+foreign launch interfaces and macro-hidden launch paths. Static checks never
+execute inspected tests, examples or doctests. Explicit documentation trust lives
+only in the private CLI operation and cannot be granted by repository content.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority,rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths -->
+
 **Bounded CI.** Every workflow job declares an integer `timeout-minutes` from
 one through nine, reserving execution headroom below a ten-minute job ceiling.
 Missing, dynamic, zero and excessive values refuse the native
@@ -152,16 +159,8 @@ both the root and independent fuzz dependency graphs checked. Aggregate test
 and harness-policy results require their applicable jobs to succeed.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling -->
 
-**Binding validation.** The self-workplan gate resolves a native execution plan
-for every test and example binding without starting a process. Package tests
-execute unit, integration and documentation tests. The `raf-ci` binary uses the
-same native executor to run each documented standalone example target of its
-selected package. Only a passing execution satisfies a repeated plan; a
-host-inapplicable binding cannot suppress a later applicable binding. Unknown
-packages, invalid plans, model findings and failing examples are hard errors.
-Full `cargo workplan verify` remains available for explicit per-binding runtime
-auditing and affected capability completion retains its native execution gate.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
+**Binding validation.** The self-workplan gate validates source bindings and the complete static document model. Consumer tests, examples and doctests are never executed by RAF. Verification prints declarations and static findings; completion uses a prospective document overlay and owned data writes. Maintainer-controlled RAF checks use explicitly controlled fixtures and never grant inspected source execution authority.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed,cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
 
 **Self-Census.** The root package runs the production Census gate over the same
 selected read root. The canonical `helpers-ledger.ttl` declares both the first-party
@@ -224,18 +223,7 @@ apply this Rust gate to a checkout of the staged index; CI runs the same gate.
 ## Usage
 
 Use `cargo test --locked --package <package>` for one package's ordinary suite.
-Build the example runner with `cargo build --locked --bin raf-ci`, then run
-`target/debug/raf-ci <package>` to execute its documented standalone examples
-through native verification. The command reports each
-example before execution and its actual outcome afterwards. Workplan test
-partitions use Cargo metadata to select library, binary, integration and enabled
-example tests in one invocation per partition. Run library doctests separately
-and compile normal examples with
-`cargo build --locked --package raf-workplan --examples`. Run `make fuzz-check`
-for harness Clippy and dependency policy, or `make fuzz-run` for the instrumented
-corpus and bounded mutations; `make fuzz` retains the complete sequence. The
-required local `make check` runs all five optimized instrumented targets. Hosted
-CI checks harness compilation, lint and dependency policy.
+Use the static verification command to inspect declared example and test bindings. It never initiates the consumer programs named by those declarations.
 
 Run `cargo test --locked --test self_census` to judge the repository ledger and
 debt. Adopt missing debt or lower resolved debt explicitly with
@@ -298,18 +286,16 @@ dynamic, zero or excessive value refuses the repository gate.
 
 ## Explanation
 
-Execution budgets reserve a minute of headroom because runner setup and
-cancellation add to the duration reported for a job. Runner queue delay is
-external. Process-free planning establishes source-to-invocation validity. Exact
-Cargo listing, applicability and per-binding runtime receipts require native
-execution. Capability documents are test inputs, so their changes retain full
-test coverage.
+CI jobs reserve a minute below their ten-minute ceiling for setup and completion.
+These maintainer-controlled jobs qualify RAF itself; they do not grant RAF
+authority to execute an inspected consumer. Capability documents are test inputs,
+so their changes select the full repository package matrix.
 
-Workplan has two exhaustive partitions of Cargo metadata targets whose tests are
-enabled. Each partition uses one Cargo invocation with explicit target selectors.
-Library doctests, normal example compilation and native standalone example
-verification run once on the second partition. Unsupported target kinds and
-missing test decisions fail rather than drop a target. Other package jobs retain
+Workplan has three exhaustive partitions of its enabled Cargo test targets;
+Source and the root package have two. Each partition uses explicit target
+selectors. Library doctests and normal example compilation run on the second
+partition; examples are never automatically executed. Unsupported target kinds
+and missing test decisions fail rather than drop a target. Other packages retain
 the ordinary package suite. The CLI coverage test checks this repository once
 for code and once for tests. Package-name spelling and command-entry parity run
 on a small fixture rather than multiplying those full-repository loads.
@@ -347,6 +333,7 @@ no separate interpretation of the documents or source index.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::history::a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor` | test | [Verification](#verification) |
 | `rust_agentic_foundations::example_crate::repository_gate` | example target | [Usage](#usage) |
 | `rust_agentic_foundations::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported` | test | [Contract](#contract) |
@@ -444,6 +431,8 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_tracked_files_are_forbidden` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_exempts_the_clock_file_but_not_its_neighbour` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_exempts_the_gate_file_but_not_its_neighbours` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_exempts_the_paths_outside_every_rule` | test | [Verification](#verification) |

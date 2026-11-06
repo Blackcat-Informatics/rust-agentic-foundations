@@ -4,12 +4,11 @@
 //! Owned domain results. Human text and machine projection share these values.
 
 use raf_workplan::assessment::{AssessContext, Assessed, AssessmentState};
-use raf_workplan::bound::Evidence;
 use raf_workplan::coverage::{CoverageReport, GapKind, lines::LinesReport};
 use raf_workplan::debt::DebtWrite;
-use raf_workplan::evidence::{Recorded, Support};
+use raf_workplan::evidence::Support;
 use raf_workplan::history::History;
-use raf_workplan::lifecycle::{Failure, Impact, NewChange};
+use raf_workplan::lifecycle::{Failure, Impact, NewChange, VerifyReport};
 use raf_workplan::obligation::Obligation;
 use raf_workplan::strict::ClaimsReport;
 use raf_workplan::{Finding, OpenChange, RoadmapEntry};
@@ -31,6 +30,12 @@ pub(crate) enum Result {
         directory: String,
         entry: String,
     },
+    DocumentationArtifact {
+        package: String,
+        entry: String,
+        sha256: String,
+        provenance: String,
+    },
     Preview {
         path: String,
         subject: String,
@@ -41,22 +46,16 @@ pub(crate) enum Result {
     Obligation(Obligation),
     Completed {
         path: String,
-        evidence: Vec<Evidence>,
     },
     Refused {
         failures: usize,
         message: String,
-        evidence: Vec<Evidence>,
     },
     Refusal {
         failure: Failure,
         repeated: bool,
     },
-    Binding {
-        evidence: Evidence,
-        message: String,
-    },
-    EvidenceRecorded(Recorded),
+    Verification(VerifyReport),
     EvidenceSupport {
         capability: String,
         support: Support,

@@ -229,3 +229,5 @@ pub use workspace::{
     ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree, SourceFile,
     TestFn, Workspace,
 };
+/// Native read-only repository and object access, without executable helpers.
+pub mod git;

@@ -14,12 +14,11 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 use clap::{ArgAction, ArgGroup, Args as ClapArgs, Parser, Subcommand, ValueEnum};
-use raf_okf::{Actor, AssessmentVerdict, DocType, Measure, is_kebab};
+use raf_okf::{Actor, AssessmentVerdict, DocType, is_kebab};
 use raf_workplan::assessment::parse_subject;
 use raf_workplan::diagram::DiagramKind;
-use raf_workplan::evidence::parse_limit;
-use raf_workplan::exec::{Commit, Date};
 use raf_workplan::history::HISTORY_KINDS;
+use raf_workplan::identifiers::{Commit, Date};
 
 use crate::render::Format;
 
@@ -78,14 +77,12 @@ pub(crate) enum Command {
     /// The change records: create, read, reconcile and complete one.
     #[command(subcommand)]
     Change(Change),
-    /// Run the bound tests and examples of a change, or of every capability,
-    /// and print pass or fail for each binding.
+    /// Statically check the document contract and selected binding declarations.
     Verify(VerifyArgs),
     /// Print the commits that shaped a document or record and, for a
     /// capability, its bound code, newest first. Reads Git; writes nothing.
     History(HistoryArgs),
-    /// Evidence records: run a command or a bound test and record its
-    /// verdict, or list the claims and records that rest on one another.
+    /// List authored evidence metadata and the claims that reference it.
     #[command(subcommand)]
     Evidence(Evidence),
     /// Prose assessment of one section: print what an assessor reads, record
@@ -280,9 +277,6 @@ pub(crate) struct HistoryArgs {
 /// The commands under `evidence`.
 #[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
 pub(crate) enum Evidence {
-    /// Run the command after `--`, or a bound test or example, and write its
-    /// verdict as the evidence record `work/evidence/<id>.md`.
-    Record(RecordArgs),
     /// Print the statements that rest on an evidence record.
     Claims(EvidenceIdArgs),
     /// Print the evidence records that support a capability.
@@ -325,70 +319,6 @@ impl Verdict {
             Self::Rejected => AssessmentVerdict::Rejected,
         }
     }
-}
-
-/// The arguments of `evidence record`.
-#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
-pub(crate) struct RecordArgs {
-    /// The slug of the record, `work/evidence/<id>.md`.
-    #[arg(long, value_name = "slug", value_parser = slug)]
-    pub(crate) id: String,
-
-    /// A capability the evidence covers, `cap:<slug>`. Give the option once
-    /// for each capability.
-    #[arg(
-        long = "for",
-        id = "covers",
-        value_name = "cap:<slug>",
-        required = true,
-        action = ArgAction::Append,
-        value_parser = capability_id
-    )]
-    pub(crate) covers: Vec<String>,
-
-    /// A limit on a value the command prints, `name=number`. Give the option
-    /// once for each limit.
-    #[arg(long, value_name = "name=number", action = ArgAction::Append, value_parser = limit)]
-    pub(crate) limit: Vec<Measure>,
-
-    /// The commit the execution ran at, 40 or 64 lowercase hexadecimal
-    /// digits. Stored for readers only.
-    #[arg(long, value_name = "commit", value_parser = revision)]
-    pub(crate) revision: Option<String>,
-
-    /// Replace the record of the id instead of creating a new one.
-    #[arg(long)]
-    pub(crate) update: bool,
-
-    /// Who records it: `human` or `agent`.
-    #[arg(long, value_enum, value_name = "human|agent", required = true)]
-    pub(crate) by: By,
-
-    /// The copyright text of the first SPDX line of the record. Given with
-    /// `--licence` or not at all.
-    #[arg(long, value_name = "text", requires = "licence", value_parser = word)]
-    pub(crate) copyright: Option<String>,
-
-    /// The licence identifier of the second SPDX line of the record. Given
-    /// with `--copyright` or not at all.
-    #[arg(long, value_name = "id", requires = "copyright", value_parser = word)]
-    pub(crate) licence: Option<String>,
-
-    /// Take the verdict from this bound test or example of a capability of
-    /// `--for` instead of a command.
-    #[arg(long, value_name = "path", value_parser = word, conflicts_with = "command")]
-    pub(crate) from_binding: Option<String>,
-
-    /// The command to run, after `--`: the program and its arguments, run
-    /// exactly as given, with no shell.
-    #[arg(
-        last = true,
-        value_name = "command",
-        num_args = 1..,
-        required_unless_present = "from_binding",
-        value_parser = clap::value_parser!(OsString)
-    )]
-    pub(crate) command: Vec<OsString>,
 }
 
 /// The arguments of `evidence claims`.
@@ -509,6 +439,8 @@ pub(crate) enum Change {
 /// The commands under `docs`.
 #[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
 pub(crate) enum Docs {
+    /// Inspect existing metadata, messages and HTML without building or publishing.
+    Artifacts(ArtifactArgs),
     /// Explicit publication of shared documentation bundles.
     #[command(subcommand)]
     Build(DocsBuild),
@@ -528,8 +460,53 @@ pub(crate) enum Docs {
 /// The selected documentation publication host.
 #[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
 pub(crate) enum DocsBuild {
+    /// Compile selected library documentation, accepting trusted build-time code.
+    Rustdoc(TrustedDocsArgs),
     /// Publish a self-contained explorer and static artifacts beside host output.
     Standalone(StandaloneArgs),
+}
+
+/// Explicit library and feature selection shared by artifact readers and builds.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct LibraryArgs {
+    /// Exact workspace package name; repeat for each selected library.
+    #[arg(long = "package", required = true)]
+    pub(crate) packages: Vec<String>,
+    /// Qualified package/feature name; repeat for each feature.
+    #[arg(long = "feature")]
+    pub(crate) features: Vec<String>,
+    /// Exclude package default features.
+    #[arg(long)]
+    pub(crate) no_default_features: bool,
+    /// Explicit existing directory containing the documentation artifacts.
+    #[arg(long)]
+    pub(crate) target_directory: PathBuf,
+}
+
+/// Private CLI compilation authority, granted only for this invocation.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct TrustedDocsArgs {
+    #[command(flatten)]
+    pub(crate) libraries: LibraryArgs,
+    /// Existing directory containing the fixed cargo, rustc and rustdoc binaries.
+    #[arg(long)]
+    pub(crate) toolchain_directory: PathBuf,
+    /// Accept arbitrary side effects of build scripts and procedural macros.
+    #[arg(long)]
+    pub(crate) trust_docs: bool,
+}
+
+/// Imported carriers are data, without compiler-success authority.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct ArtifactArgs {
+    #[command(flatten)]
+    pub(crate) libraries: LibraryArgs,
+    /// Existing bounded Cargo format-v1 metadata file.
+    #[arg(long)]
+    pub(crate) metadata: PathBuf,
+    /// Existing bounded Cargo JSON message file.
+    #[arg(long)]
+    pub(crate) messages: PathBuf,
 }
 
 /// One named bundle and an existing directory receiving owned versioned output.
@@ -721,12 +698,6 @@ pub(crate) fn evidence_id(text: &str) -> Result<String, String> {
 pub(crate) fn since(text: &str) -> Result<Date, String> {
     undashed(text, "a date")?;
     Date::new(text).map_err(|error| error.to_string())
-}
-
-/// A `--limit`, `name=number` with no exponent.
-pub(crate) fn limit(text: &str) -> Result<Measure, String> {
-    undashed(text, "a limit")?;
-    parse_limit(text).map_err(|error| error.to_string())
 }
 
 /// A `--revision`, a commit id.
@@ -1138,22 +1109,11 @@ mod tests {
         }
     }
 
-    fn record_args(words: &[&str]) -> RecordArgs {
-        match same(words).command {
-            Command::Evidence(Evidence::Record(args)) => args,
-            other => panic!("not `evidence record`: {other:?}"),
-        }
-    }
-
     fn assess_args(words: &[&str]) -> AssessArgs {
         match same(words).command {
             Command::Assess(args) => args,
             other => panic!("not `assess`: {other:?}"),
         }
-    }
-
-    fn os(words: &[&str]) -> Vec<OsString> {
-        words.iter().map(OsString::from).collect()
     }
 
     #[test]
@@ -1209,188 +1169,6 @@ mod tests {
             &["history", "cap:a", "cap:b"],
         ] {
             refused(words);
-        }
-    }
-
-    #[test]
-    fn evidence_record_reads_every_option_and_the_command_after_the_separator() {
-        let full = record_args(&[
-            "evidence",
-            "record",
-            "--id",
-            "peak-memory",
-            "--for",
-            "cap:a",
-            "--for",
-            "cap:b",
-            "--limit",
-            "peak=64",
-            "--limit",
-            "rss=1.5",
-            "--revision",
-            "0123456789abcdef0123456789abcdef01234567",
-            "--update",
-            "--by",
-            "agent",
-            "--copyright",
-            "2026 Example Org",
-            "--licence",
-            "CC-BY-4.0",
-            "--",
-            "cargo",
-            "bench",
-            "--",
-            "--save",
-        ]);
-        assert_eq!(full.id, "peak-memory");
-        assert_eq!(full.covers, ["cap:a", "cap:b"]);
-        let limits: Vec<(&str, &str)> = full
-            .limit
-            .iter()
-            .map(|m| (m.name.as_str(), m.value.text()))
-            .collect();
-        assert_eq!(limits, [("peak", "64"), ("rss", "1.5")]);
-        assert_eq!(
-            full.revision.as_deref(),
-            Some("0123456789abcdef0123456789abcdef01234567")
-        );
-        assert!(full.update);
-        assert_eq!(full.by, By::Agent);
-        assert_eq!(full.by.actor(), Actor::Agent);
-        assert_eq!(full.copyright.as_deref(), Some("2026 Example Org"));
-        assert_eq!(full.licence.as_deref(), Some("CC-BY-4.0"));
-        assert_eq!(full.from_binding, None);
-        // Every word after the first `--` is the command, a second `--`
-        // included.
-        assert_eq!(full.command, os(&["cargo", "bench", "--", "--save"]));
-
-        let minimal = record_args(&[
-            "evidence", "record", "--id", "x", "--for", "cap:a", "--by", "human", "--", "true",
-        ]);
-        assert_eq!(minimal.by, By::Human);
-        assert_eq!(minimal.by.actor(), Actor::Human);
-        assert!(!minimal.update && minimal.limit.is_empty() && minimal.revision.is_none());
-        assert_eq!(minimal.command, os(&["true"]));
-
-        let bound = record_args(&[
-            "evidence",
-            "record",
-            "--id",
-            "x",
-            "--for",
-            "cap:a",
-            "--by",
-            "human",
-            "--from-binding",
-            "demo::tests::passes",
-        ]);
-        assert_eq!(bound.from_binding.as_deref(), Some("demo::tests::passes"));
-        assert_eq!(bound.command, Vec::<OsString>::new());
-    }
-
-    #[test]
-    fn options_after_the_separator_belong_to_the_command() {
-        let args = same(&[
-            "--format",
-            "turtle",
-            "evidence",
-            "record",
-            "--id",
-            "x",
-            "--for",
-            "cap:a",
-            "--by",
-            "agent",
-            "--",
-            "sh",
-            "-q",
-            "--format=text",
-            "--root",
-            "elsewhere",
-            "--by",
-            "human",
-        ]);
-        assert_eq!(args.format, Format::Turtle);
-        assert!(!args.quiet);
-        assert_eq!(args.root, None);
-        let Command::Evidence(Evidence::Record(record)) = args.command else {
-            panic!("not `evidence record`");
-        };
-        assert_eq!(record.by, By::Agent);
-        assert_eq!(
-            record.command,
-            os(&[
-                "sh",
-                "-q",
-                "--format=text",
-                "--root",
-                "elsewhere",
-                "--by",
-                "human"
-            ])
-        );
-    }
-
-    #[test]
-    fn evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write() {
-        let head = [
-            "evidence", "record", "--id", "x", "--for", "cap:a", "--by", "agent",
-        ];
-        let with = |tail: &[&'static str]| -> Vec<&'static str> {
-            head.iter().chain(tail.iter()).copied().collect()
-        };
-        for words in [
-            // An option whose value would be the separator.
-            with(&["--copyright", "--", "--licence", "x", "--", "true"]),
-            with(&["--copyright=--", "--licence", "x", "--", "true"]),
-            with(&["--licence=--", "--copyright", "x", "--", "true"]),
-            with(&["--from-binding", "--"]),
-            with(&["--from-binding=--"]),
-            with(&["--revision", "--", "true"]),
-            with(&["--limit", "--", "true"]),
-            // No source of the verdict, or both.
-            with(&[]),
-            with(&["--"]),
-            with(&["--from-binding", "demo::t", "--", "true"]),
-            // A value that is refused.
-            with(&["--limit", "peak=1e-3", "--", "true"]),
-            with(&["--limit", "peak", "--", "true"]),
-            with(&["--limit", "-1=2", "--", "true"]),
-            with(&["--revision", "HEAD", "--", "true"]),
-            with(&["--revision", "0123456", "--", "true"]),
-            with(&["--copyright", "x", "--", "true"]),
-            with(&["--licence", "x", "--", "true"]),
-            with(&["--by", "robot", "--", "true"]),
-            vec![
-                "evidence", "record", "--id", "x", "--for", "cap:a", "--", "true",
-            ],
-            vec![
-                "evidence", "record", "--id", "x", "--by", "agent", "--", "true",
-            ],
-            vec![
-                "evidence", "record", "--for", "cap:a", "--by", "agent", "--", "true",
-            ],
-            vec![
-                "evidence", "record", "--id", "-rf", "--for", "cap:a", "--by", "agent", "--",
-                "true",
-            ],
-            vec![
-                "evidence",
-                "record",
-                "--id",
-                "x",
-                "--for",
-                "workplan-cli",
-                "--by",
-                "agent",
-                "--",
-                "true",
-            ],
-            vec![
-                "evidence", "record", "--id", "x", "--for", "--", "--by", "agent", "--", "true",
-            ],
-        ] {
-            refused(&words);
         }
     }
 

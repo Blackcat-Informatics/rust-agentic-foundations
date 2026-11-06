@@ -29,6 +29,7 @@ bindings:
     - raf_okf::Profile
     - raf_okf::Index
     - raf_okf::is_capability_index
+    - raf_okf::is_commit_id
     - raf_okf::Span
     - raf_okf::RafDocument
     - raf_okf::EvidenceRecord
@@ -426,6 +427,12 @@ independent identities and records.
 
 The profile has eight types. `Review` is an empty-body record with a required RFC 3339 timestamp, full reviewed revision, source scope, kind, verdict, reviewer category, derived inputs and findings. Its optional findings reference names a readable repository file or an opaque HTTP(S) URL. Finding rows retain severity, source location and open, fixed, accepted or false-positive disposition. Capability headers optionally declare distinct closed `review_required` kinds. The architecture profile states the complete closed key and value sets.
 <!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
+
+`is_commit_id` shares the profile's full revision spelling with callers: exactly
+40 or 64 lowercase hexadecimal digits, checked through native canonical hex
+decoding. This validates spelling without reading a repository or proving that
+the identifier names a commit object.
+<!-- raf:tested-by raf_okf::test_crate::records::a_revision_is_a_full_commit_id -->
 
 Capability and Architecture frontmatter may declare `diagrams`. Each closed row
 names one automatic family and scope, with optional focus, grouping, relationship
@@ -1350,7 +1357,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::records::a_record_has_no_title_description_or_body` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_record_sits_in_its_directory_and_its_id_matches_its_file` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_record_type_is_named_in_the_unknown_type_message` | test | [Verification](#verification) |
-| `raf_okf::test_crate::records::a_revision_is_a_full_commit_id` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::a_revision_is_a_full_commit_id` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::a_valid_assessment_validates_to_its_typed_value` | test | [Verification](#verification) |

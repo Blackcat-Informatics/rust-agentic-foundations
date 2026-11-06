@@ -13,9 +13,9 @@
 //! * `tests` names functions marked `#[test]`.
 //! * `examples` names the crate root of an example target
 //!   (`<package>::example_crate::<name>`), or an item with documentation in
-//!   the library of a package whose documentation tests run (an
-//!   [`ExampleKind::Doctest`]). That a documentation test passes is judged by
-//!   running it, not here.
+//!   the library of a package with documentation tests enabled (an
+//!   [`ExampleKind::Doctest`]). These are static roles; RAF never runs the
+//!   declared bodies or claims that a documentation test passed.
 //!
 //! A symbol that a macro generates is not in the index. When the path does not
 //! resolve, its parent is a module of the index, and a macro invocation at the
@@ -36,11 +36,10 @@ use crate::{Finding, Loaded};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum ExampleKind {
-    /// The crate root of an example target, which `cargo test` builds and
-    /// `cargo run --example` runs.
+    /// The crate root of a declared Cargo example target.
     Target,
-    /// An item with documentation in the library of a package whose
-    /// documentation tests run: its documentation holds the example. That the
+    /// An item with documentation in a library target that enables documentation
+    /// tests: its documentation holds the example. That the
     /// documentation holds a fenced code block, and that the library's
     /// `crate-type` allows documentation tests, are not index facts and are
     /// not judged.
@@ -140,7 +139,7 @@ fn role_fix(kind: BindingKind) -> &'static str {
             "bind a function marked `#[test]`, or move the entry to `code` or `examples`"
         }
         BindingKind::Example => {
-            "bind the crate root of an example target (`<package>::example_crate::<name>`) or a documented item of a library whose documentation tests run, or move the entry to `code` or `tests`"
+            "bind the crate root of an example target (`<package>::example_crate::<name>`) or a documented item of a library whose target enables documentation tests, or move the entry to `code` or `tests`"
         }
     }
 }
@@ -163,7 +162,7 @@ pub(crate) fn wrong_role(
             Some("names an item that is not a function marked `#[test]`")
         }
         BindingKind::Example if sites.iter().any(|id| binding.example_kind(*id).is_none()) => Some(
-            "names an item that is neither the crate root of an example target nor a documented item of a library whose documentation tests run",
+            "names an item that is neither the crate root of an example target nor a documented item of a library whose target enables documentation tests",
         ),
         _ => None,
     }

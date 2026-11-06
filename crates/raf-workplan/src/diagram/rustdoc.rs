@@ -19,21 +19,21 @@ use syn::ext::IdentExt as _;
 
 /// The exact selected library and documented module receiving a fragment.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct Context<'a> {
+pub struct Context<'a> {
     /// Load-local library target identity, preserving package selection.
-    pub(super) target: TargetId,
+    pub target: TargetId,
     /// Full crate-root or publicly exported module path in that library.
-    pub(super) module: &'a str,
+    pub module: &'a str,
     /// Capability whose code bindings supply the required API references.
-    pub(super) capability: &'a str,
-    /// Exact declared binding spellings retained by the assembly request.
-    pub(super) required: &'a [String],
-    /// Library identity from the actual captured Cargo selection.
-    pub(super) library: &'a Library,
+    pub capability: &'a str,
+    /// Exact declared binding spellings retained by the fragment request.
+    pub required: &'a [String],
+    /// Library identity from the explicit imported Cargo selection.
+    pub library: &'a Library,
     /// Canonical workspace root of that selection.
-    pub(super) root: &'a Path,
+    pub root: &'a Path,
     /// Native content digest of the captured Cargo metadata.
-    pub(super) metadata: &'a str,
+    pub metadata: &'a str,
 }
 
 /// Add checked API references and source identity to one unchanged bundle.
@@ -55,11 +55,11 @@ pub(super) struct Context<'a> {
 ///
 /// # Errors
 /// Refuses absent/invalid scope, a target other than a library, missing native
-/// Cargo-observed package/version identity, unresolved or ambiguous required bindings,
+/// imported Cargo package/version identity, unresolved or ambiguous required bindings,
 /// unavailable public export paths and unsupported item kinds. Original native
 /// resolution, export, digest and escaping errors retain their error sources.
 /// More than 4096 API bindings refuse. A refusal returns no partial fragment.
-pub(super) fn fragment(
+pub fn fragment(
     plan: &Workplan<'_>,
     source: &Workspace,
     bundle: &DiagramBundle,
@@ -182,13 +182,13 @@ fn preface(
             != library.source.canonicalize().map_err(DiagramError::data)?
     {
         return Err(refused(
-            "Cargo-observed identity disagrees with the selected source target",
+            "imported Cargo identity disagrees with the selected source target",
         ));
     }
     let mut output = String::new();
     write!(
         output,
-        "API references for <code>{}</code>, Cargo-observed package <code>{}</code>, version <code>{}</code>.\n\n\
+        "API references for <code>{}</code>, imported Cargo package <code>{}</code>, version <code>{}</code>.\n\n\
          Manifest <code>{}</code>, library root <code>{}</code>.\n\n",
         escaped(context.module)?,
         escaped(&library.package)?,

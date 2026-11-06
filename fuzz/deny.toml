@@ -68,11 +68,36 @@ allow = ["CC-BY-4.0"]
 crate = "purrdf-jsonschema@=3.0.1"
 allow = ["Unicode-3.0"]
 
+# Native Git retains Unicode normalization tables under their original notice.
+[[licenses.exceptions]]
+crate = "unicode-normalization@=0.1.26"
+allow = ["Unicode-3.0"]
+
+# Native diff and Git-cache hashers carry unmodified Zlib-licensed source.
+# Retain its notice and mark any altered source; this admits only audited releases.
+[[licenses.exceptions]]
+crate = "foldhash@=0.1.5"
+allow = ["Zlib"]
+
+[[licenses.exceptions]]
+crate = "foldhash@=0.2.0"
+allow = ["Zlib"]
+
+# Git object decoding requires the native Zlib implementation and its notice.
+[[licenses.exceptions]]
+crate = "zlib-rs@=0.6.8"
+allow = ["Zlib"]
+
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"
 # The pinned native RDF wasm-bindgen macro closure uses syn 2; RAF uses syn 3.
-skip = [{ crate = "syn@=2.0.119", reason = "Pinned native RDF wasm-bindgen macro closure; RAF source parsing uses syn 3." }]
+skip = [
+    { crate = "syn@=2.0.119", reason = "Pinned native RDF wasm-bindgen macro closure; RAF source parsing uses syn 3." },
+    { crate = "hashbrown@=0.15.5", reason = "imara-diff 0.2.0 requires hashbrown ^0.15; native Git's gix-hashtable requires ^0.17.1." },
+    { crate = "hashbrown@=0.16.1", reason = "gix-pack 0.77.0 requires clru's dynamic object cache; current clru 0.6.3 requires hashbrown ^0.16." },
+    { crate = "foldhash@=0.1.5", reason = "imara-diff's hashbrown 0.15.5 requires foldhash ^0.1; clru's hashbrown 0.16.1 requires ^0.2." },
+]
 
 [advisories]
 yanked = "deny"

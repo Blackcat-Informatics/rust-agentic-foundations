@@ -14,11 +14,7 @@ use raf_okf::{DocType, Input, InputKind, ReviewKind, ReviewRecord, ReviewScope, 
 use raf_source::{SymbolKind, Workspace};
 
 use crate::{Loaded, Workplan, digest::Digest, graph::BindingKind};
-use crate::{
-    exec::{Commit, Runner},
-    git,
-    lifecycle::BaseTree,
-};
+use crate::{git, identifiers::Commit, lifecycle::BaseTree};
 
 /// Resolve a scope from the actual first-party source at a validated commit.
 ///
@@ -31,24 +27,25 @@ use crate::{
 /// unresolved scopes and original native or Git failures. Later currency queries
 /// use the persisted inputs and never call this function again.
 pub fn inputs_at_revision(
-    runner: &dyn Runner,
+    repository: &git::Repository,
     revision: &Commit,
     scope: &ReviewScope,
 ) -> Result<Vec<Input>, ReviewError> {
-    at_revision(runner, revision, scope, |plan, _| plan.review_inputs(scope))
+    at_revision(repository, revision, scope, |plan, _| {
+        plan.review_inputs(scope)
+    })
 }
 
 fn at_revision<T>(
-    runner: &dyn Runner,
+    repository: &git::Repository,
     revision: &Commit,
     scope: &ReviewScope,
     inspect: impl FnOnce(&Workplan<'_>, &BaseTree<'_>) -> Result<T, ReviewError>,
 ) -> Result<T, ReviewError> {
-    git::require_version(runner).map_err(ReviewError::native)?;
-    let resolved = git::resolve_commit_id(runner, revision).map_err(ReviewError::native)?;
-    let prefix = git::show_prefix(runner).map_err(ReviewError::native)?;
-    let listing = git::tree_at(runner, &resolved, &prefix).map_err(ReviewError::native)?;
-    let tree = BaseTree::at_revision(runner, &resolved, &prefix, listing);
+    let resolved = git::resolve_commit_id(repository, revision).map_err(ReviewError::native)?;
+    let prefix = git::show_prefix(repository).map_err(ReviewError::native)?;
+    let listing = git::tree_at(repository, &resolved, &prefix).map_err(ReviewError::native)?;
+    let tree = BaseTree::at_revision(repository, &resolved, &prefix, listing);
     let source = match Workspace::load(&tree, &["."]) {
         Ok(source) => source,
         Err(error) => {

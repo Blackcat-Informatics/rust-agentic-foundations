@@ -41,7 +41,7 @@ and pull requests are welcome.
 - **The workplan completion gate.** A change is complete only when the capability
   documents state the delivered contract: no proposed block remains, every item has an
   outcome (`implemented`, `dropped`, or `moved` to another tracked change), the
-  generated sections are in sync, and the bound tests and examples pass. The change
+  generated sections are in sync, and source bindings and assessments are valid. The change
   record is then deleted; Git keeps the history.
 - **Every rule has a negative fixture.** A detector, schema rule or check without an
   input that makes it fail is not enforced.
@@ -62,23 +62,20 @@ make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath
 make help    # list every target
 ```
 
-The registered `repository_census` example shares the self-Census policy, including
-its required syntax rules, workspace and fuzz roots, and exact debt ratchet. Run
-its read-only check or complete index through the actual CLI:
+The `repository_census` example shares the self-Census policy, including its
+required syntax rules, workspace and fuzz roots, and exact debt ratchet. The CLI
+reads the native ledger directly without building or executing that example:
 
 ```bash
-cargo run --locked -p cargo-census -- census --workspace . check \
-  --package rust-agentic-foundations --example repository_census
+cargo run --locked -p cargo-census -- census --workspace . check
 cargo run --locked -p cargo-census -- census --workspace . index \
-  --package rust-agentic-foundations --example repository_census \
   --max-index-bytes 67108864
 ```
 
 A complete index is emitted even when the check has findings; run `check` for
-the policy verdict. This example refuses debt publication.
-The index command explicitly admits 64 MiB for each captured target stream,
-including standard error; the default allowance is 16 MiB. The allowance does
-not bound native graph allocation or the final rendered report.
+the policy verdict. The example refuses debt publication. The index command
+explicitly admits 64 MiB for the complete serialized native index; the default
+allowance is 16 MiB. This does not bound native graph allocation.
 
 - **`make check` is the gate.** It stops at the first failure. CI runs the
   documented compilation, test and policy checks; local `make check` additionally
@@ -90,29 +87,19 @@ not bound native graph allocation or the final rendered report.
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.
-- **Native execution prerequisites.** Install `bubblewrap` for the `bwrap`
-  executable, Git 2.36 or newer and OpenSSH's `ssh-keygen`. The host must support
-  Linux pidfds, PID and mount namespaces, executable sealed memfds and `/proc`
-  access. These requirements apply to every native `SystemRunner` invocation,
-  including Git and compiler information queries. Fixtures create and verify an ephemeral SSH
-  signing authority inside their Git administration; no maintainer private key
-  is used. Ordinary Git-backed opening and tracked-oracle queries retain their
-  Git 2.30 minimum; completed views need NUL-delimited worktree inventory.
-  The ephemeral Linux test job installs these
-  packages and an AppArmor profile attached to `/usr/bin/bwrap` that permits
-  namespaces for bubblewrap and its nested trusted tests. Other execution trees
-  retain Ubuntu's global restriction. The job checks native namespace execution
-  before running the suite. Missing tools or capabilities
-  are failures; no original-root fallback or skipped completion case applies.
-- **Bound validation.** The self-workplan gate checks the native execution plan
-  of every test and example binding without running it. Package jobs execute
-  ordinary tests once, including doctests, and `raf-ci` runs documented standalone
-  examples once per successful native plan. Workplan uses two exhaustive
-  partitions of Cargo metadata test targets, with doctests and normal example
-  compilation once on the second partition. Full `cargo workplan verify` is an
-  explicit runtime audit. Native capability completion still executes its affected
-  bindings and refuses missing, ignored or zero-test proof. A host-inapplicable
-  binding never counts as an executed example.
+- **Runtime and fixture authority.** Analysis libraries start no processes and
+  require no namespace, PID supervision or executable Git helper. Git reads use
+  a native read-only adapter. The maintainer-controlled Git fixtures use installed
+  Git and OpenSSH ssh-keygen to create and verify ephemeral signatures inside
+  their own temporary repositories; they never use a maintainer private key.
+  No host policy override or elevated permission is required.
+- **Static validation.** Verification and completion validate source bindings,
+  document contracts, prospective generated output and current assessments.
+  They never initiate consumer tests, examples, doctests or arbitrary commands.
+  Maintainer-controlled RAF verification uses fixed fixtures as data and retains
+  the mandatory gates below. Private documentation compilation requires explicit
+  --trust-docs on each invocation, accepting arbitrary build-script and
+  procedural-macro effects without a sandbox guarantee.
 - **CI budget.** Every job has a nine-minute execution budget, reserving headroom
   below the ten-minute job ceiling. Source, fixture,
   capability-document and build changes select every workspace package; unrelated

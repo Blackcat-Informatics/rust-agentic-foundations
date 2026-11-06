@@ -207,7 +207,7 @@ fn an_examples_binding_is_an_example_target_or_a_documented_library_item() {
         assert_eq!(kind, "binding-wrong-role", "{binding}");
         assert!(
             message.starts_with(&format!(
-                "cap:gamma examples binding `{binding}` names an item that is neither the crate root of an example target nor a documented item of a library whose documentation tests run"
+                "cap:gamma examples binding `{binding}` names an item that is neither the crate root of an example target nor a documented item of a library whose target enables documentation tests"
             )),
             "{message}"
         );

@@ -7,28 +7,25 @@ subject: cap:workplan-reconcile#usage
 inputs:
   - kind: section
     name: cap:workplan-reconcile#usage
-    digest: 347b226ce3026efcbcc3b1ed8005ab099fe9821f679798146e3f2f7982f925f4
+    digest: 65b2606fb29ff2a4ba2a3679c8874f3025d176fd104d0024b07478be9cf27a98
+  - kind: symbol
+    name: raf_workplan::Workplan::impact
+    digest: 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a
+  - kind: symbol
+    name: raf_workplan::Workplan::new_change
+    digest: e98206c0a4765ede28c155cb8575aa631609841c14e02af17e889740bbccc4d5
   - kind: symbol
     name: raf_workplan::Workplan::reconcile
-    digest: 0c3f46f0e8b0d0f38ee66eccb226f909ed9bf78bde660f9c52b1555edb3722ad
-  - kind: symbol
-    name: raf_workplan::git
-    digest: d75fb2d1f2c72a897b5a82eadc3be06bcf7591993062024ed91fa1946bbb3c6a
-  - kind: symbol
-    name: raf_workplan::git::ResolvedCommit
-    digest: 7619e6480dc1d726f34a651c15581123946acbde019d51ed1c2e98dbc92e3d96
-  - kind: symbol
-    name: raf_workplan::git::blob_at
-    digest: b8323e86845081824cd7ef8f61af5ec41d4057c24c48c1ca7e8e2eadacdaa41d
-  - kind: symbol
-    name: raf_workplan::git::resolve_commit
-    digest: fe54098521262c24cef768174dfe37ba17238322be8e739acf64e4b73ec9e4ba
-  - kind: symbol
-    name: raf_workplan::git::resolve_commit_id
-    digest: cb97dc67d0fad54b814f87d29d6a3a23246891f967f1494aa997c22b14e1dc53
+    digest: dc8a8600263b5f9a10aa7cffc3ecbec81a2916b0a29dd22a1b1d161380c1b20f
   - kind: symbol
     name: raf_workplan::lifecycle::Lifecycle::reconcile
-    digest: 8b63f107a3c0212ff28e09abd4c0e9538ea3b331281a47a59ca8a498e671478f
+    digest: 6fa2fd1a30b0e36763f3c3ef091f2b758f1b09b169408df5a1d263f5f1ca9c48
+  - kind: symbol
+    name: raf_workplan::lifecycle::changed
+    digest: 9b63b15bdb3c2e8e1519d4adee37f2e216eff7b571f77e561fce667ef2e6455d
+  - kind: symbol
+    name: raf_workplan::lifecycle::untouched
+    digest: c4bcfb2c0638b52dcd66423977bf61207f5fae27cb5ccc2a1acddc416858af40
 verdict: accepted
 by: agent
 ---

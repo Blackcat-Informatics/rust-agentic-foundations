@@ -25,9 +25,9 @@
 //!
 //! The repository is opened with `Gate::open`, the load the gate runs: the
 //! documents are read through a disk tree rooted at `ROOT`, and the source index
-//! is built from the workspace at `ROOT`. Links are judged against the tracked
-//! paths from `git ls-files` when `ROOT` is inside a git work tree. When `git`
-//! answers that it is not, every file of the tree stands for a tracked path; that
+//! is built from the workspace at `ROOT`. Links are judged against tracked
+//! paths from the native Git index when `ROOT` is inside a Git worktree. When
+//! native discovery finds no repository, every file stands for a tracked path; that
 //! only changes the link findings of `check`, which sync does not read. A `ROOT`
 //! with no `docs/capabilities` directory, or none that holds a capability
 //! document, is exit 2 with the gate's message.

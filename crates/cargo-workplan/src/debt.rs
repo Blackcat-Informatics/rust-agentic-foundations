@@ -6,12 +6,11 @@
 use std::path::Path;
 
 use crate::result::Result as CommandResult;
-use raf_workplan::Finding;
 use raf_workplan::debt::DebtError;
 use raf_workplan::record::RecordOptions;
+use raf_workplan::{Finding, Gate};
 
 use crate::cli::DebtArgs;
-use crate::command::gate;
 use crate::exit::Failure;
 use crate::render::{Record, Report};
 
@@ -28,7 +27,7 @@ pub(crate) fn debt(root: &Path, args: &DebtArgs) -> Result<Report, Failure> {
     if let Some(licence) = &args.licence {
         options = options.licence(licence.as_str());
     }
-    match gate(root).record_options(options).write_debt() {
+    match Gate::workspace(root).record_options(options).write_debt() {
         Ok(written) => {
             let text = format!(
                 "{}: {} ({} finding(s), {} item(s) with orphan lines)",

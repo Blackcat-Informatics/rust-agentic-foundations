@@ -19,8 +19,8 @@ use raf_okf::{Body, CapabilitySection, ContractEffect, MAX_TEXT_BYTES};
 use raf_source::RelPath;
 
 use crate::SectionId;
-use crate::exec::{Runner, SourcePath};
 use crate::git::{self, MergeBase, Prefix};
+use crate::identifiers::SourcePath;
 use crate::lookup::capability_path;
 use crate::obligation::{Needed, Obligation, ObligationKind, Part, Place, Subject, suppressed};
 use crate::{Opened, lifecycle::Impact};
@@ -132,7 +132,7 @@ pub fn section_digest(body: &Body, section: CapabilitySection) -> Option<Section
 /// kinds) and each capability file is read once at it.
 pub(super) fn raise(
     opened: &Opened,
-    runner: &dyn Runner,
+    repository: &git::Repository,
     prefix: &Prefix,
     impact: &Impact,
     effect: ContractEffect,
@@ -152,7 +152,7 @@ pub(super) fn raise(
     if wanted.is_empty() {
         return Ok(Vec::new());
     }
-    let base = merge_base(base, runner)?;
+    let base = merge_base(base, repository)?;
     let mut files: BTreeMap<String, Files> = BTreeMap::new();
     let mut owed = Vec::new();
     for id in wanted {
@@ -162,7 +162,7 @@ pub(super) fn raise(
             reason: "is not a capability id".to_string(),
         })?;
         if !files.contains_key(&path) {
-            let read = Files::read(opened, runner, base, prefix, &path)?;
+            let read = Files::read(opened, repository, base, prefix, &path)?;
             files.insert(path.clone(), read);
         }
         let Some(file) = files.get(&path) else {
@@ -185,11 +185,11 @@ pub(super) fn raise(
 /// time a kind needs it and kept in `slot` for the next.
 pub(super) fn merge_base<'b>(
     slot: &'b mut Option<MergeBase>,
-    runner: &dyn Runner,
+    repository: &git::Repository,
 ) -> Result<&'b MergeBase, LifecycleError> {
     let base = match slot.take() {
         Some(base) => base,
-        None => git::default_merge_base(runner)?,
+        None => git::default_merge_base(repository)?,
     };
     Ok(slot.insert(base))
 }
@@ -198,7 +198,7 @@ pub(super) fn merge_base<'b>(
 /// the merge base, named from the top of the work tree, or `None` when it is
 /// not there.
 pub(super) fn blob(
-    runner: &dyn Runner,
+    repository: &git::Repository,
     base: &MergeBase,
     prefix: &Prefix,
     path: &str,
@@ -217,7 +217,7 @@ pub(super) fn blob(
             prefix.as_str()
         ))
     })?;
-    Ok(git::blob_at(runner, base.resolved(), &named)?)
+    Ok(git::blob_at(repository, base.resolved(), &named)?)
 }
 
 /// One capability file at the merge base and in the working tree.
@@ -230,7 +230,7 @@ struct Files {
 impl Files {
     fn read(
         opened: &Opened,
-        runner: &dyn Runner,
+        repository: &git::Repository,
         base: &MergeBase,
         prefix: &Prefix,
         path: &str,
@@ -240,7 +240,7 @@ impl Files {
             side,
             reason,
         };
-        let base = blob(runner, base, prefix, path)?
+        let base = blob(repository, base, prefix, path)?
             .map(|bytes| {
                 let text = String::from_utf8(bytes)
                     .map_err(|_| document(Side::MergeBase, "is not UTF-8 text".to_string()))?;

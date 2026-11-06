@@ -6,9 +6,8 @@
 //! the branch, unchanged, only a generated block changed, a file new on the
 //! branch, the default branch itself, a linked work tree, a local branch named
 //! like the remote one, a default branch named like an option, no default
-//! branch, an oversize and an unparsable file at the merge base), the version
-//! gate over stubs that record what they were started with, and the digest
-//! itself.
+//! branch, an oversize and an unparsable file at the merge base), and the
+//! section digest itself.
 
 mod support;
 
@@ -16,8 +15,6 @@ use std::fs;
 use std::path::Path;
 
 use raf_okf::{Body, CapabilitySection, MAX_TEXT_BYTES};
-use raf_workplan::Gate;
-use raf_workplan::exec::{Call, FakeRunner, Output, Program};
 use raf_workplan::git::GitError;
 use raf_workplan::lifecycle::{Lifecycle, LifecycleError, Side, section_digest};
 use raf_workplan::obligation::ObligationKind;
@@ -308,12 +305,8 @@ fn a_linked_work_tree_compares_its_own_head() {
     ]);
     assert!(linked.join(".git").is_file(), "a linked work tree");
     // A linked work tree is its own top.
-    let lifecycle = Lifecycle::open(
-        raf_workplan::exec::Programs::new(&linked)
-            .discover_git()
-            .with_cargo(checkout.scratch().join("no-such-cargo")),
-    )
-    .unwrap_or_else(|error| panic!("the linked work tree opens: {error}"));
+    let lifecycle = Lifecycle::open(&linked)
+        .unwrap_or_else(|error| panic!("the linked work tree opens: {error}"));
     let lines = |lifecycle: &Lifecycle| {
         lifecycle
             .reconcile("shape")
@@ -363,7 +356,7 @@ fn a_prefix_with_a_space_is_an_error_and_a_neighbour_without_one_is_not() {
         .lifecycle()
         .expect_err("a prefix the pattern cannot carry");
     assert!(
-        matches!(&error, LifecycleError::Git(GitError::Answer { answer, .. }) if answer == "my dir/"),
+        matches!(&error, LifecycleError::Git(GitError::NotAPath { path, .. }) if path == "my dir"),
         "{error:?}"
     );
     let plain = Checkout::below("untouched-plain", &base(), "my-dir");
@@ -375,10 +368,9 @@ fn a_root_outside_any_work_tree_is_an_error_at_the_open() {
     let _lock = serial();
     let scratch = disk::Scratch::new("untouched-no-tree");
     disk::write_repo(scratch.path(), &base());
-    let programs = raf_workplan::exec::Programs::new(scratch.path()).discover_git();
-    let error = Lifecycle::open(programs).expect_err("not a work tree");
+    let error = Lifecycle::open(scratch.path()).expect_err("not a work tree");
     assert!(
-        matches!(&error, LifecycleError::Git(GitError::Failed { .. })),
+        matches!(&error, LifecycleError::Repository { .. }),
         "{error:?}"
     );
 }
@@ -662,365 +654,6 @@ fn contract_effect_none_still_reports_the_other_sections() {
     );
 }
 
-// --- the version gate -----------------------------------------------------------
-
-fn said(text: &str) -> Output {
-    Output::new(Some(0), text.as_bytes().to_vec(), Vec::new())
-}
-
-#[test]
-fn git_2_29_stops_the_open_before_any_other_process_and_2_30_goes_on() {
-    let _lock = serial();
-    let checkout = Checkout::new("untouched-version", &base());
-    let gate = Gate::workspace(checkout.root());
-
-    let old = FakeRunner::new().on(
-        Program::Git,
-        &["--version"],
-        Ok(said("git version 2.29.2\n")),
-    );
-    let error = Lifecycle::open_with(&gate, &old).expect_err("2.29 is refused");
-    assert!(
-        matches!(&error, LifecycleError::Git(GitError::VersionTooOld { .. })),
-        "{error:?}"
-    );
-    assert!(error.to_string().contains("2.30"), "{error}");
-    let calls: Vec<String> = old.calls().iter().map(Call::command).collect();
-    assert_eq!(calls, ["git --version"], "nothing else was run");
-
-    // The neighbour: 2.30 opens and lists the fixture's tracked paths through
-    // the supplied runner.
-    let tracked = checkout.git(&["ls-files", "-z"]);
-    let new = FakeRunner::new()
-        .on(
-            Program::Git,
-            &["--version"],
-            Ok(said("git version 2.30.0\n")),
-        )
-        .on(
-            Program::Git,
-            &["rev-parse", "--show-prefix"],
-            Ok(said("\n")),
-        )
-        .on(
-            Program::Git,
-            &["rev-parse", "--is-inside-work-tree"],
-            Ok(said("true\n")),
-        )
-        .on(Program::Git, &["ls-files", "-z"], Ok(said(&tracked)));
-    let lifecycle = Lifecycle::open_with(&gate, &new).expect("2.30 opens");
-    let asked: Vec<String> = new.calls().iter().map(Call::command).collect();
-    assert_eq!(
-        asked,
-        [
-            "git --version",
-            "git rev-parse --show-prefix",
-            "git rev-parse --is-inside-work-tree",
-            "git ls-files -z",
-        ]
-    );
-    assert!(lifecycle.prefix().is_top());
-    assert_eq!(lifecycle.opened().workplan().changes().len(), 1);
-
-    // An unreadable version is an error too, and also stops the open.
-    let odd = FakeRunner::new().on(Program::Git, &["--version"], Ok(said("not git\n")));
-    assert!(matches!(
-        Lifecycle::open_with(&gate, &odd),
-        Err(LifecycleError::Git(GitError::VersionUnreadable { .. }))
-    ));
-    assert_eq!(odd.calls().len(), 1);
-}
-
-#[test]
-fn an_unstartable_git_is_an_error_before_the_repository_is_looked_at() {
-    let _lock = serial();
-    let checkout = Checkout::new("untouched-no-git", &base());
-    let programs = raf_workplan::exec::Programs::new(checkout.root())
-        .with_git(checkout.scratch().join("no-such-git"));
-    let error = Lifecycle::open(programs).expect_err("no git");
-    assert!(
-        matches!(&error, LifecycleError::Git(GitError::Exec(_))),
-        "{error:?}"
-    );
-}
-
-// --- stubs that record what they were started with -------------------------------
-
-#[cfg(unix)]
-mod stubs {
-    use super::*;
-    use std::io::Write as _;
-    use std::os::unix::fs::OpenOptionsExt as _;
-    use std::path::PathBuf;
-
-    use raf_workplan::exec::Programs;
-
-    const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
-    const MERGE_BASE: &str = "fedcba9876543210fedcba9876543210fedcba98";
-
-    /// A `git` that records each call (argv elements separated by the unit
-    /// separator, one call to a line, and the directory and locale it ran
-    /// with) and answers the questions of a reconcile; `cat-file` prints the
-    /// file `blob` beside it.
-    fn recording_git(version: &str, default_ref: &str, prefix: &str) -> String {
-        format!(
-            r#"dir=$(dirname "$0")
-printf '%s\037' "$@" >> "$dir/argv"
-printf '\n' >> "$dir/argv"
-pwd -P >> "$dir/cwd"
-printf '%s\n' "${{LC_ALL-<unset>}}" >> "$dir/lc_all"
-case "$1" in
---version) echo '{version}' ;;
-rev-parse)
-  case "$2" in
-  --show-prefix) echo '{prefix}' ;;
-  --is-inside-work-tree) echo true ;;
-  *) echo {COMMIT} ;;
-  esac ;;
-ls-files) printf 'docs/capabilities/omega.md\0' ;;
-symbolic-ref) echo '{default_ref}' ;;
-merge-base) echo {MERGE_BASE} ;;
-cat-file) cat "$dir/blob" ;;
-*) echo "unexpected $*" >&2; exit 64 ;;
-esac"#
-        )
-    }
-
-    struct Stub {
-        checkout: Checkout,
-        git: PathBuf,
-    }
-
-    impl Stub {
-        fn new(tag: &str, version: &str, default_ref: &str, blob: &str) -> Self {
-            Self::with_prefix(tag, version, default_ref, "", blob)
-        }
-
-        /// A stub that says the root is `prefix` below the top of the work
-        /// tree (`""`, or a path ending in `/`).
-        fn with_prefix(
-            tag: &str,
-            version: &str,
-            default_ref: &str,
-            prefix: &str,
-            blob: &str,
-        ) -> Self {
-            let checkout = Checkout::new(tag, &base());
-            let bin = checkout.scratch().join("bin");
-            fs::create_dir(&bin).expect("a bin directory");
-            fs::write(bin.join("blob"), blob).expect("a blob");
-            let git = bin.join("git");
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o755)
-                .open(&git)
-                .expect("a stub file");
-            write!(
-                file,
-                "#!/bin/sh\n{}\n",
-                recording_git(version, default_ref, prefix)
-            )
-            .expect("a stub body");
-            drop(file);
-            Self { checkout, git }
-        }
-
-        fn programs(&self) -> Programs {
-            Programs::new(self.checkout.root()).with_git(&self.git)
-        }
-
-        fn lines(&self, name: &str) -> Vec<String> {
-            let text = fs::read_to_string(self.git.with_file_name(name)).unwrap_or_default();
-            text.lines().map(str::to_string).collect()
-        }
-
-        fn calls(&self) -> Vec<Vec<String>> {
-            self.lines("argv")
-                .iter()
-                .map(|line| {
-                    let mut parts: Vec<&str> = line.split('\u{1f}').collect();
-                    assert_eq!(parts.pop(), Some(""), "the record ends in a separator");
-                    parts.into_iter().map(str::to_string).collect()
-                })
-                .collect()
-        }
-    }
-
-    /// The commands of a reconcile with a root `prefix` below the top, and
-    /// the path the one read names.
-    fn assert_argv(tag: &str, prefix: &str) {
-        for hostile_prose in [false, true] {
-            assert_argv_with_prose(tag, prefix, hostile_prose);
-        }
-    }
-
-    fn assert_argv_with_prose(tag: &str, prefix: &str, hostile_prose: bool) {
-        let _lock = serial();
-        let stub = Stub::with_prefix(
-            tag,
-            "git version 2.45.1.windows.1",
-            "refs/remotes/origin/--output=x",
-            prefix,
-            &base()[OMEGA],
-        );
-        if hostile_prose {
-            let ordinary = &base()[OMEGA];
-            let changed = ordinary.replace(
-                "Text for Purpose of omega.",
-                "Text for Purpose of omega. PROSE_PAYLOAD_$(touch prose-executed); `printf injected` | cat.",
-            );
-            assert_ne!(&changed, ordinary);
-            stub.checkout.put(OMEGA, &changed);
-        }
-        let lifecycle =
-            Lifecycle::open(stub.programs()).unwrap_or_else(|error| panic!("opens: {error}"));
-        let list = lifecycle.reconcile("shape").expect("reconcile succeeds");
-        // The blob is the file as it is, so both sections are unchanged.
-        assert_eq!(list.of_kind(ObligationKind::SectionUntouched).count(), 2);
-
-        let expected: Vec<Vec<String>> = [
-            vec!["--version"],
-            vec!["rev-parse", "--show-prefix"],
-            vec!["rev-parse", "--is-inside-work-tree"],
-            vec!["ls-files", "-z"],
-            vec!["symbolic-ref", "refs/remotes/origin/HEAD"],
-            vec![
-                "rev-parse",
-                "--verify",
-                "--end-of-options",
-                "refs/remotes/origin/--output=x^{commit}",
-            ],
-            vec!["merge-base", "HEAD", COMMIT],
-            // One read for the file, though two of its sections are affected.
-            vec![
-                "cat-file",
-                "blob",
-                &format!("{MERGE_BASE}:{prefix}docs/capabilities/omega.md"),
-            ],
-        ]
-        .into_iter()
-        .map(|argv| argv.into_iter().map(str::to_string).collect())
-        .collect();
-        assert_eq!(stub.calls(), expected);
-        assert!(!stub.checkout.root().join("prose-executed").exists());
-
-        // The only words that begin with a dash are the fixed options.
-        let fixed = [
-            "--version",
-            "--show-prefix",
-            "--is-inside-work-tree",
-            "-z",
-            "--verify",
-            "--end-of-options",
-        ];
-        for call in stub.calls() {
-            for arg in call.iter().filter(|arg| arg.starts_with('-')) {
-                assert!(fixed.contains(&arg.as_str()), "{arg} in {call:?}");
-            }
-        }
-
-        // Every call ran in the root, in the C locale.
-        let root = fs::canonicalize(stub.checkout.root()).expect("a canonical root");
-        let cwd = root.to_str().expect("a UTF-8 path");
-        assert_eq!(stub.lines("cwd").len(), expected.len());
-        assert!(stub.lines("cwd").iter().all(|line| line == cwd));
-        assert!(stub.lines("lc_all").iter().all(|line| line == "C"));
-    }
-
-    #[test]
-    fn reconcile_asks_git_exactly_the_commands_of_the_contract_in_order() {
-        assert_argv("untouched-stub-argv", "");
-    }
-
-    #[test]
-    fn a_root_below_the_top_reads_each_file_at_the_prefix() {
-        assert_argv("untouched-stub-prefix", "services/api/");
-        assert_argv("untouched-stub-prefix-one", "sub/");
-    }
-
-    #[test]
-    fn a_prefix_the_source_path_pattern_cannot_carry_is_an_error_and_not_a_guess() {
-        let _lock = serial();
-        for prefix in [
-            "my docs/",
-            "sub",
-            "../up/",
-            "-opts/",
-            "caf\u{e9}/",
-            "a//b/",
-            "./a/",
-        ] {
-            let stub = Stub::with_prefix(
-                "untouched-stub-bad-prefix",
-                "git version 2.45.1",
-                "refs/remotes/origin/main",
-                prefix,
-                &base()[OMEGA],
-            );
-            let error = Lifecycle::open(stub.programs()).expect_err(prefix);
-            assert!(
-                matches!(&error, LifecycleError::Git(GitError::Answer { .. })),
-                "{prefix}: {error:?}"
-            );
-            // Nothing past the question was asked.
-            assert_eq!(
-                stub.calls(),
-                [vec!["--version"], vec!["rev-parse", "--show-prefix"]],
-                "{prefix}"
-            );
-        }
-    }
-
-    #[test]
-    fn the_blob_the_stub_prints_is_what_is_compared() {
-        let _lock = serial();
-        let edited = replaced(
-            &base(),
-            OMEGA,
-            "Text for Contract of omega.",
-            "Another contract.",
-        );
-        let stub = Stub::new(
-            "untouched-stub-blob",
-            "git version 2.45.1",
-            "refs/remotes/origin/main",
-            &edited[OMEGA],
-        );
-        let list = Lifecycle::open(stub.programs())
-            .expect("opens")
-            .reconcile("shape")
-            .expect("reconcile succeeds");
-        let kinds: Vec<String> = list
-            .of_kind(ObligationKind::SectionUntouched)
-            .map(|o| o.section.to_string())
-            .collect();
-        assert_eq!(kinds, ["usage"]);
-    }
-
-    #[test]
-    fn a_stub_git_2_29_runs_one_process_and_exits_with_the_error() {
-        let _lock = serial();
-        for (version, accepted) in [
-            ("git version 2.29.9", false),
-            ("git version 2.29.3 (Apple Git-130)", false),
-            ("git version 2.30.0", true),
-        ] {
-            let stub = Stub::new(
-                "untouched-stub-version",
-                version,
-                "refs/remotes/origin/main",
-                &base()[OMEGA],
-            );
-            let result = Lifecycle::open(stub.programs());
-            assert_eq!(result.is_ok(), accepted, "{version}");
-            if !accepted {
-                assert_eq!(stub.calls(), [["--version"]], "{version}: one process");
-            }
-        }
-    }
-}
-
 // --- the digest -------------------------------------------------------------------
 
 fn body(text: &str) -> Body {
@@ -1135,11 +768,7 @@ fn reconcile_writes_nothing_and_prints_the_same_list_twice() {
         OMEGA,
         &replaced(&base(), OMEGA, "Text for Usage of omega.", "Edited usage.")[OMEGA],
     );
-    let work_tree = |root: &Path| {
-        let mut files = snapshot(root);
-        files.retain(|path, _| !path.starts_with(".git/"));
-        files
-    };
+    let work_tree = |root: &Path| snapshot(root);
     let before = work_tree(checkout.root());
     let lifecycle = lifecycle(&checkout);
     let first = lifecycle.reconcile("shape").expect("first run");

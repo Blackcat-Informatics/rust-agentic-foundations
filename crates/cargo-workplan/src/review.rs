@@ -10,12 +10,7 @@ use crate::{
     result::Result as CommandResult,
 };
 use raf_okf::{DocType, RecordHeader, ReviewRecord, ReviewScope};
-use raf_workplan::{
-    Gate, Workplan,
-    escape::shown_lines,
-    exec::{Programs, SystemRunner},
-    git,
-};
+use raf_workplan::{Gate, Workplan, escape::shown_lines, git};
 use std::{fmt::Write as _, path::Path};
 
 pub(crate) fn run(
@@ -178,10 +173,10 @@ fn classified(result: CommandResult, text: String, finding: bool) -> Record {
 }
 
 fn record(root: &Path, args: &ReviewRecordArgs) -> Result<Report, Failure> {
-    let runner = SystemRunner::new(Programs::new(root));
+    let repository = git::Repository::open(root)?;
     let revision = match &args.revision {
         Some(revision) => revision.clone(),
-        None => git::head(&runner)?.as_str().to_string(),
+        None => git::head(&repository)?.as_str().to_string(),
     };
     let mut header = RecordHeader::new(DocType::Review, &args.id);
     header.timestamp = Some(args.date.clone());
@@ -202,7 +197,7 @@ fn record(root: &Path, args: &ReviewRecordArgs) -> Result<Report, Failure> {
     if let Some(licence) = &args.licence {
         options = options.licence(licence);
     }
-    let recorded = raf_workplan::review::record_review(root, &runner, &draft, &options)?;
+    let recorded = raf_workplan::review::record_review(root, &repository, &draft, &options)?;
     let text = format!("recorded: {}", recorded.path);
     let finding = args.verdict != raf_okf::ReviewVerdict::Clean;
     Ok(Report::of([classified(

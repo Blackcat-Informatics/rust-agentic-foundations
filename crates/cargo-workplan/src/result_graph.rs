@@ -4,7 +4,7 @@
 //! Closed projections of command domain results into the shared report graph.
 
 use crate::result::Result as CommandResult;
-use raf_rdf::{Builder, Error, Graph, TermBox, TermValue, Triple, vocab};
+use raf_rdf::{Builder, Error, Graph, TermValue, Triple, vocab};
 use raf_workplan::{assessment, evidence, history};
 
 mod review;
@@ -28,23 +28,6 @@ fn value(graph: &mut Builder, id: &str, key: &str, atom: TermValue) -> Answer<()
 }
 fn text(graph: &mut Builder, id: &str, key: &str, value_: &str) -> Answer<()> {
     value(graph, id, key, TermValue::simple_literal(value_))
-}
-fn reifies(
-    graph: &mut Builder,
-    observation: &str,
-    subject: &str,
-    property: &str,
-    object: TermValue,
-) -> Answer<()> {
-    graph.insert(Triple {
-        subject: local(observation),
-        predicate: TermValue::iri(vocab::REIFIES),
-        object: TermValue::Triple {
-            s: TermBox::new(local(subject)),
-            p: TermBox::new(iri(property)),
-            o: TermBox::new(object),
-        },
-    })
 }
 fn number(graph: &mut Builder, id: &str, key: &str, value_: usize) -> Answer<()> {
     value(
@@ -158,10 +141,17 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
             text(g, id, "directory", directory)?;
             text(g, id, "entry", entry)?;
         }
-        CommandResult::Completed { path, evidence } => {
+        CommandResult::DocumentationArtifact {
+            package,
+            entry,
+            sha256,
+            provenance,
+        } => {
+            documentation_artifact_fields(g, id, package, entry, sha256, provenance)?;
+        }
+        CommandResult::Completed { path } => {
             class(g, id, "Completed")?;
             text(g, id, "path", path)?;
-            completion_bindings(g, id, evidence)?;
         }
         CommandResult::Preview {
             path,
@@ -184,19 +174,13 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
             class(g, id, "Obligation")?;
             obligation_fields(g, id, obligation)?;
         }
-        CommandResult::Refused {
-            failures,
-            message,
-            evidence,
-        } => {
+        CommandResult::Refused { failures, message } => {
             class(g, id, "Refused")?;
             number(g, id, "failures", *failures)?;
             text(g, id, "message", message)?;
-            completion_bindings(g, id, evidence)?;
         }
         CommandResult::Refusal { failure, repeated } => refusal_fields(g, id, failure, *repeated)?,
-        CommandResult::Binding { evidence, message } => binding_fields(g, id, evidence, message)?,
-        CommandResult::EvidenceRecorded(recorded) => recorded_fields(g, id, recorded)?,
+        CommandResult::Verification(report) => verification_fields(g, id, report)?,
         CommandResult::EvidenceSupport {
             capability,
             support,
@@ -242,6 +226,45 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
     }
     Ok(())
 }
+fn documentation_artifact_fields(
+    g: &mut Builder,
+    id: &str,
+    package: &str,
+    entry: &str,
+    sha256: &str,
+    provenance: &str,
+) -> Answer<()> {
+    class(g, id, "DocumentationArtifact")?;
+    text(g, id, "package", package)?;
+    text(g, id, "entry", entry)?;
+    text(g, id, "sha256", sha256)?;
+    text(g, id, "provenance", provenance)
+}
+
+fn verification_fields(
+    g: &mut Builder,
+    id: &str,
+    report: &raf_workplan::lifecycle::VerifyReport,
+) -> Answer<()> {
+    class(g, id, "StaticVerification")?;
+    boolean(g, id, "valid", report.is_valid())?;
+    optional(g, id, "change", report.change())?;
+    number(g, id, "declaredBindings", report.len())?;
+    for (ordinal, binding) in report.bindings().iter().enumerate() {
+        let node = child(g, id, "binding", "DeclaredBinding", ordinal)?;
+        text(g, &node, "capability", binding.capability())?;
+        text(g, &node, "kind", binding.kind().key())?;
+        text(g, &node, "path", binding.path())?;
+    }
+    for (ordinal, finding) in report.findings().iter().enumerate() {
+        let node = format!("{id}/finding/{ordinal}");
+        value(g, id, "finding", local(&node))?;
+        number(g, &node, "ordinal", ordinal)?;
+        raf_workplan::report::finding_into(g, &node, finding)?;
+    }
+    Ok(())
+}
+
 fn obligation_fields(
     g: &mut Builder,
     id: &str,
@@ -259,59 +282,6 @@ fn obligation_fields(
     if let Some(line) = o.location.line {
         number(g, id, "line", line)?;
     }
-    Ok(())
-}
-fn recorded_fields(g: &mut Builder, id: &str, recorded: &evidence::Recorded) -> Answer<()> {
-    class(g, id, "EvidenceRecorded")?;
-    text(g, id, "path", recorded.path.as_str())?;
-    let r = &recorded.record;
-    for (key, v) in [
-        ("id", r.header.id.as_str()),
-        ("verdict", r.verdict.name()),
-        ("subject", &r.subject.text()),
-        ("by", r.by.name()),
-    ] {
-        text(g, id, key, v)?;
-    }
-    optional(g, id, "command", r.command.as_deref())?;
-    optional(g, id, "revision", r.revision.as_deref())?;
-    strings(g, id, "for", "CapabilityReference", "id", &r.covers)?;
-    measures(g, id, "value", &r.values)?;
-    measures(g, id, "limit", &r.limits)?;
-    for (ordinal, input) in r.inputs.iter().enumerate() {
-        let node = input_fields(g, id, ordinal, input)?;
-        reifies(
-            g,
-            &node,
-            id,
-            "verdict",
-            TermValue::simple_literal(r.verdict.name()),
-        )?;
-    }
-    for (i, failure) in recorded.failed.iter().enumerate() {
-        let node = child(g, id, "failed", "EvidenceFailure", i)?;
-        let name = match failure {
-            evidence::Failed::Exited(code) => {
-                if let Some(code) = code {
-                    value(g, &node, "exitCode", TermValue::integer(*code))?;
-                }
-                "exited"
-            }
-            evidence::Failed::TimedOut => "timed-out",
-            evidence::Failed::OverLimit(names) => {
-                strings(g, &node, "measure", "MeasureReference", "name", names)?;
-                "over-limit"
-            }
-            evidence::Failed::Binding(outcome) => {
-                text(g, &node, "outcome", outcome.name())?;
-                optional(g, &node, "message", outcome.reason().as_deref())?;
-                "binding"
-            }
-            _ => return Err(Error::Value("unknown evidence failure".into())),
-        };
-        text(g, &node, "reason", name)?;
-    }
-    text(g, id, "message", &recorded.to_string())?;
     Ok(())
 }
 fn context_fields(g: &mut Builder, id: &str, context: &assessment::AssessContext) -> Answer<()> {
@@ -412,7 +382,7 @@ fn history_fields(g: &mut Builder, id: &str, history: &history::History) -> Answ
                     "lastResolved",
                     last_resolved
                         .as_ref()
-                        .map(raf_workplan::exec::Commit::as_str),
+                        .map(raf_workplan::identifiers::Commit::as_str),
                 )?;
             }
             history::Removal::NoCommit => text(g, &node, "removal", "no-commit")?,
@@ -683,7 +653,7 @@ fn refusal_fields(
     if let Some(n) = failure.condition().number() {
         number(g, id, "number", usize::from(n))?;
     }
-    text(g, id, "source", failure.name())?;
+    text(g, id, "source", failure.kind())?;
     text(g, id, "message", &failure.to_string())?;
     boolean(g, id, "repeated", repeated)?;
     if let Some(obligation) = failure.obligation() {
@@ -691,88 +661,6 @@ fn refusal_fields(
         obligation_fields(g, &n, obligation)?;
     }
 
-    Ok(())
-}
-
-fn completion_bindings(
-    g: &mut Builder,
-    id: &str,
-    evidence: &[raf_workplan::bound::Evidence],
-) -> Answer<()> {
-    for (ordinal, evidence) in evidence
-        .iter()
-        .filter(|row| !row.runs().is_empty())
-        .enumerate()
-    {
-        let node = format!("{id}/binding/{ordinal}");
-        value(g, id, "binding", local(&node))?;
-        number(g, &node, "ordinal", ordinal)?;
-        binding_fields(g, &node, evidence, evidence.outcome().name())?;
-    }
-    Ok(())
-}
-
-fn binding_fields(
-    g: &mut Builder,
-    id: &str,
-    evidence: &raf_workplan::bound::Evidence,
-    message: &str,
-) -> Answer<()> {
-    class(g, id, "Binding")?;
-    for (key, v) in [
-        ("outcome", evidence.outcome().name()),
-        ("capability", evidence.capability()),
-        ("list", evidence.kind().key()),
-        ("path", evidence.path()),
-        ("message", message),
-    ] {
-        text(g, id, key, v)?;
-    }
-    optional(g, id, "reason", evidence.outcome().reason().as_deref())?;
-    let proof = evidence.proof();
-    for (key, count) in [
-        ("listed", proof.listed),
-        ("selected", proof.selected),
-        ("passed", proof.passed),
-        ("failed", proof.failed),
-        ("ignored", proof.ignored),
-        ("okLines", proof.ok_lines),
-    ] {
-        if let Some(count) = count {
-            number(g, id, key, count)?;
-        }
-    }
-    for (ordinal, run) in evidence.runs().iter().enumerate() {
-        let node = child(g, id, "run", "VerificationRun", ordinal)?;
-        reifies(
-            g,
-            &node,
-            id,
-            "outcome",
-            TermValue::simple_literal(evidence.outcome().name()),
-        )?;
-        text(
-            g,
-            &node,
-            "programKind",
-            &run.invocation().program().to_string(),
-        )?;
-        strings(g, &node, "argument", "Argument", "text", &run.argv())?;
-        if let Some(view) = run.invocation().view() {
-            view_fields(g, &node, view)?;
-        }
-        match run.ended() {
-            raf_workplan::bound::Ended::Exited(code) => {
-                text(g, &node, "ended", "exited")?;
-                if let Some(code) = code {
-                    value(g, &node, "exitCode", TermValue::integer(code))?;
-                }
-            }
-            raf_workplan::bound::Ended::TimedOut => text(g, &node, "ended", "timed-out")?,
-            raf_workplan::bound::Ended::Overflowed => text(g, &node, "ended", "overflowed")?,
-            _ => return Err(Error::Value("unknown verification process outcome".into())),
-        }
-    }
     Ok(())
 }
 
@@ -873,88 +761,5 @@ fn claims_fields(
         strings(g, &n, "test", "TestReference", "path", claim.tests())?;
     }
 
-    Ok(())
-}
-
-fn view_fields(g: &mut Builder, node: &str, view: &raf_workplan::exec::ViewContext) -> Answer<()> {
-    text(g, node, "viewDigest", view.digest())?;
-    if let Some(backend) = view.filesystem_backend() {
-        text(g, node, "filesystemBackend", backend)?;
-        let owned_index = view.worktree_index();
-        for (key, path) in [
-            ("isolatedRoot", view.isolated_root()),
-            ("commonGitDirectory", view.common_git_dir()),
-            ("ownedGitDirectory", view.worktree_git_dir()),
-            ("ownedIndexPath", owned_index.as_deref()),
-        ] {
-            let path = path.ok_or_else(|| Error::Value(format!("missing native context {key}")))?;
-            text(
-                g,
-                node,
-                key,
-                path.to_str()
-                    .ok_or_else(|| Error::Value(format!("non-UTF-8 native context {key}")))?,
-            )?;
-        }
-    }
-    text(
-        g,
-        node,
-        "logicalRoot",
-        view.logical_root()
-            .to_str()
-            .ok_or_else(|| Error::Value("non-UTF-8 logical execution root".into()))?,
-    )?;
-    if let Some(root) = view.physical_root() {
-        text(g, node, "viewKind", "materialized")?;
-        text(
-            g,
-            node,
-            "physicalRoot",
-            root.to_str()
-                .ok_or_else(|| Error::Value("non-UTF-8 physical execution root".into()))?,
-        )?;
-    } else {
-        text(g, node, "viewKind", "virtual")?;
-    }
-    match view.proof().index() {
-        raf_workplan::exec::IndexProvenance::Native {
-            tree,
-            head,
-            default_ref,
-            default_commit,
-            merge_base,
-            index_path,
-            git_dir,
-            common_dir,
-        } => {
-            for (key, path) in [
-                ("originalIndexPath", index_path),
-                ("originalGitDirectory", git_dir),
-                ("originalCommonDirectory", common_dir),
-            ] {
-                text(
-                    g,
-                    node,
-                    key,
-                    path.to_str()
-                        .ok_or_else(|| Error::Value(format!("non-UTF-8 {key}")))?,
-                )?;
-            }
-            for (key, value) in [
-                ("originalIndex", tree),
-                ("originalHead", head),
-                ("defaultReference", default_ref),
-                ("defaultCommit", default_commit),
-                ("mergeBase", merge_base),
-            ] {
-                text(g, node, key, value)?;
-            }
-        }
-        raf_workplan::exec::IndexProvenance::Supplied => {}
-    }
-    if let Some(paths) = view.proof().tracked() {
-        number(g, node, "originalTracked", paths.len())?;
-    }
     Ok(())
 }

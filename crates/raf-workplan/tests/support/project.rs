@@ -6,16 +6,13 @@
 //! dependency and a pinned edition, the documents that bind it, and a git
 //! history with a remote-tracking default branch.
 //!
-//! Every project owns its target and build directories, named in
-//! the project's own `.cargo/config.toml` so the environment of the test
-//! process is not touched. `cargo` is the one that started the test binary
-//! (`$CARGO`), given to the library explicitly. Nothing here is a shell
-//! script, so the fixtures run on every platform the workspace tests run on.
+//! The project sources remain data. Scenario verification uses the native
+//! source index and static document contracts, without a Cargo executable or
+//! consumer execution.
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::Lifecycle;
 use raf_workplan::{Finding, Gate, SyncOptions, Workplan};
 
@@ -27,14 +24,6 @@ pub(crate) const COPYRIGHT: &str = "2026 Example Org <dev@example.org>";
 
 /// The licence identifier of the SPDX lines the fixtures write.
 pub(crate) const LICENCE: &str = "CC-BY-4.0";
-
-/// The `cargo` that runs this test binary: `$CARGO` as `cargo test` sets it.
-pub(crate) fn cargo() -> PathBuf {
-    std::env::var_os("CARGO")
-        .map(PathBuf::from)
-        .or_else(|| option_env!("CARGO").map(PathBuf::from))
-        .expect("cargo test sets CARGO")
-}
 
 /// The two SPDX comment lines of a Markdown file, without the tags written
 /// out in this source.
@@ -131,7 +120,6 @@ impl Project {
     /// The `docs sync` of the documents as they are: written to the disk.
     pub(crate) fn sync(&self) {
         let opened = Gate::workspace(self.root())
-            .programs(self.programs())
             .open()
             .unwrap_or_else(|error| panic!("the project opens: {error}"));
         let report = opened
@@ -143,9 +131,7 @@ impl Project {
 
     /// Every finding of `check`, judged against the files git tracks.
     pub(crate) fn findings(&self) -> Vec<Finding> {
-        Gate::workspace(self.root())
-            .programs(self.programs())
-            .check()
+        Gate::workspace(self.root()).check()
     }
 
     /// Stage everything, require that the repository passes its gate as the
@@ -206,16 +192,9 @@ impl Project {
         self.git(&["worktree", "add", "-q", "--detach", &target, revision]);
     }
 
-    /// The programs of the project: the real `git` and the `cargo` of this
-    /// test binary, named explicitly.
-    pub(crate) fn programs(&self) -> Programs {
-        Programs::with_cargo_var(self.root(), Some(cargo().into())).discover_git()
-    }
-
     /// The lifecycle of the project as it is now. The open freezes the source
     /// index, so a lifecycle is opened again after each edit.
     pub(crate) fn lifecycle(&self) -> Lifecycle {
-        Lifecycle::open(self.programs())
-            .unwrap_or_else(|error| panic!("the project opens: {error}"))
+        Lifecycle::open(self.root()).unwrap_or_else(|error| panic!("the project opens: {error}"))
     }
 }

@@ -7,15 +7,13 @@
 
 use std::collections::BTreeSet;
 
-use raf_source::{EntryKind, MemoryTree, RelPath, Tree, TreeError, Workspace};
+use raf_source::{MemoryTree, RelPath, Workspace};
 
-use super::{BaseTree, Reader, Surface, impl_headers, load_at};
-use crate::exec::{Call, Commit, FakeRunner, Output, Program};
-use crate::git::{self, GitError, MergeBase, Prefix};
-use crate::lifecycle::{LifecycleError, Side};
+use super::{Reader, Surface, impl_headers};
+use crate::lifecycle::Side;
+use crate::obligation::Touch;
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
-const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
 fn path(text: &str) -> RelPath {
     RelPath::new(text).expect("a path")
@@ -174,216 +172,36 @@ fn an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_
     assert!(impl_headers(&path("src/lib.rs"), "pub fn (").is_err());
 }
 
-fn said(text: &str) -> Output {
-    Output::new(Some(0), text.as_bytes().to_vec(), Vec::new())
-}
-
-/// The merge base of the scripted answers.
-fn base() -> MergeBase {
-    let commit = Commit::new(COMMIT).expect("a commit id");
-    let runner = FakeRunner::new().on(
-        Program::Git,
-        &["merge-base", "HEAD", COMMIT],
-        Ok(said(&format!("{COMMIT}\n"))),
-    );
-    git::merge_base(&runner, &commit).expect("a merge base")
-}
-
-/// The prefix `text` as `git rev-parse --show-prefix` prints it.
-fn prefix(text: &str) -> Prefix {
-    let runner = FakeRunner::new().on(
-        Program::Git,
-        &["rev-parse", "--show-prefix"],
-        Ok(said(&format!("{text}\n"))),
-    );
-    git::show_prefix(&runner).expect("a prefix")
-}
-
-const LISTING: &str = "100644 blob 1111111111111111111111111111111111111111\tCargo.toml\x00100644 blob 5555555555555555555555555555555555555555\tother/README.md\x00100644 blob 2222222222222222222222222222222222222222\tsrc/lib.rs\x00120000 blob 3333333333333333333333333333333333333333\tsrc/link.rs\x00160000 commit 4444444444444444444444444444444444444444\tvendor/sub\x00";
-
-/// A runner that answers the listing below `top` and the blob of each of
-/// `files`, named from the top of the work tree.
-fn scripted(top: &str, files: &[(&str, &str)]) -> FakeRunner {
-    let mut records = Vec::new();
-    for record in LISTING.split('\0').filter(|record| !record.is_empty()) {
-        let (head, name) = record.split_once('\t').expect("a record");
-        let prefix = if name.starts_with("other/") { "" } else { top };
-        records.push(format!("{head}\t{prefix}{name}\0"));
-    }
-    purrdf_lex::walk::try_sort_unstable_by(&mut records, |left, right| {
-        Ok::<_, std::convert::Infallible>(
-            left.split_once('\t')
-                .unwrap()
-                .1
-                .cmp(right.split_once('\t').unwrap().1),
-        )
-    })
-    .unwrap();
-    let listing = records.concat();
-    let mut runner = FakeRunner::new().on(
-        Program::Git,
-        &["ls-tree", "-r", "-z", "--full-tree", COMMIT],
-        Ok(said(&listing)),
-    );
-    for (name, text) in files {
-        runner = runner.on(
-            Program::Git,
-            &["cat-file", "blob", &format!("{COMMIT}:{top}{name}")],
-            Ok(said(text)),
-        );
-    }
-    runner
-}
-
-fn commands(runner: &FakeRunner) -> Vec<String> {
-    runner.calls().iter().map(Call::command).collect()
-}
-
 #[test]
-fn the_tree_of_the_merge_base_answers_from_one_listing_and_reads_each_file_once_with_the_blob_row()
-{
-    for top in ["", "services/api/"] {
-        let runner = scripted(
-            top,
-            &[
-                ("Cargo.toml", MANIFEST),
-                ("src/lib.rs", "pub fn go() {}\n"),
-                ("src/link.rs", "lib.rs"),
-            ],
-        );
-        let (base, prefix) = (base(), prefix(top));
-        let listing = git::tree_at(&runner, base.resolved(), &prefix).expect("a listing");
-        let tree = BaseTree::new(&runner, &base, &prefix, listing);
-
-        // The listing names the files below the prefix and their directories.
-        assert_eq!(
-            tree.entry(&path("src")).expect("an answer"),
-            Some(EntryKind::Dir)
-        );
-        assert_eq!(
-            tree.entry(&path("src/lib.rs")).expect("an answer"),
-            Some(EntryKind::File)
-        );
-        assert_eq!(
-            tree.entry(&path("src/link.rs")).expect("an answer"),
-            Some(EntryKind::Symlink)
-        );
-        assert_eq!(
-            tree.entry(&path("vendor/sub")).expect("an answer"),
-            Some(EntryKind::Other)
-        );
-        assert_eq!(
-            tree.entry(&path("src/missing.rs")).expect("an answer"),
-            None
-        );
-        assert_eq!(
-            tree.entry(&path("other")).expect("an answer"),
-            top.is_empty().then_some(EntryKind::Dir),
-            "{top}"
-        );
-        let names: Vec<(String, EntryKind)> = tree
-            .list(&RelPath::root())
-            .expect("the root")
-            .into_iter()
-            .map(|entry| (entry.name, entry.kind))
-            .collect();
-        let mut expected = vec![
-            ("Cargo.toml".to_string(), EntryKind::File),
-            ("src".to_string(), EntryKind::Dir),
-            ("vendor".to_string(), EntryKind::Dir),
-        ];
-        if top.is_empty() {
-            expected.insert(1, ("other".to_string(), EntryKind::Dir));
-        }
-        assert_eq!(names, expected);
-        assert!(matches!(
-            tree.list(&path("src/lib.rs")),
-            Err(TreeError::NotRegular { .. })
-        ));
-        assert!(matches!(
-            tree.read(&path("src"), 1024),
-            Err(TreeError::NotRegular { .. })
-        ));
-        assert!(matches!(
-            tree.read(&path("src/missing.rs"), 1024),
-            Err(TreeError::NotFound { .. })
-        ));
-        assert!(matches!(
-            tree.read(&path("src/lib.rs"), 3),
-            Err(TreeError::TooLarge { .. })
-        ));
-
-        // A file is read once however often the load asks, and a link reads
-        // the file it names.
-        assert_eq!(
-            tree.read(&path("src/lib.rs"), 1024).expect("a text"),
-            "pub fn go() {}\n"
-        );
-        assert_eq!(
-            tree.read(&path("src/link.rs"), 1024).expect("a text"),
-            "pub fn go() {}\n"
-        );
-        let source = Workspace::load(&tree, &["."]).expect("the merge base loads");
-        assert!(source.items().any(|item| *item.path == *"demo::go"));
-        let asked = commands(&runner);
-        assert_eq!(
-            asked,
-            [
-                format!("git ls-tree -r -z --full-tree {COMMIT}"),
-                format!("git cat-file blob {COMMIT}:{top}src/lib.rs"),
-                format!("git cat-file blob {COMMIT}:{top}src/link.rs"),
-                format!("git cat-file blob {COMMIT}:{top}Cargo.toml"),
-            ],
-            "{top}"
-        );
+fn static_surface_comparison_classifies_changes_without_executing_source() {
+    let then = workspace(
+        "pub mod api { pub fn steady() {} pub fn changed() {} pub fn hidden() {} pub fn removed() {} pub fn left() {} pub fn right() {} pub use left as selected; } #[test] fn check() {}",
+    );
+    let now = workspace(
+        "pub mod api { pub fn steady() {} pub fn changed() { panic!(\"inert source\"); } fn hidden() {} pub fn added() {} pub fn left() {} pub fn right() {} pub use right as selected; } #[test] fn check() {}",
+    );
+    let docs = MemoryTree::from([(
+        "docs/capabilities/api.md",
+        "---\ntype: Capability\nid: cap:api\ntitle: Static surface\ndescription: Classify source changes as data.\nstate: implementing\nbindings:\n  code: [demo::api]\n  tests: [demo::check]\n  examples: []\ndepends: []\n---\n\n## Purpose\n\nDescribe changes.\n\n## Contract\n\nClassify changes.\n\n## Usage\n\nInspect data.\n\n## Examples\n\nCompare declarations.\n\n## Constraints\n\nNo execution.\n\n## Explanation\n\nSource is data.\n\n## Verification\n\nCheck classifications.\n",
+    )]);
+    let plan = crate::Workplan::load(&docs, &now);
+    assert_eq!(plan.capabilities().len(), 1);
+    let packages = BTreeSet::from(["demo"]);
+    let old = Surface::of(&then, &packages, Side::MergeBase).unwrap();
+    let new = Surface::of(&now, &packages, Side::WorkingTree).unwrap();
+    let touched = super::compare(&plan, &new, Some(&then), &old);
+    let changes: std::collections::BTreeMap<_, _> = touched
+        .iter()
+        .map(|item| (item.item.as_str(), item.how))
+        .collect();
+    for (path, kind) in [
+        ("demo::api::changed", Touch::Tokens),
+        ("demo::api::added", Touch::New),
+        ("demo::api::hidden", Touch::Hidden),
+        ("demo::api::removed", Touch::Removed),
+        ("demo::api::selected", Touch::Retargeted),
+    ] {
+        assert_eq!(changes.get(path), Some(&kind), "{changes:?}");
     }
-}
-
-#[test]
-fn a_git_failure_while_the_merge_base_loads_is_that_error_and_a_file_that_is_not_utf8_names_the_file()
- {
-    // `src/lib.rs` has no scripted answer, so `git` fails on it.
-    let runner = scripted("", &[("Cargo.toml", MANIFEST)]);
-    let (base, prefix) = (base(), prefix(""));
-    let error = load_at(&runner, &base, &prefix, &[".".to_string()]).expect_err("no answer");
-    assert!(
-        matches!(&error, LifecycleError::Git(GitError::Exec(_))),
-        "{error:?}"
-    );
-
-    let runner = scripted("", &[("Cargo.toml", MANIFEST)]).on(
-        Program::Git,
-        &["cat-file", "blob", &format!("{COMMIT}:src/lib.rs")],
-        Ok(Output::new(Some(0), vec![0xff, 0xfe], Vec::new())),
-    );
-    let error = load_at(&runner, &base, &prefix, &[".".to_string()]).expect_err("not UTF-8");
-    assert!(
-        matches!(
-            &error,
-            LifecycleError::Document { path, side: Side::MergeBase, .. } if path == "src/lib.rs"
-        ),
-        "{error:?}"
-    );
-
-    // The neighbour: the same tree with a text file loads, and a root that is
-    // not a directory at the merge base loads nothing and reads nothing.
-    let runner = scripted(
-        "",
-        &[("Cargo.toml", MANIFEST), ("src/lib.rs", "pub fn go() {}\n")],
-    );
-    assert!(
-        load_at(&runner, &base, &prefix, &[".".to_string()])
-            .expect("it loads")
-            .is_some()
-    );
-    let runner = scripted("", &[]);
-    assert!(
-        load_at(&runner, &base, &prefix, &["crates/gone".to_string()])
-            .expect("nothing to load")
-            .is_none()
-    );
-    assert_eq!(
-        commands(&runner),
-        [format!("git ls-tree -r -z --full-tree {COMMIT}")]
-    );
+    assert!(!changes.contains_key("demo::api::steady"));
 }

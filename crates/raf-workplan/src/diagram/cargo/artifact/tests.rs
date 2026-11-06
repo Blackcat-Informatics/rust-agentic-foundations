@@ -4,8 +4,7 @@
 //! Selected Cargo identity and actual contained HTML observations.
 
 use super::*;
-use crate::exec::CargoDocOptions;
-use crate::exec::{FakeRunner, Invocation, Output};
+use crate::diagram::cargo::CargoDocOptions;
 use purrdf_lex::json::Object;
 use std::fs;
 
@@ -35,7 +34,7 @@ fn fixture() -> (purrdf_testkit::TempDir, Selection, PathBuf) {
         target_directory,
         libraries: vec![library],
         metadata_sha256: ContentDigest::of(b"scripted metadata selection"),
-        metadata_output: Output::new(Some(0), b"scripted metadata selection".to_vec(), Vec::new()),
+        metadata_bytes: b"scripted metadata selection".to_vec(),
     };
     (scratch, selection, path)
 }
@@ -208,177 +207,55 @@ fn assert_output_refusals(selection: &Selection, valid: &Value, path: &Path) {
     assert!(admit(selection, std::slice::from_ref(valid)).is_ok());
 }
 
-/// Dependency resolution must stay equal even when the selected library does not change.
 #[test]
-fn documentation_refuses_dependency_metadata_drift_with_unchanged_libraries() {
-    let (_scratch, fixture, path) = fixture();
-    let library = &fixture.libraries[0];
-    let metadata = metadata(&fixture, &path);
-    let initial = metadata_runner_with_stderr(&fixture, &metadata, b"before diagnostics");
-    let selection = super::super::capture(&initial, &fixture.root, &fixture.options).unwrap();
-    let artifact = receipt(library, &path);
-    let stdout = format!(
-        "{}\n{{\"reason\":\"build-finished\",\"success\":true}}\n",
-        purrdf_lex::json::write_compact(&artifact)
-    );
-    let doc = Invocation::cargo_doc(&fixture.options);
-    let args = doc.argv();
-    let args: Vec<_> = args.iter().map(String::as_str).collect();
-    let run = |after: &Value| {
-        let runner = metadata_runner_with_stderr(&fixture, after, b"after diagnostics").on(
-            doc.program(),
-            &args,
-            Ok(Output::new(Some(0), stdout.as_bytes().to_vec(), Vec::new())),
-        );
-        super::super::document(&runner, &selection)
-    };
-    let observed = run(&metadata).unwrap();
-    assert_eq!(observed.artifacts().len(), 1);
-    assert_eq!(
-        observed.selection().metadata_output().stderr,
-        b"before diagnostics"
-    );
-    assert_eq!(
-        observed.recaptured_metadata_output().stderr,
-        b"after diagnostics"
-    );
-    let mut changed = metadata.clone();
-    *changed
-        .get_mut("resolve")
-        .unwrap()
-        .get_mut("nodes")
-        .unwrap()
-        .as_array_mut()
-        .unwrap()[1]
-        .get_mut("features")
-        .unwrap() = Value::Array(vec![Value::from("changed")]);
-    let after = super::super::capture(
-        &metadata_runner(&fixture, &changed),
-        &fixture.root,
-        &fixture.options,
-    )
-    .unwrap();
-    assert_eq!(selection.libraries(), after.libraries());
-    let error = run(&changed).unwrap_err().to_string();
-    assert!(error.contains("scope changed during the run"), "{error}");
-}
-
-fn metadata_runner(selection: &Selection, value: &Value) -> FakeRunner {
-    metadata_runner_with_stderr(selection, value, &[])
-}
-
-fn metadata_runner_with_stderr(selection: &Selection, value: &Value, stderr: &[u8]) -> FakeRunner {
-    let invocation = Invocation::cargo_doc_metadata(&selection.options);
-    let args = invocation.argv();
-    let args: Vec<_> = args.iter().map(String::as_str).collect();
-    FakeRunner::new().on(
-        invocation.program(),
-        &args,
-        Ok(Output::new(
-            Some(0),
-            purrdf_lex::json::write_compact(value).into_bytes(),
-            stderr.to_vec(),
-        )),
-    )
-}
-
-#[test]
-fn typed_requests_and_bounded_protocol_refusals_keep_a_valid_neighbor() {
-    for (packages, features) in [
-        (vec![], vec![]),
-        (vec!["demo", "demo"], vec![]),
-        (vec!["--workspace"], vec![]),
-        (vec!["demo"], vec!["unqualified"]),
-        (vec!["demo"], vec!["other/feature"]),
-        (vec!["demo"], vec!["demo/feature", "demo/feature"]),
-    ] {
-        assert!(CargoDocOptions::new(&packages, &features, false, None).is_err());
-    }
-    for path in ["", "bad\npath"] {
-        assert!(CargoDocOptions::new(&["demo"], &[], false, Some(Path::new(path))).is_err());
-    }
+fn imported_metadata_and_messages_are_bounded_data_with_explicit_roots() {
+    use crate::diagram::cargo::{MAX_METADATA_BYTES, read_artifacts, read_metadata};
     assert_request_bounds();
     let (_scratch, fixture, path) = fixture();
-    let metadata = metadata(&fixture, &path);
-    let selection = super::super::capture(
-        &metadata_runner(&fixture, &metadata),
+    let metadata = purrdf_lex::json::write_compact(&metadata(&fixture, &path));
+    let selected = read_metadata(
         &fixture.root,
+        &fixture.target_directory,
         &fixture.options,
+        metadata.as_bytes(),
     )
     .unwrap();
-    assert_eq!(
-        selection.metadata_output().stdout,
-        purrdf_lex::json::write_compact(&metadata).as_bytes()
-    );
-    let invocation = Invocation::cargo_doc(&fixture.options);
-    let args = invocation.argv();
-    let args: Vec<_> = args.iter().map(String::as_str).collect();
-    let footer = "{\"reason\":\"build-finished\",\"success\":true}\n";
-    let message = purrdf_lex::json::write_compact(&receipt(&fixture.libraries[0], &path));
-    let prefix = format!("{message}\n");
-    let valid = format!("{prefix}{footer}");
-    let run = |output: Output| {
-        let runner =
-            metadata_runner(&fixture, &metadata).on(invocation.program(), &args, Ok(output));
-        super::super::document(&runner, &selection)
-    };
-    for (invalid, diagnostic) in [
-        (format!("{prefix}not JSON\n{footer}"), ""),
-        (format!("{prefix}{{}}\n{footer}"), "missing field `reason`"),
-        (prefix.clone(), "no successful build-finished receipt"),
-        (
-            format!("{prefix}{{\"reason\":\"build-finished\",\"success\":false}}\n"),
-            "unsuccessful completion receipt",
-        ),
-        (
-            format!("{valid}{footer}"),
-            "duplicate or unsuccessful completion receipt",
-        ),
-        (
-            format!("{valid}{{\"reason\":\"build-script-executed\"}}\n"),
-            "messages after",
-        ),
-        (
-            format!(
-                "{prefix}{{\"reason\":\"compiler-message\",\"message\":{{\"code\":{{\"code\":\"rustdoc::broken_intra_doc_links\"}},\"message\":\"unresolved link\"}}}}\n{footer}"
-            ),
-            "required Rustdoc link is unresolved",
-        ),
-    ] {
-        let error = run(Output::new(Some(0), invalid.into_bytes(), Vec::new()))
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains(diagnostic), "{error}");
-    }
+    assert_eq!(selected.metadata_bytes(), metadata.as_bytes());
     assert!(
-        run(Output::new(
-            Some(1),
-            b"failed output".to_vec(),
-            b"compiler failed".to_vec()
-        ))
+        read_metadata(
+            &fixture.root,
+            &fixture.root,
+            &fixture.options,
+            metadata.as_bytes()
+        )
         .is_err()
     );
-    for (stdout, stderr, stream) in [
-        (
-            vec![b' '; super::super::DEFAULT_OUTPUT_BOUND + 1],
-            Vec::new(),
-            "standard output",
-        ),
-        (
-            valid.as_bytes().to_vec(),
-            vec![b' '; super::super::DEFAULT_OUTPUT_BOUND + 1],
-            "standard error",
-        ),
+    assert!(
+        read_metadata(
+            &fixture.root,
+            &fixture.target_directory,
+            &fixture.options,
+            &vec![b' '; MAX_METADATA_BYTES + 1]
+        )
+        .is_err()
+    );
+    let entry = purrdf_lex::json::write_compact(&receipt(&fixture.libraries[0], &path));
+    let valid = format!("{entry}\n{{\"reason\":\"build-finished\",\"success\":true}}\n");
+    for invalid in [
+        entry.clone(),
+        format!("{entry}\nnot JSON\n"),
+        format!("{entry}\n{{\"reason\":\"build-finished\",\"success\":false}}\n"),
     ] {
-        let error = run(Output::new(Some(0), stdout, stderr))
-            .unwrap_err()
-            .to_string();
-        assert!(
-            error.contains("wrote more than 16777216 bytes") && error.contains(stream),
-            "{error}"
-        );
+        assert!(read_artifacts(&selected, invalid.as_bytes()).is_err());
     }
-    assert!(run(Output::new(Some(0), valid.into_bytes(), Vec::new())).is_ok());
+    assert!(read_artifacts(&selected, &vec![b' '; MAX_METADATA_BYTES + 1]).is_err());
+    assert_eq!(
+        read_artifacts(&selected, valid.as_bytes())
+            .unwrap()
+            .artifacts()
+            .len(),
+        1
+    );
 }
 
 fn assert_request_bounds() {

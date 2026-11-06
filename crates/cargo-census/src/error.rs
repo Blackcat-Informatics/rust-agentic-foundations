@@ -8,11 +8,6 @@ use std::{error::Error as StdError, fmt};
 #[derive(Debug)]
 pub(crate) enum Error {
     Census(raf_census::Error),
-    Transport(String),
-    Input {
-        context: String,
-        source: Box<dyn StdError + Send + Sync>,
-    },
 }
 
 impl Error {
@@ -38,8 +33,6 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Census(error) => error.fmt(f),
-            Self::Transport(message) => f.write_str(message),
-            Self::Input { context, source } => write!(f, "{context}: {source}"),
         }
     }
 }
@@ -48,8 +41,6 @@ impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             Self::Census(error) => Some(error),
-            Self::Input { source, .. } => Some(source.as_ref()),
-            Self::Transport(_) => None,
         }
     }
 }

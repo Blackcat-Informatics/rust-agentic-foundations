@@ -18,12 +18,12 @@ purrdf-hash.workspace = true
 # string literals their absolute lines.
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
 # The workspace walk: packages, targets, the symbol index and the item bodies.
-raf-source = { path = "../raf-source", version = "0.1.0" }
+raf-source = { path = "../raf-source", version = "0.2.0" }
 # Shared RDF 1.2 lexical laws; canonical report goldens pin the term spelling.
 purrdf-lex.workspace = true
 purrdf-jsonschema.workspace = true
 purrdf-xsd.workspace = true
-raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
+raf-rdf = { path = "../raf-rdf", version = "0.2.0" }
 # One-way foreign ledger import only; the production policy format is native RDF.
 purrdf-toml.workspace = true
 # Native projected terms and indexed subject selection for foreign field ownership.

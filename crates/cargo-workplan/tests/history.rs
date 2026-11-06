@@ -75,10 +75,11 @@ fn rdf_preserves_full_history_commits_sources_paths_and_removed_bindings() {
             assert_eq!(entry.number("ordinal"), ordinal);
             let commit = entry.required("commit");
             assert_eq!(commit.len(), 40);
-            assert_eq!(
-                entry.required("date"),
-                repo.git(&["show", "-s", "--format=%aI", commit])
-            );
+            let date = repo.git(&["show", "-s", "--format=%aI", commit]);
+            let expected = date
+                .strip_suffix('Z')
+                .map_or_else(|| date.clone(), |utc| format!("{utc}+00:00"));
+            assert_eq!(entry.required("date"), expected);
             for property in ["source", "path"] {
                 for (ordinal, child) in entry.children(property).iter().enumerate() {
                     assert_eq!(child.number("ordinal"), ordinal);
@@ -172,7 +173,7 @@ fn a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is() {
     let run = repo.both(&["history", "cap:alpha"]).expect(0);
     assert!(
         run.stdout
-            .contains("| add later | document, `demo::later::later`, `demo::real` |"),
+            .contains("| add later | document, `demo::later::later` |"),
         "{run:#?}"
     );
 }
@@ -397,7 +398,6 @@ fn assert_module_review_scope(repo: &Repo) {
     ])
     .expect(0);
     let opened = raf_workplan::Gate::workspace(repo.root())
-        .programs(raf_workplan::exec::Programs::new(repo.root()).discover_git())
         .open()
         .expect("the recorded module scope loads");
     let plan = opened.workplan();

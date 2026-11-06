@@ -15,7 +15,6 @@ use std::process::Command;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use raf_source::RelPath;
-use raf_workplan::exec::Programs;
 use raf_workplan::{Finding, Gate, GateError};
 use support::Repo;
 use support::synced::{ALPHA, BETA, DELTA, GROW, OVERVIEW, base, synced, unsynced};
@@ -63,7 +62,7 @@ impl Scratch {
     }
 
     fn gate(&self) -> Gate {
-        Gate::workspace(self.path()).programs(Programs::new(self.path()).discover_git())
+        Gate::workspace(self.path())
     }
 }
 
@@ -359,7 +358,7 @@ fn a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken() {
 /// Run `git` in `dir` with the variables of an enclosing git command removed,
 /// so setting up the fixture never touches the repository of a hook that runs
 /// the test. The scratch gate explicitly discovers this independent repository;
-/// the default gate's inherited selectors are tested separately below.
+/// ambient selectors are tested separately below.
 fn git(dir: &Path, args: &[&str]) {
     let mut command = Command::new("git");
     command.arg("-C").arg(dir).args(args);
@@ -416,15 +415,14 @@ fn a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk() {
     let scratch = Scratch::new();
     scratch.repository(&base());
     git(scratch.path(), &["init", "-q"]);
-    // `git` still answers that the directory is inside a work tree, but it
-    // cannot read the index.
+    // Native discovery recognizes the work tree, but the index cannot decode.
     scratch.put(".git/index", "this is not an index");
     let error = scratch
         .gate()
         .try_check()
         .expect_err("a corrupt index is not a reason to walk the directory");
     assert!(matches!(error, GateError::Tracked { .. }), "{error:?}");
-    assert!(error.to_string().contains("git ls-files"), "{}", error);
+    assert!(error.to_string().contains("native Git index"), "{}", error);
     assert!(panic_message(|| scratch.gate().assert_clean()).is_some());
 }
 
@@ -432,7 +430,7 @@ fn a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk() {
 const CHILD_DIR: &str = "RAF_WORKPLAN_GATE_CHILD_DIR";
 
 #[test]
-fn a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk() {
+fn an_ambient_git_dir_cannot_redirect_native_repository_discovery() {
     let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&base());
@@ -453,7 +451,7 @@ fn a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk() {
         .expect("the child run starts");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        output.status.success() && stdout.contains("the gate refused"),
+        output.status.success() && stdout.contains("the native gate ignored GIT_DIR"),
         "{stdout}\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
@@ -467,18 +465,16 @@ fn the_gate_under_a_git_dir_that_names_nothing() {
     let Some(dir) = std::env::var_os(CHILD_DIR) else {
         return;
     };
-    let error = Gate::workspace(&dir)
+    let findings = Gate::workspace(&dir)
         .try_check()
-        .expect_err("GIT_DIR names no repository");
-    assert!(matches!(&error, GateError::Tracked { .. }), "{error:?}");
-    assert!(error.to_string().contains("GIT_DIR"), "{error}");
+        .expect("ambient GIT_DIR cannot redirect native discovery");
+    assert_eq!(findings, Vec::<Finding>::new());
     let opened = Gate::workspace(&dir)
-        .programs(Programs::new(&dir).discover_git())
         .open()
         .expect("explicit discovery uses the independent fixture's real index");
     assert!(opened.tracked().unwrap().contains(&rel("Cargo.toml")));
     assert_eq!(opened.workplan().check(), Vec::<Finding>::new());
-    println!("the gate refused: {error}");
+    println!("the native gate ignored GIT_DIR");
 }
 
 // --- Gate::open and Gate::programs -----------------------------------------
@@ -583,70 +579,4 @@ fn each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then() {
     );
     let after = opened.workplan().check();
     assert_eq!(kinds(&after), ["link-broken"], "{after:#?}");
-}
-
-#[test]
-fn the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process() {
-    let _lock = serial();
-    let scratch = Scratch::new();
-    scratch.repository(&base());
-    // A git that cannot be started would be an error if it were asked.
-    let programs = Programs::new(scratch.path()).with_git(scratch.path().join("no-such-git"));
-    let gate = scratch
-        .gate()
-        .programs(programs.clone())
-        .tracked_paths(files_below(scratch.path()));
-    let opened = gate.open().expect("no process is started");
-    assert!(opened.tracked().is_some());
-    assert_eq!(opened.workplan().check(), Vec::<Finding>::new());
-
-    // The neighbour: without the list, the same programs are asked and fail.
-    let error = scratch
-        .gate()
-        .programs(programs)
-        .open()
-        .expect_err("git cannot be started");
-    assert!(matches!(&error, GateError::Tracked { .. }), "{error:?}");
-    assert!(error.to_string().contains("cannot start"), "{error}");
-    assert!(error.to_string().contains("tracked_paths"), "{error}");
-}
-
-#[cfg(unix)]
-#[test]
-fn the_programs_of_a_gate_are_started_in_its_directory() {
-    use std::io::Write as _;
-    use std::os::unix::fs::OpenOptionsExt as _;
-
-    let _lock = serial();
-    let scratch = Scratch::new();
-    scratch.repository(&base());
-    let elsewhere = Scratch::new();
-    // A stub `git` that records where it ran and says it is not in a work
-    // tree.
-    let stub = elsewhere.path().join("git");
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o755)
-        .open(&stub)
-        .expect("a stub file");
-    write!(
-        file,
-        "#!/bin/sh\npwd -P > '{}'\necho false\n",
-        elsewhere.path().join("cwd").display()
-    )
-    .expect("a stub body");
-    drop(file);
-    // The programs name another directory; the gate's own replaces it.
-    let programs = Programs::new(elsewhere.path()).with_git(&stub);
-    let opened = scratch
-        .gate()
-        .programs(programs)
-        .open()
-        .expect("the stub answers");
-    // `false` is the answer of a directory that is no work tree: the fallback.
-    assert!(opened.tracked().is_none());
-    let ran_in = fs::read_to_string(elsewhere.path().join("cwd")).expect("the stub ran");
-    let expected = fs::canonicalize(scratch.path()).expect("a canonical directory");
-    assert_eq!(ran_in.trim_end(), expected.to_str().expect("a UTF-8 path"));
 }

@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use raf_workplan::Gate;
-use raf_workplan::exec::{Programs, SystemRunner};
+use raf_workplan::git::Repository;
 use raf_workplan::history::{HistoryOptions, render};
 
 use crate::cli::HistoryArgs;
@@ -16,8 +16,7 @@ use crate::result::Result as CommandResult;
 
 /// `history`: the commits of the document or record, newest first. A history
 /// is an outcome, so the run exits 0 when it has an answer and `-q` hides it.
-/// It starts `git` only and publishes no document or record; Git may fetch
-/// missing objects into its metadata in a partial clone.
+/// Reads repository objects natively, without fetching or changing Git state.
 pub(crate) fn history(root: &Path, args: &HistoryArgs) -> Result<Report, Failure> {
     let opened = Gate::workspace(root).open()?;
     let plan = opened.workplan();
@@ -25,8 +24,8 @@ pub(crate) fn history(root: &Path, args: &HistoryArgs) -> Result<Report, Failure
     if let Some(since) = &args.since {
         options = options.with_since(since.clone());
     }
-    let runner = SystemRunner::new(Programs::new(root));
-    let history = plan.history(&args.id, &options, &runner)?;
+    let repository = Repository::open(root)?;
+    let history = plan.history(&args.id, &options, &repository)?;
     Ok(Report::block(
         Class::Outcome,
         render::table(&history),

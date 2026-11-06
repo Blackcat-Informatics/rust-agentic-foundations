@@ -11,7 +11,6 @@ use support::rdf::Rdf;
 
 use std::path::Path;
 
-use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::Lifecycle;
 use support::{Repo, Run, change};
 
@@ -52,7 +51,7 @@ fn calm(tag: &str) -> Repo {
 
 /// The text the library gives for the same repository.
 fn library(root: &Path, slug: &str) -> String {
-    Lifecycle::open(Programs::new(root).discover_git())
+    Lifecycle::open(root)
         .expect("the lifecycle opens")
         .reconcile(slug)
         .expect("the change reconciles")
@@ -102,7 +101,7 @@ fn an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers() 
     assert_eq!(failed.stdout, "");
     assert!(
         failed.stderr.contains("public surface of `demo`")
-            && failed.stderr.contains("cannot be listed"),
+            && failed.stderr.contains("a public name does not resolve"),
         "{failed:#?}"
     );
     assert_eq!(repo.snapshot(), before);
@@ -127,7 +126,7 @@ fn unparseable_merge_base_source_is_an_error_beside_a_readable_base() {
     repo.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
     repo.put("src/lib.rs", &ordinary);
     let before = repo.snapshot();
-    let error = Lifecycle::open(Programs::new(repo.root()).discover_git())
+    let error = Lifecycle::open(repo.root())
         .expect("the valid working tree opens")
         .reconcile("calm")
         .expect_err("invalid source at the merge base is not skipped");
@@ -141,7 +140,7 @@ fn unparseable_merge_base_source_is_an_error_beside_a_readable_base() {
     assert!(
         failed
             .stderr
-            .contains("`src/lib.rs` at the merge base cannot be compared"),
+            .contains("cannot compare `src/lib.rs` at the merge base"),
         "{failed:#?}"
     );
     assert_eq!(repo.snapshot(), before);
@@ -216,7 +215,7 @@ fn nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_exampl
 }
 
 #[test]
-fn a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree() {
+fn bound_example_bodies_are_inert_and_reconciliation_writes_nothing() {
     let repo = Repo::real("reconcile-example");
     repo.put(
         "docs/capabilities/fixture.md",
@@ -246,24 +245,17 @@ fn a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tre
     repo.sync();
     repo.assess("shape");
     let before = repo.worktree();
-    let run = repo.both(&["change", "reconcile", "shape"]).expect(1);
-    assert_eq!(run.lines().len(), 1, "{run:#?}");
-    assert!(
-        run.stdout
-            .starts_with("cap:fixture  examples  example-failing  "),
-        "{run:#?}"
-    );
-    assert!(
-        run.stdout
-            .contains("`demo::example_crate::exiting` fails to build or run (exit code 3)"),
-        "{run:#?}"
-    );
-    assert_eq!(repo.worktree(), before, "reconcile wrote into the tree");
-
-    // Once the example builds and runs the line is gone.
-    repo.put("examples/exiting.rs", support::GOOD_EXAMPLE);
     let run = repo.both(&["change", "reconcile", "shape"]).expect(0);
     assert_eq!(run.stdout, "");
+    assert_eq!(repo.worktree(), before, "reconcile wrote into the tree");
+
+    // A different body remains source data, with current authored assessments.
+    repo.put("examples/exiting.rs", support::GOOD_EXAMPLE);
+    repo.assess("shape");
+    let before = repo.worktree();
+    let run = repo.both(&["change", "reconcile", "shape"]).expect(0);
+    assert_eq!(run.stdout, "");
+    assert_eq!(repo.worktree(), before, "reconcile wrote into the tree");
 }
 
 #[test]
@@ -428,7 +420,7 @@ fn unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor
     assert_eq!(run.stdout, "");
     assert!(
         run.stderr
-            .contains("`src/lib.rs` at the merge base cannot be compared: "),
+            .contains("cannot compare `src/lib.rs` at the merge base: "),
         "{run:#?}"
     );
     let neighbor = calm_before_checkout("reconcile-parsed-neighbor", &["cap:alpha#contract"]);
@@ -461,7 +453,8 @@ fn an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor() {
         assert_eq!(run.stdout, "", "{tag}");
         if code == 2 {
             assert!(
-                run.stderr.contains("in the working tree cannot be listed, so the bound public items the change touches are unknown: "),
+                run.stderr
+                    .contains("in the working tree: a public name does not resolve: "),
                 "{run:#?}"
             );
         } else {

@@ -51,8 +51,6 @@ bindings:
     - raf_workplan::Loaded
     - raf_workplan::Opened
     - raf_workplan::Opened::tree
-    - raf_workplan::Opened::captured
-    - raf_workplan::gate::RepositoryTree
     - raf_workplan::GateError
     - raf_workplan::ExampleKind
     - raf_workplan::RoadmapEntry
@@ -66,14 +64,14 @@ bindings:
     - raf_workplan::git::tracked_paths
     - raf_workplan::Workplan::debt
   tests:
+    - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
     - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync
     - raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path
-    - raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal
+    - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
     - raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given
     - raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does
     - cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal
-    - cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary
     - raf_workplan::test_crate::references::accepts_a_moved_outcome_that_names_an_existing_change
     - raf_workplan::test_crate::generated::the_stale_finding_points_at_the_opening_marker_of_the_block
     - raf_workplan::test_crate::claim_coverage::an_unbound_claim_marker_is_refused_beside_covered_neighbors
@@ -81,7 +79,6 @@ bindings:
     - raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings
     - raf_workplan::test_crate::debt::a_row_of_a_kind_that_is_no_debt_or_a_subject_of_another_form_is_invalid
     - raf_workplan::test_crate::debt::a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt
-    - cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check
     - raf_workplan::test_crate::documents::accepts_valid_fixture
     - raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies
     - raf_workplan::test_crate::documents::a_broken_document_is_a_finding_and_not_in_the_model
@@ -221,7 +218,7 @@ bindings:
     - raf_workplan::test_crate::documents::rejects_unknown_key
     - raf_workplan::test_crate::documents::rejects_unparseable_frontmatter
     - raf_workplan::test_crate::gate::a_directory_that_does_not_exist_is_an_error
-    - raf_workplan::test_crate::gate::a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk
+    - raf_workplan::test_crate::gate::an_ambient_git_dir_cannot_redirect_native_repository_discovery
     - raf_workplan::test_crate::gate::a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken
     - raf_workplan::test_crate::gate::a_link_to_a_symlink_the_tracked_set_names_is_link_symlink
     - raf_workplan::test_crate::gate::a_source_workspace_that_does_not_load_is_an_error
@@ -230,8 +227,6 @@ bindings:
     - raf_workplan::test_crate::gate::open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents
     - raf_workplan::test_crate::gate::open_is_the_load_of_try_check_and_refuses_what_it_refuses
     - raf_workplan::test_crate::gate::the_gate_under_a_git_dir_that_names_nothing
-    - raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory
-    - raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process
     - raf_workplan::test_crate::graph::a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiate
     - raf_workplan::test_crate::graph::a_link_that_leads_nowhere_in_the_model_is_no_edge
     - raf_workplan::test_crate::graph::bindings_record_what_the_source_index_made_of_each_path
@@ -399,7 +394,7 @@ opening uses its disk tree; completion can load the same source and documents
 from a captured repository. Captured reads retain original physical identities
 as provenance while completed generated text and the removed record are judged
 through the prospective tree. Physical execution copies have distinct identities.
-<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
+<!-- raf:tested-by raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched -->
 
 ### Capability identity and shape
 <!-- raf:tested-by raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies,raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused,raf_workplan::test_crate::references::a_slug_that_is_not_kebab_case_is_refused,raf_workplan::test_crate::references::a_matching_kebab_slug_is_accepted -->
@@ -411,7 +406,7 @@ the identity `cap:<slug>`, the keys and the seven sections defined in
 [the OKF reader](./okf-profile.md).
 
 ### Capability lifetime identity
-<!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary -->
+<!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal -->
 
 The document is permanent: authors keep its identity and its path from the first
 time the capability is considered until the capability is removed. Lifecycle
@@ -431,7 +426,7 @@ document and the change records may say.
 | `delivered` | The supported contract, usage, examples, limitations, current rationale and verification links | No open record lists it |
 
 ### State transition policy
-<!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
+<!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
 
 A change to a delivered capability puts the capability back under an open record,
 which moves it to `implementing`: the current account stays as written, and the
@@ -481,7 +476,7 @@ A change lives at `work/changes/<slug>.md` with the identity
 The body holds a non-empty `## Summary`.
 
 ### Completed change records
-<!-- raf:tested-by cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check -->
+<!-- raf:tested-by raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched -->
 
 Completing a change deletes the file, and Git holds its history.
 
@@ -588,7 +583,7 @@ and the assessments of a section (`Graph::assessments_of`), the `scope` edges
 Each entry in `bindings.code` is a Rust path to a shipping
 item, each entry in `bindings.tests` a path to a function marked `#[test]`, and each
 entry in `bindings.examples` an example target (`<package>::example_crate::<name>`)
-or a documented item of a library whose documentation tests run. All resolve through
+or a documented item of a library target that enables documentation tests. All resolve through
 the [source index](./source-index.md), including re-exports, and the role is judged
 on the definition the path leads to. A binding that does not resolve, that names more
 than one definition, or whose item does not fit its list is an error naming the
@@ -747,8 +742,8 @@ operations reuse these same bundles rather than extracting a separate graph.
 
 
 Use the returned tree through its `Tree` contract rather than assuming an
-`Opened` model always owns a `DiskTree`. A supplied completion runner must
-explicitly prepare its execution view; it cannot silently select disk execution.
+`Opened` model always owns a `DiskTree`. Static completion checks its prospective
+document state through an in-memory overlay before publishing owned edits.
 
 The runnable API example `raf_workplan::Gate` opens a repository through the same source and document boundary used by command callers.
 
@@ -765,9 +760,9 @@ fn workplan() {
 `Gate::workspace` reads `docs/capabilities`, `docs/architecture` and `work/changes`
 under the directory, and the records of `work/evidence`, `work/assessments`,
 `work/coverage` and `work/debt`, loads the workspace sources from the roots `["."]`
-(`Gate::source_roots` changes them), judges links against the paths `git ls-files`
-lists (every file under the directory when `git` answers that the directory is not
-inside a work tree, and the caller's list with `Gate::tracked_paths`), and runs the
+(`Gate::source_roots` changes them), judges links against native Git index paths
+(every file under the directory when native discovery finds no repository, and
+the caller's list with `Gate::tracked_paths`), and runs the
 checks; `assert_clean` panics with every finding, each with its
 location and fix, when there is one. A directory without a capability document is an
 error, not a clean verdict, a missing `work/changes` is the empty set of changes, and
@@ -844,17 +839,17 @@ items:
   assessors judge that semantic requirement; the structural checks judge state
   and proposal placement, and completion requires current accepted assessments
   of the affected assessable sections.
-  <!-- raf:tested-by cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary,raf_workplan::test_crate::states::rejects_delivered_with_proposed_block,raf_workplan::test_crate::states::rejects_designed_with_proposed_block,raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does -->
+  <!-- raf:tested-by raf_workplan::test_crate::states::rejects_delivered_with_proposed_block,raf_workplan::test_crate::states::rejects_designed_with_proposed_block,raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does -->
 - Directories are flat: a document sits directly in its directory.
   <!-- raf:tested-by raf_workplan::test_crate::documents::rejects_nested_documents -->
 - A state does not advance on its own. The state of a capability is edited in the
   same change that earns it, and the check rules above reject a state its content
   does not support.
-  <!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary,raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
+  <!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
 - Outside a git work tree, such as a copy of a commit's files, the gate takes every
   file under the directory as a tracked path, so a link to an untracked file passes
   there. `Gate::tracked_paths` supplies the list instead.
-  <!-- raf:tested-by raf_workplan::test_crate::gate::a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken,raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process -->
+  <!-- raf:tested-by raf_workplan::test_crate::gate::a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken -->
 
 ## Explanation
 
@@ -983,8 +978,6 @@ merge-base source reads and unchanged original files beside successful completio
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::Gate` | doctest | [Usage](#usage) |
@@ -1027,8 +1020,9 @@ merge-base source reads and unchanged original files beside successful completio
 | `raf_workplan::test_crate::bindings::the_macro_hint_is_only_for_a_parent_that_is_a_module` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::the_role_is_judged_on_the_definition_a_re_export_leads_to` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::claim_coverage::an_unbound_claim_marker_is_refused_beside_covered_neighbors` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::a_row_of_a_kind_that_is_no_debt_or_a_subject_of_another_form_is_invalid` | test | [Contract](#contract) |
@@ -1085,20 +1079,18 @@ merge-base source reads and unchanged original files beside successful completio
 | `raf_workplan::test_crate::gate::a_capabilities_directory_without_a_capability_document_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_clean_repository_passes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_directory_that_does_not_exist_is_an_error` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::gate::a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::gate::a_link_to_a_symlink_the_tracked_set_names_is_link_symlink` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_missing_capabilities_directory_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_missing_changes_directory_is_the_empty_set_of_changes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_source_workspace_that_does_not_load_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::an_ambient_git_dir_cannot_redirect_native_repository_discovery` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::inside_a_git_checkout_the_tracked_paths_come_from_the_index` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::open_is_the_load_of_try_check_and_refuses_what_it_refuses` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::the_gate_under_a_git_dir_that_names_nothing` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::generated::the_stale_finding_points_at_the_opening_marker_of_the_block` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::graph::a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiate` | test | [Verification](#verification) |

@@ -7,16 +7,16 @@ subject: cap:workplan-code-reviews#usage
 inputs:
   - kind: section
     name: cap:workplan-code-reviews#usage
-    digest: 49f4b9d20c9e59e5cf7c5b2c6dea231becb9a3db4e420ddd8389582e2264531a
+    digest: cb3fb2dbbbe7334ecd4650a253e8ae0bd958d55e39fc8efcf819e4c067359c80
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph::review
     digest: 16667bea9f5a5d3180030167352af2766dd9804e3bb9ace82054d9a2010c5419
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::review
-    digest: 429bac91a521b3bd824f9232e79a3a566b70b57ad18185e8a68e4d9af2d81dc1
+    digest: f173db2a7fd1ca8adf94b93fccdfc21a7f2e3ab6677ec121e7f9bcc74507e08e
   - kind: symbol
     name: raf_okf::profile::review
-    digest: d27c74481b3bbdbb3bec433bfe492acefcfe36a695fee7c99aee061fc8411b0a
+    digest: b77f8c42c8319e51dfa44a556990ce421e3e3e726331d21bacf372710a076549
   - kind: symbol
     name: raf_workplan::digest::Digest::review_item
     digest: a4e74334f794403d154e9aef2495a2d4dd68e9699eb1dd7fa7ec58559be39398
@@ -25,13 +25,13 @@ inputs:
     digest: 3607a8d0ab7e94b4e21adbfc2e5ddd868c38b5d69d40f5fea59c9ca7d6d93b52
   - kind: symbol
     name: raf_workplan::git::head
-    digest: 8f71ef108fb1cc9fc6e44490690d3ef38b4bf30bbd3cbc96742676fcee3fe104
+    digest: f813006d08fdc863f53d2f16c021ced90ad81f1d91049d41b64193ce4d38d8ed
   - kind: symbol
     name: raf_workplan::lifecycle::touched::BaseTree::at_revision
-    digest: 3c8ebf542c2dcd98ce476235bbba87fec9a0761eb3e08b90ae0caffb81fa7499
+    digest: 0ff00815815e49509a7aa20df40f9bd023347a33d6996c63e8f180883721fd32
   - kind: symbol
     name: raf_workplan::review
-    digest: 4d77cb4000835270d22265666a3397941be9d4cb682eaef994a183507e153892
+    digest: fbe4b8b02c255613d3cf594c413f28dd1772deae6fd23a60fe118a7b5f492887
 verdict: accepted
 by: agent
 ---

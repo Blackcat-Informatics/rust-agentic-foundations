@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The git questions against the real `git` in repositories written to a
-//! scratch directory (the tracked paths, the default branch, the merge base,
-//! a file at the merge base, a linked work tree), and against a stub `git` that
-//! records exactly what it was started with.
+//! Native Git reads over repositories written to a scratch directory: tracked
+//! paths, default branches, merge bases, historical files and linked worktrees.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,16 +10,15 @@ use std::process::Command;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use raf_okf::MAX_TEXT_BYTES;
-use raf_workplan::exec::{Commit, Programs, RefName, SourcePath, SystemRunner};
 use raf_workplan::git::{
-    GitError, GitVersion, MergeBase, blob_at, default_branch_ref, merge_base, require_version,
-    resolve_commit, resolve_commit_id, show_prefix, tracked_paths,
+    GitError, MergeBase, Repository, blob_at, default_branch_ref, merge_base, resolve_commit,
+    resolve_commit_id, show_prefix, tracked_paths,
 };
+use raf_workplan::identifiers::{Commit, RefName, SourcePath};
 
-/// A stub is written and started while other tests start `git`; a forked child
-/// briefly holding the descriptor that wrote the file makes the start fail with
-/// "text file busy". Every test holds this lock from its first process to its
-/// last, so no two tests start processes at once.
+/// Fixture hooks are written while other tests start `git`; a forked child
+/// briefly holding the write descriptor can prevent executing the hook.
+/// Serialize fixture processes to prevent that descriptor inheritance race.
 static SPAWN: Mutex<()> = Mutex::new(());
 
 fn serial() -> MutexGuard<'static, ()> {
@@ -115,13 +112,13 @@ impl Repo {
         self.git(&["rev-parse", "HEAD"])
     }
 
-    fn runner(&self) -> SystemRunner {
+    fn runner(&self) -> Repository {
         runner_in(&self.dir)
     }
 }
 
-fn runner_in(dir: &Path) -> SystemRunner {
-    SystemRunner::new(Programs::new(dir).discover_git())
+fn runner_in(dir: &Path) -> Repository {
+    Repository::open(dir).expect("native repository")
 }
 
 fn commit(text: &str) -> Commit {
@@ -208,12 +205,20 @@ fn a_directory_that_is_no_work_tree_has_no_listing_and_a_broken_index_is_an_erro
     // Outside any repository: the documented fallback.
     let loose = scratch.path().join("loose");
     fs::create_dir(&loose).expect("a directory");
-    assert_eq!(tracked_paths(&runner_in(&loose)), Ok(None));
+    assert!(
+        Repository::discover(&loose)
+            .expect("outside discovery")
+            .is_none()
+    );
 
     // Inside the `.git` directory: git answers `false`.
     let repo = Repo::init(scratch.path().join("repo"));
     repo.commit("a.md", b"a\n", "first");
-    assert_eq!(tracked_paths(&runner_in(&repo.dir.join(".git"))), Ok(None));
+    assert!(
+        tracked_paths(&runner_in(&repo.dir.join(".git")))
+            .expect("Git directory selection")
+            .is_none()
+    );
 
     // A neighbour inside the work tree lists.
     assert_eq!(
@@ -226,31 +231,14 @@ fn a_directory_that_is_no_work_tree_has_no_listing_and_a_broken_index_is_an_erro
     // A work tree whose index cannot be read is an error, not a walk.
     fs::write(repo.dir.join(".git/index"), "this is not an index").expect("a bad index");
     let error = tracked_paths(&repo.runner()).expect_err("a corrupt index");
-    assert!(matches!(error, GitError::Failed { .. }), "{error:?}");
-    assert!(error.to_string().contains("git ls-files"), "{error}");
-}
-
-#[test]
-fn a_program_that_does_not_exist_is_an_error_and_not_a_fallback() {
-    let _lock = serial();
-    let scratch = Scratch::new();
-    let programs = Programs::new(scratch.path()).with_git(scratch.path().join("no-such-git"));
-    let error = tracked_paths(&SystemRunner::new(programs.clone())).expect_err("no git");
-    assert!(matches!(error, GitError::Exec(_)), "{error:?}");
-    assert!(error.to_string().contains("cannot start"), "{error}");
-    let error = require_version(&SystemRunner::new(programs)).expect_err("no git");
-    assert!(matches!(error, GitError::Exec(_)), "{error:?}");
+    assert!(
+        matches!(error, GitError::Native(_) | GitError::Answer { .. }),
+        "{error:?}"
+    );
+    assert!(error.to_string().contains("index"), "{error}");
 }
 
 // ----------------------------------------------------------------- version
-
-#[test]
-fn the_installed_git_is_new_enough() {
-    let _lock = serial();
-    let scratch = Scratch::new();
-    let version = require_version(&runner_in(scratch.path())).expect("a supported git");
-    assert!(version >= GitVersion::MINIMUM, "{version}");
-}
 
 // ----------------------------------------------------------- default branch
 
@@ -285,7 +273,10 @@ fn a_repository_without_origin_head_has_no_default_branch_and_the_fix_is_named()
         message.contains("git remote set-head origin --auto"),
         "{message}"
     );
-    assert!(message.contains("no default branch"), "{message}");
+    assert!(
+        message.contains("no symbolic origin default branch"),
+        "{message}"
+    );
 
     // A remote whose `origin/HEAD` was removed, then restored by the fix the
     // message names.
@@ -449,10 +440,11 @@ fn the_prefix_is_where_the_directory_is_below_the_top_of_its_work_tree() {
     // A directory outside any work tree has no prefix.
     let loose = scratch.path().join("loose");
     fs::create_dir(&loose).expect("a directory");
-    assert!(matches!(
-        show_prefix(&runner_in(&loose)),
-        Err(GitError::Failed { .. })
-    ));
+    assert!(
+        Repository::discover(&loose)
+            .expect("outside discovery")
+            .is_none()
+    );
 }
 
 #[test]
@@ -522,7 +514,7 @@ fn resolved_historical_files_preserve_admission(repo: &Repo, tip: &str, base: &M
     for refused in [blob.as_str(), "0000000000000000000000000000000000000000"] {
         assert!(matches!(
             resolve_commit_id(&repo.runner(), &commit(refused)),
-            Err(GitError::Failed { .. })
+            Err(GitError::Native(_) | GitError::Answer { .. })
         ));
     }
     repo.git(&["tag", "-a", "reviewed", "-m", "reviewed commit", tip]);
@@ -531,7 +523,7 @@ fn resolved_historical_files_preserve_admission(repo: &Repo, tip: &str, base: &M
     let tag_id = repo.git(&["rev-parse", "refs/tags/reviewed"]);
     assert!(matches!(
         resolve_commit_id(&repo.runner(), &commit(&tag_id)),
-        Err(GitError::Answer { .. })
+        Err(GitError::Native(_))
     ));
     assert_eq!(
         fs::read(repo.dir.join("only-on-disk.md")).unwrap(),
@@ -597,7 +589,10 @@ fn a_directory_is_an_error_and_not_an_absent_file() {
         &path("dir"),
     )
     .expect_err("a directory");
-    assert!(matches!(error, GitError::Failed { .. }), "{error:?}");
+    assert!(
+        matches!(error, GitError::Native(_) | GitError::Answer { .. }),
+        "{error:?}"
+    );
     // The neighbour: the file in the directory reads.
     assert_eq!(
         blob_at(
@@ -680,244 +675,4 @@ fn a_linked_work_tree_asks_about_its_own_head_and_shares_the_remote_refs() {
         .expect("inside a work tree");
     let names: Vec<&str> = tracked.iter().map(raf_source::RelPath::as_str).collect();
     assert_eq!(names, ["README.md", "linked.md", "shared.md"]);
-}
-
-// -------------------------------------------------------------- stub `git`
-
-#[cfg(unix)]
-mod stubs {
-    use super::*;
-    use std::io::Write as _;
-    use std::os::unix::fs::OpenOptionsExt as _;
-
-    const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
-    const MERGE_BASE: &str = "fedcba9876543210fedcba9876543210fedcba98";
-
-    /// A `git` that records each call (its argv, one record to a line, the
-    /// elements separated by the unit separator 0x1f, and the directory and
-    /// locale it ran with) and answers the questions of this module.
-    fn recording_git(version: &str, default_ref: &str) -> String {
-        format!(
-            r#"dir=$(dirname "$0")
-printf '%s\037' "$@" >> "$dir/argv"
-printf '\n' >> "$dir/argv"
-pwd -P >> "$dir/cwd"
-printf '%s\n' "${{LC_ALL-<unset>}}" >> "$dir/lc_all"
-case "$1" in
---version) echo '{version}' ;;
-rev-parse)
-  case "$2" in
-  --is-inside-work-tree) echo true ;;
-  --show-prefix) echo ;;
-  *) echo {COMMIT} ;;
-  esac ;;
-ls-files) printf 'docs/a.md\0src/lib.rs\0' ;;
-symbolic-ref) echo '{default_ref}' ;;
-merge-base) echo {MERGE_BASE} ;;
-cat-file) printf 'blob text' ;;
-*) echo "unexpected $*" >&2; exit 64 ;;
-esac"#
-        )
-    }
-
-    struct Stub {
-        scratch: Scratch,
-        git: PathBuf,
-    }
-
-    impl Stub {
-        fn new(version: &str, default_ref: &str) -> Self {
-            let scratch = Scratch::new();
-            fs::create_dir(scratch.path().join("bin")).expect("a bin directory");
-            fs::create_dir(scratch.path().join("work")).expect("a work directory");
-            let git = scratch.path().join("bin/git");
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o755)
-                .open(&git)
-                .expect("a stub file");
-            write!(file, "#!/bin/sh\n{}\n", recording_git(version, default_ref))
-                .expect("a stub body");
-            drop(file);
-            Self { scratch, git }
-        }
-
-        fn runner(&self) -> SystemRunner {
-            SystemRunner::new(Programs::new(self.work()).with_git(&self.git))
-        }
-
-        fn work(&self) -> PathBuf {
-            self.scratch.path().join("work")
-        }
-
-        fn lines(&self, name: &str) -> Vec<String> {
-            let text =
-                fs::read_to_string(self.scratch.path().join("bin").join(name)).unwrap_or_default();
-            text.lines().map(str::to_string).collect()
-        }
-
-        /// Every recorded call, each as its argv.
-        fn calls(&self) -> Vec<Vec<String>> {
-            self.lines("argv")
-                .iter()
-                .map(|line| {
-                    let mut parts: Vec<&str> = line.split('\u{1f}').collect();
-                    assert_eq!(parts.pop(), Some(""), "the record ends in a separator");
-                    parts.into_iter().map(str::to_string).collect()
-                })
-                .collect()
-        }
-    }
-
-    #[test]
-    fn every_question_reaches_git_as_exactly_its_argv_in_the_work_directory() {
-        let _lock = serial();
-        let stub = Stub::new(
-            "git version 2.45.1.windows.1",
-            "refs/remotes/origin/--output=x",
-        );
-        let runner = stub.runner();
-
-        let version = require_version(&runner).expect("a version");
-        assert_eq!(
-            (version.major(), version.minor(), version.patch()),
-            (2, 45, 1)
-        );
-        let tracked = tracked_paths(&runner)
-            .expect("a listing")
-            .expect("inside a work tree");
-        assert_eq!(tracked.len(), 2);
-        assert!(show_prefix(&runner).expect("a prefix").is_top());
-        let name = default_branch_ref(&runner).expect("a default branch");
-        assert_eq!(name.as_str(), "refs/remotes/origin/--output=x");
-        let default = resolve_commit(&runner, &name).expect("a commit");
-        assert_eq!(default.as_str(), COMMIT);
-        let base = merge_base(&runner, default.commit()).expect("a merge base");
-        assert_eq!(base.as_str(), MERGE_BASE);
-        let blob = blob_at(
-            &runner,
-            base.resolved(),
-            &path("docs/capabilities/workplan-cli.md"),
-        )
-        .expect("a blob");
-        assert_eq!(blob.as_deref(), Some(b"blob text".as_slice()));
-
-        let expected: Vec<Vec<String>> = [
-            vec!["--version"],
-            vec!["rev-parse", "--is-inside-work-tree"],
-            vec!["ls-files", "-z"],
-            vec!["rev-parse", "--show-prefix"],
-            vec!["symbolic-ref", "refs/remotes/origin/HEAD"],
-            vec![
-                "rev-parse",
-                "--verify",
-                "--end-of-options",
-                "refs/remotes/origin/--output=x^{commit}",
-            ],
-            vec!["merge-base", "HEAD", COMMIT],
-            vec![
-                "cat-file",
-                "blob",
-                &format!("{MERGE_BASE}:docs/capabilities/workplan-cli.md"),
-            ],
-        ]
-        .into_iter()
-        .map(|argv| argv.into_iter().map(str::to_string).collect())
-        .collect();
-        assert_eq!(stub.calls(), expected);
-
-        // A branch named like an option is never an argument of its own: the
-        // only words that begin with a dash are the fixed options.
-        let fixed = [
-            "--version",
-            "--is-inside-work-tree",
-            "--show-prefix",
-            "-z",
-            "--verify",
-            "--end-of-options",
-        ];
-        for call in stub.calls() {
-            for arg in call.iter().filter(|arg| arg.starts_with('-')) {
-                assert!(fixed.contains(&arg.as_str()), "{arg} in {call:?}");
-            }
-        }
-
-        // Every call ran in the work directory and in the C locale.
-        let work = fs::canonicalize(stub.work()).expect("a canonical work directory");
-        let cwd = work.to_str().expect("a UTF-8 path");
-        assert!(stub.lines("cwd").iter().all(|line| line == cwd));
-        assert_eq!(stub.lines("cwd").len(), 8);
-        assert!(stub.lines("lc_all").iter().all(|line| line == "C"));
-    }
-
-    #[test]
-    fn the_version_gate_over_a_real_process_refuses_2_29_and_accepts_2_30() {
-        let _lock = serial();
-        for (text, accepted) in [
-            ("git version 2.29.9", false),
-            ("git version 2.29.2.windows.1", false),
-            ("git version 2.29.3 (Apple Git-130)", false),
-            ("git version 2.30.0", true),
-            ("git version 2.45.1", true),
-            ("git version 2.45.1.windows.1", true),
-            ("git version 2.39.5 (Apple Git-154)", true),
-        ] {
-            let stub = Stub::new(text, "refs/remotes/origin/main");
-            let result = require_version(&stub.runner());
-            if accepted {
-                result.unwrap_or_else(|error| panic!("{text}: {error}"));
-            } else {
-                let error = result.expect_err(text);
-                assert!(
-                    matches!(error, GitError::VersionTooOld { .. }),
-                    "{text}: {error:?}"
-                );
-            }
-            assert_eq!(stub.calls(), [["--version"]], "{text}: one question");
-        }
-        let stub = Stub::new("this is not git", "refs/remotes/origin/main");
-        assert!(matches!(
-            require_version(&stub.runner()),
-            Err(GitError::VersionUnreadable { .. })
-        ));
-    }
-
-    #[test]
-    fn an_answer_that_is_not_a_full_reference_name_stops_the_chain_before_any_commit_is_asked_for()
-    {
-        let _lock = serial();
-        for answer in ["--output=x", "main", "origin/main"] {
-            let stub = Stub::new("git version 2.45.1", answer);
-            let error = default_branch_ref(&stub.runner()).expect_err(answer);
-            assert!(
-                matches!(error, GitError::Answer { .. }),
-                "{answer}: {error:?}"
-            );
-            assert_eq!(stub.calls().len(), 1, "{answer}");
-        }
-    }
-
-    #[test]
-    fn a_stub_that_exits_with_a_failure_is_an_error_with_its_message() {
-        let _lock = serial();
-        let scratch = Scratch::new();
-        let git = scratch.path().join("git");
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o755)
-            .open(&git)
-            .expect("a stub file");
-        write!(file, "#!/bin/sh\necho 'fatal: boom' >&2\nexit 128\n").expect("a stub body");
-        drop(file);
-        let runner = SystemRunner::new(Programs::new(scratch.path()).discover_git().with_git(&git));
-        let error = require_version(&runner).expect_err("a failing git");
-        assert!(
-            matches!(&error, GitError::Failed { code: Some(128), stderr, .. } if stderr == "fatal: boom"),
-            "{error:?}"
-        );
-        let error = tracked_paths(&runner).expect_err("a failing git");
-        assert!(matches!(error, GitError::Failed { .. }), "{error:?}");
-    }
 }

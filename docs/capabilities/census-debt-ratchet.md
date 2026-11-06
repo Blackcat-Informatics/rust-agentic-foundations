@@ -23,7 +23,7 @@ bindings:
     - raf_census::DEBT_FILE
     - raf_census::MAX_DEBT_BYTES
   tests:
-    - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
+
     - raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth
     - raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group
     - raf_census::test_crate::debt::resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record
@@ -38,6 +38,7 @@ bindings:
     - raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record
     - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
     - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
+    - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
   examples:
     - raf_census::example_crate::debt
 depends: [cap:census-normal-form, cap:census-ledger, cap:rdf-report-profile]
@@ -118,15 +119,12 @@ Gate::write_debt and cargo census debt --write use ordinary evaluation;
 Gate::write_debt_locked uses configured locked evaluation. Both Gate writers
 share one ratchet and publication path. Non-debt findings prevent every write. Registered rules or nonempty
 extensions require a repository's registered Gate; the built-in CLI exits 2
-naming Gate::write_debt rather than skipping them. Missing executors cannot
-become debt. A current-version record can only stay equal or shrink.
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+naming Gate::write_debt rather than skipping them. Required callbacks cannot be omitted from the debt evaluation. A current-version record can only stay equal or shrink.
 
-Selecting both --package and --example on debt --write invokes that repository
-writer with the explicit versioned operation and validates its distinct native
-RDF receipt. It calls the same registered Gate writer and never substitutes
-ordinary evaluation. The [command contract](./census-cli.md) defines token,
-response and exit agreement. A check response cannot acknowledge a debt write.
+
+Registered policy is supplied directly to the library Gate through its rule and
+extension registrations. The shipped CLI installs no repository callbacks and
+refuses policy requiring them; it does not launch a repository target.
 The writer serializes completely, checks the shared 16-MiB record cap, creates
 an exclusive temporary file and replaces the destination after writing and
 synchronizing it. Equal records are left unchanged, including when an unrelated
@@ -154,9 +152,10 @@ Ignore .census-debt.ttl.lock in repository hygiene and keep its pathname stable.
 The empty coordination file can remain after success or a policy refusal.
 <!-- raf:tested-by raf_census::example_crate::debt -->
 
-For a registered example supporting publication, run cargo census debt --write
---package demo --example registered. Decode the exact operation before evaluating
-and render RegisteredDebtWrite::from_write from the actual writer result.
+For custom policy, construct the registered Gate in the repository's own binary
+or xtask and call its explicit debt writer. The shipped CLI has no package or
+example selector for loading callbacks.
+<!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 ## Examples
 
@@ -178,20 +177,21 @@ successful retry after release. A registered policy callback attempts a nested
 writer and requires the busy refusal, proving evaluation occurs under the lock.
 <!-- raf:tested-by raf_census::example_crate::debt -->
 
-The real CLI fixture sends the explicit publication request to a configured
-repository writer with a custom rule, owner extension and local provider.
-It adopts two copies, keeps equal bytes, reduces to one copy and refuses growth
-or invalid policy without changing prior debt. Its direct-target write produces
-the same canonical bytes as the CLI.
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+The native CLI fixture adopts two copies, preserves equal bytes, records a
+reduction to one and refuses growth without replacing prior debt. It uses the
+same ordinary Gate writer. A policy requiring a custom rule or owner validator
+instead refuses with the library writer named in the diagnostic and creates no
+partial record. The debt example covers the configured registered writer.
+<!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::example_crate::debt -->
+
 
 ## Constraints
 
-- An authorized registered target can finish publication before its receipt fails
-  transport or decoding. Host failure implies no rollback; the CLI never retries
-  automatically. The native writer's own refusal/publication guarantees remain
-  the same.
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+- The native CLI cannot supply repository-specific rule or extension callbacks.
+  Such policy requires an explicitly configured library Gate. Repository target
+  selectors are rejected before any consumer code is built or executed.
+<!-- raf:tested-by cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
+
 
 - Coordination is advisory between writers using the same persistent pathname.
   It does not prevent external source edits or an actor replacing the lock file.
@@ -213,10 +213,10 @@ the same canonical bytes as the CLI.
   a compiler invocation or acquire its complete source closure. It preserves
   Source's locked identity, authority and configuration refusals.
 <!-- raf:tested-by raf_census::example_crate::debt -->
-- Registered CLI writing requires a separate explicitly authorized operation.
-  The registered check-v1 response authorizes no write; this library method does
-  not add a CLI write request or receipt protocol.
-<!-- raf:tested-by raf_census::example_crate::debt -->
+- Debt publication is an explicit library writer operation. Installing custom
+  callbacks on a Gate does not grant the shipped CLI authority to acquire or
+  execute those callbacks from repository source.
+<!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
 
 ## Explanation
 
@@ -256,9 +256,9 @@ or execution of an external native implementation.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group` | test | [Contract](#contract) |

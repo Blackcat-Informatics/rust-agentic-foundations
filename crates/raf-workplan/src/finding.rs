@@ -307,7 +307,7 @@ impl Finding {
     ///   index does not resolve (or resolves to more than one symbol), whose
     ///   definitions do not fit its list (`code` is a shipping item, `tests`
     ///   a `#[test]` function, `examples` an example target or a documented
-    ///   item of a library whose documentation tests run), or that does not
+    ///   item of a library whose target enables documentation tests), or that does not
     ///   resolve because a macro invocation in the parent module generates it.
     /// * `index-missing`: a repository with capability documents has no
     ///   `docs/capabilities/index.md`; sync creates it.

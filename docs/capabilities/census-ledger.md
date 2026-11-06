@@ -38,7 +38,8 @@ bindings:
     - raf_census::LEDGER_FILE
     - raf_census::SYMBOL_ANCHOR_PREFIX
   tests:
-    - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
+    - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
+
     - raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope
     - raf_census::gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set
     - raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation
@@ -72,6 +73,7 @@ bindings:
     - raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction
     - raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt
     - raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner
+    - raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension
   examples:
     - raf_census::example_crate::debt
     - raf_census::example_crate::providers
@@ -235,8 +237,10 @@ vocabulary through `migrate_legacy_with_extensions`. Its registered
 field root and forward rdfs:member links through `get`, order members by their
 native ordinal, and check every accepted proof field and original source pin.
 Import and closure ownership do not establish evidence validity or authorize a
-sanction. The same consumer validator runs in direct and registered checks.
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+sanction. The caller installs the consumer validator directly with `Gate::extensions`;
+nonempty extension content refuses without exactly one accepting validator.
+<!-- raf:tested-by raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields -->
+
 
 Supply the complete `LockedCatalog`, local `LockedManifest` associations and
 sealed `GitPackageRoots` to `Gate::check_locked`. Each participating package
@@ -285,14 +289,22 @@ configuration. Evaluate those rows through `check_locked` with the supplied
 complete source and target context, or explicitly publish their admissible debt
 through `write_debt_locked`.
 
+Install custom owner validation through `Gate::extensions` before calling
+`check` or `check_tree`. A nonempty extension with no accepting validator is an
+error. The shipped CLI cannot provide that repository implementation and names
+the library Gate when policy requires one.
+<!-- raf:tested-by raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
+
 ## Examples
 
 The foreign-policy fixture retains two capacity-proof rows and repeated ordered
-authority values in one job-owned graph. Its consumer validator accepts the
-declared proof, refuses missing fields, changed file values and stale source
-pins, and preserves those causes through direct Gate and registered CLI checks.
-Foreign input and baseline bytes remain unchanged, and no debt is written.
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+authority values in one job-owned graph. The original source-pin literal remains
+unchanged data. The native migration compares every retained assertion with its
+source projection. The Gate's extension cases separately reject absent or
+ambiguous validators, wrong owners and changed nested evidence. Consumer schema
+and proof validity remain the installed validator's responsibility.
+<!-- raf:tested-by raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields -->
+
 
 A job can select package `provider`, API `provider::api::encode`, consumer
 `demo::run` and that public API as its home. With the dependency renamed to
@@ -428,7 +440,7 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Usage](#usage), [Examples](#examples) |
+| `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Usage](#usage) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::providers` | example target | [Usage](#usage) |
 | `raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope` | test | [Contract](#contract) |
@@ -454,7 +466,7 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 | `raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
@@ -464,6 +476,7 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 | `raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::rules_and_variants_share_physical_ownership_without_widening_file_sanctions` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy` | test | [Contract](#contract) |
+| `raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension` | test | [Usage](#usage), [Examples](#examples) |
 <!-- raf:generated:end -->
 <!-- raf:generated:relationships -->
 | Relation | Capability |

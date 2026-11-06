@@ -1206,7 +1206,10 @@ fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_reco
     for link in ["work", "work/assessments"] {
         let fixture = Fixture::new("[demo::run]", "");
         let root = fixture.root();
-        put(root, ASSESSMENT, "mine\n");
+        fixture
+            .assess(CONTRACT, AssessmentVerdict::Rejected, Actor::Human)
+            .expect("a valid original assessment");
+        let original = read(root, ASSESSMENT);
         let error = on_disk(root, |plan| {
             // The plan is read before the link is made: the default package
             // discovery refuses a linked directory, and a library caller may
@@ -1231,7 +1234,7 @@ fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_reco
         );
         assert_eq!(
             read(root, &format!("moved{}", &ASSESSMENT[link.len()..])),
-            "mine\n"
+            original
         );
         // The neighbour: the directory is real again.
         std::fs::remove_file(root.join(link)).expect("unlinks");
@@ -1240,7 +1243,7 @@ fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_reco
             .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
             .expect("recorded");
         assert!(assessed.replaced, "{link}");
-        assert_ne!(read(root, ASSESSMENT), "mine\n");
+        assert_ne!(read(root, ASSESSMENT), original);
     }
     // A file where the directory belongs.
     let fixture = Fixture::new("[demo::run]", "");

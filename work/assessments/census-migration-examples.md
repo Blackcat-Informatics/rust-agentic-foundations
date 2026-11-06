@@ -7,13 +7,13 @@ subject: cap:census-migration#examples
 inputs:
   - kind: section
     name: cap:census-migration#examples
-    digest: 36eee27e76c065c81ce0d7e3ff12912cd310576bfe4bba6aa1fe831aa8443509
+    digest: 5b0429f0d7271965369a1e6c9a16ff3db1fc51e74be8fb250f86f5c12b583eff
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: 470a7e2bccfc4e02bdd9bd470837872b0d056398e0791cdfafd0340a78ef3aa3
+    digest: d093edbd945873ee24c23bc737c7b35e0687c27c6e655f764850b0979abc9766
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: 98968aef0837208f073bb0037b0684f516f29c2e4a7d90910c85c7364bda5e91
+    digest: 5847e7b9ce65dcdbdab3c79659d90ba2750dc9042faf48345dd7661009efe248
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1

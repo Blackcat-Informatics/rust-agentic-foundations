@@ -6,7 +6,6 @@
 mod cli;
 mod command;
 mod error;
-mod registered;
 
 use std::io::{self, Write as _};
 use std::process::ExitCode;

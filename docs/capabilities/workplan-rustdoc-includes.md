@@ -3,146 +3,64 @@
 # SPDX-License-Identifier: CC-BY-4.0
 type: Capability
 id: cap:workplan-rustdoc-includes
-title: Compiler-observed literal documentation includes
-description: Prepare shared static includes before Cargo and admit public API links through the actual selected Rustdoc compiler.
+title: Static Rustdoc include fragments
+description: Checked source references in returned Markdown without source mutation or compilation.
 state: delivered
 bindings:
   code:
-    - raf_workplan::diagram::cargo::assembly
-    - raf_workplan::exec::RustdocObservationOptions::with_assembly
-    - raf_workplan::exec::Invocation::rustdoc_compiler_version
+    - raf_workplan::diagram::rustdoc::fragment
+    - raf_workplan::diagram::rustdoc::Context
   tests:
-    - cargo_workplan::test_crate::rustdoc_observation::selected_rustdoc_queries_and_artifacts_share_the_actual_cargo_context
-    - raf_workplan::diagram::cargo::observation::driver::tests::receipts_bind_the_input_operand_and_preserve_option_value_pairing
+    - raf_workplan::test_crate::rustdoc_fragments::fragments_refuse_private_or_incomplete_bindings_beside_a_public_reference
   examples:
     - raf_workplan::example_crate::cargo_documentation
-depends: [cap:source-configured-target, cap:workplan-generated-docs, cap:workplan-cargo-documentation, cap:workplan-rustdoc-observation]
+depends: [cap:source-index, cap:workplan-generated-docs, cap:workplan-cargo-documentation]
 ---
 
 ## Purpose
 
-Connect a shared named diagram to the exact library and public module consuming
-a literal documentation include. Ordinary dependency compilation receives a
-complete static fragment; the actual documentation compiler consumes the final
-source-admitted fragment before immutable bundle publication.
+Produce static presentation and public API references suitable for a caller-owned documentation include. Source and package identities remain explicit, while Markdown generation grants no authority to compile code or edit the receiving Rust module.
 
 ## Contract
 
-**Explicit inputs.** `assembly::document` takes the captured Cargo selection,
-explicit observing driver and compiler, an AssemblyPlan, a new absolute plan
-locator and a caller-owned Workplan seed model. Each IncludeRequest names its
-selected package, receiving module, include, named view, capability and complete
-required API spellings. Plans use a closed canonical native RDF carrier with
-shared item and byte bounds.
-<!-- raf:tested-by cargo_workplan::test_crate::rustdoc_observation::selected_rustdoc_queries_and_artifacts_share_the_actual_cargo_context -->
-
-**Complete initial includes.** Every static fragment and destination ownership
-decision is prepared before writing. Existing different contents require the
-exact prior-content digest; identical contents can be reused. The exclusive plan
-records the exact initial include digests before those includes are written and
-Cargo starts. Include, plan and receipt locators remain distinct. The caller's
-seed model supplies initial presentation and explicit document-model package
-roots. Each driver reloads that complete declared-source model, preserving all
-document and binding validation. This model does not establish another library's
-compiler configuration. Final publication uses the driver's regenerated bundles
-and successful compiler observations.
-<!-- raf:tested-by cargo_workplan::test_crate::rustdoc_observation::selected_rustdoc_queries_and_artifacts_share_the_actual_cargo_context -->
-
-**Observed source and links.** The actual driver queries native configuration and
-verbose compiler identity, loads one exact configured target and audits the
-receiving literal `doc = include_str!` attribute. That include supplies the
-module's sole documentation content. Every declared capability code binding
-must appear in the request, with distinct public aliases retained even when they
-share a definition. Each spelling is resolved again in the exact configured
-source index; document-model item identities are never transferred between
-indexes. Raw identifiers retain valid Rust spelling in labels; intra-doc
-destinations use Rustdoc's canonical names. Hidden, private,
-ambiguous and unresolved required references refuse. Rustdoc receives ordinary
-disambiguated intra-doc links with broken and private links forbidden; lint caps,
-force-warn overrides and unsupported modes refuse.
-<!-- raf:tested-by cargo_workplan::test_crate::rustdoc_observation::selected_rustdoc_queries_and_artifacts_share_the_actual_cargo_context,raf_workplan::diagram::cargo::observation::driver::tests::receipts_bind_the_input_operand_and_preserve_option_value_pairing -->
-
-**Identity and publication.** Fragments label Cargo-observed package/version and
-metadata identity separately from native content SHA-256 of loaded root bytes
-and the existing framed symbol SHA-256 identities. They confer no provider
-authority. Final includes, source observations and actual Cargo HTML artifacts
-are rechecked before shared immutable publication. Bundles occupy the shared
-documentation root beside Cargo's crate directories, which Cargo can replace
-before a compiler invocation. Public context contains
-explicit identities and digests; complete compiler environments stay in private
-instrumentation receipts. Cumulative unrelated output remains intact.
-<!-- raf:tested-by cargo_workplan::test_crate::rustdoc_observation::selected_rustdoc_queries_and_artifacts_share_the_actual_cargo_context -->
+**Static contract.** `rustdoc::fragment` returns Markdown for an explicit library target, public receiving module, capability and complete required binding selection. Each binding must resolve to one public, documented item in the selected source index. Hidden, private, ambiguous and unresolved references refuse. Imported package and manifest identities must match the selected source target.
+<!-- raf:tested-by raf_workplan::test_crate::rustdoc_fragments::fragments_refuse_private_or_incomplete_bindings_beside_a_public_reference -->
 
 ## Usage
 
-Capture the Cargo selection and declare literal receiving includes in source.
-Construct the requests with their actual capability code-binding paths and named
-views. Supply a loaded shared seed model to `assembly::document`, with a new plan
-file and receipt directory. Use `IncludeRequest::replace_owned` when replacing
-different previously owned include contents. Read private compiler evidence from
-the returned observations and public bundle locations from publications.
-<!-- raf:tested-by cargo_workplan::test_crate::rustdoc_observation::selected_rustdoc_queries_and_artifacts_share_the_actual_cargo_context -->
+The documented data path is illustrated by `raf_workplan::example_crate::cargo_documentation`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
-Run `raf_workplan::example_crate::cargo_documentation` to capture selected
-libraries, preserve cumulative output and then assemble a literal include with
-an explicit seed model, plan locator and compiler receipts.
-<!-- raf:tested-by raf_workplan::example_crate::cargo_documentation -->
+Supply a Workplan, source Workspace, diagram bundle and explicit `rustdoc::Context`. The result is a string. A caller may save documentation through its own explicit data-publication operation and author a literal `doc = include_str!` attribute. RAF never inserts that attribute or modifies Rust source.
 
 ## Examples
 
-The runnable `raf_workplan::example_crate::cargo_documentation` example
-first checks compiler observations, generated and macro-expanded documentation,
-and cumulative output. It then documents a simple `doc`-selected public struct
-through a literal root include, checks the returned immutable publication and
-confirms the final `struct@crate::Documented` reference.
-<!-- raf:tested-by raf_workplan::example_crate::cargo_documentation -->
-
-A two-library workspace documents a function selected by `doc`, build-script
-configuration, Rustdoc flags and an enabled feature. Two public aliases of that
-function remain separate required references, beside a raw-keyword module and
-function. Root and nested-module includes use the same shared diagram, with
-compiler-resolved links from their actual pages. Each selected library retains
-its immutable publication while an unrelated output file remains unchanged.
-<!-- raf:tested-by cargo_workplan::test_crate::rustdoc_observation::selected_rustdoc_queries_and_artifacts_share_the_actual_cargo_context -->
+A public re-export retains its exported spelling. An ambiguous definition with several aliases requires the intended public spelling. The fragment labels the imported metadata digest separately from the exact loaded source identity.
 
 ## Constraints
 
-- Only literal receiving includes and indexed declaration headers are admitted.
-  Opaque rewriting attributes, item expansion and possible builtin include
-  shadowing require unavailable expanded-input evidence and refuse. Explicit
-  diagram navigation needing Cargo-host href admission also refuses. The broader
-  [Rustdoc assembly contract](workplan-rustdoc.md) covers generated definitions,
-  materialized explorer navigation and packaged hosting.
-<!-- raf:tested-by cargo_workplan::test_crate::rustdoc_observation::selected_rustdoc_queries_and_artifacts_share_the_actual_cargo_context,raf_workplan::diagram::cargo::observation::driver::tests::receipts_bind_the_input_operand_and_preserve_option_value_pairing -->
-
-- Source and output checks are observations before and after use. They do not
-  provide atomic compiler inputs, a directory transaction or isolation from a
-  concurrent publisher. A failed later operation can leave its owned plan and
-  includes; those files alone are not successful compiler or publication evidence.
-<!-- raf:tested-by cargo_workplan::test_crate::rustdoc_observation::selected_rustdoc_queries_and_artifacts_share_the_actual_cargo_context -->
+- Fragments describe the supplied static source index. They do not establish compiler cfg, generated declarations, macro expansion, successful link resolution or the contents of a later HTML build. At most 4096 API references are admitted.
+<!-- raf:tested-by raf_workplan::test_crate::rustdoc_fragments::fragments_refuse_private_or_incomplete_bindings_beside_a_public_reference -->
 
 ## Explanation
 
-Dependency compilation can read a documentation include before Cargo launches
-that library's Rustdoc invocation. Complete initial fragments satisfy that read
-without inventing a compiler configuration. The driver then replaces exactly
-those owned bytes after observing its real context, and publication verifies the
-final fragments actually consumed by Rustdoc. Presentation, configuration,
-source identity, compiler link admission and publication retain separate roles.
+Ordinary disambiguated crate intra-doc destinations leave final filenames and anchors to Rustdoc. The shared static presentation remains script-free. Generating the string does not compile it, launch a driver or publish an assembly.
 
 ## Verification
 
-The bound native case exercises actual Cargo selection, build-script and Rustdoc
-predicates, initial include creation, exact configured source, public aliases,
-raw identifiers, native digest domains, required-link lint arguments, final HTML
-and immutable public context without private environment leakage. The bound
-argument case pairs admitted options with forbidden overrides and checks omitted
-or canonically duplicated capability bindings beside two valid public aliases.
+Artifact identity admission is covered by the named fixtures. Public fragment resolution is checked independently against the native source and export index.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::rustdoc_observation::selected_rustdoc_queries_and_artifacts_share_the_actual_cargo_context` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
-| `raf_workplan::diagram::cargo::observation::driver::tests::receipts_bind_the_input_operand_and_preserve_option_value_pairing` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_workplan::example_crate::cargo_documentation` | example target | [Usage](#usage), [Examples](#examples) |
+| `raf_workplan::example_crate::cargo_documentation` | example target | [Usage](#usage) |
+| `raf_workplan::test_crate::rustdoc_fragments::fragments_refuse_private_or_incomplete_bindings_beside_a_public_reference` | test | [Contract](#contract), [Constraints](#constraints) |
+<!-- raf:generated:end -->
+
+<!-- raf:generated:relationships -->
+| Relation | Capability |
+| --- | --- |
+| Depends on | [source-index](./source-index.md) |
+| Depends on | [workplan-cargo-documentation](./workplan-cargo-documentation.md) |
+| Depends on | [workplan-generated-docs](./workplan-generated-docs.md) |
+| Depended on by | [workplan-rustdoc](./workplan-rustdoc.md) |
 <!-- raf:generated:end -->

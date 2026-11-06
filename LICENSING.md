@@ -74,7 +74,7 @@ conditions.
 Dependencies keep their own licenses. Choosing one of the licenses above does
 not relicense any dependency or other third-party work.
 
-The Unicode data tables in `unicode-ident`, `purrdf-lex`, `purrdf-iri`,
+The Unicode data tables in `unicode-ident`, `unicode-normalization`, `purrdf-lex`, `purrdf-iri`,
 `purrdf-core` and `purrdf-text` retain
 Unicode, Inc.'s copyright and the Unicode License V3
 in addition to their code licenses. The dependency licence policy scopes these
@@ -86,6 +86,13 @@ BSD-3-Clause notice for WHATWG HTML entity and numeric-recovery tables. Those
 notices and their redistribution conditions remain
 controlling. The dependency policy admits the additional Unicode and BSD terms
 only for their named packages; it does not add them to the general license list.
+
+The native Git and diff dependencies include `foldhash` 0.1.5 and 0.2.0 and
+`zlib-rs` 0.6.8 under the Zlib license. Their package `LICENSE` files permit
+commercial use, modification and redistribution, require preserving the notice
+with source distributions, and require marking altered source and accurately
+stating its origin. These notices remain controlling. Dependency-policy
+admissions are restricted to those audited versions.
 
 The `purrdf-hash` package also carries word data derived from the Electronic
 Frontier Foundation's [long wordlist](https://www.eff.org/files/2016/07/18/eff_large_wordlist.txt),

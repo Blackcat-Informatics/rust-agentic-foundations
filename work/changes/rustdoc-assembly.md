@@ -26,8 +26,10 @@ items:
 ## Summary
 
 Cargo and Rustdoc documentation assembly consumes shared named bundles. Actual
-Rustdoc configuration and generated source inputs require observed compiler
-receipts; metadata feature names and caller declarations do not replace them.
+Rustdoc configuration and generated source inputs require admitted provenance;
+imported metadata and artifact messages do not establish compiler execution.
+Compilation requires invocation-scoped documentation trust through the private
+command-line operation, without an ambient driver or general command runner.
 Checked source identities, compiler-resolved API links, admitted HTML artifacts
 and package membership jointly govern publication. Static host output supplies
 the common presentation and owned versioned files.

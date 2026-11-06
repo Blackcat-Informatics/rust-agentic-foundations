@@ -213,7 +213,6 @@ impl Repo {
     /// authored path and current state at a lifecycle boundary.
     pub(crate) fn assert_capability(&self, slug: &str, state: &str) {
         let opened = Gate::workspace(self.root())
-            .programs(raf_workplan::exec::Programs::new(self.root()).discover_git())
             .open()
             .expect("the fixture opens");
         let plan = opened.workplan();
@@ -271,10 +270,7 @@ impl Repo {
 
     /// Sync the generated blocks with the library, creating the index.
     pub(crate) fn sync(&self) {
-        let opened = Gate::workspace(self.root())
-            .programs(raf_workplan::exec::Programs::new(self.root()).discover_git())
-            .open()
-            .expect("a repository");
+        let opened = Gate::workspace(self.root()).open().expect("a repository");
         let plan = opened.workplan();
         let report = plan
             .sync(&SyncOptions::new(COPYRIGHT, LICENCE))
@@ -291,7 +287,6 @@ impl Repo {
     /// them in text.
     pub(crate) fn gate_lines(&self) -> Vec<String> {
         Gate::workspace(self.root())
-            .programs(raf_workplan::exec::Programs::new(self.root()).discover_git())
             .check()
             .iter()
             .map(ToString::to_string)

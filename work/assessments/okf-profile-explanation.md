@@ -330,6 +330,9 @@ inputs:
     name: raf_okf::is_capability_index
     digest: 21e3c6cc7da15bbf2ebdbf75c59fe8ac89e67262bf39009e019259bf18b692b0
   - kind: symbol
+    name: raf_okf::is_commit_id
+    digest: 2334e75584a3b4ce7d52f5c11e86b7680f89b41211688d95d9917b38727e4df0
+  - kind: symbol
     name: raf_okf::is_kebab
     digest: a7aaade56548a540d699702429cbbde1d73dfb5264baa5b02965fb0b13a28d85
   - kind: symbol

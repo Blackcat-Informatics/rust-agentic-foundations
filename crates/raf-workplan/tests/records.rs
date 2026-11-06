@@ -1249,7 +1249,10 @@ fn a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real
         let path = record.path().expect("a path");
         // The record file is there, behind the link once it is made, so a
         // write that followed the link would succeed.
-        put(root, path.as_str(), "mine\n");
+        let original = record
+            .text(&RecordOptions::new())
+            .expect("a valid existing typed record");
+        put(root, path.as_str(), &original);
         link_in_root(root, link, "moved");
         let before = snapshot(root);
         for (what, result) in [
@@ -1268,7 +1271,7 @@ fn a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real
         unlink_in_root(root, link, "moved");
         let replaced = record::replace(root, &record, &spdx()).expect("replaced");
         assert_eq!(replaced, path);
-        assert_ne!(read(root, path.as_str()), "mine\n");
+        assert_ne!(read(root, path.as_str()), original);
         fs::remove_file(root.join(path.as_str())).expect("removed");
         record::create(root, &record, &spdx()).expect("created");
     }

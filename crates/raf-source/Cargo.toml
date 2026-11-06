@@ -12,6 +12,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+gix.workspace = true
 purrdf-core.workspace = true
 purrdf-lex.workspace = true
 purrdf-hash.workspace = true

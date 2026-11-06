@@ -28,12 +28,13 @@ one public, documented definition in its selected library. Private, hidden,
 unresolved and conditionally ambiguous references refuse. Public aliases retain
 their actual exported spelling; Rustdoc resolves final HTML paths and anchors.
 
-Explicit Cargo assembly respects selected packages, features, effective Rustdoc
-configuration, target directories and cumulative output. Actual Cargo-launched
-Rustdoc arguments and environment identify compiler inputs, including build-script
-configuration and Rustdoc flags. Requested metadata features and caller-declared
-configuration cannot replace an observed compiler receipt. A reused Cargo result
-requires a matching successful owned receipt; an absent receipt refuses.
+Explicit Cargo assembly requires invocation-scoped `--trust-docs` through the
+private command-line documentation operation. Selected packages, features and
+artifact directories constrain its closed arguments. Build scripts and procedural
+macros execute with the caller's permissions. Imported metadata and artifact
+messages remain unauthenticated data; they cannot establish compiler success,
+effective compiler configuration or generated-input provenance. Assembly refuses
+required facts that the admitted data cannot establish.
 
 Native configured source loading admits generated inputs with their expansion
 site and file provenance. Item-level includes require indexed compiler-grounded
@@ -53,10 +54,10 @@ operation reads them. Supply the selected library and its receiving public modul
 with the required capability bindings. Consuming a packaged static include invokes
 no generator during ordinary library builds.
 
-The explicit documentation command carries package, feature and target-directory
-selection through the existing typed process runner. Generic command reporting,
-source loading and generated-document contracts describe the same admitted
-operation. Cargo failures retain both bounded diagnostic streams.
+The explicit documentation command carries package, feature and artifact-directory
+selection through its private trusted operation. Analysis libraries consume data
+only. Cargo failures retain bounded diagnostic streams. No document, saved result
+or environment setting grants execution authority.
 
 ## Examples
 
@@ -73,33 +74,34 @@ changing hosting. Unsupported hosting assumptions are explicit refusals.
 
 ## Constraints
 
-Source declarations, observed compiler facts, subprocess inputs and HTML artifact
-observations are separate claims. Equality of before/after observations does not
+Source declarations, imported compiler facts, trusted-operation outputs and HTML
+artifact observations are separate claims. Equality of before/after observations does not
 prove an atomic read or unchanged intervening state. No approximate configuration,
 guessed output root, invented public URL or missing-input fallback is admitted.
 
 Required compiler capabilities and generated-input evidence must exist. Missing
-tools or receipts produce actionable errors. Documentation assembly does not
+tools or provenance produce actionable errors. Documentation assembly does not
 infer a complete call graph or replace the native source and RDF models.
 
 ## Explanation
 
-[Literal documentation includes](workplan-rustdoc-includes.md) provide the compiler-observed literal receiving path. Expanded definitions, explorer navigation and packaged host integration retain this capability's complete contract.
+[Literal documentation includes](workplan-rustdoc-includes.md) provide static returned Markdown for a declared receiving path. Expanded definitions, explorer navigation and packaged host integration retain this capability's complete contract.
 
-Selected Cargo metadata and reported HTML observations use [Cargo documentation capture](workplan-cargo-documentation.md). These observations remain distinct from the compiler, generated-input, link and publication receipts required for assembly.
+Selected Cargo metadata and reported HTML observations use [Cargo documentation artifacts](workplan-cargo-documentation.md). These imported observations remain distinct from authenticated compiler, generated-input, link and publication evidence required for assembly.
 
-Cargo assembles the effective Rustdoc invocation. Its native driver preserves
-that invocation while obtaining complete compiler configuration and input
-observations. Existing configured locked-source APIs consume the admitted facts;
-the shared fragment and publication APIs supply presentation and owned output.
-This keeps compiler evidence independent from requested options and avoids a
-second semantic renderer.
+The private documentation operation selects fixed Cargo, rustc and rustdoc tools
+and closed arguments after explicit trust. It installs no ambient compiler driver
+and captures no complete environment. Configured source APIs consume admitted
+facts; shared fragment and publication APIs supply presentation and owned output.
+Required compiler provenance remains a separate design obligation; artifact
+imports cannot silently satisfy it.
 
 ## Verification
 
-Native Linux examples cover actual multi-crate Cargo assembly, selected features
+Maintainer-controlled native Linux fixtures cover explicit trusted multi-crate
+Cargo assembly, selected features
 and configurations, generated definitions, module includes, compiler-resolved
 aliases and required artifacts. Every refusal has a neighboring admitted input.
-Host examples cover long labels, nested pages, non-root URLs and source, API,
-capability and evidence links. Packaging examples verify include membership and
+Static host fixtures cover long labels, nested pages, non-root URLs and source, API,
+capability and evidence links. Packaging fixtures verify include membership and
 the stated docs.rs asset/script constraints without release or service changes.

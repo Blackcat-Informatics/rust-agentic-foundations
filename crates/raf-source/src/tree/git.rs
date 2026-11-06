@@ -1,30 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! A sealed host Tree over installed Git's immutable committed contents.
-
-#[cfg(any(unix, windows))]
-mod command;
-#[cfg(not(any(unix, windows)))]
-mod command {
-    use super::{LoadError, LoadErrorKind, Meter, RelPath, refused};
-    use std::path::Path;
-    pub(super) fn read(
-        _repository: &Path,
-        _args: &[&str],
-        _cap: usize,
-        _meter: &Meter,
-        path: &RelPath,
-    ) -> Result<Vec<u8>, LoadError> {
-        Err(refused(
-            path,
-            "committed Git source loading requires a supported process host",
-        ))
-    }
-    pub(super) fn io(path: &RelPath, operation: &'static str, source: std::io::Error) -> LoadError {
-        LoadError::new(path, None, LoadErrorKind::GitIo { operation, source })
-    }
-}
+//! A sealed Tree over native immutable Git objects, without executable helpers.
 
 use super::{Entry, EntryKind, FileId, Opened, Tree, require_first_party};
 use crate::meter::{ItemAdmission, Meter, Usage};
@@ -33,19 +10,21 @@ use crate::{
     LockedSourceKind, RelPath, TreeError,
 };
 use purrdf_hash::{hex, sha1::Sha1};
-use purrdf_lex::allocation::{Admission, Memory};
+use purrdf_lex::allocation::Memory;
 use purrdf_lex::walk::{WorkList, try_equal_range_by, try_sort_unstable_by};
 use std::path::{Path, PathBuf};
 
-/// A committed repository read by trusted installed Git, without checkout reads.
+/// A committed repository read by the native Git library, without checkout reads.
 ///
-/// Only this host constructor admits a source to the locked package join. Git
-/// owns object decoding; public authority/FileId constructors cannot fabricate
+/// Only this host constructor admits a source to the locked package join. The
+/// native object library owns decoding; public authority/FileId constructors cannot fabricate
 /// admission. Complete committed listings govern paths and absence. This trusts
-/// Git and its object store, not repository authorship or a clean checkout.
-/// Git's internal CPU and allocations are outside RAF's portable meters.
+/// the native decoder and object store, not authorship or a clean checkout.
+/// Decoder internals are outside RAF's portable meters; acquired buffers and
+/// model processing retain their original grants.
 pub struct CommittedGitTree<'a> {
     repository: PathBuf,
+    native: crate::git::Repository,
     source: &'a LockedSource,
     commit: [u8; 20],
     entries: Vec<Record>,
@@ -80,15 +59,15 @@ struct Record {
 }
 
 impl<'a> CommittedGitTree<'a> {
-    /// Open an exact catalog Git commit through installed Git, without fetching.
+    /// Open an exact catalog Git commit natively, without processes or fetching.
     ///
     /// Paths come solely from committed objects. A dirty worktree is neither
-    /// read nor certified clean. SHA-1 object format and host process access are
-    /// required; portable callers retain the ordinary Tree boundary.
+    /// read nor certified clean. Locked source identities require SHA-1;
+    /// portable callers retain the ordinary Tree boundary.
     ///
     /// # Errors
-    /// Refuses missing Git/repository/commit, non-Git or unsupported revisions,
-    /// command failures, invalid protocol/modes and original resource failures.
+    /// Refuses missing repositories/commits, non-Git or unsupported revisions,
+    /// invalid objects/modes and original resource failures.
     pub fn open(
         catalog: &'a LockedCatalog,
         package: LockedPackageId,
@@ -119,12 +98,6 @@ impl<'a> CommittedGitTree<'a> {
         meter: GitMeter<'a>,
     ) -> Result<Self, LoadError> {
         let path = RelPath::root();
-        if !cfg!(any(unix, windows)) {
-            return Err(refused(
-                &path,
-                "committed Git source loading requires a supported process host",
-            ));
-        }
         let revision = source
             .revision()
             .filter(|revision| revision.len() == 40)
@@ -136,35 +109,40 @@ impl<'a> CommittedGitTree<'a> {
             })?;
         let commit = parse_id(revision.as_bytes(), &path)?;
         let repository = super::disk::canonical_root(repository)
-            .map_err(|source| command::io(&path, "repository", source))?;
+            .map_err(|source| git_io(&path, "repository", source))?;
         meter.items(repository.as_os_str().len(), &path, None)?;
-        let mut admission = ItemAdmission::new(&meter, &path);
-        let expression = Memory::new(&mut admission)
-            .format(&format_args!("{revision}^{{commit}}"))
-            .map_err(|error| admission.error(error))?;
-        let actual = command::read(
+        let native = crate::git::Repository::open_with_allocation_limit(
             &repository,
-            &["rev-parse", "--verify", "--end-of-options", &expression],
-            41,
-            &meter,
-            &path,
-        )?;
-        if actual.strip_suffix(b"\n") != Some(revision.as_bytes()) {
+            meter.options().max_item_bytes,
+        )
+        .map_err(|error| git_io(&path, "repository", std::io::Error::other(error)))?;
+        meter.work(revision.len().saturating_add(1), &path, None)?;
+        meter.read_bytes(&path, revision.len())?;
+        meter.items(revision.len(), &path, None)?;
+        let actual = native
+            .resolve_commit(revision)
+            .map_err(|error| git_io(&path, "commit", std::io::Error::other(error)))?;
+        if actual != revision {
             return Err(refused(
                 &path,
                 "the full locked ID does not name that exact commit",
             ));
         }
-        let output = command::read(
-            &repository,
-            &["ls-tree", "-r", "-t", "-z", "-l", "--full-tree", revision],
-            meter.options().max_total_bytes,
-            &meter,
-            &path,
-        )?;
-        let entries = parse_listing(&output, &meter, &path)?;
+        let mut admission = ItemAdmission::new(&meter, &path);
+        let listing = native
+            .tree_admitted(
+                revision,
+                meter.options().max_total_bytes,
+                &mut Memory::new(&mut admission),
+            )
+            .map_err(|error| match error.storage() {
+                Some(storage) => admission.error(storage),
+                None => git_io(&path, "tree", std::io::Error::other(error)),
+            })?;
+        let entries = admit_listing(listing, &meter, &path)?;
         Ok(Self {
             repository,
+            native,
             source,
             commit,
             entries,
@@ -301,13 +279,15 @@ impl Tree for CommittedGitTree<'_> {
             let object = memory
                 .format(&format_args!("{}", hex::Lower(&record.id)))
                 .map_err(native)?;
-            let bytes = command::read(
-                &self.repository,
-                &["cat-file", "blob", &object],
-                record.size,
-                &self.meter,
-                path,
-            )?;
+            self.meter.work(1, path, None)?;
+            let bytes = self
+                .native
+                .blob_admitted(&object, record.size, &mut memory)
+                .map_err(|error| match error.storage() {
+                    Some(storage) => native(storage),
+                    None => git_io(path, "blob", std::io::Error::other(error)),
+                })?;
+            self.meter.read_bytes(path, bytes.len())?;
             if bytes.len() != record.size {
                 return Err(refused(
                     path,
@@ -397,158 +377,60 @@ impl Tree for CommittedGitTree<'_> {
             .map_err(|error| tree_failure(path, error))
     }
 }
-fn parse_listing(bytes: &[u8], meter: &Meter, path: &RelPath) -> Result<Vec<Record>, LoadError> {
-    if bytes.is_empty() {
-        return Ok(Vec::new());
-    }
-    if !bytes.is_empty() && bytes.last() != Some(&0) {
-        return Err(refused(path, "unterminated Git directory protocol"));
-    }
+fn admit_listing(
+    listing: Vec<crate::git::Entry>,
+    meter: &Meter,
+    path: &RelPath,
+) -> Result<Vec<Record>, LoadError> {
     let mut admission = ItemAdmission::new(meter, path);
     let mut memory = Memory::new(&mut admission);
     let result = (|| {
         let mut records = Vec::new();
-        let lines = &bytes[..bytes.len() - 1];
-        for line in lines.split(|byte| *byte == 0) {
-            let record = parse_record(line, meter, path, &mut memory)?;
+        for entry in listing {
+            meter.work(entry.path.len().saturating_add(64), path, None)?;
+            meter.read_bytes(path, entry.path.len().saturating_add(64))?;
+            for name in entry.path.split('/') {
+                validate_name(name, path)?;
+            }
+            meter.items(crate::cost::shared_text(entry.path.len()), path, None)?;
+            let checked = RelPath::new(&entry.path)
+                .map_err(|_| refused(path, "unsupported committed path"))?;
+            if checked.as_str() != entry.path {
+                return Err(refused(path, "committed path changes under normalization"));
+            }
+            let kind = match entry.kind {
+                crate::git::EntryKind::Tree => EntryKind::Dir,
+                crate::git::EntryKind::Blob => EntryKind::File,
+                crate::git::EntryKind::Symlink => EntryKind::Symlink,
+                crate::git::EntryKind::Submodule => {
+                    return Err(refused(path, "Git submodules are not admitted"));
+                }
+            };
+            let record = Record {
+                path: memory.string(&entry.path).map_err(native)?,
+                kind,
+                id: parse_id(entry.id.as_bytes(), path)?,
+                size: entry.size,
+            };
             memory.push(&mut records, record).map_err(native)?;
         }
-        try_sort_unstable_by(&mut records, |left, right| {
+        try_sort_unstable_by(&mut records, |a, b| {
             meter.work(
-                left.path
-                    .len()
-                    .saturating_add(right.path.len())
-                    .saturating_add(1),
+                a.path.len().saturating_add(b.path.len()).saturating_add(1),
                 path,
                 None,
             )?;
-            Ok::<_, LoadError>(left.path.cmp(&right.path))
+            Ok::<_, LoadError>(a.path.cmp(&b.path))
         })?;
-        for pair in records.windows(2) {
-            meter.work(1, path, None)?;
-            if pair[0].path == pair[1].path {
-                return Err(refused(path, "Git directory repeats a path"));
-            }
-        }
-        for record in &records {
-            if let Some((parent, _)) = record.path.rsplit_once('/') {
-                let found = try_equal_range_by(&records, |other| {
-                    meter.work(
-                        parent
-                            .len()
-                            .saturating_add(other.path.len())
-                            .saturating_add(1),
-                        path,
-                        None,
-                    )?;
-                    Ok::<_, LoadError>(other.path.as_str().cmp(parent))
-                })?;
-                if !records
-                    .get(found.start)
-                    .is_some_and(|entry| !found.is_empty() && entry.kind == EntryKind::Dir)
-                {
-                    return Err(refused(
-                        path,
-                        "Git listing lacks an actual parent directory",
-                    ));
-                }
-            }
-        }
         Ok(records)
     })();
     result.map_err(|error| recover(error, &mut admission))
 }
-fn parse_record<S: Admission + ?Sized>(
-    line: &[u8],
-    meter: &Meter,
-    path: &RelPath,
-    memory: &mut Memory<'_, S>,
-) -> Result<Record, LoadError> {
-    meter.work(line.len().saturating_add(1), path, None)?;
-    let tab = line
-        .iter()
-        .position(|byte| *byte == b'\t')
-        .ok_or_else(|| refused(path, "Git listing has no name delimiter"))?;
-    let header = std::str::from_utf8(&line[..tab])
-        .map_err(|_| refused(path, "non-ASCII Git listing header"))?;
-    let mut fields = header.split_ascii_whitespace();
-    let mode = fields
-        .next()
-        .ok_or_else(|| refused(path, "missing Git mode"))?;
-    let kind = fields
-        .next()
-        .ok_or_else(|| refused(path, "missing Git type"))?;
-    let id = parse_id(
-        fields
-            .next()
-            .ok_or_else(|| refused(path, "missing Git object ID"))?
-            .as_bytes(),
-        path,
-    )?;
-    let size = fields
-        .next()
-        .ok_or_else(|| refused(path, "missing Git size"))?;
-    if fields.next().is_some() {
-        return Err(refused(path, "unexpected Git listing fields"));
-    }
-    let kind = match (mode, kind) {
-        ("040000", "tree") if size == "-" => EntryKind::Dir,
-        ("100644" | "100755", "blob") => EntryKind::File,
-        ("120000", "blob") => EntryKind::Symlink,
-        ("160000", _) => return Err(refused(path, "Git submodules are not admitted")),
-        _ => return Err(refused(path, "unsupported Git mode/type/size")),
-    };
-    let size = if kind == EntryKind::Dir {
-        0
-    } else {
-        if size.is_empty() || !size.bytes().all(|byte| byte.is_ascii_digit()) {
-            return Err(refused(path, "invalid Git blob size"));
-        }
-        // The protocol is unsigned digits, narrower than XSD's lexical grammar.
-        // Bound significant digits before native parsing to keep its value inline.
-        let significant = size.trim_start_matches('0');
-        let significant = if significant.is_empty() {
-            "0"
-        } else {
-            significant
-        };
-        let max_digits = usize::try_from(usize::MAX.ilog10() + 1)
-            .map_err(|_| refused(path, "unsupported host size width"))?;
-        if significant.len() > max_digits {
-            return Err(refused(
-                path,
-                "Git blob size exceeds supported address space",
-            ));
-        }
-        let value = purrdf_xsd::numeric::parse_integer_typed(
-            significant,
-            purrdf_xsd::XsdDatatype::NonNegativeInteger,
-        )
-        .map_err(|_| refused(path, "invalid Git blob size"))?;
-        let value = value
-            .as_i128()
-            .ok_or_else(|| refused(path, "Git blob size exceeds supported address space"))?;
-        usize::try_from(value)
-            .map_err(|_| refused(path, "Git blob size exceeds supported address space"))?
-    };
-    let name = std::str::from_utf8(&line[tab + 1..])
-        .map_err(|_| refused(path, "Git listing contains a non-UTF-8 path"))?;
-    for segment in name.split('/') {
-        validate_name(segment, path)?;
-    }
-    meter.items(crate::cost::shared_text(name.len()), path, None)?;
-    let checked = RelPath::new(name).map_err(|_| refused(path, "unsupported committed path"))?;
-    if checked.as_str() != name {
-        return Err(refused(path, "committed path changes under normalization"));
-    }
-    let path = memory.string(name).map_err(native)?;
-    Ok(Record {
-        path,
-        kind,
-        id,
-        size,
-    })
+
+fn git_io(path: &RelPath, operation: &'static str, source: std::io::Error) -> LoadError {
+    LoadError::new(path, None, LoadErrorKind::GitIo { operation, source })
 }
+
 fn parse_id(bytes: &[u8], path: &RelPath) -> Result<[u8; 20], LoadError> {
     if bytes.len() != 40 {
         return Err(refused(
@@ -591,67 +473,5 @@ fn tree_failure(path: &RelPath, source: LoadError) -> TreeError {
     TreeError::GitSource {
         path: path.to_string(),
         source: Box::new(source),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn complete_directory_protocol_refuses_malformed_records_beside_exact_metadata() {
-        let path = RelPath::root();
-        let valid = b"040000 tree 0000000000000000000000000000000000000001       -\tsrc\0\
-100644 blob 0000000000000000000000000000000000000002       6\tsrc/lib.rs\0";
-        let meter = Meter::new(&LoadOptions::default());
-        assert_eq!(
-            parse_listing(valid, &meter, &path)
-                .expect("complete metadata")
-                .len(),
-            2
-        );
-        for bytes in [
-            b"\0".as_slice(),
-            &valid[..valid.len() - 1],
-            b"100644 blob 0000000000000000000000000000000000000002 6\tsrc/lib.rs\0",
-            b"100644 blob 0000000000000000000000000000000000000002 BAD\tfile\0",
-            b"100644 blob 0000000000000000000000000000000000000002 6\t../file\0",
-            b"160000 commit 0000000000000000000000000000000000000002 -\tsub\0",
-            b"100644 blob 0000000000000000000000000000000000000002 6\t\xff\0",
-        ] {
-            assert!(parse_listing(bytes, &meter, &path).is_err(), "{bytes:?}");
-        }
-        assert!(
-            parse_listing(b"", &meter, &path)
-                .expect("empty tree")
-                .is_empty()
-        );
-        let mut resident = purrdf_lex::allocation::Resident;
-        let mut memory = Memory::new(&mut resident);
-        let maximum = memory
-            .format(&format_args!("{}", usize::MAX))
-            .expect("maximum");
-        let overflow = memory
-            .format(&format_args!("{maximum}0"))
-            .expect("overflow");
-        for (size, expected) in [
-            ("0", Some(0)),
-            ("0000000000000000000000000000006", Some(6)),
-            (maximum.as_str(), Some(usize::MAX)),
-            ("+6", None),
-            ("-1", None),
-            ("1.0", None),
-            (overflow.as_str(), None),
-        ] {
-            let listing = memory
-                .format(&format_args!(
-                    "100644 blob 0000000000000000000000000000000000000002 {size}\tfile\0"
-                ))
-                .expect("protocol fixture");
-            let result = parse_listing(listing.as_bytes(), &meter, &path);
-            match expected {
-                Some(size) => assert_eq!(result.expect("exact native size")[0].size, size),
-                None => assert!(result.is_err(), "{size}"),
-            }
-        }
     }
 }

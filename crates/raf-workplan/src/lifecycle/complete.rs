@@ -3,21 +3,8 @@
 
 //! `complete`: the transition from an open change to a delivered one.
 //!
-//! The order is the order of the Contract and is not interchangeable.
-//!
-//! 1. The static conditions are judged, all of them, and every failure is
-//!    collected: the obligation list of `reconcile` (every kind except
-//!    `example-failing`, which needs a run), the outcome of each item, the
-//!    PROPOSED blocks of the change, the generated blocks, the assessment of
-//!    each authored section in `affects`, and `check` of the repository as it
-//!    will be once the record is gone.
-//! 2. Only when none failed are the bound tests and examples run, so a
-//!    repository with a documentation fault spends no process on `cargo`.
-//! 3. The repository is opened again and the static conditions are judged
-//!    again, because the documents and the source can change while `cargo`
-//!    runs. Any failure, or a different set of bindings to run, refuses.
-//! 4. The generated blocks the removal stales are rewritten, and then, as the
-//!    very last step, the record is removed.
+//! Static obligations and a prospective document overlay precede publication.
+//! Reopening validates the static judgement again without executing inspected code.
 
 use std::fs;
 use std::io;
@@ -25,8 +12,6 @@ use std::io;
 use raf_okf::{DocType, Location};
 use raf_source::{EntryKind, RelPath};
 
-use crate::bound::{BoundOutcome, Evidence, Executor};
-use crate::exec::Runner;
 use crate::files::{self, Target};
 use crate::finding::kind;
 use crate::generated;
@@ -35,17 +20,17 @@ use crate::obligation::{ObligationKind, Reconciled};
 use crate::{Binding, BindingKind, Finding, Opened, SyncError, SyncOptions, SyncReport, Workplan};
 
 use super::completion::{Completion, Failure};
-use super::examples;
 use super::session::{Lifecycle, LifecycleError, Side};
 use super::touched;
 
 /// The static conditions judged over one opening of the repository.
 struct Evaluation {
+    /// Exact loaded documentation identities before any publication.
+    documents: Vec<(String, purrdf_core::ContentDigest)>,
     /// Every failure, in the order of the conditions.
     failures: Vec<Failure>,
-    /// The test and example bindings of the listed capabilities, in the order
-    /// they run.
-    runs: Vec<Binding>,
+    /// Declared bindings of the listed capabilities, in deterministic order.
+    bindings: Vec<Binding>,
     /// The path of the record.
     record: RelPath,
     /// The generated blocks the removal stales, rewritten as the sync of the
@@ -54,20 +39,12 @@ struct Evaluation {
     rewrite: SyncReport,
 }
 
-enum Verified {
-    Refused(Completion),
-    Ready {
-        opened: Box<Opened>,
-        after: Evaluation,
-        evidence: Vec<Evidence>,
-    },
-}
+/// Identity of a declared binding across static judgements.
+type BindingKey = (String, BindingKind, String);
 
-/// What identifies a binding that runs.
-type RunKey = (String, BindingKind, String);
-
-fn run_keys(runs: &[Binding]) -> Vec<RunKey> {
-    runs.iter()
+fn binding_keys(bindings: &[Binding]) -> Vec<BindingKey> {
+    bindings
+        .iter()
         .map(|binding| {
             (
                 binding.capability().to_string(),
@@ -76,22 +53,6 @@ fn run_keys(runs: &[Binding]) -> Vec<RunKey> {
             )
         })
         .collect()
-}
-
-fn first_rewrite_difference<'a>(
-    expected: &'a [(RelPath, String)],
-    actual: &'a [(RelPath, String)],
-) -> Option<&'a RelPath> {
-    for (expected, actual) in expected.iter().zip(actual) {
-        if expected != actual {
-            return Some((&expected.0).min(&actual.0));
-        }
-    }
-    let shared = expected.len().min(actual.len());
-    expected
-        .get(shared)
-        .or_else(|| actual.get(shared))
-        .map(|(path, _)| path)
 }
 
 /// Condition 6: an `assessment-missing`, `assessment-stale` or
@@ -112,254 +73,46 @@ fn assessment_failures(owed: &Reconciled) -> impl Iterator<Item = Failure> + '_ 
         .map(Failure::Assessment)
 }
 
-impl<R: Runner> Lifecycle<R> {
-    /// Complete the change `change`: refuse with every reason it cannot be
-    /// completed, or rewrite the generated blocks the removal stales and
-    /// remove `work/changes/<slug>.md`.
-    ///
-    /// `change` is the slug, with or without the `change:` prefix. The six
-    /// conditions of the completion gate are judged as the module documents:
-    ///
-    /// 1. the obligation list of [`Lifecycle::reconcile`](Lifecycle::reconcile)
-    ///    is empty (every kind, `contract_effect: none` leaving out the
-    ///    untouched contract alone; the list also holds
-    ///    `contract-effect-understated`);
-    /// 2. every item has an `outcome`, and a `moved` outcome names a change
-    ///    record that exists; a `dropped` or `moved` item
-    ///    also has a `reason` (`outcome-without-reason`);
-    /// 3. no PROPOSED block of the change remains in any capability document,
-    ///    whether the document loads or not;
-    /// 4. `docs sync` would write nothing;
-    /// 5. each test of `bindings.tests` and each example of
-    ///    `bindings.examples` of a listed capability passes, by the proof its
-    ///    kind requires ([`Executor`]). A capability with empty lists satisfies
-    ///    this only while it is `designed` or `considered`; in any other state
-    ///    the empty list is a `binding-missing` obligation of condition 1;
-    /// 6. each authored section in `affects` has a current assessment with the
-    ///    verdict `accepted` ([`assessment`](crate::assessment)): a section
-    ///    with no assessment, one whose inputs moved, and one that is current
-    ///    and `rejected` each refuse, whether the assessor was a human or an
-    ///    agent. A section that holds only generated blocks would need none,
-    ///    but the profile refuses one, so every section of a loaded capability
-    ///    is authored.
-    ///    This is judged with the other static conditions, before any bound
-    ///    test or example runs.
-    ///
-    /// A failing example is both an `example-failing` obligation (condition 1)
-    /// and a failure of condition 5, and a section without a current accepted
-    /// assessment is one or more `assessment-*` obligations (condition 1), one
-    /// `assessment-stale` for each input that moved, each also a failure of
-    /// condition 6; the headline of the refusal counts the section once.
-    ///
-    /// The repository without the record must also pass `check`, apart from
-    /// the generated blocks the removal stales (the `Changed by` rows of the
-    /// relationship tables), which `complete` rewrites. This is where the
-    /// state of a listed capability is judged: a capability that is not
-    /// `delivered` and is listed by no other open record is `no-open-record`,
-    /// so the author sets `state: delivered` before running `complete`.
-    /// `complete` never edits prose, and it does not judge the repository
-    /// before the removal by the state rules: a `delivered` capability beside
-    /// its still-open record is exactly what it resolves.
-    ///
-    /// That check fails on every finding in the repository, not only on the
-    /// ones about the listed capabilities: a broken link in an unrelated
-    /// capability blocks completion, and so does a link in prose to the record
-    /// itself, which is broken once the record is removed.
-    ///
-    /// An `outcome` that is not `implemented`, `dropped` or
-    /// `moved:change:<slug>` is a value the profile refuses and makes the
-    /// record not load, so `complete` returns the error of
-    /// [`Workplan::change`] and not a condition-2 refusal, as
-    /// [`Lifecycle::reconcile`](Lifecycle::reconcile) does. Condition 2
-    /// refuses an item with no outcome and a `moved` outcome whose target is
-    /// missing.
-    ///
-    /// ```rust,no_run
-    /// use raf_workplan::exec::Programs;
-    /// use raf_workplan::lifecycle::Lifecycle;
-    ///
-    /// let lifecycle = Lifecycle::open(Programs::new("."))?;
-    /// let completion = lifecycle.complete("incremental-parsing")?;
-    /// print!("{completion}");
-    /// std::process::exit(i32::from(!completion.is_completed()));
-    /// # Ok::<(), raf_workplan::lifecycle::LifecycleError>(())
-    /// ```
-    ///
-    /// # Writes
-    ///
-    /// A refusal publishes no tool-owned files. A completion writes the generated
-    /// blocks that the removal stales (through [`Workplan::write`], which stages
-    /// every file and then renames) and then removes the record, as the very
-    /// last step. If the rewrite fails the record is not removed. If the
-    /// removal fails after the rewrite, the error says which files were
-    /// rewritten. These guarantees concern this method's own publication.
-    /// Native bound processes use the explicit completed filesystem view.
-    /// Writable copied inputs are revalidated around each process, and
-    /// process-local ancestor directories are read-only. Declared outputs and
-    /// unrelated ambient locations remain writable; workspace code is trusted.
-    /// Git can fetch missing objects into its metadata
-    /// in a partial clone without changing working files or the index.
-    ///
-    /// A document changed between the second evaluation and the write is not
-    /// detected: [`Workplan::write`] replaces a file without comparing it with
-    /// the text the rewrite was computed from.
+impl Lifecycle {
+    /// Complete a change using static contracts and a prospective document overlay.
+    /// No test, example, compiler or other program is started.
     ///
     /// # Errors
-    ///
-    /// [`LifecycleError::Change`] and [`LifecycleError::Reconcile`] when the
-    /// record or a listed capability does not load; [`LifecycleError::Git`]
-    /// and [`LifecycleError::Document`] when a section cannot be compared;
-    /// [`LifecycleError::Exec`] when a process of a bound run cannot be
-    /// started or read to its end; [`LifecycleError::RecordRefused`] when
-    /// `work` or `work/changes` is a symbolic link or not a directory, or the
-    /// record is not a regular file there, judged with each evaluation, the
-    /// first before anything runs and the second after the bound runs and
-    /// before the writes; [`LifecycleError::Gate`] when the
-    /// repository cannot be opened again; [`LifecycleError::Rewrite`] and
-    /// [`LifecycleError::Remove`] when a write fails. Each is the tool being
-    /// unable to give an answer, which is not a refusal.
+    /// Refuses unavailable history, unreadable inputs and invalid publication paths.
+    /// Static contract failures return a refusal without publishing any file.
     pub fn complete(&self, change: &str) -> Result<Completion, LifecycleError> {
         let slug = bare_slug(change);
-
-        // The source index at the merge base is loaded once for both
-        // judgements: the files of one commit do not change, and the second
-        // judgement asks for the merge base again and loads it again only when
-        // it, or the packages it is read from, differ.
         let mut kept = None;
-        let before = self.evaluate(&self.opened, slug, false, &mut kept)?;
+        let before = self.evaluate(&self.opened, slug, &mut kept)?;
         if !before.failures.is_empty() {
             return Ok(Completion::Refused {
                 failures: before.failures,
-                evidence: Vec::new(),
             });
         }
-
-        let request = self.gate.capture_request(
-            &self.opened,
-            before.record.clone(),
-            before.rewrite.edits.clone(),
-            before.rewrite.diagram_assets.clone(),
-        )?;
-        let prepared = self.runner.prepare_view(&request)?;
-        let verified = self.verify_prepared(slug, &before, &prepared, &mut kept);
-        if let Err(source) = self.runner.finish_view(&prepared) {
-            let (primary, refused) = match verified {
-                Err(error) => (Some(Box::new(error)), None),
-                Ok(Verified::Refused(refusal)) => (None, Some(Box::new(refusal))),
-                Ok(Verified::Ready { .. }) => (None, None),
-            };
-            return Err(LifecycleError::ViewCleanup {
-                primary,
-                refused,
-                source,
-            });
-        }
-        match verified? {
-            Verified::Refused(refusal) => Ok(refusal),
-            Verified::Ready {
-                opened,
-                after,
-                evidence,
-            } => Self::write(&opened, &after.record, &after.rewrite, evidence),
-        }
-    }
-
-    fn verify_prepared(
-        &self,
-        slug: &str,
-        before: &Evaluation,
-        prepared: &crate::exec::PreparedView,
-        kept: &mut Option<touched::BaseIndex>,
-    ) -> Result<Verified, LifecycleError> {
-        let frozen = self.gate.open_captured(prepared.view.clone())?;
-        let captured = self.evaluate(&frozen, slug, false, kept)?;
-        if !captured.failures.is_empty()
-            || run_keys(&captured.runs) != run_keys(&before.runs)
-            || captured.rewrite.edits != before.rewrite.edits
-        {
-            let mut what =
-                "captured completion model differs from the original static judgement".to_string();
-            if let Some(path) =
-                first_rewrite_difference(&before.rewrite.edits, &captured.rewrite.edits)
-            {
-                what.push_str("; generated rewrite differs at ");
-                what.push_str(&path.to_string());
-            }
-            let mut failures = vec![Failure::Changed { what }];
-            failures.extend(captured.failures);
-            return Ok(Verified::Refused(Completion::Refused {
-                failures,
-                evidence: Vec::new(),
-            }));
-        }
-        let (failing, evidence) = self.run_bound(&frozen, &captured.runs, prepared)?;
-        if !failing.is_empty() {
-            return Ok(Verified::Refused(Completion::Refused {
-                failures: failing,
-                evidence,
-            }));
-        }
-        let opened = self.gate.open_with_runner(&self.runner)?;
-        let after = self.evaluate(&opened, slug, true, kept)?;
-        let changed_source = match self.runner.revalidate_view(prepared) {
-            Ok(()) => None,
-            Err(crate::exec::ExecError::View(source))
-                if source.kind() == crate::exec::ViewErrorKind::Changed =>
-            {
-                Some(source.to_string())
-            }
-            Err(error) => return Err(error.into()),
-        };
-        if changed_source.is_some()
-            || run_keys(&after.runs) != run_keys(&captured.runs)
-            || after.rewrite.edits != captured.rewrite.edits
+        let opened = self.gate.open()?;
+        let after = self.evaluate(&opened, slug, &mut None)?;
+        if self.opened.workspace() != opened.workspace()
+            || self.opened.tracked() != opened.tracked()
+            || before.documents != after.documents
+            || binding_keys(&before.bindings) != binding_keys(&after.bindings)
+            || after.rewrite.edits != before.rewrite.edits
             || !after.failures.is_empty()
         {
-            let mut reasons = Vec::new();
-            if let Some(reason) = changed_source {
-                reasons.push(reason);
-            }
-            if run_keys(&after.runs) != run_keys(&captured.runs) {
-                reasons.push(
-                    "the bound tests and examples to run differ from the ones that ran".into(),
-                );
-            }
-            if let Some(path) =
-                first_rewrite_difference(&captured.rewrite.edits, &after.rewrite.edits)
-            {
-                reasons.push(format!("generated rewrite differs at {path}"));
-            }
-            if !after.failures.is_empty() {
-                reasons.push(
-                    "a condition that held before the bound tests and examples ran fails now"
-                        .into(),
-                );
-            }
             let mut failures = vec![Failure::Changed {
-                what: reasons.join("; "),
+                what: "bindings, generated replacements or static conditions differ on reopening"
+                    .into(),
             }];
             failures.extend(after.failures);
-            return Ok(Verified::Refused(Completion::Refused {
-                failures,
-                evidence,
-            }));
+            return Ok(Completion::Refused { failures });
         }
-        Ok(Verified::Ready {
-            opened: Box::new(opened),
-            after,
-            evidence,
-        })
+        Self::write(&opened, &after.record, &after.rewrite)
     }
 
-    /// Judge the static conditions over `opened`; `ran` says whether the
-    /// bound tests and examples have run, which a refused way to the record
-    /// reports, and `kept` holds the source index at the merge base of an
-    /// earlier judgement.
+    /// Judge static conditions and the prospective state without writing.
     fn evaluate(
         &self,
         opened: &Opened,
         slug: &str,
-        ran: bool,
         kept: &mut Option<touched::BaseIndex>,
     ) -> Result<Evaluation, LifecycleError> {
         let plan = opened.workplan();
@@ -375,16 +128,15 @@ impl<R: Runner> Lifecycle<R> {
         // The record is removed as the last step, so the way to it is judged
         // as every write of the crate judges it, before anything runs and
         // again before the writes.
-        Self::judge_record(opened, &record_path, ran)?;
+        Self::judge_record(opened, &record_path)?;
 
         // Condition 1, all kinds that need no run of `cargo`.
         let mut obligations = fixed.obligations().to_vec();
-        obligations.extend(self.process_obligations(
+        obligations.extend(self.history_obligations(
             opened,
             &plan,
             &impact,
             record.value().contract_effect,
-            false,
             kept,
         )?);
         let owed = Reconciled::new(impact.change.clone(), obligations);
@@ -448,7 +200,11 @@ impl<R: Runner> Lifecycle<R> {
                             )
                     }));
             if !repeats {
-                failures.push(Failure::AfterRemoval(finding));
+                failures.push(if finding.kind.starts_with("binding-") {
+                    Failure::Binding(finding)
+                } else {
+                    Failure::AfterRemoval(finding)
+                });
             }
         }
         // A sync that fails with no finding to say why is an error and not a
@@ -464,17 +220,14 @@ impl<R: Runner> Lifecycle<R> {
             SyncReport::default()
         };
 
-        let mut runs: Vec<Binding> = impact
-            .bindings
-            .into_iter()
-            .filter(|binding| matches!(binding.kind(), BindingKind::Test | BindingKind::Example))
-            .collect();
-        runs.sort_by(|a, b| {
+        let mut bindings: Vec<Binding> = impact.bindings.into_iter().collect();
+        bindings.sort_by(|a, b| {
             (a.capability(), a.kind(), a.path()).cmp(&(b.capability(), b.kind(), b.path()))
         });
         Ok(Evaluation {
+            documents: document_identities(&plan),
             failures,
-            runs,
+            bindings,
             record: record_path,
             rewrite,
         })
@@ -526,66 +279,15 @@ impl<R: Runner> Lifecycle<R> {
         }
     }
 
-    /// Condition 5: run every binding and return every one that did not pass.
-    /// A failing example is also an `example-failing` obligation.
-    fn run_bound(
-        &self,
-        opened: &Opened,
-        runs: &[Binding],
-        prepared: &crate::exec::PreparedView,
-    ) -> Result<(Vec<Failure>, Vec<Evidence>), LifecycleError> {
-        let executor = Executor::new(opened.workspace(), &self.runner)?.with_view(prepared);
-        let mut owed = Vec::new();
-        let mut receipts = Vec::new();
-        let mut tests = Vec::new();
-        let mut examples = Vec::new();
-        for binding in runs {
-            let evidence: Evidence = match executor.run(binding) {
-                Ok(evidence) => evidence,
-                Err(crate::exec::ExecError::View(source))
-                    if source.kind() == crate::exec::ViewErrorKind::Changed =>
-                {
-                    owed.push(Failure::Changed {
-                        what: source.to_string(),
-                    });
-                    break;
-                }
-                Err(error) => return Err(error.into()),
-            };
-            let satisfied = matches!(
-                evidence.outcome(),
-                BoundOutcome::Passed | BoundOutcome::NotApplicable { .. }
-            );
-            receipts.push(evidence.clone());
-            if satisfied {
-                continue;
-            }
-            if binding.kind() == BindingKind::Example {
-                owed.extend(examples::obligation(binding, &evidence).map(Failure::Owed));
-                examples.push(Failure::Example(evidence));
-            } else {
-                tests.push(Failure::Test(evidence));
-            }
-        }
-        owed.extend(tests);
-        owed.extend(examples);
-        Ok((owed, receipts))
-    }
-
     /// Require that the record is a regular file directly in a `work/changes`
     /// that is a directory below a `work` that is a directory, neither a link,
     /// so the removal removes the record and no other file.
-    fn judge_record(opened: &Opened, record: &RelPath, ran: bool) -> Result<(), LifecycleError> {
+    fn judge_record(opened: &Opened, record: &RelPath) -> Result<(), LifecycleError> {
         let refused = |path: String, reason: &str| LifecycleError::RecordRefused {
             path,
-            ran,
             source: io::Error::new(io::ErrorKind::InvalidInput, reason.to_string()),
         };
-        let target = if opened.captured() {
-            files::target_in(opened.tree(), DocType::Change.directory(), record)
-        } else {
-            files::target(opened.dir(), DocType::Change.directory(), record)
-        };
+        let target = files::target(opened.dir(), DocType::Change.directory(), record);
         match target {
             Ok(Target {
                 kind: Some(EntryKind::File),
@@ -597,7 +299,6 @@ impl<R: Runner> Lifecycle<R> {
             )),
             Err(error) => Err(LifecycleError::RecordRefused {
                 path: error.path,
-                ran,
                 source: error.source,
             }),
         }
@@ -609,7 +310,6 @@ impl<R: Runner> Lifecycle<R> {
         opened: &Opened,
         record: &RelPath,
         rewrite: &SyncReport,
-        evidence: Vec<Evidence>,
     ) -> Result<Completion, LifecycleError> {
         let rewritten: Vec<String> = rewrite
             .edits
@@ -630,7 +330,35 @@ impl<R: Runner> Lifecycle<R> {
         Ok(Completion::Completed {
             removed: record.as_str().to_string(),
             rewritten,
-            evidence,
         })
     }
+}
+
+fn document_identities(plan: &Workplan<'_>) -> Vec<(String, purrdf_core::ContentDigest)> {
+    fn add<T>(
+        rows: &mut Vec<(String, purrdf_core::ContentDigest)>,
+        documents: &[crate::Loaded<T>],
+    ) {
+        rows.extend(documents.iter().map(|document| {
+            (
+                document.path().to_owned(),
+                purrdf_core::ContentDigest::of(document.text().as_bytes()),
+            )
+        }));
+    }
+    let mut rows = Vec::new();
+    add(&mut rows, plan.capabilities());
+    add(&mut rows, plan.changes());
+    add(&mut rows, plan.architecture());
+    add(&mut rows, plan.evidence());
+    add(&mut rows, plan.assessments());
+    add(&mut rows, plan.reviews());
+    if let Some(document) = plan.coverage() {
+        add(&mut rows, std::slice::from_ref(document));
+    }
+    if let Some(document) = plan.debt() {
+        add(&mut rows, std::slice::from_ref(document));
+    }
+    rows.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+    rows
 }

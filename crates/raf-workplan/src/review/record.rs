@@ -5,8 +5,8 @@
 
 use super::ReviewError;
 use crate::{
-    exec::{Commit, Runner},
     git,
+    identifiers::Commit,
     record::{self, DiskRecordStore, Record, RecordOptions, RecordStore},
 };
 use raf_okf::{DocType, ReviewDisposition, ReviewLocation, ReviewRecord};
@@ -25,7 +25,7 @@ pub struct RecordedReview {
 /// Record a review draft against its actual commit, using the normal record store.
 ///
 /// The draft must have no supplied inputs: the historical native source index
-/// computes every persisted digest. The supplied runner must operate in `root`,
+/// computes every persisted digest. The supplied repository must operate in `root`,
 /// as for other process-backed Workplan commands. No record data becomes a
 /// program or an unchecked Git argument. Existing records are never replaced.
 ///
@@ -35,11 +35,11 @@ pub struct RecordedReview {
 /// A refused draft writes nothing.
 pub fn record_review(
     root: &Path,
-    runner: &dyn Runner,
+    repository: &git::Repository,
     draft: &ReviewRecord,
     options: &RecordOptions,
 ) -> Result<RecordedReview, ReviewError> {
-    record_review_in(&mut DiskRecordStore::new(root), runner, draft, options)
+    record_review_in(&mut DiskRecordStore::new(root), repository, draft, options)
 }
 
 /// Record through a supplied native reader and publication authority.
@@ -48,7 +48,7 @@ pub fn record_review(
 /// Preserves every refusal of [`record_review`] and the supplied store.
 pub fn record_review_in(
     store: &mut dyn RecordStore,
-    runner: &dyn Runner,
+    repository: &git::Repository,
     draft: &ReviewRecord,
     options: &RecordOptions,
 ) -> Result<RecordedReview, ReviewError> {
@@ -71,10 +71,10 @@ pub fn record_review_in(
     for finding in &draft.findings {
         if let ReviewDisposition::Fixed(revision) = &finding.disposition {
             let commit = Commit::new(revision).map_err(ReviewError::native)?;
-            git::resolve_commit_id(runner, &commit).map_err(ReviewError::native)?;
+            git::resolve_commit_id(repository, &commit).map_err(ReviewError::native)?;
         }
     }
-    let inputs = super::at_revision(runner, &revision, &draft.scope, |plan, tree| {
+    let inputs = super::at_revision(repository, &revision, &draft.scope, |plan, tree| {
         for finding in &draft.findings {
             match &finding.location {
                 ReviewLocation::Item(path) => {

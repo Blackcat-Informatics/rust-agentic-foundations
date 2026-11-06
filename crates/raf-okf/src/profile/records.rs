@@ -72,12 +72,12 @@ fn is_digest(text: &str) -> bool {
     purrdf_hash::hex::decode_32_canonical(text).is_some()
 }
 
-/// A Git commit id: 40 (SHA-1) or 64 (SHA-256) lowercase hexadecimal digits.
-pub(super) fn is_commit(text: &str) -> bool {
+/// Whether text is a full SHA-1 or SHA-256 commit id in canonical lowercase.
+/// This validates spelling only, without checking a repository or object type.
+#[must_use]
+pub fn is_commit_id(text: &str) -> bool {
     matches!(text.len(), 40 | 64)
-        && text
-            .bytes()
-            .all(|byte| purrdf_hash::hex::nibble_canonical(byte).is_some())
+        && purrdf_hash::hex::decode_canonical_to_slice(text, &mut [0; 32]).is_ok()
 }
 
 /// A crate package name: an ASCII letter, then letters, digits, `-` and `_`.
@@ -353,7 +353,7 @@ pub(super) fn check_command(check: &mut Check<'_>, entry: &Entry) -> Option<Stri
 
 pub(super) fn check_revision(check: &mut Check<'_>, entry: &Entry) -> Option<String> {
     let text = scalar_of(check, entry)?;
-    if is_commit(text) {
+    if is_commit_id(text) {
         Some(text.to_string())
     } else {
         check.key(

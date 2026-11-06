@@ -16,14 +16,6 @@ pub(crate) fn after_git(args: &[&str], git: impl Fn(&[&str]) -> String) {
 }
 
 fn initialize(git: &impl Fn(&[&str]) -> String) {
-    let observed =
-        raf_workplan::git::GitVersion::parse(&git(&["--version"])).expect("Git states its version");
-    let minimum = raf_workplan::git::GitVersion::parse("git version 2.34.0")
-        .expect("fixed fixture signing minimum");
-    assert!(
-        observed >= minimum,
-        "native signed fixtures require Git 2.34 or newer"
-    );
     let admin = PathBuf::from(git(&["rev-parse", "--absolute-git-dir"]).trim_end_matches('\n'));
     let key = admin.join("raf-fixture-ed25519");
     let generated = Command::new("ssh-keygen")

@@ -13,7 +13,6 @@
 use std::path::Path;
 
 use crate::result::Result as CommandResult;
-use raf_workplan::exec::{Programs, SystemRunner};
 use raf_workplan::lifecycle::{
     self, Completion, Failure as Refusal, Impact, Lifecycle, NewChange, NewChangeRequest,
 };
@@ -67,12 +66,9 @@ fn impact_record(impact: &Impact) -> Record {
     Record::outcome(CommandResult::Impact(impact.clone()), impact.to_string())
 }
 
-/// The lifecycle of the repository at `root`, judged under the complete policy:
-/// the Git version is asked first, then the repository is opened.
+/// Open the native repository and complete static document policy.
 fn open(root: &Path) -> Result<Lifecycle, Failure> {
-    let programs = Programs::new(root);
-    let gate = crate::command::gate(root).programs(programs.clone());
-    Ok(Lifecycle::open_with(&gate, SystemRunner::new(programs))?)
+    Ok(Lifecycle::open_with(&Gate::workspace(root))?)
 }
 
 /// `change reconcile <slug>`: one line for each obligation, in the order the
@@ -93,7 +89,7 @@ fn obligation_record(obligation: &Obligation) -> Record {
 
 /// `change complete <slug>`: the completion gate. A refusal lists every
 /// failure without tool-owned publication; a completion has removed the record.
-/// Trusted bound programs can have their own filesystem effects.
+/// Consumer source bodies remain data during completion.
 pub(crate) fn complete(root: &Path, slug: &str) -> Result<Report, Failure> {
     let completion = open(root)?.complete(slug)?;
     Ok(Report::of(completion_records(&completion)?))
@@ -105,24 +101,6 @@ pub(crate) fn complete(root: &Path, slug: &str) -> Result<Report, Failure> {
 ///
 /// A completion of a kind this version does not know.
 fn completion_records(completion: &Completion) -> Result<Vec<Record>, Failure> {
-    let receipts = || {
-        completion.evidence().iter().filter_map(|evidence| {
-            if !matches!(
-                evidence.outcome(),
-                raf_workplan::bound::BoundOutcome::NotApplicable { .. }
-            ) {
-                return None;
-            }
-            let line = evidence.to_string();
-            Some(Record::outcome(
-                CommandResult::Binding {
-                    evidence: evidence.clone(),
-                    message: line.clone(),
-                },
-                line,
-            ))
-        })
-    };
     match completion {
         Completion::Completed {
             removed, rewritten, ..
@@ -130,7 +108,6 @@ fn completion_records(completion: &Completion) -> Result<Vec<Record>, Failure> {
             let mut records = vec![Record::outcome(
                 CommandResult::Completed {
                     path: removed.clone(),
-                    evidence: completion.evidence().to_vec(),
                 },
                 completion.headline(),
             )];
@@ -140,7 +117,6 @@ fn completion_records(completion: &Completion) -> Result<Vec<Record>, Failure> {
                     format!("rewrote {path}"),
                 )
             }));
-            records.extend(receipts());
             Ok(records)
         }
         Completion::Refused { failures, .. } => {
@@ -148,7 +124,6 @@ fn completion_records(completion: &Completion) -> Result<Vec<Record>, Failure> {
                 CommandResult::Refused {
                     failures: failures.len(),
                     message: completion.headline(),
-                    evidence: completion.evidence().to_vec(),
                 },
                 completion.headline(),
             )];
@@ -157,7 +132,6 @@ fn completion_records(completion: &Completion) -> Result<Vec<Record>, Failure> {
                     .iter()
                     .map(|failure| refusal_record(failure, failures)),
             );
-            records.extend(receipts());
             Ok(records)
         }
         _ => Err(Failure::new(
@@ -184,37 +158,16 @@ fn refusal_record(failure: &Refusal, all: &[Refusal]) -> Record {
     )
 }
 
-/// `verify [<slug>]`: run the bound tests and examples of the change, or of
-/// every capability, and print one line for each binding. The tool publishes no
-/// repository files; trusted Cargo builds, tests and examples can write files.
-/// Git is used only to identify the worktree and list its tracked paths.
+/// Validate declared source bindings and document contracts without executing code.
 pub(crate) fn verify(root: &Path, slug: Option<&str>) -> Result<Report, Failure> {
     let opened = Gate::workspace(root).open()?;
-    let runner = SystemRunner::new(Programs::new(root));
-    let verified = lifecycle::verify(&opened, &runner, slug)?;
-    let records: Vec<Record> = verified
-        .evidence()
-        .iter()
-        .zip(verified.lines())
-        .map(|(evidence, line)| {
-            let result = CommandResult::Binding {
-                evidence: evidence.clone(),
-                message: line.clone(),
-            };
-            if matches!(
-                evidence.outcome(),
-                raf_workplan::bound::BoundOutcome::Passed
-                    | raf_workplan::bound::BoundOutcome::NotApplicable { .. }
-            ) {
-                Record::outcome(result, line)
-            } else {
-                Record::finding(result, line)
-            }
-        })
-        .collect();
-    let mut report = Report::of(records);
-    if verified.is_empty() {
-        report.note("there is no bound test or example to run");
-    }
-    Ok(report)
+    let verified = lifecycle::verify(&opened, slug)?;
+    let text = verified.to_string();
+    let valid = verified.is_valid();
+    let result = CommandResult::Verification(verified);
+    Ok(Report::of([if valid {
+        Record::outcome(result, text)
+    } else {
+        Record::finding(result, text)
+    }]))
 }

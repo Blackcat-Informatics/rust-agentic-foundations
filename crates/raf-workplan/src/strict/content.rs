@@ -46,7 +46,7 @@ fn judge(plan: &Workplan<'_>, loaded: &Loaded<Capability>, out: &mut Vec<Owed>) 
                 path,
                 Location::Key("bindings".to_string()),
                 "the delivered capability binds no entry in bindings.examples",
-                "bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs",
+                "bind at least one example target or documented library item in `bindings.examples`; the complete policy requires an explicit static usage reference",
             ),
             id,
         ));
@@ -97,7 +97,7 @@ fn judge(plan: &Workplan<'_>, loaded: &Loaded<Capability>, out: &mut Vec<Owed>) 
                 path,
                 section(CapabilitySection::Usage),
                 "no path of bindings.examples is named in the section",
-                "name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs",
+                "name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for a declared example",
             ),
             section_subject(CapabilitySection::Usage),
         ));

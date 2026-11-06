@@ -27,11 +27,11 @@ and fuzz roots (`tests/self_census.rs`). The canonical `helpers-ledger.ttl` and
 checked against `rustc` on generated programs
 (`crates/raf-source/tests/rustc_oracle.rs`).
 `raf-workplan` delivers its document model, generated documentation blocks,
-reconcile step, `verify` and completion gate, entity history, execution evidence
+reconcile step, `verify` and completion gate, entity history, authored evidence metadata
 and its claims, prose assessments, two-way coverage and the current-rationale
 check, and `cargo-workplan` runs `check`, `status`, `docs sync|preview`,
 `change new|impact|reconcile|complete`, `verify`, `history`,
-`evidence record|claims|for`, `assess` and `coverage code|tests`: their contract
+`evidence claims|for`, `assess` and `coverage code|tests`: their contract
 is stated in [workplan-cli](docs/capabilities/workplan-cli.md). The
 [complete policy](docs/capabilities/workplan-strict.md) is delivered and applies
 to every check, reconciliation and completion. It enforces section content,
@@ -40,7 +40,7 @@ recording that can only shrink.
 
 `raf-census` delivers normal form 1, fingerprints, grouping, canonical RDF reports,
 the strict ledger, the production Gate, counted debt and bounded migration.
-`cargo-census` supplies registered `check`, `job`, `count` and `fingerprint`
+`cargo-census` supplies native `check`, `job`, `count` and `fingerprint`
 queries, `migrate` and direct `debt --write`. Complete detector/provider execution
 retains its own capability state in the catalogue.
 
@@ -50,22 +50,18 @@ retains its own capability state in the catalogue.
 | `raf-rdf` | library | Canonical ground RDF 1.2 reports over native PurRDF storage. | **delivered** | [rdf-report-profile](docs/capabilities/rdf-report-profile.md) |
 | `raf-source` | library | Indexes Rust source so tools can bind documents to code. | **delivered** | [source-index](docs/capabilities/source-index.md) |
 | `raf-census` | library | The duplicate-helper census, strict ledger, counted debt, migration and Gate. | **delivered** for the capabilities listed — not yet published | [census-normal-form](docs/capabilities/census-normal-form.md), [census-ledger](docs/capabilities/census-ledger.md), [census-debt-ratchet](docs/capabilities/census-debt-ratchet.md), [census-migration](docs/capabilities/census-migration.md) |
-| `cargo-census` | cargo subcommand | Runs registered checks and native job, count and fingerprint queries, migrates ledgers and writes admitted debt through the production Gate. | **complete command interface delivered** — not yet published | [census-migration](docs/capabilities/census-migration.md), [census-debt-ratchet](docs/capabilities/census-debt-ratchet.md), [census-cli](docs/capabilities/census-cli.md) |
+| `cargo-census` | cargo subcommand | Runs native checks and job, count and fingerprint queries, migrates ledgers and writes admitted debt through the production Gate. | **complete command interface delivered** — not yet published | [census-migration](docs/capabilities/census-migration.md), [census-debt-ratchet](docs/capabilities/census-debt-ratchet.md), [census-cli](docs/capabilities/census-cli.md) |
 | `raf-workplan` | library | The workplan document model, generated documentation blocks, reconcile step, completion gate, entity history, evidence and claims, prose assessments, two-way coverage and current rationale. | **delivered** for the capabilities listed — not yet published | [workplan-document-model](docs/capabilities/workplan-document-model.md), [workplan-generated-docs](docs/capabilities/workplan-generated-docs.md), [workplan-reconcile](docs/capabilities/workplan-reconcile.md), [workplan-complete-gate](docs/capabilities/workplan-complete-gate.md), [workplan-entity-history](docs/capabilities/workplan-entity-history.md), [workplan-evidence-claims](docs/capabilities/workplan-evidence-claims.md), [workplan-prose-assessment](docs/capabilities/workplan-prose-assessment.md), [workplan-two-way-coverage](docs/capabilities/workplan-two-way-coverage.md), [workplan-current-rationale](docs/capabilities/workplan-current-rationale.md) |
 | `cargo-workplan` | cargo subcommand | Runs the workplan from the command line. | **delivered** — not yet published | [workplan-cli](docs/capabilities/workplan-cli.md) |
 
 ## Usage
 
 A project consumes RAF as dev-dependencies. The workplan gate runs on this
-repository. A repository binary or xtask can install the Census Gate with its
-registered rules and extensions. For read-only registered checking, expose that
-Gate in an example and run `cargo census check --package PACKAGE --example EXAMPLE`.
-Native `job`, `count` and `fingerprint` queries use the same registered Gate.
-Migration and direct debt commands use the same library paths. The crates are not published yet.
+repository. A caller can install the Census Gate with explicitly supplied Rust rules and extensions. The CLI evaluates its native Gate directly; it never builds or executes repository examples. Native index, job, count and fingerprint queries use that same data path. Migration and explicit debt writes use the library APIs. Analysis and static verification never run consumer tests, examples or doctests. Documentation compilation is a separate CLI operation requiring invocation-scoped --trust-docs. The crates are not published yet.
 
 ```toml
 [dev-dependencies]
-raf-workplan = "0.1"
+raf-workplan = "0.2"
 ```
 
 ```rust
@@ -81,7 +77,7 @@ The census gate, once built, takes the same shape:
 
 ```toml
 [dev-dependencies]
-raf-census = "0.1"
+raf-census = "0.2"
 ```
 
 ```rust

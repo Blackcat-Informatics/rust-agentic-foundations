@@ -386,6 +386,14 @@ impl DiskTree {
         })
     }
 
+    /// Inspect a regular file's byte length through a verified handle.
+    pub(crate) fn byte_len(&self, path: &RelPath) -> Result<u64, TreeError> {
+        super::require_first_party(path)?;
+        let shown = path.to_string();
+        let handle = self.open(path, Want::File, &shown)?;
+        self.used(&handle, &shown, |handle| Ok(handle.metadata(&shown)?.len()))
+    }
+
     /// Read the exact bytes through the same verified handles as [`Tree::read`].
     ///
     /// The file is checked against the root before and after reading. At most

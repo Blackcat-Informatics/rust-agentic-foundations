@@ -1,87 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! [`Workplan::history`]: the commits that shaped a document and, for a
-//! capability, its bound code, read from Git on request.
+//! Native read-only history for authored documents and bound source.
 //!
-//! The id is a `cap:`, `change:`, `arch:`, `evidence:` or `assessment:` id and
-//! is matched against the loaded documents and records; it never reaches a
-//! process. An id of another kind, an id no document has, and an id whose file
-//! did not load are each an error before any process starts
-//! ([`HistoryError::UnknownKind`], [`HistoryError::Unknown`],
-//! [`HistoryError::NotLoaded`]), and so is any binding or path that cannot be
-//! asked about: every invocation is built before the first one runs.
+//! Document tracing follows renames and meaningful merge resolutions. Source
+//! spans use native line projection; module bindings additionally select their
+//! own source files. Removed bindings retain the substring-count heuristic,
+//! including its first-parent relationship rather than semantic removal proof.
 //!
-//! Then, in order: `git --version` refuses a Git older than 2.30
-//! ([`git::require_version`]); `git rev-parse --is-shallow-repository`
-//! refuses a shallow clone ([`HistoryError::Shallow`]), whose history ends at
-//! a boundary and would be reported in part; the document's own log follows
-//! its moves, lists the merges whose resolution changed it and the first
-//! commit of the history whatever `log.showRoot` says, and gives the name the
-//! document had at each commit ([`git::document_log`]). For a capability,
-//! each `code` binding is read from the source index:
-//!
-//! * A binding that resolves has each definition's span (file and lines) run
-//!   through `git log -L` ([`git::symbol_log`]), so only the commits that
-//!   changed those lines are listed, with the binding's path as their
-//!   [`Source`] and the file as their path. The span is the one in the
-//!   working tree, and `git log -L` traces it from `HEAD`: for a file whose
-//!   working copy differs from `HEAD` the lines are those numbers in `HEAD`,
-//!   and a bound file that is not committed, or whose copy in `HEAD` ends
-//!   before the line the symbol starts at in the working copy, makes `git`
-//!   fail and with it the whole history
-//!   ([`HistoryError::SymbolLog`], which names the binding and the file).
-//!   `git` follows the lines through a rename it detects and stops where they
-//!   came from another file, so a symbol moved between files has its history
-//!   from the move on.
-//! * A binding that resolves to a module below its crate root stands for the
-//!   files of the module, as its digest does ([`crate::digest::Digest::symbol`]):
-//!   besides the log of its own span (the declaration `mod name;`, or an
-//!   inline module's braces), each file the digest reads, the module's own
-//!   file and the file of every module below it in the same target, has the
-//!   log a document has ([`git::document_log`]), with the binding's path as
-//!   its [`Source`] and the names `git` lists as its paths. A crate root
-//!   stands for nothing below it, so it has the log of its span only, as
-//!   every other item does. A file of the module that no commit holds (a new
-//!   file never committed) has an empty log, and the whole history fails rather
-//!   than show it as a file with no change ([`HistoryError::Uncommitted`],
-//!   which names the binding and the file).
-//! * A binding that no longer resolves (the index has nothing at its path) is
-//!   a [`RemovedBinding`]: the newest commit that changed how often the last
-//!   segment of its path occurs in the directory of its crate (`git log -S`,
-//!   [`git::last_change`]) is reported as the commit that removed it, and its
-//!   first parent (`%P` of the same query) as the last commit in which it
-//!   resolved. That is a heuristic with stated limits. The count is of the
-//!   text anywhere below the crate's directory, which includes any package
-//!   nested in it and, for a package at the root, the whole repository, its
-//!   documents included; so a later commit that changes another occurrence of
-//!   the same word (or of a word that holds it) is reported instead. When the
-//!   symbol left without changing the count (a rename to a longer name that
-//!   holds the old one, a move inside the crate), the commit reported can be
-//!   the one that added it, and the "last resolved" commit one in which it
-//!   never existed. A removal inside a merge is not seen. A symbol whose name
-//!   never changed its count there has no commit at all
-//!   ([`Removal::NoCommit`]). A crate that no package of the workspace provides
-//!   any more has no directory to ask about ([`Removal::NoCrate`]). `--since`
-//!   does not limit this lookup.
-//! * A binding that resolves to no single symbol for another reason (more
-//!   than one symbol, an import cycle, an unseen impl, a glob of nothing) is
-//!   [`HistoryError::Binding`]: there is no symbol to read the history of.
-//!
-//! A commit that several sources list is one [`Entry`] with every source and
-//! every path. Entries are newest first: by the instant of the author date
-//! each shows, then by commit id, so the order is the same on every run.
-//! `--since` keeps the entries whose author date is at or after 00:00:00 UTC
-//! of its day, so the same date selects the same commits on every clock and
-//! in every time zone, and every entry shown satisfies it by the date it
-//! shows. The date is compared in process and never reaches `git`, whose own
-//! `--since` reads the committer date: every log is read whole and filtered.
-//! [`render`] writes a human table of the same typed entries.
-//!
-//! Nothing is written: the history reads Git and the loaded documents only.
-//! In a partial clone, Git itself may fetch missing objects from its remote
-//! while it answers, which writes into `.git`; that is Git's own behaviour for
-//! such a clone and not a write of the history.
+//! Missing local objects, shallow repositories, invalid spans and exhausted
+//! bounds refuse. No Git executable, helper, transport, hook or filter runs,
+//! and no working file, index, reference or repository configuration is changed.
 
 pub mod render;
 
@@ -93,9 +22,9 @@ use raf_okf::DocType;
 use raf_source::{ResolveError, SymbolKind, Workspace};
 
 use crate::digest;
-use crate::exec::{Commit, Date, Identifier, LineRange, PatternError, Runner, TreePath};
 use crate::git::{self, AuthorDate, GitError, LogEntry};
 use crate::graph::BindingKind;
+use crate::identifiers::{Commit, Date, Identifier, LineRange, PatternError, TreePath};
 use crate::lookup::write_findings;
 use crate::{Finding, Workplan};
 
@@ -450,14 +379,14 @@ impl From<GitError> for HistoryError {
     }
 }
 
-/// A `git log -L` to run: the span of one definition of a bound symbol.
+/// A native line-history selection for one bound symbol definition.
 struct SymbolQuery {
     binding: String,
     lines: LineRange,
     file: TreePath,
 }
 
-/// A `git log --follow` to run: one file of a bound module.
+/// A native rename-following selection for one bound module file.
 struct FileQuery {
     binding: String,
     file: TreePath,
@@ -554,73 +483,49 @@ fn merge(
 }
 
 impl Workplan<'_> {
-    /// The history of the document or record `id`: the commits that shaped
-    /// it, newest first, and for a capability the commits of its bound code
-    /// and the bindings that no longer resolve. See [the module](self) for
-    /// what is asked of `git`, in which order, and the limits.
+    /// Read native document and source history without launching a program.
     ///
-    /// `runner` starts `git` in the workspace root; nothing is written.
+    /// The repository is supplied explicitly. Source spans refer to their line
+    /// positions at HEAD; an unavailable committed span refuses with its binding
+    /// and filename. The optional day selects author dates after midnight UTC.
     ///
-    /// ```rust
-    /// use raf_source::{MemoryTree, Workspace};
-    /// use raf_workplan::Workplan;
-    /// use raf_workplan::exec::FakeRunner;
-    /// use raf_workplan::history::{HistoryError, HistoryOptions};
-    ///
-    /// let source = Workspace::load(
-    ///     &MemoryTree::from([
-    ///         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
-    ///         ("src/lib.rs", ""),
-    ///     ]),
-    ///     &["."],
-    /// )?;
-    /// let plan = Workplan::load(&MemoryTree::from([("docs/architecture/.keep", "")]), &source);
-    /// let runner = FakeRunner::new();
-    /// // An id no document has is refused before any process starts.
-    /// let error = plan
-    ///     .history("arch:missing", &HistoryOptions::new(), &runner)
-    ///     .unwrap_err();
-    /// assert!(matches!(error, HistoryError::Unknown { .. }));
-    /// assert!(runner.calls().is_empty());
+    /// ```no_run
+    /// use raf_workplan::{Gate, git::Repository, history::HistoryOptions};
+    /// let opened = Gate::workspace(".").open()?;
+    /// let repository = Repository::open(".")?;
+    /// let history = opened.workplan().history("cap:api", &HistoryOptions::new(), &repository)?;
+    /// # let _ = history;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
     /// # Errors
-    ///
-    /// [`HistoryError::UnknownKind`], [`HistoryError::Unknown`],
-    /// [`HistoryError::NotLoaded`], [`HistoryError::Binding`] and
-    /// [`HistoryError::Pattern`] before any process starts;
-    /// [`HistoryError::Shallow`] for a shallow clone;
-    /// [`HistoryError::SymbolLog`] for a `git log -L` of a bound symbol that
-    /// fails, as for a file that is not committed;
-    /// [`HistoryError::Uncommitted`] for a file of a bound module that no
-    /// commit holds; [`HistoryError::Git`]
-    /// for a Git older than 2.30, an output over 16 MiB, an output that is not
-    /// a log of its form, and a `git` that fails or cannot run.
+    /// Refuses unknown or unloaded documents, ambiguous source bindings,
+    /// missing objects, shallow history, invalid spans and native size limits.
     pub fn history(
         &self,
         id: &str,
         options: &HistoryOptions,
-        runner: &dyn Runner,
+        repository: &git::Repository,
     ) -> Result<History, HistoryError> {
         let plan = self.history_plan(id)?;
-        git::require_version(runner)?;
-        if git::is_shallow(runner)? {
+        if git::is_shallow(repository)? {
             return Err(HistoryError::Shallow);
         }
         let mut entries = BTreeMap::new();
-        let log = git::document_log(runner, &plan.document)?;
+        let log = git::document_log(repository, &plan.document)?;
         merge(&mut entries, log, &Source::Document, None);
         for query in &plan.symbols {
             let log =
-                git::symbol_log(runner, query.lines, &query.file).map_err(|error| match error {
-                    GitError::Failed { .. } => HistoryError::SymbolLog {
-                        binding: query.binding.clone(),
-                        file: query.file.as_str().to_string(),
-                        error: Box::new(error),
+                git::symbol_log(repository, query.lines, &query.file).map_err(
+                    |error| match error {
+                        GitError::Native(_) | GitError::Answer { .. } => HistoryError::SymbolLog {
+                            binding: query.binding.clone(),
+                            file: query.file.as_str().to_string(),
+                            error: Box::new(error),
+                        },
+                        other => HistoryError::Git(other),
                     },
-                    other => HistoryError::Git(other),
-                })?;
+                )?;
             merge(
                 &mut entries,
                 log,
@@ -629,7 +534,7 @@ impl Workplan<'_> {
             );
         }
         for query in &plan.files {
-            let log = git::document_log(runner, &query.file)?;
+            let log = git::document_log(repository, &query.file)?;
             if log.is_empty() {
                 return Err(HistoryError::Uncommitted {
                     binding: query.binding.clone(),
@@ -648,7 +553,7 @@ impl Workplan<'_> {
             let removal = if query.dirs.is_empty() {
                 Removal::NoCrate
             } else {
-                match git::last_change(runner, &query.identifier, &query.dirs)? {
+                match git::last_change(repository, &query.identifier, &query.dirs)? {
                     None => Removal::NoCommit,
                     Some(found) => Removal::Found {
                         last_resolved: found.parent().cloned(),

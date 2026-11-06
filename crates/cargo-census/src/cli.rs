@@ -4,7 +4,6 @@
 //! Cargo and direct-executable argument shapes.
 
 use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
-use raf_workplan::exec::{ExampleName, Package};
 use std::{ffi::OsString, path::PathBuf};
 
 #[derive(Parser)]
@@ -44,7 +43,7 @@ pub(crate) enum Command {
         #[arg(long)]
         out: Option<PathBuf>,
     },
-    /// Read the complete native index from the repository's registered Gate.
+    /// Read the complete index through the native repository gate.
     Index(QueryTarget),
     /// Inspect every classified physical match of one configured job.
     Job {
@@ -67,15 +66,8 @@ pub(crate) enum Command {
         #[command(flatten)]
         target: QueryTarget,
     },
-    /// Run the repository-owned registered check through its native RDF response.
-    Check {
-        /// Package containing the repository-owned check example.
-        #[arg(long, value_parser = package)]
-        package: Package,
-        /// Example that emits the registered check-v1 response and matching exit.
-        #[arg(long, value_parser = example)]
-        example: ExampleName,
-    },
+    /// Evaluate native ledger policy without running any repository program.
+    Check,
     /// Emit a migrated RDF ledger to stdout without modifying either input.
     Migrate(MigrationArgs),
     /// Record present debt through `Gate::write_debt`, refusing growth.
@@ -83,30 +75,18 @@ pub(crate) enum Command {
         /// Publish the exact present record.
         #[arg(long, required = true)]
         write: bool,
-        /// Repository package owning the registered debt writer.
-        #[arg(long, value_parser = package, requires = "example")]
-        package: Option<Package>,
-        /// Example accepting the explicit versioned write request.
-        #[arg(long, value_parser = example, requires = "package")]
-        example: Option<ExampleName>,
     },
 }
 
 #[derive(ClapArgs)]
 pub(crate) struct QueryTarget {
-    /// Package containing the repository-owned index example.
-    #[arg(long, value_parser = package)]
-    pub(crate) package: Package,
-    /// Example accepting the existing index-v1 request.
-    #[arg(long, value_parser = example)]
-    pub(crate) example: ExampleName,
     /// Native RDF 1.2 report or query carrier.
     #[arg(long, value_enum, default_value = "ntriples")]
     pub(crate) format: RdfFormat,
     /// Write the complete result here, relative to the caller, instead of stdout.
     #[arg(long)]
     pub(crate) out: Option<PathBuf>,
-    /// Maximum bytes in each captured index stream: stdout and stderr separately.
+    /// Maximum serialized bytes in the complete native index.
     #[arg(
         long,
         default_value_t = raf_census::MAX_CHECK_RESPONSE_BYTES,
@@ -173,14 +153,6 @@ impl RdfFormat {
             Self::Turtle => raf_rdf::Format::Turtle,
         }
     }
-}
-
-fn package(value: &str) -> Result<Package, String> {
-    Package::new(value).map_err(|error| error.to_string())
-}
-
-fn example(value: &str) -> Result<ExampleName, String> {
-    ExampleName::new(value).map_err(|error| error.to_string())
 }
 
 pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, clap::Error> {

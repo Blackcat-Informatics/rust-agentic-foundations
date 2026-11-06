@@ -406,7 +406,7 @@ fn finding(row: &Map) -> Option<ReviewFinding> {
             Some("revision"),
             ReviewDisposition::Fixed(
                 field("revision")
-                    .filter(|revision| records::is_commit(revision))?
+                    .filter(|revision| records::is_commit_id(revision))?
                     .to_string(),
             ),
         ),
