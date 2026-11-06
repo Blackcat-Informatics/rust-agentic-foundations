@@ -5,7 +5,7 @@ type: Capability
 id: cap:source-index
 title: "Source index"
 description: "The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #[path], and a symbol and use-alias index."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_source::git
@@ -1097,11 +1097,19 @@ distinguish that query from a structural inventory of all alternatives.
 
 ## Contract
 
-> [!PROPOSED change:source-glob-cost]
-> Incremental glob propagation preserves reference answers across declaration orders under the original counted-work and native storage grants.
->
-> The native Linux release instruction profile compares identical generated inputs at 100, 200, 400 and 800 elements. Its nine admitted populations are chain, many-items, public fan-in, private fan-in, companion fan-in, prelude, hub, ambiguous hub and lookup fan-in. At 800 elements each costs at most 1.5 times its fixed reference. The final doubling costs at most 2.15 times for the linear populations, 3.4 times for prelude, 4.3 times for either hub and 4.4 times for lookup fan-in. Every accepted measurement has complete counter coverage; integer comparisons preserve the exact limits without rounding.
-> <!-- raf:tested-by raf_source::test_crate::glob_instruction_gate::bounds_enforce_original_ratios_and_growth_without_rounding,raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event,raf_source::glob_scope::work_budget::actual_work_from_100_to_800_stays_within_each_shapes_doubling_bound -->
+Incremental glob propagation preserves reference answers across declaration orders
+under the original counted-work and native storage grants.
+<!-- raf:tested-by raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_thirteen_orders -->
+
+The native Linux release instruction profile compares identical generated inputs
+at 100, 200, 400 and 800 elements. Its nine admitted populations are chain,
+many-items, public fan-in, private fan-in, companion fan-in, prelude, hub,
+ambiguous hub and lookup fan-in. At 800 elements each costs at most 1.5 times its
+fixed reference. The final doubling costs at most 2.15 times for the linear
+populations, 3.4 times for prelude, 4.3 times for either hub and 4.4 times for
+lookup fan-in. Every accepted measurement has complete counter coverage; integer
+comparisons preserve the exact limits without rounding.
+<!-- raf:tested-by raf_source::test_crate::glob_instruction_gate::bounds_enforce_original_ratios_and_growth_without_rounding,raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event,raf_source::glob_scope::work_budget::actual_work_from_100_to_800_stays_within_each_shapes_doubling_bound -->
 
 The instruction comparator invokes `perf stat --no-scale -v` over each complete
 driver process. Admission uses the native
@@ -1746,7 +1754,11 @@ change:
   globs each child, and of a random network of 1000 modules, each keeps at most one
   byte of glob tables for each 1.5 it is charged.
   Retained import reads, subscriptions, pending queue growth and undecided-import
-  graph scratch also use this live storage grant, as does scratch for derived
+  graph scratch also use this live storage grant. Active and covert delivery
+  snapshots of up to two candidates per namespace use fixed stack buffers.
+  Larger snapshots and covert due-name buffers retain the live storage grant
+  through reentrant propagation,
+  as does scratch for derived
   glob-fact construction and impl
   self-type and trait-path traversal. Native discovery and item-emission
   stack spills use the item-byte grant instead.
@@ -3101,6 +3113,12 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Set `LoadOptions::max_work` and `max_glob_bytes` before loading to bound import
+operations and live import storage. Retained reads, pending queues, subscriptions
+and undecided-import graph scratch share those grants. Preserve a typed refusal
+and its source location when reporting an oversized input.
+<!-- raf:tested-by raf_source::test_crate::load_budgets::retained_import_reads_and_blocker_cycles_obey_exact_storage_and_work_limits,raf_source::settle::tests::pending_and_blocker_storage_require_the_original_grants -->
+
 Committed Git reads use the native adapter and require no installed Git binary.
 Supply an explicit local repository and locked revision. Missing objects refuse;
 loading never fetches, executes repository helpers or changes Git state.
@@ -3288,6 +3306,13 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 
 ## Examples
 
+A pair of modules importing each other's undefined `X` exercises pending imports
+and their blocker graph. The exact measured work and storage grants admit that
+analysis; reducing either grant by one refuses with `Budget::Work` or
+`Budget::GlobBytes`. A module containing only an ordinary function needs neither
+grant for the corresponding pending-import and blocker-graph operations.
+<!-- raf:tested-by raf_source::settle::tests::pending_and_blocker_storage_require_the_original_grants -->
+
 A committed snapshot remains readable with an empty executable search path.
 Replacement references and working-tree edits leave the selected committed bytes
 unchanged. A missing local object refuses beside its complete neighboring view.
@@ -3447,6 +3472,12 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 
 ## Constraints
 
+The instruction profile covers the stated generated populations and sizes on
+native Linux. It does not establish an instruction ceiling for arbitrary source
+inputs. Companion-bearing paths retain exact reconstruction and carrier proofs;
+their visited work and storage remain subject to the configured grants.
+<!-- raf:tested-by raf_source::glob_scope::settling::a_companion_hub_bounds_delivery_and_carrier_graph_growth_together,raf_source::glob_scope::ranked::tests::proof_scratch_and_work_refuse_one_less_than_the_actual_original_grant -->
+
 Native Git object decoding has an explicit per-allocation limit in addition to
 the caller's retained-data and semantic-work grants. These are distinct bounds;
 the portable meters do not account for every internal decoder allocation.
@@ -3455,6 +3486,7 @@ the portable meters do not account for every internal decoder allocation.
 - Unexpanded occurrence metadata is a syntax inventory, including associated and
   foreign declaration lists. It supplies no generated member, compiler expansion
   or external namespace proof. Function and expression bodies remain excluded.
+  <!-- raf:tested-by raf_source::test_crate::symbol_index::module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions,raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions -->
 
 - Host captures are individual observations, not an atomic multi-file snapshot.
   A publisher must recapture and compare its complete selected source set before
@@ -3692,6 +3724,64 @@ to fit its host, and an over-limit load returns its original typed refusal.
 
 Glob propagation shares visibility-class views and passes independent arrivals as deltas. Companion-bearing names, blocked namespaces and returning private routes retain exact reconstruction and carrier proofs. Lookup and propagation counters describe the operations actually visited; they are distinct from native CPU instruction counts. Instruction-cost claims require complete native counters over identical inputs. A successful resource refusal or counted-work test supplies no numerical CPU-cost guarantee.
 
+Each release driver loads one generated library through `MemoryTree` and resolves
+its fixed probes. Retired user instructions include the complete driver process
+under the same compiler and default load options on the native Linux host. The
+measured counts are:
+
+| Shape | 100 elements | 200 elements | 400 elements | 800 elements |
+| --- | ---: | ---: | ---: | ---: |
+| Chain | 14,328,262 | 28,405,646 | 57,574,804 | 117,241,588 |
+| Many items | 16,011,328 | 31,570,466 | 63,349,684 | 128,636,991 |
+| Public fan-in | 17,104,292 | 33,887,561 | 68,695,836 | 140,237,834 |
+| Private fan-in | 15,881,233 | 31,266,671 | 63,301,102 | 128,042,632 |
+| Companion fan-in | 51,288,970 | 103,717,308 | 210,077,365 | 427,168,796 |
+| Prelude | 22,981,167 | 47,046,407 | 99,282,371 | 219,520,582 |
+| Hub | 80,466,986 | 285,146,931 | 1,089,614,902 | 4,443,506,902 |
+| Ambiguous hub | 168,658,485 | 637,932,402 | 2,506,755,966 | 10,211,597,801 |
+| Lookup fan-in | 169,907,879 | 600,397,098 | 2,265,014,083 | 8,826,339,797 |
+
+The reference is the resolver without the two private-glob visibility rules.
+Correctness is checked independently against the compiler and visibility
+invariants. Ratios below are rounded to three decimal places for display; the
+instruction gate checks the original integer counts against the exact ceilings.
+
+| Shape | Reference at 800 | Cost at 800 / reference | Growth from 400 to 800 |
+| --- | ---: | ---: | ---: |
+| Chain | 110,661,604 | 1.059 | 2.036 |
+| Many items | 130,724,605 | 0.984 | 2.031 |
+| Public fan-in | 148,043,028 | 0.947 | 2.041 |
+| Private fan-in | 125,503,240 | 1.020 | 2.023 |
+| Companion fan-in | 388,921,081 | 1.098 | 2.033 |
+| Prelude | 445,922,645 | 0.492 | 2.211 |
+| Hub | 6,817,391,912 | 0.652 | 4.078 |
+| Ambiguous hub | 6,809,311,765 | 1.500 | 4.074 |
+| Lookup fan-in | 8,223,204,825 | 1.073 | 3.897 |
+
+The ambiguous-hub ratio is approximately 1.499652; its
+integer comparison passes the 1.5 ceiling with a narrow margin.
+
+Holder-scan has 1,971,290,086 instructions at 100 elements and 7,863,288,778 at
+200; its reference counts are 1,961,346,077 and 7,885,069,028. Default admission
+refuses 400 elements with `Budget::FileTokens` and 800 with
+`TreeError::TooLarge`. Those refused inputs have no numerical cost verdict.
+<!-- raf:tested-by raf_source::test_crate::glob_instruction_gate::bounds_enforce_original_ratios_and_growth_without_rounding,raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event,raf_source::glob_scope::work_budget::holder_scan_sources_beyond_the_admitted_growth_sizes_are_refused -->
+
+Read-only committed-workspace inputs retain byte-identical full reader answers
+against the same reference. Whole-reader instruction counts include the complete
+release process and pass the same exact counter admission:
+
+| Source snapshot | Reference instructions | Instructions | Ratio |
+| --- | ---: | ---: | ---: |
+| RAF `2e6fc213e4fbb29d1f6e06c0ba8d37c6ded124fd` | 7,391,004,241 | 7,881,396,288 | 1.066350 |
+| PurRDF `b0f4a8715ca21bcedf11d277021a7c3cf6d9e302` | 73,895,359,379 | 77,225,975,825 | 1.045072 |
+| Katamari `dc93802bb138fa75eb8467e1d64a9e1566d849a8` | 14,213,921,207 | 14,957,737,540 | 1.052330 |
+
+The registry population retains 1,345 accepted loads across the same 1,365
+entries, with the same twenty refused crate versions and no new budget refusals. Its largest
+counted load uses 40,629,253 work steps, below 2^27. These readers inspect source
+as data and execute no input workspace's code.
+
 Discovery caches complete immutable name rows for type, value and macro lookups.
 Namespace selection and carrier proof keys remain separate. A different name
 allocation clears only the touched cache slots, whose storage is admitted before use.
@@ -3715,6 +3805,13 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+The internal settling comparison includes both generated seed families and the
+committed corpus in thirteen declaration orders. Its default is 64 programs per
+family; maintainers select a count of at least 64 with
+`RAF_GLOB_EQUIVALENCE_PROGRAMS`. The selected count applies to both families and
+does not reduce corpus or order coverage. Invalid counts refuse the comparison.
+<!-- raf:tested-by raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_thirteen_orders -->
 
 - The existing occurrence fixtures retain trait, impl and foreign invocations
   across two target reaches, including attribute spans, inherited test roles,
@@ -4657,7 +4754,7 @@ one-byte-short refusal.
 | `raf_source::glob_scope::delivery::recorded_name_rows_survive_real_reconstruction_with_new_equal_interned_names` | test | [Verification](#verification) |
 | `raf_source::glob_scope::delivery::widest_routes_merge_firm_evidence_in_place_and_refuse_before_mutation` | test | [Verification](#verification) |
 | `raf_source::glob_scope::equivalence::an_answer_that_differs_between_the_two_modes_is_reported_with_its_load_and_both_answers` | test | [Verification](#verification) |
-| `raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_thirteen_orders` | test | [Explanation](#explanation) |
+| `raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_thirteen_orders` | test | [Contract](#contract), [Explanation](#explanation) |
 | `raf_source::glob_scope::incremental::a_covert_read_is_listed_before_its_names_arrive_so_an_item_its_view_gains_while_they_arrive_reaches_the_module` | test | [Verification](#verification) |
 | `raf_source::glob_scope::incremental::a_covert_reader_is_woken_in_the_turn_an_active_read_of_it_would_have_so_the_imports_that_wait_on_the_name_are_queued_again_in_that_order` | test | [Verification](#verification) |
 | `raf_source::glob_scope::incremental::a_covert_reader_takes_a_gain_in_the_turn_an_active_read_of_it_would_have_so_the_companions_of_a_name_are_kept_as_its_drops_allow` | test | [Verification](#verification) |
@@ -4688,11 +4785,11 @@ one-byte-short refusal.
 | `raf_source::glob_scope::ranked::tests::homogeneous_returning_carriers_share_an_actual_holder_retrieval` | test | [Verification](#verification) |
 | `raf_source::glob_scope::ranked::tests::interior_levels_named_imports_and_glob_prefixes_keep_ordinary_reconstruction` | test | [Verification](#verification) |
 | `raf_source::glob_scope::ranked::tests::named_extern_alias_and_qualified_glob_neighbors_do_not_certify_independence` | test | [Verification](#verification) |
-| `raf_source::glob_scope::ranked::tests::proof_scratch_and_work_refuse_one_less_than_the_actual_original_grant` | test | [Explanation](#explanation) |
+| `raf_source::glob_scope::ranked::tests::proof_scratch_and_work_refuse_one_less_than_the_actual_original_grant` | test | [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_source::glob_scope::ranked::tests::public_peer_rows_are_rooted_without_a_second_table_construction` | test | [Verification](#verification) |
 | `raf_source::glob_scope::ranked::tests::roots_outside_resident_targets_still_require_the_second_discovery` | test | [Verification](#verification) |
 | `raf_source::glob_scope::settling::a_companion_fan_in_keeps_each_operation_population_linear_without_list_copies` | test | [Verification](#verification) |
-| `raf_source::glob_scope::settling::a_companion_hub_bounds_delivery_and_carrier_graph_growth_together` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::a_companion_hub_bounds_delivery_and_carrier_graph_growth_together` | test | [Constraints](#constraints) |
 | `raf_source::glob_scope::settling::a_companion_hub_keeps_local_definitions_and_reads_without_copying_candidate_lists` | test | [Verification](#verification) |
 | `raf_source::glob_scope::settling::a_reading_again_looks_at_the_reads_whose_view_holds_the_name_whatever_the_reads_of_the_module` | test | [Verification](#verification) |
 | `raf_source::glob_scope::settling::named_import_lookup_routes_stay_linear_and_read_work_stays_quadratic` | test | [Verification](#verification) |
@@ -4720,11 +4817,11 @@ one-byte-short refusal.
 | `raf_source::glob_scope::tests::the_holders_of_an_item_apart_from_readers_the_start_of_the_chain_globs_back_are_found_in_steps_linear_in_the_chain` | test | [Verification](#verification) |
 | `raf_source::glob_scope::work_budget::a_new_view_charges_raw_reads_and_unique_source_names_before_gathering` | test | [Verification](#verification) |
 | `raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit` | test | [Constraints](#constraints) |
-| `raf_source::glob_scope::work_budget::actual_work_from_100_to_800_stays_within_each_shapes_doubling_bound` | test | [Verification](#verification) |
+| `raf_source::glob_scope::work_budget::actual_work_from_100_to_800_stays_within_each_shapes_doubling_bound` | test | [Contract](#contract) |
 | `raf_source::glob_scope::work_budget::an_export_read_charges_each_visited_read_and_holder_before_returning_its_answer` | test | [Verification](#verification) |
 | `raf_source::glob_scope::work_budget::doubling_a_shape_keeps_actual_work_within_its_growth_bound` | test | [Constraints](#constraints) |
 | `raf_source::glob_scope::work_budget::each_shape_loads_at_its_measured_work_and_refuses_one_step_less` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_source::glob_scope::work_budget::holder_scan_sources_beyond_the_admitted_growth_sizes_are_refused` | test | [Verification](#verification) |
+| `raf_source::glob_scope::work_budget::holder_scan_sources_beyond_the_admitted_growth_sizes_are_refused` | test | [Explanation](#explanation) |
 | `raf_source::impls::tests::alternate_aliases_spill_the_nominal_stack_under_its_original_grant` | test | [Verification](#verification) |
 | `raf_source::impls::tests::missing_impl_head_admits_pending_glob_spill_and_keeps_the_missing_neighbor` | test | [Verification](#verification) |
 | `raf_source::index::tests::a_module_file_visited_before_the_declaration_that_names_it_is_an_internal_error` | test | [Verification](#verification) |
@@ -4788,7 +4885,7 @@ one-byte-short refusal.
 | `raf_source::settle::tests::each_settle_after_the_first_is_charged_what_it_builds_again` | test | [Verification](#verification) |
 | `raf_source::settle::tests::excluding_ones_own_named_binding_reserves_the_glob_fallback_too` | test | [Verification](#verification) |
 | `raf_source::settle::tests::native_component_grouping_refuses_one_below_its_live_storage_bound` | test | [Verification](#verification) |
-| `raf_source::settle::tests::pending_and_blocker_storage_require_the_original_grants` | test | [Constraints](#constraints) |
+| `raf_source::settle::tests::pending_and_blocker_storage_require_the_original_grants` | test | [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::settle::tests::pending_counts_duplicate_attempts_and_refuses_before_removing_a_queued_import` | test | [Verification](#verification) |
 | `raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant` | test | [Constraints](#constraints) |
 | `raf_source::settle::tests::retained_import_batches_reserve_previous_results_and_new_reads_together` | test | [Verification](#verification) |
@@ -4989,8 +5086,8 @@ one-byte-short refusal.
 | `raf_source::test_crate::glob_causality::named_imports_preserve_companions_instead_of_promoting_them_to_independent_routes` | test | [Verification](#verification) |
 | `raf_source::test_crate::glob_causality::private_forwarding_preserves_distinct_glob_ambiguity` | test | [Verification](#verification) |
 | `raf_source::test_crate::glob_causality::rustc_refuses_the_named_import_of_the_ambiguous_type` | test | [Verification](#verification) |
-| `raf_source::test_crate::glob_instruction_gate::bounds_enforce_original_ratios_and_growth_without_rounding` | test | [Usage](#usage), [Examples](#examples) |
-| `raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `raf_source::test_crate::glob_instruction_gate::bounds_enforce_original_ratios_and_growth_without_rounding` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Explanation](#explanation) |
+| `raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Explanation](#explanation) |
 | `raf_source::test_crate::import_determinacy::a_direct_visible_definition_makes_the_neighboring_import_determinate` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_source::test_crate::import_determinacy::a_fixed_module_prefix_decides_absence_before_an_unrelated_glob_widens_a_name` | test | [Verification](#verification) |
 | `raf_source::test_crate::import_determinacy::a_late_bound_peer_cannot_escape_through_named_and_glob_copies_or_exports` | test | [Contract](#contract) |
@@ -5021,7 +5118,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::load_budgets::nested_definition_emission_spills_with_only_the_item_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::repeated_globs_of_one_module_are_charged_once_for_what_it_holds` | test | [Verification](#verification) |
-| `raf_source::test_crate::load_budgets::retained_import_reads_and_blocker_cycles_obey_exact_storage_and_work_limits` | test | [Explanation](#explanation) |
+| `raf_source::test_crate::load_budgets::retained_import_reads_and_blocker_cycles_obey_exact_storage_and_work_limits` | test | [Usage](#usage), [Explanation](#explanation) |
 | `raf_source::test_crate::load_budgets::the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::load_budgets::the_default_budgets_are_the_stated_limits` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::load_budgets::the_fact_budget_counts_over_every_file_of_the_load` | test | [Contract](#contract), [Constraints](#constraints) |
@@ -5228,7 +5325,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::an_index_answer_that_changes_with_the_order_is_reported_as_index_order` | test | [Constraints](#constraints) |
-| `raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::diagnostic_levels_are_required_beside_a_valid_null_code` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` | test | [Constraints](#constraints) |
@@ -5273,7 +5370,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::items_that_share_a_source_item_are_grouped_by_its_identity` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::items_under_matches_whole_path_segments` | test | [Contract](#contract) |
-| `raf_source::test_crate::symbol_index::module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::read_only_resolution_keeps_workspace_equality_and_distinguishes_changed_definitions` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::shipping_is_the_target_and_not_a_test_role` | test | [Contract](#contract) |

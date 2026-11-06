@@ -10,6 +10,9 @@
 //! spaces, `self::<name>` from every module with a `use` declaration, and
 //! the exported surface. While the loads settle, each view entry added is
 //! checked to be new or wider than the one it takes the place of.
+//! `RAF_GLOB_EQUIVALENCE_PROGRAMS` selects at least 64 programs per seed
+//! family for an expanded comparison; the default is 64 per family. Both
+//! families, thirteen declaration orders and the corpus are always included.
 //!
 //! The two modes differ in what they read and copy while they settle, not
 //! in what they answer: the reference mode reads again from every glob read
@@ -37,8 +40,23 @@ use answers::Counted;
 use program::{Program, random_program};
 use random::Draw;
 
-/// The programs drawn from each seed family.
-const PROGRAMS: usize = 64;
+/// The default programs drawn from each seed family.
+const DEFAULT_PROGRAMS: usize = 64;
+
+/// Select the breadth of the comparison without changing its families or orders.
+fn selected_programs() -> usize {
+    const VARIABLE: &str = "RAF_GLOB_EQUIVALENCE_PROGRAMS";
+    let text = match std::env::var(VARIABLE) {
+        Ok(text) => text,
+        Err(std::env::VarError::NotPresent) => return DEFAULT_PROGRAMS,
+        Err(error) => panic!("{VARIABLE}: {error}"),
+    };
+    program::number::unsigned::<usize>(&text)
+        .filter(|count| *count >= DEFAULT_PROGRAMS)
+        .unwrap_or_else(|| {
+            panic!("{VARIABLE} must be an integer of at least {DEFAULT_PROGRAMS} fitting usize: {text:?}")
+        })
+}
 
 /// The bases of the two seed families of the differential test.
 const BASES: [u64; 2] = [0x0a11_ce00, 0xc0ff_ee00];
@@ -50,14 +68,14 @@ const ORDERS: usize = 12;
 /// The seed the orders of each program are drawn from.
 const ORDER_SEED: u64 = 0x0de2_0001;
 
-/// The programs compared, with their labels: [`PROGRAMS`] of each family,
+/// The programs compared, with their labels: `per_family` of each family,
 /// the seeds `base + 1` to `base + 8` in turn, and the committed corpus.
-fn programs() -> Vec<(String, Program)> {
+fn programs(per_family: usize) -> Vec<(String, Program)> {
     let mut all = Vec::new();
     for base in BASES {
         let seeds: Vec<u64> = (1..=8).map(|n| base + n).collect();
         let mut draws: Vec<Draw> = seeds.iter().map(|seed| Draw::seeded(*seed)).collect();
-        for n in 0..PROGRAMS {
+        for n in 0..per_family {
             let which = n % seeds.len();
             let program = random_program(&mut draws[which]);
             all.push((
@@ -186,7 +204,8 @@ fn judge(programs: &[(String, Program)]) -> Judged {
 #[test]
 fn the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_thirteen_orders()
  {
-    let programs = programs();
+    let per_family = selected_programs();
+    let programs = programs(per_family);
     let corpus = programs
         .iter()
         .filter(|(label, _)| label.starts_with("corpus "))
@@ -212,7 +231,7 @@ fn the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_c
     // it compared hold resolutions, ambiguities and refused surfaces, so a
     // run that compares nothing, or only one kind of answer, fails.
     assert!(corpus > 0, "the corpus holds programs");
-    assert_eq!(judged.programs, BASES.len() * PROGRAMS + corpus);
+    assert_eq!(judged.programs, BASES.len() * per_family + corpus);
     assert_eq!(judged.loads, judged.programs * (1 + ORDERS));
     assert_eq!(judged.counted.loads, judged.loads);
     assert!(
@@ -240,7 +259,7 @@ fn the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_c
 
 #[test]
 fn an_answer_that_differs_between_the_two_modes_is_reported_with_its_load_and_both_answers() {
-    let (label, program) = programs()
+    let (label, program) = programs(DEFAULT_PROGRAMS)
         .into_iter()
         .find(|(_, program)| program.to_text().contains("::*;"))
         .expect("a program with a glob import");

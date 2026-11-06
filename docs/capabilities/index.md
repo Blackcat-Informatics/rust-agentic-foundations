@@ -19,6 +19,7 @@
 | [rdf-report-profile](./rdf-report-profile.md) | The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections. |  |
 | [repository-contract](./repository-contract.md) | The tracked document inventory, repository policy gates and accepted assessment check of the unpublished root package. |  |
 | [source-configured-target](./source-configured-target.md) | Index one selected package target under declared configuration without admitting other targets or provider authority. |  |
+| [source-index](./source-index.md) | The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #\[path\], and a symbol and use-alias index. |  |
 | [source-reference-namespace](./source-reference-namespace.md) | One source index across exact first-party and reference contexts without configured provider authority. |  |
 | [workplan-cargo-documentation](./workplan-cargo-documentation.md) | Bounded imported metadata and invocation-scoped trusted library documentation. |  |
 | [workplan-cli](./workplan-cli.md) | Static repository commands and explicit owned data publication with separate documentation trust. |  |
@@ -35,12 +36,6 @@
 | [workplan-rustdoc-observation](./workplan-rustdoc-observation.md) | Contained HTML identities from explicitly supplied metadata and message carriers. |  |
 | [workplan-strict](./workplan-strict.md) | The complete default policy for examples, claims, explained public items and lines, full sections, outcome reasons and a shrinking debt record. |  |
 | [workplan-two-way-coverage](./workplan-two-way-coverage.md) | Checks from code to documentation and from tests to claims, complementing the documentation-to-code and documentation-to-tests checks. |  |
-
-## Implementing
-
-| Capability | Description | Gaps |
-| --- | --- | --- |
-| [source-index](./source-index.md) | The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #\[path\], and a symbol and use-alias index. |  |
 
 ## Designed
 

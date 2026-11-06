@@ -88,6 +88,32 @@ fn compare_replay(ws: &Workspace) {
     replay
         .replay_globs_for_measurement(&meter)
         .expect("actual from-definitions reconstruction");
+    let spent = meter.usage().glob_bytes;
+    assert!(spent > index.globs.charged, "replay needs its own scratch");
+    for limit in [spent, spent - 1] {
+        let options = LoadOptions {
+            max_glob_bytes: limit,
+            ..LoadOptions::default()
+        };
+        let meter = resident_meter(index, &options);
+        let mut bounded = index.clone();
+        bounded.lookups.built(false);
+        let result = bounded.replay_globs_for_measurement(&meter);
+        if limit == spent {
+            result.expect("exact replay scratch grant");
+            assert_eq!(payload(index), payload(&bounded));
+        } else {
+            let error = result.expect_err("one byte less refuses replay");
+            assert!(
+                matches!(error.kind, LoadErrorKind::Budget {
+                    budget: Budget::GlobBytes, limit: actual
+                } if actual == limit),
+                "{error}"
+            );
+            assert_eq!(error.file.as_str(), "src/lib.rs");
+            assert!(error.line.is_some(), "responsible import remains visible");
+        }
+    }
     assert_eq!(
         payload(index),
         payload(&replay),
