@@ -2101,13 +2101,15 @@ true for a non-blank `#[doc]` or `///` text and for `#[doc = include_str!(..)]`,
 file's inner `//!` text as well. The `test` role is `CfgTest` also for an item in a file
 that is reached only through test code.
 
-### Unexpanded module macro occurrences
+### Unexpanded item macro occurrences
 <!-- raf:tested-by raf_source::test_crate::symbol_index::module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions,raf_source::test_crate::symbol_index::unexpanded_payloads_obey_original_fact_and_item_allowances,raf_source::test_crate::configured_sources::unexpanded_occurrences_follow_the_exact_declared_syntax,raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions -->
 
 `Workspace::unexpanded()` retains every item-producing macro invocation directly
-inside a module, including inline modules, once per actual target and module
-reach. Each `Unexpanded` records its file, whole invocation span with attributes,
-enclosing module, target, written invocation path and inherited test role. The
+inside a module, including inline modules, a trait, an impl or a foreign block,
+once per actual target and module reach. Each `Unexpanded` records its file,
+whole invocation span with attributes,
+enclosing module, target, written invocation path and test role inherited through
+the enclosing declaration, modules and file reach. The
 path retains a leading `::` and raw identifier spelling. Argument identifiers
 are recorded in token order through nested groups, with raw prefixes removed;
 they establish neither resolved references nor generated definitions.
@@ -2117,8 +2119,8 @@ does not retain an invocation removed by its declared predicates. Records sort
 by file, starting byte, module and target. Their facts, argument strings, index
 storage and ordering work use the original load allowances and refuse when
 those allowances are exhausted. Shared strings retain the ordinary interning
-account. Macro definitions remain named items. Invocations inside functions,
-traits, impls and foreign blocks are outside this module occurrence inventory.
+account. Macro definitions remain named items. Invocations in function and
+expression bodies are outside this item occurrence inventory.
 No expansion or namespace completeness follows from these observations.
 
 ### Written bodiless declarations
@@ -3113,7 +3115,7 @@ owned report data. The source texts and paths move with their trees, so analysis
 can preserve source-based keys without rereading files. `parse_source` retains
 its borrowed single-file visitor contract.
 
-Use `Workspace::unexpanded()` to inspect module macro syntax alongside named
+Use `Workspace::unexpanded()` to inspect item macro syntax alongside named
 items. Retain its owning workspace when reading a record's target identity;
 target numbers from another load do not identify the same occurrence context.
 
@@ -3299,7 +3301,10 @@ from the callback preserves analysis failures separately from parser failures.
 For `mod generated { make!(Made); }`, the occurrence names module
 `demo::generated`, invocation `make` and argument identifier `Made`. The index
 does not invent `demo::generated::Made`. A compiler may accept that generated
-declaration while the source index retains only the unexpanded invocation.
+declaration while the source index retains only the unexpanded invocation. The
+same distinction holds for a macro producing a trait method, an inherent method
+or a foreign function: the compiler accepts the generated declaration, while the
+index retains its item invocation and resolves no invented generated name.
 <!-- raf:tested-by raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions -->
 
 Build a candidate fixture driver with
@@ -3446,6 +3451,10 @@ Native Git object decoding has an explicit per-allocation limit in addition to
 the caller's retained-data and semantic-work grants. These are distinct bounds;
 the portable meters do not account for every internal decoder allocation.
 <!-- raf:tested-by raf_source::test_crate::git_tree::native_selected_index_is_read_only_and_committed_grants_remain_exact -->
+
+- Unexpanded occurrence metadata is a syntax inventory, including associated and
+  foreign declaration lists. It supplies no generated member, compiler expansion
+  or external namespace proof. Function and expression bodies remain excluded.
 
 - Host captures are individual observations, not an atomic multi-file snapshot.
   A publisher must recapture and compare its complete selected source set before
@@ -3635,6 +3644,13 @@ delegates to that library or enforce preferred-provider policy.
 
 ## Explanation
 
+One module fact sink retains module, trait, impl and foreign invocations. The
+existing native token work list, fact charges, string interning and indexed
+emission apply to every context; no empty occurrence vector is added to each
+named item. Each row preserves its actual module and target reach so consumers
+can apply their own owner policy without treating load-local identifiers as
+cross-context identities.
+
 The private `cargo_version` adapter supplies Cargo-specific grammar and matching
 policy that the pinned native libraries do not supply. It uses native byte-class
 scanning and inline storage, retains borrowed text and introduces no general-purpose version API or
@@ -3699,6 +3715,12 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+- The existing occurrence fixtures retain trait, impl and foreign invocations
+  across two target reaches, including attribute spans, inherited test roles,
+  configured active and inactive neighbors, and exact original resource grants.
+  The native compiler accepts generated declarations while the index retains
+  their invocation syntax and refuses resolution of invented generated names.
 
 Manifest and catalog refusal cases exercise `cargo_version` with malformed versions, overflowing
 components, qualifier grammar and the comparator ceiling beside valid neighbors.
@@ -4098,7 +4120,8 @@ one-byte-short refusal.
   `Unresolved` in `items()` and `item_at()` under the written self path, listed by
   `unresolved_impls()`, `UnresolvedSelf` through the self path and `NotFound` at it,
   beside a neighbouring impl marked `Local`, and `super` above the root in such a self
-  path still an error; a macro call in a trait body skipped beside one in an impl body;
+  path still an error; macro calls in trait and impl bodies define no named
+  members and retain their invocation metadata;
   a glob of a local enum (`use self::Inner::*;`, and through `crate`) beside a trait
   impl, which loads, beside a glob with an unknown head, which is refused; globs of a
   macro-generated enum and of an `include!`-generated module, keyed under their path in

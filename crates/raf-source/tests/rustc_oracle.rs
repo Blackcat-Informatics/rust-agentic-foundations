@@ -76,7 +76,14 @@ fn fixture(text: &str) -> Program {
 fn compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions() {
     const SOURCE: &str = "macro_rules! make { () => { pub struct Generated; } }\n\
                           mod inner { make!(); }\n\
-                          pub fn use_generated(_: inner::Generated) {}\n";
+                          pub fn use_generated(_: inner::Generated) {}\n\
+                          macro_rules! associated { () => { fn generated(&self) {} }; }\n\
+                          pub trait Api { associated!(); }\n\
+                          pub struct Value;\n\
+                          impl Value { associated!(); }\n\
+                          macro_rules! foreign { () => { pub fn generated_foreign(); }; }\n\
+                          unsafe extern \"C\" { foreign!(); }\n\
+                          pub fn use_all(value: &impl Api) { value.generated(); Value.generated(); let _ = generated_foreign as unsafe extern \"C\" fn(); }\n";
     let diagnostics = rustc::compile(SOURCE);
     assert!(
         diagnostics
@@ -96,10 +103,20 @@ fn compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invent
     )
     .expect("written source");
     let occurrences = source.unexpanded();
-    assert_eq!(occurrences.len(), 1);
+    assert_eq!(occurrences.len(), 4);
     assert_eq!(occurrences[0].module.as_str(), "demo::inner");
     assert_eq!(occurrences[0].invoked.as_str(), "make");
     assert!(source.resolve("demo::inner::Generated").is_err());
+    for path in [
+        "demo::Api::generated",
+        "demo::Value::generated",
+        "demo::generated_foreign",
+    ] {
+        assert!(
+            source.resolve(path).is_err(),
+            "the index invents no expansion for {path}"
+        );
+    }
     let invalid = SOURCE.replace("make!();", "make!(invalid);");
     assert!(
         rustc::compile(&invalid)
@@ -117,7 +134,7 @@ fn compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invent
         &["."],
     )
     .expect("unexpanded invalid invocation still has readable syntax");
-    assert_eq!(source.unexpanded().len(), 1);
+    assert_eq!(source.unexpanded().len(), 4);
 }
 
 const TWO_STRUCTS: &str = "\

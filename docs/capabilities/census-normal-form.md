@@ -444,10 +444,11 @@ or static has no print and no fingerprint. A unit holds its integer constants by
 value, its string literals with their lines (string, byte string and C string)
 and the tables it holds.
 
-### Unexpanded module syntax
+### Unexpanded item syntax
 <!-- raf:tested-by raf_census::census::tests::unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units -->
 
-`Census::unexpanded()` retains the source index's module macro occurrences for
+`Census::unexpanded()` retains the source index's module, trait, impl and foreign
+macro occurrences for
 the selected packages, separately from fingerprinted units. Each occurrence
 keeps its exact syntax location, module, target and argument observations.
 `unexpanded_target` and `unexpanded_package` resolve its original load-local
@@ -519,6 +520,8 @@ a migration path.
 Inspect `Census::unexpanded()` beside `Census::units()`. Resolve an occurrence's
 target with `unexpanded_target`, then its package with `unexpanded_package` on
 the same Census to read the captured source context after loading has returned.
+This includes item-producing invocations in traits, impls and foreign blocks;
+the recorded module is their enclosing source module, not an invented member path.
 
 For foreign import failures, inspect the input path and the native TOML cause
 through the error's source chain. A refused import produces no successful report.
@@ -569,9 +572,10 @@ does not mint fingerprints for candidate policies or change production defaults.
 
 ## Examples
 
-A source containing `make_one!(Generated);` retains that invocation even though
-no unit named `Generated` exists. Selecting another package excludes both that
-occurrence and its owner metadata. Canonical baseline and index output continue
+A source containing `make_one!(Generated);` and invocations in a trait, an impl
+and a foreign block retains all four observations even though no generated unit
+exists. Selecting another package excludes those occurrences and their owner
+metadata. Canonical baseline and index output continue
 to describe their existing units and fingerprints.
 <!-- raf:tested-by raf_census::census::tests::unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units -->
 

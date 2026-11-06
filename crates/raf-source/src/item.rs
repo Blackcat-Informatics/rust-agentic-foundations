@@ -188,12 +188,12 @@ pub enum SymbolKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ItemId(pub(crate) usize);
 
-/// An unexpanded item-producing macro invocation in a module.
+/// An unexpanded item-producing macro invocation.
 ///
 /// Each target/module reach has its own record. This syntax observation defines
 /// no name and makes no claim about expansion, resolution or generated items.
-/// Macro definitions and macros inside traits, impls, foreign blocks or function
-/// bodies are not module-level occurrences and are not included.
+/// Invocations directly in modules, traits, impls and foreign blocks are retained.
+/// Macro definitions and macros in function or expression bodies are not included.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Unexpanded {
@@ -207,7 +207,7 @@ pub struct Unexpanded {
     pub target: TargetId,
     /// The written macro path, retaining a leading `::` and raw identifiers.
     pub invoked: SharedStr,
-    /// The test role, including enclosing modules and the file's reach.
+    /// The test role, including the enclosing item, modules and the file's reach.
     pub test: TestRole,
     /// Argument identifiers in token order, including nested groups, with raw
     /// prefixes removed. These are syntax observations, never generated names

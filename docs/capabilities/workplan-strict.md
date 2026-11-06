@@ -27,6 +27,9 @@ bindings:
     - raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item
     - raf_workplan::lifecycle::touched::tests::static_surface_comparison_classifies_changes_without_executing_source
     - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
+    - raf_workplan::test_crate::lines::incomplete_associated_macro_ownership_refuses_beside_complete_owner_reaches
+    - raf_workplan::test_crate::lines::associated_macro_lines_follow_the_exact_owner_without_global_argument_inference
+    - raf_workplan::test_crate::lines::foreign_macro_lines_require_an_opened_module_instead_of_argument_name_inference
     - raf_workplan::test_crate::lines::macro_lines_follow_indexed_configuration_instead_of_raw_file_reaches
     - raf_workplan::strict::tests::the_default_check_judges_each_policy_unit_once_without_policy_work_during_load
     - raf_workplan::test_crate::strict::the_complete_policy_accepts_the_documented_repository
@@ -447,10 +450,12 @@ capability binds included, on every check. `cargo workplan coverage
 **Counted source units.** The units of a package are those of every target the [source index](./source-index.md)
 lists (library, binaries, integration tests, examples, benches and build script):
 every indexed item except a module and an `extern crate`, every `impl` block from its first
-attribute to its closing brace, and every macro invocation and `const _` at the item
-level of a module. Macro occurrences and their actual target/module reaches come
+attribute to its closing brace, every indexed unexpanded item macro invocation,
+and every `const _` at the item level of a module. Macro occurrences and their actual target/module reaches come
 from `Workspace::unexpanded()` over the selected syntax; a bounded auxiliary
-parse still finds unnamed constants and direct allocator registrations. A
+parse still finds unnamed constants, direct allocator registrations and foreign
+block envelopes for owner policy. It discovers no macro occurrences or argument
+identifiers. A
 cfg-pruned invocation is not restored from its raw file or another reach.
 The counted lines of a file are
 the union of the lines of its units, and a file is counted once, for the package of
@@ -477,13 +482,28 @@ covered when any item or impl block of its source is in the closure that
    reaches nothing, and a module a path names reaches nothing below it;
 5. a macro invocation or a `const _` is covered when one of its module paths is a
    bound module or below one, or its target is an example target that an
-   `examples` binding names; an invocation is also covered when a covered unit names
+   `examples` binding names; a module-level invocation is also covered when a covered unit names
    a path that resolves to nothing from that unit's module and whose last segment
    is an identifier inside the invocation. The `macro_rules!` that a covered
    invocation invokes, read from its module and, for a name of one segment, from
    each module above it, is then a root, and the closure is taken again until no
    invocation is newly covered.
 <!-- raf:tested-by raf_workplan::test_crate::lines::every_target_is_counted_and_shared_module_units_are_unioned_once,raf_workplan::test_crate::lines::a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line,raf_workplan::test_crate::lines::binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it,raf_workplan::test_crate::lines::a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates -->
+
+Trait and impl invocation lines are also covered when their exact enclosing
+indexed owner is reached, matched by physical containment and actual target/module
+copies. A complete or partial owner mismatch refuses the report. Foreign
+invocation lines use module/example opening alone. Associated and foreign
+invocation units gain no coverage through the module-level unresolved-name
+heuristic. Covered
+invocations may reach their actually invoked macro definition; no generated
+member or preferred-provider proof follows from invocation-line coverage.
+<!-- raf:tested-by raf_workplan::test_crate::lines::associated_macro_lines_follow_the_exact_owner_without_global_argument_inference,raf_workplan::test_crate::lines::foreign_macro_lines_require_an_opened_module_instead_of_argument_name_inference -->
+
+Exact owner correspondence is checked for every recorded reach. A mismatch in
+all copies and a mismatch in only the nested copy of a shared source both refuse,
+beside the same declarations with complete owner correspondence.
+<!-- raf:tested-by raf_workplan::test_crate::lines::incomplete_associated_macro_ownership_refuses_beside_complete_owner_reaches -->
 
 **Implicit format captures.** The source index also supplies decoded implicit value and count captures from
 positively identified standard `format!` calls as reference edges. Such a capture
@@ -669,7 +689,9 @@ contract effects remain obligations of the completion lifecycle.
 
 Read macro rows in `Workplan::lines_report` as observations of the source index's
 selected syntax. Their existing module-opening and generated-name coverage rules
-apply only to the recorded target and module reaches.
+apply only to the recorded target and module reaches. Bind a trait or owning type
+to cover its associated invocation lines; open the enclosing module to cover a
+foreign invocation. An unresolved same-named path supplies no owner evidence.
 
 Inspect required review obligations through the ordinary check and reconciliation APIs. Correct the source selection or supply the required current review; writing prose debt does not discharge this requirement.
 <!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
@@ -694,6 +716,14 @@ cargo workplan --format turtle coverage lines --crate raf-okf
 
 ## Examples
 
+Two impls may invoke the same macro with the same `generated` argument. Binding
+one impl's type covers only that owner's invocation; a call naming the argument
+does not activate the unrelated owner. A foreign invocation remains orphan until
+its module is opened, even when a bound function names its argument. A syntactic
+trait whose misplaced export attribute moves its indexed home refuses the report
+for missing exact owner correspondence, beside the ordinary trait that reports
+successfully.
+<!-- raf:tested-by raf_workplan::test_crate::lines::associated_macro_lines_follow_the_exact_owner_without_global_argument_inference,raf_workplan::test_crate::lines::foreign_macro_lines_require_an_opened_module_instead_of_argument_name_inference -->
 Two mutually exclusive feature predicates around module macro invocations leave
 one macro row under each declared configuration. The row keeps the active
 invocation's original physical line; the inactive invocation contributes no row.
@@ -971,9 +1001,12 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `raf_workplan::test_crate::lines::an_excluded_item_that_nothing_covers_is_orphan_until_an_exception_names_it` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::lines::an_impl_for_a_type_that_nothing_names_is_orphan_and_one_for_a_type_that_a_covered_unit_names_is_not` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::lines::an_unreferenced_private_helper_is_exactly_its_span_and_the_same_helper_called_by_a_bound_function_is_not` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::lines::associated_macro_lines_follow_the_exact_owner_without_global_argument_inference` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_workplan::test_crate::lines::binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lines::crlf_reads_as_lf_and_two_runs_give_the_same_bytes` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lines::every_target_is_counted_and_shared_module_units_are_unioned_once` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::lines::foreign_macro_lines_require_an_opened_module_instead_of_argument_name_inference` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_workplan::test_crate::lines::incomplete_associated_macro_ownership_refuses_beside_complete_owner_reaches` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lines::indirect_field_dispatch_does_not_infer_a_callee_but_an_explicit_path_reaches_it` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::lines::macro_lines_follow_indexed_configuration_instead_of_raw_file_reaches` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_workplan::test_crate::lines::malformed_allocator_registrations_refuse_without_partial_line_results` | test | [Constraints](#constraints) |
