@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! One end-to-end fixture per rule of the `raf-okf` profile: each breaks that
-//! rule in one document of a valid repository and is reported with the file and
-//! the location, with the neighbouring documents clean.
+//! End-to-end fixtures for document rules of the `raf-okf` profile, with
+//! clean neighbors. Native operational refusals have native-result unit
+//! fixtures in the profile and finding modules.
 
 mod support;
 
@@ -16,7 +16,14 @@ fn every_rule_has_a_fixture_reported_with_file_and_location() {
     // The neighbours are the valid repository the fixtures break.
     support::assert_clean(&support::check(&valid()));
     for tag in Rule::ALL {
-        let case = rule_case(tag);
+        let Some(case) = rule_case(tag) else {
+            assert_eq!(
+                tag,
+                raf_okf::RuleTag::Markdown,
+                "only tested native operational refusals have no document fixture"
+            );
+            continue;
+        };
         assert_eq!(case.kind, format!("okf-{}", tag.name()));
         case.assert_exact();
     }

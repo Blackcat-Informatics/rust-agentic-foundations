@@ -3877,8 +3877,8 @@ one-byte-short refusal.
   a `#[path = "gen/generated.rs"]` file; and `tests/common/mod.rs` with
   `tests/common/a.rs` reached from `tests/zz.rs`. `super::super` from such a child
   reaches the crate root, and `demo::a::in_b` and `demo::a::b::in_a` are `NotFound`
-  beside `demo::a::b::in_b`. In this repository `raf_okf::body::blocks::FenceBlock`
-  resolves and `raf_okf::body::FenceBlock` is `NotFound`, and the `raf-workplan`
+  beside `demo::a::b::in_b`. In this repository `raf_okf::body::blocks::Line`
+  resolves and `raf_okf::body::Line` is `NotFound`, and the `raf-workplan`
   binding fixtures reject a binding to the same misplaced shape. `raf_source::syn` and
   `raf_source::syn::File`, through `pub use syn;`, are `NotFound` beside
   `raf_source::DiskTree`, which resolves.

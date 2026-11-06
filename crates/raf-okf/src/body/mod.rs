@@ -8,6 +8,7 @@ mod blocks;
 mod heading;
 mod link;
 mod marker;
+mod native;
 mod prose;
 
 use std::sync::Arc;
@@ -18,12 +19,12 @@ use crate::limits::MAX_TEXT_BYTES;
 use crate::span::Span;
 
 pub(crate) use blocks::Origin;
-pub(crate) use blocks::remove_code_spans;
-use blocks::{is_blank, remove_comments};
 pub use heading::{Heading, Section};
+pub(crate) use link::MAX_LINK_PART;
 pub use link::{Link, LinkError, LinkForm, LinkTarget, SplitLink};
 pub use marker::{Claim, GeneratedBlock, ProposedBlock, TestedBy, is_kebab};
 pub(crate) use marker::{GENERATED_END, GENERATED_OPEN};
+pub(crate) use native::scalar_prose;
 pub use prose::ProseLine;
 
 /// A fenced code block.
@@ -129,6 +130,7 @@ struct Model {
     claims: Vec<Claim>,
     tested_by: Vec<TestedBy>,
     prose: Vec<ProseLine>,
+    comments: Box<[std::ops::Range<usize>]>,
 }
 
 /// The body of a document.
@@ -188,23 +190,13 @@ impl Body {
                 MAX_TEXT_BYTES,
             ));
         }
-        let scan = blocks::scan(body, origin)?;
-        let lines = &scan.lines;
-        let mut visible: Vec<String> = Vec::with_capacity(lines.len());
-        let mut in_comment = false;
-        for line in lines {
-            if line.fenced {
-                visible.push(String::new());
-            } else {
-                visible.push(remove_comments(
-                    &body[line.start..line.end],
-                    &mut in_comment,
-                ));
-            }
-        }
-        let (headings, sections) = heading::read_headings(lines, &visible, body.len(), origin);
-        // One shared slug per section: a line holds a pointer to it, so the
-        // memory of the line table does not grow with the heading's length.
+        let limits = native::limits(body.len(), origin.byte)
+            .map_err(|source| ParseError::markdown(source, origin))?;
+        let native = purrdf_markdown::authoring(body, limits)
+            .map_err(|source| ParseError::markdown(source, origin))?;
+        let lines = blocks::project(&native);
+        let (headings, sections) = heading::read_headings(&lines, &native, body.len(), origin);
+        // Every line shares its section's slug instead of copying it.
         let mut section_of: Vec<Option<Arc<str>>> = vec![None; lines.len()];
         for section in &sections {
             let first = section.line() - origin.line;
@@ -213,50 +205,51 @@ impl Body {
                 *slot = Some(section.shared_slug());
             }
         }
-        let markers = marker::scan_markers(body, lines, &visible, origin, &section_of)?;
-        let views: Vec<link::LineView<'_>> = lines
+        let visible: Vec<&str> = native
+            .lines()
             .iter()
-            .zip(&visible)
-            .map(|(line, visible)| link::LineView {
-                fenced: line.fenced,
-                blank: is_blank(&body[line.start..line.end]),
-                heading: !line.fenced && heading::atx(visible).is_some(),
-                visible,
-            })
+            .map(|line| line.visible.as_ref())
             .collect();
-        let found =
-            link::scan_links(&views, origin.line, remove_code_spans).map_err(|too_long| {
-                ParseError::at(
-                    ErrorKind::LinkPartTooLong {
-                        max: link::MAX_LINK_PART,
-                    },
-                    too_long.line,
-                    1,
-                    origin.byte,
-                )
-            })?;
+        let comments: Vec<std::ops::Range<usize>> = native
+            .comments()
+            .iter()
+            .map(|comment| blocks::offset(comment.source.start)..blocks::offset(comment.source.end))
+            .collect();
+        let markers = marker::scan_markers(body, &lines, &visible, &comments, origin, &section_of)?;
+        let (occurrences, split_links) = link::project(&native, &lines, origin);
         let mut prose = Vec::new();
-        for (index, line) in lines.iter().enumerate() {
-            if line.fenced {
-                continue;
-            }
-            let text = remove_code_spans(&visible[index]);
-            if text.trim().is_empty() {
+        for (index, line) in native.lines().iter().enumerate() {
+            if line.fenced || line.prose().trim().is_empty() {
                 continue;
             }
             prose.push(ProseLine {
                 line: origin.line + index,
-                text,
+                text: line.prose().to_string(),
                 section: section_of[index].clone(),
                 in_proposed: markers.in_proposed[index],
                 in_generated: markers.in_generated[index],
             });
         }
         let text: Arc<str> = Arc::from(body);
-        let fences = scan
-            .fences
+        let fences = native
+            .blocks()
             .iter()
-            .map(|block| fenced_block(&text, lines, block, origin))
+            .filter_map(|block| {
+                if let purrdf_markdown::syntax::BlockKind::FencedCode { info, closed, .. } =
+                    block.kind
+                {
+                    Some(fenced_block(
+                        &text,
+                        &lines,
+                        block.lines.clone(),
+                        native.spelling(info),
+                        closed,
+                        origin,
+                    ))
+                } else {
+                    None
+                }
+            })
             .collect();
         Ok(Self {
             text,
@@ -268,16 +261,38 @@ impl Body {
             model: Model {
                 headings,
                 sections,
-                links: found.links,
-                split_links: found.split,
+                links: occurrences,
+                split_links,
                 fences,
                 generated: markers.generated,
                 proposed: markers.proposed,
                 claims: markers.claims,
                 tested_by: markers.tested_by,
                 prose,
+                comments: comments.into_boxed_slice(),
             },
         })
+    }
+
+    /// Original content excluding native comment extents, in whole-text coordinates.
+    pub(crate) fn without_comments(&self, bytes: std::ops::Range<usize>) -> String {
+        let base = self.span.bytes.start;
+        let range = bytes.start - base..bytes.end - base;
+        let first = self
+            .model
+            .comments
+            .partition_point(|comment| comment.end <= range.start);
+        let mut from = range.start;
+        let mut text = String::new();
+        for comment in &self.model.comments[first..] {
+            if comment.start >= range.end {
+                break;
+            }
+            text.push_str(&self.text[from..comment.start.max(from).min(range.end)]);
+            from = comment.end.min(range.end).max(from);
+        }
+        text.push_str(&self.text[from..range.end]);
+        text
     }
 
     /// The body text, exactly as written.
@@ -450,22 +465,24 @@ impl Body {
 fn fenced_block(
     text: &Arc<str>,
     lines: &[blocks::Line],
-    block: &blocks::FenceBlock,
+    range: std::ops::Range<usize>,
+    info: &str,
+    closed: bool,
     origin: Origin,
 ) -> FencedBlock {
     let body_len = text.len();
-    let from = lines.get(block.first + 1).map_or(body_len, |l| l.start);
-    let to = if block.closed {
-        lines[block.last].start
+    let from = lines.get(range.start + 1).map_or(body_len, |l| l.start);
+    let to = if closed {
+        lines[range.end - 1].start
     } else {
         body_len
     };
     FencedBlock {
-        span: heading::span_of(lines, body_len, block.first, block.last + 1, origin),
-        info: block.info.clone(),
+        span: heading::span_of(lines, body_len, range.start, range.end, origin),
+        info: info.to_string(),
         text: Arc::clone(text),
         content: from..to,
-        closed: block.closed,
+        closed,
     }
 }
 

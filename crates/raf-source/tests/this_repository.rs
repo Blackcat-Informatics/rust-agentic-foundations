@@ -150,18 +150,16 @@ fn an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_
     let ws = this_repository();
     // `body/blocks.rs` sorts before `body/mod.rs`, which declares it.
     let resolution = ws
-        .resolve("raf_okf::body::blocks::FenceBlock")
+        .resolve("raf_okf::body::blocks::Line")
         .unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(resolution.path, "raf_okf::body::blocks::FenceBlock");
+    assert_eq!(resolution.path, "raf_okf::body::blocks::Line");
     assert_eq!(
         ws.item(resolution.sites[0]).expect("item").file.as_str(),
         "crates/raf-okf/src/body/blocks.rs"
     );
     assert_eq!(
-        ws.resolve("raf_okf::body::FenceBlock").map(|r| r.path),
-        Err(ResolveError::NotFound(
-            "raf_okf::body::FenceBlock".to_owned()
-        ))
+        ws.resolve("raf_okf::body::Line").map(|r| r.path),
+        Err(ResolveError::NotFound("raf_okf::body::Line".to_owned()))
     );
 }
 

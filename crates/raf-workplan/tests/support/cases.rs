@@ -154,9 +154,18 @@ fn in_overview(text: String) -> Repo {
 }
 
 /// The case for a rule of the profile.
-pub(crate) fn rule_case(tag: RuleTag) -> Case {
-    rule_case_unplaced(tag)
+pub(crate) fn rule_case(tag: RuleTag) -> Option<Case> {
+    match tag {
+        // Native operational refusals are exercised by finding's native result
+        // fixture and raf-okf's scalar-result propagation fixture. A document
+        // cannot deterministically induce an allocator or sufficient-grant failure.
+        RuleTag::Markdown => None,
+        tag => Some(rule_case_unplaced(tag)),
+    }
 }
+
+/// Operational kinds exercised with actual native refusal results in unit tests.
+pub(crate) const OPERATIONAL_KINDS: [&str; 2] = ["okf-markdown", "okf-parse-markdown"];
 
 pub(crate) const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
 
@@ -490,7 +499,7 @@ fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
     clippy::too_many_lines,
     reason = "one arm per error kind of the reader"
 )]
-pub(crate) fn parse_case(tag: ErrorTag) -> Case {
+pub(crate) fn parse_case(tag: ErrorTag) -> Option<Case> {
     let name = format!("okf-parse-{tag}");
     let kind = name.clone();
     // Front matter lines go in from line 6; the body starts on line 8 of a
@@ -533,7 +542,8 @@ pub(crate) fn parse_case(tag: ErrorTag) -> Case {
             Location::Line(line),
         )
     };
-    match tag {
+    Some(match tag {
+        ErrorTag::Markdown => return None,
         ErrorTag::MissingFence => {
             // A page with no frontmatter is `stray-markdown`; the case is named
             // for the reader's error it comes from.
@@ -619,7 +629,7 @@ pub(crate) fn parse_case(tag: ErrorTag) -> Case {
         }
         ErrorTag::IndexMarker => index("<!-- raf:generated:Bad -->\n", 1),
         ErrorTag::IndexEmpty => index("\n", 1),
-    }
+    })
 }
 
 /// The cases for the rules of the flat directories and for unreadable input.
@@ -1196,8 +1206,8 @@ pub(crate) fn binding_cases() -> Vec<Case> {
 
 /// Every named case, one or more per kind.
 pub(crate) fn all_cases() -> Vec<Case> {
-    let mut cases: Vec<Case> = Rule::ALL.into_iter().map(rule_case).collect();
-    cases.extend(raf_okf::ErrorKind::ALL.into_iter().map(parse_case));
+    let mut cases: Vec<Case> = Rule::ALL.into_iter().filter_map(rule_case).collect();
+    cases.extend(raf_okf::ErrorKind::ALL.into_iter().filter_map(parse_case));
     cases.extend(directory_cases());
     cases.extend(reference_cases());
     cases.extend(state_cases());

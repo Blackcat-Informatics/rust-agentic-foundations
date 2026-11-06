@@ -6,8 +6,8 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::body::blocks::{Line, Origin, error_at, opens_list_item, remove_code_spans};
-use crate::body::heading::{atx, span_of};
+use crate::body::blocks::{Line, Origin, error_at, line_of};
+use crate::body::heading::span_of;
 use crate::error::{ErrorKind, ParseError};
 use crate::span::Span;
 
@@ -250,33 +250,36 @@ fn family_of(text: &str) -> Option<Family> {
     }
 }
 
-/// The family of the first `<!-- raf:` comment of a line outside its code
-/// spans, in any letter case and with any spacing after `<!--`, that is not
-/// a `raf:generated:` comment, or `None` when the line has none.
-fn raf_comment(raw: &str) -> Option<Family> {
-    let visible = remove_code_spans(raw);
-    visible
-        .match_indices("<!--")
-        .find_map(|(at, _)| family_of(visible[at + 4..].trim_start()))
-}
-
-/// The family of a comment that `<!--` opens at the end of line `index`
-/// outside its code spans, with nothing after it on that line, read from
-/// the first non-blank text of the lines below it as [`raf_comment`] reads
-/// the text after `<!--` on one line. `None` when the line ends otherwise,
-/// or when that text is fenced code, which is not read.
-fn split_raf_comment(body: &str, lines: &[Line], index: usize) -> Option<Family> {
-    let raw = &body[lines[index].start..lines[index].end];
-    if !remove_code_spans(raw).trim_end().ends_with("<!--") {
-        return None;
+/// Classify native comment openings; payload spelling remains RAF policy.
+fn comment_families(
+    body: &str,
+    lines: &[Line],
+    comments: &[std::ops::Range<usize>],
+) -> (Vec<Option<Family>>, Vec<bool>) {
+    let mut families = vec![None; lines.len()];
+    let mut starts = vec![false; lines.len()];
+    for comment in comments {
+        let index = line_of(lines, comment.start);
+        let line = &lines[index];
+        starts[index] |= body[line.start..comment.start].trim().is_empty();
+        let after = comment.start + 4;
+        let payload = &body[after..line.end.min(comment.end)];
+        let family = if payload.trim().is_empty() {
+            lines[index + 1..]
+                .iter()
+                .find(|line| !body[line.start..line.end].trim().is_empty())
+                .filter(|line| !line.fenced && line.start < comment.end)
+                .and_then(|line| {
+                    family_of(body[line.start..line.end.min(comment.end)].trim_start())
+                })
+        } else {
+            family_of(payload.trim_start())
+        };
+        if families[index].is_none() {
+            families[index] = family;
+        }
     }
-    let next = lines[index + 1..]
-        .iter()
-        .find(|line| !body[line.start..line.end].trim().is_empty())?;
-    if next.fenced {
-        return None;
-    }
-    family_of(body[next.start..next.end].trim_start())
+    (families, starts)
 }
 
 /// The evidence slugs of a claim marker line, trimmed, or `None` when the
@@ -388,9 +391,8 @@ fn is_item_path(text: &str) -> bool {
 /// no further up than the line that opens the nearest list item. `None` when
 /// the line directly above is no part of a statement.
 fn statement_start(
-    body: &str,
     lines: &[Line],
-    visible: &[String],
+    visible: &[&str],
     in_proposed: &[bool],
     index: usize,
 ) -> Option<usize> {
@@ -401,12 +403,12 @@ fn statement_start(
         if lines[above].fenced
             || in_proposed[above]
             || text.trim().is_empty()
-            || atx(text).is_some()
+            || lines[above].heading
         {
             break;
         }
         first = Some(above);
-        if opens_list_item(&body[lines[above].start..lines[above].end]) {
+        if lines[above].list_item {
             break;
         }
         at = above;
@@ -421,26 +423,23 @@ fn statement_start(
 fn raf_marker(
     body: &str,
     lines: &[Line],
-    visible: &[String],
+    visible: &[&str],
     found: &Markers,
     origin: Origin,
     section_of: &[Option<Arc<str>>],
     index: usize,
 ) -> Result<Option<Found>, ErrorKind> {
     let raw = &body[lines[index].start..lines[index].end];
-    if !raw.contains("<!--") {
-        return Ok(None);
-    }
     // A generated marker starts its line, where the scan reads it; a
     // `raf:generated:` comment anywhere else is text. A marker is one line,
     // so a comment that opens at the end of the line and goes on with a
     // `raf:` word below is a marker error, never a plain comment.
-    match raf_comment(raw).or_else(|| split_raf_comment(body, lines, index)) {
+    match found.families[index] {
         None => Ok(None),
         Some(Family::Other) => Err(ErrorKind::UnknownMarker),
         Some(Family::Claim) => {
             let evidence = parse_claim(raw.trim()).ok_or(ErrorKind::MalformedClaim)?;
-            let first = statement_start(body, lines, visible, &found.in_proposed, index)
+            let first = statement_start(lines, visible, &found.in_proposed, index)
                 .ok_or(ErrorKind::UnattachedClaim)?;
             Ok(Some(Found::Claim(Claim {
                 evidence,
@@ -471,13 +470,12 @@ fn raf_marker(
 fn tested_statement(
     body: &str,
     lines: &[Line],
-    visible: &[String],
+    visible: &[&str],
     found: &Markers,
     origin: Origin,
     index: usize,
 ) -> Option<Span> {
-    let next = lines.get(index + 1).filter(|line| !line.fenced);
-    if next.is_some_and(|line| raf_comment(&body[line.start..line.end]) == Some(Family::Claim)) {
+    if found.families.get(index + 1) == Some(&Some(Family::Claim)) {
         return None;
     }
     let above = index.checked_sub(1)?;
@@ -488,10 +486,10 @@ fn tested_statement(
     {
         return Some(claim.statement.clone());
     }
-    if !lines[above].fenced && !found.in_proposed[above] && atx(&visible[above]).is_some() {
+    if !lines[above].fenced && !found.in_proposed[above] && lines[above].heading {
         return Some(span_of(lines, body.len(), above, index, origin));
     }
-    let first = statement_start(body, lines, visible, &found.in_proposed, index)?;
+    let first = statement_start(lines, visible, &found.in_proposed, index)?;
     Some(span_of(lines, body.len(), first, index, origin))
 }
 
@@ -538,6 +536,7 @@ pub(crate) struct Markers {
     pub(crate) generated: Vec<GeneratedBlock>,
     pub(crate) claims: Vec<Claim>,
     pub(crate) tested_by: Vec<TestedBy>,
+    families: Vec<Option<Family>>,
     /// For each line, whether it belongs to a PROPOSED block.
     pub(crate) in_proposed: Vec<bool>,
     /// For each line, whether it lies between generated markers.
@@ -573,15 +572,18 @@ fn unquote(line: &str) -> &str {
 pub(crate) fn scan_markers(
     body: &str,
     lines: &[Line],
-    visible: &[String],
+    visible: &[&str],
+    comments: &[std::ops::Range<usize>],
     origin: Origin,
     section_of: &[Option<Arc<str>>],
 ) -> Result<Markers, ParseError> {
+    let (families, comment_starts) = comment_families(body, lines, comments);
     let mut found = Markers {
         proposed: Vec::new(),
         generated: Vec::new(),
         claims: Vec::new(),
         tested_by: Vec::new(),
+        families,
         in_proposed: vec![false; lines.len()],
         in_generated: vec![false; lines.len()],
     };
@@ -594,7 +596,7 @@ pub(crate) fn scan_markers(
         let trimmed = raw.trim();
         let column = raw.len() - raw.trim_start().len();
         let fail = |kind| error_at(body, lines, origin, index, column, kind);
-        if looks_like_proposed(trimmed) {
+        if looks_like_proposed(trimmed) && !visible[index].trim().is_empty() {
             let slug = trimmed
                 .strip_prefix(PROPOSED_OPEN)
                 .and_then(|rest| rest.strip_suffix(']'))
@@ -627,7 +629,7 @@ pub(crate) fn scan_markers(
                 section: section_of[index].clone(),
             });
         }
-        if trimmed.starts_with(GENERATED_OPEN) {
+        if comment_starts[index] && trimmed.starts_with(GENERATED_OPEN) {
             let kind = trimmed
                 .strip_prefix(GENERATED_OPEN)
                 .and_then(|rest| rest.strip_suffix(GENERATED_CLOSE));

@@ -327,6 +327,7 @@ bindings:
     - raf_workplan::digest::tests::symbol_definitions_are_deduplicated_by_source_key_and_ordered
     - raf_workplan::digest::tests::the_encoding_is_unambiguous_across_names_texts_and_fields
     - raf_workplan::finding::tests::each_location_answers_to_exactly_one_accessor
+    - raf_workplan::finding::tests::native_operational_refusals_keep_typed_messages_and_actionable_kinds
     - raf_workplan::graph::tests::a_section_of_many_blocks_is_read_in_work_linear_in_its_blocks
     - raf_workplan::graph::tests::ten_thousand_named_paths_are_found_in_one_pass
     - raf_workplan::graph::tests::the_claims_of_many_capabilities_are_judged_against_sets_built_once
@@ -368,6 +369,13 @@ move. A reader never has to reconstruct chronology to learn what applies now.
 
 ## Contract
 
+Native Markdown construction refusals are findings rather than partial documents.
+A reader refusal uses `okf-parse-markdown` at the original physical line; a
+decoded frontmatter code-span refusal uses `okf-markdown` at its key. Both retain
+the native diagnostic and actionable repair text. The OKF error retains the typed
+native cause before its conversion to the finding.
+<!-- raf:tested-by raf_workplan::finding::tests::native_operational_refusals_keep_typed_messages_and_actionable_kinds -->
+
 Document-owned architecture models bind components to unique shipping source
 definitions, public exports or loaded capabilities. Actors remain outside the
 containment forest. Typed artifact flows name producers and consumers, and an
@@ -390,10 +398,10 @@ and change documents do, so their declarations cannot silently disappear.
 
 
 `Opened::tree` exposes the checked `Tree` used by the loaded model. Ordinary
-opening uses its disk tree; completion can load the same source and documents
-from a captured repository. Captured reads retain original physical identities
-as provenance while completed generated text and the removed record are judged
-through the prospective tree. Physical execution copies have distinct identities.
+opening uses its disk tree. Completion judges generated document replacements
+and removal of the change record through a prospective in-memory overlay over
+that tree. Source bindings remain static reads of the inspected workspace;
+completion creates no physical execution copy and runs no consumer code.
 <!-- raf:tested-by raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched -->
 
 ### Capability identity and shape
@@ -724,6 +732,10 @@ record whose text would not read back as a record with no finding.
 
 ## Usage
 
+Report native Markdown construction findings with their file and line or key.
+Follow their repair text to inspect the input and native admission failure;
+neither finding authorizes accepting a partial document.
+
 Use `Workplan::architecture_models` to borrow the loaded typed declarations.
 Select `components` or `artifacts` with the exact owning document id, or
 `scenario` with `cap:routing#deliver`, and `model-provenance` for its complete RDF
@@ -772,6 +784,11 @@ not part of this capability.
 
 ## Examples
 
+An exhausted native Markdown work grant while reading a body produces
+`okf-parse-markdown` at that body's source line. The corresponding refusal while
+checking a decoded title produces `okf-markdown` at `title`. A complete code span
+with an admitted grant remains ordinary accepted input.
+
 The `component_model` consuming example defines a parcel service boundary, router,
 storage and external customer. Its delivery scenario states success/error
 alternatives and independent persistence/reply lanes. Source/test links establish
@@ -789,9 +806,10 @@ binding is repaired; no partial ownership picture is returned.
 <!-- raf:tested-by raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
 
 
-Completion loads original captured sources to resolve a binding, then checks the
-documents with its selected record removed. An absent module candidate remains
-an absent entry; a present non-directory parent remains a hard source error.
+Completion resolves a binding through static workspace reads, then checks the
+documents through an in-memory overlay with its selected record removed. An
+absent module candidate remains an absent entry; a present non-directory parent
+remains a hard source error.
 
 A change to a delivered capability, shown as the capability document, in state
 `implementing`, reads while the change is open. The note before the quote is plain
@@ -893,8 +911,14 @@ touches, and the obligations those sections receive are defined by
 
 ## Verification
 
-The existing completion cases exercise captured module resolution, exact
-merge-base source reads and unchanged original files beside successful completion.
+The native conversion fixture obtains a real work-admission refusal, then checks
+both reader and decoded-scalar findings for their exact kinds, locations, native
+diagnostic and repair text. The OKF fixtures retain the typed causes beside valid
+body and decoded-scalar neighbors.
+<!-- raf:tested-by raf_workplan::finding::tests::native_operational_refusals_keep_typed_messages_and_actionable_kinds -->
+
+The existing completion cases exercise prospective document checks, owned
+document writes and unchanged source and Git state beside successful completion.
 
 - End-to-end fixtures for the Capability and Change documents: each rule of the OKF
   profile and each reader error surfaces through `check` with its file and location,
@@ -990,6 +1014,7 @@ merge-base source reads and unchanged original files beside successful completio
 | `raf_workplan::digest::tests::the_encoding_is_unambiguous_across_names_texts_and_fields` | test | [Verification](#verification) |
 | `raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication` | test | [Contract](#contract) |
 | `raf_workplan::finding::tests::each_location_answers_to_exactly_one_accessor` | test | [Verification](#verification) |
+| `raf_workplan::finding::tests::native_operational_refusals_keep_typed_messages_and_actionable_kinds` | test | [Contract](#contract) |
 | `raf_workplan::graph::tests::a_section_of_many_blocks_is_read_in_work_linear_in_its_blocks` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::ten_thousand_named_paths_are_found_in_one_pass` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::the_claims_of_many_capabilities_are_judged_against_sets_built_once` | test | [Verification](#verification) |

@@ -281,7 +281,14 @@ fn every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind()
         "fixture assertions failed: {failed:?}; see their assertion output"
     );
     let kinds: BTreeSet<&'static str> = Finding::KINDS.iter().copied().collect();
-    let unproduced: Vec<&&str> = kinds.difference(&produced).collect();
+    // Native operational refusals have actual native-result unit fixtures;
+    // all other kinds must be produced by these repository document fixtures.
+    let operational = support::cases::OPERATIONAL_KINDS
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    assert!(operational.is_subset(&kinds));
+    let document_kinds: BTreeSet<_> = kinds.difference(&operational).copied().collect();
+    let unproduced: Vec<&&str> = document_kinds.difference(&produced).collect();
     assert!(unproduced.is_empty(), "no fixture produces {unproduced:?}");
     let unknown: Vec<&&str> = produced.difference(&kinds).collect();
     assert!(

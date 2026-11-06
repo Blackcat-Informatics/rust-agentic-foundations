@@ -869,16 +869,29 @@ fn check_frontmatter_placeholders(check: &mut Check<'_>, map: &Map) {
         }
     }
     for (key, text) in texts {
-        // Code spans are spared, as in the prose scan.
-        let prose = crate::body::remove_code_spans(text);
-        for token in placeholders(&prose) {
-            check.key(
-                key,
-                Rule::Placeholder {
-                    token: token.to_string(),
-                },
-            );
+        check_scalar_placeholders(check, key, crate::body::scalar_prose(text));
+    }
+}
+
+fn check_scalar_placeholders(
+    check: &mut Check<'_>,
+    key: &str,
+    prose: Result<std::borrow::Cow<'_, str>, purrdf_markdown::SyntaxError>,
+) {
+    let prose = match prose {
+        Ok(prose) => prose,
+        Err(source) => {
+            check.key(key, Rule::Markdown { source });
+            return;
         }
+    };
+    for token in placeholders(&prose) {
+        check.key(
+            key,
+            Rule::Placeholder {
+                token: token.to_string(),
+            },
+        );
     }
 }
 
@@ -1060,4 +1073,54 @@ fn record_header(
         tags: tags.settle().ok()?,
         timestamp: timestamp.settle().ok()?,
     })
+}
+
+#[cfg(test)]
+mod native_tests {
+    use super::{Check, Location, Rule, check_scalar_placeholders};
+    use std::error::Error as _;
+
+    #[test]
+    fn decoded_scalar_native_refusal_is_reported_with_its_original_cause() {
+        let text = concat!("`t", "bd`");
+        let mut valid = Check {
+            file: "docs/a.md",
+            out: Vec::new(),
+        };
+        check_scalar_placeholders(&mut valid, "title", crate::body::scalar_prose(text));
+        assert!(valid.out.is_empty(), "a complete code span is spared");
+        let refused = purrdf_markdown::replace_code_spans(
+            text,
+            purrdf_markdown::CodeSpanLimits {
+                source_bytes: text.len(),
+                auxiliary_bytes: 0,
+                work: 0,
+            },
+        );
+        let cause = refused
+            .as_ref()
+            .expect_err("native work admission refuses")
+            .clone();
+        let mut check = Check {
+            file: "docs/a.md",
+            out: Vec::new(),
+        };
+        check_scalar_placeholders(&mut check, "title", refused);
+        assert_eq!(check.out.len(), 1);
+        let violation = &check.out[0];
+        assert_eq!(violation.at(), &Location::Key("title".to_string()));
+        assert_eq!(
+            violation.rule(),
+            &Rule::Markdown {
+                source: cause.clone()
+            }
+        );
+        let rule = violation.source().expect("violation retains rule");
+        assert_eq!(
+            rule.source()
+                .expect("rule retains native cause")
+                .downcast_ref::<purrdf_markdown::SyntaxError>(),
+            Some(&cause)
+        );
+    }
 }

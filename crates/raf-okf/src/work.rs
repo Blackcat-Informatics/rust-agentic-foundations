@@ -28,13 +28,11 @@ pub(crate) enum Work {
     MeasuresIndexed,
     /// A limit of an evidence record looked up among the values.
     LimitLookups,
-    /// A line tested for opening or closing a fenced code block.
-    FenceScans,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 7;
+const KINDS: usize = 6;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -45,7 +43,6 @@ const ALL: [Work; KINDS] = [
     Work::BlocksVisited,
     Work::MeasuresIndexed,
     Work::LimitLookups,
-    Work::FenceScans,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].
@@ -170,11 +167,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "FenceScans work passed the ceiling of 3: 4")]
+    #[should_panic(expected = "LimitLookups work passed the ceiling of 3: 4")]
     fn passing_the_ceiling_panics_at_once() {
         measure(3, || {
             for _ in 0..4 {
-                add(Work::FenceScans, 1);
+                add(Work::LimitLookups, 1);
             }
         });
     }

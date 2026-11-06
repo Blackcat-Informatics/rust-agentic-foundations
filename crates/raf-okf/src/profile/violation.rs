@@ -342,12 +342,21 @@ pub enum Rule {
         /// What is wrong with the row.
         problem: &'static str,
     },
+    /// Native code-span interpretation of a decoded frontmatter scalar failed.
+    Markdown {
+        /// Original refusal with positions in the decoded scalar.
+        source: purrdf_markdown::SyntaxError,
+    },
 }
 
 impl fmt::Display for Rule {
     #[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Markdown { source } => write!(
+                f,
+                "native Markdown reader refused the decoded scalar: {source}"
+            ),
             Self::MissingKey { key } => write!(f, "missing required key `{key}`"),
             Self::UnknownKey { key } => write!(f, "unknown key `{key}`"),
             Self::ResourceKey { doc_type } => {
@@ -652,6 +661,21 @@ impl fmt::Display for Violation {
     }
 }
 
+impl std::error::Error for Rule {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Markdown { source } => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl std::error::Error for Violation {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.rule)
+    }
+}
+
 /// The rule a violation breaks, without its data.
 ///
 /// One variant per variant of [`Rule`], so a caller can name, list and map the
@@ -787,6 +811,8 @@ pub enum RuleTag {
     BadCeiling,
     /// [`Rule::BadException`].
     BadException,
+    /// Native decoded-scalar refusal.
+    Markdown,
 }
 
 impl RuleTag {
@@ -857,6 +883,7 @@ impl RuleTag {
             Self::ItemReasonEmpty => "item-reason-empty",
             Self::BadCeiling => "bad-ceiling",
             Self::BadException => "bad-exception",
+            Self::Markdown => "markdown",
         }
     }
 }
@@ -869,7 +896,7 @@ impl fmt::Display for RuleTag {
 
 impl Rule {
     /// Every tag, in the order of the variants of [`Rule`].
-    pub const ALL: [RuleTag; 63] = [
+    pub const ALL: [RuleTag; 64] = [
         RuleTag::MissingKey,
         RuleTag::UnknownKey,
         RuleTag::ResourceKey,
@@ -933,6 +960,7 @@ impl Rule {
         RuleTag::ItemReasonEmpty,
         RuleTag::BadCeiling,
         RuleTag::BadException,
+        RuleTag::Markdown,
     ];
 
     /// The tag of this value, which drops its data.
@@ -1002,6 +1030,7 @@ impl Rule {
             Self::ItemReasonEmpty => RuleTag::ItemReasonEmpty,
             Self::BadCeiling { .. } => RuleTag::BadCeiling,
             Self::BadException { .. } => RuleTag::BadException,
+            Self::Markdown { .. } => RuleTag::Markdown,
         }
     }
 }
@@ -1019,6 +1048,18 @@ mod tag_tests {
     #[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
     fn sample(tag: RuleTag) -> Rule {
         match tag {
+            RuleTag::Markdown => Rule::Markdown {
+                source: purrdf_markdown::SyntaxError::Limit {
+                    position: purrdf_markdown::syntax::SourcePosition {
+                        byte: 0,
+                        line: 1,
+                        column: 1,
+                    },
+                    resource: "work",
+                    actual: 1,
+                    limit: 0,
+                },
+            },
             RuleTag::MissingKey => Rule::MissingKey { key: String::new() },
             RuleTag::UnknownKey => Rule::UnknownKey { key: String::new() },
             RuleTag::ResourceKey => Rule::ResourceKey {
@@ -1246,11 +1287,12 @@ mod tag_tests {
             Rule::ItemReasonEmpty => 60,
             Rule::BadCeiling { .. } => 61,
             Rule::BadException { .. } => 62,
+            Rule::Markdown { .. } => 63,
         }
     }
 
     /// How many variants `Rule` has.
-    const VARIANTS: usize = 63;
+    const VARIANTS: usize = 64;
 
     #[test]
     fn all_lists_every_rule_once_in_variant_order() {

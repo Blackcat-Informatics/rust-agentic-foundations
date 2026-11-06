@@ -89,34 +89,6 @@ impl Section {
     }
 }
 
-/// The text of an ATX heading line and its level, or `None` when the line is
-/// not one. Up to three spaces may indent the marks, and the marks are
-/// followed by a space or tab.
-pub(crate) fn atx(line: &str) -> Option<(usize, String)> {
-    let indent = line.len() - line.trim_start_matches(' ').len();
-    if indent > 3 {
-        return None;
-    }
-    let rest = &line[indent..];
-    let level = rest.chars().take_while(|c| *c == '#').count();
-    if !(1..=6).contains(&level) {
-        return None;
-    }
-    let after = &rest[level..];
-    if !after.starts_with([' ', '\t']) {
-        return None;
-    }
-    let text = after.trim();
-    if text.is_empty() {
-        return None;
-    }
-    let without_marks = text.trim_end_matches('#');
-    let closed = without_marks.len() != text.len()
-        && (without_marks.is_empty() || without_marks.ends_with([' ', '\t']));
-    let text = if closed { without_marks.trim() } else { text };
-    Some((level, text.to_string()))
-}
-
 /// The GitHub anchor of heading text: lowercase, spaces to hyphens, `-` and
 /// `_` kept, every other non-alphanumeric character dropped.
 pub(crate) fn github_anchor(heading: &str) -> String {
@@ -182,27 +154,25 @@ pub(crate) fn span_of(
 /// Headings and sections from the comment-free text of each line.
 pub(crate) fn read_headings(
     lines: &[Line],
-    visible: &[String],
+    native: &purrdf_markdown::AuthoringDocument<'_>,
     body_len: usize,
     origin: Origin,
 ) -> (Vec<Heading>, Vec<Section>) {
     let mut headings = Vec::new();
     let mut found: Vec<(usize, usize)> = Vec::new();
     let mut anchors = Anchors::new();
-    for (index, line) in lines.iter().enumerate() {
-        if line.fenced {
-            continue;
-        }
-        if let Some((level, text)) = atx(&visible[index]) {
-            let anchor = anchors.next(github_anchor(&text));
-            headings.push(Heading {
-                level,
-                text: Arc::from(text),
-                anchor,
-                line: origin.line + index,
-            });
-            found.push((index, level));
-        }
+    for heading in native.headings() {
+        let index = super::blocks::line_of(lines, super::blocks::offset(heading.source.start));
+        let level = heading.level as usize;
+        let text: Arc<str> = Arc::from(heading.text.as_ref());
+        let anchor = anchors.next(github_anchor(&text));
+        headings.push(Heading {
+            level,
+            text,
+            anchor,
+            line: origin.line + index,
+        });
+        found.push((index, level));
     }
     let second: Vec<(usize, &Heading)> = found
         .iter()

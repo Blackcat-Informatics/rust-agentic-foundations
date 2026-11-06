@@ -19,7 +19,6 @@
 
 use std::fmt::Write as _;
 
-use crate::body::Body;
 use crate::work::{Work, measure, measure_kind};
 use crate::{Document, MAX_TEXT_BYTES, Profile, RafDocument, Rule};
 
@@ -232,42 +231,4 @@ fn an_evidence_record_at_the_cap_indexes_each_value_once_and_looks_up_each_limit
     assert_eq!(evidence.limits.len(), count);
     assert_eq!(tally.get(Work::MeasuresIndexed), count);
     assert_eq!(tally.get(Work::LimitLookups), count);
-}
-
-/// A page of `lines` lines in which a fence opens on the first and never
-/// closes.
-fn unterminated_fence(lines: usize) -> String {
-    let mut text = String::from("```\n");
-    (1..lines).for_each(|_| text.push_str("code\n"));
-    text
-}
-
-/// A page of `lines` lines of prose.
-fn prose(lines: usize) -> String {
-    "line\n".repeat(lines)
-}
-
-/// A page of fenced blocks of two lines each, `lines` lines in all.
-fn closed_fences(lines: usize) -> String {
-    "```\n```\n".repeat(lines / 2)
-}
-
-fn parse_body(text: &str) {
-    Body::parse(text).expect("the probe is a body");
-}
-
-#[test]
-fn the_lines_tested_for_a_fence_grow_with_the_length_of_the_page() {
-    assert_linear(Work::FenceScans, unterminated_fence, parse_body);
-    assert_linear(Work::FenceScans, prose, parse_body);
-    assert_linear(Work::FenceScans, closed_fences, parse_body);
-}
-
-#[test]
-fn an_unterminated_fence_is_tested_once_for_each_line_it_swallows() {
-    let lines = 5 * UNIT;
-    let text = unterminated_fence(lines);
-    let ((), tally) = measure_kind(Work::FenceScans, lines + 1, || parse_body(&text));
-    // The opening line is tested for opening, every line after it for closing.
-    assert_eq!(tally.get(Work::FenceScans), lines);
 }
