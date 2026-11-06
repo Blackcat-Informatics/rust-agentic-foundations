@@ -1,0 +1,24 @@
+ghprsq source head backlink metadata
+
+parent_hashes: 9b7bdfd1ee47a466a2f866a82449f202f7057cfc
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash-head-backlink
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 171
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/171
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 2e6fc213e4fbb29d1f6e06c0ba8d37c6ded124fd
+GhpRsq-Head-Ref: paudley/28-raf-source-the-settling-of-glob-views
+GhpRsq-Head-OID: 9b7bdfd1ee47a466a2f866a82449f202f7057cfc
+GhpRsq-Result-Tree: fb00e1b026217a625c89d27e7ed6e6ab18209bab
+GhpRsq-Result-Commit: a8f45165360cf362603de9ad1d3ea8a1be48d7c7
+GhpRsq-Parent-Hashes: 9b7bdfd1ee47a466a2f866a82449f202f7057cfc
+GhpRsq-Squash-Notes-SHA256: 3f058983d3b05eb5e9853d48f1d948a0f5d56e9eb893307ac575216d0e1c18b8
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Tree: dca03edcd63e333ebd36df615655cc1757d1ed59
+GhpRsq-Stage-Commit: ed349a914475ef1d14b9b442c4921dc7f02b415e
+GhpRsq-Stage-Tag: refs/tags/ghprsq/artifacts/ed349a914475ef1d14b9b442c4921dc7f02b415e
+GhpRsq-Stage-Ref: refs/ghprsq/pr/171/stage
+GhpRsq-Stage-Files: 3
+GhpRsq-Stage-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/tree/ed349a914475ef1d14b9b442c4921dc7f02b415e
