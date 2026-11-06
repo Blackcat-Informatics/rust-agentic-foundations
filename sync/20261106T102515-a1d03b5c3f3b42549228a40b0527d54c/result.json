@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/28-raf-source-the-settling-of-glob-views",
+  "branch": "paudley/28-raf-source-the-settling-of-glob-views",
+  "base_ref": "origin/main",
+  "head": "c1505da1f4da016f096d45ed07fa70ec2ea1d24d",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/28-raf-source-the-settling-of-glob-views/.stage/raf-source-the-settling-of-glob-views/sync/20261106T102515-a1d03b5c3f3b42549228a40b0527d54c",
+  "conflicts": [],
+  "status": "fast_forward",
+  "base": "2e6fc213e4fbb29d1f6e06c0ba8d37c6ded124fd",
+  "merge_bases": [
+    "c1505da1f4da016f096d45ed07fa70ec2ea1d24d"
+  ],
+  "commit": "2e6fc213e4fbb29d1f6e06c0ba8d37c6ded124fd"
+}
