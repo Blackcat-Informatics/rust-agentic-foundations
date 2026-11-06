@@ -237,8 +237,6 @@ bindings:
     - raf_okf::profile::cost_tests::a_capability_at_the_cap_looks_at_each_block_once
     - raf_okf::profile::cost_tests::the_blocks_looked_at_grow_with_sections_and_blocks_together
     - raf_okf::profile::cost_tests::an_evidence_record_at_the_cap_indexes_each_value_once_and_looks_up_each_limit_once
-    - raf_okf::profile::cost_tests::the_lines_tested_for_a_fence_grow_with_the_length_of_the_page
-    - raf_okf::profile::cost_tests::an_unterminated_fence_is_tested_once_for_each_line_it_swallows
     - raf_okf::test_crate::records::a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_visibly
     - raf_okf::test_crate::records::a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once
     - raf_okf::test_crate::records::a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once
@@ -249,6 +247,8 @@ bindings:
     - raf_okf::test_crate::record_writer::a_debt_row_the_profile_refuses_is_written_and_refused_when_it_is_read_back
     - raf_okf::error::tag_tests::all_lists_every_error_kind_once_in_variant_order
     - raf_okf::error::tag_tests::names_are_unique_lowercase_kebab_case
+    - raf_okf::error::native_tests::native_reader_refusals_keep_body_origins_and_original_causes
+    - raf_okf::profile::native_tests::decoded_scalar_native_refusal_is_reported_with_its_original_cause
     - raf_okf::profile::violation::tag_tests::all_lists_every_rule_once_in_variant_order
     - raf_okf::profile::violation::tag_tests::names_are_unique_lowercase_kebab_case
     - raf_okf::test_crate::body_robustness::random_token_soup_never_panics_and_parsed_spans_lie_in_the_text
@@ -414,6 +414,14 @@ tooling alike, goes through it, so the profile is interpreted in a single place 
 a document means the same thing to every tool.
 
 ## Contract
+
+Markdown syntax is read once through PurRDF's native authoring model. Physical
+lines, headings, links, split links, comments and fences retain original source
+coordinates. RAF projects its own marker, section, fragment and repository-path
+policy over that model. Decoded frontmatter prose uses native code-span
+replacement without document comment or fence interpretation. Explicit finite
+grants bound native storage and work; native refusal causes remain typed.
+<!-- raf:tested-by raf_okf::error::native_tests::native_reader_refusals_keep_body_origins_and_original_causes,raf_okf::profile::native_tests::decoded_scalar_native_refusal_is_reported_with_its_original_cause,raf_okf::test_crate::links::every_link_form_is_read_with_its_target_anchor_and_line -->
 
 Capability and Architecture frontmatter optionally carries the closed `model`
 map defined by the [profile](../architecture/okf-profile.md). Typed components,
@@ -919,6 +927,12 @@ an invalid month in a complete date and clock precedes a missing timezone.
 
 ## Usage
 
+Read syntax through `Body::parse` or `Document::parse`; both use the native
+Markdown authoring model. The returned RAF model owns its observations, so callers
+need not retain a native parse arena. Report positioned parse errors with their
+original native cause. Frontmatter placeholder checks interpret decoded scalar
+code spans across line breaks independently of document comments and fences.
+
 Read the optional model from the typed Capability or Architecture value. Omitted
 models are empty. Bindings distinguish implementation code, public interfaces,
 capabilities, tests and examples; Workplan performs their source-role checks.
@@ -974,6 +988,11 @@ a span of the body reads the span from the body model, for example
 
 ## Examples
 
+A multiline HTML destination is reported on the physical line containing its
+value. A Markdown link split across physical lines remains a split-link finding.
+In decoded frontmatter prose, matched backtick runs spare their contents even
+across a newline; comment-looking text outside those runs remains prose.
+
 A component row may bind `code: [parcel::route]`; a boundary can enclose it
 through its explicit `parent`. A relationship can transfer a named `Parcel`
 artifact from a producer to a consumer. `claim: observed` refuses beside the
@@ -1020,6 +1039,12 @@ Between `---` fences, with the seven sections as its body, at the path
 
 ## Constraints
 
+Native Markdown admission retains the whole-document 1 MiB ceiling, 64 open
+quote/list containers and 4096 bytes per link destination or title. The existing
+allocation checks include the owned RAF projection. A native refusal publishes no
+partial body or raw-text substitute.
+<!-- raf:tested-by raf_okf::test_crate::body_structure::a_body_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused,raf_okf::test_crate::body_structure::block_nesting_of_sixty_four_levels_parses_and_sixty_five_is_refused,raf_okf::test_crate::links::a_destination_or_title_of_exactly_4096_bytes_is_read_and_one_more_is_refused,raf_okf::test_crate::bounds::a_long_heading_over_many_lines_stays_linear,raf_okf::error::native_tests::native_reader_refusals_keep_body_origins_and_original_causes -->
+
 Checked identity construction validates the complete prefixed id, not a file or
 document body. Profile validation still enforces the filename and all content.
 <!-- raf:tested-by raf_okf::test_crate::profile::an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name -->
@@ -1055,6 +1080,20 @@ before returning a document. Navigation `Index` is not a `Document` carrier.
 
 ## Explanation
 
+PurRDF owns Markdown syntax recognition and decoded-scalar code-span matching.
+RAF's adapter owns marker payloads and attachment, membership of `PROPOSED` and
+generated blocks, section boundaries, repeated GitHub fragments and repository
+path containment.
+Section emptiness subtracts native comment ranges and generated blocks from the
+original source; fenced and inline code still count as content. The projection
+shares heading/section strings and fence source text, and maps byte observations
+through physical line boundaries without rescanning each source prefix.
+
+The source length bounds native inline nesting. Storage grants account for live
+native model vectors, mapped input scratch and overlapping capacity growth.
+The native work grant grows quadratically to cover repeated backtick and bracket
+searches; it does not establish a linear execution guarantee.
+
 The profile is deliberately narrower than its parent format. A base that requires one
 key and leaves the rest open suits a wide ecosystem; a toolchain that must answer
 "is this document complete" needs closed key sets whose per-type tables distinguish
@@ -1080,6 +1119,12 @@ people also edit. If rendering could reorder keys or alter whitespace, every syn
 would produce noise in the diff, and a clean check could not be told from a stale one.
 
 ## Verification
+
+Native refusal fixtures call the reader with finite grants beside valid input.
+Body refusals retain the original cause and project byte, line and column through
+the body's origin; decoded-scalar refusals retain their frontmatter key and
+native cause instead of returning partial prose.
+<!-- raf:tested-by raf_okf::error::native_tests::native_reader_refusals_keep_body_origins_and_original_causes,raf_okf::profile::native_tests::decoded_scalar_native_refusal_is_reported_with_its_original_cause -->
 
 The existing identity refusal case covers all eight types, wrong prefixes and
 slugs, wrong singleton ids and the byte bound. Authoring round trips verify that
@@ -1134,9 +1179,9 @@ stable identity across body edits and malformed carriers beside valid neighbors.
   generated blocks is refused for the duplicated section, and each generated block
   is looked at once. With sections and generated blocks growing together at one,
   two and three units, the blocks looked at are nonzero and the third unit adds no
-  more than the second. The lines tested for a fence grow in step with the length of
-  a page, and an unterminated fence is tested once for each line it swallows. A
-  count sees the steps that are counted: a loop added elsewhere is not seen by it.
+  more than the second. These local counts describe RAF's domain validation;
+  native Markdown construction has its own admitted work and storage bounds.
+  A count sees the steps that are counted: a loop added elsewhere is not seen by it.
 - A round-trip property over the fixture documents: `render(parse(x))` equals `x`
   for canonical input, and `parse(render(d))` equals `d`.
 - An index fixture: a generated-block index is accepted and a hand-written one is
@@ -1209,19 +1254,19 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::EvidenceRecord::to_document` | doctest | [Usage](#usage) |
 | `raf_okf::Number::exact` | doctest | [Contract](#contract) |
 | `raf_okf::TestedBy` | doctest | [Verification](#verification) |
+| `raf_okf::error::native_tests::native_reader_refusals_keep_body_origins_and_original_causes` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_okf::error::tag_tests::all_lists_every_error_kind_once_in_variant_order` | test | [Verification](#verification) |
 | `raf_okf::error::tag_tests::names_are_unique_lowercase_kebab_case` | test | [Verification](#verification) |
 | `raf_okf::profile::cost_tests::a_capability_at_the_cap_looks_at_each_block_once` | test | [Verification](#verification) |
 | `raf_okf::profile::cost_tests::a_change_at_the_cap_judges_each_affects_entry_once_against_one_set` | test | [Verification](#verification) |
 | `raf_okf::profile::cost_tests::an_evidence_record_at_the_cap_indexes_each_value_once_and_looks_up_each_limit_once` | test | [Verification](#verification) |
-| `raf_okf::profile::cost_tests::an_unterminated_fence_is_tested_once_for_each_line_it_swallows` | test | [Verification](#verification) |
 | `raf_okf::profile::cost_tests::the_blocks_looked_at_grow_with_sections_and_blocks_together` | test | [Verification](#verification) |
-| `raf_okf::profile::cost_tests::the_lines_tested_for_a_fence_grow_with_the_length_of_the_page` | test | [Verification](#verification) |
+| `raf_okf::profile::native_tests::decoded_scalar_native_refusal_is_reported_with_its_original_cause` | test | [Contract](#contract) |
 | `raf_okf::profile::violation::tag_tests::all_lists_every_rule_once_in_variant_order` | test | [Verification](#verification) |
 | `raf_okf::profile::violation::tag_tests::names_are_unique_lowercase_kebab_case` | test | [Verification](#verification) |
 | `raf_okf::test_crate::alloc_bound::refused_documents_stay_within_eight_times_their_size` | test | [Contract](#contract) |
 | `raf_okf::test_crate::body_robustness::random_token_soup_never_panics_and_parsed_spans_lie_in_the_text` | test | [Contract](#contract) |
-| `raf_okf::test_crate::body_structure::a_body_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused` | test | [Verification](#verification) |
+| `raf_okf::test_crate::body_structure::a_body_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused` | test | [Constraints](#constraints) |
 | `raf_okf::test_crate::body_structure::a_document_built_with_a_malformed_body_reports_the_line_in_the_rendered_text` | test | [Verification](#verification) |
 | `raf_okf::test_crate::body_structure::a_fence_closes_only_on_the_same_character_with_at_least_the_same_length` | test | [Contract](#contract) |
 | `raf_okf::test_crate::body_structure::a_fenced_block_exposes_its_content_and_whether_it_is_closed` | test | [Contract](#contract) |
@@ -1242,7 +1287,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::body_structure::section_text_is_the_content_of_the_section` | test | [Verification](#verification) |
 | `raf_okf::test_crate::body_structure::sections_carry_heading_slug_and_content_up_to_the_next_second_level_heading` | test | [Contract](#contract) |
 | `raf_okf::test_crate::body_structure::spans_are_in_whole_text_coordinates_when_frontmatter_precedes_the_body` | test | [Contract](#contract) |
-| `raf_okf::test_crate::bounds::a_long_heading_over_many_lines_stays_linear` | test | [Verification](#verification) |
+| `raf_okf::test_crate::bounds::a_long_heading_over_many_lines_stays_linear` | test | [Constraints](#constraints) |
 | `raf_okf::test_crate::claims::a_capability_states_claims_in_its_sections` | test | [Verification](#verification) |
 | `raf_okf::test_crate::claims::a_claim_after_a_list_item_supports_that_item_only` | test | [Contract](#contract) |
 | `raf_okf::test_crate::claims::a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it` | test | [Contract](#contract) |

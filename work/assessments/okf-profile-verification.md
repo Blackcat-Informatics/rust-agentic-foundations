@@ -7,7 +7,7 @@ subject: cap:okf-profile#verification
 inputs:
   - kind: section
     name: cap:okf-profile#verification
-    digest: 39006acadf84ba01f7899050256add4b0f4282de22cc5a2aed3cb538343b1033
+    digest: 10d4e86cbe540ac4343ce5a9ab36e67d6a504c949da58146c9d4cbea67e80900
   - kind: symbol
     name: raf_okf::AssessmentRecord::to_document
     digest: e333a66b2886306350e41f0180271512a17a13431c250499c3a3d2d2781b153a

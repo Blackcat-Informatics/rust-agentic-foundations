@@ -21,28 +21,9 @@ pub(crate) const PLACEHOLDER_TOKENS: [&str; 5] = [
     concat!("to be ", "written"),
 ];
 
-/// Remove HTML comments, including multi-line ones. A comment that is never
-/// closed removes the rest of the text.
-fn strip_html_comments(text: &str) -> String {
-    let mut out = String::new();
-    let mut rest = text;
-    while let Some(start) = rest.find("<!--") {
-        out.push_str(&rest[..start]);
-        let after = &rest[start + 4..];
-        match after.find("-->") {
-            Some(end) => rest = &after[end + 3..],
-            None => return out,
-        }
-    }
-    out.push_str(rest);
-    out
-}
-
 /// The content of a section with generated blocks and HTML comments removed.
 fn visible_content(body: &Body, section: &Section) -> String {
-    let base = body.span().bytes.start;
     let content = &section.content().bytes;
-    let text = body.text();
     let mut kept = String::new();
     let mut position = content.start;
     // The blocks are in order and do not overlap, so those inside the section
@@ -56,12 +37,12 @@ fn visible_content(body: &Body, section: &Section) -> String {
             break;
         }
         if outer.end <= content.end {
-            kept.push_str(&text[position - base..outer.start - base]);
+            kept.push_str(&body.without_comments(position..outer.start));
             position = outer.end;
         }
     }
-    kept.push_str(&text[position - base..content.end - base]);
-    strip_html_comments(&kept)
+    kept.push_str(&body.without_comments(position..content.end));
+    kept
 }
 
 fn section_is_empty(body: &Body, section: &Section) -> bool {
@@ -147,7 +128,11 @@ pub(crate) fn check_sections(doc_type: DocType, body: &Body, file: &str, out: &m
             }
         }
         DocType::Architecture => {
-            if strip_html_comments(body.text()).trim().is_empty() {
+            if body
+                .without_comments(body.span().bytes.clone())
+                .trim()
+                .is_empty()
+            {
                 push(Location::Document, Rule::BodyEmpty);
             }
         }
@@ -156,7 +141,11 @@ pub(crate) fn check_sections(doc_type: DocType, body: &Body, file: &str, out: &m
         | DocType::Coverage
         | DocType::Debt
         | DocType::Review => {
-            if !strip_html_comments(body.text()).trim().is_empty() {
+            if !body
+                .without_comments(body.span().bytes.clone())
+                .trim()
+                .is_empty()
+            {
                 push(Location::Document, Rule::BodyNotEmpty { doc_type });
             }
         }

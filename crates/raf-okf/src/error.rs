@@ -166,6 +166,11 @@ pub enum ErrorKind {
     IndexMarker,
     /// An index holds no generated block.
     IndexEmpty,
+    /// The native Markdown reader refused construction.
+    Markdown {
+        /// Original native refusal, in body-relative coordinates.
+        source: purrdf_markdown::SyntaxError,
+    },
 }
 
 impl fmt::Display for ErrorKind {
@@ -237,9 +242,7 @@ impl fmt::Display for ErrorKind {
             Self::NestedGenerated { outer } => {
                 write!(f, "a generated block opens inside the open block `{outer}`")
             }
-            Self::OrphanGeneratedEnd => {
-                f.write_str("generated end marker without a start")
-            }
+            Self::OrphanGeneratedEnd => f.write_str("generated end marker without a start"),
             Self::UnclosedGenerated { kind } => {
                 write!(f, "the generated block `{kind}` is never closed")
             }
@@ -269,6 +272,7 @@ impl fmt::Display for ErrorKind {
                 "malformed or misplaced marker; a marker starts its own line with no indentation",
             ),
             Self::IndexEmpty => f.write_str("the index holds no generated block"),
+            Self::Markdown { source } => write!(f, "Markdown construction refused: {source}"),
         }
     }
 }
@@ -284,6 +288,7 @@ pub struct ParseError {
     line: usize,
     column: Option<usize>,
     offset: Option<usize>,
+    native_cause: Option<Box<purrdf_markdown::SyntaxError>>,
 }
 
 impl ParseError {
@@ -293,6 +298,7 @@ impl ParseError {
             line,
             column: Some(column),
             offset: Some(offset),
+            native_cause: None,
         }
     }
 
@@ -303,6 +309,50 @@ impl ParseError {
             line,
             column: None,
             offset: Some(offset),
+            native_cause: None,
+        }
+    }
+
+    /// Translate native positions once while preserving the original cause.
+    pub(crate) fn markdown(
+        source: purrdf_markdown::SyntaxError,
+        origin: crate::body::Origin,
+    ) -> Self {
+        use purrdf_markdown::SyntaxError;
+        let position = match &source {
+            SyntaxError::Limit { position, .. }
+            | SyntaxError::Reference { position, .. }
+            | SyntaxError::Storage { position, .. } => Some(*position),
+            // A future native refusal remains typed without inventing a byte or column.
+            _ => None,
+        };
+        let kind = match &source {
+            SyntaxError::Limit {
+                resource: "containers",
+                ..
+            } => ErrorKind::BlockNesting {
+                max: crate::limits::MAX_BLOCK_NESTING,
+            },
+            SyntaxError::Limit {
+                resource: "link part bytes" | "decoded link part bytes",
+                ..
+            } => ErrorKind::LinkPartTooLong { max: 4096 },
+            _ => {
+                return Self {
+                    kind: ErrorKind::Markdown { source },
+                    line: position.map_or(origin.line, |at| origin.line + at.line - 1),
+                    column: position.map(|at| at.column),
+                    offset: position.map(|at| origin.byte + at.byte),
+                    native_cause: None,
+                };
+            }
+        };
+        Self {
+            kind,
+            line: position.map_or(origin.line, |at| origin.line + at.line - 1),
+            column: position.map(|at| at.column),
+            offset: position.map(|at| origin.byte + at.byte),
+            native_cause: Some(Box::new(source)),
         }
     }
 
@@ -336,7 +386,17 @@ impl fmt::Display for ParseError {
     }
 }
 
-impl Error for ParseError {}
+impl Error for ParseError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.kind {
+            ErrorKind::Markdown { source } => Some(source),
+            _ => self
+                .native_cause
+                .as_deref()
+                .map(|cause| cause as &(dyn Error + 'static)),
+        }
+    }
+}
 
 /// Why a value or document cannot be built from its parts.
 ///
@@ -592,6 +652,8 @@ pub enum ErrorTag {
     IndexMarker,
     /// [`ErrorKind::IndexEmpty`].
     IndexEmpty,
+    /// Native Markdown refusal.
+    Markdown,
 }
 
 impl ErrorTag {
@@ -647,6 +709,7 @@ impl ErrorTag {
             Self::IndexText => "index-text",
             Self::IndexMarker => "index-marker",
             Self::IndexEmpty => "index-empty",
+            Self::Markdown => "markdown",
         }
     }
 }
@@ -659,7 +722,7 @@ impl fmt::Display for ErrorTag {
 
 impl ErrorKind {
     /// Every tag, in the order of the variants of [`ErrorKind`].
-    pub const ALL: [ErrorTag; 48] = [
+    pub const ALL: [ErrorTag; 49] = [
         ErrorTag::MissingFence,
         ErrorTag::UnclosedFence,
         ErrorTag::TooLarge,
@@ -708,6 +771,7 @@ impl ErrorKind {
         ErrorTag::IndexText,
         ErrorTag::IndexMarker,
         ErrorTag::IndexEmpty,
+        ErrorTag::Markdown,
     ];
 
     /// The tag of this value, which drops its data.
@@ -762,6 +826,7 @@ impl ErrorKind {
             Self::IndexText => ErrorTag::IndexText,
             Self::IndexMarker => ErrorTag::IndexMarker,
             Self::IndexEmpty => ErrorTag::IndexEmpty,
+            Self::Markdown { .. } => ErrorTag::Markdown,
         }
     }
 }
@@ -834,6 +899,18 @@ mod tag_tests {
             ErrorTag::IndexText => ErrorKind::IndexText,
             ErrorTag::IndexMarker => ErrorKind::IndexMarker,
             ErrorTag::IndexEmpty => ErrorKind::IndexEmpty,
+            ErrorTag::Markdown => ErrorKind::Markdown {
+                source: purrdf_markdown::SyntaxError::Limit {
+                    position: purrdf_markdown::syntax::SourcePosition {
+                        byte: 0,
+                        line: 1,
+                        column: 1,
+                    },
+                    resource: "work",
+                    actual: 1,
+                    limit: 0,
+                },
+            },
         }
     }
 
@@ -890,11 +967,12 @@ mod tag_tests {
             ErrorKind::IndexText => 45,
             ErrorKind::IndexMarker => 46,
             ErrorKind::IndexEmpty => 47,
+            ErrorKind::Markdown { .. } => 48,
         }
     }
 
     /// How many variants `ErrorKind` has.
-    const VARIANTS: usize = 48;
+    const VARIANTS: usize = 49;
 
     #[test]
     fn all_lists_every_error_kind_once_in_variant_order() {
@@ -925,5 +1003,69 @@ mod tag_tests {
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), VARIANTS);
+    }
+}
+
+#[cfg(test)]
+mod native_tests {
+    use std::error::Error as _;
+
+    use super::{ErrorKind, ParseError};
+    use crate::body::Origin;
+
+    #[test]
+    fn native_reader_refusals_keep_body_origins_and_original_causes() {
+        let origin = Origin { byte: 17, line: 4 };
+        let limits = purrdf_markdown::SyntaxLimits {
+            source_bytes: 64,
+            auxiliary_bytes: 4096,
+            work: 4096,
+            containers: 0,
+            nesting: 64,
+            link_part_bytes: 4096,
+        };
+        let valid = purrdf_markdown::authoring("é\ntext", limits);
+        assert!(valid.is_ok(), "neighboring prose needs no containers");
+        let source = purrdf_markdown::authoring("é\n> text", limits)
+            .expect_err("native container admission refuses the quote");
+        let error = ParseError::markdown(source.clone(), origin);
+        assert_eq!(
+            error.kind(),
+            &ErrorKind::BlockNesting {
+                max: crate::limits::MAX_BLOCK_NESTING
+            }
+        );
+        assert_eq!(
+            (error.line(), error.column(), error.offset()),
+            (5, Some(1), Some(20))
+        );
+        assert_eq!(
+            error
+                .source()
+                .expect("native cause survives legacy classification")
+                .downcast_ref::<purrdf_markdown::SyntaxError>(),
+            Some(&source)
+        );
+        let source =
+            purrdf_markdown::authoring("text", purrdf_markdown::SyntaxLimits { work: 0, ..limits })
+                .expect_err("native work admission refuses construction");
+        let error = ParseError::markdown(source.clone(), origin);
+        assert_eq!(
+            error.kind(),
+            &ErrorKind::Markdown {
+                source: source.clone()
+            }
+        );
+        assert_eq!(
+            (error.line(), error.column(), error.offset()),
+            (4, Some(1), Some(17))
+        );
+        assert_eq!(
+            error
+                .source()
+                .expect("native construction cause survives")
+                .downcast_ref::<purrdf_markdown::SyntaxError>(),
+            Some(&source)
+        );
     }
 }

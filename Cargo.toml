@@ -35,19 +35,19 @@ exclude = ["fuzz"]
 [workspace.dependencies]
 gix = { version = "=0.90.0", default-features = false, features = ["revision", "index", "sha1", "sha256"] }
 imara-diff = { version = "=0.2.0", default-features = false }
-purrdf-markdown = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-toml = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-alloc-probe = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-hash = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-lex = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-jsonschema = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-xsd = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-rdf = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-core = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-iri = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-deflate = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-text = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
-purrdf-testkit = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "0fb01e5622326da32b49bd05b55a396ecc323ab0" }
+purrdf-markdown = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-toml = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-alloc-probe = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-hash = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-lex = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-jsonschema = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-xsd = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-rdf = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-core = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-iri = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-deflate = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-text = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
+purrdf-testkit = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf" }
 
 [workspace.package]
 version = "0.2.0"

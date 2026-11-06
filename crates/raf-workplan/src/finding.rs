@@ -154,6 +154,7 @@ kinds! {
     OKF_ITEM_REASON_EMPTY = "okf-item-reason-empty";
     OKF_BAD_CEILING = "okf-bad-ceiling";
     OKF_BAD_EXCEPTION = "okf-bad-exception";
+    OKF_MARKDOWN = "okf-markdown";
     OKF_PARSE_UNCLOSED_FENCE = "okf-parse-unclosed-fence";
     OKF_PARSE_TOO_LARGE = "okf-parse-too-large";
     OKF_PARSE_MIXED_LINE_ENDINGS = "okf-parse-mixed-line-endings";
@@ -200,6 +201,7 @@ kinds! {
     OKF_PARSE_INDEX_HEADER = "okf-parse-index-header";
     OKF_PARSE_INDEX_MARKER = "okf-parse-index-marker";
     OKF_PARSE_INDEX_EMPTY = "okf-parse-index-empty";
+    OKF_PARSE_MARKDOWN = "okf-parse-markdown";
 }
 
 /// One result of a check: what is wrong, where, and how to put it right.
@@ -407,14 +409,12 @@ impl Finding {
 
     /// The finding for a document or an index that does not read.
     pub(crate) fn from_parse_error(file: &str, error: &ParseError) -> Self {
-        let (kind, fix) = error_entry(error.kind().tag());
-        Self::new(
-            kind,
-            file,
-            Location::Line(error.line()),
-            error.kind().to_string(),
-            fix,
-        )
+        Self::from_reader_kind(file, error.kind(), error.line())
+    }
+
+    fn from_reader_kind(file: &str, error: &raf_okf::ErrorKind, line: usize) -> Self {
+        let (kind, fix) = error_entry(error.tag());
+        Self::new(kind, file, Location::Line(line), error.to_string(), fix)
     }
 }
 
@@ -649,6 +649,10 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
             kind::OKF_BAD_CEILING,
             "write the row as `crate`, exactly one of `lines` (a whole number) or `percent` (from 0 to 100), and an optional `of` of `shipping`, `test` or `all`",
         ),
+        RuleTag::Markdown => (
+            kind::OKF_MARKDOWN,
+            "resolve the native refusal shown for this decoded scalar; resource and storage failures must be corrected before validation",
+        ),
         RuleTag::BadException => (
             kind::OKF_BAD_EXCEPTION,
             "write the row with exactly one of `item` (an item path or a `<module>::*` prefix below a crate root) or `file` (a path relative to the repository root, a directory ending in `/`), and its `reason`",
@@ -833,6 +837,10 @@ fn error_entry(tag: ErrorTag) -> (&'static str, &'static str) {
             kind::OKF_PARSE_INDEX_MARKER,
             "start each marker on its own line with no indentation",
         ),
+        ErrorTag::Markdown => (
+            kind::OKF_PARSE_MARKDOWN,
+            "resolve the native Markdown resource, reference or storage refusal shown before parsing the document again",
+        ),
         ErrorTag::IndexEmpty => (
             kind::OKF_PARSE_INDEX_EMPTY,
             "regenerate the index so it holds a generated block",
@@ -870,5 +878,39 @@ mod tests {
             (document.section(), document.line(), document.key()),
             (None, None, None)
         );
+    }
+    #[test]
+    fn native_operational_refusals_keep_typed_messages_and_actionable_kinds() {
+        let text = "native";
+        let source = purrdf_markdown::replace_code_spans(
+            text,
+            purrdf_markdown::CodeSpanLimits {
+                source_bytes: text.len(),
+                auxiliary_bytes: 0,
+                work: 0,
+            },
+        )
+        .expect_err("the native work grant is zero");
+        let rule = Rule::Markdown {
+            source: source.clone(),
+        };
+        let scalar = Finding::from_rule(&rule, "docs/a.md", Location::Key("title".to_string()));
+        let reader =
+            Finding::from_reader_kind("docs/a.md", &raf_okf::ErrorKind::Markdown { source }, 7);
+        for (finding, expected, location) in [
+            (scalar, "okf-markdown", Location::Key("title".to_string())),
+            (reader, "okf-parse-markdown", Location::Line(7)),
+        ] {
+            assert_eq!(finding.kind, expected);
+            assert_eq!(finding.file, "docs/a.md");
+            assert_eq!(finding.location, location);
+            assert!(
+                finding.message.contains("work requires 6, limit 0"),
+                "{}",
+                finding.message
+            );
+            assert!(!finding.fix.is_empty());
+            assert!(Finding::KINDS.contains(&finding.kind));
+        }
     }
 }
