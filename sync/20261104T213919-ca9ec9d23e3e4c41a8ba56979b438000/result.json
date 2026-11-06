@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/161-okf-replace-local-markdown-grammar-with",
+  "branch": "paudley/161-okf-replace-local-markdown-grammar-with",
+  "base_ref": "origin/main",
+  "head": "cacf55004824f4d1dd0862555498805ffb8b5d44",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/161-okf-replace-local-markdown-grammar-with/.stage/native-markdown-sync/sync/20261104T213919-ca9ec9d23e3e4c41a8ba56979b438000",
+  "conflicts": [],
+  "status": "fast_forward",
+  "base": "e0b01a4f5f3f8e7e7656a2fa67a9adeb529ad1b2",
+  "merge_bases": [
+    "cacf55004824f4d1dd0862555498805ffb8b5d44"
+  ],
+  "commit": "e0b01a4f5f3f8e7e7656a2fa67a9adeb529ad1b2"
+}
