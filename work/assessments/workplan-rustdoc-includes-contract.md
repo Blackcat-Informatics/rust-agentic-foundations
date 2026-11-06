@@ -7,16 +7,10 @@ subject: cap:workplan-rustdoc-includes#contract
 inputs:
   - kind: section
     name: cap:workplan-rustdoc-includes#contract
-    digest: 4f5c21e7c8bb019fd521cedcf91d7c3e377fabea90e51b793784ba6d1c39d277
+    digest: 9fb4537eb5da53a691b96d1263bd2ebd94637f6093df8be7ca480c5b6bc5fa32
   - kind: symbol
-    name: raf_workplan::diagram::cargo::assembly
-    digest: 24796deb0dd99a189f6d04a5c67c847c534341801f601e249b5d8858bf404329
-  - kind: symbol
-    name: raf_workplan::exec::Invocation::rustdoc_compiler_version
-    digest: 50682fcb7665bfbaf3dec1ae9bca03d4788b445b1e5bc5747334a006b2d3a05f
-  - kind: symbol
-    name: raf_workplan::exec::RustdocObservationOptions::with_assembly
-    digest: 9528a64e035b9b86d062e3d29df70b0faf6158ed2920afbd48905ba66ef83665
+    name: raf_workplan::diagram::rustdoc::fragment
+    digest: c3d983039838b44469d4654b8be6faac275b7edb6e963f34ae81c4edf2996708
 verdict: accepted
 by: agent
 ---

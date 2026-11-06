@@ -24,7 +24,7 @@
 //! | `claim-unsupported` | the claim markers of each listed capability ([`Body::claims`](raf_okf::Body::claims)) against the loaded evidence records: one for each named record that does not load, fails, or holds a value over its limit, at the line of the marker |
 //! | `evidence-stale` | the `inputs` of each evidence record whose `for` lists a listed capability or that one of its claims names, against [`Digest::symbol`](crate::digest::Digest::symbol) of the source now: one for each input whose digest differs or that does not resolve, at the record |
 //! | `assessment-missing`, `assessment-stale`, `assessment-rejected` | each authored section in `affects` of a loaded capability against its assessment record ([`assessment`](crate::assessment)): none under the id of the section, one whose inputs moved (one obligation for each input, naming it), or one that is current with the verdict `rejected`; a section with only generated blocks would owe none, and the profile refuses one in a capability document |
-//! | `section-untouched`, `contract-effect-understated`, `example-failing`, `evidence-changed` | the merge base and the bound examples, which need a process; `Workplan::reconcile` does not raise them (see [`ObligationKind::is_static`]) and [`Lifecycle::reconcile`](crate::lifecycle::Lifecycle::reconcile) does, from `git` and from the executor of [`bound`](crate::bound) |
+//! | `section-untouched`, `contract-effect-understated`, `evidence-changed` | the historical merge base, read through native Git; `Workplan::reconcile` cannot raise these from loaded documents alone (see [`ObligationKind::is_static`]); [`Lifecycle::reconcile`](crate::lifecycle::Lifecycle::reconcile) adds them without executing consumer code |
 //!
 //! The list is sorted by subject (capabilities, then change records, then the
 //! index, each by id), part, kind, line and then evidence text, so equal
@@ -60,7 +60,6 @@ use std::fmt;
 use raf_okf::{Actor, CapabilitySection, ContractEffect, Outcome};
 
 use crate::assessment::MovedInput;
-use crate::bound::{BoundOutcome, Ended, Evidence, Refusal, Run};
 use crate::graph::{BindingKind, position};
 use crate::lookup::{ChangeLookupError, write_findings};
 use crate::{Finding, Workplan};
@@ -89,9 +88,6 @@ pub enum ObligationKind {
     /// Under the complete policy, the record says `contract_effect: none` and a bound
     /// public item differs from the merge base.
     ContractEffectUnderstated,
-    /// A bound example target or documentation test of a listed capability
-    /// fails to build or run.
-    ExampleFailing,
     /// A generated block differs from what a sync writes.
     GeneratedStale,
     /// Delivered or implementing text uses proposal or forward-looking
@@ -125,14 +121,13 @@ pub enum ObligationKind {
 impl ObligationKind {
     /// Every kind, in the order of the table in the reconcile contract. The
     /// order is the order of [`Ord`] and of the sort of a [`Reconciled`] list.
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 16] = [
         Self::UnresolvedProposal,
         Self::ItemWithoutOutcome,
         Self::OutcomeWithoutReason,
         Self::BindingMissing,
         Self::SectionUntouched,
         Self::ContractEffectUnderstated,
-        Self::ExampleFailing,
         Self::GeneratedStale,
         Self::TenseMismatch,
         Self::ClaimUnsupported,
@@ -155,7 +150,6 @@ impl ObligationKind {
             Self::BindingMissing => "binding-missing",
             Self::SectionUntouched => "section-untouched",
             Self::ContractEffectUnderstated => "contract-effect-understated",
-            Self::ExampleFailing => "example-failing",
             Self::GeneratedStale => "generated-stale",
             Self::TenseMismatch => "tense-mismatch",
             Self::ClaimUnsupported => "claim-unsupported",
@@ -170,17 +164,14 @@ impl ObligationKind {
     }
 
     /// Whether the kind comes from the loaded documents alone. The other
-    /// kinds need a process: `git` for `section-untouched`,
-    /// `contract-effect-understated` and `evidence-changed`, and `cargo` for
-    /// `example-failing`.
+    /// kinds additionally read native Git history for `section-untouched`,
+    /// `contract-effect-understated` and `evidence-changed`. Every kind is
+    /// evaluated without starting a process.
     #[must_use]
     pub const fn is_static(self) -> bool {
         !matches!(
             self,
-            Self::SectionUntouched
-                | Self::ContractEffectUnderstated
-                | Self::ExampleFailing
-                | Self::EvidenceChanged
+            Self::SectionUntouched | Self::ContractEffectUnderstated | Self::EvidenceChanged
         )
     }
 
@@ -195,17 +186,16 @@ impl ObligationKind {
             Self::BindingMissing => 3,
             Self::SectionUntouched => 4,
             Self::ContractEffectUnderstated => 5,
-            Self::ExampleFailing => 6,
-            Self::GeneratedStale => 7,
-            Self::TenseMismatch => 8,
-            Self::ClaimUnsupported => 9,
-            Self::EvidenceStale => 10,
-            Self::EvidenceChanged => 11,
-            Self::AssessmentMissing => 12,
-            Self::AssessmentStale => 13,
-            Self::AssessmentRejected => 14,
-            Self::ReviewMissing => 15,
-            Self::ReviewStale => 16,
+            Self::GeneratedStale => 6,
+            Self::TenseMismatch => 7,
+            Self::ClaimUnsupported => 8,
+            Self::EvidenceStale => 9,
+            Self::EvidenceChanged => 10,
+            Self::AssessmentMissing => 11,
+            Self::AssessmentStale => 12,
+            Self::AssessmentRejected => 13,
+            Self::ReviewMissing => 14,
+            Self::ReviewStale => 15,
         }
     }
 }
@@ -336,46 +326,6 @@ pub enum BindingWhy {
     DoesNotResolve(String),
     /// The path resolves to an item its list does not take.
     WrongRole(&'static str),
-}
-
-/// Why a bound example or documentation test is not a passing run.
-///
-/// It is read from the [`Evidence`] of the run and carries no time and no
-/// output of the process, so equal inputs print equal lines.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum RunProblem {
-    /// A process of the run exited with a failing status: the build failed or
-    /// the example, or a documentation test, failed. `None` is a signal.
-    Fails {
-        /// The exit code of the last process, or `None` when a signal ended
-        /// it.
-        code: Option<i32>,
-    },
-    /// A process ran past its wall-clock limit and was killed.
-    TimedOut,
-    /// A process wrote more than the output bound and was killed.
-    Overflowed,
-    /// The binding cannot be run and counted: it ran no documentation test
-    /// (zero tests), a documentation test was built and not run, or the index
-    /// facts or a value refuse it.
-    Unresolved(Refusal),
-}
-
-impl RunProblem {
-    /// What is wrong with the run of `evidence`, or `None` when it passed.
-    pub(crate) fn of(evidence: &Evidence) -> Option<Self> {
-        match evidence.outcome() {
-            BoundOutcome::Passed | BoundOutcome::NotApplicable { .. } => None,
-            BoundOutcome::Unresolved { reason } => Some(Self::Unresolved(reason.clone())),
-            BoundOutcome::Failed { .. } => Some(match evidence.runs().last().map(Run::ended) {
-                Some(Ended::TimedOut) => Self::TimedOut,
-                Some(Ended::Overflowed) => Self::Overflowed,
-                Some(Ended::Exited(code)) => Self::Fails { code },
-                _ => Self::Fails { code: None },
-            }),
-        }
-    }
 }
 
 /// What a sync would repair.
@@ -585,12 +535,6 @@ pub enum Needed {
     StatedEffect(Touched),
     /// A passing `verify` run for the change, or a binding edit that removes
     /// the broken example.
-    PassingRun {
-        /// The binding path of the example or documentation test.
-        binding: String,
-        /// What is wrong with the run.
-        problem: RunProblem,
-    },
     /// A `docs sync` run.
     SyncRun(SyncProblem),
     /// Text rewritten as the supported behaviour.
@@ -603,7 +547,7 @@ pub enum Needed {
         /// What is wrong with it.
         problem: ClaimProblem,
     },
-    /// The evidence recorded again with `evidence record`.
+    /// The authored evidence metadata reviewed and updated against its current inputs.
     RecordedAgain {
         /// The id of the record.
         evidence: String,
@@ -664,15 +608,14 @@ impl Needed {
             Self::StatedEffect(_) => {
                 "contract_effect: changes, the capability listed and the sections it owes reconciled"
             }
-            Self::PassingRun { .. } => {
-                "a passing verify run for the change, or a binding edit that removes the broken example"
-            }
             Self::SyncRun(_) => "a docs sync run",
             Self::SupportedBehaviour(_) => "text rewritten as the supported behaviour",
             Self::SupportingEvidence { .. } => {
                 "a passing record within its limits for each evidence id the claim names, or the claim reworded or removed"
             }
-            Self::RecordedAgain { .. } => "the evidence recorded again with evidence record",
+            Self::RecordedAgain { .. } => {
+                "the authored evidence metadata reviewed and updated against its current inputs"
+            }
             Self::ReviewedClaim { .. } => {
                 "the claim reviewed against the new result: the evidence passes within the limits of the merge base again, or the claim no longer names it"
             }
@@ -714,21 +657,6 @@ impl Needed {
                     }
                 })
             }
-            Self::PassingRun { binding, problem } => Some(match problem {
-                RunProblem::Fails { code: Some(code) } => {
-                    format!("`{binding}` fails to build or run (exit code {code})")
-                }
-                RunProblem::Fails { code: None } => {
-                    format!("`{binding}` fails to build or run (ended by a signal)")
-                }
-                RunProblem::TimedOut => {
-                    format!("`{binding}` ran past its time limit and was killed")
-                }
-                RunProblem::Overflowed => {
-                    format!("`{binding}` wrote more output than the bound and was killed")
-                }
-                RunProblem::Unresolved(refusal) => format!("`{binding}` proves nothing: {refusal}"),
-            }),
             Self::SyncRun(SyncProblem::Stale(block)) => {
                 Some(format!("the `{block}` block is stale"))
             }
@@ -998,8 +926,8 @@ impl Workplan<'_> {
     ///
     /// `change` is the slug of a change record, with or without the `change:`
     /// prefix. The list is empty exactly when the change owes nothing that
-    /// the loaded documents can show; `section-untouched`, `example-failing`
-    /// and `evidence-changed` need a process and are not part of it (see
+    /// the loaded documents can show; historical section, contract-effect and
+    /// evidence comparisons require native Git and are not part of it (see
     /// [`ObligationKind::is_static`]). Nothing is written and no process is
     /// started.
     ///

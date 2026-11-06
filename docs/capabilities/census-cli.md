@@ -3,15 +3,14 @@
 # SPDX-License-Identifier: CC-BY-4.0
 type: Capability
 id: cap:census-cli
-title: "cargo census command line"
-description: "Native baseline and registered index reports, ledger inspection, repository-owned checks, migration and explicit debt recording."
+title: Census command line
+description: Native static Census reports, ledger inspection, migration and explicit debt publication.
 state: delivered
 bindings:
   code:
     - cargo_census::bin_crate::cargo_census::main
     - cargo_census::bin_crate::cargo_census::cli
     - cargo_census::bin_crate::cargo_census::command
-    - cargo_census::bin_crate::cargo_census::registered
     - cargo_census::bin_crate::cargo_census::error
     - raf_census::registered
     - raf_census::RegisteredCheck
@@ -21,500 +20,83 @@ bindings:
     - raf_census::CHECK_PROTOCOL_VERSION
     - raf_census::MAX_CHECK_RESPONSE_BYTES
     - raf_census::MAX_INDEX_BYTES
-    - raf_workplan::exec::Invocation::example_debt_write
-    - raf_workplan::exec::Invocation::example_index
   tests:
+    - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
+    - cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration
+    - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
+    - cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
-    - raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table
     - raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors
     - raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors
     - raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings
     - raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers
-    - cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause
-    - cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct
-    - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
-    - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
     - cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy
-    - cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record
   examples:
     - raf_census::example_crate::registered
     - rust_agentic_foundations::example_crate::repository_census
-depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-reference-scan, cap:census-migration, cap:census-rule-api]
+depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-migration, cap:census-rule-api]
 ---
-
-# cargo census command line
 
 ## Purpose
 
-The command discovers structural duplication, runs a repository-owned Census
-check with its actual Rule and LedgerExtension registrations, selects configured
-jobs and physical symbol occurrences, and exposes native
-migration, ledger inspection and explicit debt recording. The selected target owns its policy and
-locked source inputs; the host owns process execution and complete response
-validation. Baseline discovery uses the native report directly; registered index
-queries retain the target's complete configured job reports.
-The caller can explicitly admit larger index response streams within a finite
-ceiling while ordinary requests retain their default allowance.
+Expose native duplication and ledger data without building or executing repository programs. Library Gate evaluation, native reports and explicit debt publication preserve useful structural checks while leaving consumer test and example bodies inert.
 
 ## Contract
 
-### Structural baseline discovery
-<!-- raf:tested-by cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
+**Static contract.** `check` evaluates the native library Gate for the selected workspace. `index`, `job`, `count` and `fingerprint` derive complete native reports from that Gate. The CLI accepts no package/example executable selector and never invokes Cargo, tests, examples or custom repository binaries. Custom Rust registrations remain explicit library API operations performed by their caller; repository contents cannot instantiate them automatically.
+<!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
-The command cargo census baseline discovers the workspace selected by --workspace
-and loads its source through DiskTree and Census::load with CensusOptions::default.
-It serializes Census::baseline through the existing native report API. Default
-stdout is canonical N-Triples 1.2; --format ntriples selects it explicitly and
---format turtle selects canonical Turtle 1.2. Repeated runs over the same source
-produce identical bytes. Duplicate groups are report data and return exit zero.
-This command does not read ledger policy, evaluate a Gate or adopt debt; success
-is a complete structural report rather than a clean policy verdict.
+`baseline` discovers structure through Census with default options without adopting debt. `dump-ledger` reads the selected native ledger. Reports use canonical RDF with explicit format selection and bounded complete index serialization. `--out` exclusively creates a new .ttl or .nt data file after serialization; existing files, source extensions and Git administration destinations refuse. Stdout mode writes no repository data.
+<!-- raf:tested-by cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration -->
 
-With --out PATH, the report is written only to that destination and stdout is
-empty. A relative output path is resolved from the caller's directory, independently
-of --workspace. The complete report is loaded and serialized before opening the
-destination, so load failures cannot create or truncate it. Output failures return
-exit one with the destination and cause; a failed write does not promise rollback.
-Load and serialization failures also return exit one. Unknown formats or malformed
-arguments return exit two. Stdout mode writes no workspace source, ledger or debt.
-
-### Registered native index
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record,raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table -->
-
-The command cargo census index --package PACKAGE --example EXAMPLE requests
-the complete native Index from the repository's registered Gate. Its fixed
-invocation is cargo run --frozen --package=PACKAGE --example=EXAMPLE --
---census-index-v1. RegisteredOperation::Index selects this operation before
-evaluation. The target calls its actual registered check or check_locked and
-projects report.census().index(report.jobs()), preserving every matched job,
-role, copy count, unit fingerprint and group. It does not replace configured
-policy with an empty job list or a built-in-only Gate. A complete query returns
-exit zero even when the evaluation has findings; it does not claim policy is
-clean and does not publish debt. Evaluation failures return exit one.
-
-The same bounded runner, null input and frozen Cargo invocation govern the
-operation. Each captured standard output and standard error stream has a
-16 MiB allowance by default. Index, job, count and fingerprint accept
---max-index-bytes BYTES to select an explicit positive allowance no larger than
-MAX_INDEX_BYTES, currently 256 MiB. The selected allowance applies separately
-to both streams of the Cargo invocation, including build diagnostics. It does
-not bound native graph allocation or final rendered-output size. Invalid
-allowances and use on check or debt are usage errors before target execution.
-Check and debt retain their fixed 16 MiB allowances.
-
-Success requires target exit zero and a complete
-closed native Index in canonical N-Triples 1.2 at the current normal form.
-Unknown versions, invalid shape, noncanonical bytes, malformed or oversized
-responses, missing targets and process failures refuse with captured diagnostics.
-The CLI validates the entire response, then serializes canonical N-Triples 1.2
-by default or Turtle 1.2 with --format turtle. It uses baseline's --out semantics:
-caller-relative destination, empty stdout and no destination opening before
-complete validation and serialization. Output failures return exit one without
-promising rollback. Invalid command usage returns exit two.
-
-### Declared ledger inspection
-<!-- raf:tested-by cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
-
-The command cargo census dump-ledger discovers the workspace selected by
---workspace and reads helpers-ledger.ttl through the contained DiskTree path,
-bounded by MAX_LEDGER_BYTES. Ledger::from_turtle validates the complete native
-profile, schema and versions before Graph::to_text serializes every assertion.
-The byte bound applies to input; a serialized carrier may be larger.
-Extension payloads and reference declarations remain in the output. Default
-stdout is canonical N-Triples 1.2; --format ntriples selects it explicitly and
---format turtle selects canonical Turtle 1.2. Identical input produces identical
-bytes. Missing, malformed, oversized, version-invalid or outside-root ledger
-inputs return exit one with the file and cause.
-
-Inspection reads declared policy without indexing Rust source, evaluating rules,
-loading reference packages or requiring extension registrations. Invalid Rust
-source does not prevent inspection. Exit zero attests complete structural
-inspection; the consumer's evidence semantics and the Gate's execution findings
-remain unevaluated. Gate execution retains its reference-scan and registered
-validator admission requirements.
-
-The --out PATH behavior and exit codes match baseline: only the caller-selected
-destination is written, stdout is empty, and a relative path belongs to the caller's
-directory. Complete loading, validation and serialization precede opening that
-destination. A pre-write failure preserves an existing or absent output. Output
-failures return exit one with the path and cause without promising rollback.
-Invalid formats and incomplete arguments return exit two. Stdout mode writes no
-source, ledger or debt file.
-
-### Registered read-only check
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
-
-The command cargo census --workspace DIR check --package PACKAGE --example EXAMPLE
-discovers the requested workspace root and runs cargo run --frozen
---package=PACKAGE --example=EXAMPLE there. Package and example are explicit
-validated Cargo names. The repository example registers its own Gate and evaluates
-the full requested policy. The CLI never substitutes a built-in-only Gate.
-The existing bounded SystemRunner supplies null stdin and C locale, build
-execution limits and a 16 MiB cap on each captured output stream. Cargo may create
-build artifacts. Native Linux execution requires Bubblewrap, pidfds, executable
-sealed memfds, `/proc` access, PID and mount namespaces and
-parent-death termination. If the CLI dies, its registered target and descendants
-terminate; descendants cannot escape by changing their session or process group.
-Setup and executable admission use a separate bounded launcher channel, excluded
-from the response and payload output limits. Missing containment fails before a
-check can report success. The protocol grants no source or debt write and the host
-performs none. The target remains trusted repository executable code with host
-filesystem access.
-
-### Closed native response
-<!-- raf:tested-by raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors,raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors,raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct -->
-
-RegisteredCheck projects an actual Result<GateReport, Error> into native Graph
-storage and canonical N-Triples1.2. Its fixed protocol IRI is
-urn:raf:census:registered-check:v1. The sole RegisteredCheck root states
-protocolVersion, status and findingCount. Clean has zero findings; findings has a
-positive count; error has zero findings and exactly one errorMessage. Each finding
-is an owned CensusFinding node at #finding/ORDINAL with a contiguous zero-based
-integer ordinal and message. Order and duplicate messages are preserved.
-Unknown fields/classes/versions, incomplete or orphan nodes, inconsistent
-statuses, noncanonical bytes and responses larger than 16 MiB refuse. The size
-bound governs wire bytes, not total native graph allocation.
-
-### Failure and exit agreement
-<!-- raf:tested-by cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
-
-The target emits exactly one response on stdout and exits 0 for clean or 1 for
-findings/evaluation error. The CLI prints census: clean or every finding in original
-order and returns 0 or 1. A framed Gate error, missing target, build/process failure,
-missing/malformed/oversized response, invalid UTF-8, protocol mismatch or exit
-disagreement returns 1 with an actionable diagnostic. Bounded stderr survives
-process and response-decoding refusals. No partial successful verdict exists.
-Invalid command usage returns 2 through clap.
-
-### Native migration and explicit debt recording
-<!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
-
-The command debt --write uses Gate::write_debt for ledgers needing no registered
-code; registration-required policy returns 2 and writes nothing. A repository's
-own registered Gate remains its explicit native writing path.
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors,raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors -->
-
-With both --package PACKAGE and --example EXAMPLE, debt --write instead invokes
-the selected registered target using exactly cargo run --frozen --package=PACKAGE
---example=EXAMPLE -- --census-debt-write-v1. Partial selectors or missing --write
-are usage errors. RegisteredOperation::from_args selects Check for no target
-arguments, WriteDebt for exactly that write token and Index for exactly
---census-index-v1; every other sequence refuses before evaluation. The target calls its actual registered Gate
-writer, including write_debt_locked when configured providers are required.
-
-Invocation::example_debt_write constructs that exact fixed argument sequence
-from validated package/example names, exposing no arbitrary target arguments.
-Workplan bound verification keeps its existing example_run invocation.
-<!-- raf:tested-by raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table -->
-
-RegisteredDebtWrite projects Result<DebtWrite, Error> into one native graph root
-of class RegisteredDebtWrite, protocol urn:raf:census:registered-debt-write:v1.
-Status written carries exactly groupCount and jobCount as canonical nonnegative
-integers; status error carries exactly errorMessage as a string and no counts.
-The response has no destination or additional subjects. Unknown fields, missing
-or repeated scalars, wrong classes/versions, status contradictions, noncanonical
-bytes and oversized carriers refuse. It uses the existing per-stream size bound.
-Exit zero agrees only with written, exit one only with error. A check response
-cannot acknowledge publication. No process, protocol or backend failure retries
-or falls back to ordinary evaluation; success prints only after full validation.
-The command migrate --ledger FILE --index FILE reads older native RDF; migrate
---legacy --ledger FILE --baseline FILE imports the named foreign dialect.
-Migration writes stdout and preserves both inputs. Unmapped rows or execution
-failures return 1; complete mapping returns 0; invalid usage returns 2. The
-[census-debt-ratchet](./census-debt-ratchet.md) and
-[census-migration](./census-migration.md) capabilities specify those operations.
-
-### Selected native queries
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
-
-The commands job ID, count ID and fingerprint SYM require the same --package
-and --example selectors as index. They acquire and fully validate exactly the
-same complete registered Index, through the existing index-v1 operation. They
-then call Index::query; no second evaluation or structural fallback exists.
-Their selected --max-index-bytes allowance governs the complete index
-acquisition, even when the query's rendered result is small.
-Successful query output does not establish a clean Gate verdict.
-
-JobQuery contains the selected job, exact copy count, every classified match
-and its complete physical unit. CountQuery contains its job identity and exact
-nonnegative copies; zero is a valid result. FingerprintQuery contains every
-physical occurrence of the requested symbol, preserving optional body and shim
-fingerprints. A known occurrence with neither fingerprint succeeds. Unknown
-jobs and symbols return typed errors and exit one, rather than an empty report.
-QueryReport readers enforce the closed shapes, current report form, role/count
-consistency and selected-node ownership. A selected result is never presented
-as a complete Index.
-
-The --format and --out behavior is the same as index: canonical N-Triples by
-default, canonical Turtle on request, caller-relative named destinations and
-no destination opening until acquisition, selection and serialization succeed.
-Queries preserve source, manifest, lock, ledger and debt bytes. Malformed usage
-returns two; execution, protocol, selection and output failures return one.
-
-### Explicit carrier layout conversion
-<!-- raf:tested-by cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
-
-The mutually exclusive migration mode migrate --report-form KIND --input FILE
---format SYNTAX converts report form 3 or 4 to 5. KIND is baseline, index,
-ledger or debt; SYNTAX is turtle or ntriples and selects both input and output.
-It applies that kind's bound before parsing, edits the original native graph
-and performs the current structural validation. Output is complete stdout;
-there is no source evaluation or input write. Wrong kinds, other versions,
-unknown fields, contradictions and either size bound refuse with exit one and
-no partial result. Conflicting or missing options return two. The migration
-capability defines fact and snapshot preservation.
+`debt --write` uses the native debt ratchet, permitting adoption and shrink while refusing growth. Migration reads explicit input carriers and writes the converted result to stdout. Malformed inputs and unsupported declarations fail actionably.
+<!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
 
 ## Usage
 
-Provide `bwrap`, Linux pidfds, executable sealed memfds, `/proc` access and
-working PID and mount namespaces for a registered
-repository command. A host without admitted containment refuses execution.
-Keep the registered target's output limited to its native response; launcher
-metadata uses the runner's separate channel.
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+The documented data path is illustrated by `raf_census::example_crate::registered` and `rust_agentic_foundations::example_crate::repository_census`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
-Use baseline for structural discovery without a registered target or ledger.
-Select --format turtle for the human-readable carrier or --out PATH to select a
-file instead of stdout. Both formats preserve the same complete native baseline.
-
-Use dump-ledger to inspect helpers-ledger.ttl without executing its policy. The
-same format and output options select the complete native graph's carrier and
-destination. Source parsing and a registered repository target are unnecessary.
-
-Create a repository example that builds the same Gate used by its census test,
-including rules, extensions and any explicitly supplied locked provider inputs.
-Evaluate it and call RegisteredCheck::from_check(&result). Write to_ntriples()
-bytes to stdout and return ExitCode::from(response.exit_code()). Build diagnostics
-belong on stderr. Prepare the actual Cargo.lock before using the frozen command.
-The library example `raf_census::example_crate::registered` demonstrates response generation on an owned
-MemoryTree; the real-target integration test demonstrates Cargo execution.
-
-The repository's `repository_census` example shares its self-Census gate policy
-and declared roots. It supports read-only check and index operations and refuses
-debt publication. For its complete index, explicitly admit 64 MiB per captured
-stream:
-
-```text
-cargo census --workspace . index --package rust-agentic-foundations --example repository_census --max-index-bytes 67108864
-```
-
-~~~text
-cargo census --workspace . baseline
-cargo census --workspace . baseline --format turtle --out baseline.ttl
-cargo census --workspace . index --package demo --example registered --format turtle
-cargo census --workspace . dump-ledger
-cargo census --workspace . dump-ledger --format turtle --out policy.ttl
-cargo census --workspace . check --package demo --example registered
-cargo census debt --write
-cargo census --workspace . debt --write --package demo --example registered
-cargo census migrate --ledger old-ledger.ttl --index old-index.ttl
-~~~
-
-A target supporting the registered operations decodes args_os().skip(1) through
-RegisteredOperation::from_args before evaluation. For WriteDebt it
-passes the actual writer result to RegisteredDebtWrite::from_write, emits the
-canonical carrier and returns its exit_code, just as the check path does with
-RegisteredCheck. The real Cargo fixture demonstrates these operations with one
-registered Rule, owner extension and configured local provider.
-
-For Index the target calls its registered evaluation and emits
-report.census().index(report.jobs()).to_ntriples(), returning exit zero only
-after serialization succeeds. An evaluation failure propagates its cause and
-returns exit one. The actual registered fixture uses the same locked Gate for
-index, check and debt publication.
-
-Use job ID or count ID with the same registered package/example to inspect one
-job. Use fingerprint SYM to inspect all its source sites and available hashes.
-Select --format turtle or --out PATH as for index. Convert a prior native carrier
-with migrate --report-form ledger --input old.ttl --format turtle before using
-it with ordinary current-form readers or fingerprint migration.
+Select a workspace with `--workspace DIRECTORY`. Use `cargo census check`, `cargo census index`, `cargo census baseline`, `cargo census job ID`, `cargo census count ID` or `cargo census fingerprint SYMBOL`. Use `--max-index-bytes` for an explicit bounded index allowance. Help describes native migration and explicit debt options.
 
 ## Examples
 
-If the supervising Census CLI is killed while its registered example is
-running, the example and its detached descendants terminate. No successful
-response is published after supervisor death. Normal completion still returns
-the same complete native response.
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
-
-In a repository whose registered example owns the job copies, these commands
-produce the library's native selected reports, even when copies are present:
-
-```sh
-cargo census job copies --package demo --example registered
-cargo census count copies --package demo --example registered --format turtle
-cargo census fingerprint demo::fingerprinted --package demo --example registered
-cargo census migrate --report-form ledger --input prior.ttl --format turtle
-```
-
-Two structurally identical functions appear in the same native baseline group.
-The baseline command returns zero and emits that group even with no usable
-ledger. Running from another directory with --workspace selecting that source and
---out report.ttl writes the report beside the caller, leaving source and policy
-unchanged. A malformed Cargo.toml refuses before replacing an existing report or
-creating an absent one; choosing a directory as the output reports a write error.
-
-A declared ledger with an extension payload and reference package remains
-inspectable when src/lib.rs cannot parse. Its native graph appears unchanged in
-both carriers, while Gate execution refuses the malformed Rust source.
-Selecting --out policy.ttl from another directory writes that caller-relative
-destination after complete validation. Missing, malformed, oversized and
-version-invalid ledger inputs preserve prior output or leave an absent output
-absent. A ledger symlink outside the workspace is refused.
-
-A repository target registers NoLocalCopy and the owner extension once. The same
-registrations run in its test. With only the documented home, check prints
-census: clean and exits 0. Adding local_copy produces the same ordered findings
-as the direct Gate and exits 1. Changing the owner payload from demo to other
-returns the extension's evaluation refusal. Selecting an absent example or one
-that does not compile reports the actual Cargo cause and exits 1. All runs use
-the requested root even when the caller's current directory is elsewhere.
-
-The registered index contains the configured native-provider job and the copy
-job with its home, two copies and exact unit fingerprints. A custom-rule finding
-still yields the complete index with exit zero. Both native carriers describe
-the same report; repeated requests yield identical bytes. An invalid owner
-refuses before replacing an existing destination, beside successful caller-relative
-output. Index inspection preserves source, lock, ledger and absent debt.
-
-The valid canonical index fixture is admitted at its exact carrier length and
-refused with one byte less. A one-byte allowance on the real registered target
-fails without replacing the selected destination. The maximum allowed grant
-preserves the same complete report in both requested formats; zero,
-above-ceiling and unsupported-command grants are usage errors.
-<!-- raf:tested-by cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
-
-Explicit registered writing adopts the actual configured debt, preserves equal
-bytes, records strict shrink and refuses growth, a custom-rule hit, an invalid
-owner or an unlisted native competitor. Direct target and CLI publication produce
-identical canonical debt bytes from equivalent roots. Check with empty target
-arguments remains read-only after adoption.
+A repository may contain a build script, example and test whose bodies write a marker and panic. `index` reads their source and returns the same native index as the direct library call. None of those bodies executes and no target directory is created. Exporting to src/lib.rs refuses beside successful creation of report.ttl.
 
 ## Constraints
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
 
-- The command operates on one workspace; registered operations execute trusted code
-from that workspace. Baseline discovery loads source without invoking a target.
-It uses the native default size and token limits without changing the normal form.
-Ledger inspection reads the one fixed ledger under its native byte bound and
-performs structural validation only. It preserves the supplied graph without
-granting an extension's policy evidence runtime validity. Its explicit output,
-like baseline output, may replace the caller-selected file.
-The
-frozen Cargo invocation requires a current lock and available dependencies;
-missing prerequisites fail. The response is the sole stdout document and uses
-the shared native RDF1.2 ground profile. No schema negotiation, partial-result
-fallback or implicit debt adoption exists. Provider identities/configurations
-are supplied by the target; this transport does not authenticate a compiler
-invocation or acquire its complete source closure. Unsupported proof syntax
-retains the native Gate refusal.
-Index allowances govern captured transport bytes only. Their finite maximum
-reuses the complete-index input policy; the native Index parser is not claimed
-to impose that policy itself. A response exceeding its selected allowance has
-no verdict and cannot publish a partial destination.
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
+- Missing native registrations or unavailable implemented capabilities refuse rather than invoking a repository program. Imported protocol data is not an observed execution verdict. A report write failure may leave the newly created owned data file incomplete; it never truncates an existing destination.
+<!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 ## Explanation
 
-A complete index can be larger than a check receipt because it describes every
-physical unit, group and configured job. Explicit admission lets the caller
-account for that workload while ordinary calls retain their default limit.
-The allowance travels with index acquisition for each query, so selecting one
-count cannot silently discard the rest of the index before validation.
-
-An authorized trusted target may publish successfully before its receipt is
-lost, malformed, exceeds capture limits or cannot be rendered by the host.
-A transport failure therefore does not imply rollback. The host does not retry;
-inspect the debt record before explicitly invoking another write. Receipt counts
-summarize trusted execution rather than authenticating target honesty.
-
-
-Discovery and policy evaluation answer different questions. The baseline adapter
-loads the native structural report without interpreting a ledger, so duplicate
-groups remain available for inspection before policy exists. Its format selector
-only selects a native serializer; it introduces no grouping or RDF implementation.
-
-Ledger inspection uses the native schema reader and graph writer without entering
-execution admission. A reference declaration or extension can therefore be
-inspected before its executable validator is available. The Gate retains its
-hard refusal when that execution support is absent. Both inspection commands
-share one explicit-destination writer after their native report is complete.
-
-Repository policy is executable Rust. Running its example keeps custom rules and
-extensions on the same path as its tests. A closed response separates a policy
-finding from a failed evaluation or build. The CLI validates the whole response
-before publishing findings. Native storage, parser, canonical writer and the
-existing Runner avoid parallel graph or process implementations; the adapter
-adds only Census schema and exit agreement.
-
-Publication is a separate operation because a clean check is not authority to
-write. Its fixed token and distinct response preserve that boundary while sharing
-the native Gate ratchet, runner, RDF storage and canonical codec.
+The native Gate supplies the policy verdict and complete configured job reports. Safe library reuse replaces the executable target transport. Reading Git-backed source uses native read-only object access without fetching or hooks.
 
 ## Verification
 
-Existing native response cases retain the default overflow refusals and exercise
-an exact-length index allowance beside one byte less. Existing executable cases
-cover scoped argument bounds, complete native report parity under the maximum
-grant and preservation of destinations when a selected allowance is exceeded.
-The repository example executes its shared read-only self-Census policy.
-<!-- raf:tested-by cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
+Controlled fixtures protect native CLI parity, the absence of consumer execution, report destination restrictions, migration carrier bounds and monotone debt writes.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause` | test | [Contract](#contract) |
-| `cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
-| `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
-| `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Contract](#contract) |
-| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Verification](#verification) |
+| `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration` | test | [Contract](#contract) |
 | `raf_census::example_crate::registered` | example target | [Usage](#usage) |
-| `raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings` | test | [Contract](#contract) |
-| `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
-| `raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors` | test | [Contract](#contract) |
-| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table` | test | [Contract](#contract) |
-| `rust_agentic_foundations::example_crate::repository_census` | example target | [Verification](#verification) |
+| `raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers` | test | [Verification](#verification) |
+| `raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings` | test | [Verification](#verification) |
+| `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Verification](#verification) |
+| `raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Verification](#verification) |
+| `rust_agentic_foundations::example_crate::repository_census` | example target | [Usage](#usage) |
 <!-- raf:generated:end -->
 
-The existing executable usage case compares baseline output with the native
-library report for duplicate functions, checks both carriers and deterministic
-bytes, and selects a workspace from another caller directory. It verifies source
-and policy preservation, the absence of debt, and explicit output placement.
-Malformed manifests preserve existing output and do not create absent output;
-a directory destination fails beside successful stdout discovery. Invalid formats
-and incomplete output arguments are usage refusals.
-
-The same existing executable case compares dumped ledgers with native graph
-bytes and parsed assertions in both carriers, including extension and reference
-data. It checks deterministic output, caller-relative placement and unchanged
-inputs with malformed Rust source, alongside the Gate's reference-scan refusal.
-Missing, malformed, oversized and version-invalid ledgers preserve existing and
-absent destinations; outside-root aliases and directory outputs refuse beside a
-valid inspection. Format and incomplete-output errors remain usage refusals.
-
-The real Cargo fixture shares exact registration source with its direct Gate
-oracle. It compares clean/planted findings, extension rejection and absent/broken
-target diagnostics from an unrelated working directory, while checking source,
-manifest, lock and ledger bytes and absence of debt writes. Codec controls cover
-order/duplicates, unknown/missing/mistyped fields, node ownership, ordinals,
-protocol/status disagreement, canonical bytes and wire size. Scripted Runner
-controls retain stderr/typed causes across malformed UTF-8 and native RDF,
-unexpected exits and response/exit disagreement.
-
-The same real Cargo case executes configured registered adoption, equal bytes,
-strict shrink, growth/nondebt/owner/provider and malformed-prior refusals. It
-compares direct-target and CLI bytes, checks fixed-token/CLI authorization and
-known input preservation, and proves a malformed receipt after publication
-reports failure without falsely claiming rollback. Existing codec and host
-cases also validate the distinct write response and cross-operation refusal.
-
-The same actual registered fixture compares job, count and fingerprint output
-with native library selection in both carriers. It proves zero-count success,
-unknown-selector and target failures, unchanged inputs/debt and preserved named
-destinations on refusal. Native result cases retain repeated physical symbols,
-absent fingerprints, closed shapes and role/count contradictions. The actual
-migration case converts all four stored carrier kinds in both syntaxes before
-using the historical ledger and index for fingerprint migration.
+<!-- raf:generated:relationships -->
+| Relation | Capability |
+| --- | --- |
+| Depends on | [census-debt-ratchet](./census-debt-ratchet.md) |
+| Depends on | [census-ledger](./census-ledger.md) |
+| Depends on | [census-migration](./census-migration.md) |
+| Depends on | [census-rule-api](./census-rule-api.md) |
+<!-- raf:generated:end -->

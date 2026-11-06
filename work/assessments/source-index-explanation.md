@@ -46,10 +46,10 @@ inputs:
     digest: 35c9a85662ee7b6c80838931cd9c4c57e8dc7da7146eefbd67d8ab6858226258
   - kind: symbol
     name: raf_source::CommittedGitTree
-    digest: 833e147810cf66c5220fdec06ffeaa2eab08aa699ba7fddce0bb185d6bbfad5f
+    digest: ab73a428c090acee6535b550e2a819aece98e3c26938da45eae5e7a1cb884e9d
   - kind: symbol
     name: raf_source::CommittedGitTree::open
-    digest: 12a46ef9424da32d2016681c6e19fc908384c02bb2fd3aa5968002afd6c41936
+    digest: e6602240802149c6bdc31273d2463a4ce709e4ce3a4d42b2e733f276b14c976c
   - kind: symbol
     name: raf_source::CompilerPlatform
     digest: 9a8575b066df5d0e7bc0170baa4b6429308d03660eedd17b4ddadb65c2eb2399
@@ -160,7 +160,7 @@ inputs:
     digest: 0385f2e238aa06dc8b8bf67e52f5dcdf0f0385091c8ba8d0f9162620190ce379
   - kind: symbol
     name: raf_source::LoadErrorKind
-    digest: ad31bb86310189e006bad90f4a8246cf8e04013ea7fd89ab420502ce99e9bc67
+    digest: 647a29e54a4f101b644a1cd0135ad9f0a7c3c763f47659826525be36073538e7
   - kind: symbol
     name: raf_source::LoadOptions
     digest: 8f02a2c96b2a32ca9be44d5851a37d0bf15bfb4f9c8e25c1f185538979c00e44
@@ -411,6 +411,9 @@ inputs:
     name: raf_source::discover_root
     digest: decf25b8720addc5994dca976c46ea7f846dbd6c1321f82887c7990c29ab9c7f
   - kind: symbol
+    name: raf_source::git
+    digest: 8dde371d890a2bd414d328f61909a6f6d468e9212d0b7283adbb25f6c8b440fa
+  - kind: symbol
     name: raf_source::item
     digest: eeb4dbf4ecd9533f117b217f3e3e5b43df9f71d5c9213fa88ffae92681a5eb4f
   - kind: symbol
@@ -424,10 +427,10 @@ inputs:
     digest: 73ee4af228fc5b0ac0032c699b21520cd231ce6e2bebb0194f817bb3fb81f894
   - kind: symbol
     name: raf_source::tree
-    digest: 27cc6ed4e3736fcf1062b02b8c1abf18d8af636de5bdf60e8a09c24acbfa1563
+    digest: 80536efb50c04c3f4b00558345f006b5b0c177b36c9f8c4dd197b3cd4fc4b3d0
   - kind: symbol
     name: raf_source::tree::disk
-    digest: 679e59d91dba58960363e9a4888638169cbbe9434d0cea896c503359d112ceeb
+    digest: 91e62491c5bda4c2734ef4a75dfb2057a51e999adf5098bdefa4efa41d14f9c8
   - kind: symbol
     name: raf_source::tree::memory
     digest: e3ddc3af6bc6da8f0eb66a0906ef0f7e6140ffef740bcf91aac9bae411d8497b

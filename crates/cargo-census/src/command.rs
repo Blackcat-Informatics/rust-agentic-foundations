@@ -22,18 +22,21 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
             baseline(&gate.root()?, *format, out.as_deref(), output)?;
             Ok(0)
         }
-        Command::Check { package, example } => {
-            crate::registered::check(&gate.root()?, package, example, output)
+        Command::Check => {
+            let report = gate.check()?;
+            for finding in report.findings() {
+                writeln!(output, "{finding}").map_err(stdout)?;
+            }
+            Ok(u8::from(!report.is_clean()))
         }
+
         Command::Index(target) => {
-            let text = crate::registered::index(
-                &gate.root()?,
-                &target.package,
-                &target.example,
-                target.format,
-                target.max_index_bytes,
-            )?;
-            write_report(&text, target.out.as_deref(), output)?;
+            let index = native_index(&gate.root()?, target.max_index_bytes)?;
+            let text = match target.format {
+                RdfFormat::Ntriples => index.to_ntriples()?,
+                RdfFormat::Turtle => index.to_turtle()?,
+            };
+            write_report(&gate.root()?, &text, target.out.as_deref(), output)?;
             Ok(0)
         }
         Command::Job { id, target } => {
@@ -48,26 +51,27 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
             raf_census::Query::Fingerprint(symbol),
             output,
         ),
-        Command::Debt {
-            write: _,
-            package,
-            example,
-        } => match (package, example) {
-            (Some(package), Some(example)) => {
-                crate::registered::write_debt(&gate.root()?, package, example, output)
-            }
-            (None, None) => {
-                let receipt = gate.write_debt()?;
-                writeln!(output, "{receipt}").map_err(stdout)?;
-                Ok(0)
-            }
-            _ => Err(Error::Options(
-                "registered debt writing requires both --package and --example".into(),
-            )
-            .into()),
-        },
+        Command::Debt { write: _ } => {
+            let receipt = gate.write_debt()?;
+            writeln!(output, "{receipt}").map_err(stdout)?;
+            Ok(0)
+        }
         Command::Migrate(args) => migrate(&gate, args, output),
     }
+}
+
+fn native_index(root: &Path, limit: usize) -> Result<raf_census::Index, crate::error::Error> {
+    let report = Gate::workspace(root).check()?;
+    let index = report.census().index(report.jobs())?;
+    let serialized = index.to_ntriples()?;
+    if serialized.len() > limit {
+        return Err(Error::Options(format!(
+            "native index is {} bytes, exceeding its {limit}-byte output bound",
+            serialized.len()
+        ))
+        .into());
+    }
+    Ok(index)
 }
 
 fn query(
@@ -76,18 +80,13 @@ fn query(
     selector: raf_census::Query<'_>,
     output: &mut dyn Write,
 ) -> Result<u8, crate::error::Error> {
-    let index = crate::registered::index_report(
-        root,
-        &target.package,
-        &target.example,
-        target.max_index_bytes,
-    )?;
+    let index = native_index(root, target.max_index_bytes)?;
     let result = index.query(selector)?;
     let text = match target.format {
         RdfFormat::Ntriples => result.to_ntriples()?,
         RdfFormat::Turtle => result.to_turtle()?,
     };
-    write_report(&text, target.out.as_deref(), output)?;
+    write_report(root, &text, target.out.as_deref(), output)?;
     Ok(0)
 }
 
@@ -184,7 +183,7 @@ fn dump_ledger(
         .graph()
         .to_text(format)
         .map_err(ReportError::Ground)?;
-    write_report(&text, out, output)
+    write_report(root, &text, out, output)
 }
 
 fn baseline(
@@ -202,15 +201,69 @@ fn baseline(
         RdfFormat::Ntriples => report.to_ntriples()?,
         RdfFormat::Turtle => report.to_turtle()?,
     };
-    write_report(&text, out, output)
+    write_report(root, &text, out, output)
 }
 
-fn write_report(text: &str, out: Option<&Path>, output: &mut dyn Write) -> Result<(), Error> {
+fn write_report(
+    root: &Path,
+    text: &str,
+    out: Option<&Path>,
+    output: &mut dyn Write,
+) -> Result<(), Error> {
     if let Some(path) = out {
-        std::fs::write(path, text).map_err(|source| Error::Io {
-            file: path.display().to_string(),
+        let refuse = |message: &str| Error::Options(format!("{}: {message}", path.display()));
+        if !matches!(
+            path.extension().and_then(std::ffi::OsStr::to_str),
+            Some("ttl" | "nt")
+        ) {
+            return Err(refuse(
+                "report destinations require a .ttl or .nt extension",
+            ));
+        }
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let parent = parent.canonicalize().map_err(|source| Error::Io {
+            file: parent.display().to_string(),
             source,
         })?;
+        if parent
+            .components()
+            .any(|component| component.as_os_str() == ".git")
+        {
+            return Err(refuse(
+                "report destinations cannot enter Git administration",
+            ));
+        }
+        for selected in [root, parent.as_path()] {
+            if let Some(repository) = raf_source::git::Repository::discover(selected)
+                .map_err(|error| Error::Options(error.to_string()))?
+                && (parent.starts_with(repository.git_dir())
+                    || parent.starts_with(repository.common_dir()))
+            {
+                return Err(refuse(
+                    "report destinations cannot enter Git administration",
+                ));
+            }
+        }
+        let destination = parent.join(
+            path.file_name()
+                .ok_or_else(|| refuse("report filename is absent"))?,
+        );
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&destination)
+            .map_err(|source| Error::Io {
+                file: path.display().to_string(),
+                source,
+            })?;
+        file.write_all(text.as_bytes())
+            .map_err(|source| Error::Io {
+                file: destination.display().to_string(),
+                source,
+            })?;
     } else {
         output.write_all(text.as_bytes()).map_err(stdout)?;
     }

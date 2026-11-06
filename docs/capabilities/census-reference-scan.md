@@ -22,10 +22,11 @@ bindings:
     - raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count
     - raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts
     - raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator
-    - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
+
     - raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes
     - raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity
     - raf_source::test_crate::locked_sources::local_reference_owner_selection_spends_its_original_work_allowance
+    - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
   examples:
     - raf_census::example_crate::references
 depends: [cap:census-ledger]
@@ -93,7 +94,7 @@ per job; every matching reference witness is retained. A copy without a matching
 reference home produces an unclassified finding.
 
 ### Closed native evidence
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count -->
 
 Report form 5 carries source receipts, qualified reference units and full
 cross-boundary fingerprint witnesses. Every job occurrence resolves to an indexed
@@ -104,7 +105,7 @@ first-party rows without inventing historical source observations. Normal form 1
 fingerprints remain unchanged.
 
 ## Usage
-<!-- raf:tested-by raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator -->
 
 Run `raf_census::example_crate::references` for an owned path dependency and its
 complete native Index and query round trips.
@@ -134,7 +135,10 @@ including workspace context required for inherited package fields. A registry
 locator also supplies the explicit registry-name/index mapping.
 `Gate::check_tree_with_references` accepts opaque source observations with the
 same identity checks; traversing their path declarations requires an owning
-source locator. Registered commands transport the Gate's complete native Index.
+source locator. The native CLI reads the same Gate directly and exports its complete Index.
+Repository callbacks are supplied through the library builder, never by selecting
+an executable target on the shipped command.
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 ## Examples
 <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts -->
@@ -146,6 +150,12 @@ witnesses. A function with a different body remains a clean neighbor.
 A reference package containing duplicate implementations contributes no
 first-party structural group or group debt. Its HOME rows carry qualified source
 locators and source receipts in the native Index.
+
+For contained path dependencies, ordinary `Gate::check` and the native
+`cargo census index` path use the production evaluator. External source
+observations are supplied directly through the library's reference APIs.
+The command never builds a repository target to obtain a reference index.
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 ## Constraints
 
@@ -191,10 +201,10 @@ neighbors, and confirm that provider bindings do not escape observations.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Usage](#usage) |
+| `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
 | `raf_census::example_crate::references` | example target | [Usage](#usage) |
 | `raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
-| `raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count` | test | [Purpose](#purpose), [Contract](#contract), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
+| `raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count` | test | [Purpose](#purpose), [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_source::test_crate::locked_sources::local_reference_owner_selection_spends_its_original_work_allowance` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes` | test | [Contract](#contract), [Constraints](#constraints), [Explanation](#explanation) |

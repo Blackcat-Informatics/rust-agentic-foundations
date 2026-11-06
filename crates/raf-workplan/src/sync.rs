@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raf_okf::{Index, ParseError};
-use raf_source::{EntryKind, RelPath};
+use raf_source::{EntryKind, RelPath, Tree as _};
 
 use crate::Finding;
 use crate::Workplan;
@@ -423,6 +423,17 @@ fn refused(path: &RelPath, reason: &str) -> io::Error {
 /// the crate judges it ([`files::target`]). A directory link present at
 /// inspection is refused; the path judgement retains no handles against swaps.
 fn judge(root: &Path, path: &RelPath) -> io::Result<()> {
+    let allowed = ["docs/capabilities", "docs/architecture", "work/changes"];
+    if !allowed.iter().any(|directory| {
+        path.parent()
+            .is_some_and(|parent| parent.as_str() == *directory)
+    }) || Path::new(path.as_str()).extension() != Some(std::ffi::OsStr::new("md"))
+    {
+        return Err(refused(
+            path,
+            "generated text writes require an owned capability, architecture or change document",
+        ));
+    }
     let directory = path
         .parent()
         .ok_or_else(|| refused(path, "it has no directory"))?;
@@ -436,7 +447,24 @@ fn judge(root: &Path, path: &RelPath) -> io::Result<()> {
         return Err(refused(path, "its directory does not exist"));
     }
     match found.kind {
-        Some(EntryKind::File) => Ok(()),
+        Some(EntryKind::File) => {
+            let tree = raf_source::DiskTree::new(root).map_err(io::Error::other)?;
+            let text = tree
+                .read(path, raf_okf::MAX_TEXT_BYTES as u64)
+                .map_err(io::Error::other)?;
+            if path.as_str() == INDEX_PATH {
+                Index::parse(&text).map_err(|error| refused(path, &error.to_string()))?;
+            } else {
+                let document = raf_okf::Document::parse(&text)
+                    .map_err(|error| refused(path, &error.to_string()))?;
+                raf_okf::Profile
+                    .validate(&document, path.as_str())
+                    .map_err(|_| {
+                        refused(path, "existing destination is not an owned typed document")
+                    })?;
+            }
+            Ok(())
+        }
         Some(_) => Err(refused(path, "it is not a regular file")),
         None if path.as_str() == INDEX_PATH => Ok(()),
         None => Err(refused(

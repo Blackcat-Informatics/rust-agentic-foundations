@@ -7,7 +7,7 @@ subject: cap:census-debt-ratchet#constraints
 inputs:
   - kind: section
     name: cap:census-debt-ratchet#constraints
-    digest: e97fb70a41777cfe9b86ca1571bff56eca270421914ec56008c23ec1a3bd0e14
+    digest: d8f79b80a0a54e890f3379bfdb7f49fc9bcf56b8a40d916bebfe0f99ec89947b
   - kind: symbol
     name: raf_census::DEBT_FILE
     digest: 12ca19be3fbb9901282949df239635101deb59bd25e6d5092aa5492478c3ccbb

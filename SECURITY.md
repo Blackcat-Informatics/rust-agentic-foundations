@@ -34,14 +34,36 @@ Instead:
 
 ## Trust model
 
-The checked workspace is **trusted build input**. RAF runs as a dev-dependency or
-as a cargo subcommand inside the workspace it checks, and it executes that
-workspace's cargo configuration exactly as `cargo build` or `cargo test` would:
-`.cargo/config.toml` (including `build.rustc` and `build.rustc-wrapper`),
-`rust-toolchain.toml`, `build.rs` and procedural macros all take effect when RAF
-spawns `cargo`. Running RAF on a checkout therefore carries the same trust as
-building that checkout. RAF is not a sandbox, and running it on a checkout you
-would not build is out of scope.
+The inspected workspace is data, including its source, manifests, configuration,
+documentation and stored results. Analysis libraries never launch processes. RAF
+never initiates tests, examples, documentation tests, sample programs or arbitrary
+consumer commands. These programs can have destructive side effects; a namespace
+or timeout does not make executing them safe. Repository data, environment
+variables and saved settings cannot grant execution authority.
+
+Git is read through a native Rust library without executing Git, hooks, filters,
+credential helpers or other programs. Reads never fetch missing objects or mutate
+Git state. Verification and completion establish static document and source
+relationships; they do not establish test success. Existing evidence is authored
+data whose references and input digests can be checked without executing its
+subject. A prospective completion is an in-memory document overlay.
+
+Explicit document, assessment, evidence metadata, ledger and publication writes
+remain available within their owned destinations. RAF does not edit inspected
+source code, manifests or Git administration. Ordinary loading and artifact
+reading never trigger preparation, publication or a build.
+
+The command-line documentation component has a separate, explicit authority
+boundary. Source-free information queries use known toolchains and closed
+arguments. Every documentation build or source-compilation query requires
+`--trust-docs` on that invocation. The flag accepts the build scripts and
+procedural macros required by that documentation build, which can modify files,
+contact services or perform other actions with the caller's permissions. It is
+not a sandbox and cannot promise side-effect-free build-time code. It never
+enables tests, examples, documentation tests or arbitrary command execution by
+RAF. Ambient observer controls cannot activate a documentation driver, and
+workspace-selected compiler wrappers and delegates are refused. Imported artifacts
+are bounded data and do not manufacture a successful compiler observation.
 
 Parsing is hardened regardless. The in-process parsers read Rust, TOML, YAML and
 Markdown that the reader may not control. The aim is that a hostile file is refused
@@ -167,143 +189,18 @@ guarantees are these, and no wider:
   admission limit. The readers check canonical bytes and the content digest,
   followed by census shape and reference consistency. File-reading callers bound
   report input size; the string reader accepts text already held in memory.
-- **Subprocesses.** Processes started by `raf_workplan::exec::SystemRunner` run
-  with no shell and take their arguments as an argv vector, and its modeled
-  `cargo` invocations run with `--frozen`. These native execution guarantees apply
-  to `SystemRunner`; a caller-supplied runner owns its execution behavior, and
-  separate Git operations in `raf-source` are not covered by this runner contract.
-  The additional process is the caller's own command of `evidence record`: the words after
-  `--` on its command line, which only the command line of the running process can
-  supply (`raf_workplan::exec::TrustedArgv` is built from `std::env::args_os` and
-  from no text a document or record holds, which a compile-fail test pins). It is
-  trusted build input, as the workspace's own build commands are, and runs exactly as
-  given: no shell, argv words as typed (a word that is not UTF-8 is refused before it
-  runs), no `--frozen` added to a `cargo` inside it, standard input null, the
-  workspace root as its directory, the caller's environment unchanged (`LC_ALL=C` is
-  set only for `git` and the `cargo` passes whose output the tool parses), each
-  stream bounded to 16 MiB (more is an error that says the time it ran, and no
-  record) and a 1800-second limit
-  (a kill there is recorded as `fail`, whatever its limits). Native Linux
-  `SystemRunner` execution requires `bwrap`, Linux pidfds, PID and mount
-  namespaces, executable sealed memfds and `/proc` access. The command runs inside
-  a mandatory PID namespace with parent-death termination. When the initial
-  command exits, its descendants terminate, including those retaining output
-  pipes. Descendants that call `setsid` or `setpgid` remain inside the namespace;
-  changing process groups cannot escape namespace termination. If the supervising
-  CLI dies, the command and its descendants terminate and no unfinished record
-  is published.
+- **Execution authority.** Analysis and completion start no process. The command-line documentation exception is described above and is never selected from document content, environment controls or an ordinary check. Tests, examples, documentation tests and arbitrary commands have no execution path. Source-free toolchain queries cannot accept source paths, extern libraries or unrestricted compiler arguments.
+- **Owned data writes.** Explicit record and publication operations validate their destinations and refuse symbolic links or non-directory parents before writing. A new record is created exclusively; replacements use a temporary file and rename. Path-based parent checks do not prevent a concurrent local writer from swapping directories after the check. Source code and Git internals are never publication destinations. Static completion writes only its generated documentation replacements and removal of its completed change record.
+- **Output data.** Human-readable reports escape document and commit control characters and bidirectional formatting characters; machine-readable reports use their carrier escaping. Imported compiler and documentation artifacts remain bounded data. Their recorded provenance is distinct from a compiler observation made during an explicitly trusted documentation build.
 
-  Controlled termination signals an admitted pidfd of the owned outer `bwrap`
-  launcher, opened before any wait and never obtained from launcher metadata.
-  A separate bounded launcher channel establishes namespace identity and
-  successful executable admission. Payload stderr is diagnostic text, not
-  admission evidence; launcher metadata is excluded from captured payload streams
-  and their output limits. Missing prerequisites or incomplete admission fail
-  without a verdict. Other hosts refuse native execution before starting the
-  payload. Completed native status uses the launcher's shell encoding:
-  termination by signal N reports 128 + N. An explicit exit with the same code,
-  such as exit 137 and SIGKILL, is indistinguishable; both nonzero outcomes fail,
-  and a high exit code alone does not prove a signal.
-
-  With the root as its directory, a relative program (`./tool.sh` typed below the root) resolves
-  against the root, not the caller's directory, and with `.` on `PATH` a bare name
-  is looked for in the root, while the record keeps the command as typed. A message
-  about the command quotes its words as the record stores them
-  (`TrustedArgv::text`), so two commands never read the same. Only the
-  `name=number` lines of its standard output are read, as values, at most 1024 of
-  them, a bound on what `evidence record` writes: a record written by hand may hold
-  more and is bounded by the 1 MiB bound of a document; no other output is kept. The `command` text a record stores
-  for its readers, and its `revision`, never reach a process. A value
-  taken from a document reaches a process only after resolution against the loaded
-  documents or the source index and a stated pattern, and then in one of four
-  forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
-  argument; for a test name that the test harness reads, as a validated filter
-  after `-- --exact --`; or, for the history command, as a Rust identifier (the
-  last segment of a binding's path, `[A-Za-z_][A-Za-z0-9_]*`) inside a single
-  `-S<identifier>` argument. A path in the first two forms may begin with `-`,
-  because neither place reads an option, and it holds no control character, no
-  `\`, `*`, `?` or `[`, no empty, `.` or `..` segment and no leading `/` or `:`,
-  so it is never a pathspec pattern or magic. The `cargo-workplan` binary starts no process of its own:
-  root discovery reads bounded manifests through `raf-source`, and the
-  `git` calls of the gate are made by `raf-workplan`. A slug argument is checked
-  against the slug pattern when the arguments are parsed, so one that starts with `-`
-  is a usage error before any process starts. So is every value of the record
-  commands that is not of its form or starts with `-`: the id of `history`,
-  `evidence claims` and `evidence for`, a `--since` day, the section of `assess`,
-  and the `--id`, `--for`, `--limit` and `--revision` of `evidence record`, and
-  the package of `coverage --crate`. The command of `evidence record` is every
-  word after the first `--` of the command line; the binary passes
-  `std::env::args_os()` itself to `TrustedArgv::from_command_line`, refuses the
-  run before the root is looked for when the parser's trailing words differ from
-  those words, and refuses an option whose value would be `--`, so no option can
-  move where the command starts. `history`, `evidence claims`, `evidence for`,
-  `assess --context`, `assess --list` and `coverage` write nothing; `assess
-  --verdict` writes the one assessment record. The text output of `history`,
-  `coverage`, `evidence claims` and `assess --context` writes each control
-  character and each bidirectional formatting character of a document, a record
-  or a commit as its `\u{..}` escape (a line break in a table cell is a space,
-  and the multi-line text of the last two keeps its line feeds and tabs), so no
-  such text reaches a terminal as a control; the JSON forms escape control
-  characters as JSON does. The change commands add two kinds of
-  process, both started by `raf-workplan`: `git` (the default branch, the merge base
-  and the file at the merge base, for `change reconcile` and `change complete`, which
-  ask `git --version` before anything else, refuse a Git older than 2.30, and then
-  ask `git rev-parse --show-prefix` once to read each file at the workspace's place
-  below the top of its work tree) and
-  `cargo` (the bound tests and examples, for `verify`, `change complete` and the
-  examples of `change reconcile`). For a claim of a listed capability,
-  `change reconcile` and `change complete` also read each evidence record the claim
-  names at the same merge base with the same `git cat-file blob
-  <merge-base>:<prefix>work/evidence/<slug>.md` row, once per record, up to 1 MiB, the
-  slug being the claim's evidence id, which the profile holds to the slug pattern; a
-  record there that does not read is an error. The history of a document (`Workplan::history`)
-  starts `git` only: `git --version`, `git rev-parse --is-shallow-repository`
-  (a shallow clone is refused), `git --no-pager log --no-show-signature --follow
-  --cc --root` on the document's path after `--` and on the path of each file of a
-  bound module after `--`, `git --no-pager log
-  --no-show-signature -L<start>,<end>:<file>` for the span of each bound symbol,
-  and, for a binding that no longer resolves, `git --no-pager log
-  --no-show-signature --root -S<identifier> -n 1` over its crate's directory after
-  `--`, whose commit and parent ids are accepted only by the commit-id pattern and
-  reach no further process. Its id is matched against the loaded documents and
-  never reaches a process; a `--since` value, a day from 1970-01-01 to 2099-12-31,
-  reaches no process either: it is compared in the process with the author date of
-  each commit; each log is read up to 16 MiB and more is an error; and the history reads Git and writes
-  nothing (in a partial clone Git itself may fetch missing objects into `.git`). A
-  bound value that does not resolve, or does not
-  match its stated pattern, never reaches `cargo`; a process runs with its input
-  closed, its output bounded and a wall-clock limit, and a bound test or example
-  killed at either limit fails its binding with the time it ran and the limit. `change new` writes one file,
-  `evidence record` writes one record, `work/evidence/<id>.md` (created exclusively,
-  or replaced through a temporary file and a rename), and only after the run, and
-  never a document, recording an assessment (`Workplan::record_assessment`) writes
-  one record, `work/assessments/<capability slug>-<section>.md` (created
-  exclusively, or put in place of the assessment of the same section through a
-  temporary file and a rename, refusing a link or any other file in the way), starts
-  no process, and never edits a document, the digests it keeps being computed from
-  the loaded documents and the source index; every write of a record, of a change
-  record, of a generated block and the removal of a completed record first judges
-  each directory on the way (`work` and `work/<type>`, or `docs` and
-  `docs/capabilities`) and refuses one that is a symbolic link, whether it leads
-  inside the root or out of it, or that is not a directory, before anything runs or
-  is written, so no write lands on another file through a directory link (the
-  judgement goes by path, not through held directory handles, so a local writer
-  that swaps a directory for a link between the judgement and the write is not
-  stopped; such a writer can already edit the workspace, which this trust model
-  does not defend against);
-  `change complete` the generated blocks it stales and then removes the one record
-  (the assessment records are read and left as they are),
-  and `change impact`, `change reconcile` and `verify` write nothing in the
-  repository (a build goes to the cargo target directory).
-
-Each spec states its own bounds and exact invocations.
+Each capability states its own input bounds, static guarantees and explicit write effects.
 
 ## Security surface
 
 The most relevant security surface for this project is **reading untrusted
 files**. The following surfaces apply; `raf-okf`, `raf-source` and `raf-workplan`
-implement the parsing and path-traversal surfaces, `raf-workplan` and `cargo-workplan`
-the subprocess surface, and the rest apply as the other crates are built:
+implement the parsing and path-traversal surfaces. Only the private trusted
+documentation operation in `cargo-workplan` launches tools:
 
 - **Rust source parsing** — `syn` parsing of untrusted `.rs` files; resource
   exhaustion from pathological nesting, very large files, or deeply recursive
@@ -318,16 +215,17 @@ the subprocess surface, and the rest apply as the other crates are built:
   loops, and relative links in capability documents that resolve outside the
   repository. Every path is canonicalised and must lie inside the canonical workspace
   root, or inside the reported package directory for a reference package.
-- **Reference-package scanning** — package resolution through
-  `cargo metadata --frozen` and the sources of reference packages read from the
-  local Cargo registry or git checkouts; a hostile manifest that redirects the
-  scan. Resolution executes the workspace's cargo configuration (see the trust
-  model above).
-- **Subprocesses** — the `cargo` and `git` processes the gates spawn, and the
-  caller's own command that `evidence record` runs: argument injection through
-  branch names, paths, package names or document fields, a document or record
-  field reaching a command line, and unintended inheritance or leakage of the
-  environment.
+- **Reference-package scanning** — imported package metadata and sources read
+  from explicit local registry or Git checkout locations; hostile paths or stale
+  identities must refuse. Analysis never runs Cargo to resolve a package.
+- **Trusted documentation compilation** — explicitly selected Cargo, rustc and
+  rustdoc binaries under invocation-scoped trust. Build scripts and procedural
+  macros can have arbitrary side effects. Closed tool arguments and refusal of
+  competing configuration prevent an ordinary analysis request from selecting
+  this operation; they do not sandbox trusted builds or supervise descendants.
+- **Native Git reads** — malformed indexes, object databases, references and
+  repository configuration are untrusted data. Missing objects fail locally;
+  analysis never invokes Git, transports, hooks, filters or credential helpers.
 - **Supply chain** — the crates published on crates.io, their dependency tree,
   and the release automation that will publish them (none is published yet).
 

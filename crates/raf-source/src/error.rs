@@ -282,27 +282,11 @@ impl fmt::Display for Origin {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum LoadErrorKind {
-    /// A required Git process or its bounded pipes failed.
+    /// Native Git repository or object access failed.
     GitIo {
         /// The host operation that failed.
         operation: &'static str,
         /// The original operating-system failure.
-        source: io::Error,
-    },
-    /// Git refused a committed-object request.
-    GitExit {
-        /// The actual child exit status.
-        status: std::process::ExitStatus,
-        /// Bounded command output, escaped when displayed.
-        diagnostic: String,
-    },
-    /// Cleanup of an owned Git child failed after a primary refusal.
-    GitCleanup {
-        /// The original refusal, retained rather than swallowed.
-        primary: Box<LoadError>,
-        /// The cleanup operation that failed.
-        operation: &'static str,
-        /// The original cleanup failure.
         source: io::Error,
     },
     /// Native storage refused a physical layout or allocation.
@@ -500,14 +484,6 @@ impl fmt::Display for LoadErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::GitIo { operation, source } => write!(f, "Git {operation} failed: {source}"),
-            Self::GitExit { status, diagnostic } => {
-                write!(f, "Git failed ({status}): {}", Esc(diagnostic))
-            }
-            Self::GitCleanup {
-                primary,
-                operation,
-                source,
-            } => write!(f, "{primary}; Git {operation} cleanup failed: {source}"),
             Self::Storage(error) => write!(f, "{error}"),
             Self::Locked { field, message, .. } => {
                 write!(
@@ -643,9 +619,7 @@ impl Error for LoadError {
                 ..
             } => Some(source.as_ref()),
             LoadErrorKind::Storage(error) => Some(error),
-            LoadErrorKind::GitIo { source, .. } | LoadErrorKind::GitCleanup { source, .. } => {
-                Some(source)
-            }
+            LoadErrorKind::GitIo { source, .. } => Some(source),
             LoadErrorKind::Graph(error) => Some(error),
             LoadErrorKind::Tree(error) => Some(error),
             LoadErrorKind::Spawn(error) => Some(error),

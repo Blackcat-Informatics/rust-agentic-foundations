@@ -40,14 +40,10 @@ struct Dynamic {
 }
 impl Dynamic {
     fn marker(&self) -> TermValue {
-        if self.key == "originalTracked" {
-            TermValue::integer(0)
-        } else {
-            TermValue::simple_literal(self.subject.map_or_else(
-                || format!("@{}@", self.key),
-                |subject| format!("@{}:{subject}@", self.key),
-            ))
-        }
+        TermValue::simple_literal(self.subject.map_or_else(
+            || format!("@{}@", self.key),
+            |subject| format!("@{}:{subject}@", self.key),
+        ))
     }
 }
 fn observe_with(name: &str, run: Run, found: &mut BTreeSet<String>, dynamic: &[Dynamic]) {
@@ -155,95 +151,16 @@ fn instantiate(graph: &Graph, dynamic: &[Dynamic]) -> Graph {
     builder.finish().unwrap()
 }
 
-fn completion_facts(
-    repo: &Repo,
-    run: &Run,
-    original: &[(&'static str, TermValue)],
-) -> Vec<Dynamic> {
-    let query = support::rdf::Rdf::of(run);
-    let runs = query.rows("VerificationRun");
-    assert!(
-        !runs.is_empty(),
-        "bound completion retains actual execution"
-    );
-    let first = runs[0];
-    let digest = first.required("viewDigest");
-    assert_eq!(digest.len(), 64);
-    assert!(
-        digest
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    );
-    let physical = std::path::Path::new(first.required("physicalRoot"));
-    assert!(physical.starts_with(repo.root().join(".worktrees")));
-    assert_ne!(physical, repo.root());
-    assert!(!physical.exists(), "native context was released");
-    assert_eq!(
-        std::path::Path::new(first.required("logicalRoot")),
-        repo.root()
-    );
-    assert_eq!(first.required("filesystemBackend"), "bwrap");
-    let common = std::fs::canonicalize(
-        repo.root()
-            .join(repo.git(&["rev-parse", "--git-common-dir"])),
-    )
-    .unwrap();
-    let owned = common.join("worktrees").join(physical.file_name().unwrap());
-    assert!(!owned.exists(), "owned administration was released");
-    let exposed_owned = repo.root().join(".git");
-    let exposed_common = exposed_owned.join("raf-shared-common");
-    let exposed_index = exposed_owned.join("index");
-    let mut values = original
-        .iter()
-        .map(|(key, value)| Dynamic {
-            subject: None,
-            key,
-            value: value.clone(),
-        })
-        .collect::<Vec<_>>();
-    for (key, value) in [
-        ("logicalRoot", first.required("logicalRoot")),
-        ("physicalRoot", physical.to_str().unwrap()),
-        ("viewDigest", digest),
-        ("isolatedRoot", repo.root().to_str().unwrap()),
-        ("commonGitDirectory", exposed_common.to_str().unwrap()),
-        ("ownedGitDirectory", exposed_owned.to_str().unwrap()),
-        ("ownedIndexPath", exposed_index.to_str().unwrap()),
-    ] {
-        values.push(Dynamic {
-            subject: None,
-            key,
-            value: TermValue::simple_literal(value),
-        });
-    }
-    for run in runs {
-        assert_eq!(run.required("viewKind"), "materialized");
-        assert_eq!(run.required("filesystemBackend"), "bwrap");
-        for field in &values {
-            let key = field.key;
-            let value = &field.value;
-            if key == "originalTracked" {
-                assert_eq!(
-                    TermValue::integer(i128::try_from(run.number(key)).unwrap()),
-                    *value
-                );
-            } else {
-                assert_eq!(
-                    TermValue::simple_literal(run.required(key)),
-                    *value,
-                    "fixture fact {key}"
-                );
-            }
-        }
-    }
-    values
-}
-
 fn roadmap(found: &mut BTreeSet<String>) {
     let repo = Repo::synced("registry-roadmap", true);
     observe(
         "check",
         repo.run(&["--format", "turtle", "check"]).expect(1),
+        found,
+    );
+    observe(
+        "verify-findings",
+        repo.run(&["--format", "turtle", "verify"]).expect(1),
         found,
     );
     observe(
@@ -331,66 +248,13 @@ fn lifecycle(found: &mut BTreeSet<String>) {
         found,
     );
     let ready = completion::ready("registry-completed");
-    let reference = ready.git(&["symbolic-ref", "refs/remotes/origin/HEAD"]);
-    let tracked = ready
-        .git(&["ls-files", "-z"])
-        .split('\0')
-        .filter(|path| !path.is_empty())
-        .count();
-    let original_admin = ready.git(&["rev-parse", "--absolute-git-dir"]);
-    let original_common = std::fs::canonicalize(
+    observe(
+        "completed",
         ready
-            .root()
-            .join(ready.git(&["rev-parse", "--git-common-dir"])),
-    )
-    .unwrap();
-    let original_index_path =
-        std::fs::canonicalize(
-            ready
-                .root()
-                .join(ready.git(&["rev-parse", "--git-path", "index"])),
-        )
-        .unwrap();
-    let original = [
-        (
-            "originalGitDirectory",
-            TermValue::simple_literal(original_admin),
-        ),
-        (
-            "originalCommonDirectory",
-            TermValue::simple_literal(original_common.to_str().unwrap()),
-        ),
-        (
-            "originalIndexPath",
-            TermValue::simple_literal(original_index_path.to_str().unwrap()),
-        ),
-        (
-            "originalIndex",
-            TermValue::simple_literal(ready.git(&["write-tree"])),
-        ),
-        (
-            "originalHead",
-            TermValue::simple_literal(ready.git(&["rev-parse", "HEAD"])),
-        ),
-        ("defaultReference", TermValue::simple_literal(&reference)),
-        (
-            "defaultCommit",
-            TermValue::simple_literal(ready.git(&["rev-parse", &reference])),
-        ),
-        (
-            "mergeBase",
-            TermValue::simple_literal(ready.git(&["merge-base", "HEAD", &reference])),
-        ),
-        (
-            "originalTracked",
-            TermValue::integer(i128::try_from(tracked).unwrap()),
-        ),
-    ];
-    let run = ready
-        .run(&["--format", "turtle", "change", "complete", "shape"])
-        .expect(0);
-    let dynamic = completion_facts(&ready, &run, &original);
-    observe_with("completed", run, found, &dynamic);
+            .run(&["--format", "turtle", "change", "complete", "shape"])
+            .expect(0),
+        found,
+    );
     let source = Repo::strict("registry-verified", &strict::capability(), "");
     observe(
         "verify",
@@ -434,6 +298,71 @@ fn documentation(found: &mut BTreeSet<String>) {
         found,
     );
     assert_eq!(repo.read("published/index.txt"), "unrelated host output");
+    imported_documentation(found);
+}
+
+fn imported_documentation(found: &mut BTreeSet<String>) {
+    let repo = Repo::bare("registry-imported-documentation");
+    repo.put(
+        "build.rs",
+        "fn main() { panic!(\"must never execute\"); }\n",
+    );
+    let output = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let target = output.path().canonicalize().unwrap();
+    std::fs::create_dir_all(target.join("doc/demo")).unwrap();
+    let entry = target.join("doc/demo/index.html");
+    std::fs::write(
+        &entry,
+        "<!doctype html><title>existing documentation</title>",
+    )
+    .unwrap();
+    let json = |text: &str| purrdf_lex::json::write_compact(&purrdf_lex::json::Value::from(text));
+    let manifest = json(repo.root().join("Cargo.toml").to_str().unwrap());
+    let source = json(repo.root().join("src/lib.rs").to_str().unwrap());
+    let library = format!(
+        "{{\"name\":\"demo\",\"kind\":[\"lib\"],\"crate_types\":[\"lib\"],\"src_path\":{source},\"doc\":true}}"
+    );
+    let metadata = format!(
+        "{{\"version\":1,\"workspace_root\":{},\"target_directory\":{},\"workspace_members\":[\"opaque-demo\"],\"packages\":[{{\"id\":\"opaque-demo\",\"name\":\"demo\",\"version\":\"0.1.0\",\"manifest_path\":{manifest},\"source\":null,\"targets\":[{library}]}}],\"resolve\":{{\"nodes\":[{{\"id\":\"opaque-demo\",\"features\":[]}}]}}}}",
+        json(repo.root().to_str().unwrap()),
+        json(target.to_str().unwrap())
+    );
+    let messages = format!(
+        "{{\"reason\":\"compiler-artifact\",\"package_id\":\"opaque-demo\",\"manifest_path\":{manifest},\"target\":{library},\"features\":[],\"filenames\":[{}],\"fresh\":false}}\n{{\"reason\":\"build-finished\",\"success\":true}}\n",
+        json(entry.to_str().unwrap())
+    );
+    repo.put("metadata.json", &metadata);
+    repo.put("messages.ndjson", &messages);
+    let before = repo.worktree();
+    let artifacts_before = support::worktree(&target);
+    let run = repo
+        .run(&[
+            "--format",
+            "turtle",
+            "docs",
+            "artifacts",
+            "--package",
+            "demo",
+            "--target-directory",
+            target.to_str().unwrap(),
+            "--metadata",
+            "metadata.json",
+            "--messages",
+            "messages.ndjson",
+        ])
+        .expect(0);
+    observe_with(
+        "documentation-artifact",
+        run,
+        found,
+        &[Dynamic {
+            subject: Some("#result/0"),
+            key: "entry",
+            value: TermValue::simple_literal(entry.to_str().unwrap()),
+        }],
+    );
+    assert_eq!(repo.worktree(), before);
+    assert_eq!(support::worktree(&target), artifacts_before);
 }
 
 fn history_snapshot(repo: &Repo, found: &mut BTreeSet<String>) {
@@ -441,7 +370,7 @@ fn history_snapshot(repo: &Repo, found: &mut BTreeSet<String>) {
     let commits: Vec<_> = log.lines().collect();
     assert_eq!(commits.len(), 5, "the complete signed dated fixture");
     for commit in &commits {
-        raf_workplan::exec::Commit::new(commit).unwrap();
+        raf_workplan::identifiers::Commit::new(commit).unwrap();
     }
     let dynamic: Vec<_> = [
         ("#result/0/entry/0", "commit", 2),
@@ -478,31 +407,35 @@ fn history_snapshot(repo: &Repo, found: &mut BTreeSet<String>) {
 
 fn evidence_and_assessments(found: &mut BTreeSet<String>) {
     let repo = Repo::synced("registry-evidence", false);
-    observe(
-        "recorded",
-        repo.run(&[
-            "--format",
-            "turtle",
-            "evidence",
-            "record",
-            "--id",
-            "peak",
-            "--for",
-            "cap:alpha",
-            "--by",
-            "agent",
-            "--limit",
-            "peak=64",
-            "--revision",
-            "0123456789abcdef0123456789abcdef01234567",
-            "--",
-            "/bin/sh",
-            "-c",
-            "echo peak=80; echo rss=3.5",
-        ])
-        .expect(1),
-        found,
+    let opened = raf_workplan::Gate::workspace(repo.root()).open().unwrap();
+    let digest = raf_workplan::digest::Digest::symbol(opened.workspace(), "demo::real").unwrap();
+    let mut metadata = raf_okf::EvidenceRecord::new(
+        "peak",
+        raf_okf::EvidenceSubject::Command,
+        vec![raf_okf::Input::new(
+            raf_okf::InputKind::Symbol,
+            "demo::real",
+            digest.to_string(),
+        )],
+        raf_okf::EvidenceVerdict::Fail,
+        raf_okf::Actor::Agent,
+        vec!["cap:alpha".into()],
     );
+    metadata.command = Some("authored command text; never executed".into());
+    metadata.values = vec![
+        raf_okf::Measure::new("peak", raf_okf::Number::parse("80").unwrap()),
+        raf_okf::Measure::new("rss", raf_okf::Number::parse("3.5").unwrap()),
+    ];
+    metadata.limits = vec![raf_okf::Measure::new(
+        "peak",
+        raf_okf::Number::parse("64").unwrap(),
+    )];
+    raf_workplan::record::create(
+        repo.root(),
+        &raf_workplan::record::Record::Evidence(metadata),
+        &raf_workplan::record::RecordOptions::new(),
+    )
+    .unwrap();
     repo.edit(
         "docs/capabilities/alpha.md",
         "Text for Contract of alpha.",
@@ -515,7 +448,6 @@ fn evidence_and_assessments(found: &mut BTreeSet<String>) {
         found,
     );
     assessments(&repo, found);
-    recorded_binding_outcomes(found);
 }
 
 fn assessments(repo: &Repo, found: &mut BTreeSet<String>) {
@@ -581,80 +513,6 @@ fn assessments(repo: &Repo, found: &mut BTreeSet<String>) {
             .expect(0),
         found,
     );
-}
-
-fn recorded_binding_outcomes(found: &mut BTreeSet<String>) {
-    for (name, path, ignored) in [
-        ("recorded-failed-binding", "demo::tests::fails", false),
-        ("recorded-unresolved-binding", "demo::tests::passes", true),
-    ] {
-        let repo = Repo::real(name);
-        repo.put(
-            "docs/capabilities/fixture.md",
-            &support::capability(
-                "fixture",
-                "implementing",
-                [
-                    "[demo::add]",
-                    "[demo::tests::passes, demo::tests::fails]",
-                    "[]",
-                ],
-                "[]",
-                &[],
-            ),
-        );
-        repo.put(
-            "work/changes/shape.md",
-            &support::change("shape", "[cap:fixture]", &["cap:fixture#contract"]),
-        );
-        repo.sync();
-        if ignored {
-            repo.edit(
-                "src/lib.rs",
-                "    fn passes()",
-                "    #[ignore]\n    fn passes()",
-            );
-        } else {
-            // A process failure retains real stdout without libtest's variable
-            // panic PID and duration in this exact RDF representation fixture.
-            repo.edit(
-                "src/lib.rs",
-                "panic!(\"this test fails\");",
-                "std::process::exit(1);",
-            );
-        }
-        // Preserve the real test output and status while controlling the
-        // build diagnostics that otherwise embed paths and variable durations.
-        // Parallel libtest output omits the unfinished test's progress prefix;
-        // retain that mode even when the enclosing suite runs serially.
-        let cargo = repo.root().join("cargo-without-build-diagnostics");
-        support::stubs::script(
-            &cargo,
-            "RUST_TEST_THREADS=2 exec \"$RAF_REGISTRY_CARGO\" \"$@\" 2>/dev/null",
-        );
-        let mut command = support::command(
-            repo.root(),
-            support::Shape::Direct,
-            &[
-                "--format",
-                "turtle",
-                "evidence",
-                "record",
-                "--id",
-                "bound",
-                "--for",
-                "cap:fixture",
-                "--by",
-                "agent",
-                "--from-binding",
-                path,
-            ],
-        );
-        command
-            .env("CARGO", cargo)
-            .env("RAF_REGISTRY_CARGO", support::stubs::real_cargo());
-        observe(name, support::finish(&mut command).expect(1), found);
-    }
 }
 
 fn line_coverage_and_debt(found: &mut BTreeSet<String>) {

@@ -8,6 +8,40 @@ This file is the behavioral contract for agents and humans working in the RAF
 
 ---
 
+## Runtime authority
+
+RAF inspects repository contents as data. Its analysis libraries never launch
+processes. RAF never initiates tests, examples, documentation tests, sample
+programs or arbitrary consumer commands. A document, manifest, environment
+variable, configuration file or stored result cannot authorize execution.
+
+Git access uses a native Rust library with read-only operations. Analysis never
+fetches missing objects, invokes hooks or filters, or changes an index, reference,
+configuration file or worktree. Missing data and unsupported operations fail with
+an actionable error rather than invoking another program.
+
+Verification and change completion are static. They validate source bindings,
+document contracts, generated output and assessments without claiming that a test
+passed or that a compiler accepted the workspace. Prospective completion uses an
+in-memory document overlay. RAF does not edit inspected source code or Git state;
+explicit document, assessment, evidence metadata and ledger writes remain allowed
+within their owned destinations.
+
+Documentation is the sole execution exception, confined to the command-line
+documentation component. Reading existing artifacts starts no process. Known
+toolchain information queries use closed arguments without source inputs. A
+documentation build or source-compilation query requires the caller's explicit
+`--trust-docs` flag on that invocation. Trust cannot be inherited from ambient
+observer variables, repository data or a saved option. The flag authorizes the
+documentation build's scripts and procedural macros, which run with the caller's
+permissions and can have side effects. It provides no sandbox guarantee and never
+enables tests, examples, documentation tests or a general command runner. RAF's
+own publication writes remain confined to owned documentation outputs.
+
+These runtime rules do not replace the maintainer-controlled build and verification
+workflow below. Never execute an inspected workspace's tests or examples to verify
+these rules; use controlled RAF fixtures as data.
+
 ## Deficiency emergency ledger (non-negotiable)
 
 `.deficiencies` is the log of last resort for critically undone work. Every entry
@@ -59,11 +93,11 @@ index, read from the modules of every target, its impl blocks and the reachabili
 of items. `raf-workplan` delivers the document model (loading, the graph, binding
 resolution, the check rules and the `Gate`), the generated blocks with their sync
 and preview, the change lifecycle (`change new`, `impact`, `reconcile`,
-`complete` and `verify`), entity history, execution evidence and its claims,
+`complete` and `verify`), entity history, authored evidence metadata and its claims,
 prose assessments, two-way coverage and the current-rationale check of the
 architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
 `status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`,
-`history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
+`history`, `evidence claims|for`, `assess` and `coverage code|tests`, their
 contract stated in the command-line capability. The complete policy
 ([workplan-strict](docs/capabilities/workplan-strict.md)) is **delivered**.
 Every check and gate applies one policy for delivered sections, package and item
@@ -77,9 +111,8 @@ to every check, reconciliation and completion without an opt-in mode.
 canonical RDF reports, closed RDF ledger, exact debt ratchet and native/foreign
 migration. Pattern, reference and preferred-provider declarations are validated;
 their unavailable execution paths refuse rather than return partial verdicts.
-`cargo-census` provides registered checks, migration and debt writing through
-those library APIs. Registered checks execute repository examples and validate
-complete native RDF responses; the remaining command set and registered writes
+`cargo-census` provides native checks, migration and debt writing through
+those library APIs. Native CLI checks evaluate the library Gate and never execute repository examples; the remaining command set and explicit writes
 retain their designed contracts. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
@@ -87,8 +120,8 @@ retain their designed contracts. The capability documents in `docs/capabilities/
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
 | `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
-| `raf-census` | Normal form, fingerprints, grouping, ledger, debt ratchet, migration and detector integration | delivered for normal form, reports, ledger, debt and migration; remaining execution capabilities are implementing or designed |
-| `cargo-census` | Thin command-line wrapper over `raf-census` | complete CLI delivered, including registered checks, native queries, migration and debt writing |
+| `raf-census` | Normal form, fingerprints, grouping, ledger, debt ratchet, migration and detector integration | delivered for normal form, reports, ledger, debt and migration; remaining detector capabilities are implementing or designed |
+| `cargo-census` | Thin command-line wrapper over `raf-census` | complete CLI delivered, including native checks, queries, migration and debt writing |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
 | `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | delivered |
 
@@ -181,20 +214,19 @@ make hooks   # point core.hooksPath at .githooks for this clone
   `Instant`, `Duration`, `SystemTime`, `sleep`, `elapsed` and the `recv_timeout`,
   `wait_timeout`, `park_timeout`, `set_read_timeout` and `set_write_timeout`
   calls. The other crates refuse the same set without `std::time`, `Duration` and
-  `elapsed` (the runner's limits and scripted data are made of them) and add
+  `elapsed` (the documentation watchdog uses them) and add
   `UNIX_EPOCH`. A name with a `_` suffix counts as the name, so `sleep_ms`,
   `sleep_until`, `park_timeout_ms`, `wait_timeout_ms` and `wait_timeout_while` are
   refused too. The `examples` of `raf-source` are judged by the same stricter rule
   as its `src` and `tests`. Two files are exempt:
-  `crates/raf-workplan/src/exec/clock.rs`, the one clock reading, and
+  `crates/cargo-workplan/src/trusted_docs/clock.rs`, the one clock reading, and
   `tests/repo_gates.rs`, which defines the words; the gate fails if either stops
   being tracked or stops doing that. `clippy.toml` also disallows
   `std::time::Instant`, `std::time::SystemTime`, the `std::thread` sleeps and
   `park_timeout` waits, the `Condvar` timeout waits and `Receiver::recv_timeout`,
   so `make clippy` rejects a new reading anywhere an `allow` with a reason does
-  not say otherwise. A test that runs a real process through `SystemRunner::run`
-  still goes through the runner's wall clock, as a watchdog for its limit; no
-  test asserts what that clock reads.
+  not say otherwise. Only the private trusted documentation operation uses that watchdog; no
+  test asserts what its clock reads.
 - **Never bypass a hook or a gate.** Do not pass `--no-verify`, do not edit a hook
   to pass, and do not weaken a gate or a lint to get green. Fix the cause.
 - **Python files are forbidden.** The repository gates reject tracked Python
@@ -208,15 +240,11 @@ make hooks   # point core.hooksPath at .githooks for this clone
   Malformed manifests and exhausted bounds refuse; dependency aliases and target
   keys are inspected in lexical order. Cargo-specific field selection and decimal
   float-overflow refusal remain repository policy, including in metadata.
-- Every native `SystemRunner` invocation, including Git and compiler queries,
-  requires Linux pidfds, PID and mount namespaces, `bwrap`, executable sealed
-  memfds and `/proc` access. Missing capability is a hard execution failure.
-  Native completed execution views require Git 2.36 or newer for NUL-delimited
-  worktree inventory. Native
-  signed fixtures also require OpenSSH's `ssh-keygen`. Ordinary Git-backed opening
-  and tracked-oracle queries retain their Git 2.30 minimum. The Linux test job
-  installs these prerequisites and runs a native
-  namespace check before the suite; unavailable capabilities fail.
+- Analysis requires no process runner, PID namespace, executable helper or host
+  security-policy change. Native Git reads do not depend on an installed Git
+  executable. The documentation command refuses unavailable required toolchains;
+  it never starts a build to obtain missing data without explicit documentation
+  trust.
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or
   `reuse`; `make msrv` needs `rust-validate`; `make fuzz` needs `cargo-fuzz`
   (`cargo install --locked cargo-fuzz@0.13.2`).
@@ -321,7 +349,8 @@ this repository's own policy, such as the capability inventory.
   will produce side by side.
 - **Completion** is a gate. A change is complete only when no obligation remains,
   every item has an outcome, no proposed block is left, generated sections are in
-  sync, and the bound tests and examples pass. The change record is then
+  sync, and source bindings and affected assessments are current and valid. Tests
+  and examples are never run by completion. The change record is then
   **deleted**; Git keeps the history. The command that enforces this is
   `cargo workplan change complete`
   ([workplan completion gate](docs/capabilities/workplan-complete-gate.md)), and

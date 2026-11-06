@@ -34,7 +34,6 @@ bindings:
   tests:
     - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
-    - cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
@@ -71,8 +70,6 @@ bindings:
     - raf_workplan::coverage::report_projection_tests::emitted_application_iris_belong_to_the_documented_registry
     - raf_workplan::coverage::report_projection_tests::surface_failure_projection_preserves_optional_paths_and_direction
     - raf_workplan::coverage::report_projection_tests::registry_collection_visits_quoted_atoms_and_both_datatype_positions
-    - cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct
-    - cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering
     - cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes
   examples:
     - raf_rdf::example_crate::report
@@ -94,21 +91,15 @@ invariants. A ground graph is not proof that a census or workplan result is vali
 Review list and show export the semantic review dataset in the shared Workplan claims vocabulary, preserving document identities, source inputs, findings and reified verdicts. Status, changed-since, unreviewed and coverage use the command report vocabulary. Review JSON is native RDF 1.2 JSON-LD serialization of the same complete dataset statement layer; it retains triple terms and refuses any dropped statement representation.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
-Completion outcomes retain actual process evidence as ordered `binding` links
-to the existing `Binding` shape, whose completion-owned `message` is the stable
-native outcome name. A `VerificationRun` with a prepared context
-also has `viewDigest`, `logicalRoot` and `viewKind` strings. Materialized views
-add `physicalRoot` for the backing copy. Native mount views add
-`filesystemBackend`, `isolatedRoot`, `commonGitDirectory`, `ownedGitDirectory`
-and `ownedIndexPath` strings. Native original provenance adds `originalIndex`,
-`originalIndexPath`, `originalGitDirectory`, `originalCommonDirectory`,
-`originalHead`, `defaultReference`, `defaultCommit` and `mergeBase` strings,
-with the nonnegative `originalTracked` count. Logical paths in the process view
-address copied inputs; backing-copy and process-local directory identities are
-distinct. The command uses the native `SystemRunner` route;
-virtual and supplied-oracle provenance remains explicit in the library protocol.
-These fields describe the
-accepted input context, not a cryptographic attestation of a process result.
+Verification reports describe the static repository check and its declared source
+bindings. `StaticVerification` records whether that check has findings, the
+selected change when given, the declared-binding count and ordered
+`DeclaredBinding` and `Finding` children. Completion and refusal outcomes contain
+static publication decisions. They carry no test execution result or runtime
+receipt. Documentation imports identify the selected package, admitted artifact
+path, exact SHA-256 digest and provenance string through `DocumentationArtifact`.
+Imported metadata and messages remain supplied data; their successful status does
+not authenticate a compiler execution.
 <!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 ### Native storage and membership
@@ -286,21 +277,16 @@ content digest or test execution.
 Human tables and command exit policy remain stated by their respective
 capabilities; this profile owns their shared carrier and vocabulary.
 
-### Binding evidence provenance
-<!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+### Static verification and documentation provenance
+<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
-Each `VerificationRun` reifies its parent `Binding` assertion of `outcome`
-through `rdf:reifies` and an RDF 1.2 triple term. Its invocation and process
-outcome remain the actual contributing observations, not independent proof
-that the binding passed. Failed and unresolved binding outcomes remain exact.
-Each `Input` of an `EvidenceRecorded` result reifies that result's `verdict`
-assertion, preserving the captured code-binding kind, name and digest and the
-recorded subject. The executed test binding and captured code bindings retain
-their distinct identities. An input of an assessment is not execution evidence
-and gains no such annotation. Recorded command text supplies no structured run;
-the projection does not synthesize `VerificationRun` nodes from it. Reification
-identifies the reported assertion and its observations, not authentication or
-proof of a prose claim's truth.
+A declared binding retains its capability, binding kind and source path. The
+`valid` boolean states whether the static check has findings; it does not state
+that a test, example or doctest ran. Authored evidence and assessment inputs
+retain their stated digests and verdicts without gaining process observations.
+Documentation-artifact provenance distinguishes imported data from explicitly
+trusted CLI compilation. Both routes retain exact admitted artifact bytes and
+paths; the report does not attest to a build script's behavior.
 
 ### Shared finding append
 <!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
@@ -314,11 +300,11 @@ membership and ordinal. A failed append requires discarding the partial builder.
 <!-- raf:tested-by raf_workplan::coverage::report_projection_tests::emitted_application_iris_belong_to_the_documented_registry,raf_workplan::coverage::report_projection_tests::surface_failure_projection_preserves_optional_paths_and_direction -->
 
 The semantic RDF view of `evidence claims` uses native general datasets and the
-[semantic claim vocabulary](./workplan-evidence-claims.md#semantic-claim-datasets),
+[semantic claim vocabulary](./workplan-evidence-claims.md#contract),
 with stable document references and unasserted triple terms. It is not a snapshot
 report and has no `EvidenceClaim` string-row projection. The snapshot ownership
 and report forms of other commands remain unchanged.
-<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
+
 
 The workplan projection registry below names application terms; every class has
 one `rdf:type`. Required properties occur once unless stated otherwise. String
@@ -344,10 +330,10 @@ in [the normal-form architecture](../architecture/normal-form.md#reports).
 The command extension registry is `COMMAND_TERMS`, disjoint from `TERMS` above.
 The following table uses shared properties from the first registry where their
 class-specific meaning applies. Every result and ordered child has one `ordinal`
-integer, including reference, range, invocation and argument rows. Child
+integer, including reference, range and declared-binding rows. Child
 properties link to owned named nodes; repeated child links preserve sequence
 through those ordinals. Optional scalar properties are absent. All counts are
-nonnegative integers; `exitCode` alone is signed. Decimal measurements remain
+nonnegative integers. Decimal measurements remain
 exact string data. The command root remains the `Report` above, with
 `reportForm` 1. These typed results do not introduce a generic object/array value
 or a string containing another machine serialization.
@@ -356,8 +342,9 @@ or a string containing another machine serialization.
 |---|---|
 | `Rewritten` | `path` string |
 | `DocumentationBuilt` | `view`, `directory`, `entry` strings naming the selected view, owned version directory and actual explorer entry |
-| `Completed` | `path` string; `binding` ordered `Binding` nodes for actual execution receipts |
-| `Preview` | `path`, `capability`, `text` strings |
+| `DocumentationArtifact` | `package`, `entry`, `sha256`, `provenance` strings naming the selected package, admitted existing artifact, exact content digest and source of the observation |
+| `Completed` | `path` string naming the removed change record |
+| `Preview` | `path`, `subject`, `text` strings |
 | `State` | `state` string, `count` integer; `capability` ordered `Capability` nodes |
 | `Capability` | `id`, `slug`, `title`, `path` strings; `gap` ordered `BindingGap` nodes; `openChange` ordered `ChangeReference` nodes |
 | `BindingGap` | `list`, `message` strings; optional `binding` string |
@@ -373,16 +360,12 @@ or a string containing another machine serialization.
 | `Dependant` | `capability`, `dependsOn` strings |
 | `SectionLink` | `from`, `target` strings |
 | `Obligation` | `kind`, `subject`, `section`, `path`, `evidence` strings; optional `line` positive integer |
-| `Refused` | `failures` integer, `message` string; `binding` ordered `Binding` nodes for actual execution receipts |
+| `Refused` | `failures` integer, `message` string describing static conditions |
 | `Refusal` | `condition`, `source`, `message` strings, `repeated` boolean; optional `number` integer; optional `obligation` node of class `Obligation` |
-| `Binding` | `outcome`, `capability`, `list`, `path`, `message` strings; optional `reason` string; optional `listed`, `selected`, `passed`, `failed`, `ignored`, `okLines` integer proof counts; `run` ordered `VerificationRun` nodes |
-| `VerificationRun` | `rdf:reifies` triple term naming the parent binding's `outcome` assertion; `programKind`, `ended` strings; optional `exitCode` signed integer; `argument` ordered `Argument` nodes; prepared native context adds `viewDigest`, `logicalRoot`, `viewKind`, `physicalRoot`, `filesystemBackend`, `isolatedRoot`, `commonGitDirectory`, `ownedGitDirectory`, `ownedIndexPath`, `originalIndex`, `originalIndexPath`, `originalGitDirectory`, `originalCommonDirectory`, `originalHead`, `defaultReference`, `defaultCommit`, `mergeBase` strings and `originalTracked` nonnegative integer |
-| `Argument` | `text` string |
-| `EvidenceRecorded` | `path`, `id`, `verdict`, `subject`, `by`, `message` strings; optional `command`, `revision` strings; `for` ordered `CapabilityReference` nodes; `value`, `limit` ordered `Measure` nodes; `input` ordered `Input` nodes; `failed` ordered `EvidenceFailure` nodes |
+| `StaticVerification` | `valid` boolean, `declaredBindings` nonnegative integer; optional `change` string; `binding` ordered `DeclaredBinding` nodes; `finding` ordered `Finding` nodes |
+| `DeclaredBinding` | `capability`, `kind`, `path` strings |
 | `Measure` | `name`, `decimal` strings |
-| `Input` | `kind`, `name`, `digest` strings; for an `EvidenceRecorded` parent, `rdf:reifies` triple term naming its `verdict` assertion |
-| `EvidenceFailure` | `reason` string; optional `exitCode` signed integer or `message` string; binding failures carry `outcome` string distinguishing failed execution from unresolved planning; `measure` ordered `MeasureReference` nodes for over-limit failures |
-| `MeasureReference` | `name` string |
+| `Input` | `kind`, `name`, `digest` strings retaining authored assessment inputs |
 | `EvidenceSupport` | `capability`, `evidence`, `path` strings, `listed` boolean; optional `verdict` string; `claim` ordered `ClaimReference` nodes |
 | `ClaimReference` | `line` positive integer |
 | `AssessmentContext` | `subject`, `record`, `recordPath`, `document`, `section` strings; `symbol` ordered `ContextSymbol` nodes; `evidence` ordered `ContextEvidence` nodes; `input` ordered `CurrentInput` nodes |
@@ -419,12 +402,11 @@ or a string containing another machine serialization.
 | `LinesError` | `message` string; a report with errors contains no partial package or line rows |
 | `DebtWritten` | `path`, `change` strings, `findings`, `lines` integers |
 
-Named verification invocation rows exist only for the executor's returned runs;
-their program kind, arguments and process result do not invent an execution id
-or timestamp. A planning refusal has no run. Stored evidence inputs retain their
-actual digests; an assessment's unresolved input retains its refusal instead of
-substituting a digest. Human rendering and command exits are stated by the
-[command line](./workplan-cli.md).
+Static verification retains declared paths and findings without creating
+invocation rows, execution identifiers or timestamps. Stored evidence inputs
+retain their authored digests; an assessment's unresolved input retains its
+refusal instead of substituting a digest. Human rendering and command exits
+are stated by the [command line](./workplan-cli.md).
 
 Finding `kind` must be a member of `Finding::KINDS`. Gap `kind` is `public item`,
 `unresolved re-export` or `test`. Surface `failure` is `budget`, `carry-budget`,
@@ -443,16 +425,13 @@ The directory and explorer entry are actual admitted filesystem paths, carried
 as strings rather than reconstructed public URLs.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
-Read prepared-context fields only on actual `VerificationRun` nodes. An ordinary
-verification run without a prepared context has none of them; a static refusal
-does not invent a process receipt.
+Use `verify` to inspect ordered declared bindings and static findings. Read
+`DocumentationArtifact` provenance before interpreting supplied Cargo carriers;
+`docs artifacts` reads existing files, while `docs build rustdoc --trust-docs`
+explicitly authorizes selected-library documentation compilation and the
+arbitrary side effects of build scripts and procedural macros.
+<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
-For a verification run or recorded evidence input, query `rdf:reifies` and use
-`Value::quoted` to inspect the exact reported assertion. Its subject identifies
-the parent result; the predicate and object retain the actual outcome or verdict.
-Read the observation's existing fields for invocation details or the captured
-code-binding digest.
-<!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct -->
 
 Use the Census query report API to select a job, exact copy count or physical
 symbol occurrences from a validated native index. The selected result has its
@@ -496,18 +475,18 @@ the owned version directory, and `entry` names its `workspace.html` explorer.
 Both RDF carriers retain those values and the ordinary Report identity.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
-A completed native change can retain the original index-tree identifier beside
-the owned physical root used by Cargo. The owned root has already been released
-when completion returns; its path remains provenance in the report.
+A clean static `verify` result represents `demo::test_crate::it::case` as a
+`DeclaredBinding` with capability `cap:demo`, kind `tests` and that exact path.
+The containing `StaticVerification` has `valid` set to true when the repository
+has no static findings. The row contains no invocation or test-pass count.
+<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
-The observation for a passing `demo::tests::passes` run quotes its binding's
-`outcome` assertion with the object `passed`. A failed run quotes `failed`.
-Recording an ignored test gives a `fail` verdict, with `unresolved` retained as
-the binding failure. The captured `demo::add` code digest reifies that verdict,
-while the recorded subject names the test binding. Both canonical formats
-preserve these identities. No structured verification run is fabricated for the
-persisted record.
-<!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct -->
+Importing an existing `doc/demo/index.html` for package `demo` returns a
+`DocumentationArtifact` with its admitted path and exact SHA-256. Its provenance
+is `imported artifact data; compiler execution is not verified`. The import
+leaves source and artifact files unchanged and never executes the build script.
+<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+
 
 JobQuery exposes every classified physical match of one configured job.
 CountQuery exposes the job identity and exact copies, including zero.
@@ -547,11 +526,10 @@ Census's baseline and index expose `to_turtle`, `from_turtle`, `to_ntriples` and
 
 ## Constraints
 
-- A reified assertion is the exact reported outcome or verdict. It does not turn
-  a failed or unresolved observation into a passing one, conflate the test
-  subject with a captured code binding, or reconstruct structured runs from
-  stored command text.
-  <!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct -->
+- Reified source observations preserve their exact reported assertions. Static
+  verification and imported artifact rows carry no runtime execution evidence.
+  Stored command text remains authored data.
+  <!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 - Physical native statement and term-ID order is not canonical report order.
   Canonical output selects exact normalized subject/predicate keys and native
@@ -597,8 +575,9 @@ that its storage or comparison cost exceeds admitted workloads.
 
 ## Verification
 
-The existing command completion case parses both native RDF carriers and checks
-actual prepared process receipts, original index provenance and released roots.
+The command completion cases retain the removed record path and static refusal
+conditions in both native RDF carriers.
+<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 The existing Census scalar-report case emits JobQuery, CountQuery and
 FingerprintQuery in both canonical formats. Exact inventory comparison includes
@@ -617,17 +596,16 @@ matcher and preferred-provider declarations without accepting arbitrary
 consumer-owned terms into the shared vocabulary.
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours -->
 
-Existing real-command cases inspect reified assertions in both canonical formats
-and retain their binding identity, verdict, invocation metadata and actual code
-digest beside failed and unresolved neighbours. The command registry pins the
-changed absolute graphs through a separate native parser revision as well as the
-canonical bytes; its term traversal includes quoted subject, predicate and object.
-Completion-root and capture literals are instantiated as native terms only after
-independent fixture-root, Git and cleanup checks. The dated History templates
-retain every row, source and removal field while their commit identities come
-from the fixture's actual signed Git history. Opaque capture digests must have
-their native spelling and agree across all receipts; no clock reading is asserted.
-<!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+Actual command cases retain static verification findings, declared bindings,
+authored assessment inputs, document publication outcomes and existing artifact
+provenance in both canonical formats. The command registry pins changed absolute
+graphs through a separate exact native parser revision as well as canonical
+bytes. The artifact-import case reads supplied carriers and checks that source
+and artifact files remain unchanged, including a build script whose body must never execute.
+Artifact paths are instantiated as native terms. Dated History templates retain
+every row, source and removal field while commit identities come from the
+fixture's actual signed Git history.
+<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 The existing Census report and registered-response cases compare actual native
 emissions with both documented inventories using native ordered tables and term
@@ -652,12 +630,9 @@ retains its separate semantic and normal-form golden checks.
 | --- | --- | --- |
 | `cargo_workplan::bin_crate::cargo_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Usage](#usage), [Examples](#examples) |
-| `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
-| `cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract) |

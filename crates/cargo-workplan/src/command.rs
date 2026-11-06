@@ -30,13 +30,22 @@ pub(crate) enum Output {
 /// # Errors
 ///
 /// A [`Failure`] when the tool could not run: the root cannot be found, the
-/// repository cannot be opened, or the command's own input is refused. The
-/// command of `evidence record` is checked before the root is looked for, so
-/// a refusal of it starts no process.
+/// repository cannot be opened, or the command's own input is refused..
 pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
     check_format(args)?;
+    if let Command::Docs(Docs::Build(DocsBuild::Rustdoc(request))) = &args.command
+        && !request.trust_docs
+    {
+        return Err(Failure::new(
+            "documentation compilation requires --trust-docs; build scripts and procedural macros can have arbitrary side effects",
+        ));
+    }
     let root = || workspace_root(args.root.as_deref());
     let report = match &args.command {
+        Command::Docs(Docs::Artifacts(request)) => crate::docs::artifacts(&root()?, request),
+        Command::Docs(Docs::Build(DocsBuild::Rustdoc(request))) => {
+            crate::docs::build(&root()?, request)
+        }
         Command::Check => check(&root()?),
         Command::Status => status(&root()?),
         Command::Diagram(view) => {
@@ -71,10 +80,6 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
         Command::Change(Change::Complete(slug)) => change::complete(&root()?, &slug.slug),
         Command::Verify(verify_args) => change::verify(&root()?, verify_args.slug.as_deref()),
         Command::History(history_args) => history::history(&root()?, history_args),
-        Command::Evidence(Evidence::Record(record_args)) => {
-            let source = evidence::source(record_args)?;
-            evidence::record(&root()?, record_args, source)
-        }
         Command::Evidence(Evidence::Claims(id)) => {
             if args.quiet && args.format != Format::Text {
                 return Err(Failure::new(
@@ -96,12 +101,18 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
         Command::Coverage(Coverage::Lines(lines_args)) => coverage::lines(&root()?, lines_args),
         Command::Debt(debt_args) => debt::debt(&root()?, debt_args),
     }?;
-    let name = match &args.command {
+    Ok(Output::Report(report.command(command_name(&args.command))))
+}
+
+fn command_name(command: &Command) -> &'static str {
+    match command {
+        Command::Docs(Docs::Artifacts(_)) => "docs artifacts",
+        Command::Docs(Docs::Build(DocsBuild::Rustdoc(_))) => "docs build rustdoc",
         Command::Check => "check",
         Command::Status => "status",
         Command::Diagram(_) => "diagram",
         Command::Docs(Docs::Mdbook(_)) => "docs mdbook",
-        Command::Docs(Docs::Build(_)) => "docs build standalone",
+        Command::Docs(Docs::Build(DocsBuild::Standalone(_))) => "docs build standalone",
         Command::Docs(Docs::Sync(_)) => "docs sync",
         Command::Docs(Docs::Preview(_)) => "docs preview",
         Command::Docs(Docs::Export(_)) => "docs export",
@@ -111,7 +122,6 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
         Command::Change(Change::Complete(_)) => "change complete",
         Command::Verify(_) => "verify",
         Command::History(_) => "history",
-        Command::Evidence(Evidence::Record(_)) => "evidence record",
         Command::Evidence(Evidence::Claims(_)) => "evidence claims",
         Command::Evidence(Evidence::For(_)) => "evidence for",
         Command::Assess(args) if args.list => "assess list",
@@ -129,8 +139,7 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
         Command::Coverage(Coverage::Claims(_)) => "coverage claims",
         Command::Coverage(Coverage::Lines(_)) => "coverage lines",
         Command::Debt(_) => "debt write",
-    };
-    Ok(Output::Report(report.command(name)))
+    }
 }
 
 /// Admit carriers before opening a root, retaining mdBook's own protocol refusal.
@@ -216,14 +225,10 @@ pub(crate) fn workspace_root(given: Option<&Path>) -> Result<PathBuf, Failure> {
 }
 
 /// The complete repository gate over `root`.
-pub(crate) fn gate(root: &Path) -> Gate {
-    Gate::workspace(root)
-}
-
 /// `check`: every finding of `Gate::check`, as the library orders them,
 /// judged with the complete repository policy.
 fn check(root: &Path) -> Result<Report, Failure> {
-    let findings = gate(root).try_check()?;
+    let findings = Gate::workspace(root).try_check()?;
     Ok(Report::of(findings.iter().map(Record::of_finding)))
 }
 

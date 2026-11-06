@@ -15,10 +15,9 @@ use std::sync::Arc;
 use raf_okf::{DocType, Location};
 use raf_source::{DiskTree, EntryKind, LoadError, RelPath, Tree, TreeError, Workspace};
 
-use crate::exec::{Programs, Runner, SystemRunner};
 use crate::record::RecordOptions;
 use crate::staged::Staged;
-use crate::{Finding, LinkContext, Loaded, Workplan, git};
+use crate::{Finding, LinkContext, Workplan, git};
 
 /// The name of the navigation file of the capability directory, which is not a
 /// capability document.
@@ -180,16 +179,13 @@ impl Error for GateError {
 /// gate pointed at the wrong directory must not pass. A missing `work/changes`
 /// is the empty set of changes.
 ///
-/// Links are judged against the tracked paths of the checkout. They are taken
-/// from `git ls-files` when the directory is inside a git work tree. If `git`
-/// cannot run, fails for another reason, is told by `GIT_DIR` or
-/// `GIT_WORK_TREE` about a repository it cannot use, or cannot list the index,
-/// the gate is an error ([`GateError::Tracked`]).
+/// Links are judged against tracked paths read from the native Git index.
+/// Malformed or inaccessible repository data is a gate error
+/// ([`GateError::Tracked`]); no process or environment Git selector is used.
 ///
-/// There is one fallback, taken only when `git` itself answers that the
-/// directory is not inside a git work tree, as for a copy of the files without
-/// `.git` such as the snapshot of a commit hook. Then every file under the
-/// directory stands for a tracked path (see [`LinkContext::of_tree`]). That
+/// When native discovery finds no repository, as in a staged snapshot without
+/// `.git`, every file under the directory stands for a tracked path
+/// (see [`LinkContext::of_tree`]). That
 /// weakens the rule that a link to an untracked file is broken, since a file
 /// that is on disk and untracked then passes. [`Gate::tracked_paths`] replaces
 /// both with a list the caller owns. A path that is a symlink on disk is a
@@ -202,11 +198,14 @@ pub struct Gate {
     dir: PathBuf,
     roots: Vec<String>,
     tracked: Option<Vec<RelPath>>,
-    programs: Option<Programs>,
     record: RecordOptions,
 }
 
 impl Gate {
+    pub(crate) fn directory(&self) -> &Path {
+        &self.dir
+    }
+
     /// A gate over the checkout in `dir`: the directory that holds `docs/`
     /// and `work/`, usually the manifest directory of the package. A
     /// repository runs it from a test of its own; the block is that test file,
@@ -225,7 +224,6 @@ impl Gate {
             dir: dir.as_ref().to_path_buf(),
             roots: vec![".".to_string()],
             tracked: None,
-            programs: None,
             record: RecordOptions::new(),
         }
     }
@@ -252,21 +250,10 @@ impl Gate {
     }
 
     /// Judge links against exactly these tracked paths, instead of the ones
-    /// `git ls-files` lists or the files of the directory.
+    /// native Git index lists or the files of a repository-free directory.
     #[must_use]
     pub fn tracked_paths(mut self, paths: impl IntoIterator<Item = RelPath>) -> Self {
         self.tracked = Some(paths.into_iter().collect());
-        self
-    }
-
-    /// Start the `git` of the tracked-path listing from these [`Programs`]
-    /// instead of the `git` on `PATH`. The working directory of the programs is
-    /// always the gate's directory, whatever `cwd` the value holds, since the
-    /// listing is relative to it. Nothing is started when the caller gives the
-    /// tracked paths with [`Gate::tracked_paths`].
-    #[must_use]
-    pub fn programs(mut self, programs: Programs) -> Self {
-        self.programs = Some(programs);
         self
     }
 
@@ -285,18 +272,6 @@ impl Gate {
     /// capability document, the source workspace does not load, or the
     /// tracked paths of a git checkout cannot be listed.
     pub fn open(&self) -> Result<Opened, GateError> {
-        let mut programs = self
-            .programs
-            .clone()
-            .unwrap_or_else(|| Programs::new(&self.dir));
-        programs.cwd.clone_from(&self.dir);
-        self.open_with_runner(&SystemRunner::new(programs))
-    }
-
-    /// Open with the caller's runner for every tracked-path query. Explicit
-    /// tracked paths still bypass those queries; the runner owns its programs
-    /// and must already use the gate's working directory.
-    pub(crate) fn open_with_runner(&self, runner: &dyn Runner) -> Result<Opened, GateError> {
         let tree = DiskTree::new(&self.dir).map_err(|source| GateError::Root {
             dir: self.dir.clone(),
             source,
@@ -308,7 +283,7 @@ impl Gate {
             roots: self.roots.clone(),
             source: Box::new(source),
         })?;
-        let tracked = self.tracked_list(runner)?;
+        let tracked = self.tracked_list()?;
         let symlinks = tracked
             .iter()
             .flatten()
@@ -317,7 +292,7 @@ impl Gate {
             .collect();
         Ok(Opened {
             dir: self.dir.clone(),
-            tree: RepositoryTree::Disk(tree),
+            tree,
             workspace,
             tracked,
             symlinks,
@@ -388,14 +363,20 @@ impl Gate {
 
     /// The tracked paths the links are judged against, or `None` when every
     /// file of the directory stands for one.
-    fn tracked_list(&self, runner: &dyn Runner) -> Result<Option<Vec<RelPath>>, GateError> {
+    fn tracked_list(&self) -> Result<Option<Vec<RelPath>>, GateError> {
         if let Some(paths) = &self.tracked {
             return Ok(Some(paths.clone()));
         }
-        git::tracked_paths(runner).map_err(|error| GateError::Tracked {
+        let refused = |error: String| GateError::Tracked {
             dir: self.dir.clone(),
-            reason: error.to_string(),
-        })
+            reason: error,
+        };
+        match git::Repository::discover(&self.dir).map_err(|error| refused(error.to_string()))? {
+            Some(repository) => {
+                git::tracked_paths(&repository).map_err(|error| refused(error.to_string()))
+            }
+            None => Ok(None),
+        }
     }
 
     /// Whether the path is a symlink on disk. A path that is not there is not
@@ -428,7 +409,7 @@ impl Gate {
 #[derive(Debug)]
 pub struct Opened {
     dir: PathBuf,
-    tree: RepositoryTree,
+    tree: DiskTree,
     workspace: Workspace,
     tracked: Option<Vec<RelPath>>,
     symlinks: Vec<RelPath>,
@@ -500,11 +481,7 @@ impl Opened {
     /// The directory as a tree.
     #[must_use]
     pub fn tree(&self) -> &dyn Tree {
-        self.tree.get()
-    }
-
-    pub(crate) fn captured(&self) -> bool {
-        matches!(self.tree, RepositoryTree::Captured(_))
+        &self.tree
     }
 
     /// The source workspace the documents bind to.
@@ -606,147 +583,5 @@ fn place(finding: &Finding) -> String {
         Location::Key(key) => format!("{} (key `{key}`)", finding.file),
         Location::Section(name) => format!("{} (section `{name}`)", finding.file),
         _ => finding.file.clone(),
-    }
-}
-
-/// Dispatch only: the captured backend retains the native observations.
-#[derive(Debug)]
-enum RepositoryTree {
-    Disk(DiskTree),
-    Captured(Arc<crate::exec::CapturedView>),
-}
-impl RepositoryTree {
-    fn get(&self) -> &dyn Tree {
-        match self {
-            Self::Disk(tree) => tree,
-            Self::Captured(view) => view.original(),
-        }
-    }
-}
-impl Tree for RepositoryTree {
-    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
-        self.get().read(path, max_bytes)
-    }
-    fn read_unseen(
-        &self,
-        path: &RelPath,
-        max_bytes: u64,
-        seen: &dyn Fn(&raf_source::FileId) -> bool,
-    ) -> Result<raf_source::Opened, TreeError> {
-        self.get().read_unseen(path, max_bytes, seen)
-    }
-    fn list(&self, path: &RelPath) -> Result<Vec<raf_source::Entry>, TreeError> {
-        self.get().list(path)
-    }
-    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
-        self.get().entry(path)
-    }
-}
-impl Gate {
-    pub(crate) fn capture_request(
-        &self,
-        opened: &Opened,
-        hidden: RelPath,
-        rewritten: Vec<(RelPath, String)>,
-        diagram_assets: Option<Arc<crate::diagram::DiagramPublication>>,
-    ) -> Result<crate::exec::ViewRequest, crate::exec::ExecError> {
-        let mut required: Vec<RelPath> = opened
-            .workspace()
-            .packages()
-            .iter()
-            .map(|package| package.manifest.clone())
-            .collect();
-        required.extend(opened.workspace().files().map(|file| file.path.clone()));
-        required.extend(
-            opened
-                .workspace()
-                .targets()
-                .map(|target| target.root.clone()),
-        );
-        let plan = opened.workplan();
-        required.extend(plan.diagram_assets.inputs().cloned());
-        if plan.diagram_assets.has_manifest() {
-            required.push(
-                RelPath::new(crate::diagram::assets::MANIFEST)
-                    .map_err(|e| crate::exec::ViewError::new("admit diagram manifest input", e))?,
-            );
-        }
-        let documents = plan
-            .capabilities()
-            .iter()
-            .map(Loaded::path)
-            .chain(plan.changes().iter().map(Loaded::path))
-            .chain(plan.architecture().iter().map(Loaded::path))
-            .chain(plan.evidence().iter().map(Loaded::path))
-            .chain(plan.assessments().iter().map(Loaded::path))
-            .chain(plan.coverage().map(Loaded::path))
-            .chain(plan.debt().map(Loaded::path));
-        for path in documents {
-            required.push(
-                RelPath::new(path)
-                    .map_err(|e| crate::exec::ViewError::new("admit loaded document path", e))?,
-            );
-        }
-        if matches!(plan.index, crate::model::IndexSlot::Valid(_)) {
-            required.push(
-                RelPath::new("docs/capabilities/index.md")
-                    .map_err(|e| crate::exec::ViewError::new("admit loaded index path", e))?,
-            );
-        }
-        required.retain(|path| path.authority() == raf_source::SourceAuthorityId::FIRST_PARTY);
-        let mut removed: Vec<_> = diagram_assets
-            .iter()
-            .flat_map(|assets| assets.removed().cloned())
-            .collect();
-        purrdf_lex::walk::try_sort_unstable_by(&mut removed, |a, b| {
-            Ok::<_, crate::exec::ViewError>(a.cmp(b))
-        })?;
-        Ok(crate::exec::ViewRequest {
-            root: fs::canonicalize(&self.dir).map_err(|error| {
-                crate::exec::ViewError::new("resolve completed-view workspace root", error)
-            })?,
-            roots: self.roots.clone(),
-            tracked: opened.tracked().map(<[RelPath]>::to_vec),
-            required,
-            hidden,
-            rewritten,
-            removed,
-            diagram_assets,
-        })
-    }
-    pub(crate) fn open_captured(
-        &self,
-        view: Arc<crate::exec::CapturedView>,
-    ) -> Result<Opened, GateError> {
-        self.require_capabilities(view.original())?;
-        let roots: Vec<&str> = self.roots.iter().map(String::as_str).collect();
-        let workspace =
-            Workspace::load(view.original(), &roots).map_err(|source| GateError::Source {
-                dir: self.dir.clone(),
-                roots: self.roots.clone(),
-                source: Box::new(source),
-            })?;
-        let tracked = view.request().tracked().map(<[RelPath]>::to_vec);
-        let mut symlinks = Vec::new();
-        for path in tracked.iter().flatten() {
-            if view
-                .original()
-                .entry(path)
-                .map_err(|source| GateError::Root {
-                    dir: self.dir.clone(),
-                    source,
-                })?
-                == Some(EntryKind::Symlink)
-            {
-                symlinks.push(path.clone());
-            }
-        }
-        Ok(Opened {
-            dir: self.dir.clone(),
-            tree: RepositoryTree::Captured(view),
-            workspace,
-            tracked,
-            symlinks,
-        })
     }
 }

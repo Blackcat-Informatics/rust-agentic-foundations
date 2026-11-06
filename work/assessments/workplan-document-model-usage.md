@@ -7,19 +7,19 @@ subject: cap:workplan-document-model#usage
 inputs:
   - kind: section
     name: cap:workplan-document-model#usage
-    digest: 3c41091e97b08484faa3859ecd9bfa743ae063c971ddebb7e0ce8402b1596265
+    digest: fa3ac0f95e97a9619ae94a72d58ef3e416d0b452cfeebbbc97d01855e4080214
   - kind: symbol
     name: raf_workplan::Gate
-    digest: 2e02595a511bef4755a54f5bd679973e44ccbe776c4ea52a7cb42951c50ef807
+    digest: 359b6d8c5cc1dae4b53eb4e7e11a1206d2caa2386e729f655d6f2a05f06afa73
   - kind: symbol
     name: raf_workplan::Gate::assert_clean
     digest: 16ca22b64d06956c48d1f8df708840f0d406ee752c06890b5e3dc5d27a8d5517
   - kind: symbol
     name: raf_workplan::Gate::workspace
-    digest: e6b28d3ee23163591d4a8b7b1dd5ea249b0b087319353ddfae91f8ff8a8ed0a5
+    digest: '0b9dd092ad97f868f3895dbc157968462758adeea5cbbc4bc9db8d7326788e41'
   - kind: symbol
     name: raf_workplan::Opened
-    digest: 4dd8c7e0cb9e54f4293c2d37ba610ead99ac0d437ed2f2a2ba6faa208127d089
+    digest: b8bdc09a753eda2b0b9ae7772d111e6b6c588679bcab33ff5ce1132646c2d55e
   - kind: symbol
     name: raf_workplan::Workplan
     digest: 68ca77137d5dd40e03d33d383c9ce0871fdfa329c92ea67898ad0d5afa94913b

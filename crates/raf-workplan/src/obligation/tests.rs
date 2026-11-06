@@ -13,8 +13,8 @@ use raf_source::{MemoryTree, Workspace};
 use super::tense::{self, PHRASES};
 use super::{
     BindingWhy, ClaimProblem, EvidenceChange, Found, InputMoved, Needed, Obligation,
-    ObligationKind, OutcomeProblem, OverLimit, Part, Place, Reconciled, RunProblem, Subject,
-    SyncProblem, Touch, Touched, suppressed,
+    ObligationKind, OutcomeProblem, OverLimit, Part, Place, Reconciled, Subject, SyncProblem,
+    Touch, Touched, suppressed,
 };
 use crate::assessment::{InputChange, MovedInput};
 use crate::work::{Work, measure};
@@ -51,7 +51,6 @@ fn the_kinds_match_the_contract() {
             "binding-missing",
             "section-untouched",
             "contract-effect-understated",
-            "example-failing",
             "generated-stale",
             "tense-mismatch",
             "claim-unsupported",
@@ -67,7 +66,7 @@ fn the_kinds_match_the_contract() {
 }
 
 #[test]
-fn only_the_four_kinds_that_start_a_process_are_not_static() {
+fn only_the_three_history_dependent_kinds_need_more_than_local_documents() {
     let dynamic: Vec<ObligationKind> = ObligationKind::ALL
         .into_iter()
         .filter(|kind| !kind.is_static())
@@ -77,7 +76,6 @@ fn only_the_four_kinds_that_start_a_process_are_not_static() {
         [
             ObligationKind::SectionUntouched,
             ObligationKind::ContractEffectUnderstated,
-            ObligationKind::ExampleFailing,
             ObligationKind::EvidenceChanged,
         ]
     );
@@ -294,10 +292,6 @@ fn evidence_of(kind: ObligationKind) -> Needed {
         },
         ObligationKind::SectionUntouched => Needed::SectionDiff,
         ObligationKind::ContractEffectUnderstated => Needed::StatedEffect(touched(Touch::Tokens)),
-        ObligationKind::ExampleFailing => Needed::PassingRun {
-            binding: "demo::example_crate::show".to_string(),
-            problem: RunProblem::Fails { code: Some(101) },
-        },
         ObligationKind::GeneratedStale => Needed::SyncRun(SyncProblem::IndexMissing),
         ObligationKind::TenseMismatch => Needed::SupportedBehaviour(Found::Phrase("will")),
         ObligationKind::ClaimUnsupported => Needed::SupportingEvidence {
@@ -884,49 +878,4 @@ fn moves_to_unknown_records_cost_the_same_with_few_records_as_with_many() {
         assert_eq!(tally.get(Work::SlugLookups), 2 * items, "{others}");
     }
     assert_eq!(outcome_checks, [items, items]);
-}
-
-#[test]
-fn a_failing_run_names_the_binding_and_what_happened_without_a_time_or_output() {
-    let binding = || "demo::example_crate::show".to_string();
-    let text = |problem: RunProblem| {
-        Needed::PassingRun {
-            binding: binding(),
-            problem,
-        }
-        .to_string()
-    };
-    let lead = Needed::PassingRun {
-        binding: binding(),
-        problem: RunProblem::TimedOut,
-    }
-    .contract_text();
-    for (problem, detail) in [
-        (
-            RunProblem::Fails { code: Some(101) },
-            "`demo::example_crate::show` fails to build or run (exit code 101)",
-        ),
-        (
-            RunProblem::Fails { code: None },
-            "`demo::example_crate::show` fails to build or run (ended by a signal)",
-        ),
-        (
-            RunProblem::TimedOut,
-            "`demo::example_crate::show` ran past its time limit and was killed",
-        ),
-        (
-            RunProblem::Overflowed,
-            "`demo::example_crate::show` wrote more output than the bound and was killed",
-        ),
-        (
-            RunProblem::Unresolved(crate::bound::Refusal::NoDocItem {
-                path: "demo".to_string(),
-            }),
-            "`demo::example_crate::show` proves nothing: `demo` has no item part",
-        ),
-    ] {
-        let shown = text(problem);
-        assert!(shown.starts_with(lead), "{shown}");
-        assert!(shown.contains(&format!("({detail}")), "{shown}");
-    }
 }

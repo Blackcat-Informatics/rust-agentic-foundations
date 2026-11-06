@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
-use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::{Lifecycle, LifecycleError};
 
 #[path = "../../../../tests/support/fixture_signing.rs"]
@@ -174,16 +173,8 @@ impl Checkout {
         self.git(&["commit", "-q", "-m", message]);
     }
 
-    /// The lifecycle of the checkout, over the real `git` and a `cargo` that
-    /// does not exist, so a fixture that starts `cargo` fails as an error.
+    /// The static lifecycle over this checkout and its native Git data.
     pub(crate) fn lifecycle(&self) -> Result<Lifecycle, LifecycleError> {
-        Lifecycle::open(self.programs())
-    }
-
-    /// The programs of the checkout: the real `git`, no `cargo`.
-    pub(crate) fn programs(&self) -> Programs {
-        Programs::new(&self.root)
-            .discover_git()
-            .with_cargo(self.scratch.path().join("no-such-cargo"))
+        Lifecycle::open(self.root())
     }
 }

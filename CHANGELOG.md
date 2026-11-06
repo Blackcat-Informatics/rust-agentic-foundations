@@ -8,6 +8,17 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+- **Breaking, 0.2.0:** RAF analysis libraries launch no processes. Native
+  read-only Git replaces subprocesses; verification and completion judge static
+  source and document contracts. Consumer tests, examples, doctests and arbitrary
+  commands are never executed. Documentation compilation is confined to a private
+  CLI operation requiring invocation-scoped `--trust-docs`; this explicitly accepts
+  arbitrary build-script and procedural-macro effects. Imported artifacts remain
+  data and do not authenticate compiler execution. Explicit owned data writes remain.
+  Native history refuses invalid UTF-8 and unsupported commit-message encodings
+  instead of replacing undecodable subject bytes. UTC dates use `+00:00` rather
+  than `Z` in report output.
+
 - **`raf-workplan`:** line coverage recognizes direct compiler allocator
   registrations in participating target contexts, preserving test-only roles and
   refusing malformed or unindexed registrations without partial totals.

@@ -22,13 +22,12 @@ use raf_okf::{
 };
 
 use crate::evidence::record_path;
-use crate::exec::Runner;
 use crate::git::{MergeBase, Prefix};
 use crate::obligation::trace::claim_part;
 use crate::obligation::{
     EvidenceChange, Needed, Obligation, ObligationKind, OverLimit, Place, Subject,
 };
-use crate::{Loaded, Opened};
+use crate::{Loaded, Opened, git};
 
 use super::Impact;
 use super::session::{LifecycleError, Side};
@@ -40,7 +39,7 @@ use super::untouched;
 /// evidence record.
 pub(super) fn raise(
     opened: &Opened,
-    runner: &dyn Runner,
+    repository: &git::Repository,
     prefix: &Prefix,
     impact: &Impact,
     base: &mut Option<MergeBase>,
@@ -60,11 +59,11 @@ pub(super) fn raise(
     if named.is_empty() {
         return Ok(Vec::new());
     }
-    let base = untouched::merge_base(base, runner)?;
+    let base = untouched::merge_base(base, repository)?;
     let mut changes: BTreeMap<&str, Vec<EvidenceChange>> = BTreeMap::new();
     for id in &named {
         let path = record_path(id);
-        let Some(then) = record_at(runner, base, prefix, &path)? else {
+        let Some(then) = record_at(repository, base, prefix, &path)? else {
             continue;
         };
         if then.verdict != EvidenceVerdict::Pass {
@@ -145,12 +144,12 @@ fn compare(then: &EvidenceRecord, now: Option<&EvidenceRecord>) -> Vec<EvidenceC
 /// The evidence record at `path` at the merge base, or `None` when no file is
 /// there.
 fn record_at(
-    runner: &dyn Runner,
+    repository: &git::Repository,
     base: &MergeBase,
     prefix: &Prefix,
     path: &str,
 ) -> Result<Option<EvidenceRecord>, LifecycleError> {
-    let Some(bytes) = untouched::blob(runner, base, prefix, path)? else {
+    let Some(bytes) = untouched::blob(repository, base, prefix, path)? else {
         return Ok(None);
     };
     let refused = |reason: String| LifecycleError::Document {

@@ -22,7 +22,7 @@ inputs:
     digest: 0385f2e238aa06dc8b8bf67e52f5dcdf0f0385091c8ba8d0f9162620190ce379
   - kind: symbol
     name: raf_source::LoadErrorKind
-    digest: ad31bb86310189e006bad90f4a8246cf8e04013ea7fd89ab420502ce99e9bc67
+    digest: 647a29e54a4f101b644a1cd0135ad9f0a7c3c763f47659826525be36073538e7
   - kind: symbol
     name: raf_source::MemoryTree
     digest: 07a127a9ed66d9c1e464b41940094eecd18bdd384ea6765f43aad698fab6df49
@@ -97,7 +97,7 @@ inputs:
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3
   - kind: symbol
     name: raf_source::tree
-    digest: 27cc6ed4e3736fcf1062b02b8c1abf18d8af636de5bdf60e8a09c24acbfa1563
+    digest: 80536efb50c04c3f4b00558345f006b5b0c177b36c9f8c4dd197b3cd4fc4b3d0
 verdict: accepted
 by: agent
 ---

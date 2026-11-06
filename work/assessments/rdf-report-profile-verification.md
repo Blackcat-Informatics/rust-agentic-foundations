@@ -7,13 +7,13 @@ subject: cap:rdf-report-profile#verification
 inputs:
   - kind: section
     name: cap:rdf-report-profile#verification
-    digest: 8c1445367e05cfa9d9bea96e9b44e21bb235e751410920b30004c1ed83a6b834
+    digest: 743c0af630d6f5eff4be18c4a47af0ba8f28db6326810bac9db7400b482cc045
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
-    digest: 6c4e35063bdebeb06619789d65b5bb35e7535b89857d08e455141342246d9ebb
+    digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
-    digest: 650656fc23b7607b8f4718c38dcb903166ecccde84bd3749904e153ed4f35e92
+    digest: 77a5f5bfc9bdd9b0bfa4a4ff8b83ef55e9aa66108d764fb7ceb1a3a3cf9c5111
   - kind: symbol
     name: raf_census::Baseline::to_ntriples
     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
@@ -70,7 +70,7 @@ inputs:
     digest: e5f72039a050bf7ade2e92927d1b486c49e6a8d1506da677ce2a1bb653e46c49
   - kind: symbol
     name: raf_workplan::report
-    digest: 4640e7bb13882fd5027de596540a31e52882043318c240426b62c16ecb75997b
+    digest: 64974fbb2ad89048871716738854ab862b79160d4390d9ec45beb1bcfcdabb27
 verdict: accepted
 by: agent
 ---

@@ -21,7 +21,7 @@ pub(crate) struct Namespace {
 
 enum Backend<'a> {
     Disk { root: PathBuf, tree: DiskTree },
-    Git(CommittedGitTree<'a>),
+    Git(Box<CommittedGitTree<'a>>),
 }
 
 impl Backend<'_> {
@@ -253,6 +253,7 @@ impl Acquired {
                 } else {
                     let tree = CommittedGitTree::open(&self.catalog, input.row(), root, options)?;
                     let index = backends.len();
+                    let tree = memory.boxed(tree).map_err(storage)?;
                     memory.push(backends, Backend::Git(tree)).map_err(storage)?;
                     index
                 })

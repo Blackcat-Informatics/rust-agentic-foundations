@@ -53,6 +53,8 @@ impl Publication {
     }
 
     pub(crate) fn validate(&self, root: &Path, edits: &[(RelPath, String)]) -> io::Result<()> {
+        crate::files::protect_git(root, &RelPath::new(MANIFEST).map_err(io::Error::other)?)
+            .map_err(|error| error.source)?;
         let tree = DiskTree::new(root).map_err(io::Error::other)?;
         let manifest = RelPath::new(MANIFEST).map_err(io::Error::other)?;
         if read(&tree, &manifest)

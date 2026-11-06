@@ -10,13 +10,13 @@ inputs:
     digest: b4894fee43506b732ec2ed8fc06b0ad45ff3e9d69a1c2f81aa9d2c3e503535c2
   - kind: symbol
     name: raf_workplan::Gate
-    digest: 2e02595a511bef4755a54f5bd679973e44ccbe776c4ea52a7cb42951c50ef807
+    digest: 359b6d8c5cc1dae4b53eb4e7e11a1206d2caa2386e729f655d6f2a05f06afa73
   - kind: symbol
     name: raf_workplan::Gate::assert_clean
     digest: 16ca22b64d06956c48d1f8df708840f0d406ee752c06890b5e3dc5d27a8d5517
   - kind: symbol
     name: raf_workplan::Gate::workspace
-    digest: e6b28d3ee23163591d4a8b7b1dd5ea249b0b087319353ddfae91f8ff8a8ed0a5
+    digest: '0b9dd092ad97f868f3895dbc157968462758adeea5cbbc4bc9db8d7326788e41'
   - kind: symbol
     name: raf_workplan::Workplan::assessments
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28

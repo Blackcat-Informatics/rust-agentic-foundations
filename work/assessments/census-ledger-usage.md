@@ -7,10 +7,19 @@ subject: cap:census-ledger#usage
 inputs:
   - kind: section
     name: cap:census-ledger#usage
-    digest: 4319e68ee0846cb72ea76c829786d2e363fc3ffe0d13bbfbfc17f2b28deb1e1d
+    digest: 927d21710872618dbe73e73848258d31b4be6274445542a1eedc5606227d6483
+  - kind: symbol
+    name: raf_census::Gate::check
+    digest: 7135af913fcf26db9027c4b5f7f35d30abdab5af67b884abe0e2a82e08f49536
   - kind: symbol
     name: raf_census::Gate::check_locked
     digest: 2cb2ad081afa7034b3a8956b78b2fe67939b2e9ae71d0949365630d2de396e64
+  - kind: symbol
+    name: raf_census::Gate::check_tree
+    digest: eb42ff3aeb65568bc7c5e604b672291c0a2ea78b8812a460e16600941feb9080
+  - kind: symbol
+    name: raf_census::Gate::extensions
+    digest: f4325ff16655a45eb8216b2658b9c48879346d2934b729c2f1d4922854c1acf1
   - kind: symbol
     name: raf_census::Gate::write_debt_locked
     digest: d01da1d771e21d042943639206396b96659b1e5e2ea800f46ad69a6301673ecd

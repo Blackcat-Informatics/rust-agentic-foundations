@@ -8,6 +8,7 @@ description: "The raf-source crate: a Tree abstraction, package discovery, mod-t
 state: implementing
 bindings:
   code:
+    - raf_source::git
     - raf_source::Unexpanded
     - raf_source::Workspace::unexpanded
     - raf_source::cargo_version
@@ -153,6 +154,8 @@ bindings:
     - raf_source::work
     - raf_source_fuzz::bin_crate::load_workspace::exercise
   tests:
+    - raf_source::test_crate::git_tree::native_selected_index_is_read_only_and_committed_grants_remain_exact
+    - raf_source::test_crate::git_tree::commit_messages_refuse_invalid_utf8_and_other_encodings_without_replacement
     - raf_source::test_crate::symbol_index::module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions
     - raf_source::test_crate::symbol_index::unexpanded_payloads_obey_original_fact_and_item_allowances
     - raf_source::test_crate::configured_sources::unexpanded_occurrences_follow_the_exact_declared_syntax
@@ -376,9 +379,7 @@ bindings:
     - raf_source::test_crate::git_tree::missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text
     - raf_source::test_crate::git_tree::malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor
     - raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs
-    - raf_source::test_crate::git_tree::missing_installed_git_is_an_actionable_dependency_failure
-    - raf_source::tree::git::tests::complete_directory_protocol_refuses_malformed_records_beside_exact_metadata
-    - raf_source::tree::git::command::tests::protocol_size_is_checked_before_growth_and_exact_size_has_a_valid_neighbor
+    - raf_source::test_crate::git_tree::native_git_reads_do_not_require_an_installed_git
     - raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit
     - raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources
     - raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots
@@ -2739,30 +2740,11 @@ optional-feature or target activation, verify source contents, or bind a supplie
 source tree to a loaded `PackageId`.
 <!-- raf:tested-by raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row,raf_source::test_crate::locked_selection::git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs,raf_source::test_crate::locked_selection::workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg,raf_source::test_crate::locked_selection::absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes,raf_source::test_crate::locked_selection::selection_honors_work_and_retained_catalog_item_admission,raf_source::test_crate::locked_selection::malformed_observations_and_unknown_owners_refuse_without_an_alternate_identity -->
 
-`CommittedGitTree::open` admits a selected full SHA-1 Git lock revision through
-trusted installed Git and its local object store. Git decodes committed objects;
-RAF collects a bounded complete NUL-delimited listing and strictly checks its
-fields, paths, parent directories, duplicate names and supported modes. Missing
-Git, repository or objects, command failures, malformed protocol and gitlinks
-refuse. Symbolic links can be listed but never traversed. Exact-size blob reads
-also check the listed native SHA-1 blob identity before returning text or `Seen`.
-Source bytes retain exact UTF-8 spelling and line endings; equal-content distinct
-paths have distinct file identities, and inside-root parent spellings identify
-the same file. Caller authority and ordinary FileId constructors cannot create
-this sealed admission.
-<!-- raf:tested-by raf_source::test_crate::git_tree::checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity,raf_source::test_crate::git_tree::missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit,raf_source::test_crate::git_tree::missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text,raf_source::test_crate::git_tree::malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor,raf_source::test_crate::git_tree::missing_installed_git_is_an_actionable_dependency_failure,raf_source::tree::git::tests::complete_directory_protocol_refuses_malformed_records_beside_exact_metadata -->
+`CommittedGitTree::open` admits a selected full SHA-1 Git lock revision through a native read-only Rust Git adapter. Complete bounded tree listings validate paths, parent directories, object identities and supported modes. Missing objects, malformed data and submodules refuse locally. Symbolic links can be listed but never traversed. Exact-size blob reads verify native identity before returning text or Seen. Source bytes retain exact UTF-8 spelling and line endings; distinct paths retain distinct file identities. Caller labels cannot construct sealed admission.
+<!-- raf:tested-by raf_source::test_crate::git_tree::checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity -->
 
-The host adapter requires Git supporting disabled replacements, lazy fetching and
-optional locks; unsupported commands fail. It uses committed bytes exclusively,
-without checkout reads, fetching, external filters or shell execution. Worktree
-edits and untracked files cannot affect its source view; this does not certify a
-checkout clean or prove repository authorship. RAF's protocol buffers and
-processing share the load's original grants. Git's internal CPU, allocations and
-object-store access are trusted host work, outside the portable semantic meters
-and DiskTree's handle-containment contract. Targets without process access cannot
-construct this host Tree. It does not evaluate active configuration or preferred
-provider policy.
-<!-- raf:tested-by raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs,raf_source::test_crate::git_tree::missing_installed_git_is_an_actionable_dependency_failure,raf_source::tree::git::command::tests::protocol_size_is_checked_before_growth_and_exact_size_has_a_valid_neighbor -->
+The adapter reads committed objects without launching Git, fetching, running hooks or filters, or modifying repository state. Worktree edits and replacement refs cannot affect its source view. Native object decoding has an explicit per-allocation bound, distinct from the portable total allocation and semantic-work meters applied to retained listings and blob buffers. This does not claim that native decoder CPU or all internal allocations are covered by portable meters. Git object-store access remains distinct from DiskTree filesystem-handle containment.
+<!-- raf:tested-by raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs -->
 
 `Workspace::load_locked_sources` joins explicit local manifest locators and opaque
 checked Git snapshots to actual discovered `PackageId`s. `LockedManifest` names a
@@ -3098,6 +3080,14 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Committed Git reads use the native adapter and require no installed Git binary.
+Supply an explicit local repository and locked revision. Missing objects refuse;
+loading never fetches, executes repository helpers or changes Git state.
+Index size inspection goes through the verified disk backend rooted at the index
+parent. A final link leaving that parent refuses beside an ordinary index file.
+Native decoding reopens the index by name, so concurrent swaps are not an atomic
+observation guarantee.
+
 Use `Workspace::unexpanded()` to inspect module macro syntax alongside named
 items. Retain its owning workspace when reading a record's target identity;
 target numbers from another load do not identify the same occurrence context.
@@ -3271,6 +3261,10 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 
 ## Examples
 
+A committed snapshot remains readable with an empty executable search path.
+Replacement references and working-tree edits leave the selected committed bytes
+unchanged. A missing local object refuses beside its complete neighboring view.
+
 For `mod generated { make!(Made); }`, the occurrence names module
 `demo::generated`, invocation `make` and argument identifier `Made`. The index
 does not invent `demo::generated::Made`. A compiler may accept that generated
@@ -3416,6 +3410,11 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 `demo::inner`, `demo::inner::go` and `demo::inner::unused`.
 
 ## Constraints
+
+Native Git object decoding has an explicit per-allocation limit in addition to
+the caller's retained-data and semantic-work grants. These are distinct bounds;
+the portable meters do not account for every internal decoder allocation.
+<!-- raf:tested-by raf_source::test_crate::git_tree::native_selected_index_is_read_only_and_committed_grants_remain_exact -->
 
 - Host captures are individual observations, not an atomic multi-file snapshot.
   A publisher must recapture and compare its complete selected source set before
@@ -4903,11 +4902,13 @@ one-byte-short refusal.
 | `raf_source::test_crate::fs_confinement::the_scanner_finds_every_spelling_of_the_file_system_module` | test | [Verification](#verification) |
 | `raf_source::test_crate::fs_confinement::the_scanner_leaves_neighbouring_paths_alone` | test | [Verification](#verification) |
 | `raf_source::test_crate::git_tree::checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity` | test | [Contract](#contract) |
+| `raf_source::test_crate::git_tree::commit_messages_refuse_invalid_utf8_and_other_encodings_without_replacement` | test | [Verification](#verification) |
 | `raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs` | test | [Contract](#contract) |
-| `raf_source::test_crate::git_tree::malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor` | test | [Contract](#contract) |
-| `raf_source::test_crate::git_tree::missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit` | test | [Contract](#contract) |
-| `raf_source::test_crate::git_tree::missing_installed_git_is_an_actionable_dependency_failure` | test | [Contract](#contract) |
-| `raf_source::test_crate::git_tree::missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text` | test | [Contract](#contract) |
+| `raf_source::test_crate::git_tree::malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor` | test | [Verification](#verification) |
+| `raf_source::test_crate::git_tree::missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit` | test | [Verification](#verification) |
+| `raf_source::test_crate::git_tree::missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text` | test | [Verification](#verification) |
+| `raf_source::test_crate::git_tree::native_git_reads_do_not_require_an_installed_git` | test | [Verification](#verification) |
+| `raf_source::test_crate::git_tree::native_selected_index_is_read_only_and_committed_grants_remain_exact` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::glob_causality::a_cycle_with_an_independent_carrier_route_keeps_its_ambiguity` | test | [Verification](#verification) |
 | `raf_source::test_crate::glob_causality::a_final_glob_fallback_waits_for_an_outside_named_cycle` | test | [Verification](#verification) |
 | `raf_source::test_crate::glob_causality::a_forwarded_private_import_preserves_public_peer_namespace_exports` | test | [Verification](#verification) |
@@ -5461,8 +5462,6 @@ one-byte-short refusal.
 | `raf_source::tree::disk::tests::the_native_strategy_is_the_platforms_own` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::windows::the_final_path_of_a_handle_is_its_canonical_path_and_lies_under_the_root` | test | [Verification](#verification) |
-| `raf_source::tree::git::command::tests::protocol_size_is_checked_before_growth_and_exact_size_has_a_valid_neighbor` | test | [Contract](#contract) |
-| `raf_source::tree::git::tests::complete_directory_protocol_refuses_malformed_records_beside_exact_metadata` | test | [Contract](#contract) |
 | `raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
 | `raf_source::tree::sources::tests::parent_join_and_real_directory_normalization_keep_the_selected_root` | test | [Contract](#contract) |
 | `raf_source::tree::sources::tests::scoped_backend_ids_are_refused_before_seen_and_preserve_the_first_cause` | test | [Contract](#contract) |

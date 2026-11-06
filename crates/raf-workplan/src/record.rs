@@ -22,14 +22,15 @@ use raf_okf::{
     AssessmentRecord, ConstructError, CoverageRecord, DebtRecord, DocType, Document,
     EvidenceRecord, Profile, RecordHeader, ReviewRecord, is_kebab,
 };
-use raf_source::RelPath;
+use raf_source::{EntryKind, RelPath};
 
 use crate::files::Refused;
 use crate::spdx::{self, SpdxError};
 use crate::{Finding, refs, sync};
 
 mod store;
-pub use store::{DiskRecordStore, RecordStore};
+pub(crate) use store::DiskRecordStore;
+pub use store::RecordStore;
 
 /// A record to write.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -388,6 +389,26 @@ pub fn replace_in(
 ) -> Result<RelPath, RecordError> {
     let text = record.text(options)?;
     let path = record.path()?;
+    if store.inspect(&path)? != Some(EntryKind::File) {
+        return Err(RecordError::Missing { path });
+    }
+    let existing = store
+        .tree()?
+        .read(&path, raf_okf::MAX_TEXT_BYTES as u64)
+        .map_err(|source| RecordError::Write {
+            path: path.to_string(),
+            source: io::Error::other(source),
+        })?;
+    let document = Document::parse(&existing).map_err(|source| RecordError::Write {
+        path: path.to_string(),
+        source: io::Error::other(source),
+    })?;
+    if let Err(violations) = Profile.validate(&document, path.as_str()) {
+        return Err(RecordError::Invalid {
+            path,
+            findings: violations.iter().map(Finding::from_violation).collect(),
+        });
+    }
     store.replace(&path, &text)?;
     Ok(path)
 }
@@ -423,7 +444,8 @@ mod tests {
         let text = record.text(&options).unwrap();
         fs::create_dir_all(root.join("work/coverage")).unwrap();
         fs::create_dir(root.join("alternate")).unwrap();
-        fs::write(root.join(path.as_str()), "original\n").unwrap();
+        let original = format!("{text}\n");
+        fs::write(root.join(path.as_str()), &original).unwrap();
         fs::write(root.join("alternate/default.md"), "alternate\n").unwrap();
         assert!(matches!(
             files::target(root, "work/coverage", &path).unwrap(),
@@ -443,7 +465,7 @@ mod tests {
         );
         assert_eq!(
             fs::read_to_string(root.join("original/default.md")).unwrap(),
-            "original\n"
+            original
         );
         assert!(matches!(
             replace(root, &record, &options),

@@ -33,7 +33,7 @@ bindings:
     - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
     - cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading
     - raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping
-    - raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal
+    - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
     - raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root
     - raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all
     - raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections
@@ -218,12 +218,10 @@ the directive spelling, named-view selection and output budgets. Native resource
 refusals preserve their positioned cause and return no transformed book.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
-Completed execution views use this same checked publication writer for their
-generated edits. Its private observed result retains the permissions read from
-the actual staging handle. Existing replacements preserve permissions and break
-hardlink aliases by staging and rename; a missing generated catalogue uses
-observed native creation permissions. The public `write` result remains unchanged.
-<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
+Static completion uses this same checked publication writer for its generated
+edits. Existing replacements preserve permissions and break hardlink aliases by
+staging and rename; a missing generated catalogue uses native creation permissions.
+<!-- raf:tested-by raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched -->
 
 ### Generated block syntax
 <!-- raf:tested-by raf_workplan::test_crate::generated::a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind -->
@@ -233,7 +231,6 @@ kebab case. Each block is opened once, closed once and never nested.
 
 ```markdown
 <!-- raf:generated:verification-matrix -->
-...
 <!-- raf:generated:end -->
 ```
 
@@ -444,17 +441,13 @@ still exceed native storage or work admission and refuse without output.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 If a capability document has a hardlink alias, rewriting its generated table
-replaces only the named target. A completed execution view retains the alias's
-original bytes and the target's rewritten bytes, matching ordinary publication.
+replaces only the named target. Static completion preserves the alias's original
+bytes and publishes the target's rewritten bytes through the same writer.
 
 The relationship table below links the current dependencies and dependants to their capability documents. Sync computes those rows from the loaded graph and replaces only the generated block:
 
 ```markdown
 <!-- raf:generated:relationships -->
-| Relation | Capability |
-| --- | --- |
-| Depends on | [workplan-document-model](./workplan-document-model.md) |
-| Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
 <!-- raf:generated:end -->
 ```
 
@@ -627,7 +620,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept` | test | [Verification](#verification) |
 | `raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail` | test | [Constraints](#constraints) |
-| `raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_backtick_in_a_binding_path_does_not_break_the_code_span` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_block_in_a_section_other_than_verification_converges_in_one_sync` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Verification](#verification) |
@@ -718,6 +711,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 | Depends on | [workplan-document-model](./workplan-document-model.md) |
 | Depended on by | [workplan-cli](./workplan-cli.md) |
 | Depended on by | [workplan-complete-gate](./workplan-complete-gate.md) |
+| Depended on by | [workplan-evidence-claims](./workplan-evidence-claims.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-rustdoc](./workplan-rustdoc.md) |

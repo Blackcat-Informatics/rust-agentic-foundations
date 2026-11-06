@@ -436,7 +436,6 @@ crate, which rewrites it deterministically
 
 ```markdown
 <!-- raf:generated:<kind> -->
-...
 <!-- raf:generated:end -->
 ```
 
@@ -494,7 +493,7 @@ the statement's claim marker:
 
 ```markdown
 - An exclusion with an empty reason is an error of the record.
-<!-- raf:tested-by raf_workplan::test_crate::coverage::an_exclusion_without_a_reason_fails -->
+
 ```
 
 The marker is written exactly as `<!-- raf:tested-by <path>[,<path>...] -->`, with

@@ -20,20 +20,19 @@
 //! completion gate is preceded by a comment that quotes the sentence. The
 //! projects are generated from the templates in `support/`: a crate with its
 //! own `[workspace]`, a template `Cargo.lock`, no dependency and a pinned
-//! edition, owned target and build directories per project and the explicit `$CARGO`.
-//! Nothing is a shell script.
+//! edition. Consumer source is inspected as data; these scenarios never compile
+//! or execute its tests, usage snippets or examples.
 
 mod support;
 
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use raf_workplan::exec::Programs;
-use raf_workplan::lifecycle::{Completion, NewChangeRequest, StateAdvice};
+use raf_workplan::lifecycle::{Completion, Failure, NewChangeRequest, StateAdvice};
 use raf_workplan::{BindingKind, Gate, Opened};
 use support::assessed::assess_on_disk;
 use support::disk::{Scratch, on_disk};
-use support::project::{COPYRIGHT, LICENCE, Project, cargo};
+use support::project::{COPYRIGHT, LICENCE, Project};
 use support::story::{
     Bindings, Capability, HEADINGS, author_record, capability, generated_block, index_of, links_of,
     proposal, section_text,
@@ -77,7 +76,16 @@ fn shape(completion: &Completion) -> Vec<String> {
         .failures()
         .iter()
         .map(|failure| {
-            let line = format!("{}:{}", failure.condition().name(), failure.name());
+            let name = failure.obligation().map_or_else(
+                || match failure {
+                    Failure::Generated(finding)
+                    | Failure::Binding(finding)
+                    | Failure::AfterRemoval(finding) => finding.kind,
+                    _ => failure.kind(),
+                },
+                |obligation| obligation.kind.name(),
+            );
+            let line = format!("{}:{name}", failure.condition().name());
             match failure.obligation() {
                 Some(obligation) => format!("{line} {}", obligation.section),
                 None => line,
@@ -119,7 +127,6 @@ fn completed(project: &Project, slug: &str, document: &str) {
     assert_eq!(
         completion,
         Completion::Completed {
-            evidence: completion.evidence().to_vec(),
             removed: record_path(slug),
             rewritten: vec![document.to_string()],
         },
@@ -468,7 +475,7 @@ impl<'a> Step<'a> {
 
     /// Write the account: the blocks give way to the contract text, every item
     /// gets its outcome, and reconcile has nothing left. The bound tests and
-    /// examples pass.
+    /// examples resolve statically.
     fn settle(&self) -> String {
         let slug = self.redesign.slug;
         let version = self.redesign.version;
@@ -490,8 +497,11 @@ impl<'a> Step<'a> {
             .verify(Some(slug))
             .unwrap_or_else(|error| panic!("verify answers: {error}"));
         let bound = streaming::bindings(version);
-        assert_eq!(verified.len(), bound.tests.len() + bound.examples.len());
-        assert!(verified.passed(), "{verified}");
+        assert_eq!(
+            verified.len(),
+            bound.code.len() + bound.tests.len() + bound.examples.len()
+        );
+        assert!(verified.is_valid(), "{verified}");
         revision
     }
 
@@ -643,9 +653,7 @@ fn link_target(link: &str) -> Option<String> {
 /// Scenario A: "every link resolves".
 fn assert_links_resolve(project: &Project, document: &str) {
     assert_eq!(project.findings(), []);
-    Gate::workspace(project.root())
-        .programs(project.programs())
-        .assert_clean();
+    Gate::workspace(project.root()).assert_clean();
     let tracked = tracked_files(project);
     let links = links_of(document);
     assert!(
@@ -657,10 +665,7 @@ fn assert_links_resolve(project: &Project, document: &str) {
             assert!(tracked.contains(&target), "`{link}` resolves to {target}");
         }
     }
-    let opened = Gate::workspace(project.root())
-        .programs(project.programs())
-        .open()
-        .expect("opens");
+    let opened = Gate::workspace(project.root()).open().expect("opens");
     assert_eq!(
         raf_workplan::plain::check("README.md", &project.text("README.md"), &opened.links()),
         []
@@ -678,10 +683,7 @@ fn tracked_files(project: &Project) -> BTreeSet<String> {
 
 /// Scenario A: "no PROPOSED block or change file is on the reading path".
 fn assert_reading_path_is_clear(project: &Project) {
-    let opened = Gate::workspace(project.root())
-        .programs(project.programs())
-        .open()
-        .expect("opens");
+    let opened = Gate::workspace(project.root()).open().expect("opens");
     let plan = opened.workplan();
     assert_eq!(plan.graph().proposals(), []);
     assert!(plan.changes().is_empty(), "no change is loaded");
@@ -760,9 +762,7 @@ fn assert_earlier_states_recoverable(project: &Project, earlier: &[Landed]) {
         let tree = scratch.path().join("tree");
         project.checkout(&state.revision, &tree);
         assert_eq!(
-            Gate::workspace(&tree)
-                .programs(Programs::new(&tree).discover_git())
-                .check(),
+            Gate::workspace(&tree).check(),
             [],
             "version {version} is not clean"
         );
@@ -1059,23 +1059,6 @@ fn fenced_rust(section: &str) -> Option<String> {
     Some(section[start..start + end].to_string())
 }
 
-/// Build `body` as the body of `main` in an example of the project, run it, and
-/// say whether it exited with status 0. The example is removed again.
-fn runs_as_example(project: &Project, body: &str) -> bool {
-    let path = "examples/usage_check.rs";
-    project.put(path, &format!("fn main() {{\n{body}\n}}\n"));
-    let output = std::process::Command::new(cargo())
-        .args(["run", "--frozen", "--quiet", "--example", "usage_check"])
-        .current_dir(project.root())
-        .output()
-        .expect("cargo runs");
-    project.remove(path);
-    if !output.status.success() {
-        eprintln!("{}", String::from_utf8_lossy(&output.stderr));
-    }
-    output.status.success()
-}
-
 /// The account of the window in the working tree, read for what Scenario B
 /// asks of it.
 struct Account<'a> {
@@ -1091,10 +1074,7 @@ impl<'a> Account<'a> {
             project,
             document: project.text(window::DOCUMENT),
             library: project.text("src/lib.rs"),
-            opened: Gate::workspace(project.root())
-                .programs(project.programs())
-                .open()
-                .expect("opens"),
+            opened: Gate::workspace(project.root()).open().expect("opens"),
         }
     }
 
@@ -1196,7 +1176,7 @@ impl<'a> Account<'a> {
         }
     }
 
-    /// A real usage example: code that uses the API, and that builds and runs.
+    /// A usage example names the API and has valid Rust syntax.
     fn usage(&self, faults: &mut Vec<&'static str>) {
         let usage = section_text(&self.document, "Usage");
         match fenced_rust(&usage) {
@@ -1205,15 +1185,15 @@ impl<'a> Account<'a> {
                     && code.contains(".record(")
                     && code.contains(".mean()") =>
             {
-                if !runs_as_example(self.project, &code) {
-                    faults.push("usage-runs");
+                if raf_source::syn::parse_file(&format!("fn main() {{\n{code}\n}}\n")).is_err() {
+                    faults.push("usage-syntax");
                 }
             }
             _ => faults.push("usage-example"),
         }
     }
 
-    /// A bound example that runs, and a traceability table that lists every
+    /// A statically resolved example, and a traceability table that lists every
     /// bound test and example, and every test of the test file.
     fn evidence(&self, faults: &mut Vec<&'static str>) {
         let plan = self.opened.workplan();
@@ -1221,12 +1201,8 @@ impl<'a> Account<'a> {
         if !bindings.iter().any(|b| b.kind() == BindingKind::Example) {
             faults.push("example-binding");
         }
-        match self.project.lifecycle().verify(None) {
-            Ok(report) if report.passed() && !report.is_empty() => {}
-            failed => {
-                eprintln!("scenario bound verification failed: {failed:#?}");
-                faults.push("bound-run");
-            }
+        if bindings.iter().any(|binding| binding.items().is_empty()) {
+            faults.push("binding-resolution");
         }
         let matrix = generated_block(&self.document, "verification-matrix");
         let mut listed: Vec<String> = bindings
@@ -1356,8 +1332,8 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
         "contract settled, usage and examples not",
         &refused(project, window::CHANGE),
         &and_assessments_missing(&[
-            "after-removal:binding-unresolved",
-            "after-removal:binding-unresolved",
+            "bindings:binding-unresolved",
+            "bindings:binding-unresolved",
             "after-removal:state-delivered-proposal",
             "after-removal:strict-section-thin",
             "after-removal:strict-section-thin",
@@ -1386,8 +1362,8 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
         "bindings of the old API",
         &refused(project, window::CHANGE),
         &and_assessments_missing(&[
-            "after-removal:binding-unresolved",
-            "after-removal:binding-unresolved",
+            "bindings:binding-unresolved",
+            "bindings:binding-unresolved",
             "obligations:binding-missing verification",
             "obligations:binding-missing verification",
             "obligations:item-without-outcome item 2",
@@ -1606,7 +1582,7 @@ fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
     assess_on_disk(project.root(), window::CHANGE);
     let mut expected = thin_account_failures();
     expected.extend([
-        "after-removal:binding-unresolved".to_owned(),
+        "bindings:binding-unresolved".to_owned(),
         "obligations:binding-missing verification".to_owned(),
     ]);
     assert_refusal(
@@ -1615,14 +1591,14 @@ fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
         &expected,
     );
 
-    // An example that is there and fails is refused under conditions 1 and 5,
-    // and the record stays. The neighbour is the account the first scenario
-    // builds, which completes.
+    // Runtime failure is outside the static gate's contract. The example
+    // resolves even though executing it would fail; verification reads its
+    // source without running it or changing it.
     project.put("examples/broken.rs", window::FAILING_EXAMPLE);
     project.put(
         window::DOCUMENT,
         &window_document(
-            "delivered",
+            "implementing",
             Bindings {
                 examples: &[
                     "window_stats::example_crate::rolling",
@@ -1637,16 +1613,14 @@ fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
     );
     project.sync();
     assess_on_disk(project.root(), window::CHANGE);
-    assert_refusal(
-        "an example that fails",
-        &refused(&project, window::CHANGE),
-        &[
-            "bound-runs:bound-example",
-            "obligations:example-failing examples",
-        ],
-    );
-    // Repair the actual failing executable and restore the complete account.
-    // The same lifecycle now succeeds; neither refusal weakened its gate.
+    let before = project.snapshot();
+    let verification = project
+        .lifecycle()
+        .verify(None)
+        .expect("static verification");
+    assert!(verification.is_valid(), "{verification}");
+    assert_eq!(project.snapshot(), before);
+    // Restore the complete account before completing the change.
     project.remove("examples/broken.rs");
     author(
         &project,
@@ -1827,13 +1801,13 @@ fn text_breaks() -> Vec<Break> {
             change: |text| replaced(text, "```rust\nlet mut window", "```text\nlet mut window"),
         },
         Break {
-            faults: &["usage-runs"],
+            faults: &["usage-syntax"],
             path: window::DOCUMENT,
             change: |text| {
                 replaced(
                     text,
                     "let mut window = window_stats::Window::new(3);",
-                    "let mut window = window_stats::Window::new(\"3\");",
+                    "let mut window = window_stats::Window::new(3;",
                 )
             },
         },
@@ -1852,17 +1826,6 @@ fn binding_breaks() -> Vec<Break> {
                     text,
                     "  examples:\n    - window_stats::example_crate::rolling\n    - window_stats::Window::new\n",
                     "  examples: []\n",
-                )
-            },
-        },
-        Break {
-            faults: &["bound-run"],
-            path: "tests/window.rs",
-            change: |text| {
-                replaced(
-                    text,
-                    "assert_eq!(window.len(), 3);",
-                    "assert_eq!(window.len(), 4);",
                 )
             },
         },

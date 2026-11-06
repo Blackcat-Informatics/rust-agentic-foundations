@@ -91,7 +91,36 @@ pub(crate) struct Target {
 /// judge it. Nothing is written.
 pub(crate) fn target(root: &Path, directory: &str, path: &RelPath) -> Result<Target, Refused> {
     let tree = DiskTree::new(root).map_err(|error| refused(path.as_str(), to_io(error)))?;
+    protect_git(root, path)?;
     target_in(&tree, directory, path)
+}
+
+/// Explicit data writers must never publish within repository administration.
+pub(crate) fn protect_git(root: &Path, path: &RelPath) -> Result<(), Refused> {
+    let root = root
+        .canonicalize()
+        .map_err(|error| refused(path.as_str(), error))?;
+    let destination = root.join(path.as_str());
+    if destination
+        .components()
+        .any(|part| part.as_os_str() == ".git")
+    {
+        return Err(refused(
+            path.as_str(),
+            io::Error::other("data destinations cannot enter Git administration"),
+        ));
+    }
+    if let Some(repository) = crate::git::Repository::discover(&root)
+        .map_err(|error| refused(path.as_str(), io::Error::other(error)))?
+        && (destination.starts_with(repository.git_dir())
+            || destination.starts_with(repository.common_dir()))
+    {
+        return Err(refused(
+            path.as_str(),
+            io::Error::other("data destinations cannot enter Git administration"),
+        ));
+    }
+    Ok(())
 }
 
 /// The same destination inspection against a supplied native reader.

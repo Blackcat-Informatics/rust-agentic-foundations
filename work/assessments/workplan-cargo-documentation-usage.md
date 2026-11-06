@@ -7,22 +7,16 @@ subject: cap:workplan-cargo-documentation#usage
 inputs:
   - kind: section
     name: cap:workplan-cargo-documentation#usage
-    digest: 16a8787dc9bb6a86798601ed1405425e0cb1877719e6ff3533f06ff5f17f9517
+    digest: 400f8c811a0ac451ada75484f53e27586177830ae2442056138b126d25fddbca
+  - kind: symbol
+    name: cargo_workplan::bin_crate::cargo_workplan::trusted_docs::build
+    digest: 9dc288d0142c50d129be470498f3c1b01fdc89f9c93fe3058a9972ab9d9c7996
   - kind: symbol
     name: raf_workplan::diagram::cargo
-    digest: b4e1fa38d43f7c520d3fb0a930983e930a54dfe80f896425c5270777a9e2519a
+    digest: '0b9c35fe19671e1bdda2aef6f0900cb0711f72c445cceff8d08a0441f16d4000'
   - kind: symbol
-    name: raf_workplan::exec::CargoDocOptions
-    digest: adb1f20e41f71ffaacd2e43fe79d9fd7c8e6ea504fe516a406175436ba9c881e
-  - kind: symbol
-    name: raf_workplan::exec::CargoDocOptionsError
-    digest: 9c089c1989521f8c320f34a35876f6803d9317f84dc94ec70b3f7d44d9be0fe0
-  - kind: symbol
-    name: raf_workplan::exec::Invocation::cargo_doc
-    digest: 85a1bc9c3ded57a59fe1c12f523d01f244ca4e03f2959c9a54f958dc174e75e7
-  - kind: symbol
-    name: raf_workplan::exec::Invocation::cargo_doc_metadata
-    digest: 1d79fb26ce413cd7e676c29759edf31e357ca5529f18e211c962431d7c5f1e06
+    name: raf_workplan::diagram::cargo::CargoDocOptions
+    digest: 67827eb309b94c8adb33a8876a6d376a0f95008674e5fe2dfa64fe2252d7c7bd
 verdict: accepted
 by: agent
 ---

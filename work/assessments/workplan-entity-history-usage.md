@@ -7,13 +7,13 @@ subject: cap:workplan-entity-history#usage
 inputs:
   - kind: section
     name: cap:workplan-entity-history#usage
-    digest: c848e23da48f2bc51b547e5c76575c097ee7467efaf84adc5909d5b18324c831
+    digest: 50ec4737fe562c1fa31eeb702f6d48ca3827c1ae722fe1f13f6ac625d569a8f9
   - kind: symbol
     name: raf_workplan::Workplan::history
-    digest: 54ca67c0bc29309bda8c5b64782cda013825c20a1538b9c12f3c5ea65914c616
+    digest: 7b8b43d5973ca72d2d97b06dc9fa47fa1ae90f6ea8bb2928194c6f0ecf64ef85
   - kind: symbol
     name: raf_workplan::history
-    digest: 3c3048aadc71104c8c6b9a4d168a2fd199fb4cd296476137ec581359efac94c7
+    digest: 42372bbf891fa8aa95369febe030f37c6dd7c36911a1403fa71d88b319ecfa4d
 verdict: accepted
 by: agent
 ---

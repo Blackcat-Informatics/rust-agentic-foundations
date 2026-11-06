@@ -62,9 +62,9 @@ use raf_source::{
 
 use crate::Workplan;
 use crate::coverage::{covering, covering_path};
-use crate::exec::{Runner, SourcePath};
 use crate::git::{self, MergeBase, Prefix, ResolvedCommit, TreeEntry};
 use crate::graph::{Binding, BindingKind};
+use crate::identifiers::SourcePath;
 use crate::obligation::{Needed, Obligation, ObligationKind, Part, Place, Subject, Touch, Touched};
 
 use super::session::{LifecycleError, Side};
@@ -94,7 +94,7 @@ pub(super) struct BaseIndex {
 /// `kept` for the next judgement at the same merge base.
 pub(super) fn raise(
     plan: &Workplan<'_>,
-    runner: &dyn Runner,
+    repository: &git::Repository,
     prefix: &Prefix,
     change: &str,
     base: &mut Option<MergeBase>,
@@ -107,13 +107,13 @@ pub(super) fn raise(
         return Ok(Vec::new());
     }
     let now = Surface::of(source, &packages, Side::WorkingTree)?;
-    let base = merge_base(base, runner)?;
+    let base = merge_base(base, repository)?;
     let roots = package_roots(source, &packages);
     let current = kept
         .as_ref()
         .is_some_and(|index| index.commit == base.as_str() && index.roots == roots);
     if !current {
-        let workspace = load_at(runner, base, prefix, &roots)?;
+        let workspace = load_at(repository, base, prefix, &roots)?;
         *kept = Some(BaseIndex {
             commit: base.as_str().to_string(),
             roots,
@@ -174,16 +174,16 @@ fn package_roots(source: &Workspace, packages: &BTreeSet<&str>) -> Vec<String> {
 /// The source index of the merge base below `roots`, or `None` when none of
 /// them is a directory there.
 fn load_at(
-    runner: &dyn Runner,
+    repository: &git::Repository,
     base: &MergeBase,
     prefix: &Prefix,
     roots: &[String],
 ) -> Result<Option<Workspace>, LifecycleError> {
     let tree = BaseTree::new(
-        runner,
+        repository,
         base,
         prefix,
-        git::tree_at(runner, base.resolved(), prefix)?,
+        git::tree_at(repository, base.resolved(), prefix)?,
     );
     let present: Vec<&str> = roots
         .iter()
@@ -589,7 +589,7 @@ const MAX_LINKS: usize = 40;
 /// listing answers every question of entries and directories, and a file is
 /// read with the blob row the first time the load reads it.
 pub(crate) struct BaseTree<'r> {
-    runner: &'r dyn Runner,
+    repository: &'r git::Repository,
     base: &'r ResolvedCommit,
     prefix: &'r Prefix,
     files: BTreeMap<String, TreeEntry>,
@@ -602,16 +602,16 @@ pub(crate) struct BaseTree<'r> {
 
 impl<'r> BaseTree<'r> {
     fn new(
-        runner: &'r dyn Runner,
+        repository: &'r git::Repository,
         base: &'r MergeBase,
         prefix: &'r Prefix,
         listing: Vec<(RelPath, TreeEntry)>,
     ) -> Self {
-        Self::at_revision(runner, base.resolved(), prefix, listing)
+        Self::at_revision(repository, base.resolved(), prefix, listing)
     }
 
     pub(crate) fn at_revision(
-        runner: &'r dyn Runner,
+        repository: &'r git::Repository,
         base: &'r ResolvedCommit,
         prefix: &'r Prefix,
         listing: Vec<(RelPath, TreeEntry)>,
@@ -628,7 +628,7 @@ impl<'r> BaseTree<'r> {
             files.insert(key, kind);
         }
         Self {
-            runner,
+            repository,
             base,
             prefix,
             files,
@@ -728,7 +728,7 @@ impl<'r> BaseTree<'r> {
                 self.prefix.as_str()
             ))
         })?;
-        Ok(git::blob_at(self.runner, self.base, &named)?)
+        Ok(git::blob_at(self.repository, self.base, &named)?)
     }
 
     pub(crate) fn take_failure(&self) -> Option<LifecycleError> {

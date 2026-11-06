@@ -18,6 +18,9 @@ use crate::files::{self, CreateError};
 /// its destination again; refusal preserves existing files. Implementations
 /// must retain their reader's authority rules and original failure causes.
 /// The disk adapter retains its documented path-based name-swap limitation.
+/// Implementations are supplied explicitly by the caller, never loaded from
+/// inspected repository data. RAF's concrete disk adapter is private; filesystem
+/// callers publish through the typed record APIs.
 pub trait RecordStore {
     /// The existing native reader, opened only when needed.
     ///
@@ -59,7 +62,7 @@ pub trait RecordStore {
 /// precedence over destination inspection. The native reader opens on first use.
 /// Inspection retains no directory handles against subsequent name swaps.
 #[derive(Debug)]
-pub struct DiskRecordStore {
+pub(crate) struct DiskRecordStore {
     root: PathBuf,
     tree: Option<DiskTree>,
 }
@@ -67,7 +70,7 @@ pub struct DiskRecordStore {
 impl DiskRecordStore {
     /// Select the repository root; no file is opened or written.
     #[must_use]
-    pub fn new(root: impl AsRef<Path>) -> Self {
+    pub(crate) fn new(root: impl AsRef<Path>) -> Self {
         Self {
             root: root.as_ref().to_path_buf(),
             tree: None,

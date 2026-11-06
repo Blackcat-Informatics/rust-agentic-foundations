@@ -164,21 +164,6 @@ jobs:
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
         with:
           toolchain: nightly # keep in sync with rust-toolchain.toml
-      - name: Install native execution prerequisites
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes apparmor bubblewrap git openssh-client
-          # Admit bwrap and its nested trusted tests on this ephemeral runner.
-          # Keep the global user-namespace restriction for other execution trees.
-          sudo tee /etc/apparmor.d/raf-bwrap > /dev/null <<'PROFILE'
-          abi <abi/4.0>,
-          include <tunables/global>
-          /usr/bin/bwrap flags=(unconfined) {
-            userns,
-          }
-          PROFILE
-          sudo apparmor_parser --replace /etc/apparmor.d/raf-bwrap
-          bwrap --dev-bind / / --die-with-parent -- /bin/true
       - name: Unit, integration and documentation tests
         run: |
           jq -j '.[] | . + "\u0000"' <<< "$RAF_CI_ARGS" > "$RUNNER_TEMP/test-args"
@@ -190,11 +175,6 @@ jobs:
       - name: Compile normal example targets
         if: matrix.build_examples
         run: cargo build --locked --package "$RAF_CI_PACKAGE" --examples
-      - name: Run documented standalone examples once
-        if: matrix.examples && needs.packages.outputs.code == 'true'
-        run: |
-          CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" cargo build --locked --package rust-agentic-foundations --bin raf-ci
-          target/debug/raf-ci "$RAF_CI_PACKAGE"
 
   test:
     needs: test_packages

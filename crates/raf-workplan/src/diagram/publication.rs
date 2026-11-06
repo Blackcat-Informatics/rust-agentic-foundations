@@ -42,25 +42,13 @@ pub fn publish(bundle: &DiagramBundle, root: &Path) -> Result<PathBuf, DiagramEr
     publish_files(documentation::build(bundle)?, root)
 }
 
-/// Share native publication while keeping compiler environments out of public files.
-pub(crate) fn publish_assembly(
-    bundle: &DiagramBundle,
-    root: &Path,
-    record: &raf_rdf::Graph,
-) -> Result<PathBuf, DiagramError> {
-    let mut files = documentation::build(bundle)?;
-    files.push((
-        relative("assembly.ttl")?,
-        record.to_text(Format::Turtle).map_err(DiagramError::data)?,
-    ));
-    publish_files(files, root)
-}
-
 fn publish_files(mut files: Vec<(RelPath, String)>, root: &Path) -> Result<PathBuf, DiagramError> {
     let manifest = manifest(&files)?;
     let digest = ContentDigest::of(manifest.as_bytes());
     files.push((relative(MANIFEST)?, manifest));
     let root = fs::canonicalize(root).map_err(DiagramError::data)?;
+    crate::files::protect_git(&root, &relative("raf-workplan")?)
+        .map_err(|error| DiagramError::data(error.source))?;
     let tree = DiskTree::new(&root).map_err(DiagramError::data)?;
     let namespace = relative("raf-workplan")?;
     directory(&tree, &root, &namespace)?;

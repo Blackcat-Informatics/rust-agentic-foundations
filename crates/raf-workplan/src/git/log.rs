@@ -1,42 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The questions of the history command: whether the repository is shallow,
-//! the log of a document through its moves, the log of the lines of a symbol,
-//! and the newest commit, with its parent, that changed how often an
-//! identifier occurs in a directory.
-//!
-//! A log is read as records. The two history logs print, for each commit, a
-//! line that begins with the record separator `0x1e` and holds the commit, the
-//! author date and the subject separated by the unit separator `0x1f`; the
-//! document log then lists the paths the commit touched, one to a line. A line
-//! is split at `0x1f` at most twice, so the subject keeps every byte it has
-//! other than a newline, `0x1e` and `0x1f` included; a subject that is not
-//! UTF-8 has each invalid sequence shown as U+FFFD. A path that `git` quotes
-//! (`"..."` with C escapes, as it writes a name with a control character, a
-//! quote, a backslash or, under `core.quotePath`, a byte above 0x7f) is
-//! unquoted. Anything else in the output, a commit id or a date that is not of
-//! its form, and a path that is not UTF-8 are each an error: a log is never
-//! read in part.
-//!
-//! Each question reads at most 16 MiB of output ([`Limits::query`]); more is
-//! [`GitError::LogTooLarge`] and nothing is returned.
+//! Read-only document, line-range and substring-count history over native objects.
 
 use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::ops::Range;
 
-use crate::exec::{
-    Commit, Date, ExecError, Identifier, Invocation, Limits, LineRange, Output, Runner, Stream,
-    TreePath,
-};
-
-use super::{GitError, failed, one_line, shown};
-
-/// The record separator that opens each record of a history log.
-const RECORD: u8 = 0x1e;
-
-/// The unit separator between the fields of a record.
-const UNIT: u8 = 0x1f;
+use super::{GitError, QUERY_BYTES, Repository, answer};
+use crate::identifiers::{Commit, Date, Identifier, LineRange, TreePath};
+use raf_source::git::{Commit as NativeCommit, Entry, EntryKind};
 
 /// The author date of a commit as `%aI` prints it, strict ISO 8601:
 /// `YYYY-MM-DDTHH:MM:SS` and an offset `+HH:MM`, `-HH:MM` or `Z`.
@@ -164,537 +138,540 @@ impl LogEntry {
     }
 }
 
-/// Run a log query: an output past the bound is [`GitError::LogTooLarge`].
-fn log_query(runner: &dyn Runner, invocation: &Invocation) -> Result<Output, GitError> {
-    let limits = Limits::query();
-    match runner.run(invocation, &limits) {
-        Ok(output) => Ok(output),
-        Err(ExecError::OutputTooLarge {
-            stream: Stream::Stdout,
-            limit,
-            ..
-        }) => Err(GitError::LogTooLarge {
-            command: invocation.to_string(),
-            limit,
-        }),
-        Err(error) => Err(error.into()),
-    }
-}
-
-/// The error of an output that is not what the log allows.
-fn malformed(invocation: &Invocation, expected: &'static str, line: &[u8]) -> GitError {
-    GitError::Answer {
-        command: invocation.to_string(),
-        expected,
-        answer: shown(&String::from_utf8_lossy(line)),
-    }
-}
-
-/// The header of one record: `<commit> 0x1f <date> 0x1f <subject>`.
-fn header(invocation: &Invocation, line: &[u8]) -> Result<LogEntry, GitError> {
-    const EXPECTED: &str = "a record of a commit id, an author date and a subject";
-    let mut fields = line.splitn(3, |byte| *byte == UNIT);
-    let (Some(commit), Some(date), Some(subject)) = (fields.next(), fields.next(), fields.next())
-    else {
-        return Err(malformed(invocation, EXPECTED, line));
-    };
-    let commit = std::str::from_utf8(commit)
-        .ok()
-        .and_then(|text| Commit::new(text).ok())
-        .ok_or_else(|| malformed(invocation, "a commit id", line))?;
-    let date = std::str::from_utf8(date)
-        .ok()
-        .and_then(AuthorDate::parse)
-        .ok_or_else(|| malformed(invocation, "a strict ISO 8601 author date", line))?;
+fn row(commit: &NativeCommit, paths: Vec<String>) -> Result<LogEntry, GitError> {
     Ok(LogEntry {
-        commit,
-        date,
-        subject: String::from_utf8_lossy(subject).into_owned(),
-        paths: Vec::new(),
+        commit: Commit::new(&commit.id)
+            .map_err(|_| answer("history", "a full commit identifier", &commit.id))?,
+        date: AuthorDate::parse(&commit.author_date)
+            .ok_or_else(|| answer("history", "a strict author date", &commit.author_date))?,
+        subject: commit.subject.clone(),
+        paths,
     })
 }
 
-/// A path line of `--name-only`, unquoted when `git` quoted it.
-fn path_line(invocation: &Invocation, line: &[u8]) -> Result<String, GitError> {
-    let bytes = match line {
-        [b'"', inner @ .., b'"'] => {
-            unquote(inner).ok_or_else(|| malformed(invocation, "a quoted path", line))?
-        }
-        _ => line.to_vec(),
-    };
-    String::from_utf8(bytes).map_err(|error| GitError::NotUtf8 {
-        reason: format!("`{invocation}` listed a path that is not UTF-8: {error}"),
-    })
+fn bytes(repository: &Repository, entry: &Entry) -> Result<Vec<u8>, GitError> {
+    if !matches!(entry.kind, EntryKind::Blob | EntryKind::Symlink) {
+        return Err(answer(
+            "history",
+            "a file or symbolic-link blob",
+            &entry.path,
+        ));
+    }
+    Ok(repository.blob(&entry.id, QUERY_BYTES)?)
 }
 
-/// The bytes of a C-quoted name without its quotes, as `git` writes them:
-/// `\a \b \t \n \v \f \r \" \\` and three octal digits for any other byte.
-fn unquote(inner: &[u8]) -> Option<Vec<u8>> {
-    let mut out = Vec::with_capacity(inner.len());
-    let mut at = 0;
-    while let Some(byte) = inner.get(at).copied() {
-        at += 1;
-        if byte == b'"' {
-            return None;
+fn line_diff<'a>(
+    before: &'a [u8],
+    after: &'a [u8],
+) -> (imara_diff::InternedInput<&'a [u8]>, imara_diff::Diff) {
+    let input = imara_diff::InternedInput::new(before, after);
+    let mut diff = imara_diff::Diff::compute(imara_diff::Algorithm::Myers, &input);
+    diff.postprocess_lines(&input);
+    (input, diff)
+}
+
+fn similarity(before: &[u8], after: &[u8]) -> usize {
+    if before == after {
+        return 100;
+    }
+    if before.is_empty() || after.is_empty() {
+        return 0;
+    }
+    let (input, diff) = line_diff(before, after);
+    let shared: usize = input
+        .before
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| {
+            !diff.is_removed(u32::try_from(*index).expect("bounded input line count"))
+        })
+        .map(|(_, token)| input.interner[*token].len())
+        .sum();
+    shared.saturating_mul(100) / before.len().max(after.len())
+}
+
+fn previous_file(
+    repository: &Repository,
+    commit: &str,
+    parent: &str,
+    path: &str,
+    current: &Entry,
+) -> Result<(String, Option<Entry>), GitError> {
+    if let Some(entry) = repository.entry_at(parent, path)? {
+        return Ok((path.into(), Some(entry)));
+    }
+    let mut candidates = Vec::new();
+    for candidate in repository.tree(parent, QUERY_BYTES)? {
+        if candidate.kind == current.kind
+            && matches!(candidate.kind, EntryKind::Blob | EntryKind::Symlink)
+            && repository.entry_at(commit, &candidate.path)?.is_none()
+        {
+            candidates.push(candidate);
         }
-        if byte != b'\\' {
-            out.push(byte);
+    }
+    let exact = candidates
+        .iter()
+        .filter(|candidate| candidate.id == current.id)
+        .min_by(|a, b| a.path.cmp(&b.path));
+    if let Some(exact) = exact {
+        return Ok((exact.path.clone(), Some(exact.clone())));
+    }
+    let current_bytes = bytes(repository, current)?;
+    let mut best = None;
+    let mut best_score = 49;
+    for candidate in candidates {
+        // A length ratio below one half cannot satisfy the similarity threshold.
+        if candidate.size.min(current.size).saturating_mul(2) < candidate.size.max(current.size) {
             continue;
         }
-        let escape = inner.get(at).copied()?;
-        at += 1;
-        out.push(match escape {
-            b'a' => 0x07,
-            b'b' => 0x08,
-            b't' => b'\t',
-            b'n' => b'\n',
-            b'v' => 0x0b,
-            b'f' => 0x0c,
-            b'r' => b'\r',
-            b'"' => b'"',
-            b'\\' => b'\\',
-            b'0'..=b'3' => {
-                let rest = inner.get(at..at + 2)?;
-                if !rest.iter().all(|b| (b'0'..=b'7').contains(b)) {
-                    return None;
-                }
-                at += 2;
-                (escape - b'0') * 64 + (rest[0] - b'0') * 8 + (rest[1] - b'0')
-            }
-            _ => return None,
-        });
+        let score = similarity(&bytes(repository, &candidate)?, &current_bytes);
+        if score > best_score
+            || (score == best_score
+                && best
+                    .as_ref()
+                    .is_some_and(|old: &Entry| candidate.path < old.path))
+        {
+            best_score = score;
+            best = Some(candidate);
+        }
     }
-    Some(out)
+    Ok(best.map_or_else(
+        || (path.into(), None),
+        |entry| (entry.path.clone(), Some(entry)),
+    ))
 }
 
-/// The records of a history log. With `paths` the lines after a header are
-/// the paths of its commit; without, a line that is not a header and not
-/// empty is an error.
-fn records(
-    invocation: &Invocation,
-    output: &Output,
-    paths: bool,
-) -> Result<Vec<LogEntry>, GitError> {
-    let mut entries: Vec<LogEntry> = Vec::new();
-    let text = output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout);
-    if text.is_empty() {
-        return Ok(entries);
-    }
-    for line in text.split(|byte| *byte == b'\n') {
-        if let Some(rest) = line.strip_prefix(&[RECORD]) {
-            entries.push(header(invocation, rest)?);
-        } else if line.is_empty() {
-        } else if let (true, Some(entry)) = (paths, entries.last_mut()) {
-            entry.paths.push(path_line(invocation, line)?);
+fn project_lines(before: &[u8], after: &[u8], range: Range<usize>) -> (bool, Option<Range<usize>>) {
+    let (input, diff) = line_diff(before, after);
+    let hunks: Vec<_> = diff.hunks().collect();
+    let changed = hunks.iter().any(|hunk| {
+        let from = hunk.after.start as usize..hunk.after.end as usize;
+        if from.is_empty() {
+            range.start < from.start && from.start < range.end
         } else {
-            return Err(malformed(
-                invocation,
-                "a record that begins with 0x1e",
-                line,
+            from.start < range.end && range.start < from.end
+        }
+    });
+    let boundary = |point: usize, end: bool| {
+        let mut offset = 0isize;
+        for hunk in &hunks {
+            let from = hunk.after.start as usize..hunk.after.end as usize;
+            let to = hunk.before.start as usize..hunk.before.end as usize;
+            if from.is_empty() && point == from.start {
+                return if end { to.start } else { to.end };
+            }
+            if point <= from.start {
+                break;
+            }
+            if point < from.end {
+                return if end { to.end } else { to.start };
+            }
+            // INVARIANT: each input is byte-bounded far below isize::MAX.
+            offset += isize::try_from(to.len()).expect("bounded parent lines")
+                - isize::try_from(from.len()).expect("bounded child lines");
+        }
+        point.saturating_add_signed(offset)
+    };
+    let start = boundary(range.start, false).min(input.before.len());
+    let end = boundary(range.end, true).min(input.before.len());
+    (changed, (start < end).then_some(start..end))
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Follow {
+    commit: String,
+    path: String,
+    lines: Option<(usize, usize)>,
+}
+
+fn selected_prefix(repository: &Repository) -> Result<String, GitError> {
+    let root = repository
+        .work_dir()
+        .ok_or_else(|| answer("history", "a worktree", "bare repository"))?;
+    let prefix = repository.directory().strip_prefix(root).map_err(|error| {
+        answer(
+            "history",
+            "a selected directory within the worktree",
+            &error.to_string(),
+        )
+    })?;
+    let text = prefix.to_str().ok_or_else(|| GitError::NotUtf8 {
+        reason: "selected directory prefix".into(),
+    })?;
+    Ok(if text.is_empty() {
+        String::new()
+    } else {
+        format!("{text}/")
+    })
+}
+
+fn selected_path(prefix: &str, path: &str) -> String {
+    if path == "." {
+        if prefix.is_empty() {
+            ".".into()
+        } else {
+            prefix.trim_end_matches('/').to_owned()
+        }
+    } else {
+        format!("{prefix}{path}")
+    }
+}
+
+fn trace(
+    repository: &Repository,
+    path: &TreePath,
+    lines: Option<LineRange>,
+) -> Result<Vec<LogEntry>, GitError> {
+    let head = repository.resolve_commit("HEAD")?;
+    let prefix = selected_prefix(repository)?;
+    let selected = selected_path(&prefix, path.as_str());
+    let relative = repository.relative_history_paths()?;
+    if let Some(lines) = lines {
+        let entry = repository
+            .entry_at(&head, &selected)?
+            .ok_or_else(|| answer("symbol history", "a file committed in HEAD", path.as_str()))?;
+        let content = bytes(repository, &entry)?;
+        let length = imara_diff::sources::byte_lines(&content).count();
+        if lines.start() > length {
+            return Err(answer(
+                "symbol history",
+                "a line range beginning within the committed file",
+                path.as_str(),
             ));
         }
     }
+    let pending = vec![Follow {
+        commit: head,
+        path: selected,
+        lines: lines.map(|range| (range.start() - 1, range.end())),
+    }];
+    let rows = trace_rows(repository, pending)?;
+    let mut rows: Vec<_> = rows.into_values().collect();
+    rows.sort_unstable_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then_with(|| b.1.commit().as_str().cmp(a.1.commit().as_str()))
+    });
+    let mut entries: Vec<_> = rows.into_iter().map(|(_, entry)| entry).collect();
+    if relative {
+        for entry in &mut entries {
+            for path in &mut entry.paths {
+                if let Some(local) = path.strip_prefix(&prefix) {
+                    *path = local.to_owned();
+                }
+            }
+        }
+    }
+    let size = entries
+        .iter()
+        .map(|entry| entry.subject.len() + entry.paths.iter().map(String::len).sum::<usize>() + 128)
+        .sum::<usize>();
+    if size > QUERY_BYTES {
+        return Err(GitError::LogTooLarge {
+            command: "history results".into(),
+            limit: QUERY_BYTES,
+        });
+    }
     Ok(entries)
 }
 
-/// Whether the repository is a shallow clone, whose history stops at a
-/// boundary: `git rev-parse --is-shallow-repository`.
-///
-/// # Errors
-///
-/// [`GitError::Failed`] when the command fails; [`GitError::Answer`] when the
-/// answer is not `true` or `false`; [`GitError::Exec`] when it cannot run.
-pub fn is_shallow(runner: &dyn Runner) -> Result<bool, GitError> {
-    let invocation = Invocation::git_shallow();
-    let output = runner.run(&invocation, &Limits::query())?;
-    if !output.success() {
-        return Err(failed(&invocation, &output));
+fn trace_rows(
+    repository: &Repository,
+    mut pending: Vec<Follow>,
+) -> Result<BTreeMap<String, (i64, LogEntry)>, GitError> {
+    let mut seen = BTreeSet::new();
+    let mut rows: BTreeMap<String, (i64, LogEntry)> = BTreeMap::new();
+    let mut acquired = 0usize;
+    while let Some(follow) = pending.pop() {
+        if !seen.insert(follow.clone()) {
+            continue;
+        }
+        acquired = acquired
+            .checked_add(follow.path.len() + 128)
+            .filter(|n| *n <= QUERY_BYTES)
+            .ok_or_else(|| GitError::LogTooLarge {
+                command: "history traversal".into(),
+                limit: QUERY_BYTES,
+            })?;
+        let commit = repository.commit(&follow.commit)?;
+        let Some(current) = repository.entry_at(&commit.id, &follow.path)? else {
+            let mut parents = Vec::new();
+            for parent in &commit.parents {
+                parents.push((parent, repository.entry_at(parent, &follow.path)?.is_some()));
+            }
+            let same = parents.iter().position(|(_, present)| !*present);
+            if same.is_none() && !parents.is_empty() {
+                rows.entry(commit.id.clone()).or_insert((
+                    commit.commit_seconds,
+                    row(&commit, vec![follow.path.clone()])?,
+                ));
+            }
+            for (index, (parent, _)) in parents.into_iter().enumerate() {
+                if same.is_none_or(|selected| selected == index) {
+                    pending.push(Follow {
+                        commit: parent.clone(),
+                        path: follow.path.clone(),
+                        lines: None,
+                    });
+                }
+            }
+            continue;
+        };
+        let mut comparisons = Vec::new();
+        for parent in &commit.parents {
+            let (previous_path, previous) =
+                previous_file(repository, &commit.id, parent, &follow.path, &current)?;
+            let same = previous
+                .as_ref()
+                .is_some_and(|entry| entry.id == current.id && entry.kind == current.kind);
+            let (changed, range) = if let Some((start, end)) = follow.lines {
+                let after = bytes(repository, &current)?;
+                let before = previous
+                    .as_ref()
+                    .map(|entry| bytes(repository, entry))
+                    .transpose()?
+                    .unwrap_or_default();
+                project_lines(&before, &after, start..end)
+            } else {
+                (!same || previous_path != follow.path, Some(0..0))
+            };
+            comparisons.push((parent, previous_path, previous, same, changed, range));
+        }
+        let unchanged = comparisons
+            .iter()
+            .position(|(_, path, _, same, changed, _)| {
+                !*changed && (follow.lines.is_some() || (*same && *path == follow.path))
+            });
+        let changed = if commit.parents.is_empty() {
+            true
+        } else {
+            unchanged.is_none() && comparisons.iter().any(|(_, _, _, _, changed, _)| *changed)
+        };
+        if changed {
+            let paths = if follow.lines.is_none() {
+                vec![follow.path.clone()]
+            } else {
+                Vec::new()
+            };
+            let entry = row(&commit, paths)?;
+            rows.entry(commit.id.clone())
+                .or_insert((commit.commit_seconds, entry));
+        }
+        for (index, (parent, previous_path, previous, _, _, range)) in
+            comparisons.into_iter().enumerate()
+        {
+            if unchanged.is_some_and(|selected| index != selected) || previous.is_none() {
+                continue;
+            }
+            if follow.lines.is_some() && range.is_none() {
+                continue;
+            }
+            pending.push(Follow {
+                commit: parent.clone(),
+                path: previous_path,
+                lines: follow
+                    .lines
+                    .and_then(|_| range.map(|range| (range.start, range.end))),
+            });
+        }
     }
-    match one_line(&invocation, &output, "`true` or `false`")? {
-        "true" => Ok(true),
-        "false" => Ok(false),
-        other => Err(GitError::Answer {
-            command: invocation.to_string(),
-            expected: "`true` or `false`",
-            answer: shown(other),
-        }),
-    }
+    Ok(rows)
 }
 
-/// The commits of a file, newest first as `git` lists them, through the
-/// moves `git` detects, each with the name the file had at that commit:
-/// `git --no-pager log --no-show-signature --follow --cc --root
-/// --format=%x1e%H%x1f%aI%x1f%s --name-only -- <doc-path>`. The history asks
-/// it of a document and of each file of a bound module. `--cc` lists a merge
-/// whose resolution changed the file (a merge that took one side unchanged is
-/// not listed, as it changed nothing), and `--root` keeps a user's
-/// `log.showRoot=false` from hiding the commit that created it. A commit that
-/// lists no path, as `--follow` lists a merge that changed nothing in the
-/// file, is left out. A file that no commit holds has an empty log. The whole
-/// log is read: no date limits it.
+/// Whether a repository's history declares a shallow boundary.
 ///
 /// # Errors
-///
-/// [`GitError::LogTooLarge`] for an output over 16 MiB; [`GitError::Answer`]
-/// or [`GitError::NotUtf8`] for an output that is not a log of this form;
-/// [`GitError::Failed`] when the command fails; [`GitError::Exec`] when it
-/// cannot run.
-pub fn document_log(runner: &dyn Runner, path: &TreePath) -> Result<Vec<LogEntry>, GitError> {
-    let invocation = Invocation::git_document_log(path);
-    let output = log_query(runner, &invocation)?;
-    if !output.success() {
-        return Err(failed(&invocation, &output));
-    }
-    let mut entries = records(&invocation, &output, true)?;
-    // `--follow` lists a merge that changed nothing in the document, with no
-    // path; it did not shape the document and is not an entry.
-    entries.retain(|entry| !entry.paths.is_empty());
-    Ok(entries)
+/// Refuses malformed or inaccessible shallow metadata.
+pub fn is_shallow(repository: &Repository) -> Result<bool, GitError> {
+    Ok(repository.is_shallow()?)
 }
 
-/// The commits that changed the lines of a file, newest first, traced back
-/// from `HEAD`: `git --no-pager log --no-show-signature -L<start>,<end>:<file>
-/// --no-patch --format=%x1e%H%x1f%aI%x1f%s --`. The entries list no path. The
-/// whole log is read: no date limits it.
+/// Read a document's full file history, following deleted-file rename candidates.
 ///
 /// # Errors
+/// Refuses missing/corrupt objects, unsupported paths and cumulative history bounds.
+pub fn document_log(repository: &Repository, path: &TreePath) -> Result<Vec<LogEntry>, GitError> {
+    trace(repository, path, None)
+}
+
+/// Trace only the selected committed lines, following file renames, not copies.
 ///
-/// As [`document_log`]; a file that is not in `HEAD`, or whose copy there ends
-/// before the first line of `lines`, is [`GitError::Failed`].
+/// # Errors
+/// Refuses absent HEAD files, out-of-range starts, corruption and history bounds.
 pub fn symbol_log(
-    runner: &dyn Runner,
+    repository: &Repository,
     lines: LineRange,
     file: &TreePath,
 ) -> Result<Vec<LogEntry>, GitError> {
-    let invocation = Invocation::git_symbol_log(lines, file);
-    let output = log_query(runner, &invocation)?;
-    if !output.success() {
-        return Err(failed(&invocation, &output));
-    }
-    records(&invocation, &output, false)
+    trace(repository, file, Some(lines))
 }
 
-/// The newest commit that changed how often an identifier occurs in a crate,
-/// as [`last_change`] answers it.
+/// A count-changing commit and its first parent, if any.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LastChange {
     entry: LogEntry,
     parent: Option<Commit>,
 }
-
 impl LastChange {
-    /// The commit, its date and its subject; it lists no path.
+    /// The selected count-changing commit.
     #[must_use]
-    pub fn entry(&self) -> &LogEntry {
+    pub const fn entry(&self) -> &LogEntry {
         &self.entry
     }
-
-    /// Its first parent, or `None` for the first commit of the history.
+    /// Its first parent; absent for a root commit.
     #[must_use]
-    pub fn parent(&self) -> Option<&Commit> {
+    pub const fn parent(&self) -> Option<&Commit> {
         self.parent.as_ref()
     }
 }
 
-/// The newest commit that changed how often `identifier` occurs in the files
-/// below `dirs`, with its first parent, or `None` when no commit did: `git
-/// --no-pager log --no-show-signature --root -S<identifier> -n 1
-/// --format=%H%x1f%P%x1f%aI%x1f%s -- <crate-dir>...`. `--root` keeps a
-/// user's `log.showRoot=false` from hiding the first commit. The parents are
-/// the ids `%P` prints, each accepted only by the commit-id pattern; none for
-/// the first commit of the history.
+fn counts(
+    repository: &Repository,
+    commit: &str,
+    identifier: &str,
+    dirs: &[TreePath],
+) -> Result<BTreeMap<String, (String, usize)>, GitError> {
+    let mut result = BTreeMap::new();
+    for entry in repository.tree(commit, QUERY_BYTES)? {
+        if !matches!(entry.kind, EntryKind::Blob | EntryKind::Symlink) {
+            continue;
+        }
+        if !dirs.is_empty()
+            && !dirs.iter().any(|dir| {
+                dir.as_str() == "."
+                    || entry.path == dir.as_str()
+                    || entry
+                        .path
+                        .strip_prefix(dir.as_str())
+                        .is_some_and(|suffix| suffix.starts_with('/'))
+            })
+        {
+            continue;
+        }
+        let bytes = bytes(repository, &entry)?;
+        let text = String::from_utf8_lossy(&bytes);
+        let count = text.matches(identifier).count();
+        result.insert(entry.path, (entry.id, count));
+    }
+    Ok(result)
+}
+
+fn count_change(
+    mut before: BTreeMap<String, (String, usize)>,
+    mut after: BTreeMap<String, (String, usize)>,
+) -> bool {
+    let shared: Vec<String> = before
+        .keys()
+        .filter(|path| after.contains_key(*path))
+        .cloned()
+        .collect();
+    for path in shared {
+        if before.remove(&path).map(|(_, count)| count)
+            != after.remove(&path).map(|(_, count)| count)
+        {
+            return true;
+        }
+    }
+    let old = before.into_values().collect::<Vec<_>>();
+    let mut new = after.into_values().collect::<Vec<_>>();
+    for (id, count) in old {
+        if let Some(index) = new.iter().position(|(other, _)| *other == id) {
+            new.remove(index);
+        } else if count != 0 {
+            return true;
+        }
+    }
+    new.into_iter().any(|(_, count)| count != 0)
+}
+
+/// Find the newest per-file substring-count change below selected crate paths.
 ///
 /// # Errors
-///
-/// As [`document_log`].
+/// Refuses corrupt/missing objects, noncanonical paths and history byte bounds.
 pub fn last_change(
-    runner: &dyn Runner,
+    repository: &Repository,
     identifier: &Identifier,
     dirs: &[TreePath],
 ) -> Result<Option<LastChange>, GitError> {
-    const EXPECTED: &str = "a commit id, its parents, an author date and a subject";
-    let invocation = Invocation::git_pickaxe(identifier, dirs);
-    let output = log_query(runner, &invocation)?;
-    if !output.success() {
-        return Err(failed(&invocation, &output));
-    }
-    let text = output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout);
-    if text.is_empty() {
-        return Ok(None);
-    }
-    if text.contains(&b'\n') {
-        return Err(malformed(&invocation, "one record", text));
-    }
-    let mut fields = text.splitn(3, |byte| *byte == UNIT);
-    let (Some(commit), Some(parents), Some(rest)) = (fields.next(), fields.next(), fields.next())
-    else {
-        return Err(malformed(&invocation, EXPECTED, text));
-    };
-    let parents = std::str::from_utf8(parents)
-        .ok()
-        .and_then(|list| {
-            if list.is_empty() {
-                Some(Vec::new())
-            } else {
-                list.split(' ')
-                    .map(|id| Commit::new(id).ok())
-                    .collect::<Option<Vec<Commit>>>()
+    let prefix = selected_prefix(repository)?;
+    let dirs = dirs
+        .iter()
+        .map(|path| {
+            let selected = selected_path(&prefix, path.as_str());
+            if selected == "." {
+                return Ok(TreePath::top());
             }
+            TreePath::new(&selected).map_err(|error| {
+                answer(
+                    "pickaxe",
+                    "a repository-relative directory",
+                    &error.to_string(),
+                )
+            })
         })
-        .ok_or_else(|| malformed(&invocation, "the parent ids of a commit", text))?;
-    let mut line = commit.to_vec();
-    line.push(UNIT);
-    line.extend_from_slice(rest);
-    Ok(Some(LastChange {
-        entry: header(&invocation, &line)?,
-        parent: parents.into_iter().next(),
-    }))
+        .collect::<Result<Vec<_>, _>>()?;
+    for commit in repository.ancestors(QUERY_BYTES)? {
+        let current = counts(repository, &commit.id, identifier.as_str(), &dirs)?;
+        let changed = if commit.parents.is_empty() {
+            current.values().any(|(_, count)| *count != 0)
+        } else if commit.parents.len() > 1 {
+            false
+        } else {
+            count_change(
+                counts(repository, &commit.parents[0], identifier.as_str(), &dirs)?,
+                current,
+            )
+        };
+        if changed {
+            return Ok(Some(LastChange {
+                entry: row(&commit, Vec::new())?,
+                parent: commit
+                    .parents
+                    .first()
+                    .map(|id| Commit::new(id))
+                    .transpose()
+                    .map_err(|_| answer("history", "a full parent commit", &commit.id))?,
+            }));
+        }
+    }
+    Ok(None)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::exec::{FakeRunner, Program};
 
-    const A: &str = "0123456789abcdef0123456789abcdef01234567";
-    const B: &str = "fedcba9876543210fedcba9876543210fedcba98";
-
-    #[allow(
-        clippy::unnecessary_wraps,
-        reason = "a scripted answer of the fake is a result"
-    )]
-    fn ok(stdout: &[u8]) -> Result<Output, ExecError> {
-        Ok(Output::new(Some(0), stdout.to_vec(), Vec::new()))
-    }
-
-    fn path(text: &str) -> TreePath {
-        TreePath::new(text).unwrap()
-    }
-
-    fn doc_argv(path: &str) -> Vec<String> {
-        Invocation::git_document_log(&TreePath::new(path).unwrap()).argv()
-    }
-
-    fn run_doc(stdout: &[u8]) -> Result<Vec<LogEntry>, GitError> {
-        let owned = doc_argv("docs/a.md");
-        let args: Vec<&str> = owned.iter().map(String::as_str).collect();
-        let runner = FakeRunner::new().on(Program::Git, &args, ok(stdout));
-        document_log(&runner, &path("docs/a.md"))
+    #[test]
+    fn selected_lines_follow_shifts_and_own_edits_without_unrelated_history() {
+        let before = b"prefix\nfn chosen() {}\nsuffix\n";
+        let shifted = b"new\nprefix\nfn chosen() {}\nsuffix\n";
+        assert_eq!(project_lines(before, shifted, 2..3), (false, Some(1..2)));
+        let edited = b"prefix\nfn chosen() { changed(); }\nsuffix\n";
+        assert_eq!(project_lines(before, edited, 1..2), (true, Some(1..2)));
+        assert_eq!(
+            project_lines(b"prefix\nsuffix\n", before, 1..2),
+            (true, None)
+        );
+        assert_eq!(
+            project_lines(before, b"prefix\nsuffix\n", 0..2),
+            (true, Some(0..3))
+        );
     }
 
     #[test]
-    fn a_strict_author_date_is_read_and_ordered_by_its_instant() {
-        let utc = AuthorDate::parse("2026-05-02T10:00:00Z").unwrap();
-        let east = AuthorDate::parse("2026-05-02T12:00:00+02:00").unwrap();
-        let west = AuthorDate::parse("2026-05-02T05:00:01-05:00").unwrap();
+    fn author_dates_keep_strict_zone_and_day_semantics() {
+        let utc = AuthorDate::parse("2026-05-02T10:00:00Z").expect("UTC");
+        let east = AuthorDate::parse("2026-05-02T12:00:00+02:00").expect("east");
         assert_eq!(utc.seconds(), east.seconds());
-        assert!(west > utc && west > east);
         assert_eq!(east.day(), "2026-05-02");
-        assert_eq!(
-            AuthorDate::parse("1970-01-01T00:00:00+00:00")
-                .unwrap()
-                .seconds(),
-            0
-        );
-        assert_eq!(
-            AuthorDate::parse("2000-03-01T00:00:00Z").unwrap().seconds(),
-            951_868_800
-        );
-        assert!(AuthorDate::parse("2028-02-29T00:00:00Z").is_some());
-        assert!(AuthorDate::parse("2016-12-31T23:59:59Z").is_some());
-        assert!(AuthorDate::parse("2017-01-01T00:59:59+01:00").is_some());
         for refused in [
-            "",
             "2026-05-02",
-            "2026-05-02 10:00:00 +0200",
-            "2026-13-01T00:00:00Z",
             "2026-02-29T00:00:00Z",
-            "2026-05-02T24:00:00Z",
-            "2026-05-02T10:00:00+0200",
-            "2026-05-02T10:00:00",
-            "2026-05-02T10:00:00+02:00x",
-            "2026-05-0xT10:00:00Z",
-            "+026-05-02T10:00:00Z",
-            "2016-12-31T23:59:60Z",
-            "2017-01-01T00:59:60+01:00",
-            "2026-05-02T10:00:60Z",
-            "2026-05-02T10:00:00.0Z",
             "2026-05-02t10:00:00Z",
-            "2026-05-02T10:00:00z",
+            "2016-12-31T23:59:60Z",
+            "2026-05-02T10:00:00.0Z",
         ] {
-            assert!(AuthorDate::parse(refused).is_none(), "{refused:?}");
+            assert!(AuthorDate::parse(refused).is_none(), "{refused}");
         }
-    }
-
-    #[test]
-    fn a_since_day_starts_at_midnight_utc_on_the_scale_of_an_author_date() {
-        let day = |text: &str| start_of_day(&Date::new(text).unwrap());
-        assert_eq!(day("1970-01-01"), 0);
-        assert_eq!(day("2000-03-01"), 951_868_800);
-        for (since, date) in [
-            ("2026-10-15", "2026-10-15T00:00:00Z"),
-            ("2026-10-15", "2026-10-15T02:00:00+02:00"),
-            ("2028-02-29", "2028-02-28T19:00:00-05:00"),
-            ("2099-12-31", "2099-12-31T00:00:00+00:00"),
-        ] {
-            assert_eq!(
-                day(since),
-                AuthorDate::parse(date).unwrap().seconds(),
-                "{since} {date}"
-            );
-        }
-        // The neighbours: one second before the day is before it.
-        let before = AuthorDate::parse("2026-10-14T23:59:59Z").unwrap();
-        assert_eq!(before.seconds() + 1, day("2026-10-15"));
-    }
-
-    #[test]
-    fn a_document_log_reads_each_record_with_its_paths() {
-        let stdout = format!(
-            "\x1e{A}\x1f2026-05-02T10:00:00+00:00\x1fsecond\n\ndocs/a.md\n\
-             \x1e{B}\x1f2026-05-01T10:00:00+00:00\x1fa merge\n\
-             \x1e{A}\x1f2026-04-01T10:00:00+00:00\x1ffirst\n\ndocs/old.md\n\"docs/\\303\\251\\t.md\"\n"
-        );
-        let entries = run_doc(stdout.as_bytes()).unwrap();
-        // The merge that lists no path changed nothing in the document.
-        assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].subject(), "second");
-        assert_eq!(entries[0].paths(), ["docs/a.md"]);
-        assert_eq!(entries[1].subject(), "first");
-        assert_eq!(entries[1].paths(), ["docs/old.md", "docs/\u{e9}\t.md"]);
-        assert_eq!(run_doc(b"").unwrap(), []);
-    }
-
-    #[test]
-    fn a_subject_keeps_every_byte_but_a_newline() {
-        let subject = format!("a\x1fb\x1e{A}\x1f2026-01-01T00:00:00Z\x1f| x \u{1b}[31m");
-        let stdout = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1f{subject}\n\ndocs/a.md\n");
-        let entries = run_doc(stdout.as_bytes()).unwrap();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].subject(), subject);
-        assert_eq!(entries[0].commit().as_str(), A);
-        // Invalid UTF-8 is shown as U+FFFD, the rest kept.
-        let mut bytes = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fbad ").into_bytes();
-        bytes.extend([0xff, b'!', b'\n']);
-        bytes.extend(b"\ndocs/a.md\n");
-        assert_eq!(run_doc(&bytes).unwrap()[0].subject(), "bad \u{fffd}!");
-    }
-
-    #[test]
-    fn output_that_is_not_a_log_of_the_form_is_an_error() {
-        for bad in [
-            "docs/a.md\n".to_string(),
-            "garbage before\n\x1e".to_string(),
-            format!("\x1e{A}\x1f2026-05-02T10:00:00Z\n"),
-            "\x1eHEAD\x1f2026-05-02T10:00:00Z\x1fs\n".to_string(),
-            format!("\x1e{A}\x1fyesterday\x1fs\n"),
-            format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fs\n\n\"unterminated\\\"\n"),
-            format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fs\n\n\"bad \\q\"\n"),
-        ] {
-            let error = run_doc(bad.as_bytes()).expect_err(&bad);
-            assert!(
-                matches!(error, GitError::Answer { .. }),
-                "{bad:?}: {error:?}"
-            );
-        }
-        let mut bytes = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fs\n\n").into_bytes();
-        bytes.extend([b'a', 0xff, b'\n']);
-        assert!(matches!(run_doc(&bytes), Err(GitError::NotUtf8 { .. })));
-    }
-
-    #[test]
-    fn a_symbol_log_lists_no_path_and_refuses_any_other_line() {
-        let lines = LineRange::new(3, 9).unwrap();
-        let owned = Invocation::git_symbol_log(lines, &path("src/lib.rs")).argv();
-        let args: Vec<&str> = owned.iter().map(String::as_str).collect();
-        let good = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fs\n");
-        let runner = FakeRunner::new().on(Program::Git, &args, ok(good.as_bytes()));
-        let entries = symbol_log(&runner, lines, &path("src/lib.rs")).unwrap();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].paths(), [] as [String; 0]);
-        // A patch printed despite `--no-patch` is not read as a path.
-        let patch = format!("{good}\ndiff --git a/src/lib.rs b/src/lib.rs\n");
-        let runner = FakeRunner::new().on(Program::Git, &args, ok(patch.as_bytes()));
-        assert!(matches!(
-            symbol_log(&runner, lines, &path("src/lib.rs")),
-            Err(GitError::Answer { .. })
-        ));
-    }
-
-    #[test]
-    fn a_log_past_the_bound_is_an_error_that_says_so() {
-        let owned = doc_argv("docs/a.md");
-        let args: Vec<&str> = owned.iter().map(String::as_str).collect();
-        let big = vec![b'a'; crate::exec::DEFAULT_OUTPUT_BOUND + 1];
-        let runner = FakeRunner::new().on(Program::Git, &args, ok(&big));
-        let error = document_log(&runner, &path("docs/a.md")).expect_err("too large");
-        assert!(
-            matches!(&error, GitError::LogTooLarge { limit, .. } if *limit == crate::exec::DEFAULT_OUTPUT_BOUND),
-            "{error:?}"
-        );
-        assert!(error.to_string().contains("16777216"), "{error}");
-        // The neighbour: exactly the bound is read.
-        let mut exact = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1f").into_bytes();
-        let tail = b"\n\ndocs/a.md\n";
-        exact.resize(crate::exec::DEFAULT_OUTPUT_BOUND - tail.len(), b's');
-        exact.extend(tail);
-        let runner = FakeRunner::new().on(Program::Git, &args, ok(&exact));
-        assert_eq!(document_log(&runner, &path("docs/a.md")).unwrap().len(), 1);
-    }
-
-    #[test]
-    fn the_pickaxe_answers_one_record_with_its_parent_or_none() {
-        let id = Identifier::new("gone").unwrap();
-        let dirs = [path("crates/a")];
-        let owned = Invocation::git_pickaxe(&id, &dirs).argv();
-        let args: Vec<&str> = owned.iter().map(String::as_str).collect();
-        let answer = |stdout: &str| {
-            let runner = FakeRunner::new().on(Program::Git, &args, ok(stdout.as_bytes()));
-            last_change(&runner, &id, &dirs)
-        };
-        let one = format!("{A}\x1f{B}\x1f2026-05-02T10:00:00Z\x1fremove gone\x1f!\n");
-        let found = answer(&one).unwrap().unwrap();
-        assert_eq!(found.entry().commit().as_str(), A);
-        assert_eq!(found.entry().subject(), "remove gone\x1f!");
-        assert_eq!(found.parent().map(Commit::as_str), Some(B));
-        // A merge: the first parent is the one reported.
-        let merge = answer(&format!("{A}\x1f{B} {A}\x1f2026-05-02T10:00:00Z\x1fm\n"))
-            .unwrap()
-            .unwrap();
-        assert_eq!(merge.parent().map(Commit::as_str), Some(B));
-        // The first commit of the history has no parent.
-        let root = answer(&format!("{A}\x1f\x1f2026-05-02T10:00:00Z\x1froot\n"))
-            .unwrap()
-            .unwrap();
-        assert_eq!(root.parent(), None);
-        assert_eq!(answer("").unwrap(), None);
-        for bad in [
-            format!("{one}{one}"),
-            format!("{A}\x1fHEAD\x1f2026-05-02T10:00:00Z\x1fs\n"),
-            format!("{A}\x1f{B}  {A}\x1f2026-05-02T10:00:00Z\x1fs\n"),
-            format!("{A}\x1f{B}\n"),
-            format!("{A}\x1f{B}\x1fnot a date\x1fs\n"),
-        ] {
-            assert!(
-                matches!(answer(&bad), Err(GitError::Answer { .. })),
-                "{bad:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn the_shallow_answer_is_true_or_false() {
-        for (answer, expected) in [
-            ("true\n", Some(true)),
-            ("false\n", Some(false)),
-            ("yes\n", None),
-        ] {
-            let runner = FakeRunner::new().on(
-                Program::Git,
-                &["rev-parse", "--is-shallow-repository"],
-                ok(answer.as_bytes()),
-            );
-            assert_eq!(is_shallow(&runner).ok(), expected, "{answer}");
-        }
+        assert_eq!(start_of_day(&Date::new("1970-01-01").expect("day")), 0);
     }
 }

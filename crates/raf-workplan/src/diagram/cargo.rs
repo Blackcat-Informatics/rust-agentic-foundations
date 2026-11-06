@@ -1,24 +1,25 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Selected Cargo documentation through the existing typed process runner.
+//! Bounded explicit Cargo metadata and documentation artifact readers.
+//! These APIs never invoke Cargo, compile source or grant execution authority.
 
 use super::DiagramError;
-use crate::exec::{CargoDocOptions, DEFAULT_OUTPUT_BOUND, Invocation, Limits, Output, Runner};
 use purrdf_core::ContentDigest;
 use purrdf_lex::{
     json::{self, Value},
     walk::try_sort_unstable_by,
 };
-use std::fmt;
 use std::path::{Path, PathBuf};
 
 mod artifact;
+mod options;
 pub use artifact::LibraryArtifact;
-/// Checked pre-HTML include preparation from actual compiler observations.
-pub mod assembly;
-/// Explicit compiler invocation and configuration observations for Cargo documentation.
-pub mod observation;
+pub use options::{CargoDocOptions, CargoDocOptionsError};
+
+/// Maximum bytes in one imported metadata or documentation message carrier.
+pub const MAX_METADATA_BYTES: usize = 16 * 1024 * 1024;
+const DEFAULT_OUTPUT_BOUND: usize = MAX_METADATA_BYTES;
 
 /// One exact workspace library selected from Cargo's format-v1 metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,7 +45,8 @@ pub struct Library {
     pub features: Vec<String>,
 }
 
-/// A captured Cargo selection. Construction requires an actual runner response.
+/// Selected libraries described by explicitly supplied metadata.
+/// The metadata is imported data, not evidence of current compiler execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Selection {
     options: CargoDocOptions,
@@ -52,148 +54,82 @@ pub struct Selection {
     target_directory: PathBuf,
     libraries: Vec<Library>,
     metadata_sha256: ContentDigest,
-    metadata_output: Output,
+    metadata_bytes: Vec<u8>,
 }
 
 impl Selection {
-    /// The exact validated request retained for both Cargo operations.
+    /// The declared documentation request.
     #[must_use]
     pub fn options(&self) -> &CargoDocOptions {
         &self.options
     }
-    /// Canonical workspace directory in which the metadata command ran.
+    /// The caller-selected canonical workspace root.
     #[must_use]
     pub fn workspace_root(&self) -> &Path {
         &self.root
     }
-    /// Effective absolute target directory reported by Cargo itself.
-    ///
-    /// This is not a guessed documentation subdirectory. Target-specific output
-    /// layout and actual generated HTML still require artifact evidence.
+    /// The caller-authorized canonical artifact root.
     #[must_use]
     pub fn target_directory(&self) -> &Path {
         &self.target_directory
     }
-    /// Required selected workspace libraries, in request order.
+    /// Selected library declarations from the imported metadata.
     #[must_use]
     pub fn libraries(&self) -> &[Library] {
         &self.libraries
     }
-    /// Native unframed SHA-256 of the exact bounded metadata response bytes.
+    /// Content identity of the exact imported metadata bytes.
     #[must_use]
     pub const fn metadata_sha256(&self) -> ContentDigest {
         self.metadata_sha256
     }
-    /// Complete bounded metadata stdout and diagnostic stderr from the runner.
+    /// The bounded imported metadata carrier.
     #[must_use]
-    pub fn metadata_output(&self) -> &Output {
-        &self.metadata_output
+    pub fn metadata_bytes(&self) -> &[u8] {
+        &self.metadata_bytes
     }
 }
 
-/// Cargo exited unsuccessfully; its bounded stdout diagnostics remain available.
-#[derive(Debug)]
-pub struct CargoFailure {
-    command: String,
-    output: Output,
-}
-
-impl CargoFailure {
-    /// Original bounded streams and exit status, without success-protocol parsing.
-    #[must_use]
-    pub fn output(&self) -> &Output {
-        &self.output
-    }
-}
-
-impl fmt::Display for CargoFailure {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "`{}` exited {:?}\nstdout:\n{}\nstderr:\n{}",
-            self.command,
-            self.output.code,
-            String::from_utf8_lossy(&self.output.stdout),
-            String::from_utf8_lossy(&self.output.stderr)
-        )
-    }
-}
-impl std::error::Error for CargoFailure {}
-
-/// A successful Cargo operation and its reported artifact observations.
-///
-/// These observations do not attest effective compiler configuration, source
-/// expansion, generated inputs, atomic reads or complete HTML link validity.
+/// Imported message records and their contained documentation files.
+/// Successful records in the carrier do not authenticate a compiler run.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DocumentationRun {
+pub struct DocumentationArtifacts {
     selection: Selection,
-    recaptured_metadata_output: Output,
-    invocation: Invocation,
-    output: Output,
     messages: Vec<Value>,
     artifacts: Vec<LibraryArtifact>,
 }
 
-impl DocumentationRun {
-    /// Original metadata selection whose scope remained equal after Cargo completed.
+impl DocumentationArtifacts {
+    /// The imported library selection.
     #[must_use]
     pub fn selection(&self) -> &Selection {
         &self.selection
     }
-    /// Complete bounded metadata output recaptured after documentation completed.
-    /// Its stdout equals the original response; diagnostic stderr may differ.
-    #[must_use]
-    pub fn recaptured_metadata_output(&self) -> &Output {
-        &self.recaptured_metadata_output
-    }
-    /// Exact typed Cargo documentation operation.
-    #[must_use]
-    pub fn invocation(&self) -> &Invocation {
-        &self.invocation
-    }
-    /// Original bounded process output, including diagnostics.
-    #[must_use]
-    pub fn output(&self) -> &Output {
-        &self.output
-    }
-    /// Complete native JSON messages emitted by Cargo, in order.
-    ///
-    /// Hosts use actual artifact messages for output admission; this adapter
-    /// does not manufacture HTML paths or infer cfg from requested features.
+    /// Bounded message values, retaining their supplied order.
     #[must_use]
     pub fn messages(&self) -> &[Value] {
         &self.messages
     }
-    /// Reported HTML entries admitted through the contained native disk reader.
-    ///
-    /// One entry corresponds to each selected library, in selection order.
-    /// These receipts observe output bytes; they do not attest effective cfg,
-    /// atomic subprocess reads, HTML provenance or every embedded link.
+    /// Files admitted beneath the caller-authorized artifact root.
     #[must_use]
     pub fn artifacts(&self) -> &[LibraryArtifact] {
         &self.artifacts
     }
 }
 
-/// Capture Cargo's effective target directory and exact selected workspace libraries.
-///
-/// Uses the native bounded JSON reader and the existing Runner. Metadata and
-/// documentation receive identical explicit feature/output-directory requests.
-/// Non-library targets are not selected for this documentation operation.
+/// Read imported metadata without launching tools or writing files.
+/// The output directory in the data must match the explicit artifact authority.
 ///
 /// # Errors
-/// Refuses process failures, malformed/bounded metadata, a mismatched workspace
-/// root, non-workspace or ambiguous packages, missing/disabled/ambiguous library
-/// targets, absent feature-resolution rows and non-absolute Cargo path locators.
-pub fn capture(
-    runner: &dyn Runner,
+/// Refuses malformed or oversized input, root mismatches and invalid selections.
+pub fn read_metadata(
     root: &Path,
+    artifact_root: &Path,
     options: &CargoDocOptions,
+    metadata_bytes: &[u8],
 ) -> Result<Selection, DiagramError> {
     let root = root.canonicalize().map_err(DiagramError::data)?;
-    let invocation = Invocation::cargo_doc_metadata(options).at_directory(&root);
-    let output = execute(runner, &invocation)?;
-    let metadata = read(&output.stdout)?;
+    let metadata = read(metadata_bytes)?;
     if metadata.get("version").and_then(Value::as_u64) != Some(1) {
         return Err(refused("Cargo metadata must report format version 1"));
     }
@@ -206,7 +142,15 @@ pub fn capture(
             "Cargo metadata workspace_root disagrees with the selected directory",
         ));
     }
-    let target_directory = absolute(&metadata, "target_directory")?;
+    let target_directory = artifact_root.canonicalize().map_err(DiagramError::data)?;
+    let reported = absolute(&metadata, "target_directory")?
+        .canonicalize()
+        .map_err(DiagramError::data)?;
+    if reported != target_directory {
+        return Err(refused(
+            "metadata output directory differs from the caller-authorized artifact root",
+        ));
+    }
     let members = strings(required(&metadata, "workspace_members")?)?;
     let packages = array(required(&metadata, "packages")?, "packages")?;
     let nodes = array(
@@ -237,61 +181,27 @@ pub fn capture(
         root,
         target_directory,
         libraries,
-        metadata_sha256: ContentDigest::of(&output.stdout),
-        metadata_output: output,
+        metadata_sha256: ContentDigest::of(metadata_bytes),
+        metadata_bytes: metadata_bytes.to_vec(),
     })
 }
 
-/// Run selected Cargo library documentation and observe reported output bytes.
-///
-/// Cargo receives `--locked --no-deps --lib` and the exact
-/// retained feature/directory request. It owns cumulative documentation output;
-/// this function never cleans, replaces or publishes documentation files.
-///
-/// Metadata feature names and source locators do not prove effective compiler
-/// cfg, build-script behavior or complete link validity. HTML observations admit
-/// Cargo's reported identity and bounded contained bytes. They do not publish
-/// an assembly or authenticate its compiler inputs.
-/// Both bounded Cargo metadata responses must be byte-identical. This
-/// conservative temporal check includes dependency resolution and also refuses
-/// formatting-only changes; it does not attest intervening state or agreement
-/// with source bytes before the initial metadata capture.
+/// Read message data and existing HTML files without compiling or publishing.
 ///
 /// # Errors
-/// Refuses process or JSON protocol failures, incomplete Cargo completion,
-/// reported broken intra-doc link diagnostics, changed metadata,
-/// and missing, ambiguous, mismatched or unreadable required HTML artifacts.
-pub fn document(
-    runner: &dyn Runner,
+/// Refuses oversized or incomplete carriers, mismatched library identities and
+/// files outside the authorized artifact root. Original file failures are retained.
+pub fn read_artifacts(
     selection: &Selection,
-) -> Result<DocumentationRun, DiagramError> {
-    let invocation = Invocation::cargo_doc(&selection.options).at_directory(&selection.root);
-    document_invocation(runner, selection, invocation)
-}
-
-fn document_invocation(
-    runner: &dyn Runner,
-    selection: &Selection,
-    invocation: Invocation,
-) -> Result<DocumentationRun, DiagramError> {
-    let output = execute(runner, &invocation)?;
-    let messages = messages(&output.stdout)?;
-    let after = capture(runner, &selection.root, &selection.options)?;
-    if after.root != selection.root
-        || after.target_directory != selection.target_directory
-        || after.libraries != selection.libraries
-        || after.metadata_output.stdout != selection.metadata_output.stdout
-    {
-        return Err(refused(
-            "selected Cargo documentation scope changed during the run; regenerate against the current metadata",
-        ));
+    message_bytes: &[u8],
+) -> Result<DocumentationArtifacts, DiagramError> {
+    if message_bytes.len() > MAX_METADATA_BYTES {
+        return Err(refused("documentation messages exceed their byte bound"));
     }
-    let artifacts = artifact::admit(&after, &messages)?;
-    Ok(DocumentationRun {
+    let messages = messages(message_bytes)?;
+    let artifacts = artifact::admit(selection, &messages)?;
+    Ok(DocumentationArtifacts {
         selection: selection.clone(),
-        recaptured_metadata_output: after.metadata_output,
-        invocation,
-        output,
         messages,
         artifacts,
     })
@@ -402,25 +312,6 @@ fn messages(bytes: &[u8]) -> Result<Vec<Value>, DiagramError> {
     }
     Ok(messages)
 }
-
-fn execute(runner: &dyn Runner, invocation: &Invocation) -> Result<Output, DiagramError> {
-    let output = runner
-        .run(invocation, &Limits::build())
-        .map_err(DiagramError::data)?;
-    if output.stdout.len() > DEFAULT_OUTPUT_BOUND || output.stderr.len() > DEFAULT_OUTPUT_BOUND {
-        return Err(refused(
-            "Cargo response exceeds the runner's 16 MiB stream bound",
-        ));
-    }
-    if !output.success() {
-        return Err(DiagramError::data(CargoFailure {
-            command: invocation.to_string(),
-            output,
-        }));
-    }
-    Ok(output)
-}
-
 fn read(bytes: &[u8]) -> Result<Value, DiagramError> {
     if bytes.len() > DEFAULT_OUTPUT_BOUND {
         return Err(refused("Cargo JSON exceeds 16 MiB"));

@@ -6,8 +6,8 @@
 use std::error::Error;
 
 use raf_source::{
-    CommittedGitTree, EntryKind, LoadErrorKind, LoadOptions, LockedCatalog, MemoryTree, RelPath,
-    Tree, TreeError, Workspace,
+    CommittedGitTree, EntryKind, LoadOptions, LockedCatalog, MemoryTree, RelPath, Tree, TreeError,
+    Workspace,
 };
 
 #[path = "support/git_objects.rs"]
@@ -147,6 +147,34 @@ fn missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commi
 }
 
 #[test]
+fn commit_messages_refuse_invalid_utf8_and_other_encodings_without_replacement() {
+    use raf_source::git::Repository;
+
+    let (mut objects, commit, _) = fixture();
+    let repository = Repository::open(objects.path()).expect("native repository");
+    let tree = repository.commit(&commit.to_string()).expect("commit").tree;
+    for (encoding, message, valid) in [
+        ("", b"Caf\xc3\xa9\n".as_slice(), true),
+        ("encoding UTF-8\n", b"Caf\xc3\xa9\n", true),
+        ("encoding utf8\n", b"Caf\xc3\xa9\n", true),
+        ("", b"Caf\xe9\n", false),
+        ("encoding UTF-8\n", b"Caf\xe9\n", false),
+        ("encoding ISO-8859-1\n", b"ASCII\n", false),
+    ] {
+        let mut body = format!("tree {tree}\nauthor Example <example@example.test> 0 +0000\ncommitter Example <example@example.test> 0 +0000\n{encoding}\n").into_bytes();
+        body.extend_from_slice(message);
+        let id = objects.insert(GitObjectKind::Commit, body);
+        let result = repository.commit(&id.to_string());
+        if valid {
+            assert_eq!(result.expect("valid UTF-8 message").subject, "Café");
+        } else {
+            let error = result.expect_err("unsupported or malformed message");
+            assert!(error.to_string().contains("UTF-8"), "{error}");
+        }
+    }
+}
+
+#[test]
 fn missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text() {
     let (mut objects, commit, blob) = fixture();
     let catalog = locked(commit);
@@ -249,7 +277,7 @@ fn committed_bytes_ignore_worktree_edits_and_replacement_refs() {
 }
 
 #[test]
-fn missing_installed_git_is_an_actionable_dependency_failure() {
+fn native_git_reads_do_not_require_an_installed_git() {
     const REPO: &str = "RAF_GIT_MISSING_TOOL_REPOSITORY";
     if let Some(repository) = std::env::var_os(REPO) {
         let commit = std::env::var("RAF_GIT_MISSING_TOOL_COMMIT").expect("parent commit");
@@ -263,13 +291,13 @@ fn missing_installed_git_is_an_actionable_dependency_failure() {
         )
         .expect("catalog");
         let row = catalog.packages().next().expect("row").id();
-        let error = CommittedGitTree::open(&catalog, row, repository, &LoadOptions::default())
-            .expect_err("no installed Git");
-        assert!(
-            matches!(&error.kind,LoadErrorKind::GitIo {source,..} if source.kind()==std::io::ErrorKind::NotFound),
-            "{error}"
+        let tree = CommittedGitTree::open(&catalog, row, repository, &LoadOptions::default())
+            .expect("native reader works without installed Git");
+        assert_eq!(
+            tree.read(&RelPath::new("src/lib.rs").expect("path"), 100)
+                .expect("blob"),
+            "pub fn provided() {}\r\n"
         );
-        assert!(error.source().is_some());
         return;
     }
     let (objects, commit, _) = fixture();
@@ -277,7 +305,7 @@ fn missing_installed_git_is_an_actionable_dependency_failure() {
     let output = std::process::Command::new(std::env::current_exe().expect("test binary"))
         .args([
             "--exact",
-            "missing_installed_git_is_an_actionable_dependency_failure",
+            "native_git_reads_do_not_require_an_installed_git",
         ])
         .env(REPO, objects.path())
         .env("RAF_GIT_MISSING_TOOL_COMMIT", commit.to_string())
@@ -285,4 +313,87 @@ fn missing_installed_git_is_an_actionable_dependency_failure() {
         .output()
         .expect("isolated no-tool child");
     assert!(output.status.success(), "{output:?}");
+}
+
+#[test]
+fn native_selected_index_is_read_only_and_committed_grants_remain_exact() {
+    use raf_source::git::Repository;
+    let (objects, commit, _) = fixture();
+    assert!(
+        objects
+            .command()
+            .args(["read-tree", &commit.to_string()])
+            .status()
+            .expect("fixture index")
+            .success()
+    );
+    let selected = objects.path().join("selected-index");
+    std::fs::copy(objects.path().join(".git/index"), &selected).expect("owned alternate index");
+    let index = std::fs::read(&selected).expect("selected bytes");
+    let config = std::fs::read(objects.path().join(".git/config")).expect("config bytes");
+    let head = std::fs::read(objects.path().join(".git/HEAD")).expect("HEAD bytes");
+    let repository =
+        Repository::open_with_index(objects.path(), Some(&selected)).expect("selected repository");
+    assert_eq!(
+        repository
+            .tracked_paths(16384)
+            .expect("selected paths")
+            .expect("worktree"),
+        ["Cargo.toml", "link", "src/lib.rs", "src/twin.rs"]
+    );
+    assert!(repository.tracked_paths(1).is_err());
+    #[cfg(unix)]
+    {
+        let parent = objects.path().join("index-parent");
+        std::fs::create_dir(&parent).expect("owned index directory");
+        let outside = parent.join("outside");
+        std::os::unix::fs::symlink(&selected, &outside).expect("outside index link");
+        let refused = Repository::open_with_index(objects.path(), Some(&outside)).unwrap();
+        assert!(refused.tracked_paths(16384).is_err());
+        let inside = parent.join("inside");
+        std::fs::copy(&selected, &inside).expect("ordinary index neighbor");
+        let admitted = Repository::open_with_index(objects.path(), Some(&inside)).unwrap();
+        assert_eq!(
+            admitted.tracked_paths(16384).unwrap(),
+            repository.tracked_paths(16384).unwrap()
+        );
+    }
+    let native_limit = Repository::open_with_allocation_limit(objects.path(), 1)
+        .expect("explicit small native allocation grant");
+    assert!(native_limit.resolve_commit(&commit.to_string()).is_err());
+    assert_eq!(
+        repository
+            .resolve_commit(&commit.to_string())
+            .expect("ordinary native allocation neighbor"),
+        commit.to_string()
+    );
+    let missing =
+        Repository::open_with_index(objects.path(), Some(&objects.path().join("missing-index")))
+            .expect("selection");
+    assert!(missing.tracked_paths(16384).is_err());
+    assert_eq!(std::fs::read(&selected).expect("selected unchanged"), index);
+    assert_eq!(
+        std::fs::read(objects.path().join(".git/config")).expect("config unchanged"),
+        config
+    );
+    assert_eq!(
+        std::fs::read(objects.path().join(".git/HEAD")).expect("HEAD unchanged"),
+        head
+    );
+
+    let catalog = locked(commit);
+    let row = catalog.packages().next().expect("row").id();
+    let normal = LoadOptions::default();
+    let usage = CommittedGitTree::open(&catalog, row, objects.path(), &normal)
+        .expect("normal grants")
+        .usage();
+    let mut exact = normal.clone();
+    exact.max_item_bytes = usage.item_bytes;
+    CommittedGitTree::open(&catalog, row, objects.path(), &exact).expect("exact item grant");
+    let mut short = normal.clone();
+    short.max_item_bytes = usage.item_bytes - 1;
+    assert!(CommittedGitTree::open(&catalog, row, objects.path(), &short).is_err());
+    let mut no_work = normal;
+    no_work.max_work = 0;
+    assert!(CommittedGitTree::open(&catalog, row, objects.path(), &no_work).is_err());
 }

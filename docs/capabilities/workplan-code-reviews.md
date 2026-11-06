@@ -42,6 +42,11 @@ tree examined when a review is recorded.
 
 ## Contract
 
+Review recording and historical source selection use native read-only Git.
+No helper, fetch, hook or filter is invoked; missing local objects refuse.
+Review queries and authored review publication never execute consumer code.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+
 ### Recorded scope and trust
 
 A Review is an empty-body record in `work/reviews/<slug>.md`, identified by
@@ -88,6 +93,9 @@ statement layers retain their complete triple-term data.
 
 ## Usage
 
+Review commands inspect declarations and native repository objects. They require
+no Git executable and grant no authority to compile or execute reviewed code.
+
 Inspect a current source selection through
 `raf_workplan::Workplan::review_inputs`; its runnable example selects one item
 from a small consuming workspace. Record a completed review with
@@ -111,6 +119,10 @@ findings or blocked verdict writes its valid record and returns exit 1.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 ## Examples
+
+A source review remains queryable from its persisted item inputs after the
+reviewed commit is unavailable. Reading that record neither fetches the commit
+nor launches the code that the record describes.
 
 The runnable `raf_workplan::Workplan::review_inputs` example leaves an unselected
 function outside the inspected item scope. A consuming Git fixture records a

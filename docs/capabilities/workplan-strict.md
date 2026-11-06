@@ -24,6 +24,9 @@ bindings:
     - raf_workplan::Opened::write_debt
     - raf_workplan::work
   tests:
+    - raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item
+    - raf_workplan::lifecycle::touched::tests::static_surface_comparison_classifies_changes_without_executing_source
+    - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
     - raf_workplan::test_crate::lines::macro_lines_follow_indexed_configuration_instead_of_raw_file_reaches
     - raf_workplan::strict::tests::the_default_check_judges_each_policy_unit_once_without_policy_work_during_load
     - raf_workplan::test_crate::strict::the_complete_policy_accepts_the_documented_repository
@@ -47,8 +50,6 @@ bindings:
     - raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values
     - raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan
     - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
-    - raf_workplan::test_crate::complete::completion_after_record_removal_enforces_the_complete_policy
-    - raf_workplan::test_crate::bound::a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one
     - raf_okf::test_crate::records::a_coverage_record_rejects_the_removed_policy_key
     - raf_okf::test_crate::record_writer::a_coverage_record_writes_only_its_closed_policy_independent_keys
     - raf_okf::test_crate::records::a_ceiling_names_a_crate_one_whole_number_of_lines_or_a_percent_and_an_optional_class
@@ -68,7 +69,6 @@ bindings:
     - cargo_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure
     - cargo_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal
     - cargo_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf
-    - cargo_workplan::test_crate::complete::the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor
     - raf_workplan::strict::claims::tests::a_key_is_the_kebab_slug_of_its_lead_and_a_lead_is_sixty_characters
     - raf_workplan::strict::claims::tests::a_list_item_opens_at_its_marker_and_its_content_starts_after_the_space
     - raf_workplan::strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit
@@ -107,42 +107,12 @@ bindings:
     - raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it
     - raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only
     - raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error
-    - raf_workplan::lifecycle::touched::tests::the_tree_of_the_merge_base_answers_from_one_listing_and_reads_each_file_once_with_the_blob_row
-    - raf_workplan::lifecycle::touched::tests::a_git_failure_while_the_merge_base_loads_is_that_error_and_a_file_that_is_not_utf8_names_the_file
+    - cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor
     - raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability
     - raf_workplan::test_crate::obligations::a_dropped_or_moved_item_needs_a_reason_and_an_explained_outcome_is_accepted
     - raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused
-    - raf_workplan::test_crate::complete::a_none_change_that_edits_a_bound_signature_refuses
-    - raf_workplan::test_crate::complete::an_edit_of_a_bound_body_alone_refuses
-    - raf_workplan::test_crate::complete::an_edit_of_a_bound_doc_comment_refuses
-    - raf_workplan::test_crate::complete::a_changed_attribute_of_a_bound_item_refuses
-    - raf_workplan::test_crate::complete::a_new_bound_public_item_refuses
-    - raf_workplan::test_crate::complete::an_item_renamed_below_a_bound_module_refuses
-    - raf_workplan::test_crate::complete::a_reformatted_bound_body_and_a_plain_comment_complete
-    - raf_workplan::test_crate::complete::a_plain_comment_outside_every_bound_item_completes
-    - raf_workplan::test_crate::complete::an_item_moved_within_its_file_completes
-    - raf_workplan::test_crate::complete::a_bound_item_moved_to_its_module_file_keeps_identity_but_changed_tokens_refuse
-    - raf_workplan::test_crate::complete::a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired
-    - raf_workplan::test_crate::complete::an_item_dropped_without_a_reason_refuses_condition_two
-    - raf_workplan::test_crate::complete::an_untouched_usage_or_examples_of_a_none_change_refuses
-    - raf_workplan::test_crate::complete::a_failing_bound_test_and_a_tense_mismatch_refuse_until_their_repairs_complete
     - cargo_workplan::test_crate::reconcile::an_untouched_usage_of_a_none_change_refuses_until_edited
-    - cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor
     - cargo_workplan::test_crate::reconcile::an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor
-    - raf_workplan::test_crate::complete::a_bound_item_made_private_or_visible_to_its_crate_alone_refuses
-    - raf_workplan::test_crate::complete::a_bound_module_made_private_refuses_for_it_and_its_items
-    - raf_workplan::test_crate::complete::a_public_method_of_a_bound_type_made_private_refuses
-    - raf_workplan::test_crate::complete::a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member
-    - raf_workplan::test_crate::complete::a_method_edited_to_the_tokens_of_a_sibling_method_refuses
-    - raf_workplan::test_crate::complete::a_method_removed_from_an_impl_in_another_file_or_with_its_file_refuses
-    - raf_workplan::test_crate::complete::the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes
-    - raf_workplan::test_crate::complete::a_private_helper_removed_from_a_bound_module_completes_and_a_public_item_removed_refuses
-    - raf_workplan::test_crate::complete::a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes
-    - raf_workplan::test_crate::complete::a_bound_reexport_that_names_another_item_refuses
-    - raf_workplan::test_crate::complete::a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_refuses
-    - raf_workplan::test_crate::complete::an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged
-    - raf_workplan::test_crate::complete::a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers
-    - raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none
     - raf_workplan::test_crate::lines::a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line
     - raf_workplan::test_crate::lines::a_bound_test_reaches_its_registered_allocator_and_real_initializer_dependencies
     - raf_workplan::test_crate::lines::a_registered_allocator_is_not_a_root_of_an_unbound_target
@@ -220,8 +190,6 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all
     - raf_workplan::test_crate::debt::every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_holds
     - raf_workplan::test_crate::debt::an_invalid_debt_row_is_refused_without_a_policy_selector
-    - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse
-    - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved
   examples:
     - raf_workplan::Workplan::check
 depends: [cap:workplan-two-way-coverage, cap:workplan-complete-gate, cap:workplan-reconcile, cap:workplan-evidence-claims, cap:workplan-generated-docs, cap:source-index]
@@ -257,7 +225,7 @@ documents does not judge policy units, while every complete check does. The
 completion check after record removal applies the same policy at both judgements.
 Content and binding findings follow document-model and generated-block findings,
 then the debt ratchet applies.
-<!-- raf:tested-by raf_workplan::strict::tests::the_default_check_judges_each_policy_unit_once_without_policy_work_during_load,raf_workplan::test_crate::strict::every_policy_refusal_case_is_enforced_by_the_default_check,raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan,raf_workplan::test_crate::complete::completion_after_record_removal_enforces_the_complete_policy,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command,raf_workplan::test_crate::debt::the_default_debt_writer_judges_all_present_findings -->
+<!-- raf:tested-by raf_workplan::strict::tests::the_default_check_judges_each_policy_unit_once_without_policy_work_during_load,raf_workplan::test_crate::strict::every_policy_refusal_case_is_enforced_by_the_default_check,raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan,raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command,raf_workplan::test_crate::debt::the_default_debt_writer_judges_all_present_findings -->
 
 **Examples.** A `delivered` capability binds at least
 one entry in `bindings.examples`; with none it is `strict-example-missing` at the key
@@ -269,11 +237,8 @@ generated block in its Verification section; without one it is
 `strict-matrix-missing` at that section.
 <!-- raf:tested-by raf_workplan::test_crate::strict::verification_without_the_matrix_is_refused_and_with_the_block_is_not -->
 
-**Runnable example proof.** That the bound example runs is proven by `verify` and condition 5
-of the [completion gate](./workplan-complete-gate.md), which refuse a binding whose
-only documentation test is `no_run` or `compile_fail`; the complete policy adds no second
-run.
-<!-- raf:tested-by raf_workplan::test_crate::bound::a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one -->
+**Static example declarations.** Verification and completion validate source bindings without executing their bodies. Documentation examples marked no_run or compile_fail remain source declarations; no runtime success is inferred.
+<!-- raf:tested-by cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
 
 **Claim units.** A claim is a unit of the authored prose of the Contract and the
 Constraints of a `delivered` capability, read outside fenced code, generated blocks
@@ -370,12 +335,12 @@ packages; neither reason provides a policy opt-out.
 <!-- raf:tested-by raf_workplan::test_crate::strict::a_binding_reached_package_is_enforced_and_an_unreached_one_is_not,raf_workplan::test_crate::strict::a_scoped_package_is_enforced_once_with_a_binding_present,raf_workplan::test_crate::strict::an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out,raf_workplan::test_crate::strict::a_missing_or_invalid_coverage_record_is_reported_before_package_gaps,raf_workplan::test_crate::strict::while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_reported -->
 
 **Completion.** The complete policy keeps the six conditions of the completion gate:
-condition 5 runs every test and example
-binding of every listed capability with the proof `verify` uses, and condition 1
+condition 5 validates declared source bindings without executing tests or examples, and condition 1
 refuses on each `tense-mismatch` of a listed capability. The list also holds
 `contract-effect-understated`, raised by [reconcile](./workplan-reconcile.md) when the
 record says `contract_effect: none` and a bound public item is touched.
-<!-- raf:tested-by raf_workplan::test_crate::complete::a_failing_bound_test_and_a_tense_mismatch_refuse_until_their_repairs_complete,raf_workplan::test_crate::complete::a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired -->
+<!-- raf:tested-by raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item -->
+
 
 **Compared public surface.** Each side is read from a source index: the working tree's, and one loaded
 at the merge base from the directories of the packages that hold an item a `code`
@@ -399,7 +364,7 @@ does a reformatting that adds or removes a token, such as the trailing comma rus
 adds to one parameter per line, while a reformatting that keeps the tokens and an
 edit of a plain comment do not. The span of an inline module holds its items, so any
 token edited inside a bound inline module touches the module too.
-<!-- raf:tested-by raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it,raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error,raf_workplan::test_crate::complete::a_none_change_that_edits_a_bound_signature_refuses,raf_workplan::test_crate::complete::an_edit_of_a_bound_body_alone_refuses,raf_workplan::test_crate::complete::an_edit_of_a_bound_doc_comment_refuses,raf_workplan::test_crate::complete::a_changed_attribute_of_a_bound_item_refuses -->
+<!-- raf:tested-by raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it,raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error -->
 
 **Touch classes.** A bound unit is
 touched (`obligation::Touch`) when:
@@ -414,7 +379,8 @@ touched (`obligation::Touch`) when:
   file or module held it, a file the change deletes included;
 - it is named by a re-export path of the surface, which names another unit than at
   the merge base (`Retargeted`), is new (`New`) or is gone (`Removed`).
-<!-- raf:tested-by raf_workplan::test_crate::complete::a_new_bound_public_item_refuses,raf_workplan::test_crate::complete::an_item_renamed_below_a_bound_module_refuses,raf_workplan::test_crate::complete::a_bound_item_made_private_or_visible_to_its_crate_alone_refuses,raf_workplan::test_crate::complete::a_public_method_of_a_bound_type_made_private_refuses,raf_workplan::test_crate::complete::a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member,raf_workplan::test_crate::complete::a_method_removed_from_an_impl_in_another_file_or_with_its_file_refuses,raf_workplan::test_crate::complete::the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes,raf_workplan::test_crate::complete::a_bound_reexport_that_names_another_item_refuses -->
+<!-- raf:tested-by raf_workplan::lifecycle::touched::tests::static_surface_comparison_classifies_changes_without_executing_source -->
+
 
 **Untouched units and obligations.** A unit that keeps its path, its kind, its header and its tokens is untouched wherever
 it moves, so two items reordered or an item moved within its module complete. Each
@@ -422,24 +388,20 @@ touched path is one obligation on the change record, reported once, whose eviden
 names the item, its file and the line of its name and the capability whose binding
 covers it; the evidence needed is `contract_effect: changes`, the capability listed
 and the sections it owes reconciled.
-<!-- raf:tested-by raf_workplan::test_crate::complete::a_bound_item_moved_to_its_module_file_keeps_identity_but_changed_tokens_refuse,raf_workplan::test_crate::complete::an_item_moved_within_its_file_completes,raf_workplan::test_crate::complete::a_reformatted_bound_body_and_a_plain_comment_complete,raf_workplan::test_crate::complete::a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired,raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability -->
+<!-- raf:tested-by raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability -->
 
-**Merge-base source loading.** The index at the merge base is loaded through a
-tree of the files of the merge base: `git ls-tree -r -z --full-tree <merge-base>`
-lists them once, and each file the load reads is read once with the reconcile row `git
-cat-file blob <merge-base>:<prefix><path>`, within the 1 MiB bound of a blob, so the
-reads are one for each manifest and source file of the packages a `code` binding
-reaches. `change complete` judges twice, before and after the bound runs, and asks for
-the merge base each time, but loads its index once while the merge base and the
-packages are the same.
-<!-- raf:tested-by raf_workplan::lifecycle::touched::tests::the_tree_of_the_merge_base_answers_from_one_listing_and_reads_each_file_once_with_the_blob_row,raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none -->
+**Merge-base source loading.** The source index at the merge base reads native
+Git trees and blobs, under the same explicit source bounds as current input.
+Only packages reached by code bindings are loaded. Static completion evaluates
+again from fresh inputs before publication; no compiler, test or example runs.
+<!-- raf:tested-by cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor -->
 
 **Unreadable compared surfaces.** A merge base whose index does not load (a file that is not
 UTF-8 or does not parse, a missing module) is an error and not a pass, as is a public
 surface a source index cannot list (`LifecycleError::Surface`, which names the side),
 and `change reconcile` and `change complete` exit 2 for either. Condition 1 refuses on
 the obligation, and the headline counts it as an obligation.
-<!-- raf:tested-by raf_workplan::lifecycle::touched::tests::a_git_failure_while_the_merge_base_loads_is_that_error_and_a_file_that_is_not_utf8_names_the_file,raf_workplan::test_crate::complete::a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers,cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor,cargo_workplan::test_crate::reconcile::an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor -->
+<!-- raf:tested-by cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor,cargo_workplan::test_crate::reconcile::an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor -->
 
 **Section prose.** Each of the seven sections of a `delivered` capability
 holds at least `strict::MIN_SECTION_WORDS`, 20, words of prose: the prose lines
@@ -467,13 +429,13 @@ is not text, is `okf-item-reason-empty`. an item whose outcome is
 condition 2 of the completion gate refuses on it as it refuses on
 `item-without-outcome`; the headline of the refusal counts it as an item without a
 reason. Both obligations apply to every complete reconciliation and completion.
-<!-- raf:tested-by raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused,raf_workplan::test_crate::obligations::a_dropped_or_moved_item_needs_a_reason_and_an_explained_outcome_is_accepted,raf_workplan::test_crate::complete::an_item_dropped_without_a_reason_refuses_condition_two -->
+<!-- raf:tested-by raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused,raf_workplan::test_crate::obligations::a_dropped_or_moved_item_needs_a_reason_and_an_explained_outcome_is_accepted -->
 
 **Untouched sections.** `contract_effect: none` leaves out
 `section-untouched` for the Contract only: a Usage or an Examples section that the
 record lists in `affects` and that has the text of the merge base is owed, as under
 `contract_effect: changes`.
-<!-- raf:tested-by raf_workplan::test_crate::complete::an_untouched_usage_or_examples_of_a_none_change_refuses,cargo_workplan::test_crate::reconcile::an_untouched_usage_of_a_none_change_refuses_until_edited -->
+<!-- raf:tested-by cargo_workplan::test_crate::reconcile::an_untouched_usage_of_a_none_change_refuses_until_edited -->
 
 **Lines.** `cargo workplan coverage lines [--crate <package>]` and
 `Workplan::lines_report` (`coverage::lines::LinesReport`) give the reverse coverage
@@ -789,21 +751,21 @@ from a repository with zero uncovered items, claims and lines.
   tokens. Moving an item to another module, renaming it or retargeting its old
   re-export path is touched, as is a member whose impl header changes. A physical
   source-file move alone is not touched when those logical inputs stay identical.
-<!-- raf:tested-by raf_workplan::test_crate::complete::a_bound_item_moved_to_its_module_file_keeps_identity_but_changed_tokens_refuse,raf_workplan::test_crate::complete::an_item_renamed_below_a_bound_module_refuses,raf_workplan::test_crate::complete::a_bound_reexport_that_names_another_item_refuses,raf_workplan::test_crate::complete::a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member -->
+<!-- raf:tested-by raf_workplan::lifecycle::touched::tests::static_surface_comparison_classifies_changes_without_executing_source -->
+
 - An item a macro generates is not an item of the source index, so an edit of a
   `macro_rules!` macro or of its invocation that changes a generated item is not
   judged. An item `#[doc(hidden)]` hides is not on the surface and is not judged
   either, and a member of a trait impl whose self type is not a struct, enum or union
   of the surface (an impl for a type of another crate) is not judged.
-<!-- raf:tested-by raf_workplan::test_crate::complete::an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged,raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only -->
+<!-- raf:tested-by raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only -->
 - A trait impl with no member, such as `impl Eq for Frame {}`, is no unit, so adding
   or removing one is not judged.
 <!-- raf:tested-by raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only -->
-- `contract-effect-understated` loads the source index of the merge base from the
-  packages that a `code` binding reaches, every target of them included: one `git
-  ls-tree` and one `git cat-file` for each manifest and source file the load reads,
-  only under the complete policy for a change with `contract_effect: none`.
-<!-- raf:tested-by raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none,raf_workplan::lifecycle::touched::tests::the_tree_of_the_merge_base_answers_from_one_listing_and_reads_each_file_once_with_the_blob_row -->
+- `contract-effect-understated` reads native merge-base source for the packages
+  reached by code bindings, including their declared targets. Missing objects or
+  unreadable source refuse locally, without Git subprocesses or fetching.
+<!-- raf:tested-by cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor -->
 - `strict::MIN_SECTION_WORDS` is 20 and is not configurable. A word count is a proxy:
   it catches the one-sentence section and judges no style.
 <!-- raf:tested-by raf_workplan::test_crate::strict::a_section_of_nineteen_words_is_thin_and_one_of_twenty_is_not -->
@@ -885,7 +847,6 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::complete::the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same` | test | [Verification](#verification) |
@@ -904,7 +865,8 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::reconcile::an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::reconcile::an_untouched_usage_of_a_none_change_refuses_until_edited` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused` | test | [Contract](#contract) |
 | `raf_okf::test_crate::record_writer::a_coverage_record_writes_only_its_closed_policy_independent_keys` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_debt_record_is_written_sorted_and_read_back_equal` | test | [Contract](#contract) |
@@ -935,17 +897,15 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `raf_workplan::coverage::lines::tests::the_work_grows_with_the_exceptions_and_no_faster_at_fixed_units` | test | [Contract](#contract) |
 | `raf_workplan::coverage::lines::tests::the_work_grows_with_the_units_and_no_faster_at_fixed_exceptions` | test | [Contract](#contract) |
 | `raf_workplan::debt::tests::a_report_that_could_not_count_is_one_finding_no_row_holds_and_resolves_no_row` | test | [Verification](#verification) |
-| `raf_workplan::lifecycle::touched::tests::a_git_failure_while_the_merge_base_loads_is_that_error_and_a_file_that_is_not_utf8_names_the_file` | test | [Contract](#contract) |
 | `raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error` | test | [Contract](#contract) |
+| `raf_workplan::lifecycle::touched::tests::static_surface_comparison_classifies_changes_without_executing_source` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_workplan::lifecycle::touched::tests::the_tree_of_the_merge_base_answers_from_one_listing_and_reads_each_file_once_with_the_blob_row` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it` | test | [Contract](#contract) |
 | `raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability` | test | [Contract](#contract) |
 | `raf_workplan::strict::claims::tests::a_key_is_the_kebab_slug_of_its_lead_and_a_lead_is_sixty_characters` | test | [Contract](#contract) |
 | `raf_workplan::strict::claims::tests::a_list_item_opens_at_its_marker_and_its_content_starts_after_the_space` | test | [Verification](#verification) |
 | `raf_workplan::strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit` | test | [Verification](#verification) |
 | `raf_workplan::strict::tests::the_default_check_judges_each_policy_unit_once_without_policy_work_during_load` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::bound::a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::claim_coverage::a_bold_lead_directly_after_any_heading_starts_a_contract_clause` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::claim_coverage::a_bound_test_that_panics_still_covers_a_claim_without_execution` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::claim_coverage::a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines` | test | [Contract](#contract) |
@@ -960,37 +920,7 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `raf_workplan::test_crate::claim_coverage::constraints_are_cut_into_top_level_items_paragraphs_and_tables` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::claim_coverage::fenced_generated_and_proposed_text_make_no_claim_and_evidence_does_not_cover_one` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_bound_item_made_private_or_visible_to_its_crate_alone_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_bound_item_moved_to_its_module_file_keeps_identity_but_changed_tokens_refuse` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_workplan::test_crate::complete::a_bound_module_made_private_refuses_for_it_and_its_items` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_bound_reexport_that_names_another_item_refuses` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_workplan::test_crate::complete::a_changed_attribute_of_a_bound_item_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_workplan::test_crate::complete::a_failing_bound_test_and_a_tense_mismatch_refuse_until_their_repairs_complete` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_method_edited_to_the_tokens_of_a_sibling_method_refuses` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_method_removed_from_an_impl_in_another_file_or_with_its_file_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_new_bound_public_item_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_workplan::test_crate::complete::a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_none_change_that_edits_a_bound_signature_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_plain_comment_outside_every_bound_item_completes` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_private_helper_removed_from_a_bound_module_completes_and_a_public_item_removed_refuses` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_public_method_of_a_bound_type_made_private_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_refuses` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_reformatted_bound_body_and_a_plain_comment_complete` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::an_edit_of_a_bound_body_alone_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::an_edit_of_a_bound_doc_comment_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged` | test | [Constraints](#constraints) |
-| `raf_workplan::test_crate::complete::an_item_dropped_without_a_reason_refuses_condition_two` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::an_item_moved_within_its_file_completes` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::an_item_renamed_below_a_bound_module_refuses` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_workplan::test_crate::complete::an_untouched_usage_or_examples_of_a_none_change_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::completion_after_record_removal_enforces_the_complete_policy` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_debt` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::a_falling_count_fails_until_the_write_lowers_the_row` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding` | test | [Contract](#contract) |

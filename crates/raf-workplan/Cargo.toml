@@ -11,13 +11,8 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[[bin]]
-name = "raf-exec-host"
-path = "src/bin/exec_host.rs"
-test = false
-bench = false
-
 [dependencies]
+imara-diff.workspace = true
 purrdf-lex.workspace = true
 purrdf-core.workspace = true
 purrdf-rdf.workspace = true
@@ -26,26 +21,12 @@ purrdf-xsd.workspace = true
 purrdf-text.workspace = true
 purrdf-markdown.workspace = true
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
-raf-okf = { path = "../raf-okf", version = "0.1.0" }
-raf-source = { path = "../raf-source", version = "0.1.0" }
-raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
+raf-okf = { path = "../raf-okf", version = "0.2.0" }
+raf-source = { path = "../raf-source", version = "0.2.0" }
+raf-rdf = { path = "../raf-rdf", version = "0.2.0" }
 
 [dev-dependencies]
 purrdf-testkit.workspace = true
-
-[target.'cfg(target_os = "linux")'.dependencies]
-command-fds.workspace = true
-
-# Native process identity and sealed helper storage, without a signal program
-# lookup on `PATH`.
-[target.'cfg(unix)'.dependencies]
-rustix = { version = "1.1.5", default-features = false, features = ["fs", "process", "std"] }
-
-# The tests of the process runner make FIFOs for the processes they start
-# (`fs`) and block on the end of a process through its pidfd (`event`). The
-# production feature set also supplies the sealed helper executable.
-[target.'cfg(unix)'.dev-dependencies]
-rustix = { version = "1.1.5", default-features = false, features = ["fs", "event", "net", "process", "std"] }
 
 [lints]
 workspace = true

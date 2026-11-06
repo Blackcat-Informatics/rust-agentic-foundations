@@ -10,7 +10,7 @@ inputs:
     digest: 4b62a804143bc65cbc42921562efc2ebefabfdc6d24b87c18f517e058c69bda0
   - kind: symbol
     name: raf_workplan::ExampleKind
-    digest: d45f4c9192e66ec611582276018a52aa3fe49704d6cb5177e4779f9291864673
+    digest: b6a2cebbd073468d315da66e526f02bf758f1f95d43a57b2669a52f8aafe9fe0
   - kind: symbol
     name: raf_workplan::Finding
     digest: f43e8c8938a1469f1d0eba8c24854adde16b9f835df2e448ce98a6c83d581555
@@ -19,13 +19,13 @@ inputs:
     digest: 121369f0e3dc185003952b3ad941b6850b5f9cc25f86f6e471841569825b06e8
   - kind: symbol
     name: raf_workplan::Gate
-    digest: 2e02595a511bef4755a54f5bd679973e44ccbe776c4ea52a7cb42951c50ef807
+    digest: 359b6d8c5cc1dae4b53eb4e7e11a1206d2caa2386e729f655d6f2a05f06afa73
   - kind: symbol
     name: raf_workplan::Gate::assert_clean
     digest: 16ca22b64d06956c48d1f8df708840f0d406ee752c06890b5e3dc5d27a8d5517
   - kind: symbol
     name: raf_workplan::Gate::workspace
-    digest: e6b28d3ee23163591d4a8b7b1dd5ea249b0b087319353ddfae91f8ff8a8ed0a5
+    digest: '0b9dd092ad97f868f3895dbc157968462758adeea5cbbc4bc9db8d7326788e41'
   - kind: symbol
     name: raf_workplan::GateError
     digest: defa503729a4a84e5af64aa6c39956b2a1413d039e8675c114f7378f1535cefd
@@ -73,13 +73,10 @@ inputs:
     digest: 8af4dcb1b4d44404f379b8bec2daca1814b4743f680486131f3c6d67821afd4a
   - kind: symbol
     name: raf_workplan::Opened
-    digest: 4dd8c7e0cb9e54f4293c2d37ba610ead99ac0d437ed2f2a2ba6faa208127d089
-  - kind: symbol
-    name: raf_workplan::Opened::captured
-    digest: fe3eeb8b23bd171264e17638069d8f451a86151c82ba914c4018c899a8de580c
+    digest: b8bdc09a753eda2b0b9ae7772d111e6b6c588679bcab33ff5ce1132646c2d55e
   - kind: symbol
     name: raf_workplan::Opened::tree
-    digest: c71e3bb22f3c11e8d8c114c04f33e2a943dbbc3753854195f3a67675b863a88f
+    digest: 5813d911c1ed805c663eeadb3136fb46d1741160cc34504b8737c14f33d15602
   - kind: symbol
     name: raf_workplan::Roadmap
     digest: fdb27927871fea87b270dc45eff982f221444db1bcb3b5034221d64c6d51c7f0
@@ -144,11 +141,8 @@ inputs:
     name: raf_workplan::files::target_in
     digest: 8c54840984506e81a6b06eb8f5cefa382f74097b6afd10b29bc6db1e43139902
   - kind: symbol
-    name: raf_workplan::gate::RepositoryTree
-    digest: 07a789ea74fc9b9ccb00d917676840344be6ba10265b7841e5a3121737843d6a
-  - kind: symbol
     name: raf_workplan::git::tracked_paths
-    digest: 123bbba78fde0d5aa708397eb4bdeeb11b60c09e849c83ec910a1f298a9a3c20
+    digest: 21859b0f3099ed421eaccb5b5e785a1a9dc31eab9afed660df652a1f3318dd8d
   - kind: symbol
     name: raf_workplan::graph
     digest: 3780a0701c712849be6484b8f2a073d0d10255eacb5182c32cbab5a0ceb58f17
@@ -163,7 +157,7 @@ inputs:
     digest: ca174b83e9a7a962d3264d1ab6102abeddfd5da57d9a5f94fd11a035ac32fcaf
   - kind: symbol
     name: raf_workplan::record
-    digest: 88904c5421b9051afcdf496cceff2188fa928239710889772b4180eaab546101
+    digest: 45f4875db255fcfe828925a9a3f00e344a22d5b85500fdc0577b0a0e4dc2f6cb
   - kind: symbol
     name: raf_workplan::record::Record
     digest: 66651d1b990c023d6764b0f345ca2567d6e2859b1f7830e1cb2307fa6d83ac85

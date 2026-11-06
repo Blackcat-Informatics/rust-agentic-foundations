@@ -20,7 +20,7 @@ pub mod book;
 pub mod cargo;
 pub mod documentation;
 pub mod publication;
-mod rustdoc;
+pub mod rustdoc;
 mod semantic;
 pub use assets::publication::Publication as DiagramPublication;
 
