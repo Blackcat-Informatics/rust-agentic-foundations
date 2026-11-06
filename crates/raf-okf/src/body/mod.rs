@@ -20,6 +20,7 @@ use crate::span::Span;
 
 pub(crate) use blocks::Origin;
 pub use heading::{Heading, Section};
+pub(crate) use link::MAX_LINK_PART;
 pub use link::{Link, LinkError, LinkForm, LinkTarget, SplitLink};
 pub use marker::{Claim, GeneratedBlock, ProposedBlock, TestedBy, is_kebab};
 pub(crate) use marker::{GENERATED_END, GENERATED_OPEN};

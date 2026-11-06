@@ -336,7 +336,9 @@ impl ParseError {
             SyntaxError::Limit {
                 resource: "link part bytes" | "decoded link part bytes",
                 ..
-            } => ErrorKind::LinkPartTooLong { max: 4096 },
+            } => ErrorKind::LinkPartTooLong {
+                max: crate::body::MAX_LINK_PART,
+            },
             _ => {
                 return Self {
                     kind: ErrorKind::Markdown { source },

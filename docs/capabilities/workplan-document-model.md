@@ -806,9 +806,10 @@ binding is repaired; no partial ownership picture is returned.
 <!-- raf:tested-by raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
 
 
-Completion loads original captured sources to resolve a binding, then checks the
-documents with its selected record removed. An absent module candidate remains
-an absent entry; a present non-directory parent remains a hard source error.
+Completion resolves a binding through static workspace reads, then checks the
+documents through an in-memory overlay with its selected record removed. An
+absent module candidate remains an absent entry; a present non-directory parent
+remains a hard source error.
 
 A change to a delivered capability, shown as the capability document, in state
 `implementing`, reads while the change is open. The note before the quote is plain
