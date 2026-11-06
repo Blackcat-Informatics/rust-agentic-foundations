@@ -909,7 +909,7 @@ mod tests {
                 "{}",
                 finding.message
             );
-            assert!(!finding.fix.is_empty());
+            assert_ne!(finding.fix, "");
             assert!(Finding::KINDS.contains(&finding.kind));
         }
     }
