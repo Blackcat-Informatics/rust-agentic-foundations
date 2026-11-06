@@ -4049,7 +4049,10 @@ impl Index {
                 line: self.uses[position].line,
             };
             match self.glob_targets(position, steps) {
-                Ok(targets) => reached.push((position, targets)),
+                Ok(targets) => {
+                    crate::glob_scope::reserve_next(&mut reached, steps)?;
+                    reached.push((position, targets));
+                }
                 Err(Fail::Storage(error)) => return Err(error),
                 Err(_) => {}
             }

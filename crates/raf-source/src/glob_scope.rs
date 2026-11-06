@@ -107,13 +107,12 @@
 //! and the routes of the reads to each item are combined as they come. So a
 //! fan-in of globs that each carry a companion costs a reading of one read
 //! for each name at the module they fan into, found among the few views that
-//! hold the name. One shape costs more than that: a hub that many siblings
-//! glob and that globs them back, partly privately, where each two siblings
-//! define an item of one name, so that every name carries a companion and
-//! keeps the exact reading at each arrival (cubic, where the resolver from
-//! before the two visibility rules was quadratic: 7.5 to 8.2 times the
-//! instructions per doubling of the siblings where that resolver took 3.8
-//! to 4.1, and 422 times its count at 800 siblings).
+//! hold the name. A hub whose paired siblings define items of the same name
+//! gives every name companions and retains exact carrier proofs. Complete
+//! native release driver measurements grow by 4.074 times from 400 to 800
+//! siblings. At 800 siblings the count is 1.499652 times the resolver from before
+//! the two visibility rules. These rounded figures describe the admitted
+//! generated shape; the instruction gate compares the original integer counts.
 //!
 //! Every view, each name and item it holds, each glob's read of a view, each
 //! covert and open reader of a view, each view a view's module reads through
@@ -285,6 +284,28 @@ pub(crate) const fn ambiguity_seen(candidates: usize, seen: usize) -> bool {
 /// module the view is of binds it, as far as the class of the view can access
 /// it.
 type Held = (ItemId, Level);
+
+/// Snapshot common candidate pairs on the caller's bounded stack buffer;
+/// larger slices retain the caller's original live import-storage grant.
+fn copy_held<'a>(
+    ids: &[Held],
+    inline: &'a mut [Held; 2],
+    steps: Steps<'_>,
+) -> Result<Cow<'a, [Held]>, LoadError> {
+    steps.storage_work(ids.len())?;
+    if ids.len() <= inline.len() {
+        let held = &mut inline[..ids.len()];
+        held.copy_from_slice(ids);
+        return Ok(Cow::Borrowed(held));
+    }
+    let mut copied = Vec::new();
+    let mut admission = NativeAdmission::new(steps);
+    purrdf_lex::allocation::Memory::new(&mut admission)
+        .reserve(&mut copied, ids.len())
+        .map_err(|error| admission.graph_error(error.into()))?;
+    copied.extend_from_slice(ids);
+    Ok(Cow::Owned(copied))
+}
 
 /// Reserve the next geometric growth before constructing a place entry.
 pub(crate) fn reserve_next<T>(into: &mut Vec<T>, steps: Steps<'_>) -> Result<(), LoadError> {
@@ -4763,10 +4784,24 @@ impl Index {
                     .range::<SharedStr, _>((Excluded(name), Unbounded))
                     .next(),
             };
-            let Some((name, lists)) = next.map(|(name, lists)| (name.clone(), (**lists).clone()))
-            else {
+            let Some((name, source)) = next else {
                 return Ok(());
             };
+            let memory = Transient::new(meter);
+            let decl = &self.uses[glob];
+            let steps = Steps::LoadAt {
+                memory: &memory,
+                file: &decl.file,
+                line: decl.line,
+            };
+            let name = name.clone();
+            let mut inline = [[(ItemId(0), Level::NOBODY); 2]; 3];
+            let [types, values, macros] = &mut inline;
+            let lists = [
+                copy_held(&source[0], types, steps)?,
+                copy_held(&source[1], values, steps)?,
+                copy_held(&source[2], macros, steps)?,
+            ];
             for (at, ids) in lists.iter().enumerate() {
                 if !ids.is_empty() {
                     self.charge_steps(1, glob, meter)?;
@@ -4858,14 +4893,25 @@ impl Index {
         // what waits on a name in the module is told before the name
         // arrives.
         let mut waits = waited.iter().peekable();
-        for (name, at) in self.covert_due(module, view, glob, meter)? {
+        for (name, at) in self.covert_due(module, view, glob, meter, &memory)? {
             while let Some(waiting) = waits.next_if(|waiting| waiting.as_str() <= name.as_str()) {
                 if self.globs.views[view].names.contains_key(waiting.as_str()) {
                     waiters.wake(module, waiting)?;
                 }
             }
             self.covert_steps(1, glob, meter)?;
-            let ids = self.globs.views[view].names[name.as_str()][at].clone();
+            let candidates = Transient::new(meter);
+            let decl = &self.uses[glob];
+            let mut inline = [(ItemId(0), Level::NOBODY); 2];
+            let ids = copy_held(
+                &self.globs.views[view].names[name.as_str()][at],
+                &mut inline,
+                Steps::LoadAt {
+                    memory: &candidates,
+                    file: &decl.file,
+                    line: decl.line,
+                },
+            )?;
             let mut work = Queue::new(meter);
             self.arrive(module, read, &name, at, &ids, &mut work, waiters, meter)?;
             self.pass_on(work, waiters, meter)?;
@@ -4891,7 +4937,13 @@ impl Index {
         view: usize,
         glob: usize,
         meter: &Meter,
+        memory: &Transient<'_>,
     ) -> Result<Vec<(SharedStr, usize)>, LoadError> {
+        let steps = Steps::LoadAt {
+            memory,
+            file: &self.uses[glob].file,
+            line: self.uses[glob].line,
+        };
         let own = self.exports_of(module);
         let source = &self.globs.views[view].names;
         let holds = |names: &BTreeMap<SharedStr, Lists>, name: &str, at: usize| {
@@ -4900,6 +4952,7 @@ impl Index {
         let open = |name: &str, at: usize| {
             !self.binds_itself(module, name, at) && !self.blocked_in(module, name, at)
         };
+        steps.storage_work(own.len())?;
         let held: usize = own
             .iter()
             .map(|own| self.globs.views[*own].names.len())
@@ -4911,23 +4964,36 @@ impl Index {
                 for (name, lists) in &self.globs.views[*own].names {
                     for (at, ids) in lists.iter().enumerate() {
                         if !ids.is_empty() && holds(source, name, at) && open(name, at) {
+                            reserve_next(&mut due, steps)?;
                             due.push((name.clone(), at));
                         }
                     }
                 }
             }
+            steps.storage_work(
+                due.len()
+                    .saturating_mul(due.len().checked_ilog2().unwrap_or(0) as usize + 1),
+            )?;
             due.sort_unstable();
+            steps.storage_work(due.len())?;
             due.dedup();
         } else {
             self.covert_steps(source.len(), glob, meter)?;
             for (name, lists) in source {
                 for (at, ids) in lists.iter().enumerate() {
-                    if !ids.is_empty()
-                        && own
-                            .iter()
-                            .any(|own| holds(&self.globs.views[*own].names, name, at))
-                        && open(name, at)
-                    {
+                    if ids.is_empty() || !open(name, at) {
+                        continue;
+                    }
+                    let mut held = false;
+                    for own in own {
+                        steps.storage_work(1)?;
+                        if holds(&self.globs.views[*own].names, name, at) {
+                            held = true;
+                            break;
+                        }
+                    }
+                    if held {
+                        reserve_next(&mut due, steps)?;
                         due.push((name.clone(), at));
                     }
                 }

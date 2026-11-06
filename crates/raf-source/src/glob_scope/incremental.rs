@@ -11,7 +11,7 @@
 
 use super::{Index, Level, Nobody, reference};
 use crate::item::ItemId;
-use crate::meter::Meter;
+use crate::meter::{Meter, Transient};
 use crate::options::LoadOptions;
 use crate::{MemoryTree, Namespace, ResolveError, Workspace};
 
@@ -384,6 +384,13 @@ fn built(loaded: &Index, s: ItemId) -> Built {
     assert_eq!(held(&index, "demo::y"), y_expected);
     assert_eq!(held(&index, "demo::m"), vec![(s, false)]);
     read(&mut index, "demo::m", "demo::t");
+    if !Index::exact_mode() {
+        let module = module(&index, "demo::m");
+        let (glob, target) = glob(&index, "demo::m", "demo::t");
+        let class = index.class_for(target, module);
+        let view = index.globs.view_of[&(target, class)];
+        assert_delivery_scratch(&index, module, view, glob);
+    }
     let t_view = index.globs.exports[module(&index, "demo::t")][0];
     Built {
         y: held(&index, "demo::y"),
@@ -392,6 +399,78 @@ fn built(loaded: &Index, s: ItemId) -> Built {
             .unseen()
             .covert
             .contains_key(&module(&index, "demo::m")),
+    }
+}
+
+/// Check the scratch boundaries of the real reentrant delivery above.
+fn assert_delivery_scratch(index: &Index, module: usize, view: usize, glob: usize) {
+    let due = |limit| {
+        let meter = Meter::new(&LoadOptions {
+            max_glob_bytes: limit,
+            ..LoadOptions::default()
+        });
+        let memory = Transient::new(&meter);
+        let result = index.covert_due(module, view, glob, &meter, &memory);
+        (result, meter.usage().glob_bytes)
+    };
+    let (expected, bytes) = due(usize::MAX);
+    let expected = expected.expect("due names fit");
+    assert!(!expected.is_empty(), "the covert read has delivery scratch");
+    assert!(bytes > 0, "due storage uses the original glob-byte grant");
+    assert_eq!(due(bytes).0.expect("exact due scratch grant"), expected);
+    for limit in [0, bytes - 1] {
+        let error = due(limit).0.expect_err("short due scratch refuses");
+        assert!(matches!(
+            error.kind,
+            crate::LoadErrorKind::Budget {
+                budget: crate::Budget::GlobBytes,
+                limit: actual,
+            } if actual == limit
+        ));
+        assert_eq!(error.file, index.uses[glob].file);
+        assert_eq!(error.line, Some(index.uses[glob].line));
+    }
+    let ids = &index.globs.views[view].names["P"][0];
+    assert!(ids.len() > 2, "the reentrant ambiguity spills its snapshot");
+    let copy = |count, limit| {
+        let meter = Meter::new(&LoadOptions {
+            max_glob_bytes: limit,
+            ..LoadOptions::default()
+        });
+        let memory = Transient::new(&meter);
+        let mut inline = [(ItemId(0), Level::NOBODY); 2];
+        let decl = &index.uses[glob];
+        let copied = super::copy_held(
+            &ids[..count],
+            &mut inline,
+            crate::meter::Steps::LoadAt {
+                memory: &memory,
+                file: &decl.file,
+                line: decl.line,
+            },
+        )?;
+        assert_eq!(copied.as_ref(), &ids[..count]);
+        assert_eq!(matches!(copied, std::borrow::Cow::Borrowed(_)), count <= 2);
+        Ok::<_, crate::LoadError>(meter.usage())
+    };
+    for count in 0..=2 {
+        let usage = copy(count, 0).expect("bounded stack snapshot");
+        assert_eq!(usage.glob_bytes, 0);
+        assert_eq!(usage.work, count, "inline copies retain their work charge");
+    }
+    let bytes = copy(ids.len(), usize::MAX).expect("spill fits").glob_bytes;
+    copy(ids.len(), bytes).expect("exact snapshot spill grant");
+    for limit in [0, bytes - 1] {
+        let error = copy(ids.len(), limit).expect_err("short snapshot spill grant");
+        assert!(matches!(
+            error.kind,
+            crate::LoadErrorKind::Budget {
+                budget: crate::Budget::GlobBytes,
+                limit: actual,
+            } if actual == limit
+        ));
+        assert_eq!(error.file, index.uses[glob].file);
+        assert_eq!(error.line, Some(index.uses[glob].line));
     }
 }
 

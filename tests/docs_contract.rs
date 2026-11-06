@@ -91,7 +91,7 @@ const INVENTORY: Inventory = Inventory {
         ("rdf-report-profile", "delivered"),
         ("repository-contract", "delivered"),
         ("source-configured-target", "delivered"),
-        ("source-index", "implementing"),
+        ("source-index", "delivered"),
         ("source-reference-namespace", "delivered"),
         ("workplan-cargo-documentation", "delivered"),
         ("workplan-cli", "delivered"),
@@ -110,10 +110,7 @@ const INVENTORY: Inventory = Inventory {
         ("workplan-strict", "delivered"),
         ("workplan-two-way-coverage", "delivered"),
     ],
-    changes: &[
-        ("rustdoc-assembly", &["workplan-rustdoc"]),
-        ("source-glob-cost", &["source-index"]),
-    ],
+    changes: &[("rustdoc-assembly", &["workplan-rustdoc"])],
     architecture: &["debt-ratchet", "normal-form", "okf-profile"],
     records: &[
         "assessment:census-cli-constraints",
