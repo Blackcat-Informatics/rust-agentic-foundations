@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 611dc7a5d460651345068f6362458ce87b363c0ca3a3c26281305367f4bac724
+    digest: a5118202dd8f716c1552b2b48223505dd601f63febd6bd2fb22b54abbda48a7d
   - kind: symbol
     name: raf_source::Budget
     digest: 8fbd1437d0feadbe6aaaa4dd3cebbf5e0f568dd97f59b44eeca8dc975d09cddc
@@ -171,6 +171,9 @@ inputs:
     name: raf_source::PackageId
     digest: 074faf46dd258b3f6c550568b4013c17b0d8dd52381f8e6194c4647e4285c61d
   - kind: symbol
+    name: raf_source::ParsedSource
+    digest: 6ca54f6d5936a9b8b9a76a10bd47d3bbc1287b3240d51839b6d1b29389f4a2b2
+  - kind: symbol
     name: raf_source::PathError
     digest: a8d006e0bbc52c46b77ad06d0c7fd4037f6da3938cc26e000f988031dec4efb1
   - kind: symbol
@@ -305,6 +308,9 @@ inputs:
   - kind: symbol
     name: raf_source::parse_source
     digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a
+  - kind: symbol
+    name: raf_source::parse_sources
+    digest: 1eec9eebbdfc5c3c8ae01ef2177184bd2324a40041d127949dc9589ef87ac16c
   - kind: symbol
     name: raf_source::resolve
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3
