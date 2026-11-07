@@ -20,7 +20,7 @@ targets = []
 purrdf-hash.workspace = true
 # The lexer for function bodies and macro arguments; `span-locations` gives
 # string literals their absolute lines.
-proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
+proc-macro2 = { workspace = true, features = ["span-locations"] }
 # The workspace walk: packages, targets, the symbol index and the item bodies.
 raf-source = { path = "../raf-source", version = "0.2.0" }
 # Shared RDF 1.2 lexical laws; canonical report goldens pin the term spelling.
@@ -34,7 +34,7 @@ purrdf-toml.workspace = true
 purrdf-core.workspace = true
 # Decodes individual string literals; signatures and initialiser ranges come
 # from raf-source's budgeted parse rather than a second parse.
-syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }
+syn = { workspace = true, features = ["full", "parsing", "printing", "visit"] }
 
 [dev-dependencies]
 purrdf-testkit.workspace = true
