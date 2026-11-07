@@ -87,7 +87,13 @@ guarantees are these, and no wider:
     own path for it must lie under the root before it is opened for reading or
     listed, through that descriptor path. An outside candidate is never opened for
     reading or listing; only an `O_PATH` reference is taken, which performs no I/O,
-    device open or FIFO rendezvous.
+    device open or FIFO rendezvous. The tree retains its original root directory
+    description, validates acquisition against the observed directory and exact
+    canonical scope, and checks file parent/name identity and descriptor-relative
+    root ancestry before and after use. Root replacement cannot retarget an
+    existing tree; relocation outside its canonical scope refuses. An explicit
+    metadata publisher can clone the same path-only directory handle. These
+    checks do not make the source an immutable snapshot.
   - On other Unix systems (macOS and the BSDs) the path is walked beneath a
     descriptor of the root, one `openat` per component, never following a symlink
     and never resolving a path by name; an in-root symlink is read and its target

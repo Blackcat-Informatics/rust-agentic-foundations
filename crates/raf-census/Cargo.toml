@@ -35,5 +35,8 @@ syn = { version = "3", default-features = false, features = ["full", "parsing", 
 [dev-dependencies]
 purrdf-testkit.workspace = true
 
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix.workspace = true
+
 [lints]
 workspace = true

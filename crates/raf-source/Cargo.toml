@@ -30,14 +30,8 @@ purrdf-testkit.workspace = true
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
-# The handle-relative opens, status calls and listing of the walk beneath the
-# root on Unix systems other than Linux.
-[target.'cfg(all(unix, not(target_os = "linux")))'.dependencies]
-rustix = { version = "1.1.5", default-features = false, features = ["fs", "std"] }
-
-# The same walk runs on Linux through a test override of the strategy.
-[target.'cfg(target_os = "linux")'.dev-dependencies]
-rustix = { version = "1.1.5", default-features = false, features = ["fs", "std"] }
+# Descriptor-relative root and ancestry checks, and the other-Unix walk.
+rustix.workspace = true
 
 # The path the system gives for an open handle (`GetFinalPathNameByHandleW`).
 [target.'cfg(windows)'.dependencies]

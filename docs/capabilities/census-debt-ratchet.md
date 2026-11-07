@@ -13,8 +13,7 @@ bindings:
     - raf_census::Gate::write_debt_locked
     - raf_census::gate::Gate::write_debt_with
     - raf_census::gate::Gate::evaluate_locked
-    - raf_census::gate::replace_record
-    - raf_census::gate::lock_publication
+    - raf_census::publication
     - raf_census::gate::read_debt
     - raf_census::DebtRecord
     - raf_census::DebtGroup
@@ -23,6 +22,9 @@ bindings:
     - raf_census::DEBT_FILE
     - raf_census::MAX_DEBT_BYTES
   tests:
+    - raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures
+    - cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target
+    - cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records
 
     - raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth
     - raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group
@@ -91,16 +93,23 @@ Gate::write_debt_locked records exactly present debt.
 The record never carries unused allowance.
 
 ### Exclusive writer coordination
-<!-- raf:tested-by raf_census::example_crate::debt -->
+<!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records -->
 
-Both writers acquire an exclusive nonblocking kernel lock on the persistent
-workspace-root .census-debt.ttl.lock before evaluating policy or reading prior
-debt. The lock remains held through comparison, serialization and publication,
+On native Linux, both writers acquire an exclusive nonblocking kernel lock on
+the retained workspace directory before evaluating policy or reading prior
+debt. No coordination file is created. A manifest can name any filename as Rust
+source; a reserved lock filename cannot authorize creating inspected source.
+The directory lock remains held through comparison, serialization and publication,
 including error cleanup. A competing writer refuses with an actionable busy
 error; retry after the active writer finishes. Locking failures are hard errors.
-Closing the owned handle releases the lock; the coordination file is never
-deleted by the writer. This prevents cooperating writers from comparing against
+Closing the owned directory description releases the lock. This prevents cooperating writers from comparing against
 the same old allowance and publishing stale debt after a smaller record.
+The filesystem must support exclusive directory locking and directory
+synchronization; unavailable operations refuse without a weaker fallback.
+Older writers using `.census-debt.ttl.lock` do not coordinate with this protocol.
+Other platform adapters refuse publication without the native directory
+capability. Advisory locking does not authenticate arbitrary concurrent directory
+mutation or make source contents an immutable snapshot.
 
 ### Adoption and version replacement
 <!-- raf:tested-by raf_census::test_crate::debt::other_versions_can_be_read_but_cannot_be_compared,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,raf_census::example_crate::debt -->
@@ -126,13 +135,21 @@ Registered policy is supplied directly to the library Gate through its rule and
 extension registrations. The shipped CLI installs no repository callbacks and
 refuses policy requiring them; it does not launch a repository target.
 The writer serializes completely, checks the shared 16-MiB record cap, creates
-an exclusive temporary file and replaces the destination after writing and
-synchronizing it. Equal records are left unchanged, including when an unrelated
+an exclusive temporary file and synchronizes it before publication. Initial
+adoption links the complete temporary to an absent destination atomically and
+refuses a concurrent creation. An existing record is replaced atomically.
+Existing debt is read through a pinned no-follow regular-file handle; a symlink
+or nonregular record refuses before its contents are opened. The retained
+directory is synchronized after publication. Equal records are left unchanged, including when an unrelated
 temporary file is already present. A preexisting .census-debt.ttl.write blocks
 publication and is left untouched. If writing an owned temporary or replacing
 the record fails, the writer attempts to remove only its own temporary and
 reports a cleanup failure as well as the original failure. A refusal preserves
 the prior record; source, manifest, lock and ledger inputs are not rewritten.
+An error after successful atomic publication explicitly reports that the record
+already exists at its destination. Cleanup and directory-synchronization errors
+retain their native types, including both causes when finalization fails twice.
+<!-- raf:tested-by raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures -->
 
 ## Usage
 
@@ -145,11 +162,10 @@ The Gate reads first-party files and publishes census-debt.ttl at its own root;
 the caller supplies the catalog, configurations and sealed dependency roots.
 Check with Gate::check or Gate::assert_clean for ordinary evaluation, and
 Gate::check_locked for configured locked evaluation.
-The existing executable `raf_census::example_crate::debt` includes ordinary and
-locked disk fixtures with registered policy. Run cargo run -p raf-census
---example debt; its writes stay inside owned scratch workspaces.
-Ignore .census-debt.ttl.lock in repository hygiene and keep its pathname stable.
-The empty coordination file can remain after success or a policy refusal.
+The `raf_census::example_crate::debt` source reference includes ordinary and
+locked disk fixtures with registered policy. Its fixture operations are explicit
+host calls; RAF does not initiate the example's execution. Native writers lock
+the retained workspace directory and create no coordination file.
 <!-- raf:tested-by raf_census::example_crate::debt -->
 
 For custom policy, construct the registered Gate in the repository's own binary
@@ -158,6 +174,13 @@ example selector for loading callbacks.
 <!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 ## Examples
+
+An explicit Cargo library path naming a missing `.census-debt.ttl.lock`,
+temporary or debt record refuses as missing source and creates none of them.
+A held directory lock refuses a competing writer; releasing it permits the
+same ordinary debt publication. Preexisting temporary files and symlink or
+directory entries remain untouched on refusal.
+<!-- raf:tested-by cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records -->
 
 A recorded body group contains demo_a::len, demo_b::len and demo_c::len.
 Removing demo_c leaves a strict subset. The next Gate check reports shrinkage.
@@ -193,10 +216,10 @@ partial record. The debt example covers the configured registered writer.
 <!-- raf:tested-by cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 
-- Coordination is advisory between writers using the same persistent pathname.
-  It does not prevent external source edits or an actor replacing the lock file.
-  Unexpected nonregular or symbolic-link coordination paths refuse; the writer
-  neither truncates nor deletes a preexisting coordination path.
+- Coordination is advisory between writers locking the same retained directory.
+  It does not prevent external source edits or authenticate concurrent directory
+  mutation. Older file-lock writers do not participate. Native Linux directory
+  locking and synchronization are required; other adapters refuse publication.
 <!-- raf:tested-by raf_census::example_crate::debt -->
 
 - The ratchet covers duplicate groups and unenforced job-copy counts. Detector
@@ -237,6 +260,15 @@ instead of quietly producing a smaller partial record.
 
 ## Verification
 
+Controlled CLI fixtures refuse missing declared source at each closed publication
+pathname without creating it. They preserve unowned files, directories and
+symlinks, refuse a held directory lock and admit publication after release.
+The finalization fixture exercises both atomic creation and replacement with an
+injected synchronization failure; complete records survive, and a replaced
+unowned temporary remains intact with both failure causes retained as typed
+errors. Fixture programs and example consumers are never initiated by RAF.
+<!-- raf:tested-by cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records,raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures -->
+
 Bound cases cover both ratchet directions, kind changes, counted cfg members,
 canonical formats, shape/digest refusal and version comparison. Actual command
 fixtures prove adoption, growth refusal, lowering, registration refusal and
@@ -257,9 +289,12 @@ or execution of an external native implementation.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target` | test | [Contract](#contract), [Examples](#examples) |
+| `cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records` | test | [Contract](#contract), [Examples](#examples) |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes` | test | [Contract](#contract) |

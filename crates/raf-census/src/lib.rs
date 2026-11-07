@@ -55,6 +55,8 @@ mod group;
 mod job;
 mod normalize;
 mod options;
+#[cfg(target_os = "linux")]
+mod publication;
 mod registered;
 pub mod report;
 mod rule;

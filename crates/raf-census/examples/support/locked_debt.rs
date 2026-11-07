@@ -279,13 +279,12 @@ impl LedgerExtension for PublicationObserver {
 }
 
 fn coordination(fixture: &Fixture, previous: &[u8]) -> Result<(), Box<dyn Error>> {
-    let path = fixture.root().join(".census-debt.ttl.lock");
-    let held = fs::OpenOptions::new().read(true).write(true).open(&path)?;
+    let held = fs::File::open(fixture.root())?;
     held.try_lock()?;
     fixture.refuses(previous, "debt publication is busy")?;
     drop(held);
-    assert!(path.is_file());
-    let reopened = fs::OpenOptions::new().read(true).write(true).open(&path)?;
+    assert!(!fixture.root().join(".census-debt.ttl.lock").try_exists()?);
+    let reopened = fs::File::open(fixture.root())?;
     reopened.try_lock()?;
     drop(reopened);
     fixture.write()?;
@@ -305,38 +304,7 @@ fn coordination(fixture: &Fixture, previous: &[u8]) -> Result<(), Box<dyn Error>
     assert_eq!(fs::read(fixture.root().join(DEBT_FILE))?, previous);
     assert!(!fixture.root().join(".census-debt.ttl.write").try_exists()?);
     fixture.write()?;
-    assert!(path.is_file());
-    Ok(())
-}
-
-fn unexpected_coordination() -> Result<(), Box<dyn Error>> {
-    let fixture = Fixture::new()?;
-    let path = fixture.root().join(".census-debt.ttl.lock");
-    fs::create_dir(&path)?;
-    let error = fixture.write().unwrap_err();
-    assert!(
-        error.to_string().contains("regular coordination file"),
-        "{error}"
-    );
-    assert!(!fixture.root().join(DEBT_FILE).try_exists()?);
-    fs::remove_dir(&path)?;
-    #[cfg(unix)]
-    {
-        let target = fixture.root().join("lock-target");
-        fs::write(&target, "preserve unexpected target")?;
-        std::os::unix::fs::symlink(&target, &path)?;
-        let error = fixture.write().unwrap_err();
-        assert!(
-            error.to_string().contains("regular coordination file"),
-            "{error}"
-        );
-        assert_eq!(fs::read(&target)?, b"preserve unexpected target");
-        assert!(!fixture.root().join(DEBT_FILE).try_exists()?);
-        fs::remove_file(&path)?;
-        fs::remove_file(target)?;
-    }
-    fixture.write()?;
-    assert!(path.is_file());
+    assert!(!fixture.root().join(".census-debt.ttl.lock").try_exists()?);
     Ok(())
 }
 
@@ -409,7 +377,6 @@ fn refusals(fixture: &Fixture, reduced: &[u8]) -> Result<(), Box<dyn Error>> {
 }
 
 pub(crate) fn exercise() -> Result<(), Box<dyn Error>> {
-    unexpected_coordination()?;
     let fixture = Fixture::new()?;
     let reduced = ratchet(&fixture)?;
     coordination(&fixture, &reduced)?;

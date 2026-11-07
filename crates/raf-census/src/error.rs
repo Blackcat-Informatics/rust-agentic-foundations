@@ -122,8 +122,26 @@ pub enum Error {
         /// The original operating-system error.
         source: std::io::Error,
     },
+    /// A record was published, but its cleanup or durability operation failed.
+    Published {
+        /// The record that already exists at its destination.
+        file: String,
+        /// The operation that failed after atomic publication.
+        stage: &'static str,
+        /// The original finalization failure.
+        source: Box<Error>,
+    },
     /// Findings prevent the gate from passing or recording debt.
+    ///
+    /// Independent native failures use [`Self::Compound`] to retain their types.
     Findings(Vec<String>),
+    /// An operation and its cleanup or finalization both failed.
+    Compound {
+        /// The original primary failure, retaining its native cause.
+        primary: Box<Error>,
+        /// The additional cleanup or finalization failure.
+        secondary: Box<Error>,
+    },
     /// A ledger needs repository-registered executable code.
     RegistrationRequired {
         /// Job requiring the component.
@@ -214,6 +232,18 @@ impl fmt::Display for Error {
             }
             Self::Tree { file, source } => write!(f, "{}: {source}", file.escape_debug()),
             Self::Io { file, source } => write!(f, "{}: {source}", file.escape_debug()),
+            Self::Published {
+                file,
+                stage,
+                source,
+            } => write!(
+                f,
+                "{} was atomically published, but {stage} failed: {source}; inspect the existing record before retrying",
+                file.escape_debug()
+            ),
+            Self::Compound { primary, secondary } => {
+                write!(f, "{primary}; additionally: {secondary}")
+            }
             Self::Input { file, source } => write!(f, "{}: {source}", file.escape_debug()),
             Self::RegistrationRequired { job, component } => write!(
                 f,
@@ -251,7 +281,11 @@ impl StdError for Error {
             }
             Self::Tree { source, .. } => Some(source),
             Self::Io { source, .. } => Some(source),
-            Self::Input { source, .. } => Some(source.as_ref()),
+            Self::Published { source, .. }
+            | Self::Compound {
+                primary: source, ..
+            }
+            | Self::Input { source, .. } => Some(source.as_ref()),
             _ => None,
         }
     }

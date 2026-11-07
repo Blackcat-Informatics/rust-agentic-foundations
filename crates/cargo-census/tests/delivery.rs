@@ -178,6 +178,74 @@ fn report_exports_refuse_source_existing_files_and_git_administration() {
     assert_eq!(fs::read(root.join("src/lib.rs")).unwrap(), original);
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn debt_publication_never_creates_a_declared_missing_rust_target() {
+    for name in [
+        ".census-debt.ttl.lock",
+        ".census-debt.ttl.write",
+        "census-debt.ttl",
+    ] {
+        let scratch = fixture();
+        let root = scratch.path();
+        fs::write(
+            root.join("Cargo.toml"),
+            format!("[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n[lib]\npath='{name}'\n[workspace]\n"),
+        ).unwrap();
+        let result = run(root, &["debt", "--write"]);
+        assert!(
+            !root.join(name).exists(),
+            "publication created a declared Rust target: {result:?}"
+        );
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn debt_publication_preserves_unowned_entries_and_busy_records() {
+    use std::os::unix::fs::symlink;
+
+    for name in [".census-debt.ttl.write", "census-debt.ttl"] {
+        let scratch = fixture();
+        let root = scratch.path();
+        let entry = root.join(name);
+        let protected = root.join("protected-data");
+        let source = fs::read(root.join("src/lib.rs")).unwrap();
+        fs::write(&protected, b"preserve").unwrap();
+        symlink(&protected, &entry).unwrap();
+        let refused = run(root, &["debt", "--write"]);
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert_eq!(fs::read_link(&entry).unwrap(), protected);
+        assert_eq!(fs::read(&protected).unwrap(), b"preserve");
+        fs::remove_file(&entry).unwrap();
+        fs::create_dir(&entry).unwrap();
+        let refused = run(root, &["debt", "--write"]);
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert!(entry.is_dir());
+        fs::remove_dir(&entry).unwrap();
+        fs::write(&entry, b"pre-existing metadata").unwrap();
+        let refused = run(root, &["debt", "--write"]);
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert_eq!(fs::read(&entry).unwrap(), b"pre-existing metadata");
+        fs::remove_file(&entry).unwrap();
+        let lock = fs::File::open(root).unwrap();
+        lock.try_lock().unwrap();
+        let busy = run(root, &["debt", "--write"]);
+        assert_eq!(busy.status.code(), Some(1), "{busy:?}");
+        assert!(
+            String::from_utf8(busy.stderr)
+                .unwrap()
+                .contains("publication is busy")
+        );
+        drop(lock);
+        let valid = run(root, &["debt", "--write"]);
+        assert!(valid.status.success(), "{valid:?}");
+        assert_eq!(fs::read(root.join("src/lib.rs")).unwrap(), source);
+        assert!(!root.join(".census-debt.ttl.lock").exists());
+    }
+}
+
 #[test]
 fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate() {
     let scratch = fixture();

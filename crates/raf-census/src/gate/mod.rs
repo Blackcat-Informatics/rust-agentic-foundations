@@ -19,7 +19,6 @@ pub use migrate::{
 };
 pub use reference::ReferenceRoot;
 
-use std::io::Write as _;
 use std::path::{Component, Path, PathBuf};
 
 use purrdf_jsonschema::ecma::MatchLimits;
@@ -273,8 +272,11 @@ impl Gate {
     /// An existing record may only shrink. Creation and replacement of a record
     /// from a different normal form are the explicit adoption exceptions.
     /// This operation belongs in a repository binary, never a test.
-    /// A nonblocking kernel lock on persistent `.census-debt.ttl.lock` covers
-    /// evaluation through publication. The coordination file is not removed.
+    /// On native Linux, an exclusive nonblocking lock on the retained workspace
+    /// directory covers evaluation through publication without creating a
+    /// coordination file. Unsupported filesystem locking is a hard failure.
+    /// Older writers using a file lock do not participate in this protocol.
+    /// Publication requires this native Linux capability; other adapters refuse.
     ///
     /// # Errors
     /// Refuses all non-debt findings, growth into an existing current-version
@@ -314,39 +316,58 @@ impl Gate {
         &self,
         evaluate: impl FnOnce(&DiskTree) -> Result<GateReport, Error>,
     ) -> Result<DebtWrite, Error> {
-        let root = self.root()?;
-        let _publication = lock_publication(&root)?;
-        let tree = DiskTree::new(&root).map_err(|source| Error::Tree {
-            file: root.display().to_string(),
-            source,
-        })?;
-        let report = evaluate(&tree)?;
-        if !report.findings.is_empty() {
-            return Err(Error::Findings(report.findings));
-        }
-        let previous = read_debt(&tree)?;
-        if let Some(previous) = &previous
-            && previous.normal_form() == NORMAL_FORM
+        #[cfg(target_os = "linux")]
         {
-            let growth: Vec<_> = previous
-                .compare(&report.debt)?
-                .into_iter()
-                .filter(crate::DebtChange::is_growth)
-                .map(|change| format!("{DEBT_FILE}: growth cannot be recorded: {change:?}"))
-                .collect();
-            if !growth.is_empty() {
-                return Err(Error::Findings(growth));
+            let root = self.root()?;
+            let tree = DiskTree::new(&root).map_err(|source| Error::Tree {
+                file: root.display().to_string(),
+                source,
+            })?;
+            let publication = crate::publication::Publication::acquire(&tree)?;
+            let report = evaluate(&tree)?;
+            if !report.findings.is_empty() {
+                return Err(Error::Findings(report.findings));
             }
+            let previous = publication
+                .read_existing()?
+                .map(|text| decode_debt(&text))
+                .transpose()?;
+            if let Some(previous) = &previous
+                && previous.normal_form() == NORMAL_FORM
+            {
+                let growth: Vec<_> = previous
+                    .compare(&report.debt)?
+                    .into_iter()
+                    .filter(crate::DebtChange::is_growth)
+                    .map(|change| format!("{DEBT_FILE}: growth cannot be recorded: {change:?}"))
+                    .collect();
+                if !growth.is_empty() {
+                    return Err(Error::Findings(growth));
+                }
+            }
+            let path = root.join(DEBT_FILE);
+            if previous.as_ref() != Some(&report.debt) {
+                let text = report.debt.to_turtle()?;
+                let mode = if previous.is_none() {
+                    crate::publication::PublicationMode::Create
+                } else {
+                    crate::publication::PublicationMode::Replace
+                };
+                publication.publish(&text, mode)?;
+            }
+            Ok(DebtWrite {
+                path,
+                groups: report.debt.groups().len(),
+                jobs: report.debt.job_copies().len(),
+            })
         }
-        let path = root.join(DEBT_FILE);
-        if previous.as_ref() != Some(&report.debt) {
-            replace_record(&root, &report.debt.to_turtle()?)?;
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = evaluate;
+            Err(Error::Options(
+                "debt publication requires native Linux retained-directory locking".into(),
+            ))
         }
-        Ok(DebtWrite {
-            path,
-            groups: report.debt.groups().len(),
-            jobs: report.debt.job_copies().len(),
-        })
     }
 
     fn evaluate_locked(
@@ -481,47 +502,6 @@ impl Gate {
     }
 }
 
-/// Keep one cooperating publisher's evaluation and record update indivisible.
-fn lock_publication(root: &Path) -> Result<std::fs::File, Error> {
-    let path = root.join(".census-debt.ttl.lock");
-    let io = |source| Error::Io {
-        file: path.display().to_string(),
-        source,
-    };
-    let unexpected = || {
-        Error::Findings(vec![format!(
-            "{}: expected a regular coordination file; resolve the unexpected path before publishing debt",
-            path.display()
-        )])
-    };
-    match std::fs::symlink_metadata(&path) {
-        Ok(metadata) if !metadata.is_file() => return Err(unexpected()),
-        Ok(_) => {}
-        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {}
-        Err(source) => return Err(io(source)),
-    }
-    let file = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(&path)
-        .map_err(io)?;
-    if !file.metadata().map_err(io)?.is_file()
-        || !std::fs::symlink_metadata(&path).map_err(io)?.is_file()
-    {
-        return Err(unexpected());
-    }
-    match file.try_lock() {
-        Ok(()) => Ok(file),
-        Err(std::fs::TryLockError::WouldBlock) => Err(io(std::io::Error::new(
-            std::io::ErrorKind::WouldBlock,
-            "debt publication is busy; retry after the other writer ends",
-        ))),
-        Err(std::fs::TryLockError::Error(source)) => Err(io(source)),
-    }
-}
-
 fn read_ledger(tree: &impl Tree) -> Result<Ledger, Error> {
     let path = RelPath::new(LEDGER_FILE).expect("literal ledger path");
     let text = tree
@@ -556,40 +536,6 @@ fn check_debt(tree: &impl Tree, mut report: GateReport) -> Result<GateReport, Er
     Ok(report)
 }
 
-fn replace_record(root: &Path, text: &str) -> Result<(), Error> {
-    let temporary = root.join(".census-debt.ttl.write");
-    let target = root.join(DEBT_FILE);
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temporary)
-        .map_err(|source| Error::Io {
-            file: temporary.display().to_string(),
-            source,
-        })?;
-    let written = file
-        .write_all(text.as_bytes())
-        .and_then(|()| file.sync_all());
-    drop(file);
-    let result = written.and_then(|()| std::fs::rename(&temporary, &target));
-    if let Err(source) = result {
-        if let Err(cleanup) = std::fs::remove_file(&temporary) {
-            return Err(Error::Findings(vec![
-                format!("{}: {source}", target.display()),
-                format!(
-                    "could not remove owned temporary record {}: {cleanup}",
-                    temporary.display()
-                ),
-            ]));
-        }
-        return Err(Error::Io {
-            file: target.display().to_string(),
-            source,
-        });
-    }
-    Ok(())
-}
-
 fn read_debt(tree: &impl Tree) -> Result<Option<DebtRecord>, Error> {
     let path = RelPath::new(DEBT_FILE).expect("literal debt path");
     if tree
@@ -608,12 +554,14 @@ fn read_debt(tree: &impl Tree) -> Result<Option<DebtRecord>, Error> {
             file: path.to_string(),
             source,
         })?;
-    DebtRecord::from_turtle(&text)
-        .map(Some)
-        .map_err(|source| Error::Input {
-            file: DEBT_FILE.into(),
-            source: Box::new(source),
-        })
+    decode_debt(&text).map(Some)
+}
+
+fn decode_debt(text: &str) -> Result<DebtRecord, Error> {
+    DebtRecord::from_turtle(text).map_err(|source| Error::Input {
+        file: DEBT_FILE.into(),
+        source: Box::new(source),
+    })
 }
 
 fn disk_root(dir: &Path) -> Result<PathBuf, Error> {
