@@ -16,7 +16,7 @@ inputs:
     digest: 33267fbb7491b78a5b2d9c396f48befa48ab7a2eed51b24f687c72a9e55ed19d
   - kind: symbol
     name: raf_census::Gate::write_debt_locked
-    digest: d01da1d771e21d042943639206396b96659b1e5e2ea800f46ad69a6301673ecd
+    digest: 6eccf15bc7d5bd59ce33ee9c72c49239bad6c662887a6f3a46a835f41bee7e73
   - kind: symbol
     name: raf_census::LedgerExtensionGraph
     digest: bb829e6f568456dd6a5be2efc1bbb11079625c5c56c5d24f0dd652f6a424fefe

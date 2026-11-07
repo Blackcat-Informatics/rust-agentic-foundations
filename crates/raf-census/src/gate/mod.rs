@@ -294,8 +294,8 @@ impl Gate {
     /// supplied catalog, manifest associations and sealed sources retain the
     /// same authority and configuration contract as [`Self::check_locked`].
     /// Rules, extensions and provider proofs run before the shared debt ratchet.
-    /// The same persistent publication lock as [`Self::write_debt`] covers
-    /// evaluation, prior-record comparison and publication.
+    /// The same native Linux retained-directory lock as [`Self::write_debt`]
+    /// covers evaluation, prior-record comparison and publication.
     /// This explicit write belongs in a repository binary or xtask.
     ///
     /// # Errors
