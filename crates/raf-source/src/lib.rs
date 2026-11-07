@@ -210,7 +210,9 @@ pub use manifest::{DependencyDeclaration, DependencyKind, DependencySpec, Inheri
 pub use meter::Usage;
 pub use modtree::{Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
-pub use parse::{PARSE_STACK_BYTES, ParsedSource, parse_source, parse_sources};
+pub use parse::{
+    PARSE_STACK_BYTES, ParsedSource, parse_source, parse_source_with_tokens, parse_sources,
+};
 pub use path::{PathError, RelPath, SourceAuthorityId};
 pub use platform::{CompilerPlatform, CompilerPlatformError, TestPlatformGuard};
 pub use reach::{Edge, Node, ReachError, Reachability, Reached};

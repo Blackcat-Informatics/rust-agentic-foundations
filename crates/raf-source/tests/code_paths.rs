@@ -463,6 +463,8 @@ fn code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root()
         "pub fn selected(){} pub mod child { pub fn selected(){} pub fn reader(){selected();} }";
     let workspace = Workspace::load(&tree("2015", source), &["."]).unwrap();
     let reader = owner(&workspace, "demo::child::reader");
+    let target = workspace.item(reader).unwrap().target;
+    assert_eq!(workspace.target_edition(target), Some(2015));
     let byte = source.find("selected();").unwrap();
     let code = workspace.code_resolver().unwrap();
     assert_eq!(code.reading_module(reader, byte).unwrap(), "demo::child");

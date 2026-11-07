@@ -48,9 +48,9 @@ pub enum Budget {
     /// the expansion of `workspace.members` patterns.
     DirectoryDepth,
     /// Tokens of one file, counted by the pre-scan. A doc comment counts as
-    /// the tokens of the attribute it stands for. Parsing one file holds at
-    /// most [`PARSE_BYTES_PER_TOKEN`] bytes per token at its peak, so the limit
-    /// bounds that peak.
+    /// the tokens of the attribute it stands for. This bounds token structure,
+    /// not the complete native parser heap or work. [`PARSE_BYTES_PER_TOKEN`]
+    /// is an empirical reference for the measured statement shape.
     FileTokens,
     /// Bytes read in one load: every source file and manifest.
     TotalBytes,
@@ -113,15 +113,16 @@ const BUDGETS: [(Budget, usize); 15] = [
     (Budget::Work, WORK),
 ];
 
-/// The most memory parsing one file holds at its peak for each of its tokens.
+/// Empirical peak bytes per token for the measured empty-statement shape.
 ///
-/// Measured on the costliest shape the other budgets admit, one function body
+/// Measured on one function body
 /// of 2^k + 1 empty statements, whose list of statements doubles its storage
 /// for the last one: 1,602 bytes per token at every k from 14 to 20, counting
 /// a grown block as held beside the block it replaces until that is freed.
-/// The bound adds about 4% to that. Multiply a token limit by it to bound the
-/// peak of one file: about 3.1 GiB at the default of [`Budget::FileTokens`],
-/// and 512 MiB at 322,638 tokens.
+/// This reference adds about 4% to that measurement. It is not a hard bound
+/// for arbitrary accepted Rust: identifier, literal and documentation payloads,
+/// native source maps and other transient storage also depend on source bytes.
+/// Token count alone does not bound native parsing work, either.
 pub const PARSE_BYTES_PER_TOKEN: usize = 1664;
 
 /// The most stack of the parse thread that one unit of [`Budget::Recursion`]
@@ -136,8 +137,8 @@ const RECURSION: usize = crate::parse::PARSE_STACK_BYTES / (2 * RECURSION_UNIT_B
 
 /// The default token limit of one file. It admits the largest generated source
 /// files of real crates (a time-zone table of 1.5 million tokens); a caller on
-/// a smaller host lowers it through [`LoadOptions`](crate::LoadOptions), to
-/// 320,000 tokens to keep the peak below 512 MiB.
+/// a smaller host lowers it through [`LoadOptions`](crate::LoadOptions).
+/// This limits token structure without establishing a native parser heap bound.
 const FILE_TOKENS: usize = 2_000_000;
 
 /// The default limit of import settling and derived graph work in one load,

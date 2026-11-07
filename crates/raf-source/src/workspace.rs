@@ -392,6 +392,18 @@ impl Workspace {
         self.targets.get(id.index())
     }
 
+    /// The target's declared package edition, including workspace inheritance
+    /// and Cargo's 2015 default when the manifest omits it.
+    ///
+    /// This observes the loaded manifest, not a compiler or standard library.
+    /// IDs are load-local, as with [`Self::target`]. Missing target slots return
+    /// `None`. A manifest can declare a year
+    /// this consumer does not support; the consumer must validate its profile.
+    #[must_use]
+    pub fn target_edition(&self, id: TargetId) -> Option<u16> {
+        self.index.target_editions.get(id.index()).copied()
+    }
+
     /// The ids of the targets, in the order of [`Workspace::targets`].
     pub fn target_ids(&self) -> impl Iterator<Item = TargetId> {
         (0..self.targets.len()).map(TargetId)

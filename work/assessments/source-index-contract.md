@@ -7,10 +7,10 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 418453c7f965647fc7bb86cd253bd6fd0d232806d3e136fd8371f8e93067b01e
+    digest: e1973cf99755b018615759c8303f04cc403b84f143d1a7141d4e5145890aca0e
   - kind: symbol
     name: raf_source::Budget
-    digest: 8fbd1437d0feadbe6aaaa4dd3cebbf5e0f568dd97f59b44eeca8dc975d09cddc
+    digest: cba7c457cbf393ee33be0e1687b7335080a8ebff5370acc8bfa5a333b3d04193
   - kind: symbol
     name: raf_source::CapturedDirectory
     digest: 0e676e2d52003560d1f51bb6391b67e437f68b5622e573df2000765919970eed
@@ -112,7 +112,7 @@ inputs:
     digest: 0385f2e238aa06dc8b8bf67e52f5dcdf0f0385091c8ba8d0f9162620190ce379
   - kind: symbol
     name: raf_source::LoadOptions
-    digest: 8f02a2c96b2a32ca9be44d5851a37d0bf15bfb4f9c8e25c1f185538979c00e44
+    digest: 92ea1dc984c59c61bf59946b51159ee9d7f3ec448bd27cebec8fec4c55ff67d0
   - kind: symbol
     name: raf_source::LockedBinding::configuration
     digest: c6cd8025e34b48b3e67441460b4bc089628bc714294370865f1e02f2f58d0276
@@ -160,7 +160,7 @@ inputs:
     digest: e5dbd54979c652d9bca1350d264eafce9303293b9beec65d854adf9e0c5c6137
   - kind: symbol
     name: raf_source::PARSE_BYTES_PER_TOKEN
-    digest: cc50e75510ae0df983dd00feb5af5ccbbbe5529c8c64e6bbc2ce145d0ffc7acf
+    digest: 359c183c452c541a04391455ae031adc48df3a1b7a5f48a7d491f9fb2e5cdbd0
   - kind: symbol
     name: raf_source::PARSE_STACK_BYTES
     digest: 2d0708cc0aca355f30cc0d34d147d0b2faa2194a3c4540e9ab2b5def4a13b4c0
@@ -285,6 +285,9 @@ inputs:
     name: raf_source::Workspace::resolve_in_package
     digest: 5b171fdfe124dc8a00540feb4a58eba64528fa2f2e4022dea048fd58dafd227e
   - kind: symbol
+    name: raf_source::Workspace::target_edition
+    digest: 5c2db7d9a424f8826a10e5e0c53de0f08a44d816c99add63f3f0ac61c0f40ae8
+  - kind: symbol
     name: raf_source::Workspace::test_platform_guard
     digest: deaa8c08fe44c196d7c9556a65e7f64362021177a895d61d543c22cd78599615
   - kind: symbol
@@ -309,8 +312,11 @@ inputs:
     name: raf_source::parse_source
     digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a
   - kind: symbol
+    name: raf_source::parse_source_with_tokens
+    digest: 990649f5cf6421319add3504c10a9de046bdfda45758978c252f79081b2068a1
+  - kind: symbol
     name: raf_source::parse_sources
-    digest: 1eec9eebbdfc5c3c8ae01ef2177184bd2324a40041d127949dc9589ef87ac16c
+    digest: fcc190bb3f95882d4f69a4f2197baf43ef457758c2d8111b2d9a22c58ba5ad06
   - kind: symbol
     name: raf_source::resolve
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3

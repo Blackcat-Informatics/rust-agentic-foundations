@@ -332,6 +332,26 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// Header lookahead uses Rust whitespace and ordinary comments. A doc
+    /// comment is an attribute token, so it must end this lookahead.
+    fn skip_header_trivia(&mut self) {
+        while let Some(byte) = self.peek(0) {
+            if byte == b'/' && self.peek(1) == Some(b'/') && self.doc_comment_tokens() == 0 {
+                self.skip_line_comment();
+            } else if byte == b'/' && self.peek(1) == Some(b'*') && self.doc_comment_tokens() == 0 {
+                self.skip_block_comment();
+            } else {
+                let Some(ch) = self.text[self.at..].chars().next() else {
+                    break;
+                };
+                if !ch.is_whitespace() && !matches!(ch, '\u{200e}' | '\u{200f}') {
+                    break;
+                }
+                self.bump_by(ch.len_utf8());
+            }
+        }
+    }
+
     /// The tokens the comment at the cursor stands for: a doc comment is an
     /// attribute, `#[doc = ".."]` (six tokens) or `#![doc = ".."]` (seven).
     fn doc_comment_tokens(&self) -> usize {
@@ -454,6 +474,47 @@ pub(crate) struct Scan {
     pub(crate) recursion: usize,
 }
 
+/// The language-ignored first-line header, excluding an optional leading BOM
+/// and the terminating newline. This is prefix recognition, not another lexer.
+pub(crate) fn shebang(text: &str) -> Option<std::ops::Range<usize>> {
+    let start = if text.starts_with('\u{feff}') {
+        '\u{feff}'.len_utf8()
+    } else {
+        0
+    };
+    if !text[start..].starts_with("#!") {
+        return None;
+    }
+    let mut cursor = Cursor::new(text);
+    cursor.at = start + 2;
+    cursor.skip_header_trivia();
+    if cursor.peek(0) == Some(b'[') {
+        return None;
+    }
+    let end = text[start..].find('\n').map_or(text.len(), |at| start + at);
+    Some(start..end)
+}
+
+/// File parsing ignores its BOM and language-recognized shebang. Fragment
+/// scans retain their raw token semantics through `prescan`.
+pub(crate) fn prescan_file(
+    file: &RelPath,
+    text: &str,
+    max_tokens: usize,
+) -> Result<Scan, LoadError> {
+    let at = shebang(text).map_or_else(
+        || {
+            if text.starts_with('\u{feff}') {
+                '\u{feff}'.len_utf8()
+            } else {
+                0
+            }
+        },
+        |range| range.end,
+    );
+    prescan_from(file, text, max_tokens, at)
+}
+
 /// Scan `text` and refuse it when a counter passes its budget or it holds more
 /// than `max_tokens` tokens. Returns what the scan counted.
 ///
@@ -462,7 +523,17 @@ pub(crate) struct Scan {
 /// Returns a [`LoadError`] with [`LoadErrorKind::Budget`] naming `file`, the
 /// budget and the line where the count went over.
 pub(crate) fn prescan(file: &RelPath, text: &str, max_tokens: usize) -> Result<Scan, LoadError> {
+    prescan_from(file, text, max_tokens, 0)
+}
+
+fn prescan_from(
+    file: &RelPath,
+    text: &str,
+    max_tokens: usize,
+    at: usize,
+) -> Result<Scan, LoadError> {
     let mut cursor = Cursor::new(text);
+    cursor.at = at;
     let mut counters = Counters::new();
     let mut recursion = Recursion::new();
     let mut tokens = 0_usize;
