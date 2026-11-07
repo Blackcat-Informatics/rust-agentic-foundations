@@ -21,4 +21,15 @@ declarations describe input syntax and configuration; they do not establish
 execution support or qualification for another target. Existing platform
 adapters may remain in source without additional support claims.
 
+Published workspace members configure docs.rs with
+`default-target = "x86_64-unknown-linux-gnu"` and `targets = []`. The empty list
+restricts that host to the default target; omitting the metadata would build
+multiple targets. See the [docs.rs metadata contract](https://docs.rs/about/metadata).
+
+Docs.rs [permits documentation JavaScript without guaranteeing its compatibility](https://docs.rs/about).
+Interactive hosting therefore requires its own evidence. Its [downloaded Rustdoc archives](https://docs.rs/about/download)
+omit shared toolchain assets and retain host-specific asset paths, so they require
+processing before offline use. RAF's self-contained standalone diagram bundle
+has a separate offline publication contract.
+
 The [development guide](../CONTRIBUTING.md) states the required native checks.
