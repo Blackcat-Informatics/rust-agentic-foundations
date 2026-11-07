@@ -24,7 +24,7 @@ raf-source = { path = "../raf-source", version = "0.2.0" }
 [dev-dependencies]
 purrdf-lex.workspace = true
 purrdf-testkit.workspace = true
-syn = { version = "3", default-features = false, features = ["full", "parsing"] }
+syn = { workspace = true, features = ["full", "parsing"] }
 
 
 [lints]

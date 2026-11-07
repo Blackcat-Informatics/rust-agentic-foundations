@@ -145,6 +145,11 @@ bindings.
 
 ## 2. Toolchain
 
+- Syn, proc-macro2 and quote use exact shared workspace requirements, mirrored
+  where needed in the independent fuzz workspace. They constrain downstream
+  implementation selection to the versions inspected by RAF. Cargo feature
+  unification and source overrides retain their normal behavior; these version
+  requirements alone do not establish complete native resource bounds.
 - `rust-toolchain.toml` names a **floating nightly** for development and CI gates.
   Nightly clippy and rustdoc carry lints stable lacks, so a gate finding is a real
   finding. It floats rather than naming a date so later sharpening is never frozen

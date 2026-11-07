@@ -24,7 +24,7 @@ purrdf-hash.workspace = true
 purrdf-xsd.workspace = true
 purrdf-text.workspace = true
 purrdf-markdown.workspace = true
-proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
+proc-macro2 = { workspace = true, features = ["span-locations"] }
 raf-okf = { path = "../raf-okf", version = "0.2.0" }
 raf-source = { path = "../raf-source", version = "0.2.0" }
 raf-rdf = { path = "../raf-rdf", version = "0.2.0" }
