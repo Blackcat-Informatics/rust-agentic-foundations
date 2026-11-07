@@ -28,11 +28,10 @@ pub struct LoadOptions {
     /// [`DEFAULT_MAX_FILE_BYTES`].
     pub max_file_bytes: u64,
     /// The most tokens one file may hold, counted by the pre-scan before the
-    /// file is parsed. Parsing a file holds at most
-    /// [`PARSE_BYTES_PER_TOKEN`](crate::PARSE_BYTES_PER_TOKEN) bytes per token
-    /// at its peak, so this bounds that peak: about 3.1 GiB at the default of
-    /// [`Budget::FileTokens`], and below 512 MiB at 320,000 tokens, which a
-    /// caller on a host with little memory sets.
+    /// file is parsed. This bounds token structure, not the complete native
+    /// parser heap or work. [`PARSE_BYTES_PER_TOKEN`](crate::PARSE_BYTES_PER_TOKEN)
+    /// records one empirical statement-shape measurement; source-byte payloads
+    /// and transient native storage require separate accounting.
     pub max_file_tokens: usize,
     /// The most bytes one load may read, source files and manifests together.
     /// Defaults to the limit of [`Budget::TotalBytes`].

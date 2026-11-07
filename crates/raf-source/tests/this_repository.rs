@@ -31,6 +31,120 @@ fn the_reexported_syn_types_are_the_types_received_by_the_parse_visitor() {
     ));
     assert_eq!(error.file, file);
     owned_corpus_keeps_admission_and_worker_failures_atomic();
+    shared_tokens_keep_original_prefix_positions();
+}
+
+fn check_tokens(source: &str, original: proc_macro2::TokenStream) {
+    for token in original {
+        match token {
+            proc_macro2::TokenTree::Group(group) => {
+                let (open, close) = match group.delimiter() {
+                    proc_macro2::Delimiter::Brace => ("{", "}"),
+                    proc_macro2::Delimiter::Bracket => ("[", "]"),
+                    proc_macro2::Delimiter::Parenthesis => ("(", ")"),
+                    proc_macro2::Delimiter::None => {
+                        panic!("native file input has no invisible group")
+                    }
+                };
+                assert_eq!(source.get(group.span_open().byte_range()), Some(open));
+                assert_eq!(source.get(group.span_close().byte_range()), Some(close));
+                check_tokens(source, group.stream());
+            }
+            token => assert_eq!(
+                source.get(token.span().byte_range()),
+                Some(token.to_string().as_str())
+            ),
+        }
+    }
+}
+
+fn shared_tokens_keep_original_prefix_positions() {
+    use raf_source::{Budget, LoadErrorKind, RelPath, parse_source_with_tokens};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use syn::spanned::Spanned;
+
+    let path = RelPath::new("original.rs").unwrap();
+    for (prefix, header) in [
+        ("", None),
+        ("\u{feff}", None),
+        ("#!fixture-data\n", Some("#!fixture-data")),
+        (
+            "\u{feff}#! fixture données\r\n",
+            Some("#! fixture données\r"),
+        ),
+        (
+            "#! /* nested /* ordinary */ comment */ [allow(unused)]\n",
+            None,
+        ),
+        ("#! // ordinary\n[allow(unused)]\n", None),
+        ("#!\u{200e}[allow(unused)]\n", None),
+        (
+            "#!/** documentation */ ignored\n",
+            Some("#!/** documentation */ ignored"),
+        ),
+        ("#!/// documentation\n", Some("#!/// documentation")),
+    ] {
+        let source = format!("{prefix}fn café(input:i32) {{ input + 1; }}");
+        parse_source_with_tokens(&path, &source, |syntax, original| {
+            assert_eq!(syntax.shebang.as_deref(), header);
+            let syn::Item::Fn(function) = &syntax.items[0] else {
+                panic!("fixture function");
+            };
+            assert_eq!(
+                source.get(function.sig.ident.span().byte_range()),
+                Some("café")
+            );
+            assert_eq!(
+                source.get(function.block.span().byte_range()),
+                Some("{ input + 1; }")
+            );
+            check_tokens(&source, original);
+        })
+        .unwrap();
+    }
+    // Ignored header delimiters never spend a Rust file's recursion grant.
+    let source = format!(
+        "#!fixture-data {}\nfn valid() {{}}",
+        "[".repeat(Budget::Delimiters.limit() + 1)
+    );
+    assert_eq!(
+        parse_source_with_tokens(&path, &source, |syntax, _| syntax.items.len()).unwrap(),
+        1
+    );
+    for source in ["#!only-header", "\u{feff}#!only-header"] {
+        parse_source_with_tokens(&path, source, |syntax, tokens| {
+            assert!(syntax.items.is_empty());
+            assert!(tokens.is_empty());
+            assert_eq!(syntax.shebang.as_deref(), Some("#!only-header"));
+        })
+        .unwrap();
+    }
+    let called = AtomicBool::new(false);
+    for source in [
+        "#!fixture-data\nfn {",
+        "\u{feff}#!fixture-data\r\n\r\nfn 1 {}",
+    ] {
+        let error =
+            parse_source_with_tokens(&path, source, |_, _| called.store(true, Ordering::SeqCst))
+                .unwrap_err();
+        assert!(matches!(error.kind, LoadErrorKind::Syntax { .. }));
+        assert!(!called.load(Ordering::SeqCst));
+    }
+    let deep = format!(
+        "fn invalid() {{ let _ = {}1{}; }}",
+        "(".repeat(Budget::Delimiters.limit()),
+        ")".repeat(Budget::Delimiters.limit())
+    );
+    let error = parse_source_with_tokens(&path, &deep, |_, _| called.store(true, Ordering::SeqCst))
+        .unwrap_err();
+    assert!(matches!(
+        error.kind,
+        LoadErrorKind::Budget {
+            budget: Budget::Delimiters,
+            ..
+        }
+    ));
+    assert!(!called.load(Ordering::SeqCst));
 }
 
 fn owned_corpus_keeps_admission_and_worker_failures_atomic() {

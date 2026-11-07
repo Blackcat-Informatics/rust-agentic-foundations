@@ -33,6 +33,7 @@ bindings:
     - raf_source::Workspace
     - raf_source::Workspace::item_count_in
     - raf_source::Workspace::code_resolver
+    - raf_source::Workspace::target_edition
     - raf_source::CodeResolver
     - raf_source::CodeResolveError
     - raf_source::CodeResolver::extern_libraries_at
@@ -48,6 +49,7 @@ bindings:
     - raf_source::TestPlatformGuard
     - raf_source::Workspace::test_platform_guard
     - raf_source::parse_source
+    - raf_source::parse_source_with_tokens
     - raf_source::parse_sources
     - raf_source::ParsedSource
     - raf_source::Resolution
@@ -1097,6 +1099,14 @@ distinguish that query from a structural inventory of all alternatives.
 
 ## Contract
 
+Target edition metadata comes from the actual loaded package declarations,
+including workspace inheritance and the 2015 default for an omitted edition.
+`Workspace::target_edition` uses load-local target identity and returns no value
+for a missing target slot. It observes no compiler or standard-library identity.
+A consumer validates its supported edition profile rather than guessing an
+edition when evidence is missing or unsupported.
+<!-- raf:tested-by raf_source::test_crate::code_paths::code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root -->
+
 Incremental glob propagation preserves reference answers across declaration orders
 under the original counted-work and native storage grants.
 <!-- raf:tested-by raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_thirteen_orders -->
@@ -1646,12 +1656,15 @@ The budgets are one table in the source
   `///` and `/**`, seven for `//!` and `/*!`; other comments count for nothing. The
   count feeds no other counter. The limit is `LoadOptions::max_file_tokens`, by
   default 2000000 (`Budget::FileTokens`), and `parse_source` applies the default.
-  It bounds the memory that parsing one file takes at its peak at
-  `PARSE_BYTES_PER_TOKEN`, 1664 bytes, per token. The costliest shape the other
-  budgets admit is one function body of 2^k + 1 empty statements, whose list of
+  `PARSE_BYTES_PER_TOKEN`, 1664 bytes, is an empirical reference for one function
+  body of 2^k + 1 empty statements, whose list of
   statements doubles its storage for the last one: it holds 1602 bytes per token at
   its peak at every k from 14 to 20, counting a grown block as held beside the
-  block it replaces until that is freed, and the constant adds about 4%. The same
+  block it replaces until that is freed, and the constant adds about 4%. This
+  does not bound the complete native parser heap. Identifier, literal and doc
+  payloads, source maps and transient storage also depend on source bytes.
+  Token count alone does not bound native parser work; numeric conversion
+  depends on literal length. The same
   measurement gives about 430 bytes per token for `a<b; ` repeated, 290 for
   statements that name a type nested 64 generic arguments deep and 230 for a run of
   attributes. The default admits the largest generated files of real crates: over
@@ -1793,7 +1806,7 @@ A load over a budget is a `Budget` error that names the budget, the limit that
 applied and the file, with the line where there is one. `Workspace::usage` reports
 what a load spent against each, for the glob tables the most they held at once, and
 for the work the steps it made.
-The retained index, source text, facts and glob tables are bounded by their item, total, fact and glob-byte limits: 512, 256, 256 and 512 MiB by default, summing to 1.5 GiB. Parsing one file has the stated bound `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes), about 3.1 GiB at the default 2000000 tokens. Those components sum to about 4.6 GiB at the defaults; a caller sets each LoadOptions limit to fit its host. Explicit-import bindings are charged to the index; glob-provided bindings are charged to the glob tables. Gathering a module's exports reads each held table once and is charged before allocation. Native queue and graph scratch retain their original import-storage grants until their buffers die.
+The retained index, source text, facts and glob tables are bounded by their item, total, fact and glob-byte limits: 512, 256, 256 and 512 MiB by default, summing to 1.5 GiB. Native parsing has additional storage and work costs that the empirical `PARSE_BYTES_PER_TOKEN` reference does not bound. These retained limits therefore establish no total parser or process memory ceiling. A caller sets each LoadOptions limit to fit its host. Explicit-import bindings are charged to the index; glob-provided bindings are charged to the glob tables. Gathering a module's exports reads each held table once and is charged before allocation. Native queue and graph scratch retain their original import-storage grants until their buffers die.
 
 ### Parser stack and admission
 <!-- raf:tested-by raf_source::test_crate::overflow_harness::every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts,raf_source::test_crate::overflow_harness::every_shape_family_loads_at_its_largest_admitted_size_and_one_size_more_is_refused,raf_source::test_crate::overflow_harness::a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols,raf_source::test_crate::overflow_harness::a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread,raf_source::test_crate::overflow_harness::the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure,raf_source::test_crate::overflow_harness::the_parse_thread_is_named_after_the_file_and_has_the_stated_stack,raf_source::test_crate::overflow_harness::a_panic_in_the_visitor_is_raised_again_with_its_payload,raf_source::test_crate::overflow_harness::deep_but_admitted_source_parses_on_the_dedicated_stack_not_the_callers,raf_source::test_crate::prescan_budgets::every_operator_counts_one_for_each_of_its_characters_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::every_counted_keyword_counts_one_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::a_level_returns_to_zero_where_its_constructs_end_beside_the_same_count_without_the_end,raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count,raf_source::test_crate::prescan_budgets::chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget -->
@@ -1813,6 +1826,21 @@ analysis structures. Only its `Send` result leaves the worker. A failed file nev
 produces a partial callback; an empty corpus calls it once with an empty vector.
 Native errors retain the failing path and syntax position. Parser and callback
 panics resume on the caller with their original payload.
+<!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
+
+`parse_source_with_tokens` gives its visitor the syntax and the one original
+native token stream on that same worker. The AST parses a shared stream clone;
+native parsing can copy token payloads. No second lex of the complete source
+or caller-thread span invalidation is involved. The native lexer retains an
+initial BOM in its source coordinates. A language-recognized shebang becomes
+same-length whitespace only in the lexical input, with its original text kept
+as syntax metadata. File prescanning ignores the same prefix. Original source
+bytes, line breaks and all later byte ranges remain authoritative; headers are
+never executed or written back to files. Whitespace and ordinary comments may
+separate `#!` from an attribute's bracket, while documentation comments end
+that lookahead. A failed budget, allocation, lex or parse never calls the
+visitor. Native AST, token, source-map and callback storage still have their
+separate accounting boundaries.
 <!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
 
 Parsing then runs on a dedicated thread, named after the file, with a stack of 64
@@ -3113,6 +3141,15 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Read `ws.target_edition(id)` for an actual ID of `ws.target_ids()`. The returned
+year is declared package metadata. A syntax-policy consumer admits only the
+edition profiles it implements; this query cannot establish which compiler or
+library a consumer build would use.
+
+Use `parse_source_with_tokens` when analysis needs syntax and original tokens.
+Read native spans inside its worker callback and return owned `Send` data.
+The token byte ranges index the original source, including its ignored prefix.
+
 Set `LoadOptions::max_work` and `max_glob_bytes` before loading to bound import
 operations and live import storage. Retained reads, pending queues, subscriptions
 and undecided-import graph scratch share those grants. Preserve a typed refusal
@@ -3305,6 +3342,14 @@ for id in ws.target_ids() {
 Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
 
 ## Examples
+
+For `\u{feff}#! fixture données\r\nfn café() {}`, where the first escape
+denotes a BOM, `parse_source_with_tokens` retains the header as syntax metadata.
+The function and token spans address the original source bytes after the CRLF.
+An invalid function after that header returns a located syntax error without
+calling the visitor. A valid `#! /* ordinary comment */ [allow(dead_code)]`
+prefix remains an inner attribute rather than becoming a shebang.
+<!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
 
 A pair of modules importing each other's undefined `X` exercises pending imports
 and their blocker graph. The exact measured work and storage grants admit that
@@ -3713,12 +3758,12 @@ native storage grants. Growing a buffer admits both its existing backing and its
 replacement before mutation; destroying released scratch ends its live grant.
 Item-byte charges remain cumulative for the load.
 
-The configured retained ceilings sum to 1.5 GiB at their defaults. The separate
-one-file parser ceiling is `max_file_tokens × PARSE_BYTES_PER_TOKEN`, about
-3.1 GiB at the default token count. Those configured components sum to about
-4.6 GiB; they are allocation-admission bounds, not measurements of resident memory
-or promises that every source shape fits within them. A caller lowers each limit
-to fit its host, and an over-limit load returns its original typed refusal.
+The configured retained ceilings sum to 1.5 GiB at their defaults. Native parser
+storage remains separate: multiplying `max_file_tokens` by the empirical
+`PARSE_BYTES_PER_TOKEN` reference establishes no hard heap or work ceiling.
+Source payloads, native source maps and transient parsing storage require their
+own accounting. A caller lowers each configured limit to fit its host, and an
+over-limit load returns its original typed refusal.
 
 ### Native instruction evidence
 
@@ -4016,8 +4061,9 @@ one-byte-short refusal.
   the costliest shape, one body of a power of two and one more empty statements,
   each load at the limit and are refused one token over; a doc comment counts as six
   or seven tokens and other comments as none. The default limit is 2000000,
-  `parse_source` refuses one token more than it before parsing, and 320000 tokens
-  at 1664 bytes each stay below 512 MiB.
+  `parse_source` refuses one token more than it before parsing. The empirical
+  empty-statement reference gives fewer than 512 MiB for 320000 tokens; this
+  is not a complete native parser memory guarantee.
 - Work and memory fixtures, each at the limit, where the load succeeds, and one byte
   over, where it is a `Budget` error that names the budget and the file: the bytes
   read (a manifest counts), the index records (a long module name charged in every
@@ -5396,7 +5442,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::target_roots::unreadable_target_roots_name_explicit_paths_or_table_names_and_build_discovery` | test | [Contract](#contract) |
 | `raf_source::test_crate::this_repository::a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle` | test | [Verification](#verification) |
 | `raf_source::test_crate::this_repository::an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_module` | test | [Verification](#verification) |
-| `raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::this_repository::the_surface_of_each_library_and_binary_of_this_repository_lists_its_public_items` | test | [Verification](#verification) |
 | `raf_source::test_crate::this_repository::this_repository_loads_from_its_root_with_the_crates_directory_as_the_root` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key` | test | [Contract](#contract) |

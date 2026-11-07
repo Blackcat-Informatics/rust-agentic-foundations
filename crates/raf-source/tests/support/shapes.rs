@@ -772,7 +772,8 @@ fn type_expression_and_item_families() -> Vec<Family> {
             Delimiters,
             &["a", "f"],
         ),
-        family("shebang", shebang, 100, Recursion, f),
+        // The ignored header spends no Rust recursion budget.
+        family("shebang", shebang, 101, Recursion, f),
         family("crlf_lines", crlf_lines, 1923, Recursion, f),
         family(
             "inline_modules",

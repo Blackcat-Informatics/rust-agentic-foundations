@@ -10,7 +10,7 @@ use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
 use crate::meter::{Meter, NativeAdmission};
 use crate::path::RelPath;
-use crate::prescan::{Scan, prescan};
+use crate::prescan::{Scan, prescan_file, shebang};
 use crate::{LoadOptions, TreeError};
 
 /// The stack of the thread that parses, in bytes: 64 MiB.
@@ -46,6 +46,40 @@ pub fn parse_source<R: Send>(
     visit: impl FnOnce(&syn::File) -> R + Send,
 ) -> Result<R, LoadError> {
     parse_counted(file, text, Budget::FileTokens.limit(), visit).map(|(result, _)| result)
+}
+
+/// Parse once and give the visitor the syntax and its original native tokens.
+///
+/// The same file token and recursion checks as [`parse_source`] run before the
+/// worker starts. Both native values stay on that worker; only `Send` results
+/// return. The AST is parsed from one shared stream clone; native parsing can
+/// copy token payloads. The complete source is not lexed a second time, and
+/// caller-thread spans are never invalidated.
+///
+/// Byte ranges index the original `text`, including after a leading BOM or
+/// shebang. The BOM is handled by the native lexer. Language-ignored shebang
+/// bytes are replaced with same-length whitespace solely for lexical input;
+/// the original header is retained in `syn::File::shebang`. No file is edited
+/// and the header is never executed. Native parser/token/TLS heap and visitor
+/// allocations retain their separate resource contracts.
+///
+/// # Errors
+/// Returns the located native budget, storage, syntax or worker-start refusal.
+/// The visitor is never called after a failed admission, lex or parse.
+///
+/// # Panics
+/// Resumes parser or visitor panics on the caller with their original payload.
+pub fn parse_source_with_tokens<R: Send>(
+    file: &RelPath,
+    text: &str,
+    visit: impl FnOnce(&syn::File, proc_macro2::TokenStream) -> R + Send,
+) -> Result<R, LoadError> {
+    let _ = prescan_file(file, text, Budget::FileTokens.limit())?;
+    on_worker(file, move || {
+        let (original, header) = lex_source(file, text)?;
+        let tree = syntax(file, original.clone(), header)?;
+        Ok(visit(&tree, original))
+    })
 }
 
 /// One explicitly selected source and its owned syntax tree.
@@ -105,7 +139,7 @@ pub fn parse_sources<R: Send>(
             ));
         }
         meter.read(file, text)?;
-        prescan(file, text, options.max_file_tokens)?;
+        prescan_file(file, text, options.max_file_tokens)?;
     }
     let file = inputs
         .first()
@@ -143,7 +177,7 @@ pub(crate) fn parse_counted_mut<R: Send>(
     max_tokens: usize,
     visit: impl FnOnce(&mut syn::File) -> R + Send,
 ) -> Result<(R, Scan), LoadError> {
-    let scan = prescan(file, text, max_tokens)?;
+    let scan = prescan_file(file, text, max_tokens)?;
     on_worker(file, || {
         parse_syntax(file, text).map(|mut tree| (visit(&mut tree), scan))
     })
@@ -167,16 +201,63 @@ fn on_worker<R: Send>(
 }
 
 fn parse_syntax(file: &RelPath, text: &str) -> Result<syn::File, LoadError> {
-    syn::parse_file(text).map_err(|error| {
-        // Read thread-local span data before returning the error to the caller.
-        let start = error.span().start();
-        LoadError::new(
-            file,
-            Some(start.line),
-            LoadErrorKind::Syntax {
-                message: error.to_string(),
-                column: start.column + 1,
-            },
+    let (original, header) = lex_source(file, text)?;
+    syntax(file, original, header)
+}
+
+fn lex_source(
+    file: &RelPath,
+    text: &str,
+) -> Result<(proc_macro2::TokenStream, Option<String>), LoadError> {
+    use purrdf_lex::allocation::{Memory, Resident};
+    let mut resident = Resident;
+    let mut memory = Memory::new(&mut resident);
+    let mut header = None;
+    let normalized = if let Some(range) = shebang(text) {
+        let error = |source| LoadError::new(file, Some(1), LoadErrorKind::Storage(source));
+        header = Some(memory.string(&text[range.clone()]).map_err(error)?);
+        // Padding preserves byte positions and all newlines. There are no
+        // syntax positions within the ignored first-line header itself.
+        std::borrow::Cow::Owned(
+            memory
+                .format(&format_args!(
+                    "{}{blank:width$}{}",
+                    &text[..range.start],
+                    &text[range.end..],
+                    blank = "",
+                    width = range.len()
+                ))
+                .map_err(error)?,
         )
-    })
+    } else {
+        std::borrow::Cow::Borrowed(text)
+    };
+    let original = normalized
+        .parse::<proc_macro2::TokenStream>()
+        .map_err(|error| located_syntax(file, error.span(), error.to_string()))?;
+    Ok((original, header))
+}
+
+fn syntax(
+    file: &RelPath,
+    original: proc_macro2::TokenStream,
+    header: Option<String>,
+) -> Result<syn::File, LoadError> {
+    let mut tree: syn::File = syn::parse2(original)
+        .map_err(|error| located_syntax(file, error.span(), error.to_string()))?;
+    tree.shebang = header;
+    Ok(tree)
+}
+
+fn located_syntax(file: &RelPath, span: proc_macro2::Span, message: String) -> LoadError {
+    // Read thread-local span data before returning the error to the caller.
+    let start = span.start();
+    LoadError::new(
+        file,
+        Some(start.line),
+        LoadErrorKind::Syntax {
+            message,
+            column: start.column + 1,
+        },
+    )
 }
