@@ -1637,6 +1637,7 @@ dependencies = [
  "purrdf-xsd",
  "raf-rdf",
  "raf-source",
+ "rustix",
  "syn 3.0.8",
 ]
 

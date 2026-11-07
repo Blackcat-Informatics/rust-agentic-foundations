@@ -16,6 +16,7 @@ bindings:
     - raf_source::Tree
     - raf_source::discover_root
     - raf_source::DiskTree
+    - raf_source::DiskTree::directory_handle
     - raf_source::DiskTree::read_bytes
     - raf_source::DiskTree::read_unseen_bytes
     - raf_source::OpenedBytes
@@ -158,6 +159,8 @@ bindings:
     - raf_source::work
     - raf_source_fuzz::bin_crate::load_workspace::exercise
   tests:
+    - raf_source::tree::disk::tests::root_acquisition_refuses_replaced_components_before_exposing_a_directory
+    - raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory
     - raf_source::test_crate::git_tree::native_selected_index_is_read_only_and_committed_grants_remain_exact
     - raf_source::test_crate::git_tree::commit_messages_refuse_invalid_utf8_and_other_encodings_without_replacement
     - raf_source::test_crate::symbol_index::module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions
@@ -1377,11 +1380,23 @@ A failure is a `TreeError` that names the path: `NotFound`, `OutsideRoot`,
 fails the listing and is never dropped from it.
 
 ### Disk root construction
-<!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_missing_root_is_an_error_beside_an_existing_one,raf_source::test_crate::disk_tree_containment::a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there -->
+<!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_missing_root_is_an_error_beside_an_existing_one,raf_source::test_crate::disk_tree_containment::a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there,raf_source::tree::disk::tests::root_acquisition_refuses_replaced_components_before_exposing_a_directory,raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory -->
 
 `DiskTree::new(root)` returns a
 `Result`: it canonicalises the root once, a missing root is `NotFound`, and a
 symlinked root is followed to its target.
+
+Linux retains the original directory description. Its acquisition refuses a
+final symlink at the canonical locator, requires the originally observed
+directory identity, and checks the descriptor's kernel path against that exact
+scope. Source candidates and native dependency-directory observations start
+from the retained descriptor. Replacing the root pathname cannot redirect an
+existing tree; moving its root outside the canonical scope refuses access.
+`DiskTree::directory_handle` clones this original path-only directory handle
+after rechecking its scope. An explicit metadata publisher can use the same
+directory identity without reopening a pathname. A readable directory handle
+for synchronization needs separate verified acquisition. The handle is not
+an immutable source snapshot and grants no execution authority.
 
 ### Memory map and byte admission
 <!-- raf:tested-by raf_source::test_crate::memory_tree::directories_are_inferred_and_listings_are_sorted_with_their_kinds,raf_source::test_crate::memory_tree::collecting_pairs_builds_the_same_tree_as_the_array_conversion,raf_source::test_crate::memory_tree::read_and_unseen_read_apply_the_exact_byte_limit_beside_a_seen_identity -->
@@ -1478,6 +1493,11 @@ on the platform:
   performs no I/O, device open or FIFO rendezvous. A directory swapped for a symlink
   to outside the root after the prefix check is refused, and a file or directory
   moved out of the root while it is used is refused by the check after the use.
+  The containing directory and basename of a regular file must still identify
+  its pinned inode. That directory, or the pinned directory itself, must reach
+  the retained root identity through descriptor-relative parent checks before
+  and after use. These checks preserve canonical-final symlink resolution and
+  do not require a newer kernel facility.
 - On other Unix systems (macOS and the BSDs) the root is opened once, and the path is
   walked one component at a time with `openat`, relative to the directory reached so
   far, never following a symlink and never blocking. The walk holds the descriptor of
@@ -3141,6 +3161,13 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+On native Linux, explicit metadata publishers can call
+`DiskTree::directory_handle` to clone the tree's original path-only root
+description. Verify any readable reopen against that description before locking
+or synchronizing it. Ordinary source analysis continues through the read-only
+Tree API; acquiring this handle grants no execution authority.
+<!-- raf:tested-by raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory -->
+
 Read `ws.target_edition(id)` for an actual ID of `ws.target_ids()`. The returned
 year is declared package metadata. A syntax-policy consumer admits only the
 edition profiles it implements; this query cannot establish which compiler or
@@ -3342,6 +3369,12 @@ for id in ws.target_ids() {
 Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
 
 ## Examples
+
+A root replaced during a source open cannot redirect that tree to the new
+directory. Moving the original root outside the canonical scope refuses the
+operation. A final or ancestor symlink swap during root acquisition refuses
+before a directory handle is exposed, beside an ordinary in-scope acquisition.
+<!-- raf:tested-by raf_source::tree::disk::tests::root_acquisition_refuses_replaced_components_before_exposing_a_directory,raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory -->
 
 For `\u{feff}#! fixture données\r\nfn café() {}`, where the first escape
 denotes a BOM, `parse_source_with_tokens` retains the header as syntax metadata.
@@ -3850,6 +3883,12 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+Native directory fixtures cover final and ancestor swaps during root acquisition,
+replacement while opening a source file, and access through the retained original
+root. They distinguish an ordinary in-scope root from relocation outside its
+canonical scope and refuse invalid acquisition before exposing a handle.
+<!-- raf:tested-by raf_source::tree::disk::tests::root_acquisition_refuses_replaced_components_before_exposing_a_directory,raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory -->
 
 The internal settling comparison includes both generated seed families and the
 committed corpus in thirteen declaration orders. Its default is 64 programs per
@@ -5628,7 +5667,9 @@ one-byte-short refusal.
 | `raf_source::tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file` | test | [Constraints](#constraints) |
 | `raf_source::tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_source::tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names` | test | [Constraints](#constraints) |
+| `raf_source::tree::disk::tests::root_acquisition_refuses_replaced_components_before_exposing_a_directory` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::strategy::a_link_that_climbs_back_into_the_root_is_read_only_by_canonicalisation` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::a_path_three_hundred_deep_is_walked_under_a_limit_of_sixty_four_descriptors` | test | [Verification](#verification) |

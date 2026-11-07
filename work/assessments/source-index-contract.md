@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: e1973cf99755b018615759c8303f04cc403b84f143d1a7141d4e5145890aca0e
+    digest: 84be1ce8a209495168d6a17695b069d3d8064a21033e42ffefc7b572fc512ab5
   - kind: symbol
     name: raf_source::Budget
     digest: cba7c457cbf393ee33be0e1687b7335080a8ebff5370acc8bfa5a333b3d04193
@@ -43,7 +43,7 @@ inputs:
     digest: b03f60727b64eb7013cb9dc1284ee27270ac3c4433042bcc6d7cb5b34f6f64f1
   - kind: symbol
     name: raf_source::DiskTree
-    digest: 202cf0d53e033ae95650abf4e33f70de2621bc2090a37006904640e539133f67
+    digest: 5496855041cec7a22d2303a3eb9049dbcafa368c7a19589c040d0e13f752702f
   - kind: symbol
     name: raf_source::DiskTree::capture_directory
     digest: 2b699d4b2b1b1acf22684b8723ad64b2dbd8dc6c0a82aed8acb384de3ef77797
@@ -56,6 +56,9 @@ inputs:
   - kind: symbol
     name: raf_source::DiskTree::capture_link
     digest: 0531e1b1124bf737d65aa4b4a34eb6bc0b0c3906afbdef7d526f359a24e47cd8
+  - kind: symbol
+    name: raf_source::DiskTree::directory_handle
+    digest: 755582acb3fcce96b715feb889c5d8be39d2fd3e046e9e40551c8153c3ba461e
   - kind: symbol
     name: raf_source::DiskTree::read_bytes
     digest: 4418409a968a7d43c455140431f871c1ed0cb469164aee7d37ae3c3d86930679
@@ -322,10 +325,10 @@ inputs:
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3
   - kind: symbol
     name: raf_source::tree
-    digest: 80536efb50c04c3f4b00558345f006b5b0c177b36c9f8c4dd197b3cd4fc4b3d0
+    digest: a0d4844573e7fedfa60c8b43c6962c0e42ac88c47a12ae111933218773d4f5e3
   - kind: symbol
     name: raf_source::tree::disk
-    digest: 91e62491c5bda4c2734ef4a75dfb2057a51e999adf5098bdefa4efa41d14f9c8
+    digest: 7b505520fb8fc0e8c4e7049d8db1e12c5da00800fc5417cd3066fdbffa1fd80b
   - kind: symbol
     name: raf_source::visit_pattern_bindings
     digest: 27019e74a30a0147f477718f5c4d7d4fd9cd0c9ed93f86efddf4718b98e98fcf

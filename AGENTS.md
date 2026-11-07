@@ -161,7 +161,13 @@ bindings.
   contents only through a verified handle. On Linux a candidate is first taken as an
   `O_PATH` reference and the kernel's path for it (`/proc`) must lie under the root
   before it is opened for reading or listing through that path, so an outside
-  candidate is never opened for reading or listing. On other Unix systems the path
+  candidate is never opened for reading or listing. Linux retains the original
+  root directory description, validates its acquisition, and requires file
+  parent/name identity and retained-root ancestry before and after use. A root
+  replacement cannot retarget that tree; relocation outside its canonical scope
+  refuses. A clone of this directory handle is available to explicit metadata
+  publishers. These are observations, not an immutable snapshot.
+  On other Unix systems the path
   is walked beneath a descriptor of the root with `openat` (through `rustix`), one
   component at a time and never following a symlink, so no path is resolved by name
   and an outside candidate is never opened; a walk outside the root may only

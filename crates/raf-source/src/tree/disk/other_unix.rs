@@ -51,44 +51,11 @@ use crate::path::RelPath;
 use crate::tree::FileId;
 
 use super::DiskTree;
+use super::unix_root::{Root, climb, same};
 
 /// The most symlinks one walk follows before it ends with `SymlinkLoop`, as
 /// Linux's own limit.
 const SYMLINK_HOPS: usize = 40;
-
-/// The most `..` steps the check after a use climbs looking for the root.
-const CLIMB_LIMIT: usize = 4096;
-
-/// A descriptor of the root and its status, opened once per tree.
-pub(super) struct Root {
-    dir: OwnedFd,
-    status: Stat,
-}
-
-impl Root {
-    /// Open the canonical root `path` as a directory.
-    pub(super) fn open(path: &Path, shown: &str) -> Result<Self, TreeError> {
-        let dir = openat(
-            CWD,
-            path,
-            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
-            Mode::empty(),
-        )
-        .map_err(|e| TreeError::from_io(shown, e.into()))?;
-        let status = fstat(&dir).map_err(|e| TreeError::from_io(shown, e.into()))?;
-        Ok(Self { dir, status })
-    }
-
-    /// True when `status` is the root's.
-    fn is(&self, status: &Stat) -> bool {
-        same(status, &self.status)
-    }
-}
-
-/// True when two statuses name one file.
-fn same(left: &Stat, right: &Stat) -> bool {
-    left.st_dev == right.st_dev && left.st_ino == right.st_ino
-}
 
 /// A handle reached by the walk.
 pub(super) struct Handle {
@@ -168,7 +135,7 @@ struct Walk<'a> {
 impl Walk<'_> {
     /// The root of the walk.
     fn root(&self) -> &Root {
-        &self.tree.walk_root
+        &self.tree.root_directory
     }
 
     /// A failure: inside the root, what the system said; outside it,
@@ -345,7 +312,7 @@ fn changed(error: rustix::io::Errno, kind: FileType, directory: bool) -> bool {
 /// Walk `path` from the root. Returns the descriptor of its final component
 /// and, for a file, the directory that holds it and its name there.
 fn walk(tree: &DiskTree, path: &RelPath, want: Want, shown: &str) -> Result<Walked, TreeError> {
-    let root = &tree.walk_root;
+    let root = &tree.root_directory;
     let current = root
         .dir
         .try_clone()
@@ -380,31 +347,6 @@ fn walk(tree: &DiskTree, path: &RelPath, want: Want, shown: &str) -> Result<Walk
     } else {
         Ok((walk.current, None))
     }
-}
-
-/// Climb from the directory `current` through `..` until the root is reached;
-/// reaching the file system root first, or failing, is `OutsideRoot`.
-fn climb(mut current: OwnedFd, root: &Root, shown: &str) -> Result<(), TreeError> {
-    let mut status = fstat(&current).map_err(|_| outside(shown))?;
-    for _ in 0..CLIMB_LIMIT {
-        if root.is(&status) {
-            return Ok(());
-        }
-        let up = openat(
-            &current,
-            "..",
-            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
-            Mode::empty(),
-        )
-        .map_err(|_| outside(shown))?;
-        let above = fstat(&up).map_err(|_| outside(shown))?;
-        if same(&above, &status) {
-            return Err(outside(shown));
-        }
-        current = up;
-        status = above;
-    }
-    Err(outside(shown))
 }
 
 /// What a file type from `rustix` is.

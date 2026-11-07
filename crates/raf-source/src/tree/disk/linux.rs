@@ -9,6 +9,7 @@
 //! reference holds and is never resolved by name again. An outside candidate
 //! is therefore never opened for reading or listing.
 
+use std::ffi::OsString;
 use std::fs::{File, Metadata, OpenOptions};
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
@@ -20,11 +21,24 @@ use super::{
 use crate::error::TreeError;
 use crate::path::RelPath;
 use crate::tree::FileId;
+use rustix::fs::{AtFlags, fstat, statat};
+
+/// A directory capability is exposed only while it names the admitted scope.
+pub(super) fn verify_root(tree: &DiskTree, shown: &str) -> Result<(), TreeError> {
+    let actual = std::fs::read_link(descriptor_path(&tree.root_directory.dir))
+        .map_err(|e| super::link_read_error(shown, e))?;
+    if actual == tree.root {
+        Ok(())
+    } else {
+        Err(super::outside(shown))
+    }
+}
 
 /// A verified `O_PATH` reference.
 pub(super) struct Handle {
     reference: File,
     metadata: Metadata,
+    parent: Option<(File, OsString)>,
 }
 
 /// Contain `path`, take an `O_PATH` reference to the canonical path without
@@ -55,10 +69,32 @@ pub(super) fn open(
         .metadata()
         .map_err(|e| TreeError::from_io(shown, e))?;
     want.require(&metadata, shown)?;
-    Ok(Handle {
+    let parent = if metadata.is_file() {
+        let directory = canonical
+            .parent()
+            .ok_or_else(|| super::not_regular(shown))?;
+        let name = canonical
+            .file_name()
+            .ok_or_else(|| super::not_regular(shown))?;
+        let flags = libc::O_PATH | libc::O_NOFOLLOW | libc::O_DIRECTORY;
+        #[cfg(test)]
+        tree.note_open(flags.cast_unsigned());
+        let parent = OpenOptions::new()
+            .read(true)
+            .custom_flags(flags)
+            .open(directory)
+            .map_err(|e| open_error(shown, e))?;
+        Some((parent, name.to_owned()))
+    } else {
+        None
+    };
+    let handle = Handle {
         reference,
         metadata,
-    })
+        parent,
+    };
+    handle.recheck(tree, shown)?;
+    Ok(handle)
 }
 
 impl Handle {
@@ -104,9 +140,23 @@ impl Handle {
         Ok(device_identity(&self.metadata))
     }
 
-    /// The kernel's path for the reference must still lie under `root`.
-    pub(super) fn recheck(&self, root: &Path, shown: &str) -> Result<(), TreeError> {
-        verify_linux_link(root, &descriptor_path(&self.reference), shown)
+    /// The pinned object must retain its name and original-root ancestry.
+    pub(super) fn recheck(&self, tree: &DiskTree, shown: &str) -> Result<(), TreeError> {
+        verify_linux_link(&tree.root, &descriptor_path(&self.reference), shown)?;
+        let start = match &self.parent {
+            Some((parent, name)) => {
+                let found = statat(parent, name.as_os_str(), AtFlags::SYMLINK_NOFOLLOW)
+                    .map_err(|_| super::outside(shown))?;
+                let held = fstat(&self.reference).map_err(|_| super::outside(shown))?;
+                if !super::unix_root::same(&found, &held) {
+                    return Err(super::outside(shown));
+                }
+                parent.try_clone()
+            }
+            None => self.reference.try_clone(),
+        }
+        .map_err(|e| TreeError::from_io(shown, e))?;
+        super::unix_root::climb(start.into(), &tree.root_directory, shown)
     }
 
     /// Open the verified file through its descriptor path and read at most

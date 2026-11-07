@@ -68,6 +68,78 @@ fn rel(text: &str) -> RelPath {
     RelPath::new(text).expect("valid path")
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn root_acquisition_refuses_replaced_components_before_exposing_a_directory() {
+    use std::os::unix::fs::symlink;
+
+    for ancestor in [false, true] {
+        let scratch = Scratch::new();
+        let parent = scratch.dir("parent");
+        let root = scratch.dir("parent/root");
+        let outside_parent = scratch.dir("outside");
+        let outside_root = scratch.dir("outside/root");
+        let observed = fs::metadata(&root).unwrap();
+        assert!(DiskTree::from_observed_root(root.clone(), &observed, "root").is_ok());
+        if ancestor {
+            fs::rename(&parent, scratch.dir.join("moved")).unwrap();
+            symlink(&outside_parent, &parent).unwrap();
+        } else {
+            fs::rename(&root, scratch.dir.join("moved")).unwrap();
+            symlink(&outside_root, &root).unwrap();
+        }
+        assert!(DiskTree::from_observed_root(root, &observed, "root").is_err());
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn replacing_the_root_during_open_never_redirects_its_retained_directory() {
+    for before in [true, false] {
+        let scratch = Scratch::new();
+        let root = scratch.dir("root");
+        let moved = scratch.dir.join("moved");
+        write(&root.join("lib.rs"), "original");
+        let mut tree = DiskTree::new(&root).expect("tree");
+        let directory = tree.directory_handle().expect("shared root description");
+        let identity = device_identity(&directory.metadata().unwrap());
+        let swap_root = root.clone();
+        let swap_moved = moved.clone();
+        let swap: Hook = Box::new(move || {
+            fs::rename(&swap_root, &swap_moved).expect("move original root");
+            fs::create_dir(&swap_root).expect("replacement root");
+            write(&swap_root.join("lib.rs"), "replacement");
+        });
+        if before {
+            tree.before_open = Some(swap);
+        } else {
+            tree.after_open = Some(swap);
+        }
+        assert!(matches!(
+            tree.read(&rel("lib.rs"), 100),
+            Err(TreeError::OutsideRoot { .. })
+        ));
+        tree.before_open = None;
+        tree.after_open = None;
+        assert_eq!(identity, device_identity(&directory.metadata().unwrap()));
+        assert_eq!(identity, device_identity(&fs::metadata(&moved).unwrap()));
+        let replacement = DiskTree::new(&root).expect("explicit replacement scope");
+        assert_eq!(
+            replacement.read(&rel("lib.rs"), 100).unwrap(),
+            "replacement"
+        );
+        assert!(matches!(
+            tree.dependency_directory_matches(
+                &rel("Cargo.toml"),
+                ".",
+                &replacement,
+                &rel("Cargo.toml")
+            ),
+            Err(TreeError::OutsideRoot { .. })
+        ));
+    }
+}
+
 #[test]
 fn source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths() {
     let scratch = Scratch::new();

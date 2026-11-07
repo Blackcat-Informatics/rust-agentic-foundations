@@ -3,6 +3,5 @@
 
 /target
 /.stage/
-/.census-debt.ttl.lock
 .goals
 .baseline

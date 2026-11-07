@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! The handle-contained disk backend. The separate committed Git host backend
-//! uses installed Git and its object store rather than this filesystem strategy.
+//! uses the native read-only Git object library rather than this filesystem strategy.
 //!
 //! A read, a listing and an entry lookup each open a handle (the file to read,
 //! the directory to list, or the directory that holds the entry), verify it
@@ -91,6 +91,8 @@ mod handle_path;
 mod linux;
 #[cfg(all(unix, not(target_os = "linux")))]
 mod other_unix;
+#[cfg(unix)]
+mod unix_root;
 // Without a strategy no tree can be built, so there is nothing to test.
 #[cfg(all(test, any(unix, windows)))]
 mod tests;
@@ -237,9 +239,9 @@ impl Handle {
     fn recheck(&self, tree: &DiskTree, shown: &str) -> Result<(), TreeError> {
         match *self {
             #[cfg(target_os = "linux")]
-            Handle::Linux(ref inner) => inner.recheck(&tree.root, shown),
+            Handle::Linux(ref inner) => inner.recheck(tree, shown),
             #[cfg(all(unix, not(target_os = "linux")))]
-            Handle::OtherUnix(ref inner) => inner.recheck(&tree.walk_root, shown),
+            Handle::OtherUnix(ref inner) => inner.recheck(&tree.root_directory, shown),
             #[cfg(windows)]
             Handle::Windows(ref inner) => inner.recheck(&tree.root, shown),
         }
@@ -260,14 +262,16 @@ fn never_blocks(flags: u32) -> bool {
 
 /// A tree read from a directory on disk.
 ///
-/// The root is canonicalised once, in [`DiskTree::new`]. A symlink inside the
-/// tree is followed only when its target is also inside the tree.
+/// The root is canonicalised once, in [`DiskTree::new`]. Unix retains its
+/// original directory description. Linux refuses relocation outside the
+/// canonical scope; replacement at that pathname cannot retarget the tree.
+/// A symlink inside the tree is followed only when its target is also inside it.
 pub struct DiskTree {
     root: PathBuf,
     strategy: Strategy,
-    /// A descriptor of the root, from which the other-Unix walk starts.
-    #[cfg(all(unix, not(target_os = "linux")))]
-    walk_root: other_unix::Root,
+    /// The original directory description shared by all Unix operations.
+    #[cfg(unix)]
+    root_directory: unix_root::Root,
     /// Runs after the containment check and before the open.
     #[cfg(test)]
     before_open: Option<Hook>,
@@ -331,10 +335,10 @@ impl DiskTree {
             .parent()
             .ok_or_else(|| missing_parent(destination_manifest))?;
         let before = self.directory_identity(&base)?;
-        let declared = Self::new(self.root.join(base.as_str()).join(relative))?;
+        let declared = self.directory_tree_at(&PathBuf::from(base.as_str()).join(relative))?;
         let expected = declared.directory_identity(&RelPath::root())?;
         let target_identity = destination.directory_identity(&target)?;
-        let actual = Self::new(destination.root.join(target.as_str()))?;
+        let actual = destination.directory_tree_at(Path::new(target.as_str()))?;
         let same_directory = actual.directory_identity(&RelPath::root())? == target_identity
             && expected == target_identity
             && declared.root == actual.root;
@@ -362,15 +366,45 @@ impl DiskTree {
         let shown = given.display().to_string();
         let root = canonical_root(given).map_err(|e| TreeError::from_io(&shown, e))?;
         let metadata = std::fs::metadata(&root).map_err(|e| TreeError::from_io(&shown, e))?;
+        Self::from_observed_root(root, &metadata, &shown)
+    }
+
+    fn from_observed_root(
+        root: PathBuf,
+        metadata: &Metadata,
+        shown: &str,
+    ) -> Result<Self, TreeError> {
         if !metadata.is_dir() {
-            return Err(TreeError::NotRegular { path: shown });
+            return Err(TreeError::NotRegular { path: shown.into() });
         }
-        let strategy = Strategy::native(&shown)?;
-        Ok(Self {
-            #[cfg(all(unix, not(target_os = "linux")))]
-            walk_root: other_unix::Root::open(&root, &shown)?,
+        let strategy = Strategy::native(shown)?;
+        #[cfg(unix)]
+        let root_directory = unix_root::Root::open(&root, shown)?;
+        #[cfg(target_os = "linux")]
+        if root_directory.identity() != device_identity(metadata) {
+            return Err(outside(shown));
+        }
+        let tree = Self::from_parts(
             root,
             strategy,
+            #[cfg(unix)]
+            root_directory,
+        );
+        #[cfg(target_os = "linux")]
+        linux::verify_root(&tree, shown)?;
+        Ok(tree)
+    }
+
+    fn from_parts(
+        root: PathBuf,
+        strategy: Strategy,
+        #[cfg(unix)] root_directory: unix_root::Root,
+    ) -> Self {
+        Self {
+            root,
+            strategy,
+            #[cfg(unix)]
+            root_directory,
             #[cfg(test)]
             before_open: None,
             #[cfg(test)]
@@ -383,7 +417,48 @@ impl DiskTree {
             mid_step: None,
             #[cfg(all(test, unix))]
             opens: std::sync::Mutex::new(Vec::new()),
-        })
+        }
+    }
+
+    /// Clone the original Linux workspace directory description.
+    ///
+    /// This is a path-only handle, suitable for descriptor-relative operations.
+    /// An explicit metadata publisher can share it with this Tree rather than
+    /// reopening a pathname that could now name another directory. Directory
+    /// synchronization requires a separately opened, verified readable handle.
+    /// Returning this handle does not make the inspected source immutable.
+    ///
+    /// # Errors
+    /// Refuses a root outside its admitted canonical scope or a failure to
+    /// inspect or clone the directory descriptor.
+    #[cfg(target_os = "linux")]
+    pub fn directory_handle(&self) -> Result<std::fs::File, TreeError> {
+        linux::verify_root(self, &self.root.display().to_string())?;
+        self.root_directory
+            .dir
+            .try_clone()
+            .map(std::fs::File::from)
+            .map_err(|e| TreeError::from_io(&self.root.display().to_string(), e))
+    }
+
+    fn directory_tree_at(&self, path: &Path) -> Result<Self, TreeError> {
+        #[cfg(target_os = "linux")]
+        {
+            let shown = path.display().to_string();
+            // The empty relative path denotes this root; openat requires `.`.
+            let relative = if path.as_os_str().is_empty() {
+                Path::new(".")
+            } else {
+                path
+            };
+            let root_directory =
+                unix_root::Root::open_at(&self.root_directory.dir, relative, &shown)?;
+            let root = std::fs::read_link(descriptor_path(&root_directory.dir))
+                .map_err(|e| link_read_error(&shown, e))?;
+            Ok(Self::from_parts(root, self.strategy, root_directory))
+        }
+        #[cfg(not(target_os = "linux"))]
+        Self::new(self.root.join(path))
     }
 
     /// Inspect a regular file's byte length through a verified handle.
@@ -457,10 +532,14 @@ impl DiskTree {
     /// The path on disk that `path` names, before any symlink is followed.
     #[cfg(any(target_os = "linux", windows))]
     fn candidate(&self, path: &RelPath) -> PathBuf {
+        #[cfg(target_os = "linux")]
+        let root = descriptor_path(&self.root_directory.dir).join(".");
+        #[cfg(windows)]
+        let root = self.root.clone();
         if path.is_root() {
-            self.root.clone()
+            root
         } else {
-            self.root.join(path.as_str())
+            root.join(path.as_str())
         }
     }
 
@@ -693,8 +772,7 @@ fn verify_linux_link(root: &Path, handle_link: &Path, shown: &str) -> Result<(),
 
 /// `/proc/self/fd/<fd>`: the kernel's own path for an open handle.
 #[cfg(target_os = "linux")]
-fn descriptor_path(handle: &std::fs::File) -> PathBuf {
-    use std::os::fd::AsRawFd as _;
+fn descriptor_path(handle: &impl std::os::fd::AsRawFd) -> PathBuf {
     PathBuf::from(format!("/proc/self/fd/{}", handle.as_raw_fd()))
 }
 
