@@ -32,6 +32,75 @@ fn the_reexported_syn_types_are_the_types_received_by_the_parse_visitor() {
     assert_eq!(error.file, file);
     owned_corpus_keeps_admission_and_worker_failures_atomic();
     shared_tokens_keep_original_prefix_positions();
+    prepared_source_keeps_counts_bound_to_its_input();
+}
+
+fn native_nodes(tokens: proc_macro2::TokenStream) -> usize {
+    tokens
+        .into_iter()
+        .map(|token| {
+            1 + match token {
+                proc_macro2::TokenTree::Group(group) => native_nodes(group.stream()),
+                _ => 0,
+            }
+        })
+        .sum()
+}
+
+fn prepared_source_keeps_counts_bound_to_its_input() {
+    use raf_source::{Budget, LoadErrorKind, RelPath, prepare_source};
+    let path = RelPath::new("prepared.rs").expect("path");
+    for separator in ["\u{2003}", "\u{200e}", "\u{200f}", "\u{0085}"] {
+        let macro_source = format!("m!({});", vec!["a"; 64].join(separator));
+        let prepared = prepare_source(&path, &macro_source).expect("Unicode-separated macro data");
+        let bound = prepared.native_token_bound();
+        prepared
+            .parse_with_tokens(|syntax, original| {
+                assert_eq!(syntax.items.len(), 1);
+                assert!(native_nodes(original) <= bound);
+            })
+            .expect("macro tokens are inspected without expansion");
+
+        // Never parse this deep source: failure must happen during preparation.
+        let deep = format!(
+            "fn deep() {{ {}0; }}",
+            format!("return{separator}").repeat(Budget::Recursion.limit() + 1)
+        );
+        let error = prepare_source(&path, &deep).expect_err("Unicode cannot hide recursion");
+        assert!(matches!(
+            error.kind,
+            LoadErrorKind::Budget {
+                budget: Budget::Recursion,
+                ..
+            }
+        ));
+        let small = format!("fn small() {{ return{separator}return{separator}0; }}");
+        assert_eq!(
+            prepare_source(&path, &small)
+                .expect("small Unicode-separated neighbour")
+                .parse(|syntax| syntax.items.len())
+                .expect("admitted neighbour parses"),
+            1
+        );
+    }
+    for text in [
+        "const X:f64=1e2.3;",
+        "\u{feff}#!data\n/// doc\nfn café<'a>() {}",
+    ] {
+        let prepared = prepare_source(&path, text).expect("admitted source data");
+        let bound = prepared.native_token_bound();
+        prepared
+            .parse_with_tokens(|_, original| assert!(native_nodes(original) <= bound))
+            .expect("native nodes fit the prepared ceiling");
+    }
+    let malformed = prepare_source(&path, "fn {").expect("guards are not syntax validation");
+    assert!(matches!(
+        malformed.parse(|_| panic!("invalid syntax cannot reach the visitor")),
+        Err(raf_source::LoadError {
+            kind: LoadErrorKind::Syntax { .. },
+            ..
+        })
+    ));
 }
 
 fn check_tokens(source: &str, original: proc_macro2::TokenStream) {

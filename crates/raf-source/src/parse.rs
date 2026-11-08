@@ -19,6 +19,129 @@ use crate::{LoadOptions, TreeError};
 /// the thread of a test or of a tool.
 pub const PARSE_STACK_BYTES: usize = 64 * 1024 * 1024;
 
+/// An immutable source admitted by the caller-thread guard scan.
+///
+/// Private fields bind the handle to its borrowed path and text. Reading counts
+/// starts no worker or native lexer. Its consuming parse methods use that
+/// same text without repeating the guard scan. Admission is not syntax
+/// validation and does not establish a complete native heap or work bound.
+#[derive(Debug)]
+pub struct PreparedSource<'source> {
+    file: &'source RelPath,
+    text: &'source str,
+    scan: Scan,
+    native_bound: usize,
+}
+
+/// Check the default file-token and recursion guards without starting a worker.
+///
+/// The returned handle binds the counts and subsequent parsing to immutable
+/// borrowed input. It performs no filesystem access or source mutation.
+///
+/// # Errors
+/// Returns the located guard refusal, or storage-size overflow when the native
+/// token ceiling cannot be represented. Syntax is checked only when parsing.
+pub fn prepare_source<'source>(
+    file: &'source RelPath,
+    text: &'source str,
+) -> Result<PreparedSource<'source>, LoadError> {
+    PreparedSource::new(file, text, Budget::FileTokens.limit())
+}
+
+impl<'source> PreparedSource<'source> {
+    fn new(
+        file: &'source RelPath,
+        text: &'source str,
+        max_tokens: usize,
+    ) -> Result<Self, LoadError> {
+        let scan = prescan_file(file, text, max_tokens)?;
+        let native_bound = scan
+            .tokens
+            .checked_mul(3)
+            .and_then(|tokens| text.len().checked_mul(2).map(|bytes| tokens.min(bytes)))
+            .ok_or_else(|| {
+                LoadError::new(
+                    file,
+                    None,
+                    LoadErrorKind::Storage(purrdf_lex::allocation::StorageError::SizeOverflow),
+                )
+            })?;
+        Ok(Self {
+            file,
+            text,
+            scan,
+            native_bound,
+        })
+    }
+
+    /// Units compared against the guard's file-token limit.
+    ///
+    /// Numeric guard runs can fuse native leaves; this is not a native-node count.
+    #[must_use]
+    pub const fn token_count(&self) -> usize {
+        self.scan.tokens
+    }
+
+    /// The highest additive recursion counter reached by the guard scan.
+    #[must_use]
+    pub const fn recursion(&self) -> usize {
+        self.scan.recursion
+    }
+
+    /// Upper bound on complete native token-tree nodes if lexing succeeds.
+    ///
+    /// At most three native nodes arise per guard unit; source bytes separately
+    /// bound documentation lowering at twice their length. This is the smaller
+    /// checked bound and does not bound native AST storage or parser work.
+    #[must_use]
+    pub const fn native_token_bound(&self) -> usize {
+        self.native_bound
+    }
+
+    /// Parse the admitted text on its scoped worker, then join it.
+    ///
+    /// # Errors
+    /// Returns the native storage, syntax or worker-start errors of [`parse_source`].
+    ///
+    /// # Panics
+    /// Resumes parser or visitor panics on the caller with the original payload.
+    pub fn parse<R: Send>(
+        self,
+        visit: impl FnOnce(&syn::File) -> R + Send,
+    ) -> Result<R, LoadError> {
+        self.parse_mut(|tree| visit(tree))
+    }
+
+    /// Parse once and lend the original native tokens to the worker visitor.
+    ///
+    /// # Errors
+    /// Returns the native errors of [`parse_source_with_tokens`], without rescanning.
+    ///
+    /// # Panics
+    /// Resumes parser or visitor panics on the caller with the original payload.
+    pub fn parse_with_tokens<R: Send>(
+        self,
+        visit: impl FnOnce(&syn::File, proc_macro2::TokenStream) -> R + Send,
+    ) -> Result<R, LoadError> {
+        let Self { file, text, .. } = self;
+        on_worker(file, move || {
+            let (original, header) = lex_source(file, text)?;
+            let tree = syntax(file, original.clone(), header)?;
+            Ok(visit(&tree, original))
+        })
+    }
+
+    fn parse_mut<R: Send>(
+        self,
+        visit: impl FnOnce(&mut syn::File) -> R + Send,
+    ) -> Result<R, LoadError> {
+        let Self { file, text, .. } = self;
+        on_worker(file, || {
+            parse_syntax(file, text).map(|mut tree| visit(&mut tree))
+        })
+    }
+}
+
 /// Parse `text` as a Rust file and run `visit` on the syntax tree.
 ///
 /// The recursion budgets and the token budget, at its default limit
@@ -45,7 +168,7 @@ pub fn parse_source<R: Send>(
     text: &str,
     visit: impl FnOnce(&syn::File) -> R + Send,
 ) -> Result<R, LoadError> {
-    parse_counted(file, text, Budget::FileTokens.limit(), visit).map(|(result, _)| result)
+    prepare_source(file, text)?.parse(visit)
 }
 
 /// Parse once and give the visitor the syntax and its original native tokens.
@@ -74,12 +197,7 @@ pub fn parse_source_with_tokens<R: Send>(
     text: &str,
     visit: impl FnOnce(&syn::File, proc_macro2::TokenStream) -> R + Send,
 ) -> Result<R, LoadError> {
-    let _ = prescan_file(file, text, Budget::FileTokens.limit())?;
-    on_worker(file, move || {
-        let (original, header) = lex_source(file, text)?;
-        let tree = syntax(file, original.clone(), header)?;
-        Ok(visit(&tree, original))
-    })
+    prepare_source(file, text)?.parse_with_tokens(visit)
 }
 
 /// One explicitly selected source and its owned syntax tree.
@@ -177,10 +295,9 @@ pub(crate) fn parse_counted_mut<R: Send>(
     max_tokens: usize,
     visit: impl FnOnce(&mut syn::File) -> R + Send,
 ) -> Result<(R, Scan), LoadError> {
-    let scan = prescan_file(file, text, max_tokens)?;
-    on_worker(file, || {
-        parse_syntax(file, text).map(|mut tree| (visit(&mut tree), scan))
-    })
+    let prepared = PreparedSource::new(file, text, max_tokens)?;
+    let scan = prepared.scan;
+    prepared.parse_mut(visit).map(|result| (result, scan))
 }
 
 fn on_worker<R: Send>(

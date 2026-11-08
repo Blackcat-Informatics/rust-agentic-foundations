@@ -47,8 +47,10 @@ pub enum Budget {
     /// Directories nested below a root, counted by package discovery and by
     /// the expansion of `workspace.members` patterns.
     DirectoryDepth,
-    /// Tokens of one file, counted by the pre-scan. A doc comment counts as
-    /// the tokens of the attribute it stands for. This bounds token structure,
+    /// Guard token units of one file, counted by the pre-scan. A doc comment
+    /// counts as its attribute. A numeric run may fuse up to three native leaves;
+    /// [`PreparedSource::native_token_bound`](crate::PreparedSource::native_token_bound)
+    /// gives a separate checked native ceiling. This bounds token structure,
     /// not the complete native parser heap or work. [`PARSE_BYTES_PER_TOKEN`]
     /// is an empirical reference for the measured statement shape.
     FileTokens,
