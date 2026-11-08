@@ -51,6 +51,13 @@ bindings:
     - raf_source::Workspace::test_platform_guard
     - raf_source::parse_source
     - raf_source::parse_source_with_tokens
+    - raf_source::prepare_source
+    - raf_source::PreparedSource
+    - raf_source::PreparedSource::token_count
+    - raf_source::PreparedSource::recursion
+    - raf_source::PreparedSource::native_token_bound
+    - raf_source::PreparedSource::parse
+    - raf_source::PreparedSource::parse_with_tokens
     - raf_source::parse_sources
     - raf_source::ParsedSource
     - raf_source::Resolution
@@ -1669,12 +1676,15 @@ The budgets are one table in the source
   nests. A `use` tree at the limit loads, resolves and drops on a thread of 512 KiB in
   a debug build. Over this repository and the registry scan below the highest value
   in one file was 987 (`funty`, a trait with more than 160 bounds).
-- Tokens: the number of tokens of the file as the parser's lexer reads them. An
-  identifier, a keyword or a literal is one, a lifetime two (the quote and the
+- Guard token units: an identifier, a keyword or a literal is one, a lifetime
+  two (the quote and the
   name), each delimiter one and each character of punctuation one (`::` and `->`
   are two). A doc comment counts as the attribute it stands for: six tokens for
   `///` and `/**`, seven for `//!` and `/*!`; other comments count for nothing. The
-  count feeds no other counter. The limit is `LoadOptions::max_file_tokens`, by
+  count feeds no other counter. A numeric guard run such as `1e2.3` can cover
+  three native leaves; raw guard units are not exact native token-tree nodes.
+  `PreparedSource::native_token_bound` gives a separate checked native ceiling.
+  The limit is `LoadOptions::max_file_tokens`, by
   default 2000000 (`Budget::FileTokens`), and `parse_source` applies the default.
   `PARSE_BYTES_PER_TOKEN`, 1664 bytes, is an empirical reference for one function
   body of 2^k + 1 empty statements, whose list of
@@ -1846,6 +1856,28 @@ analysis structures. Only its `Send` result leaves the worker. A failed file nev
 produces a partial callback; an empty corpus calls it once with an empty vector.
 Native errors retain the failing path and syntax position. Parser and callback
 panics resume on the caller with their original payload.
+<!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
+
+`prepare_source` runs the caller-thread guard scan and returns an immutable
+`PreparedSource` borrowing that exact path and text. Preparation starts no
+worker or native lexer and performs no filesystem access or source mutation.
+Its `token_count` and `recursion` report guard units and the highest additive
+recursion counter. Guard token units differ from native token-tree nodes:
+a numeric run such as `1e2.3` can cover three native leaves. The separate
+`native_token_bound` is the checked smaller value of twice the input byte
+length and three times the guard token count. Documentation lowering retains
+its attribute charges. Unicode whitespace, including the two directional
+marks, separates guard words, lifetimes and numeric runs just as it does native
+tokens; it cannot conceal recursion keywords. Other non-ASCII characters
+remain native identifier data or cause native lex refusal before Syn parsing.
+These counters do not establish a complete native allocation or work bound.
+
+Consuming `PreparedSource::parse` or `parse_with_tokens` uses that same text
+without another guard scan. Native syntax failure still refuses before the
+visitor. Worker join, panic propagation, prefix coordinates and callback
+ownership match the corresponding single-source convenience functions, which
+delegate through this prepared path. Preparation alone does not claim valid
+syntax or compiler acceptance.
 <!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
 
 `parse_source_with_tokens` gives its visitor the syntax and the one original
@@ -3176,6 +3208,11 @@ library a consumer build would use.
 Use `parse_source_with_tokens` when analysis needs syntax and original tokens.
 Read native spans inside its worker callback and return owned `Send` data.
 The token byte ranges index the original source, including its ignored prefix.
+Use `prepare_source` first when a caller must admit parser resources from guard
+counts before native parsing. Inspect the immutable handle's
+`native_token_bound`, then consume it with `parse` or `parse_with_tokens`.
+The handle cannot be constructed from caller-supplied counts or rebound to
+different source text.
 
 Set `LoadOptions::max_work` and `max_glob_bytes` before loading to bound import
 operations and live import storage. Retained reads, pending queues, subscriptions
@@ -3369,6 +3406,14 @@ for id in ws.target_ids() {
 Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
 
 ## Examples
+
+`prepare_source` accepts `const X:f64=1e2.3;` as guard-admitted source data.
+Its raw numeric guard run can cover several native leaves; use the separate
+native-node ceiling when admitting parser resources. A macro payload with
+Unicode whitespace between identifiers retains each native token boundary.
+An over-budget chain of Unicode-separated `return` keywords refuses during
+preparation; a small neighbouring chain parses as syntax without executing it.
+<!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
 
 A root replaced during a source open cannot redirect that tree to the new
 directory. Moving the original root outside the canonical scope refuses the
@@ -3883,6 +3928,13 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+Prepared-source fixtures compare the declared native-node ceiling with the
+original token tree for numeric, Unicode, lifetime and ignored-prefix inputs.
+Dangerous Unicode-separated recursion data is judged only by preparation, with
+no native parse, beside a small valid neighbour. A guard-admitted malformed
+file still returns a located syntax refusal before its visitor.
+<!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
 
 Native directory fixtures cover final and ancestor swaps during root acquisition,
 replacement while opening a source file, and access through the retained original

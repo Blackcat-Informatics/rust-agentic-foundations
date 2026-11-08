@@ -7,7 +7,7 @@ subject: cap:source-index#usage
 inputs:
   - kind: section
     name: cap:source-index#usage
-    digest: cd3429225895812c0b45996d6289d55bbda5c1e248e091d0751091e946410cff
+    digest: faa31f305e8bd2cbfb4a3e0d04971a30362e62efeb8c8186fcb800fef109e864
   - kind: symbol
     name: raf_source::CfgAtom
     digest: d36cd070e76abf89aa638ebe1dc5acff34ddaae19f6d22e8410100a04eaa0ea6
@@ -84,6 +84,15 @@ inputs:
     name: raf_source::ParsedSource
     digest: 6ca54f6d5936a9b8b9a76a10bd47d3bbc1287b3240d51839b6d1b29389f4a2b2
   - kind: symbol
+    name: raf_source::PreparedSource::native_token_bound
+    digest: 5dd6e6f88296253208e0d9bce6072af43f432dac69db0e6c1450c19254bcab7b
+  - kind: symbol
+    name: raf_source::PreparedSource::parse
+    digest: cae35d4df2b3ef7c80b8171a8457444818d2bf162e4d327d8ac744f7a663f79e
+  - kind: symbol
+    name: raf_source::PreparedSource::parse_with_tokens
+    digest: 577dc76b02cb77c0d713064b0ca7ff725b7888be76c0c7b5b793a48ee4ad161f
+  - kind: symbol
     name: raf_source::Reexport
     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
   - kind: symbol
@@ -136,13 +145,16 @@ inputs:
     digest: ad09f5dc9cc8bbcf01296985c4d4bda792ebe123255366e365c623c2e1117d1b
   - kind: symbol
     name: raf_source::parse_source
-    digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a
+    digest: 56820f7a2c8dfe74a54889085db72458faf088b2c522d0292f8e6b1f5940e95a
   - kind: symbol
     name: raf_source::parse_source_with_tokens
-    digest: 990649f5cf6421319add3504c10a9de046bdfda45758978c252f79081b2068a1
+    digest: 1a52ee7c0ee6e054fd555702ccd84ad83356c0a2d4bff019b80e995c6cda2283
   - kind: symbol
     name: raf_source::parse_sources
     digest: fcc190bb3f95882d4f69a4f2197baf43ef457758c2d8111b2d9a22c58ba5ad06
+  - kind: symbol
+    name: raf_source::prepare_source
+    digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3

@@ -34,12 +34,14 @@
 //!   syntax tree and its drop build by recursion, summed over every open
 //!   delimiter level; it is defined in [`recursion`].
 //!
-//! * **Tokens.** Every token of the file counts, as the parser's lexer sees
-//!   it: an identifier, a keyword, a literal, a lifetime (two: the quote and
+//! * **Tokens.** Guard units count an identifier, a keyword, a literal, a
+//!   lifetime (two: the quote and
 //!   the name), each delimiter, and each character of punctuation (`::` and
 //!   `->` are two). A doc comment counts as the attribute it stands for: six
 //!   tokens for `///` and `/**`, seven for `//!` and `/*!`. Other comments
-//!   count for nothing. The count feeds no other counter.
+//!   count for nothing. A numeric run can fuse up to three native leaves;
+//!   the guard count is not an exact native token-tree count. The count feeds
+//!   no other counter.
 //!
 //! The scan does not parse. An unbalanced closer is ignored here and left to
 //! the parser to refuse.
@@ -293,8 +295,12 @@ fn is_ident_start(byte: u8) -> bool {
     byte == b'_' || byte.is_ascii_alphabetic() || byte >= 0x80
 }
 
-fn is_ident_continue(byte: u8) -> bool {
-    byte == b'_' || byte.is_ascii_alphanumeric() || byte >= 0x80
+fn is_whitespace(ch: char) -> bool {
+    ch.is_whitespace() || matches!(ch, '\u{200e}' | '\u{200f}')
+}
+
+fn is_ident_continue(ch: char) -> bool {
+    ch == '_' || ch.is_ascii_alphanumeric() || (!ch.is_ascii() && !is_whitespace(ch))
 }
 
 /// A cursor over the text that counts lines as it moves.
@@ -332,6 +338,14 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    fn whitespace_width(&self) -> Option<usize> {
+        self.text[self.at..]
+            .chars()
+            .next()
+            .filter(|ch| is_whitespace(*ch))
+            .map(char::len_utf8)
+    }
+
     /// Header lookahead uses Rust whitespace and ordinary comments. A doc
     /// comment is an attribute token, so it must end this lookahead.
     fn skip_header_trivia(&mut self) {
@@ -341,13 +355,10 @@ impl<'a> Cursor<'a> {
             } else if byte == b'/' && self.peek(1) == Some(b'*') && self.doc_comment_tokens() == 0 {
                 self.skip_block_comment();
             } else {
-                let Some(ch) = self.text[self.at..].chars().next() else {
+                let Some(width) = self.whitespace_width() else {
                     break;
                 };
-                if !ch.is_whitespace() && !matches!(ch, '\u{200e}' | '\u{200f}') {
-                    break;
-                }
-                self.bump_by(ch.len_utf8());
+                self.bump_by(width);
             }
         }
     }
@@ -446,9 +457,7 @@ impl<'a> Cursor<'a> {
                     self.bump_by(width + 1);
                     false
                 } else {
-                    while self.peek(0).is_some_and(is_ident_continue) {
-                        self.bump();
-                    }
+                    self.ident();
                     true
                 }
             }
@@ -458,9 +467,12 @@ impl<'a> Cursor<'a> {
 
     fn ident(&mut self) -> &'a str {
         let start = self.at;
-        while self.peek(0).is_some_and(is_ident_continue) {
-            self.bump();
-        }
+        let width = self.text[start..]
+            .chars()
+            .take_while(|ch| is_ident_continue(*ch))
+            .map(char::len_utf8)
+            .sum();
+        self.bump_by(width);
         &self.text[start..self.at]
     }
 }
@@ -468,7 +480,7 @@ impl<'a> Cursor<'a> {
 /// What the pre-scan of one admitted file counted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Scan {
-    /// The tokens of the file.
+    /// Guard token units compared against the file-token limit.
     pub(crate) tokens: usize,
     /// The highest value the recursion counter reached.
     pub(crate) recursion: usize,
@@ -549,6 +561,12 @@ fn prescan_from(
         }
     };
     while let Some(byte) = cursor.peek(0) {
+        if !byte.is_ascii()
+            && let Some(width) = cursor.whitespace_width()
+        {
+            cursor.bump_by(width);
+            continue;
+        }
         let line = cursor.line;
         let start = cursor.at;
         let token = match byte {
@@ -625,9 +643,10 @@ fn prescan_from(
     })
 }
 
-/// The tokens the parser's lexer reads for `token`, whose text is `lexed`:
+/// Guard units for `token`, whose text is `lexed`:
 /// two for a lifetime (a quote and a name), one per character of
 /// punctuation, and one for anything else, a literal of any length included.
+/// Numeric guard runs can fuse native leaves, so this is not their exact count.
 fn lexed_tokens(token: Token<'_>, lexed: &[u8]) -> usize {
     match token {
         Token::Lifetime => 2,
@@ -734,17 +753,16 @@ fn word<'a>(cursor: &mut Cursor<'a>) -> Token<'a> {
 /// second `.` of `0.0.0` end it before the dot.
 fn number(cursor: &mut Cursor<'_>) -> bool {
     let mut dotted = false;
-    while cursor
-        .peek(0)
-        .is_some_and(|byte| is_ident_continue(byte) || byte == b'.')
-    {
-        if cursor.peek(0) == Some(b'.') {
+    while let Some(ch) = cursor.text[cursor.at..].chars().next() {
+        if ch == '.' {
             if dotted || !cursor.peek(1).is_some_and(|byte| byte.is_ascii_digit()) {
                 break;
             }
             dotted = true;
+        } else if !is_ident_continue(ch) {
+            break;
         }
-        cursor.bump();
+        cursor.bump_by(ch.len_utf8());
     }
     dotted
 }
