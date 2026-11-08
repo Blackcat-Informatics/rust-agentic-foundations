@@ -22,7 +22,7 @@ inputs:
     digest: 9d8101cb40654cbe57f6c08d22e3593532157a6534b6da6aeb363549037bae17
   - kind: symbol
     name: raf_workplan::diagram
-    digest: 59932073ad03b65a0bc5cce2203ba2fa6fa13b8925ea4b9a49d6af3de2ffabe6
+    digest: 235ae30cdcf5bb010867915dc2a1594b1e2239ac81d984409fe977db0ecf4070
   - kind: symbol
     name: raf_workplan::evidence
     digest: a1ad819bde3fdf4280cfb4ea25fae7ec008b30ef17f744457b8d676716d03165
@@ -31,7 +31,7 @@ inputs:
     digest: 09747dcb55e94233a10361cffc2fe400cb99b283e3cb5e08699f471deca5000f
   - kind: symbol
     name: raf_workplan::record
-    digest: 45f4875db255fcfe828925a9a3f00e344a22d5b85500fdc0577b0a0e4dc2f6cb
+    digest: e0af591739db479a091b718df1b215a15578d48a56ab73bae3db222026927436
 verdict: accepted
 by: agent
 ---

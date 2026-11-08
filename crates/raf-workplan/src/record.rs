@@ -14,7 +14,6 @@
 
 use std::error::Error;
 use std::fmt;
-use std::fs;
 use std::io;
 use std::path::Path;
 
@@ -26,7 +25,7 @@ use raf_source::{EntryKind, RelPath};
 
 use crate::files::Refused;
 use crate::spdx::{self, SpdxError};
-use crate::{Finding, refs, sync};
+use crate::{Finding, refs};
 
 mod store;
 pub(crate) use store::DiskRecordStore;
@@ -413,28 +412,15 @@ pub fn replace_in(
     Ok(path)
 }
 
-/// Publish the replacement after the regular-file and directory inspection.
-/// The path inspection retains no handles or later-name comparison.
-fn publish_replacement(root: &Path, path: &RelPath, text: &str) -> io::Result<()> {
-    let target = fs::canonicalize(root)?.join(path.as_str());
-    let temporary = sync::stage(&target, text)?;
-    if let Err(error) = fs::rename(&temporary, &target) {
-        // Only the temporary file this call created is removed.
-        let _ = fs::remove_file(&temporary);
-        return Err(error);
-    }
-    Ok(())
-}
-
 #[cfg(all(test, unix))]
 mod tests {
-    use super::{Record, RecordError, RecordOptions, fs, publish_replacement, replace};
-    use crate::files::{self, Target};
+    use super::{DiskRecordStore, Record, RecordError, RecordOptions, RecordStore, replace};
     use raf_okf::CoverageRecord;
     use raf_source::EntryKind;
+    use std::fs;
 
     #[test]
-    fn a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication() {
+    fn a_directory_swap_after_preflight_refuses_replacement_publication() {
         let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir())
             .expect("create replacement fixture");
         let root = scratch.path();
@@ -447,26 +433,24 @@ mod tests {
         let original = format!("{text}\n");
         fs::write(root.join(path.as_str()), &original).unwrap();
         fs::write(root.join("alternate/default.md"), "alternate\n").unwrap();
-        assert!(matches!(
-            files::target(root, "work/coverage", &path).unwrap(),
-            Target {
-                kind: Some(EntryKind::File),
-                directories: true
-            }
-        ));
+        let mut store = DiskRecordStore::new(root);
+        assert_eq!(store.inspect(&path).unwrap(), Some(EntryKind::File));
 
         fs::rename(root.join("work/coverage"), root.join("original")).unwrap();
-        std::os::unix::fs::symlink("../alternate", root.join("work/coverage")).unwrap();
-        publish_replacement(root, &path, &text)
-            .expect("replacement follows the names after inspection");
+        fs::rename(root.join("alternate"), root.join("work/coverage")).unwrap();
+        store
+            .replace(&path, &text)
+            .expect_err("replacement refuses the changed directory binding");
         assert_eq!(
-            fs::read_to_string(root.join("alternate/default.md")).unwrap(),
-            text
+            fs::read_to_string(root.join("work/coverage/default.md")).unwrap(),
+            "alternate\n"
         );
         assert_eq!(
             fs::read_to_string(root.join("original/default.md")).unwrap(),
             original
         );
+        fs::rename(root.join("work/coverage"), root.join("alternate")).unwrap();
+        std::os::unix::fs::symlink("../alternate", root.join("work/coverage")).unwrap();
         assert!(matches!(
             replace(root, &record, &options),
             Err(RecordError::Write { path, .. }) if path == "work/coverage"

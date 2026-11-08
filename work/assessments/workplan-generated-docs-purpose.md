@@ -46,7 +46,7 @@ inputs:
     digest: 9ba560131a4fedddffd7453172f167de21c0f3559a1cd0417572f82d00b2ded4
   - kind: symbol
     name: raf_workplan::Workplan::write_observed
-    digest: c8625d26f6ebf3dfe3ac591ad3cfd74b372a79e395a07c182bfb049155525f4b
+    digest: f07b6bc7d993b1f7eb336340baae381f71e63b44ff181f82811a558e3dc36933
   - kind: symbol
     name: raf_workplan::assessment::Inputs
     digest: d18f5325e70c97dac0d8464bbaac56fe28c131c9263b283b0e71f2e3890a5347
@@ -58,7 +58,7 @@ inputs:
     digest: 8a211c7ec52d3269b07fa74baf161556c991c01a76eb43416eb4b311c3d934f4
   - kind: symbol
     name: raf_workplan::diagram
-    digest: 59932073ad03b65a0bc5cce2203ba2fa6fa13b8925ea4b9a49d6af3de2ffabe6
+    digest: 235ae30cdcf5bb010867915dc2a1594b1e2239ac81d984409fe977db0ecf4070
   - kind: symbol
     name: raf_workplan::digest::SymbolDigestError::is_query_refusal
     digest: 19bb8b964f46bcc60e08a3f85364f4d49ff116480bde84aa0576a03ae10b2c99
@@ -69,8 +69,8 @@ inputs:
     name: raf_workplan::generated::END_MARKER
     digest: abb30d947cd162a509ed3671cc9844d7729d0c286bffabf6bdcf0a1c8461d7c9
   - kind: symbol
-    name: raf_workplan::sync::stage_observed
-    digest: 7168e18c9e2243b078229541a8ad3045f1d83acb46fdce07cb54a5a7fe076cdb
+    name: raf_workplan::publication_io
+    digest: 82d754a5861c08df0a929fedc7dfb044b9f8351eea8039a587221cbe03b88943
 verdict: accepted
 by: agent
 ---

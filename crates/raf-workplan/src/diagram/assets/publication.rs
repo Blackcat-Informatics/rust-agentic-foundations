@@ -3,14 +3,12 @@
 
 //! Asset-specific admission around the existing native sync staging writer.
 
-use raf_source::{DiskTree, EntryKind, RelPath, Tree};
-use std::{
-    fs, io,
-    path::{Path, PathBuf},
-};
+use raf_source::{EntryKind, RelPath, Tree};
+use std::{collections::BTreeMap, fs, io, rc::Rc};
 
 use super::{MANIFEST, read};
 use crate::diagram::semantic::hash;
+use crate::publication_io::{Root, Staged, Target};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Guard {
@@ -52,12 +50,14 @@ impl Publication {
         path.as_str() == MANIFEST || self.guards.iter().any(|guard| guard.path == *path)
     }
 
-    pub(crate) fn validate(&self, root: &Path, edits: &[(RelPath, String)]) -> io::Result<()> {
-        crate::files::protect_git(root, &RelPath::new(MANIFEST).map_err(io::Error::other)?)
-            .map_err(|error| error.source)?;
-        let tree = DiskTree::new(root).map_err(io::Error::other)?;
+    pub(crate) fn validate(
+        &self,
+        root: &Rc<Root>,
+        edits: &[(RelPath, String)],
+    ) -> io::Result<BTreeMap<RelPath, Target>> {
+        let tree = root.tree();
         let manifest = RelPath::new(MANIFEST).map_err(io::Error::other)?;
-        if read(&tree, &manifest)
+        if read(tree, &manifest)
             .map_err(io::Error::other)?
             .as_deref()
             .map(hash)
@@ -94,7 +94,7 @@ impl Publication {
             ));
         }
         for guard in self.guards.iter().chain(&self.removals) {
-            if read(&tree, &guard.path)
+            if read(tree, &guard.path)
                 .map_err(io::Error::other)?
                 .as_deref()
                 .map(hash)
@@ -112,15 +112,36 @@ impl Publication {
                 ));
             }
         }
-        Ok(())
+        let mut targets = BTreeMap::new();
+        for (path, expected) in std::iter::once((&manifest, self.original_manifest.as_deref()))
+            .chain(
+                self.guards
+                    .iter()
+                    .chain(&self.removals)
+                    .map(|guard| (&guard.path, guard.before.as_deref())),
+            )
+        {
+            let parent = path
+                .parent()
+                .ok_or_else(|| refused(path, "missing parent"))?;
+            let found = crate::files::target_in(tree, parent.as_str(), path)
+                .map_err(|error| error.source)?;
+            root.admit_parent(path)?;
+            if found.directories {
+                let target = root.capture(path)?;
+                target.verify_content(expected)?;
+                targets.insert(path.clone(), target);
+            }
+        }
+        Ok(targets)
     }
 
     pub(crate) fn directories(
-        root: &Path,
+        root: &Rc<Root>,
         edits: &[(RelPath, String)],
     ) -> io::Result<Vec<(RelPath, fs::Permissions)>> {
         let mut created = Vec::new();
-        let tree = DiskTree::new(root).map_err(io::Error::other)?;
+        let tree = root.tree();
         for (path, _) in edits.iter().filter(|(path, _)| reserved(path)) {
             let parent = path
                 .parent()
@@ -140,13 +161,14 @@ impl Publication {
                 match tree.entry(&relative).map_err(io::Error::other)? {
                     Some(EntryKind::Dir) => {}
                     None if part.starts_with("docs/diagrams") => {
-                        match fs::create_dir(root.join(&part)) {
-                            Ok(()) => {
+                        match root.create_directory(&relative) {
+                            Ok(true) => {
                                 let observed = tree
                                     .capture_directory_bounded(&relative, 0)
                                     .map_err(io::Error::other)?;
                                 created.push((relative.clone(), observed.permissions));
                             }
+                            Ok(false) => {}
                             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                                 if tree.entry(&relative).map_err(io::Error::other)?
                                     != Some(EntryKind::Dir)
@@ -167,34 +189,40 @@ impl Publication {
         Ok(created)
     }
 
-    pub(crate) fn stage_intent(&self, root: &Path) -> io::Result<PathBuf> {
-        crate::sync::stage(&root.join(MANIFEST), &self.intent)
+    pub(crate) fn verify_target(&self, path: &RelPath, target: &Target) -> io::Result<()> {
+        if path.as_str() == MANIFEST {
+            return target.verify_content(self.original_manifest.as_deref());
+        }
+        if let Some(guard) = self.guards.iter().find(|guard| guard.path == *path) {
+            target.verify_content(guard.before.as_deref())?;
+        }
+        Ok(())
     }
 
-    pub(crate) fn retire(&self, root: &Path) -> io::Result<()> {
-        let tree = DiskTree::new(root).map_err(io::Error::other)?;
+    pub(crate) fn stage_intent(&self, root: &Rc<Root>) -> io::Result<Staged> {
         let manifest = RelPath::new(MANIFEST).map_err(io::Error::other)?;
-        if read(&tree, &manifest)
-            .map_err(io::Error::other)?
-            .as_deref()
-            .map(hash)
-            != Some(hash(&self.intent))
-        {
-            return Err(refused(
-                &manifest,
-                "ownership intent changed before retired assets could be removed",
-            ));
-        }
+        let target = root.capture(&manifest)?;
+        target.verify_content(self.original_manifest.as_deref())?;
+        target.stage(&self.intent)
+    }
+
+    pub(crate) fn retire(
+        &self,
+        root: &Rc<Root>,
+        targets: &mut BTreeMap<RelPath, Target>,
+    ) -> io::Result<()> {
+        let manifest = RelPath::new(MANIFEST).map_err(io::Error::other)?;
+        root.capture(&manifest)?
+            .verify_content(Some(&hash(&self.intent)))?;
         for guard in &self.removals {
-            if read(&tree, &guard.path)
-                .map_err(io::Error::other)?
-                .as_deref()
-                .map(hash)
-                != guard.before
-            {
-                return Err(refused(&guard.path, "retired asset changed before removal"));
-            }
-            fs::remove_file(root.join(guard.path.as_str()))?;
+            let target = targets.remove(&guard.path).ok_or_else(|| {
+                refused(
+                    &guard.path,
+                    "retirement has no retained destination admission",
+                )
+            })?;
+            target.verify_content(guard.before.as_deref())?;
+            target.remove()?;
         }
         Ok(())
     }

@@ -1179,21 +1179,17 @@ fn write_changes_no_target_when_a_later_file_cannot_be_written() {
     let scratch = Scratch::new("atomic");
     let root = scratch.path();
     write_repo(root, &unsynced());
-    // Three edits in path order; the second is in a directory that is read-only.
-    fs::create_dir_all(root.join("docs/b")).expect("mkdir");
-    fs::write(root.join("docs/b/two.md"), "two\n").expect("write");
-    fs::create_dir_all(root.join("docs/a")).expect("mkdir");
-    fs::write(root.join("docs/a/one.md"), "one\n").expect("write");
-    fs::create_dir_all(root.join("docs/c")).expect("mkdir");
-    fs::write(root.join("docs/c/three.md"), "three\n").expect("write");
-    fs::set_permissions(root.join("docs/b"), fs::Permissions::from_mode(0o555)).expect("chmod");
+    // Every destination is an admitted typed document. The second cannot stage.
+    let before = support::disk::snapshot(root);
+    let directory = root.join("docs/architecture");
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).expect("chmod");
     // This assertion needs an actual failed write, including under privileged
     // test runners; never turn an ineffective fixture into a passing test.
-    let probe = fs::File::create(root.join("docs/b/probe"));
+    let probe = fs::File::create(directory.join("probe"));
     if let Ok(probe) = probe {
         drop(probe);
-        fs::remove_file(root.join("docs/b/probe")).expect("remove probe");
-        fs::set_permissions(root.join("docs/b"), fs::Permissions::from_mode(0o755)).expect("chmod");
+        fs::remove_file(directory.join("probe")).expect("remove probe");
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o755)).expect("chmod");
         panic!(
             "the write-failure fixture needs directory permissions to refuse creation; run as an unprivileged user"
         );
@@ -1201,21 +1197,24 @@ fn write_changes_no_target_when_a_later_file_cannot_be_written() {
     let report = SyncReport {
         diagram_assets: None,
         edits: vec![
-            (rel("docs/a/one.md"), "ONE\n".to_string()),
-            (rel("docs/b/two.md"), "TWO\n".to_string()),
-            (rel("docs/c/three.md"), "THREE\n".to_string()),
+            (rel(ALPHA), "ONE\n".to_string()),
+            (rel(support::synced::OVERVIEW), "TWO\n".to_string()),
+            (rel(support::synced::GROW), "THREE\n".to_string()),
         ],
     };
     let result = Workplan::write(&report, root);
-    fs::set_permissions(root.join("docs/b"), fs::Permissions::from_mode(0o755)).expect("chmod");
-    assert!(result.is_err());
-    assert_eq!(read(root, "docs/a/one.md"), "one\n");
-    assert_eq!(read(root, "docs/b/two.md"), "two\n");
-    assert_eq!(read(root, "docs/c/three.md"), "three\n");
-    for dir in ["docs/a", "docs/b", "docs/c"] {
-        let names: Vec<_> = fs::read_dir(root.join(dir)).expect("lists").collect();
-        assert_eq!(names.len(), 1, "{dir}: no temporary file is left");
-    }
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o755)).expect("chmod");
+    let error = result.expect_err("the second document cannot stage in its read-only directory");
+    assert_eq!(
+        error.kind(),
+        std::io::ErrorKind::PermissionDenied,
+        "{error}"
+    );
+    assert_eq!(
+        support::disk::snapshot(root),
+        before,
+        "no publication or temporary litter"
+    );
 }
 
 #[test]
@@ -1223,7 +1222,7 @@ fn write_never_touches_a_file_that_is_already_there_under_a_temporary_name() {
     let scratch = Scratch::new("tmpname");
     write_repo(scratch.path(), &unsynced());
     let dir = scratch.path().join("docs/capabilities");
-    let decoy = dir.join(format!(".alpha.md.{}.0.sync.tmp", std::process::id()));
+    let decoy = dir.join(".alpha.md.0.sync.tmp");
     fs::write(&decoy, "decoy").expect("write");
     let plain = dir.join(".alpha.md.sync.tmp");
     fs::write(&plain, "plain").expect("write");

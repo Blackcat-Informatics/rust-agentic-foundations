@@ -74,6 +74,7 @@ mod model;
 pub mod obligation;
 pub mod plain;
 mod preview;
+mod publication_io;
 mod rationale;
 pub mod record;
 pub mod refs;

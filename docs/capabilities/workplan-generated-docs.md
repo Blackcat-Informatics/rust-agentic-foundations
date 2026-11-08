@@ -20,7 +20,7 @@ bindings:
     - raf_workplan::Workplan::sync
     - raf_workplan::Workplan::write
     - raf_workplan::Workplan::write_observed
-    - raf_workplan::sync::stage_observed
+    - raf_workplan::publication_io
     - raf_workplan::SyncOptions
     - raf_workplan::SyncReport
     - raf_workplan::SyncError
@@ -205,6 +205,17 @@ generated asset paths refuse before synchronization.
 The writer uses the ordinary checked staging/rename path, an ownership intent
 before publication and the final manifest after successful retirement. A partial
 publication remains recoverable through the intent; it is not a transaction.
+The shared `raf_workplan::publication_io` writer retains one native root authority and the
+admitted parent directory identities through staging, publication and retirement.
+Destinations retain their original presence, file identity, permissions, link count
+and content digest. A changed binding refuses; an originally absent destination
+is claimed exclusively. Temporary files receive document bytes only after being
+made private. Publication preserves existing permissions and native creation
+permissions for new files. Cleanup verifies temporary ownership and reports
+failures without removing a replacement belonging to another writer.
+Checks and replacement renames remain separate operations. They provide no
+isolation from adversarial concurrent publishers, atomic multi-file transaction
+or directory durability guarantee. Non-Linux publication refuses before mutation.
 <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
 
 
@@ -346,6 +357,10 @@ generated. The generator does not write into the seven sections outside a block.
 
 ## Usage
 
+Publish a computed sync report through `Workplan::write` with its explicit root.
+The writer retains that root and admitted destinations for the entire invocation;
+a changed filesystem binding refuses with an actionable error.
+
 Declare a `components`, `artifacts` or `model-provenance` diagram with its owning `cap:` or `arch:`
 scope, or a `scenario` diagram with `document-id#scenario-id`. Use grouping `none`
 and empty focus/relations. Read `presented_export` for the enriched native index;
@@ -413,6 +428,12 @@ capability.
 
 ## Examples
 
+A temporary file replaced by another writer is neither published nor removed.
+The remaining owned temporaries are cleaned, and any cleanup refusal is reported
+alongside the original publication error. An unchanged neighboring batch publishes
+normally.
+<!-- raf:tested-by raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail -->
+
 Run `raf_workplan::example_crate::component_model` to render the parcel-service
 overview and its delivery scenario from the consuming project's typed model.
 The artifact view names Parcel producers and consumers explicitly; dependency
@@ -478,8 +499,9 @@ Every asset path crosses checked real directories and ends in an admitted regula
 file or missing generated destination. Existing assets must have manifest
 ownership. Directory creation can leave empty generated directories after an I/O
 failure; retirement removes files, not unrelated neighbors or directories.
-Filesystem rechecks are observational and retain the writer's existing race
-boundary; no atomic snapshot or multi-file transaction is claimed.
+Filesystem rechecks retain admitted identities but remain separate from rename
+and unlink. No atomic snapshot, multi-file transaction or isolation from
+adversarial concurrent publishers is claimed.
 <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
 
 
@@ -543,7 +565,12 @@ than written.
 
 ## Verification
 
-The native completion fixture checks that a generated replacement breaks its
+The native publication fixture refuses a changed destination and a replaced
+temporary, preserves foreign bytes, reports cleanup ownership failures and accepts
+an unchanged neighboring batch.
+<!-- raf:tested-by raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail -->
+
+The native publication fixture checks that a generated replacement breaks its
 original hardlink relationship while retaining the ignored alias's original bytes.
 
 - Exact-output fixtures for each kind: the matrix rows, kinds, sort order and section
@@ -619,7 +646,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `raf_workplan::generated::tests::cell_text_is_escaped_by_the_documented_rule` | test | [Verification](#verification) |
 | `raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept` | test | [Verification](#verification) |
-| `raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail` | test | [Constraints](#constraints) |
+| `raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail` | test | [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_backtick_in_a_binding_path_does_not_break_the_code_span` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_block_in_a_section_other_than_verification_converges_in_one_sync` | test | [Verification](#verification) |

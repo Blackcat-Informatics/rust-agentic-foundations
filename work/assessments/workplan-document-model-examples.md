@@ -7,7 +7,7 @@ subject: cap:workplan-document-model#examples
 inputs:
   - kind: section
     name: cap:workplan-document-model#examples
-    digest: 497acf77f20d8ed38451fe6f19c5b4e781cbb439f50d3b0f91961622bba35367
+    digest: 676bb9a0f7e2403614893b473890fd1a4218e232d4fab292e13797f0023855eb
   - kind: symbol
     name: raf_workplan::ExampleKind
     digest: b6a2cebbd073468d315da66e526f02bf758f1f95d43a57b2669a52f8aafe9fe0
@@ -157,7 +157,7 @@ inputs:
     digest: ca174b83e9a7a962d3264d1ab6102abeddfd5da57d9a5f94fd11a035ac32fcaf
   - kind: symbol
     name: raf_workplan::record
-    digest: 45f4875db255fcfe828925a9a3f00e344a22d5b85500fdc0577b0a0e4dc2f6cb
+    digest: e0af591739db479a091b718df1b215a15578d48a56ab73bae3db222026927436
   - kind: symbol
     name: raf_workplan::record::Record
     digest: 66651d1b990c023d6764b0f345ca2567d6e2859b1f7830e1cb2307fa6d83ac85

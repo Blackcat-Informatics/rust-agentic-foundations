@@ -5,11 +5,13 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
+use std::{collections::BTreeMap, rc::Rc};
 
-use raf_source::{DiskTree, EntryKind, MemoryTree, RelPath, SourceAuthorityId, Tree, TreeError};
+use raf_source::{EntryKind, MemoryTree, RelPath, SourceAuthorityId, Tree, TreeError};
 
-use super::{RecordError, publish_replacement};
-use crate::files::{self, CreateError};
+use super::RecordError;
+use crate::files;
+use crate::publication_io::{Root, Target, cleanup_after, with_cleanup};
 
 /// The publication boundary used by every record-writing workflow.
 ///
@@ -17,7 +19,9 @@ use crate::files::{self, CreateError};
 /// exclusive and replacement requires a regular file. Each publication checks
 /// its destination again; refusal preserves existing files. Implementations
 /// must retain their reader's authority rules and original failure causes.
-/// The disk adapter retains its documented path-based name-swap limitation.
+/// The disk adapter retains admitted parent bindings and file snapshots through
+/// publication. Checks and renames are separate operations, so callers must not
+/// assume isolation from adversarial concurrent publishers.
 /// Implementations are supplied explicitly by the caller, never loaded from
 /// inspected repository data. RAF's concrete disk adapter is private; filesystem
 /// callers publish through the typed record APIs.
@@ -60,11 +64,18 @@ pub trait RecordStore {
 ///
 /// Construction performs no I/O, so model and text validation keep their
 /// precedence over destination inspection. The native reader opens on first use.
-/// Inspection retains no directory handles against subsequent name swaps.
-#[derive(Debug)]
 pub(crate) struct DiskRecordStore {
     root: PathBuf,
-    tree: Option<DiskTree>,
+    authority: Option<Rc<Root>>,
+    targets: BTreeMap<RelPath, Target>,
+}
+
+impl std::fmt::Debug for DiskRecordStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DiskRecordStore")
+            .field("root", &self.root)
+            .finish_non_exhaustive()
+    }
 }
 
 impl DiskRecordStore {
@@ -73,8 +84,36 @@ impl DiskRecordStore {
     pub(crate) fn new(root: impl AsRef<Path>) -> Self {
         Self {
             root: root.as_ref().to_path_buf(),
-            tree: None,
+            authority: None,
+            targets: BTreeMap::new(),
         }
+    }
+
+    fn authority(&mut self) -> io::Result<Rc<Root>> {
+        if self.authority.is_none() {
+            self.authority = Some(Root::open(&self.root)?);
+        }
+        Ok(Rc::clone(
+            self.authority
+                .as_ref()
+                .expect("the checked native authority is open"),
+        ))
+    }
+
+    fn target(&mut self, path: &RelPath) -> Result<Target, RecordError> {
+        if let Some(target) = self.targets.remove(path) {
+            return Ok(target);
+        }
+        self.authority()
+            .and_then(|root| root.capture(path))
+            .map_err(|source| write_error(path, source))
+    }
+}
+
+fn write_error(path: &RelPath, source: io::Error) -> RecordError {
+    RecordError::Write {
+        path: path.to_string(),
+        source,
     }
 }
 
@@ -101,42 +140,76 @@ fn first_party(path: &RelPath) -> Result<(), RecordError> {
 impl RecordStore for DiskRecordStore {
     fn inspect(&mut self, path: &RelPath) -> Result<Option<EntryKind>, RecordError> {
         first_party(path)?;
+        let root = self
+            .authority()
+            .map_err(|source| write_error(path, source))?;
         let directory = path.parent();
-        Ok(files::target(
-            &self.root,
+        let found = files::target_in(
+            root.tree(),
             directory.as_ref().map_or("", RelPath::as_str),
             path,
-        )?
-        .kind)
+        )?;
+        root.admit_parent(path)
+            .map_err(|source| write_error(path, source))?;
+        if found.directories
+            && matches!(found.kind, None | Some(EntryKind::File))
+            && !self.targets.contains_key(path)
+        {
+            self.targets.insert(
+                path.clone(),
+                root.capture(path)
+                    .map_err(|source| write_error(path, source))?,
+            );
+        }
+        Ok(found.kind)
     }
 
     fn tree(&mut self) -> Result<&dyn Tree, RecordError> {
-        if self.tree.is_none() {
-            self.tree = Some(
-                DiskTree::new(&self.root).map_err(|source| RecordError::Write {
-                    path: self.root.display().to_string(),
-                    source: io::Error::new(io::ErrorKind::InvalidInput, source),
-                })?,
-            );
-        }
+        self.authority().map_err(|source| RecordError::Write {
+            path: self.root.display().to_string(),
+            source,
+        })?;
         Ok(self
-            .tree
+            .authority
             .as_ref()
-            .expect("the checked native reader is open"))
+            .expect("the checked native reader is open")
+            .tree())
     }
 
     fn create_new(&mut self, path: &RelPath, text: &str) -> Result<(), RecordError> {
-        self.inspect(path)?;
-        let directory = path.parent();
-        files::create_new(
-            &self.root,
-            directory.as_ref().map_or("", RelPath::as_str),
-            path,
-            text,
-        )
-        .map_err(|error| match error {
-            CreateError::Exists => RecordError::Exists { path: path.clone() },
-            CreateError::Write { path, source } => RecordError::Write { path, source },
+        if self.inspect(path)?.is_some() {
+            return Err(RecordError::Exists { path: path.clone() });
+        }
+        let root = self
+            .authority()
+            .map_err(|source| write_error(path, source))?;
+        if let Some(parent) = path.parent() {
+            let mut prefix = String::new();
+            for component in parent.as_str().split('/').filter(|part| !part.is_empty()) {
+                if !prefix.is_empty() {
+                    prefix.push('/');
+                }
+                prefix.push_str(component);
+                let relative = RelPath::new(&prefix)
+                    .map_err(|source| write_error(path, io::Error::other(source)))?;
+                root.create_directory(&relative)
+                    .map_err(|source| write_error(path, source))?;
+            }
+        }
+        let target = self.target(path)?;
+        if target.exists() {
+            return Err(RecordError::Exists { path: path.clone() });
+        }
+        let staged = target
+            .stage(text)
+            .map_err(|source| write_error(path, source))?;
+        staged.publish().map_err(|source| {
+            let cleanup = staged.discard();
+            if source.kind() == io::ErrorKind::AlreadyExists && cleanup.is_ok() {
+                RecordError::Exists { path: path.clone() }
+            } else {
+                write_error(path, with_cleanup(source, cleanup))
+            }
         })
     }
 
@@ -144,10 +217,13 @@ impl RecordStore for DiskRecordStore {
         if self.inspect(path)? != Some(EntryKind::File) {
             return Err(RecordError::Missing { path: path.clone() });
         }
-        publish_replacement(&self.root, path, text).map_err(|source| RecordError::Write {
-            path: path.to_string(),
-            source,
-        })
+        let staged = self
+            .target(path)?
+            .stage(text)
+            .map_err(|source| write_error(path, source))?;
+        staged
+            .publish()
+            .map_err(|source| write_error(path, cleanup_after(source, &[staged])))
     }
 }
 
