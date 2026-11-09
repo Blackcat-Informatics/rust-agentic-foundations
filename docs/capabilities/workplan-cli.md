@@ -13,6 +13,8 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::command
     - cargo_workplan::bin_crate::cargo_workplan::change
     - cargo_workplan::bin_crate::cargo_workplan::docs
+    - cargo_workplan::bin_crate::cargo_workplan::docs::fragment
+    - cargo_workplan::bin_crate::cargo_workplan::cli::FragmentArgs
     - cargo_workplan::bin_crate::cargo_workplan::render
     - cargo_workplan::bin_crate::cargo_workplan::result_graph
     - raf_workplan::root
@@ -39,6 +41,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::change::complete
     - cargo_workplan::bin_crate::cargo_workplan::change::completion_records
   tests:
+    - cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority
     - cargo_workplan::test_crate::complete::prospective_refusal_retains_the_record_and_every_input_byte
     - cargo_workplan::test_crate::process::a_missing_git_binary_does_not_prevent_native_reads
     - cargo_workplan::test_crate::reconcile::bound_example_bodies_are_inert_and_reconciliation_writes_nothing
@@ -235,6 +238,9 @@ Expose the library's static contract and explicit data operations through consis
 
 ## Contract
 
+`docs fragment` returns complete raw Markdown for one imported Cargo library, an explicit public receiving module, capability and existing named diagram. Every code binding of that capability is required. The native static fragment API checks source and imported library identities and refuses private, hidden, unresolved or ambiguous references before emitting output. Diagnostics use stderr. Quiet mode and non-text formats refuse before input loading.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
+
 **Static contract.** `cargo workplan COMMAND` and `cargo-workplan COMMAND` use the same parser. Root discovery reads manifests through the native source model. Ordinary checks, history, coverage, review and evidence queries launch no process. Verification reports declared bindings and static findings; completion checks a prospective document overlay and publishes owned documentation only.
 <!-- raf:tested-by cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution,cargo_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check -->
 
@@ -248,9 +254,13 @@ Exit zero denotes a successful static outcome or explicit data operation; exit o
 
 The documented data path is illustrated by `raf_workplan::example_crate::docs_sync`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
-The commands are `check`, `status`, `diagram`, `docs sync|preview|export|mdbook|artifacts|build`, `change new|impact|reconcile|complete`, `verify`, `history`, `evidence claims|for`, `assess`, `review`, `coverage code|tests|claims|lines` and `debt --write`. Global options select the root, output format and quiet mode. Help lists command-specific closed arguments.
+The commands are `check`, `status`, `diagram`, `docs sync|preview|export|mdbook|fragment|artifacts|build`, `change new|impact|reconcile|complete`, `verify`, `history`, `evidence claims|for`, `assess`, `review`, `coverage code|tests|claims|lines` and `debt --write`. Global options select the root, output format and quiet mode. Help lists command-specific closed arguments.
+
+Use `docs fragment --package PACKAGE --metadata META --target-directory OUTPUT --view OWNER#NAME --module MODULE --capability CAPABILITY`. The target directory must already exist and match the imported metadata. The source index uses the same bounded static default load as `diagram`; metadata features do not select effective compiler configuration. Save stdout through a caller-owned operation when an include file is wanted.
 
 ## Examples
+
+`cargo workplan docs fragment --package demo --metadata metadata.json --target-directory artifacts --view cap:api#dependencies --module demo::nested --capability cap:api` emits a static include for a documented public module. A public alias retains its exported spelling in ordinary intra-doc references. Changing another required binding to a private or missing item refuses the complete fragment.
 
 `cargo workplan verify shape` prints declared bindings and static findings for the repository. It never prints a consumer test execution verdict. `cargo workplan docs artifacts` reads imported metadata and messages. A missing documentation trust flag refuses even if the requested workspace is absent.
 
@@ -275,14 +285,21 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/909ce0bb63eae8
 
 ## Constraints
 
+Fragment generation reads data and starts no tool, build or trusted documentation operation. Its static source index and imported metadata establish neither compiler success, effective configuration, resolved Rustdoc links, package membership nor assembled-host behavior. Raw fragment Markdown is a dedicated output carrier, separate from escaped terminal reports and RDF projections.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
+
 - RAF never edits inspected source or manifests. Document sync, change completion, authored metadata records, debt and owned documentation publication are explicit writes. The documentation trust exception permits build-time code to have arbitrary side effects; it is not a containment guarantee.
 <!-- raf:tested-by cargo_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent -->
 
 ## Explanation
 
+The fragment command supplies the native static API with the shared named bundle, the complete capability binding selection, the exact imported library and metadata digest, and the loaded receiving module. The renderer supplies the script-free diagram and readable relationships; Rustdoc remains responsible for final intra-doc URL resolution.
+
 CLI results own domain values so human rendering and machine projections share one static answer. No ambient pre-parser compiler dispatch or command-executing evidence recorder exists.
 
 ## Verification
+
+The CLI fragment fixture exercises crate and nested-module output, public aliases and complete bindings, imported source mismatch, private, hidden, missing and ambiguous references, input preservation, missing compiler tools and early output-carrier refusals in both invocation forms.
 
 CLI fixtures compare static verification with the library, exercise prospective completion and refusal, reject missing trust before discovery, and keep stored commands inert.
 
@@ -422,6 +439,7 @@ CLI fixtures compare static verification with the library, exercise prospective 
 | `cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::bound_example_bodies_are_inert_and_reconciliation_writes_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two` | test | [Verification](#verification) |

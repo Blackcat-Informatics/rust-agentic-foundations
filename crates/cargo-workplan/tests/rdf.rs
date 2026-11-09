@@ -375,6 +375,200 @@ fn diagram_repo(tag: &str) -> Repo {
 }
 
 #[test]
+fn static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority() {
+    let repo = diagram_repo("static-rustdoc-fragment");
+    repo.put(
+        "src/lib.rs",
+        "//! Crate documentation.\n\
+         mod internal { /// API.\n pub fn api() {} }\n\
+         #[doc = \"Exported API.\"] pub use internal::api as exported;\n\
+         #[doc = \"Second public alias.\"] pub use internal::api as alternative;\n\
+         /// Another API.\n pub fn extra() {}\n\
+         /// Existing capability API.\n pub fn real() {}\n\
+         /// Private API.\n fn private() {}\n\
+         /// Hidden API.\n #[doc(hidden)] pub fn hidden() {}\n\
+         /// Public nested module.\n pub mod nested {}\n",
+    );
+    let capability = "docs/capabilities/alpha.md";
+    repo.edit(capability, "[demo::real]", "[demo::exported, demo::extra]");
+    repo.put("artifact-root/keep.txt", "unrelated documentation");
+    let target = repo.root().join("artifact-root");
+    let metadata = fragment_metadata(&repo, &target);
+    repo.put("metadata.json", &metadata);
+    let target_text = target.to_str().unwrap();
+    let args = [
+        "docs",
+        "fragment",
+        "--package",
+        "demo",
+        "--metadata",
+        "metadata.json",
+        "--target-directory",
+        target_text,
+        "--view",
+        "cap:alpha#dependencies",
+        "--module",
+        "demo",
+        "--capability",
+        "cap:alpha",
+    ];
+    let before = repo.snapshot();
+    let accepted = repo.both(&args).expect(0);
+    assert!(
+        accepted
+            .stdout
+            .starts_with("<figure><img src=\"data:image/svg+xml;base64,")
+    );
+    assert!(
+        accepted.stdout.contains("fn@crate::exported"),
+        "{}",
+        accepted.stdout
+    );
+    assert!(accepted.stdout.contains("fn@crate::extra"));
+    assert!(
+        accepted
+            .stdout
+            .contains("imported Cargo package <code>demo</code>, version <code>0.1.0</code>")
+    );
+    assert!(
+        accepted
+            .stdout
+            .contains("Crate root <code>demo</code>, file <code>src/lib.rs</code>")
+    );
+    let options =
+        raf_workplan::diagram::cargo::CargoDocOptions::new(&["demo"], &[], false, Some(&target))
+            .unwrap();
+    let selection = raf_workplan::diagram::cargo::read_metadata(
+        repo.root(),
+        &target,
+        &options,
+        metadata.as_bytes(),
+    )
+    .unwrap();
+    assert!(
+        accepted
+            .stdout
+            .contains(&selection.metadata_sha256().to_string())
+    );
+    assert!(
+        accepted
+            .stderr
+            .contains("static source index and imported Cargo metadata")
+    );
+    assert!(accepted.stderr.contains("not verified"));
+    assert!(!accepted.stdout.contains("cargo-workplan:"));
+    let mut nested = args;
+    nested[11] = "demo::nested";
+    let nested_fragment = repo.both(&nested).expect(0);
+    assert!(
+        nested_fragment
+            .stdout
+            .contains("Source module <code>demo::nested</code>")
+    );
+    // A successful static operation needs none of the compiler executables.
+    for shape in [support::Shape::Direct, support::Shape::Cargo] {
+        let output = support::command(repo.root(), shape, &args)
+            .env("PATH", repo.root().join("absent-tools"))
+            .env("CARGO", repo.root().join("absent-cargo"))
+            .env("RUSTC", repo.root().join("absent-rustc"))
+            .env("RUSTDOC", repo.root().join("absent-rustdoc"))
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, accepted.stdout.as_bytes());
+    }
+    fragment_binding_and_metadata_refusals(&repo, &args, &accepted, &metadata);
+    assert_eq!(repo.snapshot(), before);
+    assert_eq!(repo.both(&args).expect(0), accepted);
+    fragment_carriers_refuse_before_inputs(&repo, &args);
+}
+
+fn fragment_binding_and_metadata_refusals(
+    repo: &Repo,
+    args: &[&str],
+    accepted: &support::Run,
+    metadata: &str,
+) {
+    let capability = "docs/capabilities/alpha.md";
+    for binding in [
+        "demo::private",
+        "demo::hidden",
+        "demo::missing",
+        "demo::internal::api",
+    ] {
+        repo.edit(
+            capability,
+            "[demo::exported, demo::extra]",
+            &format!("[demo::exported, {binding}]"),
+        );
+        let refused = repo.both(args).expect(2);
+        assert!(refused.stdout.is_empty(), "{refused:#?}");
+        assert!(refused.stderr.starts_with("cargo-workplan:"));
+        repo.edit(
+            capability,
+            &format!("[demo::exported, {binding}]"),
+            "[demo::exported, demo::extra]",
+        );
+        assert_eq!(&repo.both(args).expect(0), accepted);
+    }
+    repo.put("other.rs", "//! Different root.\n");
+    let source = purrdf_lex::json::write_compact(&purrdf_lex::json::Value::from(
+        repo.root().join("src/lib.rs").to_str().unwrap(),
+    ));
+    let other = purrdf_lex::json::write_compact(&purrdf_lex::json::Value::from(
+        repo.root().join("other.rs").to_str().unwrap(),
+    ));
+    repo.put("metadata.json", &metadata.replace(&source, &other));
+    let refused = repo.both(args).expect(2);
+    assert_eq!(refused.stdout, "");
+    assert!(
+        refused.stderr.contains("imported Cargo identity disagrees"),
+        "{refused:#?}"
+    );
+    repo.put("metadata.json", "{malformed");
+    let malformed = repo.both(args).expect(2);
+    assert_eq!(malformed.stdout, "");
+    assert!(malformed.stderr.starts_with("cargo-workplan:"));
+    repo.put("metadata.json", metadata);
+    std::fs::remove_file(repo.root().join("other.rs")).unwrap();
+    assert_eq!(&repo.both(args).expect(0), accepted);
+}
+
+fn fragment_metadata(repo: &Repo, target: &std::path::Path) -> String {
+    use purrdf_lex::json::{Value, write_compact};
+    let path = |path: &std::path::Path| write_compact(&Value::from(path.to_str().unwrap()));
+    format!(
+        "{{\"version\":1,\"workspace_root\":{},\"target_directory\":{},\"workspace_members\":[\"opaque-demo\"],\"packages\":[{{\"id\":\"opaque-demo\",\"name\":\"demo\",\"version\":\"0.1.0\",\"manifest_path\":{},\"source\":null,\"targets\":[{{\"name\":\"demo\",\"kind\":[\"lib\"],\"crate_types\":[\"lib\"],\"src_path\":{},\"doc\":true}}]}}],\"resolve\":{{\"nodes\":[{{\"id\":\"opaque-demo\",\"features\":[]}}]}}}}",
+        path(repo.root()),
+        path(target),
+        path(&repo.root().join("Cargo.toml")),
+        path(&repo.root().join("src/lib.rs")),
+    )
+}
+
+fn fragment_carriers_refuse_before_inputs(repo: &Repo, args: &[&str]) {
+    for options in [
+        vec!["--quiet"],
+        vec!["--format", "turtle"],
+        vec!["--format", "ntriples"],
+        vec!["--format", "svg"],
+        vec!["--format", "json"],
+    ] {
+        let mut request = vec!["--root", "absent-fragment-root"];
+        request.extend(options);
+        request.extend_from_slice(args);
+        let refused = repo.both(&request).expect(2);
+        assert_eq!(refused.stdout, "");
+        assert!(
+            refused
+                .stderr
+                .contains("docs fragment emits complete Markdown"),
+            "{refused:#?}"
+        );
+    }
+}
+
+#[test]
 fn standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes() {
     let repo = diagram_repo("standalone-publication");
     repo.put("published-docs/demo/index.html", "unrelated Rustdoc output");
