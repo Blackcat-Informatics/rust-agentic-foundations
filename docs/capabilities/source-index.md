@@ -707,7 +707,7 @@ bindings:
     - raf_source::test_crate::exported_items::a_carried_re_export_is_kept_out_exactly_where_every_route_passes_a_module_that_binds_its_name
     - raf_source::test_crate::exported_items::an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_ambiguous
     - raf_source::exports::tests::readers_of_carried_names_beside_sibling_shadows_list_in_linear_work_and_bounded_bytes
-    - raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget
+    - raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries
     - raf_source::test_crate::exported_items::a_re_export_that_only_a_hidden_glob_carries_past_a_shadow_is_hidden_as_an_item_would_be
     - raf_source::test_crate::exported_items::a_carrier_with_pub_globs_of_its_own_is_not_its_own_binder
     - raf_source::test_crate::exported_items::of_two_carriers_of_one_name_only_the_one_with_a_free_route_is_listed_with_its_own_line
@@ -1108,6 +1108,18 @@ selects modeled declaration headers while retaining the input context needed to
 distinguish that query from a structural inventory of all alternatives.
 
 ## Contract
+
+The native differential boundary inventory names exact external-export
+observations independently of the generic resolver disagreement classes. The
+compiler sees the same controlled source as Source and emits metadata only.
+An accepted compiler observation does not turn Source's omitted carried export
+or typed resource refusal into agreement. Unrelated source-load or export failures
+still fail, and the generic known classes and index-failure handling are unchanged.
+The budget pair shares one compiler observation of a 50-link, 200-name source.
+Its tight Source profile adds a fixed 256 KiB query allowance to the loaded
+index's item-byte usage; the admitted neighbor uses the default grant.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
 
 Target edition metadata comes from the actual loaded package declarations,
 including workspace inheritance and the 2015 default for an omitted edition.
@@ -3193,6 +3205,13 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Select the native external-export boundary inventory with
+`cargo test -p raf-source --test rustc_oracle external_carried_exports_and_carry_limits_have_named_compiler_boundaries`.
+This maintainer-controlled check compiles controlled RAF snippets to metadata;
+it does not execute their function bodies or inspect a consumer command.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
+
 On native Linux, explicit metadata publishers can call
 `DiskTree::directory_handle` to clone the tree's original path-only root
 description. Verify any readable reopen against that description before locking
@@ -3407,6 +3426,25 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 
 ## Examples
 
+The inventory contains four stable case names. Compiler observations use
+controlled sources with a root type-use that requires the external export.
+The two budget profiles reuse one observation of the identical bounded source.
+
+| Case | Source observation |
+| --- | --- |
+| `external-carried-value-shadow` | A value-namespace binder hides the carried type re-export from the structural surface. |
+| `external-carried-free-type-route` | An unshadowed route retains the exact external re-export without a defining ItemId. |
+| `external-carry-budget-refusal` | The bounded carrier under its tight declared grant refuses with `CarryBudget`, the exact item-byte limit and the original declaration path and line. |
+| `external-carry-budget-neighbor` | The identical bounded carrier under the default grant lists all 200 exact external re-exports. |
+
+These are exact boundary observations, not a namespace oracle or an expansion
+of the generic classes whose disagreements are tolerated.
+The original 5000-link, 2000-name carrier remains a separate Source-only
+default-budget regression with the same typed refusal and declaration provenance.
+Compiler acceptance of that large source is unverified.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
+
 `prepare_source` accepts `const X:f64=1e2.3;` as guard-admitted source data.
 Its raw numeric guard run can cover several native leaves; use the separate
 native-node ceiling when admitting parser resources. A macro payload with
@@ -3595,6 +3633,15 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 
 ## Constraints
 
+The inventory does not add external/std namespace resolution, macro expansion
+or safe unsupported-item classification. Its carrier refusal is a typed resource
+observation, not a compiler rejection or a successful Source query. Only the
+named fixture's exact `CarryBudget` cause is expected there; another error,
+missing provenance or an unexpected load refusal fails the check.
+The large Source-only regression supplies no compiler acceptance evidence.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
+
 The instruction profile covers the stated generated populations and sizes on
 native Linux. It does not establish an instruction ceiling for arbitrary source
 inputs. Companion-bearing paths retain exact reconstruction and carrier proofs;
@@ -3769,7 +3816,7 @@ delegates to that library or enforce preferred-provider policy.
 - Output order is sorted by path, so two loads of the same tree give equal results.
   <!-- raf:tested-by raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order,raf_source::test_crate::exported_items::the_surface_is_the_same_in_every_load_and_in_every_order_of_the_declarations -->
 - The public surface of a structural load is the visibility rustc gives the items of a crate, read
-  <!-- raf:tested-by raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not,raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included,raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items,raf_source::test_crate::exported_items::an_exported_macro_is_exported_and_a_local_or_generated_one_is_not,raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists,raf_source::test_crate::exported_items::a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way,raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget,raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports -->
+  <!-- raf:tested-by raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not,raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included,raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items,raf_source::test_crate::exported_items::an_exported_macro_is_exported_and_a_local_or_generated_one_is_not,raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists,raf_source::test_crate::exported_items::a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way,raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries,raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports -->
   syntactically: no `cfg` other than the `test` tag is evaluated, so an item under
   any other `cfg` is listed whether or not a build has it, and nothing a macro
   generates is listed. `#[doc(hidden)]` and `#[macro_export]` are read as the index
@@ -3928,6 +3975,19 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+The native boundary case compares identical controlled sources with the
+metadata-only compiler harness and the actual Source exported-surface API. The
+shadowed/free-route pair preserves the external namespace distinction. The
+tight/default carrier pair preserves the exact typed item-byte limit, exported
+path, source file and declaration line alongside all 200 accepted external
+paths, original written targets and absent defining item identities.
+The original large Source traversal runs once as a separate Source-only
+regression; the compiler never receives that source in this check.
+The generic differential classifier is unchanged; ordinary indexing failures
+remain failures.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
 
 Prepared-source fixtures compare the declared native-node ceiling with the
 original token tree for numeric, Unicode, lifetime and ignored-prefix inputs.
@@ -5161,7 +5221,6 @@ one-byte-short refusal.
 | `raf_source::test_crate::exported_items::in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::of_two_carriers_of_one_name_only_the_one_with_a_free_route_is_listed_with_its_own_line` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports` | test | [Constraints](#constraints) |
-| `raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::the_example_of_the_contract_lists_one_item_and_more_through_a_glob_or_a_pub_module` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::the_members_of_a_pub_trait_are_exported_and_those_of_a_private_trait_are_not` | test | [Verification](#verification) |
@@ -5465,6 +5524,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::diagnostic_levels_are_required_beside_a_valid_null_code` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else` | test | [Verification](#verification) |

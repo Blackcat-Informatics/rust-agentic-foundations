@@ -7,7 +7,7 @@ subject: cap:source-index#constraints
 inputs:
   - kind: section
     name: cap:source-index#constraints
-    digest: 072f85c108e0d30e047ebf6fbfeda05ca7854e29f34faef6dacc272ec2369b6a
+    digest: 9d5a461dcda05e796cf5cf81b2048e28d8d52dfd9945b5a8c9e2e24ef721f0d1
   - kind: symbol
     name: raf_source::ActiveConfiguration
     digest: de1a2be4c9a91c0dc861b4fcf86aef1cdf56b98660cf88d2eafcc928cc3e4f24
