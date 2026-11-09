@@ -7,7 +7,7 @@ subject: cap:workplan-strict#usage
 inputs:
   - kind: section
     name: cap:workplan-strict#usage
-    digest: b858f82afa31d7e94eeea8f715cf8c9e80aeca29dfecf8eabf102f21ac5d1a4d
+    digest: 805be1c21056f7e5f54f54b898d4630ec0ebf0af485715008558e293080cbeab
   - kind: symbol
     name: raf_workplan::Workplan::lines_report
     digest: e6891ab8fd71493431d08968cc8de0ee40e3877a9d128475f9d16f1d5e47133d

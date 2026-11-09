@@ -1801,6 +1801,7 @@ dependencies = [
  "raf-okf",
  "raf-rdf",
  "raf-source",
+ "rustix",
 ]
 
 [[package]]

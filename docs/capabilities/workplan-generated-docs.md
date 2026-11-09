@@ -20,7 +20,7 @@ bindings:
     - raf_workplan::Workplan::sync
     - raf_workplan::Workplan::write
     - raf_workplan::Workplan::write_observed
-    - raf_workplan::sync::stage_observed
+    - raf_workplan::publication_io
     - raf_workplan::SyncOptions
     - raf_workplan::SyncReport
     - raf_workplan::SyncError
@@ -30,6 +30,7 @@ bindings:
     - raf_workplan::ChangeLookupError
     - raf_workplan::generated::END_MARKER
   tests:
+    - raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging
     - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
     - cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading
     - raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping
@@ -205,6 +206,17 @@ generated asset paths refuse before synchronization.
 The writer uses the ordinary checked staging/rename path, an ownership intent
 before publication and the final manifest after successful retirement. A partial
 publication remains recoverable through the intent; it is not a transaction.
+The shared `raf_workplan::publication_io` writer retains one native root authority and the
+admitted parent directory identities through staging, publication and retirement.
+Destinations retain their original presence, file identity, permissions, link count
+and content digest. A changed binding refuses; an originally absent destination
+is claimed exclusively. Temporary files receive document bytes only after being
+made private. Publication preserves existing permissions and native creation
+permissions for new files. Cleanup verifies temporary ownership and reports
+failures without removing a replacement belonging to another writer.
+Checks and replacement renames remain separate operations. They provide no
+isolation from adversarial concurrent publishers, atomic multi-file transaction
+or directory durability guarantee. Non-Linux publication refuses before mutation.
 <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
 
 
@@ -222,6 +234,13 @@ Static completion uses this same checked publication writer for its generated
 edits. Existing replacements preserve permissions and break hardlink aliases by
 staging and rename; a missing generated catalogue uses native creation permissions.
 <!-- raf:tested-by raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched -->
+
+A sync report admits its complete batch's descriptor capacity before creating
+any temporary file. Insufficient capacity returns an actionable error with no
+target modification for that report.
+Parent directory handles are shared; every staged inode retains its own handle
+through publication or cleanup.
+<!-- raf:tested-by raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging -->
 
 ### Generated block syntax
 <!-- raf:tested-by raf_workplan::test_crate::generated::a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind -->
@@ -346,6 +365,15 @@ generated. The generator does not write into the seven sections outside a block.
 
 ## Usage
 
+On descriptor admission refusal, increase the caller's open-file limit or
+publish a smaller computed batch. Within a sync report, all texts are still
+staged before any target rename; admission does not select incremental publication.
+<!-- raf:tested-by raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging -->
+
+Publish a computed sync report through `Workplan::write` with its explicit root.
+The writer retains that root and admitted destinations for the entire invocation;
+a changed filesystem binding refuses with an actionable error.
+
 Declare a `components`, `artifacts` or `model-provenance` diagram with its owning `cap:` or `arch:`
 scope, or a `scenario` diagram with `document-id#scenario-id`. Use grouping `none`
 and empty focus/relations. Read `presented_export` for the enriched native index;
@@ -413,6 +441,18 @@ capability.
 
 ## Examples
 
+With a soft limit of 96 file descriptors, a controlled native fixture refuses
+a batch of 128 documents without creating temporaries or modifying originals.
+A neighboring batch of 64 documents publishes under the same limit and leaves
+the other documents unchanged.
+<!-- raf:tested-by raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging -->
+
+A temporary file replaced by another writer is neither published nor removed.
+The remaining owned temporaries are cleaned, and any cleanup refusal is reported
+alongside the original publication error. An unchanged neighboring batch publishes
+normally.
+<!-- raf:tested-by raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail -->
+
 Run `raf_workplan::example_crate::component_model` to render the parcel-service
 overview and its delivery scenario from the consuming project's typed model.
 The artifact view names Parcel producers and consumers explicitly; dependency
@@ -478,8 +518,9 @@ Every asset path crosses checked real directories and ends in an admitted regula
 file or missing generated destination. Existing assets must have manifest
 ownership. Directory creation can leave empty generated directories after an I/O
 failure; retirement removes files, not unrelated neighbors or directories.
-Filesystem rechecks are observational and retain the writer's existing race
-boundary; no atomic snapshot or multi-file transaction is claimed.
+Filesystem rechecks retain admitted identities but remain separate from rename
+and unlink. No atomic snapshot, multi-file transaction or isolation from
+adversarial concurrent publishers is claimed.
 <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
 
 
@@ -504,6 +545,13 @@ boundary; no atomic snapshot or multi-file transaction is claimed.
   written. A staging failure leaves every target unchanged and removes the temporary
   files already staged.
   <!-- raf:tested-by raf_workplan::test_crate::sync::write_changes_no_target_when_a_later_file_cannot_be_written -->
+
+Descriptor admission reserves one inode slot per staged file, including any
+ownership intent, and probes actual target checks with two additional slots
+held. All final parent directories are admitted first. Native discovery and
+concurrent host resource changes are not covered by a universal descriptor
+bound or isolation guarantee.
+<!-- raf:tested-by raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging -->
 - A rename that fails after earlier ones succeeded leaves those files with their
   new text, preserves the remaining targets and removes the unpublished temporary
   files. Once the failing target can be replaced, the next sync computes the
@@ -517,6 +565,13 @@ boundary; no atomic snapshot or multi-file transaction is claimed.
   <!-- raf:tested-by raf_workplan::test_crate::preview::a_fenced_code_block_in_a_block_of_the_change_is_refused_with_its_line,raf_workplan::test_crate::preview::a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line,raf_workplan::test_crate::preview::a_block_in_a_list_item_keeps_its_indentation -->
 
 ## Explanation
+
+Keeping staged inode handles prevents a removed temporary's inode from being
+reused while its ownership is checked. Physical staging of a complete batch
+therefore needs a descriptor grant proportional to its file count. Reserved
+slots are replaced by temporary handles rather than added to them, while shared
+parent handles avoid descriptor growth for files in the same directory.
+<!-- raf:tested-by raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging -->
 
 The mdBook adapter reads native Markdown source syntax once per chapter. It
 merges the native block and inline ranges in source order, then advances cursors
@@ -543,7 +598,17 @@ than written.
 
 ## Verification
 
-The native completion fixture checks that a generated replacement breaks its
+The descriptor fixture changes only its controlled child process's soft file
+limit. It checks refusal before temporary creation, unchanged original bytes,
+successful neighboring publication and the absence of leftover temporaries.
+<!-- raf:tested-by raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging -->
+
+The native publication fixture refuses a changed destination and a replaced
+temporary, preserves foreign bytes, reports cleanup ownership failures and accepts
+an unchanged neighboring batch.
+<!-- raf:tested-by raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail -->
+
+The native publication fixture checks that a generated replacement breaks its
 original hardlink relationship while retaining the ignored alias's original bytes.
 
 - Exact-output fixtures for each kind: the matrix rows, kinds, sort order and section
@@ -619,7 +684,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `raf_workplan::generated::tests::cell_text_is_escaped_by_the_documented_rule` | test | [Verification](#verification) |
 | `raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept` | test | [Verification](#verification) |
-| `raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail` | test | [Constraints](#constraints) |
+| `raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail` | test | [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_backtick_in_a_binding_path_does_not_break_the_code_span` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_block_in_a_section_other_than_verification_converges_in_one_sync` | test | [Verification](#verification) |
@@ -685,6 +750,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `raf_workplan::test_crate::preview::the_slug_is_taken_with_or_without_the_prefix` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::preview::the_text_outside_blocks_is_unchanged_byte_for_byte` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_workplan::test_crate::sync::check_and_sync_agree_after_each_repair` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::sync::generated_checks_are_clean_exactly_when_sync_has_nothing_to_write` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |

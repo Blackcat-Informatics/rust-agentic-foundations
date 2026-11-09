@@ -12,18 +12,17 @@
 
 use std::error::Error;
 use std::fmt;
-use std::fs::{self, OpenOptions};
-use std::io::{self, Write as _};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::fs;
+use std::io;
+use std::path::Path;
 
 use raf_okf::{Index, ParseError};
-use raf_source::{EntryKind, RelPath, Tree as _};
+use raf_source::RelPath;
 
 use crate::Finding;
 use crate::Workplan;
-use crate::files;
 use crate::generated::{self, INDEX_PATH};
+use crate::publication_io::{Root, Staged, Target, cleanup_after};
 
 /// What a sync needs beyond the documents: the SPDX text of the index it
 /// creates.
@@ -317,11 +316,13 @@ impl Workplan<'_> {
         report: &SyncReport,
         root: &Path,
     ) -> io::Result<Vec<(RelPath, fs::Permissions)>> {
+        let root = Root::open(root)?;
         let mut modes = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
-        if let Some(assets) = &report.diagram_assets {
-            assets.validate(root, &report.edits)?;
-        }
+        let mut targets = match &report.diagram_assets {
+            Some(assets) => assets.validate(&root, &report.edits)?,
+            None => std::collections::BTreeMap::new(),
+        };
         for (path, _) in &report.edits {
             if !seen.insert(path.as_str()) {
                 return Err(refused(path, "it is listed twice"));
@@ -338,52 +339,81 @@ impl Workplan<'_> {
                     ));
                 }
             } else {
-                judge(root, path)?;
+                let target = root.capture(path)?;
+                judge(path, &target)?;
+                targets.insert(path.clone(), target);
             }
         }
-        let root = fs::canonicalize(root)?;
         if report.diagram_assets.is_some() {
             modes.extend(crate::diagram::DiagramPublication::directories(
                 &root,
                 &report.edits,
             )?);
         }
-        let mut staged: Vec<(PathBuf, PathBuf)> = Vec::new();
+        // Newly created diagram parents must join the retained directory set
+        // before descriptor capacity is admitted for the complete batch.
+        for (path, _) in &report.edits {
+            if !targets.contains_key(path) {
+                targets.insert(path.clone(), root.capture(path)?);
+            }
+            if let Some(assets) = &report.diagram_assets {
+                assets.verify_target(path, &targets[path])?;
+            }
+        }
+        let count = report
+            .edits
+            .len()
+            .checked_add(usize::from(report.diagram_assets.is_some()))
+            .ok_or_else(|| io::Error::other("metadata staging count overflow"))?;
+        let mut grant = root.reserve_staging(count, targets.values())?;
+        let mut staged = Vec::new();
         for (path, text) in &report.edits {
-            let target = root.join(path.as_str());
-            match stage_observed(&target, text) {
-                Ok((temporary, permissions)) => {
-                    staged.push((temporary, target));
-                    modes.push((path.clone(), permissions));
+            let Some(target) = targets.remove(path) else {
+                drop(grant);
+                return Err(cleanup_after(
+                    refused(path, "missing retained destination admission"),
+                    &staged,
+                ));
+            };
+            match target.stage_reserved(text, &mut grant) {
+                Ok(temporary) => {
+                    modes.push((path.clone(), temporary.permissions()));
+                    staged.push(temporary);
                 }
                 Err(error) => {
-                    discard(&staged);
-                    return Err(error);
+                    drop(grant);
+                    return Err(cleanup_after(error, &staged));
                 }
             }
         }
         if let Some(assets) = &report.diagram_assets {
-            let intent = match assets.stage_intent(&root) {
+            let intent = match assets.stage_intent(&root, &mut grant) {
                 Ok(path) => path,
                 Err(error) => {
-                    discard(&staged);
-                    return Err(error);
+                    drop(grant);
+                    return Err(cleanup_after(error, &staged));
                 }
             };
-            if let Err(error) = fs::rename(&intent, root.join(crate::diagram::assets::MANIFEST)) {
-                let _ = fs::remove_file(&intent);
-                discard(&staged);
-                return Err(error);
+            drop(grant);
+            for file in &mut staged {
+                if file.target_path().as_str() == crate::diagram::assets::MANIFEST
+                    && let Err(error) = file.follows(&intent)
+                {
+                    return Err(cleanup_after(cleanup_after(error, &[intent]), &staged));
+                }
+            }
+            if let Err(error) = intent.publish() {
+                return Err(cleanup_after(cleanup_after(error, &[intent]), &staged));
             }
             let (manifests, files): (Vec<_>, Vec<_>) = staged
                 .into_iter()
-                .partition(|(_, target)| *target == root.join(crate::diagram::assets::MANIFEST));
-            if let Err(error) = publish(&files).and_then(|()| assets.retire(&root)) {
-                discard(&manifests);
-                return Err(error);
+                .partition(|file| file.target_path().as_str() == crate::diagram::assets::MANIFEST);
+            if let Err(error) = publish(&files).and_then(|()| assets.retire(&root, &mut targets)) {
+                return Err(cleanup_after(error, &manifests));
             }
             publish(&manifests)?;
         } else {
+            drop(grant);
             publish(&staged)?;
         }
         Ok(modes)
@@ -391,23 +421,13 @@ impl Workplan<'_> {
 }
 
 /// Publish already staged texts, discarding the unpublished tail on failure.
-fn publish(staged: &[(PathBuf, PathBuf)]) -> io::Result<()> {
-    for (done, (temporary, target)) in staged.iter().enumerate() {
-        if let Err(error) = fs::rename(temporary, target) {
-            discard(&staged[done..]);
-            return Err(error);
+fn publish(staged: &[Staged]) -> io::Result<()> {
+    for (done, file) in staged.iter().enumerate() {
+        if let Err(error) = file.publish() {
+            return Err(cleanup_after(error, &staged[done..]));
         }
     }
     Ok(())
-}
-
-/// Remove the temporary files this call created.
-fn discard(staged: &[(PathBuf, PathBuf)]) {
-    for (temporary, _) in staged {
-        // The call is failing already; a temporary file that cannot be
-        // removed is only litter and must not hide the first error.
-        let _ = fs::remove_file(temporary);
-    }
 }
 
 /// An error that names a refused target.
@@ -419,10 +439,8 @@ fn refused(path: &RelPath, reason: &str) -> io::Error {
 }
 
 /// Require that `path` is a regular file, or the new capability index, below
-/// directories that are not links: the way to it is judged as every write of
-/// the crate judges it ([`files::target`]). A directory link present at
-/// inspection is refused; the path judgement retains no handles against swaps.
-fn judge(root: &Path, path: &RelPath) -> io::Result<()> {
+/// directories whose admitted descriptor bindings are retained through publication.
+fn judge(path: &RelPath, target: &Target) -> io::Result<()> {
     let allowed = ["docs/capabilities", "docs/architecture", "work/changes"];
     if !allowed.iter().any(|directory| {
         path.parent()
@@ -434,24 +452,9 @@ fn judge(root: &Path, path: &RelPath) -> io::Result<()> {
             "generated text writes require an owned capability, architecture or change document",
         ));
     }
-    let directory = path
-        .parent()
-        .ok_or_else(|| refused(path, "it has no directory"))?;
-    let found = files::target(root, directory.as_str(), path).map_err(|error| {
-        refused(
-            path,
-            &format!("the directory {} is refused: {}", error.path, error.source),
-        )
-    })?;
-    if !found.directories {
-        return Err(refused(path, "its directory does not exist"));
-    }
-    match found.kind {
-        Some(EntryKind::File) => {
-            let tree = raf_source::DiskTree::new(root).map_err(io::Error::other)?;
-            let text = tree
-                .read(path, raf_okf::MAX_TEXT_BYTES as u64)
-                .map_err(io::Error::other)?;
+    match target.exists() {
+        true => {
+            let text = target.read_text(raf_okf::MAX_TEXT_BYTES)?;
             if path.as_str() == INDEX_PATH {
                 Index::parse(&text).map_err(|error| refused(path, &error.to_string()))?;
             } else {
@@ -465,66 +468,12 @@ fn judge(root: &Path, path: &RelPath) -> io::Result<()> {
             }
             Ok(())
         }
-        Some(_) => Err(refused(path, "it is not a regular file")),
-        None if path.as_str() == INDEX_PATH => Ok(()),
-        None => Err(refused(
+        false if path.as_str() == INDEX_PATH => Ok(()),
+        false => Err(refused(
             path,
             "it does not exist; only the capability index is created",
         )),
     }
-}
-
-/// Write `text` to a new temporary file beside `target`, with the permissions
-/// of `target`, and return its path. The file is created exclusively under a
-/// name no other file has, so a file that is already there is never touched.
-pub(crate) fn stage(target: &Path, text: &str) -> io::Result<PathBuf> {
-    stage_observed(target, text).map(|(path, _)| path)
-}
-
-fn stage_observed(target: &Path, text: &str) -> io::Result<(PathBuf, fs::Permissions)> {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let name = target
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidInput, "the target has no file name")
-        })?;
-    for _ in 0..1000 {
-        let temporary = target.with_file_name(format!(
-            ".{name}.{}.{}.sync.tmp",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        let mut file = match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temporary)
-        {
-            Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error),
-        };
-        let written = (|| {
-            file.write_all(text.as_bytes())?;
-            file.sync_all()?;
-            if let Ok(existing) = fs::metadata(target) {
-                fs::set_permissions(&temporary, existing.permissions())?;
-            }
-            Ok(file.metadata()?.permissions())
-        })();
-        return match written {
-            Ok(permissions) => Ok((temporary, permissions)),
-            Err(error) => {
-                // Only the file created just above is removed.
-                let _ = fs::remove_file(&temporary);
-                Err(error)
-            }
-        };
-    }
-    Err(io::Error::new(
-        io::ErrorKind::AlreadyExists,
-        "no unused temporary file name beside the target",
-    ))
 }
 
 #[cfg(test)]

@@ -7,7 +7,7 @@ subject: cap:workplan-document-model#verification
 inputs:
   - kind: section
     name: cap:workplan-document-model#verification
-    digest: 3af05f280e0b963f40d1ff4a915b84701ae3534630c6e57c77a363ce7365b078
+    digest: 6fde7329103b2d34f545357c51dd884d198090768adf5d6a05bc9697fbd9031a
   - kind: symbol
     name: raf_workplan::Gate
     digest: 359b6d8c5cc1dae4b53eb4e7e11a1206d2caa2386e729f655d6f2a05f06afa73

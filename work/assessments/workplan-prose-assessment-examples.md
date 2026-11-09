@@ -7,7 +7,7 @@ subject: cap:workplan-prose-assessment#examples
 inputs:
   - kind: section
     name: cap:workplan-prose-assessment#examples
-    digest: 4770a0313c6b9ed18120d87ef2712784ae712f7096b3b0de5b95e5d62e6cade0
+    digest: 66b7b3007aa4ba6e25935e9e5d4ac36c108ad8cd729fcde1251ad7da1ecb0186
   - kind: symbol
     name: raf_workplan::Workplan::assess_context
     digest: 48c085f83be3f08e24c6de886469e950441dec54620b011a06845d33cc6e713c
@@ -28,7 +28,7 @@ inputs:
     digest: d6987cc8f57b1eb9a6395611f95efc94de321e293e0d08e1e52d8fdd4fa93fe8
   - kind: symbol
     name: raf_workplan::record
-    digest: 45f4875db255fcfe828925a9a3f00e344a22d5b85500fdc0577b0a0e4dc2f6cb
+    digest: e0af591739db479a091b718df1b215a15578d48a56ab73bae3db222026927436
 verdict: accepted
 by: agent
 ---
