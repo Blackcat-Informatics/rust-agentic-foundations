@@ -566,9 +566,12 @@ pub(crate) enum MdbookCommand {
 /// The selected authoring document, relative to the workspace root.
 #[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
 pub(crate) struct ExportArgs {
-    /// The repository-relative path of one of the seven RAF document types.
+    /// The repository-relative path of a RAF Document or the navigation Index.
     #[arg(value_name = "path")]
     pub(crate) path: String,
+    /// The caller-owned absolute IRI, required only for the navigation Index.
+    #[arg(long, value_name = "ABSOLUTE_IRI")]
+    pub(crate) iri: Option<String>,
 }
 
 /// The arguments of `docs sync`.

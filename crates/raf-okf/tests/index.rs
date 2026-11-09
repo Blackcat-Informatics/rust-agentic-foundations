@@ -3,13 +3,238 @@
 
 //! The generated capability index.
 
+mod support;
+
 use raf_okf::{Document, ErrorKind, Index, ParseError, is_capability_index};
+use support::dataset_rows;
 
 /// Assembled in pieces so that this file carries no SPDX tag of its own here.
 const SPDX_ID: &str = concat!("SPDX-License-", "Identifier: CC-BY-4.0");
 const SPDX_COPY: &str = concat!("SPDX-File", "CopyrightText: 2026 Example");
 
 const BLOCK: &str = "<!-- raf:generated:catalogue -->\n| alpha |\n<!-- raf:generated:end -->\n";
+
+const INDEX_IRI: &str = "https://EXAMPLE.org/索引/%7e?view=1#Navigation";
+
+#[test]
+fn navigation_dataset_preserves_generated_bytes_through_native_formats() {
+    use purrdf_rdf::{
+        NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
+        parse_dataset_with, serialize_dataset_with,
+    };
+    let generated = include_str!("../../../docs/capabilities/index.md");
+    let decorated = format!(
+        "<!-- {SPDX_ID} -->\r\n\r\n{}\r\n{}",
+        BLOCK.replace("alpha", "café 索引").replace('\n', "\r\n"),
+        BLOCK
+    );
+    let options = SerializeOptions {
+        selection: SerializeGraph::Dataset,
+        statement_layer: StatementLayer::Emit,
+        jsonld_options: None,
+    };
+    for text in [generated, decorated.as_str()] {
+        let index = Index::parse(text).unwrap();
+        let dataset = index.to_dataset(INDEX_IRI).unwrap();
+        assert_eq!(Index::from_dataset(&dataset, INDEX_IRI).unwrap(), index);
+        for (format, media) in [
+            (NativeRdfFormat::Turtle, "text/turtle"),
+            (NativeRdfFormat::NTriples, "application/n-triples"),
+        ] {
+            let output = serialize_dataset_with(&dataset, format, None, &options).unwrap();
+            let parsed =
+                parse_dataset_with(&output.bytes, media, None, &ParseOptions::default()).unwrap();
+            let restored = Index::from_dataset(&parsed.dataset, INDEX_IRI).unwrap();
+            assert_eq!(restored, index);
+            assert_eq!(restored.render().as_bytes(), text.as_bytes());
+            assert_eq!(restored.generated_blocks(), index.generated_blocks());
+            assert_eq!(
+                serialize_dataset_with(
+                    &index.to_dataset(INDEX_IRI).unwrap(),
+                    format,
+                    None,
+                    &options
+                )
+                .unwrap()
+                .bytes,
+                output.bytes
+            );
+            assert_eq!(
+                serialize_dataset_with(&parsed.dataset, format, None, &options)
+                    .unwrap()
+                    .bytes,
+                output.bytes
+            );
+        }
+        assert!(Index::from_dataset(&dataset, &INDEX_IRI.replace("EXAMPLE", "example")).is_err());
+        assert!(Document::from_dataset(&dataset, "docs/architecture/example.md").is_err());
+    }
+}
+
+#[test]
+fn navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations() {
+    use purrdf_core::{RdfLiteral, RdfTerm};
+    use raf_okf::DatasetError;
+    let index = Index::parse(BLOCK).unwrap();
+    let rows: Vec<_> = index.to_dataset(INDEX_IRI).unwrap().owned_quads().collect();
+    let body = rows
+        .iter()
+        .position(|row| row.predicate.ends_with("#body"))
+        .unwrap();
+    let class = 1 - body;
+    let mut cases = vec![vec![], vec![rows[body].clone()], vec![rows[class].clone()]];
+    let mut extra = rows.clone();
+    extra.push(rows[body].clone());
+    extra.last_mut().unwrap().object = RdfTerm::Literal(RdfLiteral::simple("another body"));
+    cases.push(extra);
+    let mut duplicate = rows.clone();
+    duplicate[body] = rows[class].clone();
+    cases.push(duplicate);
+    for (at, term) in [
+        (body, RdfTerm::iri("urn:body")),
+        (body, RdfTerm::blank_node("body")),
+        (
+            body,
+            RdfTerm::Literal(RdfLiteral::typed(BLOCK, "urn:wrong-datatype")),
+        ),
+        (
+            body,
+            RdfTerm::Literal(RdfLiteral::language_tagged(BLOCK, "en")),
+        ),
+        (
+            class,
+            RdfTerm::iri("https://blackcatinformatics.ca/raf/okf/1#Document"),
+        ),
+    ] {
+        let mut input = rows.clone();
+        input[at].object = term;
+        cases.push(input);
+    }
+    let mut input = rows.clone();
+    input[body].predicate = "urn:unknown".into();
+    cases.push(input);
+    let mut input = rows.clone();
+    input[body].subject = RdfTerm::iri("urn:other");
+    cases.push(input);
+    let mut input = rows.clone();
+    input[body].subject = RdfTerm::blank_node("root");
+    cases.push(input);
+    let mut input = rows.clone();
+    input[body].graph_name = Some(RdfTerm::iri("urn:graph"));
+    cases.push(input);
+    for input in cases {
+        assert!(
+            matches!(
+                Index::from_dataset(&dataset_rows(&input), INDEX_IRI),
+                Err(DatasetError::Shape { .. })
+            ),
+            "{input:?}"
+        );
+    }
+    index_layer_refusals(&rows);
+    let mut invalid = rows.clone();
+    invalid[body].object = RdfTerm::Literal(RdfLiteral::simple(format!("{BLOCK}\nprose\n")));
+    let DatasetError::Parse(error) =
+        Index::from_dataset(&dataset_rows(&invalid), INDEX_IRI).unwrap_err()
+    else {
+        panic!("original parser error required")
+    };
+    assert_eq!(error.line(), 5);
+    assert_eq!(
+        Index::from_dataset(&dataset_rows(&rows), INDEX_IRI).unwrap(),
+        index
+    );
+}
+
+fn index_layer_refusals(rows: &[purrdf_core::RdfQuad]) {
+    use raf_okf::DatasetError;
+    let mut builder = purrdf_core::RdfDatasetBuilder::new();
+    for row in rows {
+        builder.push_owned_quad(row).unwrap();
+    }
+    let root = builder.intern_iri(INDEX_IRI).unwrap();
+    let p = builder.intern_iri("urn:predicate").unwrap();
+    let triple = builder.intern_triple(root, p, root).unwrap();
+    builder.push_reifier(root, triple).unwrap();
+    assert!(matches!(
+        Index::from_dataset(&builder.freeze().unwrap(), INDEX_IRI),
+        Err(DatasetError::Shape { .. })
+    ));
+    let mut builder = purrdf_core::RdfDatasetBuilder::new();
+    for row in rows {
+        builder.push_owned_quad(row).unwrap();
+    }
+    let root = builder.intern_iri(INDEX_IRI).unwrap();
+    let p = builder.intern_iri("urn:annotation").unwrap();
+    builder.push_annotation(root, p, root).unwrap();
+    assert!(matches!(
+        Index::from_dataset(&builder.freeze().unwrap(), INDEX_IRI),
+        Err(DatasetError::Shape { .. })
+    ));
+    let mut builder = purrdf_core::RdfDatasetBuilder::new();
+    for row in rows {
+        builder.push_owned_quad(row).unwrap();
+    }
+    let graph = builder.intern_iri("urn:empty-graph").unwrap();
+    builder.declare_named_graph(graph).unwrap();
+    assert!(matches!(
+        Index::from_dataset(&builder.freeze().unwrap(), INDEX_IRI),
+        Err(DatasetError::Shape { .. })
+    ));
+}
+
+#[test]
+fn navigation_identity_and_aggregate_text_admission_have_exact_boundaries() {
+    use raf_okf::{DatasetError, MAX_TEXT_BYTES};
+    use std::error::Error;
+    let index = Index::parse(BLOCK).unwrap();
+    for iri in [
+        "",
+        "relative/path",
+        "https://example.org/a b",
+        "https://example.org/%xx",
+    ] {
+        let error = index.to_dataset(iri).unwrap_err();
+        assert!(matches!(error, DatasetError::Native(_)), "{error}");
+        assert!(error.source().is_some());
+    }
+    for iri in [
+        "https://blackcatinformatics.ca/raf/okf/document/capability/cap:x",
+        "https://blackcatinformatics.ca/raf/okf/node/any/0",
+    ] {
+        assert!(matches!(
+            index.to_dataset(iri),
+            Err(DatasetError::Shape { .. })
+        ));
+    }
+    let body = format!(
+        "{BLOCK}{}",
+        " ".repeat(MAX_TEXT_BYTES - INDEX_IRI.len() - BLOCK.len())
+    );
+    let at_limit = Index::parse(&body).unwrap();
+    let dataset = at_limit.to_dataset(INDEX_IRI).unwrap();
+    assert_eq!(Index::from_dataset(&dataset, INDEX_IRI).unwrap(), at_limit);
+    assert!(matches!(
+        at_limit.to_dataset(&format!("{INDEX_IRI}x")),
+        Err(DatasetError::Limit(_))
+    ));
+    let over = Index::parse(&format!("{body} ")).unwrap();
+    assert!(matches!(
+        over.to_dataset(INDEX_IRI),
+        Err(DatasetError::Limit(_))
+    ));
+    let mut rows: Vec<_> = dataset.owned_quads().collect();
+    let row = rows
+        .iter_mut()
+        .find(|row| row.predicate.ends_with("#body"))
+        .unwrap();
+    row.object = purrdf_core::RdfTerm::Literal(purrdf_core::RdfLiteral::simple(format!("{body} ")));
+    assert!(matches!(
+        Index::from_dataset(&dataset_rows(&rows), INDEX_IRI),
+        Err(DatasetError::Limit(_))
+    ));
+    assert!(index.to_dataset(INDEX_IRI).is_ok());
+}
 
 fn refused(text: &str) -> ParseError {
     match Index::parse(text) {

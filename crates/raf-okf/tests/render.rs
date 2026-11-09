@@ -3,8 +3,11 @@
 
 //! The deterministic writer: goldens, key order, comments, tags, constructors.
 
+mod support;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use support::dataset_rows;
 
 use raf_okf::{
     ConstructError, DocType, Document, ESCAPES, Entry, Frontmatter, ItemValue, List, ListForm,
@@ -245,14 +248,6 @@ fn each_fixture_document_renders_to_its_own_bytes_and_validates() {
         "content edits preserve asserted identity"
     );
     dataset_refusals();
-}
-
-fn dataset_rows(rows: &[purrdf_core::RdfQuad]) -> std::sync::Arc<purrdf_core::RdfDataset> {
-    let mut builder = purrdf_core::RdfDatasetBuilder::new();
-    for row in rows {
-        builder.push_owned_quad(row).unwrap();
-    }
-    builder.freeze().unwrap()
 }
 
 fn shape_refusal(rows: &[purrdf_core::RdfQuad], path: &str, expected: &str) {
