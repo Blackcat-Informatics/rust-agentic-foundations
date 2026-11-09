@@ -238,6 +238,14 @@ Expose the library's static contract and explicit data operations through consis
 
 ## Contract
 
+`docs export PATH --iri ABSOLUTE_IRI` exports the canonical navigation Index
+through its separate native carrier. The option is required for that path and
+refused for ordinary Documents. Contained reads and the actual native RDF
+renderer preserve exact Index bytes and caller identity. Quiet mode and
+non-RDF formats refuse before loading inputs. Failed validation emits no machine
+output, and diagnostics name the inspected path. Export changes no input.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+
 `docs fragment` returns complete raw Markdown for one imported Cargo library, an explicit public receiving module, capability and existing named diagram. Every code binding of that capability is required. The native static fragment API checks source and imported library identities and refuses private, hidden, unresolved or ambiguous references before emitting output. Diagnostics use stderr. Quiet mode and non-text formats refuse before input loading.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
@@ -252,6 +260,9 @@ Exit zero denotes a successful static outcome or explicit data operation; exit o
 
 ## Usage
 
+Use `cargo workplan --format turtle docs export docs/capabilities/index.md
+--iri https://example.org/navigation`. Ordinary Document export omits `--iri`.
+
 The documented data path is illustrated by `raf_workplan::example_crate::docs_sync`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
 The commands are `check`, `status`, `diagram`, `docs sync|preview|export|mdbook|fragment|artifacts|build`, `change new|impact|reconcile|complete`, `verify`, `history`, `evidence claims|for`, `assess`, `review`, `coverage code|tests|claims|lines` and `debt --write`. Global options select the root, output format and quiet mode. Help lists command-specific closed arguments.
@@ -259,6 +270,10 @@ The commands are `check`, `status`, `diagram`, `docs sync|preview|export|mdbook|
 Use `docs fragment --package PACKAGE --metadata META --target-directory OUTPUT --view OWNER#NAME --module MODULE --capability CAPABILITY`. The target directory must already exist and match the imported metadata. The source index uses the same bounded static default load as `diagram`; metadata features do not select effective compiler configuration. Save stdout through a caller-owned operation when an include file is wanted.
 
 ## Examples
+
+`cargo-workplan --format ntriples docs export docs/capabilities/index.md --iri
+https://example.org/navigation` emits the same navigation carrier as the Cargo
+subcommand form. Save stdout using a caller-owned destination when needed.
 
 `cargo workplan docs fragment --package demo --metadata metadata.json --target-directory artifacts --view cap:api#dependencies --module demo::nested --capability cap:api` emits a static include for a documented public module. A public alias retains its exported spelling in ordinary intra-doc references. Changing another required binding to a private or missing item refuses the complete fragment.
 
@@ -285,6 +300,11 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/909ce0bb63eae8
 
 ## Constraints
 
+Navigation export inherits the Index codec's exact identity, closed shape and
+combined IRI/body text bound. It never retries a refused Document as an Index.
+The eight Document carriers retain their existing identities and output path.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
+
 Fragment generation reads data and starts no tool, build or trusted documentation operation. Its static source index and imported metadata establish neither compiler success, effective configuration, resolved Rustdoc links, package membership nor assembled-host behavior. Raw fragment Markdown is a dedicated output carrier, separate from escaped terminal reports and RDF projections.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
@@ -298,6 +318,12 @@ The fragment command supplies the native static API with the shared named bundle
 CLI results own domain values so human rendering and machine projections share one static answer. No ambient pre-parser compiler dispatch or command-executing evidence recorder exists.
 
 ## Verification
+
+Both actual invocation forms export the generated navigation Index through
+native Turtle and N-Triples, preserve decorated bytes and inputs, and refuse
+missing, malformed and reserved identities, invalid bodies and Document IRI
+options. Existing fixtures retain all eight Document round trips and refusals.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
 
 The CLI fragment fixture exercises crate and nested-module output, public aliases and complete bindings, imported source mismatch, private, hidden, missing and ambiguous references, input preservation, missing compiler tools and early output-carrier refusals in both invocation forms.
 
@@ -435,8 +461,8 @@ CLI fixtures compare static verification with the library, exercise prospective 
 | `cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::root_starts_no_cargo_at_all` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority` | test | [Contract](#contract), [Constraints](#constraints) |

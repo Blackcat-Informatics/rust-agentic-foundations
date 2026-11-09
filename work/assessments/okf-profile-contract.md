@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
 inputs:
   - kind: section
     name: cap:okf-profile#contract
-    digest: c2f90a02d6acc00e5bb6a2850250baac641096152b8466eb27c8ea00130d5df0
+    digest: d3a5dc706ccfd026cc6149482cf13a3581dee7572296fc581e2ca71205f3f5fc
   - kind: symbol
     name: raf_okf::Actor
     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
@@ -132,6 +132,12 @@ inputs:
     name: raf_okf::Index
     digest: d1291272ea1f8dd3647998100c9ce3dd8fd1eb766c1019b5ba70f8f39b753289
   - kind: symbol
+    name: raf_okf::Index::from_dataset
+    digest: 58faa31e23eacf04ff4ae8e7744f557c67625158a14213116f75bece48094e64
+  - kind: symbol
+    name: raf_okf::Index::to_dataset
+    digest: 81fbfbc362952f0b3e7e93bc94c77581a42f12c93671d99e78af2121ec42cb58
+  - kind: symbol
     name: raf_okf::Input
     digest: e8b0512aa2e3ac089ad4d4a92c70ba8532ffdcdf1020c3d96384dde60300c905
   - kind: symbol
@@ -169,7 +175,7 @@ inputs:
     digest: a95d6a117b904aa4780c69a620325c5f2f63513dbf7628641dfb19d13ba9ddd6
   - kind: symbol
     name: raf_okf::dataset
-    digest: c8d52825470cc66daab66a4be3a799b4da3b0751582a6fbbdbfdf2de19c88e54
+    digest: 669c3edcd2a1eb3555fe6292e0544871f643252c373fbcd6905e2e31de58960e
   - kind: symbol
     name: raf_okf::is_capability_index
     digest: 21e3c6cc7da15bbf2ebdbf75c59fe8ac89e67262bf39009e019259bf18b692b0

@@ -149,6 +149,18 @@ inventory.
 
 ## Document types and keys
 
+The generated navigation Index is separate from these eight Document types.
+Its native authoring carrier has a caller-owned absolute IRI, preserved exactly
+and outside the Document and structural-node identity namespaces. Exactly one
+subject asserts `okf:NavigationIndex` and an `okf:body` string containing the
+complete Index bytes. The inverse calls `Index::parse`; it refuses other shapes
+and RDF layers, preserving native causes and body locations. Combined identity
+and body text may not exceed 1 MiB before carrier copies or native construction;
+this is not a total allocator bound. Document identities and carriers remain
+unchanged. Repository semantic projection and inverse, binding, dependency and
+digest relations, canonical native authoring validation and the complete profile
+revision are separate contracts.
+
 | Type | Directory | Keys, in writing order |
 | --- | --- | --- |
 | Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `review_required`, optional `diagrams`, optional `model` |

@@ -175,6 +175,87 @@ fn preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites() {
     );
     assert_eq!(Rdf::of(&repo.both(&args).expect(0)).result_count(), 0);
     exported_authoring_documents(&repo);
+    exported_navigation_index(&repo);
+}
+
+fn exported_navigation_index(repo: &Repo) {
+    use purrdf_rdf::{ParseOptions, parse_dataset_with};
+    use raf_okf::Index;
+    let path = "docs/capabilities/index.md";
+    let iri = "https://EXAMPLE.org/索引/%7e#navigation";
+    let generated = repo.read(path);
+    let decorated = format!(
+        "{generated}\r\n<!-- raf:generated:unicode -->\r\n  café 索引  \r\n<!-- raf:generated:end -->\r\n"
+    );
+    for text in [&generated, &decorated] {
+        repo.put(path, text);
+        let expected = Index::parse(text).unwrap();
+        for (format, media) in [
+            ("turtle", "text/turtle"),
+            ("ntriples", "application/n-triples"),
+        ] {
+            let args = ["--format", format, "docs", "export", path, "--iri", iri];
+            let before = repo.snapshot();
+            let run = repo.both(&args).expect(0);
+            assert_eq!(run.stderr, "");
+            let parsed =
+                parse_dataset_with(run.stdout.as_bytes(), media, None, &ParseOptions::default())
+                    .unwrap();
+            let restored = Index::from_dataset(&parsed.dataset, iri).unwrap();
+            assert_eq!(restored, expected);
+            assert_eq!(restored.render(), *text);
+            assert_eq!(repo.both(&args).expect(0).stdout, run.stdout);
+            assert_eq!(repo.snapshot(), before);
+        }
+    }
+    for identity in [
+        "relative",
+        "https://example.org/a b",
+        "https://blackcatinformatics.ca/raf/okf/document/index",
+    ] {
+        let before = repo.snapshot();
+        let run = repo
+            .both(&[
+                "--format", "turtle", "docs", "export", path, "--iri", identity,
+            ])
+            .expect(2);
+        assert_eq!(run.stdout, "");
+        assert!(run.stderr.contains(path), "{run:#?}");
+        assert_eq!(repo.snapshot(), before);
+    }
+    let before = repo.snapshot();
+    let missing = repo
+        .both(&["--format", "turtle", "docs", "export", path])
+        .expect(2);
+    assert_eq!(missing.stdout, "");
+    assert!(missing.stderr.contains("requires --iri"));
+    let document = repo
+        .both(&[
+            "--format",
+            "turtle",
+            "docs",
+            "export",
+            DOCUMENTS[0].0,
+            "--iri",
+            iri,
+        ])
+        .expect(2);
+    assert_eq!(document.stdout, "");
+    assert!(
+        document
+            .stderr
+            .contains("only supported for the navigation Index")
+    );
+    assert_eq!(repo.snapshot(), before);
+    repo.put(path, &format!("{generated}\nprose\n"));
+    let before = repo.snapshot();
+    let invalid = repo
+        .both(&["--format", "ntriples", "docs", "export", path, "--iri", iri])
+        .expect(2);
+    assert_eq!(invalid.stdout, "");
+    assert!(invalid.stderr.contains(path));
+    assert_eq!(repo.snapshot(), before);
+    repo.put(path, &generated);
 }
 
 const DOCUMENTS: [(&str, &str); raf_okf::DocType::ALL.len()] = [

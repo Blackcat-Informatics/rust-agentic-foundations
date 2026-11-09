@@ -76,7 +76,7 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
                     "docs export requires --format turtle or --format ntriples and refuses --quiet",
                 ));
             }
-            export(&root()?, &export_args.path)
+            export(&root()?, &export_args.path, export_args.iri.as_deref())
         }
         Command::Change(Change::New(new_args)) => change::new(&root()?, new_args),
         Command::Change(Change::Impact(slug)) => change::impact(&root()?, &slug.slug),
@@ -210,19 +210,35 @@ fn standalone(root: &Path, args: &StandaloneArgs) -> Result<Report, Failure> {
 }
 
 /// The public authoring codec owns the profile and native dataset shape.
-fn export(root: &Path, path: &str) -> Result<Report, Failure> {
+fn export(root: &Path, path: &str, iri: Option<&str>) -> Result<Report, Failure> {
     use raf_source::{DiskTree, RelPath, Tree};
     let path = RelPath::new(path)?;
-    if raf_okf::is_capability_index(path.as_str()) {
-        return Err(raf_okf::DatasetError::NavigationIndex.into());
+    let index = raf_okf::is_capability_index(path.as_str());
+    match (index, iri) {
+        (true, None) => {
+            return Err(Failure::new(format!(
+                "{path}: navigation Index requires --iri ABSOLUTE_IRI"
+            )));
+        }
+        (false, Some(_)) => {
+            return Err(Failure::new(format!(
+                "{path}: --iri is only supported for the navigation Index"
+            )));
+        }
+        _ => {}
     }
     let tree = DiskTree::new(root)?;
     let text = tree.read(&path, raf_okf::MAX_TEXT_BYTES as u64 + 1)?;
-    let document = raf_okf::Document::parse(&text)
-        .map_err(|error| Failure::new(format!("{path}: {error}")))?;
-    let dataset = document
-        .to_dataset(path.as_str())
-        .map_err(|error| Failure::new(format!("{path}: {error}")))?;
+    let dataset = if let Some(iri) = iri {
+        raf_okf::Index::parse(&text)
+            .map_err(|error| Failure::new(format!("{path}: {error}")))?
+            .to_dataset(iri)
+    } else {
+        raf_okf::Document::parse(&text)
+            .map_err(|error| Failure::new(format!("{path}: {error}")))?
+            .to_dataset(path.as_str())
+    }
+    .map_err(|error| Failure::new(format!("{path}: {error}")))?;
     Ok(Report::document(dataset))
 }
 

@@ -189,6 +189,12 @@ inputs:
     name: raf_okf::Index
     digest: d1291272ea1f8dd3647998100c9ce3dd8fd1eb766c1019b5ba70f8f39b753289
   - kind: symbol
+    name: raf_okf::Index::from_dataset
+    digest: 58faa31e23eacf04ff4ae8e7744f557c67625158a14213116f75bece48094e64
+  - kind: symbol
+    name: raf_okf::Index::to_dataset
+    digest: 81fbfbc362952f0b3e7e93bc94c77581a42f12c93671d99e78af2121ec42cb58
+  - kind: symbol
     name: raf_okf::Input
     digest: e8b0512aa2e3ac089ad4d4a92c70ba8532ffdcdf1020c3d96384dde60300c905
   - kind: symbol
@@ -322,7 +328,7 @@ inputs:
     digest: 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
   - kind: symbol
     name: raf_okf::dataset
-    digest: c8d52825470cc66daab66a4be3a799b4da3b0751582a6fbbdbfdf2de19c88e54
+    digest: 669c3edcd2a1eb3555fe6292e0544871f643252c373fbcd6905e2e31de58960e
   - kind: symbol
     name: raf_okf::identity
     digest: f6f13eddd9d4ac3d744769fb38b4974fcacd3bef1e7af273e5e3768d1fab856e
