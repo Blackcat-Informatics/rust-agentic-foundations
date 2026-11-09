@@ -7,10 +7,7 @@ subject: cap:workplan-rustdoc-includes#explanation
 inputs:
   - kind: section
     name: cap:workplan-rustdoc-includes#explanation
-    digest: 1f4c3cd9d5b3a49381d015d88919a14b151b16eab03c58f8d6d7f868a6943973
-  - kind: symbol
-    name: raf_workplan::diagram::rustdoc::Context
-    digest: c84e5e189026d105b7f9e054d576b4a1662bd202d4450b1094328d4307b1b991
+    digest: f4538afa2f57eee71408fb4694a3616d273e3362c0f4afe43b7418a294571e44
   - kind: symbol
     name: raf_workplan::diagram::rustdoc::fragment
     digest: c3d983039838b44469d4654b8be6faac275b7edb6e963f34ae81c4edf2996708

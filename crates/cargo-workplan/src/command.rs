@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The commands call `raf-workplan` and return a [`Report`] or the documented
-//! mdBook transport response; semantic decisions remain in the library.
+//! The commands call `raf-workplan` and return a [`Report`], static Markdown
+//! fragment or mdBook transport response; semantic decisions remain in the library.
 
 use std::path::{Path, PathBuf};
 
@@ -19,10 +19,11 @@ use crate::exit::Failure;
 use crate::render::{Format, Record, Report};
 use crate::{assess, change, coverage, debt, evidence, history, mdbook};
 
-/// A normal report or the documented mdBook transport response.
+/// A normal report, complete static Markdown or mdBook transport response.
 pub(crate) enum Output {
     Report(Report),
     Mdbook(mdbook::Response),
+    Fragment(String),
 }
 
 /// Run the command of `args` and return what it produced.
@@ -42,6 +43,9 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
     }
     let root = || workspace_root(args.root.as_deref());
     let report = match &args.command {
+        Command::Docs(Docs::Fragment(request)) => {
+            return crate::docs::fragment(&root()?, request).map(Output::Fragment);
+        }
         Command::Docs(Docs::Artifacts(request)) => crate::docs::artifacts(&root()?, request),
         Command::Docs(Docs::Build(DocsBuild::Rustdoc(request))) => {
             crate::docs::build(&root()?, request)
@@ -106,6 +110,7 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
 
 fn command_name(command: &Command) -> &'static str {
     match command {
+        Command::Docs(Docs::Fragment(_)) => "docs fragment",
         Command::Docs(Docs::Artifacts(_)) => "docs artifacts",
         Command::Docs(Docs::Build(DocsBuild::Rustdoc(_))) => "docs build rustdoc",
         Command::Check => "check",
@@ -144,6 +149,13 @@ fn command_name(command: &Command) -> &'static str {
 
 /// Admit carriers before opening a root, retaining mdBook's own protocol refusal.
 fn check_format(args: &Args) -> Result<(), Failure> {
+    if matches!(&args.command, Command::Docs(Docs::Fragment(_)))
+        && (args.quiet || args.format != Format::Text)
+    {
+        return Err(Failure::new(
+            "docs fragment emits complete Markdown and refuses --quiet and non-text --format",
+        ));
+    }
     if args.format == Format::Json
         && !matches!(
             &args.command,
