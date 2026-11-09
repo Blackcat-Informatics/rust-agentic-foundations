@@ -6,6 +6,8 @@
 
 #[path = "../examples/component_model.rs"]
 mod component_model;
+#[path = "support/repository_links.rs"]
+mod repository_links;
 mod support;
 
 use std::collections::BTreeSet;

@@ -10,6 +10,7 @@ bindings:
   code:
     - raf_workplan::generated
     - raf_workplan::diagram
+    - raf_workplan::diagram::publication::publish_repository
     - raf_workplan::assessment::Inputs
     - raf_workplan::assessment::symbol_input_now
     - raf_workplan::assessment::currency_from_rows
@@ -30,6 +31,9 @@ bindings:
     - raf_workplan::ChangeLookupError
     - raf_workplan::generated::END_MARKER
   tests:
+    - raf_workplan::test_crate::sync::repository_links::repository_links_resolve_from_two_depths_without_changing_cached_views
+    - raf_workplan::test_crate::sync::repository_links::repository_publication_refuses_missing_changed_and_outside_bindings
+    - raf_workplan::diagram::publication::tests::a_replaced_output_binding_refuses_before_owned_payloads
     - raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging
     - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
     - cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading
@@ -140,6 +144,24 @@ on the prose that needs judgement.
 
 ## Contract
 
+`diagram::publication::publish_repository(opened, reference, output)` requires
+an existing output directory beneath the opened canonical workspace. It shares
+that exact DiskTree and retains the directory binding before generation.
+Contextual bundles are owned ephemeral results of the common named-family
+generator; the location-dependent result never replaces or enters the
+owner/view cache. Only authored source displays and capability fallback links
+consume the private navigation context, before native presentation and export.
+Existing automatic families remain usable without invented link targets.
+<!-- raf:tested-by raf_workplan::test_crate::sync::repository_links::repository_links_resolve_from_two_depths_without_changing_cached_views -->
+
+Existing destinations use native percent encoding relative to the actual flat
+`raf-workplan/<digest>/` directory. Source lines remain provenance, with no raw
+file line anchors. Native identities and geometry remain stable; link-dependent
+presentation and directory hashes change naturally. Overview/detail links stay
+local to the same directory. Default generation and publication retain their
+existing bytes and placement contract.
+<!-- raf:tested-by raf_workplan::test_crate::sync::repository_links::repository_links_resolve_from_two_depths_without_changing_cached_views -->
+
 Authored `components`, `scenario`, `artifacts` and `model-provenance` views use native enriched
 exports. `DiagramBundle::presented_export` retains the authoritative presentation,
 geometry and complete element index; `export` exposes its nested RDF export.
@@ -164,7 +186,7 @@ and local ids determine model IRIs, so label and source-body edits retain them.
 Source digests, capability Contract/binding-declaration digests and independent verification record
 digests/currency remain in provenance. A passing record never promotes authored
 steps, conditions, order or lanes to observed assertions.
-Source hyperlinks assume repository-relative publication under
+Default source hyperlinks assume repository-relative publication under
 `docs/diagrams/<owner>/<view>/diagram.svg`. Standalone copies retain source provenance;
 their hyperlinks require the corresponding repository-relative placement.
 Portable remote source URLs are not inferred.
@@ -220,7 +242,7 @@ or directory durability guarantee. Non-Linux publication refuses before mutation
 <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
 
 
-One cached named bundle supplies Markdown SVG and readable alternatives,
+By default, one cached named bundle supplies Markdown SVG and readable alternatives,
 standard mdBook transformation and a self-contained explorer. All presentations
 retain native identities, geometry and provenance. Owned versioned output
 preserves unrelated files and cumulative documentation.
@@ -365,6 +387,11 @@ generated. The generator does not write into the seven sections outside a block.
 
 ## Usage
 
+Pass the Gate's exact Opened value, the declared owner/view reference and an
+existing contained directory to `diagram::publication::publish_repository`.
+Serve the workspace tree with its paths intact, including beneath a non-root
+URL prefix. Omit repository navigation when retaining the default placement.
+
 On descriptor admission refusal, increase the caller's open-file limit or
 publish a smaller computed batch. Within a sync report, all texts are still
 staged before any target rename; admission does not select incremental publication.
@@ -441,6 +468,10 @@ capability.
 
 ## Examples
 
+`cargo workplan docs build standalone --view cap:api#workspace --output-dir
+published/site --repository-links` rebases existing authored links to their
+repository files. The output directory must already exist beneath the workspace.
+
 With a soft limit of 96 file descriptors, a controlled native fixture refuses
 a batch of 128 documents without creating temporaries or modifying originals.
 A neighboring batch of 64 documents publishes under the same limit and leaves
@@ -492,6 +523,15 @@ The relationship table below links the current dependencies and dependants to th
 ```
 
 ## Constraints
+
+Missing, outside or changed required source/capability bindings and output
+authority refuse before owned payload publication. Descriptor-relative
+NOFOLLOW directory walks retain the output prefix and all writes remain beneath
+its `raf-workplan/<digest>/` subtree. Existing ownership, content verification,
+batch capacity, inode, collision and cleanup policy still applies. Checks and
+writes remain separate observations, without atomic ancestry, an immutable
+snapshot, a directory transaction or universal race isolation.
+<!-- raf:tested-by raf_workplan::test_crate::sync::repository_links::repository_publication_refuses_missing_changed_and_outside_bindings,raf_workplan::diagram::publication::tests::a_replaced_output_binding_refuses_before_owned_payloads -->
 
 The mdBook adapter admits at most 4096 chapters, 64 chapter levels and 256
 diagram references. A chapter admits 1 MiB of source; aggregate source admits
@@ -566,6 +606,11 @@ bound or isolation guarantee.
 
 ## Explanation
 
+This local navigation path does not provide Cargo/Rustdoc or mdBook host
+assembly, package membership, effective compiler/input provenance, complete
+API/evidence-link admission, browser/offline qualification or packaged docs.rs
+hosting. Text admission and native publication provide no total heap bound.
+
 Keeping staged inode handles prevents a removed temporary's inode from being
 reused while its ownership is checked. Physical staging of a complete batch
 therefore needs a descriptor grant proportional to its file count. Reserved
@@ -597,6 +642,13 @@ so the question "what is built and what is not" has one answer that is derived r
 than written.
 
 ## Verification
+
+The actual API and command line exercise two output depths, escaped source and
+output paths, overview/detail links and a non-root URL prefix. Native identities
+and geometry remain stable, repeated publication is deterministic, cached
+default output remains unchanged and unrelated cumulative files survive.
+Missing and changed authority/destination cases accompany valid neighbors.
+<!-- raf:tested-by raf_workplan::test_crate::sync::repository_links::repository_links_resolve_from_two_depths_without_changing_cached_views,raf_workplan::test_crate::sync::repository_links::repository_publication_refuses_missing_changed_and_outside_bindings,cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
 
 The descriptor fixture changes only its controlled child process's soft file
 limit. It checks refusal before temporary creation, unchanged original bytes,
@@ -676,6 +728,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 | --- | --- | --- |
 | `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
 | `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `raf_workplan::diagram::publication::tests::a_replaced_output_binding_refuses_before_owned_payloads` | test | [Constraints](#constraints) |
 | `raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping` | test | [Contract](#contract) |
 | `raf_workplan::example_crate::component_model` | example target | [Examples](#examples) |
 | `raf_workplan::example_crate::docs_sync` | example target | [Usage](#usage) |
@@ -754,6 +807,8 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `raf_workplan::test_crate::sync::check_and_sync_agree_after_each_repair` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::sync::generated_checks_are_clean_exactly_when_sync_has_nothing_to_write` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `raf_workplan::test_crate::sync::repository_links::repository_links_resolve_from_two_depths_without_changing_cached_views` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::sync::repository_links::repository_publication_refuses_missing_changed_and_outside_bindings` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::the_catalogue_of_this_repository_equals_its_roadmap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_created` | test | [Verification](#verification) |

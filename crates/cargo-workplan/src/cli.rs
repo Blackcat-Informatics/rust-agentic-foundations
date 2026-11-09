@@ -543,6 +543,9 @@ pub(crate) struct StandaloneArgs {
     /// Existing host output root; unrelated files and other versions are preserved.
     #[arg(long, value_name = "directory")]
     pub(crate) output_dir: PathBuf,
+    /// Rebase existing authored links beneath the opened canonical workspace.
+    #[arg(long)]
+    pub(crate) repository_links: bool,
 }
 
 /// The documented mdBook preprocessor invocation and support probe.

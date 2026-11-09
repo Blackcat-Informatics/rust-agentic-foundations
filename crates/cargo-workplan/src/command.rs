@@ -179,17 +179,30 @@ fn check_format(args: &Args) -> Result<(), Failure> {
 
 /// The publication library owns the bundle, version identity and file admission.
 fn standalone(root: &Path, args: &StandaloneArgs) -> Result<Report, Failure> {
-    let output = std::fs::canonicalize(&args.output_dir)?;
+    let output = if args.repository_links {
+        std::path::absolute(&args.output_dir)?
+    } else {
+        std::fs::canonicalize(&args.output_dir)?
+    };
     if output.to_str().is_none() {
         return Err(Failure::new(
             "documentation output root must be representable as UTF-8",
         ));
     }
     let opened = Gate::workspace(root).open()?;
-    let plan = opened.workplan();
-    let bundle = plan.named_diagram(&args.view)?;
-    let directory = raf_workplan::diagram::publication::publish(&bundle, &output)?;
-    let entry = directory.join(format!("{}.html", bundle.view().name()));
+    let directory = if args.repository_links {
+        raf_workplan::diagram::publication::publish_repository(&opened, &args.view, &output)?
+    } else {
+        let plan = opened.workplan();
+        let bundle = plan.named_diagram(&args.view)?;
+        raf_workplan::diagram::publication::publish(&bundle, &output)?
+    };
+    let name = args
+        .view
+        .split_once('#')
+        .map(|(_, name)| name)
+        .ok_or_else(|| Failure::new("named view requires an owner and fragment"))?;
+    let entry = directory.join(format!("{name}.html"));
     let directory = directory
         .into_os_string()
         .into_string()
