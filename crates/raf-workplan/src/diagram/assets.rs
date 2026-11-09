@@ -238,6 +238,47 @@ fn add_views(
 }
 
 impl Workplan<'_> {
+    pub(super) fn named_diagram_with_navigation(
+        &self,
+        reference: &str,
+        navigation: &super::publication::RepositoryNavigation,
+    ) -> Result<DiagramBundle, DiagramError> {
+        let cached = self.named_diagram(reference)?;
+        let (requested_owner, _) = reference
+            .split_once('#')
+            .ok_or_else(|| DiagramError::refused("named view requires its document owner"))?;
+        let owner = cached
+            .view
+            .owner
+            .as_deref()
+            .ok_or_else(|| DiagramError::refused("named diagram has no document owner"))?;
+        let declaration = self
+            .capabilities()
+            .iter()
+            .map(|document| {
+                (
+                    document.value().header.id.as_str(),
+                    &document.value().diagrams,
+                )
+            })
+            .chain(self.architecture().iter().map(|document| {
+                (
+                    document.value().header.id.as_str(),
+                    &document.value().diagrams,
+                )
+            }))
+            .find(|(id, _)| *id == requested_owner)
+            .and_then(|(_, declarations)| {
+                declarations
+                    .iter()
+                    .find(|declaration| declaration.name == cached.view.name)
+            })
+            .ok_or_else(|| DiagramError::refused("named diagram declaration is absent"))?;
+        let mut view = NamedDiagramView::from_declaration(declaration)?;
+        view.owner = Some(owner.to_owned());
+        self.diagram_with_navigation(&view, Some(navigation))
+    }
+
     /// The cached native bundle for `cap:<slug>#<view>` or `arch:<slug>#<view>`.
     ///
     /// This is the same computation that check, preview and sync judge.

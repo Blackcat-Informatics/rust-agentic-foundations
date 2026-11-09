@@ -143,7 +143,7 @@ pub(super) fn presentation(
     spec: &VizSpec,
     full: &VizPresentation,
     layer: Layer,
-    full_model_hash: &str,
+    navigation: Option<&super::super::publication::RepositoryNavigation>,
 ) -> Result<VizPresentation, DiagramError> {
     let scene = viz::build_scene(projection, spec)?;
     let nodes: BTreeSet<_> = scene
@@ -186,14 +186,14 @@ pub(super) fn presentation(
     for row in &model.declarations.components {
         let iri = identity(model.owner, "component", &row.id)?;
         if let Some(display) = display(&mut presentation, projection, &iri) {
-            display.navigation = super::binding_navigation(plan, &row.bindings, full)?;
+            display.navigation = super::binding_navigation(plan, &row.bindings, full, navigation)?;
         }
     }
     for row in &model.declarations.artifacts {
         let iri = identity(model.owner, "artifact", &row.id)?;
         if let Some(display) = display(&mut presentation, projection, &iri) {
             display.role = Some(format!("declared artifact; {}", row.artifact_type));
-            display.navigation = super::binding_navigation(plan, &row.bindings, full)?;
+            display.navigation = super::binding_navigation(plan, &row.bindings, full, navigation)?;
         }
     }
     if layer == Layer::Components {
@@ -221,14 +221,6 @@ pub(super) fn presentation(
                 navigation: None,
             });
         }
-    }
-    if let Some(display) = presentation.displays.first_mut() {
-        let description = display.description.get_or_insert_with(String::new);
-        write!(
-            description,
-            "\nFull RDF provenance model hash: {full_model_hash}"
-        )
-        .expect("writing to String cannot fail");
     }
     Ok(presentation)
 }

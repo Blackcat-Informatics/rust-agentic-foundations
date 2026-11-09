@@ -14,6 +14,8 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use purrdf_lex::allocation::Shared;
+
 mod native;
 
 const MAX_BYTES: usize = 64 * 1024 * 1024;
@@ -73,7 +75,7 @@ impl std::error::Error for RefusedPath {
 /// One reader authority, retained from admission through publication.
 pub(crate) struct Root {
     path: PathBuf,
-    tree: DiskTree,
+    tree: Shared<DiskTree>,
     directory: Rc<fs::File>,
     parents: RefCell<BTreeMap<RelPath, Rc<fs::File>>>,
 }
@@ -81,6 +83,10 @@ pub(crate) struct Root {
 impl Root {
     pub(crate) fn open(path: &Path) -> io::Result<Rc<Self>> {
         let tree = DiskTree::new(path).map_err(io::Error::other)?;
+        Self::from_tree(Shared::try_new(tree).map_err(io::Error::other)?)
+    }
+
+    pub(crate) fn from_tree(tree: Shared<DiskTree>) -> io::Result<Rc<Self>> {
         let directory = native::root(&tree)?;
         let path = native::root_path(&directory)?;
         // Source rechecks its canonical root against this retained descriptor.
@@ -112,7 +118,7 @@ impl Root {
         crate::files::protect_git(&self.path, path).map_err(|error| error.source)
     }
 
-    fn directory(self: &Rc<Self>, path: &RelPath) -> io::Result<Directory> {
+    pub(crate) fn directory(self: &Rc<Self>, path: &RelPath) -> io::Result<Directory> {
         self.verify(path)?;
         let mut current = Rc::clone(&self.directory);
         let mut chain = Vec::new();
@@ -263,7 +269,7 @@ pub(crate) struct StagingGrant {
     slots: Vec<fs::File>,
 }
 
-struct Directory {
+pub(crate) struct Directory {
     root: Rc<Root>,
     path: RelPath,
     file: Rc<fs::File>,
@@ -271,7 +277,27 @@ struct Directory {
 }
 
 impl Directory {
-    fn verify(&self) -> io::Result<()> {
+    pub(crate) fn relative_path(&self) -> io::Result<RelPath> {
+        self.verify()?;
+        let path = native::root_path(&self.file)?;
+        let relative = path
+            .strip_prefix(self.root.path())
+            .map_err(|_| refused("metadata directory is outside its retained root"))?;
+        let relative = RelPath::new(
+            relative
+                .to_str()
+                .ok_or_else(|| refused("metadata directory is not representable as UTF-8"))?,
+        )
+        .map_err(io::Error::other)?;
+        let normalized = self.root.directory(&relative)?;
+        if native::identity(&normalized.file)? != native::identity(&self.file)? {
+            return Err(refused("metadata directory canonical binding changed"));
+        }
+        self.verify()?;
+        Ok(relative)
+    }
+
+    pub(crate) fn verify(&self) -> io::Result<()> {
         let current = self.root.directory(&self.path)?;
         if current.chain != self.chain
             || native::identity(&current.file)? != native::identity(&self.file)?

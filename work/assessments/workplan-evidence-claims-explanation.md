@@ -10,7 +10,7 @@ inputs:
     digest: 06b1b1e4a67bcef6687362a7779b0be1be63956c97c659e4ed6507ad0651b1d4
   - kind: symbol
     name: raf_workplan::Workplan::diagram
-    digest: 94df0d471aed7e82ad8b144680276c50213154a1e49f8db36a2fb3442ca08c5f
+    digest: 5118cfd1cfdf16443470d6d5f971b081f89a47e6a5c53c4e8f9bcbb77989e5af
   - kind: symbol
     name: raf_workplan::Workplan::evidence_claims
     digest: a0a36a382dd896fa7bf881875233ddacef8bfeb167fe16ce3902877438282edf
@@ -22,7 +22,7 @@ inputs:
     digest: 9d8101cb40654cbe57f6c08d22e3593532157a6534b6da6aeb363549037bae17
   - kind: symbol
     name: raf_workplan::diagram
-    digest: 300a0a165b33cfd8feff80b817aaac88050deca22a70b9e58ea27552399e0614
+    digest: c20f2d495d45bb08e5e376015234d75265dca8eb700754be72928c66c1b21f5f
   - kind: symbol
     name: raf_workplan::evidence
     digest: a1ad819bde3fdf4280cfb4ea25fae7ec008b30ef17f744457b8d676716d03165

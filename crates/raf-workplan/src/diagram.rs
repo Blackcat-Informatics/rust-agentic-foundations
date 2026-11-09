@@ -389,6 +389,14 @@ impl Workplan<'_> {
     /// Preserves semantic query errors and native limit, layout and rendering
     /// failures. No bundle is returned on a partial result and no file is written.
     pub fn diagram(&self, view: &NamedDiagramView) -> Result<DiagramBundle, DiagramError> {
+        self.diagram_with_navigation(view, None)
+    }
+
+    fn diagram_with_navigation(
+        &self,
+        view: &NamedDiagramView,
+        navigation: Option<&publication::RepositoryNavigation>,
+    ) -> Result<DiagramBundle, DiagramError> {
         if view.spec.max_statements > 10000 || view.spec.max_terms > 30000 {
             return Err(DiagramError::refused(
                 "native view budgets may not exceed 10000 statements or 30000 terms",
@@ -424,7 +432,7 @@ impl Workplan<'_> {
                         | DiagramKind::Artifacts
                         | DiagramKind::ModelProvenance
                 ) {
-                    return authored::bundle(self, view, scope);
+                    return authored::bundle(self, view, scope, navigation);
                 }
                 let facts = semantic::collect(self, view, *kind, scope)?;
                 if view.grouping == DiagramGrouping::None {
