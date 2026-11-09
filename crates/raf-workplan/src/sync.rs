@@ -350,30 +350,51 @@ impl Workplan<'_> {
                 &report.edits,
             )?);
         }
+        // Newly created diagram parents must join the retained directory set
+        // before descriptor capacity is admitted for the complete batch.
+        for (path, _) in &report.edits {
+            if !targets.contains_key(path) {
+                targets.insert(path.clone(), root.capture(path)?);
+            }
+            if let Some(assets) = &report.diagram_assets {
+                assets.verify_target(path, &targets[path])?;
+            }
+        }
+        let count = report
+            .edits
+            .len()
+            .checked_add(usize::from(report.diagram_assets.is_some()))
+            .ok_or_else(|| io::Error::other("metadata staging count overflow"))?;
+        let mut grant = root.reserve_staging(count, targets.values())?;
         let mut staged = Vec::new();
         for (path, text) in &report.edits {
-            let target = match targets.remove(path).map_or_else(|| root.capture(path), Ok) {
-                Ok(target) => target,
-                Err(error) => return Err(cleanup_after(error, &staged)),
+            let Some(target) = targets.remove(path) else {
+                drop(grant);
+                return Err(cleanup_after(
+                    refused(path, "missing retained destination admission"),
+                    &staged,
+                ));
             };
-            if let Some(assets) = &report.diagram_assets
-                && let Err(error) = assets.verify_target(path, &target)
-            {
-                return Err(cleanup_after(error, &staged));
-            }
-            match target.stage(text) {
+            match target.stage_reserved(text, &mut grant) {
                 Ok(temporary) => {
                     modes.push((path.clone(), temporary.permissions()));
                     staged.push(temporary);
                 }
-                Err(error) => return Err(cleanup_after(error, &staged)),
+                Err(error) => {
+                    drop(grant);
+                    return Err(cleanup_after(error, &staged));
+                }
             }
         }
         if let Some(assets) = &report.diagram_assets {
-            let intent = match assets.stage_intent(&root) {
+            let intent = match assets.stage_intent(&root, &mut grant) {
                 Ok(path) => path,
-                Err(error) => return Err(cleanup_after(error, &staged)),
+                Err(error) => {
+                    drop(grant);
+                    return Err(cleanup_after(error, &staged));
+                }
             };
+            drop(grant);
             for file in &mut staged {
                 if file.target_path().as_str() == crate::diagram::assets::MANIFEST
                     && let Err(error) = file.follows(&intent)
@@ -392,6 +413,7 @@ impl Workplan<'_> {
             }
             publish(&manifests)?;
         } else {
+            drop(grant);
             publish(&staged)?;
         }
         Ok(modes)

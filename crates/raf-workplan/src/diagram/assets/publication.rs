@@ -199,11 +199,15 @@ impl Publication {
         Ok(())
     }
 
-    pub(crate) fn stage_intent(&self, root: &Rc<Root>) -> io::Result<Staged> {
+    pub(crate) fn stage_intent(
+        &self,
+        root: &Rc<Root>,
+        grant: &mut crate::publication_io::StagingGrant,
+    ) -> io::Result<Staged> {
         let manifest = RelPath::new(MANIFEST).map_err(io::Error::other)?;
         let target = root.capture(&manifest)?;
         target.verify_content(self.original_manifest.as_deref())?;
-        target.stage(&self.intent)
+        target.stage_reserved(&self.intent, grant)
     }
 
     pub(crate) fn retire(

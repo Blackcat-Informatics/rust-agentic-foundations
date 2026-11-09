@@ -74,8 +74,8 @@ impl std::error::Error for RefusedPath {
 pub(crate) struct Root {
     path: PathBuf,
     tree: DiskTree,
-    directory: fs::File,
-    parents: RefCell<BTreeMap<RelPath, fs::File>>,
+    directory: Rc<fs::File>,
+    parents: RefCell<BTreeMap<RelPath, Rc<fs::File>>>,
 }
 
 impl Root {
@@ -89,7 +89,7 @@ impl Root {
         Ok(Rc::new(Self {
             path,
             tree,
-            directory,
+            directory: Rc::new(directory),
             parents: RefCell::new(BTreeMap::new()),
         }))
     }
@@ -114,7 +114,7 @@ impl Root {
 
     fn directory(self: &Rc<Self>, path: &RelPath) -> io::Result<Directory> {
         self.verify(path)?;
-        let mut current = self.directory.try_clone()?;
+        let mut current = Rc::clone(&self.directory);
         let mut chain = Vec::new();
         let mut prefix = String::new();
         for name in path.as_str().split('/').filter(|name| !name.is_empty()) {
@@ -122,18 +122,20 @@ impl Root {
                 prefix.push('/');
             }
             prefix.push_str(name);
-            current = native::directory(&current, name)
+            let opened = native::directory(&current, name)
                 .map_err(|error| at("the directory", &prefix, error))?;
             let relative = RelPath::new(&prefix).map_err(io::Error::other)?;
             let mut parents = self.parents.borrow_mut();
             if let Some(admitted) = parents.get(&relative) {
-                if native::identity(admitted)? != native::identity(&current)? {
+                if native::identity(admitted)? != native::identity(&opened)? {
                     return Err(refused(format!(
                         "metadata directory {relative} changed since admission"
                     )));
                 }
+                current = Rc::clone(admitted);
             } else {
-                parents.insert(relative, current.try_clone()?);
+                current = Rc::new(opened);
+                parents.insert(relative, Rc::clone(&current));
             }
             chain.push((name.to_owned(), native::identity(&current)?));
         }
@@ -211,12 +213,60 @@ impl Root {
             Err(error) => Err(error),
         }
     }
+
+    /// Retain inode slots and probe actual target checks before creating temporaries.
+    /// Two extra slots cover a temporary open and named-file checks. Probing with
+    /// those slots held also exercises the current native discovery requirements;
+    /// this does not isolate the caller from concurrent host resource changes.
+    pub(crate) fn reserve_staging<'a>(
+        self: &Rc<Self>,
+        count: usize,
+        targets: impl Iterator<Item = &'a Target>,
+    ) -> io::Result<StagingGrant> {
+        let required = if count == 0 {
+            0
+        } else {
+            count
+                .checked_add(2)
+                .ok_or_else(|| refused("metadata descriptor admission count overflow"))?
+        };
+        let mut slots = Vec::new();
+        for _ in 0..required {
+            slots.try_reserve(1).map_err(io::Error::other)?;
+            slots.push(self.directory.try_clone().map_err(|error| {
+                at(
+                    "metadata descriptor admission",
+                    &format!(
+                        "{count} staged inode slots plus scratch; increase the open-file limit or reduce the batch"
+                    ),
+                    error,
+                )
+            })?);
+        }
+        for target in targets {
+            if !Rc::ptr_eq(self, &target.directory.root) {
+                return Err(refused("staging target belongs to another root"));
+            }
+            target.check()?;
+        }
+        slots.truncate(count);
+        Ok(StagingGrant {
+            root: Rc::clone(self),
+            slots,
+        })
+    }
+}
+
+/// Descriptor reservations are replaced by retained temporary-inode handles.
+pub(crate) struct StagingGrant {
+    root: Rc<Root>,
+    slots: Vec<fs::File>,
 }
 
 struct Directory {
     root: Rc<Root>,
     path: RelPath,
-    file: fs::File,
+    file: Rc<fs::File>,
     chain: Vec<(String, (u64, u64))>,
 }
 
@@ -358,6 +408,17 @@ impl Target {
     }
 
     pub(crate) fn stage(self, text: &str) -> io::Result<Staged> {
+        let mut grant = self
+            .directory
+            .root
+            .reserve_staging(1, std::iter::once(&self))?;
+        self.stage_reserved(text, &mut grant)
+    }
+
+    pub(crate) fn stage_reserved(self, text: &str, grant: &mut StagingGrant) -> io::Result<Staged> {
+        if !Rc::ptr_eq(&self.directory.root, &grant.root) || grant.slots.is_empty() {
+            return Err(refused("metadata staging needs an admitted inode slot"));
+        }
         self.check()?;
         if text.len() > MAX_BYTES {
             return Err(refused("metadata output exceeds 64 MiB"));
@@ -370,6 +431,9 @@ impl Target {
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => return Err(at("metadata temporary", &name, error)),
             };
+            // The new file replaces one reserved descriptor, keeping this
+            // operation within the capacity exercised before staging began.
+            grant.slots.pop();
             let written = (|| {
                 // Capture native creation permissions while the file is empty,
                 // then make it private before placing any document bytes in it.

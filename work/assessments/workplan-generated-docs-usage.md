@@ -7,7 +7,7 @@ subject: cap:workplan-generated-docs#usage
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#usage
-    digest: eef74c15957b0ff1fe38b0b5eddd812a0034090aaacabe81df3f44abd19cce03
+    digest: 81afa4203f80d7c89fcff1203d3d1d0d28008cdf4a9ae6762cc1adce2ef8e05e
   - kind: symbol
     name: raf_workplan::Opened::preview_generated
     digest: be58d7ce56cbb41c4d66dac333991ca584780d0389ff5a3ea5c885c2d3c30a6c
@@ -22,7 +22,7 @@ inputs:
     digest: 9ba560131a4fedddffd7453172f167de21c0f3559a1cd0417572f82d00b2ded4
   - kind: symbol
     name: raf_workplan::diagram
-    digest: 235ae30cdcf5bb010867915dc2a1594b1e2239ac81d984409fe977db0ecf4070
+    digest: 300a0a165b33cfd8feff80b817aaac88050deca22a70b9e58ea27552399e0614
 verdict: accepted
 by: agent
 ---

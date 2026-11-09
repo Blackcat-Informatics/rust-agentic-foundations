@@ -85,19 +85,26 @@ fn publish_files(mut files: Vec<(RelPath, String)>, root: &Path) -> Result<PathB
             missing.push((full, text));
         }
     }
-    let mut staged = Vec::new();
+    let mut targets = Vec::new();
     for (full, text) in missing {
-        let prepared = root.capture(&full).and_then(|target| {
-            target.verify_content(None)?;
-            target.stage(text)
-        });
-        match prepared {
+        let target = root.capture(&full).map_err(DiagramError::data)?;
+        target.verify_content(None).map_err(DiagramError::data)?;
+        targets.push((target, text));
+    }
+    let mut grant = root
+        .reserve_staging(targets.len(), targets.iter().map(|(target, _)| target))
+        .map_err(DiagramError::data)?;
+    let mut staged = Vec::new();
+    for (target, text) in targets {
+        match target.stage_reserved(text, &mut grant) {
             Ok(temporary) => staged.push(temporary),
             Err(error) => {
+                drop(grant);
                 return Err(DiagramError::data(cleanup_after(error, &staged)));
             }
         }
     }
+    drop(grant);
     // Detect every late destination collision before publishing any payload.
     let admission = staged
         .iter()

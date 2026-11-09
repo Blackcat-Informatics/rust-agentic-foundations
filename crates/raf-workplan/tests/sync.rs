@@ -26,6 +26,98 @@ use support::{AUXILIARY, Repo, demo_files};
 
 // --- in memory ---------------------------------------------------------------
 
+/// Descriptor admission must precede every temporary and target write.
+#[cfg(target_os = "linux")]
+#[test]
+fn batch_publication_reserves_inode_capacity_before_staging() {
+    use rustix::process::{Resource, getrlimit, setrlimit};
+
+    const CHILD: &str = "RAF_PUBLICATION_DESCRIPTOR_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        let output = Command::new(std::env::current_exe().expect("the test binary"))
+            .args([
+                "--exact",
+                "batch_publication_reserves_inode_capacity_before_staging",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .expect("start the controlled descriptor fixture");
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
+    let mut limit = getrlimit(Resource::Nofile);
+    assert!(limit.maximum.is_none_or(|maximum| maximum >= 96));
+    limit.current = Some(96);
+    setrlimit(Resource::Nofile, limit).expect("set only the controlled child's soft limit");
+
+    let directory = purrdf_testkit::TempDir::new_in(std::env::temp_dir())
+        .expect("create descriptor publication fixture");
+    let parent = directory.path().join("docs/capabilities");
+    fs::create_dir_all(&parent).unwrap();
+    let mut originals = Vec::new();
+    let report = SyncReport {
+        edits: (0..128)
+            .map(|index| {
+                let path = format!("docs/capabilities/item-{index}.md");
+                let original = support::fixtures::capability(
+                    &format!("item-{index}"),
+                    "delivered",
+                    "[]",
+                    "Original bytes.\n",
+                );
+                let replacement = original.replace("Original bytes.", "Replacement bytes.");
+                fs::write(directory.path().join(&path), &original).unwrap();
+                originals.push(original);
+                (RelPath::new(&path).unwrap(), replacement)
+            })
+            .collect(),
+        diagram_assets: None,
+    };
+    let error = Workplan::write(&report, directory.path())
+        .expect_err("the complete inode grant exceeds the child's descriptor limit");
+    assert!(
+        error.to_string().contains("metadata descriptor admission"),
+        "{error}"
+    );
+    assert!(
+        error.to_string().contains("increase the open-file limit"),
+        "{error}"
+    );
+    for ((path, _), original) in report.edits.iter().zip(&originals) {
+        assert_eq!(
+            fs::read_to_string(directory.path().join(path.as_str())).unwrap(),
+            *original
+        );
+    }
+    assert_eq!(fs::read_dir(&parent).unwrap().count(), report.edits.len());
+
+    let accepted = SyncReport {
+        edits: report.edits[..64].to_vec(),
+        diagram_assets: None,
+    };
+    Workplan::write(&accepted, directory.path())
+        .expect("the neighboring batch fits with shared parent descriptors");
+    for (index, (path, replacement)) in report.edits.iter().enumerate() {
+        assert_eq!(
+            fs::read_to_string(directory.path().join(path.as_str())).unwrap(),
+            if index < 64 {
+                replacement.as_str()
+            } else {
+                originals[index].as_str()
+            }
+        );
+    }
+    assert_eq!(fs::read_dir(&parent).unwrap().count(), report.edits.len());
+}
+
 #[test]
 fn syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal() {
     let repo = unsynced();
