@@ -101,11 +101,11 @@ cargo install --locked \
 
 The build needs Rust 1.98.1 or newer, the `rust-version` of this workspace, and compiles from source. Put `$CARGO_HOME/bin`, or the directory you gave `--root`, on `PATH`; cargo then runs the programs as `cargo census` and `cargo workplan`. `cargo census` takes `--workspace DIRECTORY`, a directory inside the consumer's workspace, and `cargo workplan` takes `--root DIRECTORY`; each locates the workspace root from the ancestor manifests when you give neither.
 
-Each command reads files from the consumer's repository and refuses with an error that names what is missing:
+These commands read files from the consumer's repository and refuse with an error that names what is missing:
 
 | Command | Needs in the consumer's repository |
 | --- | --- |
-| `cargo census baseline` | Nothing. It prints the structural duplication report as RDF. |
+| `cargo census baseline` | Only the workspace's Cargo manifest. It prints the structural duplication report as RDF. |
 | `cargo census index`, `check`, `dump-ledger` | `helpers-ledger.ttl`, described in [census-ledger](docs/capabilities/census-ledger.md). |
 | `cargo workplan check`, `status` | `docs/capabilities/` holding the repository's capability documents, described in [workplan-cli](docs/capabilities/workplan-cli.md). |
 
