@@ -99,7 +99,7 @@ cargo install --locked \
   --rev <COMMIT> cargo-census cargo-workplan
 ```
 
-Replace `<COMMIT>` with the full hash of the commit you want. The build compiles from source and needs Rust 1.98.1 or newer, the `rust-version` of this workspace. The run recorded for this section used a newer nightly toolchain, so 1.98.1 itself was not built with. Cargo puts the programs in `$CARGO_HOME/bin`; with `cargo install --root DIRECTORY` it puts them in `DIRECTORY/bin`. Put that `bin` directory on `PATH`, and cargo then runs the programs as `cargo census` and `cargo workplan`.
+Replace `<COMMIT>` with the full hash of the commit you want. The build compiles from source and needs Rust 1.98.1 or newer, the `rust-version` of this workspace. Only a newer nightly toolchain has been used to build these commands; 1.98.1 is the declared floor and has not been tested. Cargo puts the programs in `$CARGO_HOME/bin`; with `cargo install --root DIRECTORY` it puts them in `DIRECTORY/bin`. Put that `bin` directory on `PATH`, and cargo then runs the programs as `cargo census` and `cargo workplan`.
 
 The two commands select the repository differently:
 
@@ -112,13 +112,14 @@ The two commands select the repository differently:
 | --- | --- |
 | `cargo census baseline` | The workspace's `Cargo.toml`. It prints the structural duplication report as RDF. |
 | `cargo census index`, `check`, `dump-ledger`, `fingerprint SYMBOL` | The `Cargo.toml` and a valid RDF ledger, `helpers-ledger.ttl`, described in [census-ledger](docs/capabilities/census-ledger.md). `check` always compares the source with `census-debt.ttl`, and a missing `census-debt.ttl` counts as an empty record. Duplicate groups already in the code are then reported as growth and `check` exits with status 1 until `cargo census debt --write` records them. |
-| `cargo census debt --write` | The same files as `check`. It creates or updates `census-debt.ttl`, and refuses debt that grew beyond an existing record. |
-| `cargo workplan check`, `status`, `verify`, `coverage code`, `coverage tests` | The `Cargo.toml`, `docs/capabilities/` holding capability documents that satisfy the complete policy, and `work/coverage/default.md` naming the crates to cover. `docs/capabilities/index.md` must be current; `cargo workplan docs sync --copyright TEXT --licence ID` creates it. See [workplan-cli](docs/capabilities/workplan-cli.md) and [workplan-document-model](docs/capabilities/workplan-document-model.md). With `--root` and no `Cargo.toml`, `check` does not name the missing file; it reports unresolved bindings. |
-| `cargo workplan history` | The same files, and a Git repository with commits. |
+| `cargo census debt --write` | The same files as `check`, and a Linux host: publication needs native Linux directory locking and other platforms refuse. It creates or updates `census-debt.ttl`, and refuses debt that grew beyond an existing record. |
+| `cargo workplan check`, `verify`, `coverage code`, `coverage tests` | The `Cargo.toml`, `docs/capabilities/` holding capability documents that satisfy the complete policy, and `work/coverage/default.md` naming the crates to cover. `docs/capabilities/index.md` must be current; `cargo workplan docs sync --copyright TEXT --licence ID` creates it. Inside a Git checkout the documents are judged by what the Git index tracks: a link to a file that exists but is not tracked is a broken link, and the generated index links to every capability document. Run `git add docs/capabilities work/coverage` (the new documents and the generated index) before `check` and `verify`, or they exit non-zero with a `link-broken` finding. In a directory that is not a Git repository every file counts as tracked (from the code; this was not run). See [workplan-cli](docs/capabilities/workplan-cli.md) and [workplan-document-model](docs/capabilities/workplan-document-model.md). With `--root` and no `Cargo.toml`, `check` does not name the missing file; it reports unresolved bindings. |
+| `cargo workplan status` | The `Cargo.toml` and `docs/capabilities/` holding at least one document. It prints the counts and exits with status zero without a coverage record, a current index or tracked documents; when the documents have findings it adds a note to run `check`. |
+| `cargo workplan history ID` | The same files as `check`, a Git repository with at least one commit, and the ID of a document, such as `cap:adder`. Without the ID it exits with status 2 and a usage error; without a commit it exits with status 2. |
 
 This section does not cover `cargo census migrate`, `diagram`, `job` with a working job, or the `cargo workplan` commands `diagram`, `review`, `change`, `docs` (apart from `docs sync`), `evidence`, `assess` and `debt`. The two capability documents above state their inputs, outputs and writes. `cargo workplan docs build rustdoc` compiles the consumer's documentation and needs `--trust-docs`, as [workplan-cli](docs/capabilities/workplan-cli.md) states.
 
-The small project below was used to run the installed commands. These exited with status zero: `cargo census baseline`, `index`, `check`, `dump-ledger`, `fingerprint` and `debt --write`, and `cargo workplan check`, `status`, `verify`, `history`, `coverage code` and `coverage tests`. `cargo workplan docs sync` was used to create the documentation index. `cargo census job` and `count` refuse an unknown job, and the ledger below declares no job, so a working job was not tried. The project is a crate named `demo`, with this `Cargo.toml`:
+With the small project below, these commands exit with status zero: `cargo census baseline`, `index`, `check`, `dump-ledger`, `fingerprint` and `debt --write`, and `cargo workplan docs sync`, `check`, `status`, `verify`, `history cap:adder`, `coverage code` and `coverage tests`, once the files are tracked in Git and, for `history`, committed. `cargo census job` and `count` refuse an unknown job, and the ledger below declares no job, so a working job was not tried. The project is a crate named `demo`, with this `Cargo.toml`:
 
 ```toml
 [package]
@@ -224,7 +225,18 @@ The unit test of the project calls the function with the number one and compares
 <!-- raf:generated:end -->
 ```
 
-Then run `cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0` once, which creates `docs/capabilities/index.md` and fills in the matrix.
+Then run these in the project root. `docs sync` creates `docs/capabilities/index.md` and fills in the verification matrix. In a Git repository, `check` and `verify` exit with status 1 and report ``docs/capabilities/index.md: line 9: broken link `./adder.md` [link-broken]`` until the files are tracked, so stage them first:
+
+```bash
+git init
+cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
+git add -A
+cargo workplan check
+cargo workplan verify
+cargo workplan status
+```
+
+`cargo workplan history cap:adder` also needs a commit, made with your own Git identity and signing configuration.
 
 To use the library from a consumer's tests instead, depend on the same commit:
 
