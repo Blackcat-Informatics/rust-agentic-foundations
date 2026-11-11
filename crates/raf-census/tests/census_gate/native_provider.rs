@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Actual pinned provider identities and a separately frozen nonempty digest.
+//! Actual registry provider identities and a separately frozen nonempty digest.
 
 use raf_source::{
-    CfgAtom, CommittedGitTree, DeclaredCfg, DeclaredConfiguration, GitPackageRoots, LoadOptions,
-    LockedCatalog, LockedEdge, LockedManifest, MemoryTree, RelPath, TargetKind,
+    CfgAtom, DeclaredCfg, DeclaredConfiguration, LoadOptions, LockedCatalog, LockedEdge,
+    LockedManifest, LockedPackageRoots, LockedSourceKind, LockedTree, MemoryTree,
+    RegistryArchiveTree, RegistryIndex, RelPath, TargetKind,
 };
 
 use super::{Format, Gate, Term, Triple, provider_policy, put, vocab};
@@ -13,7 +14,7 @@ use super::{Format, Gate, Term, Triple, provider_policy, put, vocab};
 #[path = "../support/native_hash.rs"]
 mod native_hash;
 
-const PIN: &str = "4cc72f39b42ec3e30fc8165da194f1cf0a3247cf";
+const INDEX: &str = "registry+https://github.com/rust-lang/crates.io-index";
 const CONSUMER: &str = include_str!("../support/native_hash.rs");
 
 fn context(name: &str) -> DeclaredConfiguration<'_> {
@@ -70,7 +71,7 @@ fn ledger() -> String {
     graph.finish().unwrap().to_text(Format::Turtle).unwrap()
 }
 
-pub(super) fn actual_pinned_hasher() {
+pub(super) fn actual_registry_hasher() {
     // BLAKE3's official unkeyed vector for input bytes 0, 1, 2. The expected
     // bytes are fixed independently of every implementation exercised here.
     let expected = [
@@ -92,43 +93,97 @@ pub(super) fn actual_pinned_hasher() {
         .packages()
         .find(|row| row.name() == "purrdf-hash")
         .unwrap();
-    assert_eq!(native.source().unwrap().revision(), Some(PIN));
+    assert_eq!(native.source().unwrap().kind(), LockedSourceKind::Registry);
+    assert_eq!(
+        native.source().unwrap().repository(),
+        INDEX.strip_prefix("registry+").unwrap()
+    );
+    assert!(native.version().starts_with("4."), "{}", native.version());
     let demo = catalog
         .packages()
         .find(|row| row.name() == "demo")
         .unwrap()
         .id();
-    let repository = purrdf_testkit::paths::workspace_root();
-    let committed = CommittedGitTree::open(&catalog, native.id(), &repository, &options)
-        .expect("compiled PurRDF dependency must expose its exact pinned Git objects");
-    let manifest = format!(
-        "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n[dependencies]\npurrdf-hash={{version='3.0.1',git='{}',rev='{PIN}'}}\n",
-        native.source().unwrap().repository()
-    );
+    let archive = registry_archive(native.name(), native.version());
+    let registry = RegistryArchiveTree::from_bytes(&catalog, native.id(), &archive, &options)
+        .expect("compiled registry dependency must expose its checksum-authenticated archive");
+    let mut altered = archive.clone();
+    altered[0] ^= 1;
+    let invalid = RegistryArchiveTree::from_bytes(&catalog, native.id(), &altered, &options)
+        .err()
+        .expect("changed archive bytes must fail authentication");
+    assert!(invalid.to_string().contains("checksum"), "{invalid}");
+    let manifest = "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n[dependencies]\npurrdf-hash={version='=4'}\n";
     let ledger = ledger();
     let tree = MemoryTree::from([
-        ("Cargo.toml", manifest.as_str()),
+        ("Cargo.toml", manifest),
         ("src/lib.rs", CONSUMER),
         ("Cargo.lock", lock.as_str()),
         ("helpers-ledger.ttl", ledger.as_str()),
     ]);
-    let edges = [LockedEdge::new("dependencies.purrdf-hash", None)];
+    let edges = [LockedEdge::new(
+        "dependencies.purrdf-hash",
+        Some(RegistryIndex::new(None, INDEX)),
+    )];
     let local = [
         LockedManifest::new(demo, RelPath::new("Cargo.toml").unwrap(), &edges)
             .with_configuration(context("demo")),
     ];
-    let roots = [LockedManifest::new(
-        native.id(),
-        RelPath::new("crates/hash/Cargo.toml").unwrap(),
-        &[],
-    )
-    .with_configuration(context("purrdf_hash"))];
-    let sources = [GitPackageRoots::new(&committed, &roots)];
+    let roots = [
+        LockedManifest::new(native.id(), RelPath::new("Cargo.toml").unwrap(), &[])
+            .with_configuration(context("purrdf_hash")),
+    ];
+    let sources = [LockedPackageRoots::new(
+        LockedTree::Registry(&registry),
+        &roots,
+    )];
     let gate = Gate::workspace(".");
     let report = gate
         .check_locked(&tree, &catalog, &local, &sources)
         .unwrap();
     assert!(report.is_clean(), "{:?}", report.findings());
+    // A source already authenticated under one catalog cannot be relabeled
+    // by another catalog carrying a different archive checksum.
+    let checksum = purrdf_hash::hex::Lower(native.checksum().unwrap()).to_string();
+    let altered_lock = lock.replacen(&checksum, &"0".repeat(64), 1);
+    let altered_tree = MemoryTree::from([("Cargo.lock", altered_lock.as_str())]);
+    let altered_catalog = LockedCatalog::load(
+        &altered_tree,
+        &RelPath::new("Cargo.lock").unwrap(),
+        &options,
+    )
+    .unwrap();
+    let relabeled = gate
+        .check_locked(&tree, &altered_catalog, &local, &sources)
+        .unwrap_err();
+    assert!(relabeled.to_string().contains("checksum"), "{relabeled}");
     let missing = gate.check_locked(&tree, &catalog, &local, &[]).unwrap_err();
     assert!(missing.to_string().contains("source"), "{missing}");
+}
+
+fn registry_archive(name: &str, version: &str) -> Vec<u8> {
+    // Cache names only locate candidate bytes. The production constructor
+    // authenticates their identity against the actual selected lock checksum.
+    let home = std::env::var_os("CARGO_HOME").map_or_else(
+        || {
+            std::path::PathBuf::from(
+                std::env::var_os("HOME").expect("native fixture needs a Cargo cache locator"),
+            )
+            .join(".cargo")
+        },
+        std::path::PathBuf::from,
+    );
+    let cache = home.join("registry/cache");
+    let mut indexes: Vec<_> = std::fs::read_dir(&cache)
+        .expect("compiled registry packages require their Cargo archive cache")
+        .map(|entry| entry.expect("read Cargo cache index").path())
+        .collect();
+    indexes.sort();
+    let archive = format!("{name}-{version}.crate");
+    let path = indexes
+        .into_iter()
+        .map(|index| index.join(&archive))
+        .find(|path| path.is_file())
+        .expect("compiled registry package needs its original archive; restore the Cargo cache");
+    std::fs::read(path).expect("read the actual registry package archive")
 }

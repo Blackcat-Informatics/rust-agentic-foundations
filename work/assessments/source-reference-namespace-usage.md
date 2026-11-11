@@ -7,13 +7,13 @@ subject: cap:source-reference-namespace#usage
 inputs:
   - kind: section
     name: cap:source-reference-namespace#usage
-    digest: c42607bf45ce10a3f4017bbfc1e5ccdc2d1fe57b5c899aa8ced6f1217f4ac750
+    digest: 392b023ef773060ea87d16a03217fda4573246723996291724a411b15ff6f922
   - kind: symbol
     name: raf_source::ReferencePackageRoots
     digest: d3005c95d0d43ac4f39764ebba865cb80a9800bbffc827b7f3f5bc985c45432b
   - kind: symbol
     name: raf_source::ReferenceTree
-    digest: b2006e66fa6f3af379e9f43560a952226fec5cd96d7afbf4461ac0a9d2a56a09
+    digest: a0c3d9ff22fcba3a9e0f4f5ec842131d66a80ef525420309c948c94ec047570a
   - kind: symbol
     name: raf_source::Workspace::load_reference_sources_under
     digest: 180c94c5413137bf26a8441d85cccf58f683cf2225d635a8eec8572b03621179

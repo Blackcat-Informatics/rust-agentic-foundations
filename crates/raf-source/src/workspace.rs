@@ -6,7 +6,7 @@
 mod locked;
 mod selected;
 pub use locked::{
-    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceBinding,
+    LockedBinding, LockedEdge, LockedManifest, LockedPackageRoots, LockedTree, ReferenceBinding,
     ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree,
 };
 

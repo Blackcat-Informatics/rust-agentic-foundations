@@ -103,7 +103,10 @@ bindings:
     - raf_source::LockedBinding
     - raf_source::LockedManifest
     - raf_source::LockedEdge
-    - raf_source::GitPackageRoots
+    - raf_source::LockedPackageRoots
+    - raf_source::LockedTree
+    - raf_source::RegistryArchiveTree
+    - raf_source::RegistryArchiveTree::from_bytes
     - raf_source::CfgAtom
     - raf_source::DeclaredCfg
     - raf_source::DeclaredCfg::complete
@@ -166,6 +169,9 @@ bindings:
     - raf_source::work
     - raf_source_fuzz::bin_crate::load_workspace::exercise
   tests:
+    - raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries
+    - raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive
+    - raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path
     - raf_source::tree::disk::tests::root_acquisition_refuses_replaced_components_before_exposing_a_directory
     - raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory
     - raf_source::test_crate::git_tree::native_selected_index_is_read_only_and_committed_grants_remain_exact
@@ -1103,7 +1109,8 @@ Workplan resolves code and test bindings through it. Both consumers share the
 module and symbol interpretation of a given workspace and target context.
 
 Explicit locked-source loads additionally associate definitions with actual
-package identities and selected committed Git bytes. A declared configuration
+package identities and selected committed Git bytes or checksum-authenticated
+registry archive bytes. A declared configuration
 selects modeled declaration headers while retaining the input context needed to
 distinguish that query from a structural inventory of all alternatives.
 
@@ -1199,7 +1206,7 @@ nothing. Existing seen-read and exact byte-limit behavior is unchanged.
 
 `Workspace::load_locked_sources_under` selects first-party discovery roots while
 retaining every discovered manifest's exact local association and every supplied
-sealed external Git source. An omitted or extra local association refuses; an
+sealed external source. An omitted or extra local association refuses; an
 explicitly narrower root admits its exact association set. Native storage keeps
 one valid allocation owner for each retained buffer, spends the original load
 grant and preserves the original typed refusal with its file, line and origin.
@@ -2871,8 +2878,28 @@ source tree to a loaded `PackageId`.
 The adapter reads committed objects without launching Git, fetching, running hooks or filters, or modifying repository state. Worktree edits and replacement refs cannot affect its source view. Native object decoding has an explicit per-allocation bound, distinct from the portable total allocation and semantic-work meters applied to retained listings and blob buffers. This does not claim that native decoder CPU or all internal allocations are covered by portable meters. Git object-store access remains distinct from DiskTree filesystem-handle containment.
 <!-- raf:tested-by raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs -->
 
+`RegistryArchiveTree::from_bytes` admits supplied registry `.crate` bytes only
+after their native SHA-256 equals the selected lock row's checksum. Compressed
+and decompressed archives are separately capped by `max_total_bytes`. Native
+gzip decoding and the strict lossless tar inventory supply the archive interpretation;
+RAF never extracts files, fetches sources or executes package code.
+Nested transport envelopes, native diagnostics, non-UTF-8 member names, foreign package prefixes,
+links, special files, noncanonical paths, file/directory conflicts and a missing
+root Cargo manifest refuse. Binary payloads remain immutable; UTF-8 is required
+only when a source read asks for text. Parent traversal requires actual admitted
+directories, and seen reads retain their normal payload-limit behavior.
+`LockedPackageRoots` selects `LockedTree::Git` or `LockedTree::Registry` through
+the same configured loader and provider-proof path. Registry manifests retain
+exact name, version, source and archive-checksum association. Neither cache
+paths, extracted package metadata nor caller labels establish admission.
+Native decoder internal CPU and allocations remain outside portable meters.
+Returned tar/GTS buffers are admitted before subsequent processing; RAF-owned
+retained files, inventory, path traversal and source reads consume their grants.
+This supplies no universal native peak-memory or CPU guarantee.
+<!-- raf:tested-by raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries,raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive,raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path -->
+
 `Workspace::load_locked_sources` joins explicit local manifest locators and opaque
-checked Git snapshots to actual discovered `PackageId`s. `LockedManifest` names a
+checked Git snapshots or registry archives to actual discovered `PackageId`s. `LockedManifest` names a
 candidate manifest and lock row; neither its path nor an authority label is proof.
 The load checks actual names and explicit or inherited versions. Git packages
 must be the unique matching package in the checked repository's root package or
@@ -2889,7 +2916,7 @@ destination package identity. Unrequested edges remain unresolved syntax and do
 not borrow same-named packages. Requested optional or target-conditional edges
 refuse without configuration admission. Catalog retention, checked snapshots,
 selection and ordinary source walking share one original resource grant.
-Without explicit configuration this proves committed source/package correspondence
+Without explicit configuration this proves authenticated source/package correspondence
 only. It does not imply active definitions, preferred-provider policy, repository
 authorship or dirty-checkout correspondence.
 <!-- raf:tested-by raf_source::test_crate::locked_sources::exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package,raf_source::test_crate::locked_sources::requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name,raf_source::test_crate::locked_sources::all_snapshots_catalog_and_walker_use_one_original_resource_grant -->
@@ -3212,6 +3239,14 @@ it does not execute their function bodies or inspect a consumer command.
 <!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
 
 
+Supply the selected `LockedCatalog` row, original `.crate` bytes and load options
+to `RegistryArchiveTree::from_bytes`. Bind its root `Cargo.toml` through
+`LockedPackageRoots::new(LockedTree::Registry(&archive), &manifests)`, and supply
+the exact registry mapping on the requested `LockedEdge`. Explicit configurations
+remain required for provider evidence. Cache acquisition belongs to the caller;
+its path cannot replace archive authentication.
+
+
 On native Linux, explicit metadata publishers can call
 `DiskTree::directory_handle` to clone the tree's original path-only root
 description. Verify any readable reopen against that description before locking
@@ -3445,6 +3480,15 @@ Compiler acceptance of that large source is unverified.
 <!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
 
 
+A selected registry package containing a regular `src/lib.rs` and an unrelated
+binary asset loads its Rust definition without interpreting that binary asset.
+Reading the asset as source refuses invalid UTF-8. An altered archive fails its
+checksum; a different package prefix, a link, conflicting directory/file roles,
+a missing root manifest or a second compression envelope refuses beside a valid
+archive. The frozen provider fixture resolves the actual published native hash
+implementation through the same configured provider path.
+
+
 `prepare_source` accepts `const X:f64=1e2.3;` as guard-admitted source data.
 Its raw numeric guard run can cover several native leaves; use the separate
 native-node ceiling when admitting parser resources. A macro payload with
@@ -3640,6 +3684,16 @@ named fixture's exact `CarryBudget` cause is expected there; another error,
 missing provenance or an unexpected load refusal fails the check.
 The large Source-only regression supplies no compiler acceptance evidence.
 <!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
+
+Registry archive admission bounds compressed bytes and decoded tar bytes
+separately. Native gzip decoding can hold additional internal memory and perform
+work outside RAF's portable meters. The decoded tar buffer is admitted before the
+strict tar inventory runs, and that inventory receives the item-byte and work
+grants as its storage and work limits. Retained RAF file storage and inventory
+traversal are metered. No universal native allocation or CPU bound is asserted. Registry source identity means equality to the selected lock's
+checksum, without a signature, author-trust or extracted-cache cleanliness claim.
+<!-- raf:tested-by raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive -->
 
 
 The instruction profile covers the stated generated populations and sizes on
@@ -3846,6 +3900,14 @@ delegates to that library or enforce preferred-provider policy.
 
 ## Explanation
 
+The sealed registry backend authenticates bytes before archive interpretation.
+Its private immutable inventory supplies files and absence through the existing
+Tree seam. Configured loading compares the exact package name, version, registry
+and checksum again against its own catalog, so another catalog cannot relabel an
+authenticated image. Committed Git and registry archives retain their distinct
+source proofs while sharing configured package, target and definition loading.
+
+
 One module fact sink retains module, trait, impl and foreign invocations. The
 existing native token work list, fact charges, string interning and indexed
 emission apply to every context; no empty occurrence vector is added to each
@@ -3987,6 +4049,14 @@ regression; the compiler never receives that source in this check.
 The generic differential classifier is unchanged; ordinary indexing failures
 remain failures.
 <!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
+
+Controlled native archive fixtures cover immutable exact-byte reads, binary
+assets, seen reads, real-directory parent traversal, invalid inventory and nested
+transport refusals beside valid inputs. The native provider fixture checks a
+fixed nonempty BLAKE3 digest and actual published registry source resolution,
+including checksum corruption, catalog relabeling and absent-source refusals.
+Existing committed Git fixtures retain exact source and configuration coverage.
 
 
 Prepared-source fixtures compare the declared native-node ceiling with the
@@ -5485,6 +5555,9 @@ one-byte-short refusal.
 | `raf_source::test_crate::registry_scan::tests::the_work_limit_reaches_the_load` | test | [Verification](#verification) |
 | `raf_source::test_crate::registry_scan::tests::version_components_and_prerelease_precedence_keep_their_width_and_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::registry_scan::tests::work_limit_refuses_zero_and_names_the_flag` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside` | test | [Contract](#contract) |
 | `raf_source::test_crate::relpath::a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve` | test | [Contract](#contract) |
 | `raf_source::test_crate::relpath::an_absolute_input_is_refused_beside_its_relative_form` | test | [Contract](#contract) |

@@ -65,7 +65,8 @@ globs and resource refusals remain errors without partial observations.
 
 ## Usage
 
-Borrow contained disk roots, opaque trees or sealed committed trees through
+Borrow contained disk roots, opaque trees, sealed committed trees or
+checksum-authenticated registry archives through
 `ReferenceTree`. Group exact manifest associations in `ReferencePackageRoots`
 and provide their retained declaration keys. Inspect `reference_binding` for
 navigation metadata; configured provider consumers still need the separate

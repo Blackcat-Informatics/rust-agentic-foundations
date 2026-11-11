@@ -96,7 +96,7 @@ those declarations tied to the current workspace rather than remembered counts.
 `Gate::write_debt_locked` reads first-party source through its own DiskTree at the
 Gate's discovered workspace root. The caller supplies the LockedCatalog, local
 LockedManifest associations, declared target configurations and sealed
-GitPackageRoots used by the complete locked evaluation. It runs the same
+LockedPackageRoots used by the complete locked evaluation. It runs the same
 registered Rules, Extensions and preferred-provider proofs as `Gate::check_locked`
 before debt-difference findings are added. The shared writing ratchet refuses
 non-debt findings and same-form growth, preserves unchanged records and publishes
@@ -229,7 +229,16 @@ collisions with built-in ids refuse. One owned PreferredProvider per job require
 package, nonempty entryPoint APIs and nonempty consumer paths. The package is a
 selector; it is not evidence of a locked identity or actual delegation.
 
+Configured preferred-provider evaluation accepts sealed Git or checksum-authenticated
+registry archive sources through `LockedPackageRoots`. The same loaded package,
+target, configured definition and delegation identities govern both backends.
+A registry declaration needs an explicit matching registry index, and absent
+authenticated source evidence refuses rather than borrowing an observed tree.
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation -->
+
 ## Usage
+
+Pass an authenticated `RegistryArchiveTree` as `LockedTree::Registry` within the same `LockedPackageRoots` argument used for committed Git provider sources. Supply explicit registry selection and declared target configuration; ordinary observed reference trees cannot establish this proof.
 
 A foreign-value migration adapter declares source-schema acceptance and
 vocabulary through `migrate_legacy_with_extensions`. Its registered
@@ -243,7 +252,7 @@ nonempty extension content refuses without exactly one accepting validator.
 
 
 Supply the complete `LockedCatalog`, local `LockedManifest` associations and
-sealed `GitPackageRoots` to `Gate::check_locked`. Each participating package
+sealed `LockedPackageRoots` to `Gate::check_locked`. Each participating package
 needs its complete declared target configuration. Declare the approved package
 selector, public API paths and actual consumer paths on the job's
 `PreferredProvider`; a selector such as `purrdf.*` selects the admitted project
@@ -297,6 +306,8 @@ the library Gate when policy requires one.
 
 ## Examples
 
+The native hash consumer resolves the published registry provider and matches an independent nonempty digest. Corrupted archive bytes, another catalog checksum and omitted provider sources each refuse beside the valid provider.
+
 The foreign-policy fixture retains two capacity-proof rows and repeated ordered
 authority values in one job-owned graph. The original source-pin literal remains
 unchanged data. The native migration compares every retained assertion with its
@@ -321,13 +332,14 @@ result or first assigning `&mut state` to a local is outside the proof grammar.
 An extra unused `Hasher::new()` or finalization call also refuses because its
 receipt does not reach the returned value.
 
-The native Hasher case uses the compiled PurRDF dependency's workspace locator
-and exact lock row to open sealed committed source. The declared APIs resolve
-through `Hasher = Streaming<16384>` to their actual definitions. The same
-consumer source is compiled against that dependency and judged by the Gate;
-its returned `Hash` supplies the bytes checked against a frozen nonempty BLAKE3
-vector. Unavailable committed source refuses instead of substituting a fixture
-implementation or searching a shared package cache.
+The native Hasher case uses the compiled PurRDF dependency's exact lock row and
+its original Cargo registry archive, authenticated by the lock checksum, as the
+sealed provider source. The declared `Hasher::new`, `Hasher::update` and
+`Hasher::finalize` APIs resolve to their actual definitions in that archive.
+The same consumer source is compiled against that dependency and judged by the
+Gate; its returned `Hash` supplies the bytes checked against a frozen nonempty
+BLAKE3 vector. Unavailable archive bytes refuse instead of substituting a
+fixture implementation.
 <!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation -->
 
 A job may name demo_util::encode as its home, demo_util::public_encode as an

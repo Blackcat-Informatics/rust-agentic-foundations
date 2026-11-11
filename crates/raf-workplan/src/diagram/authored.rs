@@ -600,18 +600,22 @@ fn location(model: AuthoredModel<'_>, scenario: Option<usize>, error: &viz::VizE
             if let Some(position) = row
                 .regions
                 .iter()
-                .position(|row| row.id == error.instruction)
+                .position(|row| row.id == error.instruction())
             {
                 return format!("model.scenarios[{index}].regions[{position}]");
             }
-            if let Some(position) = row.steps.iter().position(|row| row.id == error.instruction) {
+            if let Some(position) = row
+                .steps
+                .iter()
+                .position(|row| row.id == error.instruction())
+            {
                 return format!("model.scenarios[{index}].steps[{position}]");
             }
         } else if let Some(position) = model
             .declarations
             .components
             .iter()
-            .position(|row| row.id == error.instruction)
+            .position(|row| row.id == error.instruction())
         {
             return format!("model.components[{position}]");
         }

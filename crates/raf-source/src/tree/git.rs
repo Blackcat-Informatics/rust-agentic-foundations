@@ -3,7 +3,7 @@
 
 //! A sealed Tree over native immutable Git objects, without executable helpers.
 
-use super::{Entry, EntryKind, FileId, Opened, Tree, require_first_party};
+use super::{Entry, EntryKind, FileId, Opened, SealedMeter, Tree, require_first_party};
 use crate::meter::{ItemAdmission, Meter, Usage};
 use crate::{
     LoadError, LoadErrorKind, LoadOptions, LockedCatalog, LockedPackageId, LockedSource,
@@ -11,7 +11,7 @@ use crate::{
 };
 use purrdf_hash::{hex, sha1::Sha1};
 use purrdf_lex::allocation::Memory;
-use purrdf_lex::walk::{WorkList, try_equal_range_by, try_sort_unstable_by};
+use purrdf_lex::walk::{try_equal_range_by, try_sort_unstable_by};
 use std::path::{Path, PathBuf};
 
 /// A committed repository read by the native Git library, without checkout reads.
@@ -28,20 +28,7 @@ pub struct CommittedGitTree<'a> {
     source: &'a LockedSource,
     commit: [u8; 20],
     entries: Vec<Record>,
-    meter: GitMeter<'a>,
-}
-enum GitMeter<'a> {
-    Owned(Meter),
-    Borrowed(&'a Meter),
-}
-impl std::ops::Deref for GitMeter<'_> {
-    type Target = Meter;
-    fn deref(&self) -> &Meter {
-        match self {
-            Self::Owned(meter) => meter,
-            Self::Borrowed(meter) => meter,
-        }
-    }
+    meter: SealedMeter<'a>,
 }
 impl std::fmt::Debug for CommittedGitTree<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -83,19 +70,19 @@ impl<'a> CommittedGitTree<'a> {
         Self::checked(
             source,
             repository.as_ref(),
-            GitMeter::Owned(Meter::new(options)),
+            SealedMeter::Owned(Meter::new(options)),
         )
     }
     pub(crate) fn under_meter<'m>(
         &'m self,
         meter: &'m Meter,
     ) -> Result<CommittedGitTree<'m>, LoadError> {
-        CommittedGitTree::checked(self.source, &self.repository, GitMeter::Borrowed(meter))
+        CommittedGitTree::checked(self.source, &self.repository, SealedMeter::Borrowed(meter))
     }
     fn checked(
         source: &'a LockedSource,
         repository: &Path,
-        meter: GitMeter<'a>,
+        meter: SealedMeter<'a>,
     ) -> Result<Self, LoadError> {
         let path = RelPath::root();
         let revision = source
@@ -176,46 +163,10 @@ impl<'a> CommittedGitTree<'a> {
         Ok(self.entries.get(found.start).filter(|_| !found.is_empty()))
     }
     fn locate(&self, path: &RelPath) -> Result<Option<(EntryKind, String)>, LoadError> {
-        let mut kind = EntryKind::Dir;
-        let mut canonical = String::new();
-        let mut parents = WorkList::<_, 16>::new();
-        let mut admission = ItemAdmission::new(&self.meter, path);
-        let mut memory = Memory::new(&mut admission);
-        let result = (|| {
-            for segment in path.segments() {
-                self.meter
-                    .work(segment.len().saturating_add(1), path, None)?;
-                if kind != EntryKind::Dir {
-                    return Err(refused(
-                        path,
-                        "Git path traverses a non-directory or symlink",
-                    ));
-                }
-                if segment == ".." {
-                    canonical.truncate(
-                        parents
-                            .pop()
-                            .ok_or_else(|| refused(path, "Git path leaves its source root"))?,
-                    );
-                    kind = EntryKind::Dir;
-                    continue;
-                }
-                self.meter.directory(parents.len(), path)?;
-                parents
-                    .try_push_admitted(canonical.len(), &mut memory)
-                    .map_err(native)?;
-                if !canonical.is_empty() {
-                    memory.push_str(&mut canonical, "/").map_err(native)?;
-                }
-                memory.push_str(&mut canonical, segment).map_err(native)?;
-                let Some(record) = self.record(&canonical, path)? else {
-                    return Ok(None);
-                };
-                kind = record.kind;
-            }
-            Ok(Some((kind, canonical)))
-        })();
-        result.map_err(|error| recover(error, &mut admission))
+        super::inventory::locate(path, &self.meter, |canonical| {
+            self.record(canonical, path)
+                .map(|record| record.map(|record| record.kind))
+        })
     }
 }
 
@@ -460,10 +411,10 @@ fn refused(path: &RelPath, message: &str) -> LoadError {
         },
     )
 }
-fn native(source: purrdf_lex::allocation::StorageError) -> LoadError {
+pub(super) fn native(source: purrdf_lex::allocation::StorageError) -> LoadError {
     LoadError::new(&RelPath::root(), None, LoadErrorKind::Storage(source))
 }
-fn recover(error: LoadError, admission: &mut ItemAdmission<'_>) -> LoadError {
+pub(super) fn recover(error: LoadError, admission: &mut ItemAdmission<'_>) -> LoadError {
     match error.kind {
         LoadErrorKind::Storage(source) => admission.error(source),
         _ => error,

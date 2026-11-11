@@ -24,7 +24,7 @@ use std::path::{Component, Path, PathBuf};
 use purrdf_jsonschema::ecma::MatchLimits;
 
 use raf_source::{
-    DiskTree, GitPackageRoots, LoadOptions, LockedCatalog, LockedManifest, ReferenceObservation,
+    DiskTree, LoadOptions, LockedCatalog, LockedManifest, LockedPackageRoots, ReferenceObservation,
     RelPath, SourceAuthorityId, Tree, Workspace, discover_root,
 };
 
@@ -239,7 +239,7 @@ impl Gate {
     /// Loads one source workspace, reusing its exact package and definition IDs
     /// for Census and policy execution. Every first-party package discovered under
     /// the ledger roots must have a checked local manifest association. Sealed Git
-    /// dependencies remain available for definition lookup and are excluded from
+    /// and registry dependencies remain available for definition lookup and are excluded from
     /// first-party unit collection and registered-rule execution.
     ///
     /// # Errors
@@ -250,7 +250,7 @@ impl Gate {
         tree: &impl Tree,
         catalog: &LockedCatalog,
         local: &[LockedManifest<'_>],
-        sources: &[GitPackageRoots<'_>],
+        sources: &[LockedPackageRoots<'_>],
     ) -> Result<GateReport, Error> {
         check_debt(tree, self.evaluate_locked(tree, catalog, local, sources)?)
     }
@@ -307,7 +307,7 @@ impl Gate {
         &self,
         catalog: &LockedCatalog,
         local: &[LockedManifest<'_>],
-        sources: &[GitPackageRoots<'_>],
+        sources: &[LockedPackageRoots<'_>],
     ) -> Result<DebtWrite, Error> {
         self.write_debt_with(|tree| self.evaluate_locked(tree, catalog, local, sources))
     }
@@ -375,7 +375,7 @@ impl Gate {
         tree: &impl Tree,
         catalog: &LockedCatalog,
         local: &[LockedManifest<'_>],
-        sources: &[GitPackageRoots<'_>],
+        sources: &[LockedPackageRoots<'_>],
     ) -> Result<GateReport, Error> {
         let ledger = read_ledger(tree)?;
         let mut options = LoadOptions::default();

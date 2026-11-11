@@ -62,11 +62,11 @@ hide a regression.
 Gate::write_debt_locked constructs its own DiskTree at the Gate's discovered
 workspace root. It evaluates that root's complete ledger through the same
 configured locked evaluation as Gate::check_locked, using the caller's
-LockedCatalog, local LockedManifest associations and sealed GitPackageRoots.
+LockedCatalog, local LockedManifest associations and sealed LockedPackageRoots.
 Registered Rules, Extensions and preferred-provider proofs run before the debt
 ratchet. Only first-party packages under the ledger roots supply consumer debt;
 sealed provider source remains definition evidence.
-The writer receives evaluation before check_debt adds debt-difference findings.
+The writer receives the complete evaluation before it compares prior debt.
 It accepts no caller-built GateReport and has no structural fallback.
 
 ### Exact counted relations
@@ -151,7 +151,14 @@ already exists at its destination. Cleanup and directory-synchronization errors
 retain their native types, including both causes when finalization fails twice.
 <!-- raf:tested-by raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures -->
 
+Explicit locked debt evaluation takes `LockedPackageRoots` for the same sealed
+Git or checksum-authenticated registry sources accepted by locked checks.
+Source identity and configured provider requirements remain mandatory before
+the ordinary debt comparison or publication can succeed.
+
 ## Usage
+
+Supply the same authenticated `LockedPackageRoots` to explicit locked debt evaluation that an ordinary locked check consumes. Registry sources require checksum-authenticated archives and exact configured package associations.
 
 Run cargo census debt --write in a workspace with a native ledger and no required
 repository registration. For registered rules/extensions, call Gate::write_debt
@@ -174,6 +181,8 @@ example selector for loading callbacks.
 <!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 ## Examples
+
+An absent authenticated source prevents locked evaluation before debt comparison or writing. An admitted registry source uses the existing debt ceilings and growth refusal without a separate registry policy.
 
 An explicit Cargo library path naming a missing `.census-debt.ttl.lock`,
 temporary or debt record refuses as missing source and creates none of them.
