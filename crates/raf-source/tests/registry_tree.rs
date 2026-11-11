@@ -198,5 +198,18 @@ fn non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path() {
         let loaded =
             RegistryArchiveTree::from_bytes(&catalog, row, &bytes, &LoadOptions::default());
         assert_eq!(loaded.is_ok(), loads, "{label}");
+        if let Err(error) = loaded {
+            // The refusal must come from the member name, not from tar framing.
+            let chain = std::iter::successors(Some(&error as &dyn std::error::Error), |error| {
+                error.source()
+            })
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" | ");
+            assert!(
+                chain.to_ascii_lowercase().contains("utf-8"),
+                "{label}: {chain}"
+            );
+        }
     }
 }
