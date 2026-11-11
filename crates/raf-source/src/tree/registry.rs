@@ -191,7 +191,6 @@ fn image(
             .format(&format_args!("{}-{}/", package.name(), package.version()))
             .map_err(storage)?;
         let mut records = Vec::new();
-        let mut last_parent = String::new();
         push_record(&mut records, "", None, &mut memory)?;
         for entry in inventory.entries() {
             let (head, tail) = entry
@@ -241,7 +240,7 @@ fn image(
             } else {
                 None
             };
-            push_with_ancestors(&mut records, relative, bytes, &mut last_parent, &mut memory)?;
+            push_with_ancestors(&mut records, relative, bytes, &mut memory)?;
         }
         try_sort_unstable_by(&mut records, |a, b| {
             meter.work(
@@ -273,21 +272,27 @@ fn push_with_ancestors<S: purrdf_lex::allocation::Admission + ?Sized>(
     records: &mut Vec<Record>,
     relative: &str,
     bytes: Option<Vec<u8>>,
-    last_parent: &mut String,
     memory: &mut Memory<'_, S>,
 ) -> Result<(), LoadError> {
-    let mut ancestor = relative;
-    while let Some((parent, _)) = ancestor.rsplit_once('/') {
-        // A directory recorded for the previous entry has recorded every
-        // ancestor above it too.
-        if last_parent == parent {
+    // The previous entry is the last record pushed. Its parent, when it is also
+    // an ancestor of this entry, and every directory above it are already recorded.
+    let recorded = records
+        .last()
+        .and_then(|previous| previous.path.rsplit_once('/'))
+        .map(|(parent, _)| parent)
+        .filter(|parent| {
+            relative.len() > parent.len()
+                && relative.starts_with(parent)
+                && relative.as_bytes()[parent.len()] == b'/'
+        })
+        .map(str::len);
+    let mut end = relative.len();
+    while let Some(separator) = relative[..end].rfind('/') {
+        if recorded.is_some_and(|recorded| separator <= recorded) {
             break;
         }
-        push_record(records, parent, None, memory)?;
-        ancestor = parent;
-    }
-    if let Some((parent, _)) = relative.rsplit_once('/') {
-        parent.clone_into(last_parent);
+        push_record(records, &relative[..separator], None, memory)?;
+        end = separator;
     }
     push_record(records, relative, bytes, memory)
 }
