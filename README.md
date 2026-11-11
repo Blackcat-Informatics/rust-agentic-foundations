@@ -91,7 +91,7 @@ fn no_new_duplicate_helpers() {
 
 ### Using the commands in another repository
 
-The crates are not published and no release is tagged, so name a commit of this repository. Install both commands from it with the locked dependency set:
+The crates are not published and no release is tagged, so name a commit of this repository. Install both commands from it with the locked dependency set, from any directory outside a checkout of RAF:
 
 ```bash
 cargo install --locked \
@@ -99,20 +99,128 @@ cargo install --locked \
   --rev <COMMIT> cargo-census cargo-workplan
 ```
 
-The build needs Rust 1.98.1 or newer, the `rust-version` of this workspace, and compiles from source. Put `$CARGO_HOME/bin`, or the directory you gave `--root`, on `PATH`; cargo then runs the programs as `cargo census` and `cargo workplan`. `cargo census` takes `--workspace DIRECTORY`, a directory inside the consumer's workspace, and `cargo workplan` takes `--root DIRECTORY`; each locates the workspace root from the ancestor manifests when you give neither.
+Replace `<COMMIT>` with the full hash of the commit you want. The build needs Rust 1.98.1 or newer, the `rust-version` of this workspace, and compiles from source. Cargo puts the programs in `$CARGO_HOME/bin`; with `cargo install --root DIRECTORY` it puts them in `DIRECTORY/bin`. Put that `bin` directory on `PATH`, and cargo then runs the programs as `cargo census` and `cargo workplan`.
 
-These commands read files from the consumer's repository and refuse with an error that names what is missing:
+The two commands select the repository differently:
+
+- `cargo census --workspace DIRECTORY` takes a directory inside the consumer's workspace, defaults to the current directory, and finds the workspace root from the ancestor manifests.
+- `cargo workplan` finds the root from the ancestor manifests of the current directory when you give no option. `cargo workplan --root DIRECTORY` takes the repository root itself, with no ancestor search: a subdirectory that holds no `docs/capabilities/` is refused.
+
+Both commands only read the consumer's files, apart from the explicit writes named below. They start no process and run none of the consumer's tests or examples. When a required file is missing they refuse with an error that names it. What each command needs in the consumer's repository:
 
 | Command | Needs in the consumer's repository |
 | --- | --- |
-| `cargo census baseline` | Only the workspace's Cargo manifest. It prints the structural duplication report as RDF. |
-| `cargo census index`, `check`, `dump-ledger` | `helpers-ledger.ttl`, described in [census-ledger](docs/capabilities/census-ledger.md). |
-| `cargo workplan check`, `status` | `docs/capabilities/` holding the repository's capability documents, described in [workplan-cli](docs/capabilities/workplan-cli.md). |
+| `cargo census baseline` | The workspace's `Cargo.toml`. It prints the structural duplication report as RDF. |
+| `cargo census index`, `check`, `dump-ledger`, `fingerprint SYMBOL`, `job ID`, `count ID` | The `Cargo.toml` and a valid RDF ledger, `helpers-ledger.ttl`, described in [census-ledger](docs/capabilities/census-ledger.md). `job` and `count` also need a job of that ID in the ledger. `check` also compares the source with `census-debt.ttl` when that file exists. |
+| `cargo census debt --write` | The same files as `check`. It creates or updates `census-debt.ttl`, and refuses debt that grew. |
+| `cargo census migrate` | The older ledger, index or baseline named by `--ledger`, `--index`, `--baseline` or `--input`; see [census-cli](docs/capabilities/census-cli.md). It writes to standard output. |
+| The `cargo workplan` commands that read the documents: `check`, `status`, `verify`, `history`, `evidence`, `assess`, `coverage`, `change`, `docs` | The `Cargo.toml`, `docs/capabilities/` holding capability documents that satisfy the complete policy, and `work/coverage/default.md` naming the crates to cover. `docs/capabilities/index.md` must be current; `cargo workplan docs sync --copyright TEXT --licence ID` creates it. See [workplan-cli](docs/capabilities/workplan-cli.md) and [workplan-document-model](docs/capabilities/workplan-document-model.md). |
+| `cargo workplan history`, `change` | Also a Git repository for `history`, and an open change record under `work/changes/` for the `change` subcommands that act on one. |
+
+The small project below was used to run the installed commands. These exited with status zero: `cargo census baseline`, `index`, `check`, `dump-ledger`, `fingerprint` and `debt --write`, and `cargo workplan check`, `status`, `verify`, `history`, `coverage code`, `coverage tests` and `docs sync`. Not run with a positive result: `cargo census job` and `count` (the ledger below declares no job, so they refuse an unknown job), `migrate`, and the `cargo workplan` commands `evidence`, `assess`, `change` and `review`; their prerequisites above come from the code and the capability documents. The project is a crate named `demo` whose `src/lib.rs` holds:
+
+```rust
+//! Demo library.
+
+/// Adds one.
+pub fn add_one(value: u32) -> u32 {
+    value + 1
+}
+
+#[cfg(test)]
+mod tests {
+    /// `add_one` returns its argument plus one.
+    #[test]
+    fn adds_one() {
+        assert_eq!(super::add_one(1), 2);
+    }
+}
+```
+
+The ledger below declares only the root of the sources to count. Its `BASE` identifier is the digest of the ledger, so any edit makes `cargo census` refuse the file and print the digest it computed; copy that digest into `BASE`. The file `helpers-ledger.ttl`:
+
+```turtle
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/b6b4b0160ca994e7e3840c07807d4adb56ba5a2e003a910ad5efdf316f211c54>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
+<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#root> "." .
+```
+
+The file `work/coverage/default.md`:
+
+```markdown
+---
+type: Coverage
+id: coverage:default
+scope: [demo]
+exclusions: []
+---
+```
+
+The file `docs/capabilities/adder.md`. A delivered capability needs bindings for code, tests and examples, at least twenty words of prose in every section, a bold lead on each guarantee of the Contract, a `raf:tested-by` marker after each guarantee and limitation, a list item in Constraints, and a verification matrix that `cargo workplan docs sync` fills in:
+
+```markdown
+---
+type: Capability
+id: cap:adder
+title: "Adder"
+description: "Adds one to a number."
+state: delivered
+bindings:
+  code:
+    - demo::add_one
+  tests:
+    - demo::tests::adds_one
+  examples:
+    - demo::add_one
+depends: []
+---
+
+# Adder
+
+## Purpose
+
+The adder gives the demo project one small function that increases a number by exactly one, so that the capability documents of the project have a real, bound piece of code to describe.
+
+## Contract
+
+**Increase by one.** The function returns its argument increased by exactly one, and it returns that value to the caller without any other effect on the program.
+<!-- raf:tested-by demo::tests::adds_one -->
+
+## Usage
+
+Call `demo::add_one` with a number and use the number it returns. The function takes no other input, reads nothing from the environment and keeps no state between calls.
+
+## Examples
+
+Calling the function with the number one returns the number two, which is the smallest case that shows the increase and that the unit test of the project checks directly.
+
+## Constraints
+
+- The argument must be below the largest value of the number type, otherwise the addition overflows, and the function offers no checked or saturating variant for callers near that limit.
+<!-- raf:tested-by demo::tests::adds_one -->
+
+## Explanation
+
+The function is deliberately the smallest useful unit of code, because the demo project exists only to show that the commands of the tool accept a repository that supplies every file they need.
+
+## Verification
+
+The unit test of the project calls the function with the number one and compares the result with the number two, and reading the single function body confirms the rest.
+
+<!-- raf:generated:verification-matrix -->
+<!-- raf:generated:end -->
+```
+
+Then run `cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0` once, which creates `docs/capabilities/index.md` and fills in the matrix.
 
 To use the library from a consumer's tests instead, depend on the same commit:
 
 ```toml
 [dev-dependencies]
+raf-census = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "<COMMIT>" }
 raf-workplan = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "<COMMIT>" }
 ```
 
