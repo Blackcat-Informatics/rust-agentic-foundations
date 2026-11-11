@@ -99,25 +99,35 @@ cargo install --locked \
   --rev <COMMIT> cargo-census cargo-workplan
 ```
 
-Replace `<COMMIT>` with the full hash of the commit you want. The build needs Rust 1.98.1 or newer, the `rust-version` of this workspace, and compiles from source. Cargo puts the programs in `$CARGO_HOME/bin`; with `cargo install --root DIRECTORY` it puts them in `DIRECTORY/bin`. Put that `bin` directory on `PATH`, and cargo then runs the programs as `cargo census` and `cargo workplan`.
+Replace `<COMMIT>` with the full hash of the commit you want. The build compiles from source and needs Rust 1.98.1 or newer, the `rust-version` of this workspace. The run recorded for this section used a newer nightly toolchain, so 1.98.1 itself was not built with. Cargo puts the programs in `$CARGO_HOME/bin`; with `cargo install --root DIRECTORY` it puts them in `DIRECTORY/bin`. Put that `bin` directory on `PATH`, and cargo then runs the programs as `cargo census` and `cargo workplan`.
 
 The two commands select the repository differently:
 
 - `cargo census --workspace DIRECTORY` takes a directory inside the consumer's workspace, defaults to the current directory, and finds the workspace root from the ancestor manifests.
 - `cargo workplan` finds the root from the ancestor manifests of the current directory when you give no option. `cargo workplan --root DIRECTORY` takes the repository root itself, with no ancestor search: a subdirectory that holds no `docs/capabilities/` is refused.
 
-Both commands only read the consumer's files, apart from the explicit writes named below. They start no process and run none of the consumer's tests or examples. When a required file is missing they refuse with an error that names it. What each command needs in the consumer's repository:
+`cargo census` does not build or run the consumer's code; [census-cli](docs/capabilities/census-cli.md) states this for `index`. A command whose input is missing exits with a non-zero status. Some commands write files; read the two capability documents before running one that is not listed here. What the commands covered here need in the consumer's repository:
 
 | Command | Needs in the consumer's repository |
 | --- | --- |
 | `cargo census baseline` | The workspace's `Cargo.toml`. It prints the structural duplication report as RDF. |
-| `cargo census index`, `check`, `dump-ledger`, `fingerprint SYMBOL`, `job ID`, `count ID` | The `Cargo.toml` and a valid RDF ledger, `helpers-ledger.ttl`, described in [census-ledger](docs/capabilities/census-ledger.md). `job` and `count` also need a job of that ID in the ledger. `check` also compares the source with `census-debt.ttl` when that file exists. |
-| `cargo census debt --write` | The same files as `check`. It creates or updates `census-debt.ttl`, and refuses debt that grew. |
-| `cargo census migrate` | The older ledger, index or baseline named by `--ledger`, `--index`, `--baseline` or `--input`; see [census-cli](docs/capabilities/census-cli.md). It writes to standard output. |
-| The `cargo workplan` commands that read the documents: `check`, `status`, `verify`, `history`, `evidence`, `assess`, `coverage`, `change`, `docs` | The `Cargo.toml`, `docs/capabilities/` holding capability documents that satisfy the complete policy, and `work/coverage/default.md` naming the crates to cover. `docs/capabilities/index.md` must be current; `cargo workplan docs sync --copyright TEXT --licence ID` creates it. See [workplan-cli](docs/capabilities/workplan-cli.md) and [workplan-document-model](docs/capabilities/workplan-document-model.md). |
-| `cargo workplan history`, `change` | Also a Git repository for `history`, and an open change record under `work/changes/` for the `change` subcommands that act on one. |
+| `cargo census index`, `check`, `dump-ledger`, `fingerprint SYMBOL` | The `Cargo.toml` and a valid RDF ledger, `helpers-ledger.ttl`, described in [census-ledger](docs/capabilities/census-ledger.md). `check` always compares the source with `census-debt.ttl`, and a missing `census-debt.ttl` counts as an empty record. Duplicate groups already in the code are then reported as growth and `check` exits with status 1 until `cargo census debt --write` records them. |
+| `cargo census debt --write` | The same files as `check`. It creates or updates `census-debt.ttl`, and refuses debt that grew beyond an existing record. |
+| `cargo workplan check`, `status`, `verify`, `coverage code`, `coverage tests` | The `Cargo.toml`, `docs/capabilities/` holding capability documents that satisfy the complete policy, and `work/coverage/default.md` naming the crates to cover. `docs/capabilities/index.md` must be current; `cargo workplan docs sync --copyright TEXT --licence ID` creates it. See [workplan-cli](docs/capabilities/workplan-cli.md) and [workplan-document-model](docs/capabilities/workplan-document-model.md). With `--root` and no `Cargo.toml`, `check` does not name the missing file; it reports unresolved bindings. |
+| `cargo workplan history` | The same files, and a Git repository with commits. |
 
-The small project below was used to run the installed commands. These exited with status zero: `cargo census baseline`, `index`, `check`, `dump-ledger`, `fingerprint` and `debt --write`, and `cargo workplan check`, `status`, `verify`, `history`, `coverage code`, `coverage tests` and `docs sync`. Not run with a positive result: `cargo census job` and `count` (the ledger below declares no job, so they refuse an unknown job), `migrate`, and the `cargo workplan` commands `evidence`, `assess`, `change` and `review`; their prerequisites above come from the code and the capability documents. The project is a crate named `demo` whose `src/lib.rs` holds:
+This section does not cover `cargo census migrate`, `diagram`, `job` with a working job, or the `cargo workplan` commands `diagram`, `review`, `change`, `docs` (apart from `docs sync`), `evidence`, `assess` and `debt`. The two capability documents above state their inputs, outputs and writes. `cargo workplan docs build rustdoc` compiles the consumer's documentation and needs `--trust-docs`, as [workplan-cli](docs/capabilities/workplan-cli.md) states.
+
+The small project below was used to run the installed commands. These exited with status zero: `cargo census baseline`, `index`, `check`, `dump-ledger`, `fingerprint` and `debt --write`, and `cargo workplan check`, `status`, `verify`, `history`, `coverage code` and `coverage tests`. `cargo workplan docs sync` was used to create the documentation index. `cargo census job` and `count` refuse an unknown job, and the ledger below declares no job, so a working job was not tried. The project is a crate named `demo`, with this `Cargo.toml`:
+
+```toml
+[package]
+name = "demo"
+version = "0.1.0"
+edition = "2021"
+```
+
+Its `src/lib.rs` holds:
 
 ```rust
 //! Demo library.
@@ -137,7 +147,7 @@ mod tests {
 }
 ```
 
-The ledger below declares only the root of the sources to count. Its `BASE` identifier is the digest of the ledger, so any edit makes `cargo census` refuse the file and print the digest it computed; copy that digest into `BASE`. The file `helpers-ledger.ttl`:
+The ledger below declares the normal form, the report form and the root of the sources to count. Its `BASE` identifier is the digest of the ledger, so any edit makes `cargo census` refuse the file and print the digest it computed; copy that digest into `BASE`. The file `helpers-ledger.ttl`:
 
 ```turtle
 VERSION "1.2"
