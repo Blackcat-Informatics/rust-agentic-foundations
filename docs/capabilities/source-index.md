@@ -172,6 +172,9 @@ bindings:
     - raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries
     - raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive
     - raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path
+    - raf_source::test_crate::registry_tree::an_archive_of_many_small_files_loads_within_the_default_work_grant
+    - raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit
+    - raf_source::test_crate::registry_tree::a_first_party_archive_cannot_bind_to_a_different_catalogs_row
     - raf_source::tree::disk::tests::root_acquisition_refuses_replaced_components_before_exposing_a_directory
     - raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory
     - raf_source::test_crate::git_tree::native_selected_index_is_read_only_and_committed_grants_remain_exact
@@ -2887,16 +2890,17 @@ Nested transport envelopes, native diagnostics, non-UTF-8 member names, foreign 
 links, special files, noncanonical paths, file/directory conflicts and a missing
 root Cargo manifest refuse. Binary payloads remain immutable; UTF-8 is required
 only when a source read asks for text. Parent traversal requires actual admitted
-directories, and seen reads retain their normal payload-limit behavior.
+directories, and seen reads retain their normal payload-limit behavior. A read
+never exceeds the configured per-file limit, whatever limit the caller passes.
 `LockedPackageRoots` selects `LockedTree::Git` or `LockedTree::Registry` through
 the same configured loader and provider-proof path. Registry manifests retain
-exact name, version, source and archive-checksum association. Neither cache
-paths, extracted package metadata nor caller labels establish admission.
+exact name, version, source and archive-checksum association, for a
+first-party archive as for any other. Neither cache paths, extracted package metadata nor caller labels establish admission.
 Native decoder internal CPU and allocations remain outside portable meters.
-Returned tar/GTS buffers are admitted before subsequent processing; RAF-owned
+The decoded tar buffer is admitted before the strict inventory runs; RAF-owned
 retained files, inventory, path traversal and source reads consume their grants.
 This supplies no universal native peak-memory or CPU guarantee.
-<!-- raf:tested-by raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries,raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive,raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path -->
+<!-- raf:tested-by raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries,raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive,raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path,raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit,raf_source::test_crate::registry_tree::a_first_party_archive_cannot_bind_to_a_different_catalogs_row -->
 
 `Workspace::load_locked_sources` joins explicit local manifest locators and opaque
 checked Git snapshots or registry archives to actual discovered `PackageId`s. `LockedManifest` names a
@@ -5555,8 +5559,11 @@ one-byte-short refusal.
 | `raf_source::test_crate::registry_scan::tests::the_work_limit_reaches_the_load` | test | [Verification](#verification) |
 | `raf_source::test_crate::registry_scan::tests::version_components_and_prerelease_precedence_keep_their_width_and_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::registry_scan::tests::work_limit_refuses_zero_and_names_the_flag` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_tree::a_first_party_archive_cannot_bind_to_a_different_catalogs_row` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_tree::an_archive_of_many_small_files_loads_within_the_default_work_grant` | test | [Verification](#verification) |
 | `raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries` | test | [Contract](#contract) |
 | `raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit` | test | [Contract](#contract) |
 | `raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside` | test | [Contract](#contract) |
 | `raf_source::test_crate::relpath::a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve` | test | [Contract](#contract) |

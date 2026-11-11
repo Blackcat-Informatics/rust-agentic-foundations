@@ -387,6 +387,7 @@ impl Workspace {
                     Sources::Observed(_) => Purpose::Structural(&contexts),
                 },
             };
+            validate_registry_source(first_party, local, catalog)?;
             let mut roots = Vec::new();
             add_roots(
                 &mut binding,
@@ -407,7 +408,7 @@ impl Workspace {
                 }
             }
             for (index, source) in sources.iter().enumerate() {
-                validate_registry_source(source, catalog)?;
+                validate_registry_source(source.tree, source.packages, catalog)?;
                 add_roots(
                     &mut binding,
                     &mut roots,
@@ -443,11 +444,12 @@ impl Workspace {
 }
 
 fn validate_registry_source(
-    source: ReferencePackageRoots<'_>,
+    tree: ReferenceTree<'_>,
+    packages: &[LockedManifest<'_>],
     catalog: &LockedCatalog,
 ) -> Result<(), LoadError> {
-    if let ReferenceTree::Registry(archive) = source.tree {
-        for package in source.packages {
+    if let ReferenceTree::Registry(archive) = tree {
+        for package in packages {
             if !catalog
                 .package(package.row)
                 .is_some_and(|row| archive.matches(row))

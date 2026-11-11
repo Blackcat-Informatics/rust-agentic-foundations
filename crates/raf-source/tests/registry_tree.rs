@@ -5,8 +5,8 @@
 
 use purrdf_gts::files::{FileEntry, FileEntryKind};
 use raf_source::{
-    EntryKind, LoadOptions, LockedCatalog, MemoryTree, Opened, RegistryArchiveTree, RelPath, Tree,
-    TreeError, Workspace,
+    EntryKind, LoadOptions, LockedCatalog, LockedManifest, MemoryTree, Opened, ReferenceTree,
+    RegistryArchiveTree, RelPath, Tree, TreeError, Workspace,
 };
 
 fn file(path: &str, bytes: &[u8]) -> FileEntry {
@@ -212,4 +212,88 @@ fn non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path() {
             );
         }
     }
+}
+
+/// Protects large valid packages: record validation is linear, so an archive of
+/// many small files loads inside the default work grant. A per-record scan of all
+/// earlier records exceeds that grant near ten thousand files.
+#[test]
+fn an_archive_of_many_small_files_loads_within_the_default_work_grant() {
+    let mut entries = valid();
+    entries.extend((0..12_000).map(|index| {
+        file(
+            &format!(
+                "demo-1.0.0/generated/group{:03}/module_{index:05}.rs",
+                index / 100
+            ),
+            b"",
+        )
+    }));
+    let bytes = gzip(&archive(&entries));
+    let catalog = catalog(&bytes);
+    let row = catalog.packages().next().unwrap().id();
+    let tree = RegistryArchiveTree::from_bytes(&catalog, row, &bytes, &LoadOptions::default())
+        .expect("a large valid archive stays inside the default grants");
+    assert_eq!(
+        tree.list(&RelPath::new("generated/group119").unwrap())
+            .unwrap()
+            .len(),
+        100
+    );
+}
+
+/// Protects the caller's configured per-file ceiling: a read may not pass a larger
+/// `max_bytes` to get beyond `max_file_bytes`. The default-option read of the same
+/// file succeeds beside it.
+#[test]
+fn registry_reads_honor_the_configured_file_limit() {
+    let bytes = gzip(&archive(&valid()));
+    let catalog = catalog(&bytes);
+    let row = catalog.packages().next().unwrap().id();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let open = RegistryArchiveTree::from_bytes(&catalog, row, &bytes, &LoadOptions::default())
+        .expect("valid archive");
+    assert!(open.read(&path, 100).is_ok());
+    let mut limited = LoadOptions::default();
+    limited.max_file_bytes = 1;
+    let tree = RegistryArchiveTree::from_bytes(&catalog, row, &bytes, &limited)
+        .expect("the archive itself fits");
+    assert!(matches!(
+        tree.read(&path, 100),
+        Err(TreeError::TooLarge { limit: 1, .. })
+    ));
+}
+
+/// Protects first-party registry identity: an archive authenticated against one
+/// catalog cannot be bound to another catalog's row that merely shares its name,
+/// version and source. The same archive under its own catalog loads beside it.
+#[test]
+fn a_first_party_archive_cannot_bind_to_a_different_catalogs_row() {
+    let bytes = gzip(&archive(&valid()));
+    let own = catalog(&bytes);
+    let own_row = own.packages().next().unwrap().id();
+    let tree = RegistryArchiveTree::from_bytes(&own, own_row, &bytes, &LoadOptions::default())
+        .expect("valid archive");
+    let mut other_files = valid();
+    other_files.push(file("demo-1.0.0/extra.txt", b"different archive"));
+    let other = catalog(&gzip(&archive(&other_files)));
+    let other_row = other.packages().next().unwrap().id();
+    let manifest = RelPath::new("Cargo.toml").unwrap();
+    let roots = [RelPath::root()];
+    let load = |catalog: &LockedCatalog, row| {
+        let local = [LockedManifest::new(row, manifest.clone(), &[])];
+        Workspace::load_reference_sources_under(
+            catalog,
+            ReferenceTree::Registry(&tree),
+            &roots,
+            &local,
+            &[],
+            &LoadOptions::default(),
+        )
+    };
+    load(&own, own_row).expect("the archive under its own catalog loads");
+    let refused = load(&other, other_row)
+        .err()
+        .expect("another catalog's row refuses");
+    assert!(refused.to_string().contains("differs"), "{refused}");
 }

@@ -191,7 +191,8 @@ fn image(
             .format(&format_args!("{}-{}/", package.name(), package.version()))
             .map_err(storage)?;
         let mut records = Vec::new();
-        insert(&mut records, "", None, meter, &mut memory)?;
+        let mut last_parent = String::new();
+        push_record(&mut records, "", None, &mut memory)?;
         for entry in inventory.entries() {
             let (head, tail) = entry
                 .path()
@@ -240,12 +241,7 @@ fn image(
             } else {
                 None
             };
-            let mut ancestor = relative;
-            while let Some((parent, _)) = ancestor.rsplit_once('/') {
-                insert(&mut records, parent, None, meter, &mut memory)?;
-                ancestor = parent;
-            }
-            insert(&mut records, relative, bytes, meter, &mut memory)?;
+            push_with_ancestors(&mut records, relative, bytes, &mut last_parent, &mut memory)?;
         }
         try_sort_unstable_by(&mut records, |a, b| {
             meter.work(
@@ -256,6 +252,7 @@ fn image(
             Ok::<_, LoadError>(a.path.cmp(&b.path))
         })?;
         meter.work(records.len().saturating_mul(11), &path, None)?;
+        merge_directories(&mut records, meter)?;
         if !records
             .iter()
             .any(|record| record.path == "Cargo.toml" && record.bytes.is_some())
@@ -271,37 +268,74 @@ fn image(
     result.map_err(|error| recover(error, &mut admission))
 }
 
-fn insert<S: purrdf_lex::allocation::Admission + ?Sized>(
+/// Record `relative` and the directories above it that no earlier entry recorded.
+fn push_with_ancestors<S: purrdf_lex::allocation::Admission + ?Sized>(
+    records: &mut Vec<Record>,
+    relative: &str,
+    bytes: Option<Vec<u8>>,
+    last_parent: &mut String,
+    memory: &mut Memory<'_, S>,
+) -> Result<(), LoadError> {
+    let mut ancestor = relative;
+    while let Some((parent, _)) = ancestor.rsplit_once('/') {
+        // A directory recorded for the previous entry has recorded every
+        // ancestor above it too.
+        if last_parent == parent {
+            break;
+        }
+        push_record(records, parent, None, memory)?;
+        ancestor = parent;
+    }
+    if let Some((parent, _)) = relative.rsplit_once('/') {
+        parent.clone_into(last_parent);
+    }
+    push_record(records, relative, bytes, memory)
+}
+
+fn push_record<S: purrdf_lex::allocation::Admission + ?Sized>(
     records: &mut Vec<Record>,
     path: &str,
     bytes: Option<Vec<u8>>,
-    meter: &Meter,
     memory: &mut Memory<'_, S>,
 ) -> Result<(), LoadError> {
-    for existing in records.iter() {
-        meter.work(
-            existing
-                .path
-                .len()
-                .saturating_add(path.len())
-                .saturating_add(1),
-            &RelPath::root(),
-            None,
-        )?;
-        if existing.path == path {
-            return if existing.bytes.is_none() && bytes.is_none() {
-                Ok(())
-            } else {
-                Err(refused(
-                    "registry inventory has conflicting file/directory paths",
-                ))
-            };
-        }
-    }
     let path = memory.string(path).map_err(storage)?;
     memory
         .push(records, Record { path, bytes })
         .map_err(storage)
+}
+
+/// Collapse repeated directory records of a sorted inventory; any repeated path
+/// that is or names a file conflicts. One linear pass keeps large valid archives
+/// inside the work grant.
+fn merge_directories(records: &mut Vec<Record>, meter: &Meter) -> Result<(), LoadError> {
+    let mut kept = 0;
+    for index in 0..records.len() {
+        if kept > 0 {
+            let (done, rest) = records.split_at(index);
+            let (previous, current) = (&done[kept - 1], &rest[0]);
+            meter.work(
+                previous
+                    .path
+                    .len()
+                    .saturating_add(current.path.len())
+                    .saturating_add(1),
+                &RelPath::root(),
+                None,
+            )?;
+            if previous.path == current.path {
+                if previous.bytes.is_some() || current.bytes.is_some() {
+                    return Err(refused(
+                        "registry inventory has conflicting file/directory paths",
+                    ));
+                }
+                continue;
+            }
+        }
+        records.swap(kept, index);
+        kept += 1;
+    }
+    records.truncate(kept);
+    Ok(())
 }
 
 impl Tree for RegistryArchiveTree<'_> {
@@ -340,10 +374,11 @@ impl Tree for RegistryArchiveTree<'_> {
         if seen(&id) {
             return Ok(Opened::Seen(id));
         }
-        if bytes.len() as u64 > max_bytes {
+        let limit = max_bytes.min(self.meter.options().max_file_bytes);
+        if bytes.len() as u64 > limit {
             return Err(TreeError::TooLarge {
                 path: path.to_string(),
-                limit: max_bytes,
+                limit,
             });
         }
         self.meter
