@@ -99,7 +99,7 @@ cargo install --locked \
   --rev <COMMIT> cargo-census cargo-workplan
 ```
 
-Replace `<COMMIT>` with the full hash of the commit you want. The build compiles from source and needs Rust 1.98.1 or newer, the `rust-version` of this workspace. Only a newer nightly toolchain has been used to build these commands; 1.98.1 is the declared floor and has not been tested. Cargo puts the programs in `$CARGO_HOME/bin`; with `cargo install --root DIRECTORY` it puts them in `DIRECTORY/bin`. Put that `bin` directory on `PATH`, and cargo then runs the programs as `cargo census` and `cargo workplan`.
+Replace `<COMMIT>` with the full hash of the commit you want. The build compiles from source and needs Rust 1.98.1 or newer, the `rust-version` of this workspace. The workspace, which includes both commands, is checked on Rust 1.98.1 by the `make msrv` gate (`cargo check --workspace --all-targets --locked`); the recorded installs of these commands used a newer nightly toolchain. The install uses whichever toolchain rustup selects for the directory you run it in, so a directory that carries a toolchain file older than 1.98.1 makes the build fail. Cargo puts the programs in `$CARGO_HOME/bin`; with `cargo install --root DIRECTORY` it puts them in `DIRECTORY/bin`. Put that `bin` directory on `PATH`, and cargo then runs the programs as `cargo census` and `cargo workplan`.
 
 The two commands select the repository differently:
 
@@ -113,13 +113,13 @@ The two commands select the repository differently:
 | `cargo census baseline` | The workspace's `Cargo.toml`. It prints the structural duplication report as RDF. |
 | `cargo census index`, `check`, `dump-ledger`, `fingerprint SYMBOL` | The `Cargo.toml` and a valid RDF ledger, `helpers-ledger.ttl`, described in [census-ledger](docs/capabilities/census-ledger.md). `check` always compares the source with `census-debt.ttl`, and a missing `census-debt.ttl` counts as an empty record. Duplicate groups already in the code are then reported as growth and `check` exits with status 1 until `cargo census debt --write` records them. |
 | `cargo census debt --write` | The same files as `check`, and a Linux host: publication needs native Linux directory locking and other platforms refuse. It creates or updates `census-debt.ttl`, and refuses debt that grew beyond an existing record. |
-| `cargo workplan check`, `verify`, `coverage code`, `coverage tests` | The `Cargo.toml`, `docs/capabilities/` holding capability documents that satisfy the complete policy, and `work/coverage/default.md` naming the crates to cover. `docs/capabilities/index.md` must be current; `cargo workplan docs sync --copyright TEXT --licence ID` creates it. Inside a Git checkout the documents are judged by what the Git index tracks: a link to a file that exists but is not tracked is a broken link, and the generated index links to every capability document. Run `git add docs/capabilities work/coverage` (the new documents and the generated index) before `check` and `verify`, or they exit non-zero with a `link-broken` finding. In a directory that is not a Git repository every file counts as tracked (from the code; this was not run). See [workplan-cli](docs/capabilities/workplan-cli.md) and [workplan-document-model](docs/capabilities/workplan-document-model.md). With `--root` and no `Cargo.toml`, `check` does not name the missing file; it reports unresolved bindings. |
+| `cargo workplan check`, `verify`, `coverage code`, `coverage tests` | The `Cargo.toml` and `docs/capabilities/` holding capability documents that satisfy the complete policy. `check` and `verify` also need `work/coverage/default.md` naming the crates to cover: without it they exit with status 1 and the finding `coverage-record-missing`. `coverage code` and `coverage tests` read that record when it exists and judge gaps only for the crates in its `scope`, so they run without it and then enforce nothing. For `check` and `verify`, `docs/capabilities/index.md` must be current; `cargo workplan docs sync --copyright TEXT --licence ID` creates it. Inside a Git checkout the documents are judged by what the Git index tracks: a link to a file that exists but is not tracked is a broken link, and the generated index links to every capability document. Run `git add docs/capabilities work/coverage` (the new documents and the generated index) before `check` and `verify`, or they exit non-zero with a `link-broken` finding. In a directory that is not a Git repository every file counts as tracked. See [workplan-cli](docs/capabilities/workplan-cli.md) and [workplan-document-model](docs/capabilities/workplan-document-model.md). With `--root` and no `Cargo.toml`, `check` does not name the missing file; it reports unresolved bindings. |
 | `cargo workplan status` | The `Cargo.toml` and `docs/capabilities/` holding at least one document. It prints the counts and exits with status zero without a coverage record, a current index or tracked documents; when the documents have findings it adds a note to run `check`. |
 | `cargo workplan history ID` | The same files as `check`, a Git repository with at least one commit, and the ID of a document, such as `cap:adder`. Without the ID it exits with status 2 and a usage error; without a commit it exits with status 2. |
 
 This section does not cover `cargo census migrate`, `diagram`, `job` with a working job, or the `cargo workplan` commands `diagram`, `review`, `change`, `docs` (apart from `docs sync`), `evidence`, `assess` and `debt`. The two capability documents above state their inputs, outputs and writes. `cargo workplan docs build rustdoc` compiles the consumer's documentation and needs `--trust-docs`, as [workplan-cli](docs/capabilities/workplan-cli.md) states.
 
-With the small project below, these commands exit with status zero: `cargo census baseline`, `index`, `check`, `dump-ledger`, `fingerprint` and `debt --write`, and `cargo workplan docs sync`, `check`, `status`, `verify`, `history cap:adder`, `coverage code` and `coverage tests`, once the files are tracked in Git and, for `history`, committed. `cargo census job` and `count` refuse an unknown job, and the ledger below declares no job, so a working job was not tried. The project is a crate named `demo`, with this `Cargo.toml`:
+With the small project below, these commands exit with status zero: `cargo census baseline`, `index`, `check`, `dump-ledger`, `fingerprint` and `debt --write`, and `cargo workplan docs sync`, `check`, `status`, `verify`, `history cap:adder`, `coverage code` and `coverage tests`, once the files are tracked in Git and, for `history`, committed. `cargo census job` and `count` refuse an unknown job with status 1, and the ledger below declares no job, so they refuse every name; a ledger that declares a job is outside this section. The project is a crate named `demo`, with this `Cargo.toml`:
 
 ```toml
 [package]
@@ -148,7 +148,7 @@ mod tests {
 }
 ```
 
-The ledger below declares the normal form, the report form and the root of the sources to count. Its `BASE` identifier is the digest of the ledger, so any edit makes `cargo census` refuse the file and print the digest it computed; copy that digest into `BASE`. The file `helpers-ledger.ttl`:
+The ledger below declares the normal form, the report form and the root of the sources to count. Its `BASE` identifier is the digest of the ledger, so any edit makes `cargo census` refuse the file and print the digest it computed; copy that digest into `BASE`. The reader also requires the file to equal the canonical rendering byte for byte, and otherwise refuses it with `report spelling differs from canonical bytes at line N`. The canonical spelling has the `VERSION` and `BASE` lines, then one triple per line with absolute IRIs, single spaces, a closing ` .` and a final newline, in the order the tool writes them (as in the file below). This section shows no command that prints a ledger in this spelling: `dump-ledger` prints the triples with the `BASE` IRI spelled out in each one, not in this layout. Hand-editing a ledger beyond the digest, for example to add a job, is therefore refused unless the new bytes are canonical; copy the file below unchanged, including its final newline. The file `helpers-ledger.ttl`:
 
 ```turtle
 VERSION "1.2"
@@ -225,7 +225,7 @@ The unit test of the project calls the function with the number one and compares
 <!-- raf:generated:end -->
 ```
 
-Then run these in the project root. `docs sync` creates `docs/capabilities/index.md` and fills in the verification matrix. In a Git repository, `check` and `verify` exit with status 1 and report ``docs/capabilities/index.md: line 9: broken link `./adder.md` [link-broken]`` until the files are tracked, so stage them first:
+Then run these in the project root; the census commands above use their own files, `Cargo.toml` and `helpers-ledger.ttl`, and are not part of this sequence. `docs sync` creates `docs/capabilities/index.md` and fills in the verification matrix. In a Git repository, `check` and `verify` exit with status 1 and report ``docs/capabilities/index.md: line 9: broken link `./adder.md` [link-broken]`` until the files are tracked, so stage them first:
 
 ```bash
 git init
@@ -246,7 +246,7 @@ raf-census = { git = "https://github.com/Blackcat-Informatics/rust-agentic-found
 raf-workplan = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "<COMMIT>" }
 ```
 
-Every PurRDF crate in this repository comes from crates.io with the requirement `=4`. A consumer that depends on these crates must resolve the same PurRDF packages from the registry, not from a Git source.
+Every PurRDF crate in this repository comes from crates.io with the requirement `=4`. A consumer that depends on these crates must resolve the same PurRDF packages from the registry, not from a Git source. The same applies to the parser crates: [AGENTS.md](AGENTS.md) requires a consumer to align its `syn`, `proc-macro2` and `quote` requirements with the exact pins in the workspace `Cargo.toml` of this repository (`=3.0.8`, `=1.0.107` and `=1.0.47`); conflicting requirements fail during Cargo resolution.
 
 ## Development
 
