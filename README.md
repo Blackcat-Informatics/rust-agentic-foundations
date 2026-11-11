@@ -89,6 +89,35 @@ fn no_new_duplicate_helpers() {
 }
 ```
 
+### Using the commands in another repository
+
+The crates are not published and no release is tagged, so name a commit of this repository. Install both commands from it with the locked dependency set:
+
+```bash
+cargo install --locked \
+  --git https://github.com/Blackcat-Informatics/rust-agentic-foundations.git \
+  --rev <COMMIT> cargo-census cargo-workplan
+```
+
+The build needs Rust 1.98.1 or newer, the `rust-version` of this workspace, and compiles from source. Put `$CARGO_HOME/bin`, or the directory you gave `--root`, on `PATH`; cargo then runs the programs as `cargo census` and `cargo workplan`. `cargo census` takes `--workspace DIRECTORY`, a directory inside the consumer's workspace, and `cargo workplan` takes `--root DIRECTORY`; each locates the workspace root from the ancestor manifests when you give neither.
+
+Each command reads files from the consumer's repository and refuses with an error that names what is missing:
+
+| Command | Needs in the consumer's repository |
+| --- | --- |
+| `cargo census baseline` | Nothing. It prints the structural duplication report as RDF. |
+| `cargo census index`, `check`, `dump-ledger` | `helpers-ledger.ttl`, described in [census-ledger](docs/capabilities/census-ledger.md). |
+| `cargo workplan check`, `status` | `docs/capabilities/` holding the repository's capability documents, described in [workplan-cli](docs/capabilities/workplan-cli.md). |
+
+To use the library from a consumer's tests instead, depend on the same commit:
+
+```toml
+[dev-dependencies]
+raf-workplan = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "<COMMIT>" }
+```
+
+Every PurRDF crate in this repository comes from crates.io with the requirement `=4`. A consumer that depends on these crates must resolve the same PurRDF packages from the registry, not from a Git source.
+
 ## Development
 
 The supported target through the 0.9 release is the primary native Linux target.
