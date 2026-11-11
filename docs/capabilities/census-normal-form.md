@@ -870,13 +870,6 @@ IRIs include their report layout, while the source fingerprints retain normal
 form 1. Strict layout refusal prevents older readers from interpreting a changed
 closed schema as their original contract.
 
-### Complete source target boundary
-
-Portable hashing alone does not make the complete source dependency portable.
-Census loads remain coupled to `raf-source` target support; a hash-only wasm
-build does not establish that a complete load builds or runs there. Source reads
-and containment remain the supplied `Tree`'s responsibility.
-
 
 The lexer owns thread-local source storage, while its input Tree may own
 caller-local state. Loading that Tree before borrowing the completed workspace in

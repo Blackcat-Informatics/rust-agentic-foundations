@@ -8,7 +8,7 @@ use super::{BindingLoad, LockedBinding, Purpose};
 use super::{LockedManifest, Sources, failure};
 use crate::{
     CommittedGitTree, DiskTree, LoadError, LoadOptions, LockedCatalog, LockedPackageId,
-    LockedSource, PackageId, RelPath, SourceAuthorityId, Tree, Workspace,
+    LockedSource, PackageId, RegistryArchiveTree, RelPath, SourceAuthorityId, Tree, Workspace,
 };
 
 /// Manifest/lock identity retained for structural reference navigation.
@@ -139,7 +139,8 @@ impl BindingLoad<'_> {
 ///
 /// Disk contexts retain the root needed to verify cross-root path declarations.
 /// Opaque trees permit path edges only inside their own authority. Git contexts
-/// retain their exact committed source. None supplies configured provider proof.
+/// retain their exact committed source; registry contexts retain authenticated
+/// archives. None supplies configured provider proof.
 #[derive(Clone, Copy)]
 #[non_exhaustive]
 pub enum ReferenceTree<'a> {
@@ -149,6 +150,8 @@ pub enum ReferenceTree<'a> {
     Disk(&'a DiskTree),
     /// An opaque exact committed Git source.
     Git(&'a CommittedGitTree<'a>),
+    /// An opaque checksum-authenticated registry archive.
+    Registry(&'a RegistryArchiveTree<'a>),
 }
 
 impl<'a> ReferenceTree<'a> {
@@ -157,12 +160,14 @@ impl<'a> ReferenceTree<'a> {
             Self::Opaque(tree) => tree,
             Self::Disk(tree) => tree,
             Self::Git(tree) => tree,
+            Self::Registry(tree) => tree,
         }
     }
 
     pub(super) fn source(self) -> Option<&'a LockedSource> {
         match self {
             Self::Git(tree) => Some(tree.source()),
+            Self::Registry(tree) => Some(tree.source()),
             Self::Opaque(_) | Self::Disk(_) => None,
         }
     }

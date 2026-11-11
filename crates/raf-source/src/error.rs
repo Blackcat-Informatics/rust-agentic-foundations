@@ -33,6 +33,13 @@ impl fmt::Display for Esc<'_> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum TreeError {
+    /// A registry archive refused source, storage or work evidence.
+    RegistrySource {
+        /// The requested relative path.
+        path: String,
+        /// The original verification or resource failure.
+        source: Box<LoadError>,
+    },
     /// A committed Git host Tree refused source, storage or work evidence.
     GitSource {
         /// The requested relative path.
@@ -115,7 +122,8 @@ impl TreeError {
     #[must_use]
     pub fn path(&self) -> &str {
         match self {
-            Self::GitSource { path, .. }
+            Self::RegistrySource { path, .. }
+            | Self::GitSource { path, .. }
             | Self::BackendAuthority { path, .. }
             | Self::WrongAuthority { path, .. }
             | Self::NotFound { path }
@@ -175,7 +183,9 @@ impl From<PathError> for TreeError {
 impl fmt::Display for TreeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::GitSource { path, source } => write!(f, "{}: {source}", Esc(path)),
+            Self::RegistrySource { path, source } | Self::GitSource { path, source } => {
+                write!(f, "{}: {source}", Esc(path))
+            }
             Self::BackendAuthority { path, authority } => write!(
                 f,
                 "{}: backend returned source authority {}; mounted backend identities must use authority zero",
@@ -220,7 +230,7 @@ impl Error for TreeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io { source, .. } => Some(source),
-            Self::GitSource { source, .. } => Some(source),
+            Self::RegistrySource { source, .. } | Self::GitSource { source, .. } => Some(source),
             _ => None,
         }
     }

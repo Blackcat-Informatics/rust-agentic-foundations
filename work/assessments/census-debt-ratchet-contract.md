@@ -7,7 +7,7 @@ subject: cap:census-debt-ratchet#contract
 inputs:
   - kind: section
     name: cap:census-debt-ratchet#contract
-    digest: a536e5a9b106a5715e8222ed532b37d164b1f99ee36ec0ed954279b9e089ecab
+    digest: 3686e927e09ef4cd34732a606825770e26c995c1ae400c825147ed668c581348
   - kind: symbol
     name: raf_census::DEBT_FILE
     digest: 12ca19be3fbb9901282949df239635101deb59bd25e6d5092aa5492478c3ccbb
@@ -28,13 +28,13 @@ inputs:
     digest: f4a32723c385e0b6d8f93300d2ffeed37f60ae31edd4cd6ed9e1c52d9c8aa8ff
   - kind: symbol
     name: raf_census::Gate::write_debt_locked
-    digest: 6eccf15bc7d5bd59ce33ee9c72c49239bad6c662887a6f3a46a835f41bee7e73
+    digest: 8c1d011ff76066b8b0f503eff79bfe5e4deab230e3f3fa6f083b9dffee1db68b
   - kind: symbol
     name: raf_census::MAX_DEBT_BYTES
     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_locked
-    digest: d6094a34be80b07cd33928aa689b34ef8cf6e8e8396d61a13ae26318b3d48da7
+    digest: e048a8b0a3686a75ef4e03b34b7eae37e3893aaa64ae7b90f3d419182005aca8
   - kind: symbol
     name: raf_census::gate::Gate::write_debt_with
     digest: e61384d4586824a813469ff86685cce377e4b618378a964d6ac60d00792a54df

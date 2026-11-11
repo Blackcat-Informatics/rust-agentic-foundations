@@ -254,12 +254,16 @@ fn the_actual_repository_lock_resolves_all_outgoing_edges_and_native_source_prec
         .find(|package| package.name() == "purrdf-hash")
         .expect("actual native dependency");
     let source = native.source().expect("external native source");
-    assert_eq!(source.kind(), LockedSourceKind::Git);
+    assert_eq!(source.kind(), LockedSourceKind::Registry);
     assert_eq!(
         source.repository(),
-        "https://github.com/Blackcat-Informatics/purrdf.git"
+        "https://github.com/rust-lang/crates.io-index"
     );
-    assert_eq!(source.revision().expect("full precision").len(), 40);
+    assert!(native.version().starts_with("4."), "{}", native.version());
+    assert!(
+        native.checksum().is_some(),
+        "a registry row carries its archive checksum"
+    );
     for package in catalog.packages() {
         for id in package.dependencies() {
             assert!(

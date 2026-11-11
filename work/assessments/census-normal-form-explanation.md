@@ -7,7 +7,7 @@ subject: cap:census-normal-form#explanation
 inputs:
   - kind: section
     name: cap:census-normal-form#explanation
-    digest: 777da9635ae2093d49dd773cc1bcfc09c3c8285015a50015fff130f91df6a810
+    digest: f308dba21aae17cc781e76bdc9af2e0eeda8dfacc2a07f8a4d9d2f3e73d325ef
   - kind: symbol
     name: raf_census::Tower::literal_values
     digest: 57c46dbf4fbb532ecce55ec553c05e0acfbaf8872d8e42286c84d39b7375d8e8

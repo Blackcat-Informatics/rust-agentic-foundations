@@ -18,8 +18,8 @@ use super::{
 use crate::configuration::{self, ActiveConfiguration, DeclaredConfiguration};
 use crate::manifest::{self, VersionDecl};
 use crate::{
-    CommittedGitTree, LockedCatalog, LockedPackageId, LockedSource, RegistryIndex,
-    SourceAuthorityId, SourceTrees, Tree,
+    CommittedGitTree, LockedCatalog, LockedPackageId, LockedSource, RegistryArchiveTree,
+    RegistryIndex, SourceAuthorityId, SourceTrees, Tree,
 };
 
 /// An exact declaration requested for source-qualified cross-package traversal.
@@ -94,15 +94,32 @@ impl<'a> LockedManifest<'a> {
     }
 }
 
-/// Candidate packages beneath one opaque checked Git repository snapshot.
-pub struct GitPackageRoots<'a> {
-    tree: &'a CommittedGitTree<'a>,
+/// A sealed external source admitted to configured dependency resolution.
+#[derive(Clone, Copy)]
+pub enum LockedTree<'a> {
+    /// Exact native committed Git objects.
+    Git(&'a CommittedGitTree<'a>),
+    /// Checksum-authenticated registry archive files.
+    Registry(&'a RegistryArchiveTree<'a>),
+}
+impl<'a> LockedTree<'a> {
+    fn reference(self) -> ReferenceTree<'a> {
+        match self {
+            Self::Git(tree) => ReferenceTree::Git(tree),
+            Self::Registry(tree) => ReferenceTree::Registry(tree),
+        }
+    }
+}
+
+/// Candidate manifests beneath one sealed external source.
+pub struct LockedPackageRoots<'a> {
+    tree: LockedTree<'a>,
     packages: &'a [LockedManifest<'a>],
 }
 
 #[derive(Clone, Copy)]
 enum Sources<'a> {
-    Configured(&'a [GitPackageRoots<'a>]),
+    Configured(&'a [LockedPackageRoots<'a>]),
     Observed(&'a [ReferencePackageRoots<'a>]),
 }
 
@@ -121,9 +138,7 @@ impl<'a> Sources<'a> {
         };
         configured
             .iter()
-            .map(|source| {
-                ReferencePackageRoots::new(ReferenceTree::Git(source.tree), source.packages)
-            })
+            .map(|source| ReferencePackageRoots::new(source.tree.reference(), source.packages))
             .chain(observed.iter().copied())
     }
 }
@@ -134,10 +149,10 @@ enum Purpose<'a> {
     Structural(&'a [ReferenceTree<'a>]),
 }
 
-impl<'a> GitPackageRoots<'a> {
-    /// Keep the repository root intact while selecting package manifests beneath it.
+impl<'a> LockedPackageRoots<'a> {
+    /// Keep the sealed source root intact while selecting package manifests beneath it.
     #[must_use]
-    pub const fn new(tree: &'a CommittedGitTree<'a>, packages: &'a [LockedManifest<'a>]) -> Self {
+    pub const fn new(tree: LockedTree<'a>, packages: &'a [LockedManifest<'a>]) -> Self {
         Self { tree, packages }
     }
 }
@@ -257,7 +272,7 @@ impl Workspace {
     ///
     /// Ordinary discovery, indexing and resolution are reused. Every discovered
     /// package must match one supplied manifest's actual name/version and source.
-    /// A Git package must be the unique matching name/version in its checked
+    /// An external package must be the unique matching name/version in its checked
     /// root package or root workspace membership; other layouts refuse.
     /// Only requested, uniquely selected outgoing edges receive cross-package
     /// targets; other dependency declarations remain unresolved syntax.
@@ -273,7 +288,7 @@ impl Workspace {
         catalog: &LockedCatalog,
         first_party: &dyn Tree,
         local: &[LockedManifest<'_>],
-        sources: &[GitPackageRoots<'_>],
+        sources: &[LockedPackageRoots<'_>],
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
         Self::load_locked_with(
@@ -288,10 +303,10 @@ impl Workspace {
 
     /// Load all first-party packages discovered beneath explicit directory roots.
     ///
-    /// Uses the same checked manifests, sealed Git sources, budgets and index as
+    /// Uses the same checked manifests, sealed Git and registry sources, budgets and index as
     /// [`Self::load_locked_sources`]. Local manifest locators do not narrow the
     /// discovery roots: every discovered package must have exactly one matching
-    /// locked association. External Git roots retain their own source authority.
+    /// locked association. External sealed roots retain their own source authority.
     ///
     /// # Errors
     /// Refuses empty or externally qualified first-party roots, omitted or extra
@@ -301,7 +316,7 @@ impl Workspace {
         first_party: &dyn Tree,
         first_party_roots: &[RelPath],
         local: &[LockedManifest<'_>],
-        sources: &[GitPackageRoots<'_>],
+        sources: &[LockedPackageRoots<'_>],
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
         if first_party_roots.is_empty()
@@ -338,29 +353,23 @@ impl Workspace {
         let mut admission = ItemAdmission::new(&meter, &path);
         let result = (|| {
             let mut memory = Memory::new(&mut admission);
-            let first_view = match first_party {
-                ReferenceTree::Git(tree) => Some(tree.under_meter(&meter)?),
-                ReferenceTree::Opaque(_) | ReferenceTree::Disk(_) => None,
-            };
+            let first_view = sealed_view(first_party, &meter)?;
             let mut views = Vec::new();
             memory.reserve(&mut views, sources.len()).map_err(native)?;
             for source in sources.iter() {
-                views.push(match source.tree {
-                    ReferenceTree::Git(tree) => Some(tree.under_meter(&meter)?),
-                    ReferenceTree::Opaque(_) | ReferenceTree::Disk(_) => None,
-                });
+                views.push(sealed_view(source.tree, &meter)?);
             }
             let mut trees: Vec<&dyn Tree> = Vec::new();
             memory.reserve(&mut trees, views.len()).map_err(native)?;
             for (source, view) in sources.iter().zip(&views) {
                 trees.push(
                     view.as_ref()
-                        .map_or_else(|| source.tree.tree(), |view| view as &dyn Tree),
+                        .map_or_else(|| source.tree.tree(), |view| view.tree()),
                 );
             }
             let first = first_view
                 .as_ref()
-                .map_or_else(|| first_party.tree(), |view| view as &dyn Tree);
+                .map_or_else(|| first_party.tree(), |view| view.tree());
             let tree = SourceTrees::new(first, &trees);
             let mut contexts = Vec::new();
             if matches!(sources, Sources::Observed(_)) {
@@ -378,6 +387,7 @@ impl Workspace {
                     Sources::Observed(_) => Purpose::Structural(&contexts),
                 },
             };
+            validate_registry_source(first_party, local, catalog)?;
             let mut roots = Vec::new();
             add_roots(
                 &mut binding,
@@ -398,6 +408,7 @@ impl Workspace {
                 }
             }
             for (index, source) in sources.iter().enumerate() {
+                validate_registry_source(source.tree, source.packages, catalog)?;
                 add_roots(
                     &mut binding,
                     &mut roots,
@@ -429,6 +440,60 @@ impl Workspace {
             Self::load_meter(&tree, &roots, options, &meter, Some(&binding))
         })();
         result.map_err(|error| recover(error, &mut admission))
+    }
+}
+
+fn validate_registry_source(
+    tree: ReferenceTree<'_>,
+    packages: &[LockedManifest<'_>],
+    catalog: &LockedCatalog,
+) -> Result<(), LoadError> {
+    if let ReferenceTree::Registry(archive) = tree {
+        for package in packages {
+            if !catalog
+                .package(package.row)
+                .is_some_and(|row| archive.matches(row))
+            {
+                return Err(failure(
+                    &package.manifest,
+                    "registry archive differs from the selected package/checksum",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+enum SealedView<'a> {
+    Git(Box<CommittedGitTree<'a>>),
+    Registry(RegistryArchiveTree<'a>),
+}
+impl SealedView<'_> {
+    fn tree(&self) -> &dyn Tree {
+        match self {
+            Self::Git(tree) => tree.as_ref(),
+            Self::Registry(tree) => tree,
+        }
+    }
+}
+fn sealed_view<'a>(
+    tree: ReferenceTree<'a>,
+    meter: &'a Meter,
+) -> Result<Option<SealedView<'a>>, LoadError> {
+    match tree {
+        ReferenceTree::Git(tree) => {
+            let view = tree.under_meter(meter)?;
+            let path = RelPath::root();
+            let mut admission = ItemAdmission::new(meter, &path);
+            let view = Memory::new(&mut admission)
+                .boxed(view)
+                .map_err(|source| admission.error(source))?;
+            Ok(Some(SealedView::Git(view)))
+        }
+        ReferenceTree::Registry(tree) => tree
+            .under_meter(meter)
+            .map(|tree| Some(SealedView::Registry(tree))),
+        ReferenceTree::Opaque(_) | ReferenceTree::Disk(_) => Ok(None),
     }
 }
 

@@ -263,8 +263,7 @@ an empty rule id is refused.
 
 The native Rust BLAKE3 implementation comes from `purrdf-hash`, which has no
 runtime dependencies and needs no external C or assembly build. Its portable
-hash implementation supports `wasm32`;
-complete census loads also require the source dependency to support the target.
+hash implementation needs no platform-specific code.
 The core accesses source only through its supplied `Tree`; normalization, hashing,
 grouping and report conversion use owned values and invoke no filesystem or
 process APIs. Host reference discovery owns `cargo metadata`.

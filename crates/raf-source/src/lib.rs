@@ -225,10 +225,10 @@ pub use syn;
 pub use target::{Package, PackageId, Target, TargetKind};
 pub use tree::{
     CapturedDirectory, CapturedFile, CapturedLink, CommittedGitTree, DiskTree, Entry, EntryKind,
-    FileId, MemoryTree, Opened, OpenedBytes, SourceTrees, Tree,
+    FileId, MemoryTree, Opened, OpenedBytes, RegistryArchiveTree, SourceTrees, Tree,
 };
 pub use workspace::{
-    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceBinding,
+    LockedBinding, LockedEdge, LockedManifest, LockedPackageRoots, LockedTree, ReferenceBinding,
     ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree, SourceFile,
     TestFn, Workspace,
 };

@@ -1127,7 +1127,7 @@ fn configured_provider_audits_inherited_inline_and_file_module_attributes() {
 
 #[test]
 fn configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation() {
-    native_provider::actual_pinned_hasher();
+    native_provider::actual_registry_hasher();
     configured_provider_state_transitions();
 }
 

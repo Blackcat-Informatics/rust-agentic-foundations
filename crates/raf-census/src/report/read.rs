@@ -43,7 +43,7 @@ mod tests {
             assert_eq!(nt, native);
             let mut triples: Vec<_> = nt.lines().collect();
             triples.sort_unstable();
-            // Pins preserve the registry purrdf-rdf 3.0.1 term spellings,
+            // Pins preserve the published purrdf-rdf term spellings,
             // with explicit report-version and snapshot-IRI projection.
             assert_eq!(format!("{}\n", triples.join("\n")), expected);
             assert_eq!(
