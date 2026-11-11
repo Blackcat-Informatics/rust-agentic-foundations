@@ -52,8 +52,8 @@ and pull requests are welcome.
 
 The [supported-target policy](docs/TARGETS.md) limits implementation and
 qualification through the 0.9 release to the primary native Linux target.
-WebAssembly, other operating systems and secondary compilation targets are
-subject to reassessment after that release. Native Cargo target kinds and the
+Other operating systems and secondary compilation targets are subject to
+reassessment after that release. Native Cargo target kinds and the
 stable MSRV and nightly toolchains remain covered.
 
 ```bash
