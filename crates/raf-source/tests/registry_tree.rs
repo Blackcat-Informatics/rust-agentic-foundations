@@ -292,8 +292,6 @@ fn a_first_party_archive_cannot_bind_to_a_different_catalogs_row() {
         )
     };
     load(&own, own_row).expect("the archive under its own catalog loads");
-    let refused = load(&other, other_row)
-        .err()
-        .expect("another catalog's row refuses");
+    let refused = load(&other, other_row).expect_err("another catalog's row refuses");
     assert!(refused.to_string().contains("differs"), "{refused}");
 }
