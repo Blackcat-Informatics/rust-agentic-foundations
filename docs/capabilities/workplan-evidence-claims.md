@@ -39,7 +39,7 @@ bindings:
     - raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved
     - raf_workplan::test_crate::evidence::a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound
     - raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication
-    - raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication
+    - raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication
     - raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim
     - raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load
   examples:
@@ -61,17 +61,35 @@ Claims refer to evidence by slug and retain capability, section, line and statem
 
 ## Usage
 
+Use one explicit record store for inspection and publication. The native disk
+adapter retains admitted directories and destination snapshots; a changed binding
+requires inspection rather than writing through the new name.
+
 The documented data path is illustrated by `raf_workplan::Workplan::evidence_claims`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
 Use `cargo workplan evidence claims ID` for statements resting on a record and `cargo workplan evidence for cap:NAME` for supporting records. Use `record::Record::Evidence` and explicit record publication APIs for authored metadata. These operations never execute the described subject.
 
 ## Examples
 
+An evidence destination created by another writer after absent-name admission
+cannot be overwritten by exclusive publication. A changed parent directory
+refuses replacement, while an unchanged real directory permits it.
+
 A record may contain shell-looking command text. Checking the repository and querying that record leave the text inert and write no marker file. A malformed evidence slug refuses beside a valid dependency query.
 
 ## Constraints
 
 - Authored verdicts do not prove tests ran or compilers accepted source. Exact numeric comparisons and declared source digests remain data validation. Record writes are explicit, confined to owned destinations and subject to the documented filesystem publication limits.
+  The native disk store retains one root authority, existing parent directory
+  identities and original destination snapshots through publication. Originally
+  absent destinations use exclusive publication; replacement refuses changed
+  identity, content, link count or mode. Temporary files receive bytes privately
+  and restore the intended publication permissions. Cleanup checks ownership and
+  reports failures. Checks and renames remain separate operations, with no atomic
+  multi-file transaction, directory durability guarantee or isolation from
+  adversarial concurrent publishers. The native disk adapter requires the primary
+  Linux target and refuses other platforms before mutation. Other caller-supplied
+  stores retain their explicitly supplied semantics.
 <!-- raf:tested-by cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views -->
 
 ## Explanation
@@ -79,6 +97,10 @@ A record may contain shell-looking command text. Checking the repository and que
 The claim graph connects statements to persisted assertions. It supplies traceability and stale-input diagnostics without turning a document or saved result into execution authority.
 
 ## Verification
+
+The native record directory-swap fixture checks retained admission, unchanged
+foreign bytes and a valid replacement after restoring the original directory.
+<!-- raf:tested-by raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication -->
 
 Native record round trips, claim lookup refusals and the stored-command fixture cover the data-only boundary. Static completion never imports these records as substitutes for its binding and document checks.
 
@@ -97,7 +119,7 @@ Native record round trips, claim lookup refusals and the stored-command fixture 
 | `raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name` | test | [Verification](#verification) |
 | `raf_workplan::Workplan::evidence_claims` | doctest | [Usage](#usage) |
 | `raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication` | test | [Verification](#verification) |
-| `raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication` | test | [Verification](#verification) |
+| `raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers` | test | [Contract](#contract) |

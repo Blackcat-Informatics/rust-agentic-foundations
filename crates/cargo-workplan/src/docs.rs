@@ -1,16 +1,18 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Explicit artifact inspection and invocation-scoped documentation compilation.
+//! Static Markdown fragments, artifact inspection and invocation-scoped compilation.
 
 use crate::{
-    cli::{ArtifactArgs, LibraryArgs, TrustedDocsArgs},
+    cli::{ArtifactArgs, FragmentArgs, LibraryArgs, TrustedDocsArgs},
     exit::Failure,
     render::{Record, Report},
     result::Result as CommandResult,
     trusted_docs,
 };
+use raf_source::TargetKind;
 use raf_workplan::diagram::cargo::{self, CargoDocOptions, DocumentationArtifacts};
+use raf_workplan::{BindingKind, Gate};
 use std::{fs::File, io::Read as _, path::Path};
 
 fn options(args: &LibraryArgs) -> Result<CargoDocOptions, Failure> {
@@ -36,6 +38,75 @@ fn read(path: &Path) -> Result<Vec<u8>, Failure> {
         )));
     }
     Ok(bytes)
+}
+
+/// Assemble one complete static fragment before its caller emits any Markdown.
+pub(crate) fn fragment(root: &Path, args: &FragmentArgs) -> Result<String, Failure> {
+    let options = CargoDocOptions::new(
+        &[args.package.as_str()],
+        &[],
+        false,
+        Some(&args.target_directory),
+    )?;
+    let selection = cargo::read_metadata(
+        root,
+        &args.target_directory,
+        &options,
+        &read(&args.metadata)?,
+    )?;
+    let [library] = selection.libraries() else {
+        return Err(Failure::new(
+            "docs fragment requires exactly one selected library",
+        ));
+    };
+    // This uses the same bounded, static default Source load as diagram commands.
+    // Imported metadata never selects effective compiler cfg or generated inputs.
+    let opened = Gate::workspace(root).open()?;
+    let source = opened.workspace();
+    let mut targets = source.target_ids().filter(|id| {
+        source.target(*id).is_some_and(|target| {
+            target.kind == TargetKind::Lib
+                && target.package == library.package
+                && target.name == library.name
+        })
+    });
+    let target = targets.next().ok_or_else(|| {
+        Failure::new("selected Cargo library has no matching static source target")
+    })?;
+    if targets.next().is_some() {
+        return Err(Failure::new(
+            "selected Cargo library has ambiguous static source targets",
+        ));
+    }
+    let plan = opened.workplan();
+    let bundle = plan.named_diagram(&args.view)?;
+    let mut required = Vec::new();
+    for binding in plan
+        .graph()
+        .bindings_of(&args.capability)
+        .filter(|binding| binding.kind() == BindingKind::Code)
+    {
+        if required.len() == 4096 {
+            return Err(Failure::new(
+                "the capability exceeds 4096 required API references",
+            ));
+        }
+        required.push(binding.path().to_owned());
+    }
+    Ok(raf_workplan::diagram::rustdoc::fragment(
+        &plan,
+        source,
+        &bundle,
+        raf_workplan::diagram::rustdoc::Context {
+            target,
+            module: &args.module,
+            capability: &args.capability,
+            required: &required,
+            library,
+            root: selection.workspace_root(),
+            metadata: &selection.metadata_sha256().to_string(),
+        },
+    )?)
 }
 
 pub(crate) fn artifacts(root: &Path, args: &ArtifactArgs) -> Result<Report, Failure> {

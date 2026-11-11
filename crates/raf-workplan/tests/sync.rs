@@ -6,6 +6,8 @@
 
 #[path = "../examples/component_model.rs"]
 mod component_model;
+#[path = "support/repository_links.rs"]
+mod repository_links;
 mod support;
 
 use std::collections::BTreeSet;
@@ -25,6 +27,98 @@ use support::synced::{
 use support::{AUXILIARY, Repo, demo_files};
 
 // --- in memory ---------------------------------------------------------------
+
+/// Descriptor admission must precede every temporary and target write.
+#[cfg(target_os = "linux")]
+#[test]
+fn batch_publication_reserves_inode_capacity_before_staging() {
+    use rustix::process::{Resource, getrlimit, setrlimit};
+
+    const CHILD: &str = "RAF_PUBLICATION_DESCRIPTOR_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        let output = Command::new(std::env::current_exe().expect("the test binary"))
+            .args([
+                "--exact",
+                "batch_publication_reserves_inode_capacity_before_staging",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .expect("start the controlled descriptor fixture");
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
+    let mut limit = getrlimit(Resource::Nofile);
+    assert!(limit.maximum.is_none_or(|maximum| maximum >= 96));
+    limit.current = Some(96);
+    setrlimit(Resource::Nofile, limit).expect("set only the controlled child's soft limit");
+
+    let directory = purrdf_testkit::TempDir::new_in(std::env::temp_dir())
+        .expect("create descriptor publication fixture");
+    let parent = directory.path().join("docs/capabilities");
+    fs::create_dir_all(&parent).unwrap();
+    let mut originals = Vec::new();
+    let report = SyncReport {
+        edits: (0..128)
+            .map(|index| {
+                let path = format!("docs/capabilities/item-{index}.md");
+                let original = support::fixtures::capability(
+                    &format!("item-{index}"),
+                    "delivered",
+                    "[]",
+                    "Original bytes.\n",
+                );
+                let replacement = original.replace("Original bytes.", "Replacement bytes.");
+                fs::write(directory.path().join(&path), &original).unwrap();
+                originals.push(original);
+                (RelPath::new(&path).unwrap(), replacement)
+            })
+            .collect(),
+        diagram_assets: None,
+    };
+    let error = Workplan::write(&report, directory.path())
+        .expect_err("the complete inode grant exceeds the child's descriptor limit");
+    assert!(
+        error.to_string().contains("metadata descriptor admission"),
+        "{error}"
+    );
+    assert!(
+        error.to_string().contains("increase the open-file limit"),
+        "{error}"
+    );
+    for ((path, _), original) in report.edits.iter().zip(&originals) {
+        assert_eq!(
+            fs::read_to_string(directory.path().join(path.as_str())).unwrap(),
+            *original
+        );
+    }
+    assert_eq!(fs::read_dir(&parent).unwrap().count(), report.edits.len());
+
+    let accepted = SyncReport {
+        edits: report.edits[..64].to_vec(),
+        diagram_assets: None,
+    };
+    Workplan::write(&accepted, directory.path())
+        .expect("the neighboring batch fits with shared parent descriptors");
+    for (index, (path, replacement)) in report.edits.iter().enumerate() {
+        assert_eq!(
+            fs::read_to_string(directory.path().join(path.as_str())).unwrap(),
+            if index < 64 {
+                replacement.as_str()
+            } else {
+                originals[index].as_str()
+            }
+        );
+    }
+    assert_eq!(fs::read_dir(&parent).unwrap().count(), report.edits.len());
+}
 
 #[test]
 fn syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal() {
@@ -1179,21 +1273,17 @@ fn write_changes_no_target_when_a_later_file_cannot_be_written() {
     let scratch = Scratch::new("atomic");
     let root = scratch.path();
     write_repo(root, &unsynced());
-    // Three edits in path order; the second is in a directory that is read-only.
-    fs::create_dir_all(root.join("docs/b")).expect("mkdir");
-    fs::write(root.join("docs/b/two.md"), "two\n").expect("write");
-    fs::create_dir_all(root.join("docs/a")).expect("mkdir");
-    fs::write(root.join("docs/a/one.md"), "one\n").expect("write");
-    fs::create_dir_all(root.join("docs/c")).expect("mkdir");
-    fs::write(root.join("docs/c/three.md"), "three\n").expect("write");
-    fs::set_permissions(root.join("docs/b"), fs::Permissions::from_mode(0o555)).expect("chmod");
+    // Every destination is an admitted typed document. The second cannot stage.
+    let before = support::disk::snapshot(root);
+    let directory = root.join("docs/architecture");
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).expect("chmod");
     // This assertion needs an actual failed write, including under privileged
     // test runners; never turn an ineffective fixture into a passing test.
-    let probe = fs::File::create(root.join("docs/b/probe"));
+    let probe = fs::File::create(directory.join("probe"));
     if let Ok(probe) = probe {
         drop(probe);
-        fs::remove_file(root.join("docs/b/probe")).expect("remove probe");
-        fs::set_permissions(root.join("docs/b"), fs::Permissions::from_mode(0o755)).expect("chmod");
+        fs::remove_file(directory.join("probe")).expect("remove probe");
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o755)).expect("chmod");
         panic!(
             "the write-failure fixture needs directory permissions to refuse creation; run as an unprivileged user"
         );
@@ -1201,21 +1291,24 @@ fn write_changes_no_target_when_a_later_file_cannot_be_written() {
     let report = SyncReport {
         diagram_assets: None,
         edits: vec![
-            (rel("docs/a/one.md"), "ONE\n".to_string()),
-            (rel("docs/b/two.md"), "TWO\n".to_string()),
-            (rel("docs/c/three.md"), "THREE\n".to_string()),
+            (rel(ALPHA), "ONE\n".to_string()),
+            (rel(support::synced::OVERVIEW), "TWO\n".to_string()),
+            (rel(support::synced::GROW), "THREE\n".to_string()),
         ],
     };
     let result = Workplan::write(&report, root);
-    fs::set_permissions(root.join("docs/b"), fs::Permissions::from_mode(0o755)).expect("chmod");
-    assert!(result.is_err());
-    assert_eq!(read(root, "docs/a/one.md"), "one\n");
-    assert_eq!(read(root, "docs/b/two.md"), "two\n");
-    assert_eq!(read(root, "docs/c/three.md"), "three\n");
-    for dir in ["docs/a", "docs/b", "docs/c"] {
-        let names: Vec<_> = fs::read_dir(root.join(dir)).expect("lists").collect();
-        assert_eq!(names.len(), 1, "{dir}: no temporary file is left");
-    }
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o755)).expect("chmod");
+    let error = result.expect_err("the second document cannot stage in its read-only directory");
+    assert_eq!(
+        error.kind(),
+        std::io::ErrorKind::PermissionDenied,
+        "{error}"
+    );
+    assert_eq!(
+        support::disk::snapshot(root),
+        before,
+        "no publication or temporary litter"
+    );
 }
 
 #[test]
@@ -1223,7 +1316,7 @@ fn write_never_touches_a_file_that_is_already_there_under_a_temporary_name() {
     let scratch = Scratch::new("tmpname");
     write_repo(scratch.path(), &unsynced());
     let dir = scratch.path().join("docs/capabilities");
-    let decoy = dir.join(format!(".alpha.md.{}.0.sync.tmp", std::process::id()));
+    let decoy = dir.join(".alpha.md.0.sync.tmp");
     fs::write(&decoy, "decoy").expect("write");
     let plain = dir.join(".alpha.md.sync.tmp");
     fs::write(&plain, "plain").expect("write");

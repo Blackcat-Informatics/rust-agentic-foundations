@@ -4,11 +4,11 @@
 //! Judging the way to a file the crate writes, and creating a new file below
 //! a root, exclusively.
 //!
-//! Every write of a record, a change record or a generated document goes
-//! through [`target`] first: an existing directory on the way must be a real
-//! directory. Links present during inspection are refused. Publication uses
-//! paths rather than retained directory handles, so a later name swap remains
-//! outside that inspection's guarantee.
+//! These path-based helpers admit explicit metadata creation and caller-supplied
+//! record stores: existing ancestors must be real directories. Links present
+//! during inspection are refused, but a later name swap remains outside this
+//! inspection's guarantee. The native disk record store, document sync and
+//! diagram publishers retain directory authority through [`crate::publication_io`].
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write as _};

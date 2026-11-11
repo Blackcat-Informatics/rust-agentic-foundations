@@ -7,7 +7,7 @@ subject: cap:workplan-strict#examples
 inputs:
   - kind: section
     name: cap:workplan-strict#examples
-    digest: cf4ec471c6fe37dda1c52cbcdb549a1a340df1d3a2fd99b3715dcdafe398e201
+    digest: 2056b246f8b0b41315574c01324e090b3efde23340ad711e25180d56d6667c1c
   - kind: symbol
     name: raf_workplan::Gate::record_options
     digest: fcb708722e6060f4a916caf1e559a2ba2beea46f34f713081e7142892a64bbbe
@@ -46,7 +46,7 @@ inputs:
     digest: ae57f2bd96ea153dc8b2936b97d47898ab8e26bd5cb8cd730d2823f4a3bf860d
   - kind: symbol
     name: raf_workplan::record
-    digest: 45f4875db255fcfe828925a9a3f00e344a22d5b85500fdc0577b0a0e4dc2f6cb
+    digest: e0af591739db479a091b718df1b215a15578d48a56ab73bae3db222026927436
   - kind: symbol
     name: raf_workplan::strict
     digest: 8b5d27b3ea4aac1392ae71219ac51f78cb61df001e7de6fab0c086768f36c0d6

@@ -7,7 +7,7 @@ subject: cap:workplan-rustdoc-includes#examples
 inputs:
   - kind: section
     name: cap:workplan-rustdoc-includes#examples
-    digest: cab4c024c881493130561c289368d4a1ad1dfcbcc753d24145bb358e73cbd26c
+    digest: cfa8d20edf2f9f84b23211762d3d8ac5e8f465499049678d2b2b81ed71461906
   - kind: symbol
     name: raf_workplan::diagram::rustdoc::Context
     digest: c84e5e189026d105b7f9e054d576b4a1662bd202d4450b1094328d4307b1b991

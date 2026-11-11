@@ -4,13 +4,19 @@
 //! Immutable documentation directories beside cumulative host output.
 
 use super::{DiagramBundle, DiagramError, documentation};
+use crate::publication_io::{Root, cleanup_after};
 use purrdf_core::ContentDigest;
 use raf_rdf::{Builder, Format, TermValue, Triple};
 use raf_source::{DiskTree, EntryKind, RelPath, Tree};
 use std::{
-    fs,
     path::{Path, PathBuf},
+    rc::Rc,
 };
+
+mod navigation;
+#[cfg(test)]
+mod tests;
+pub(super) use navigation::RepositoryNavigation;
 
 const MANIFEST: &str = "manifest.ttl";
 const VOCAB: &str = "https://blackcatinformatics.ca/raf/workplan/documentation#";
@@ -29,9 +35,10 @@ const VOCAB: &str = "https://blackcatinformatics.ca/raf/workplan/documentation#"
 /// staging writer publishes each complete file. A destination is returned only
 /// after verifying the complete inventory and all bytes.
 ///
-/// This uses the sync writer's by-name publication semantics: path checks do
-/// not prevent concurrent swaps between inspection and rename. It does not
-/// provide an atomic directory transaction or concurrent-publisher isolation.
+/// Publication retains the root and parent descriptor bindings, refuses changed
+/// destinations and exclusively claims absent names. Replacement checks and
+/// renames remain separate operations: this provides neither an atomic directory
+/// transaction nor isolation from adversarial concurrent publishers.
 ///
 /// # Errors
 /// Refuses symlinks, changed owned files, unexpected entries, invalid ownership
@@ -39,34 +46,94 @@ const VOCAB: &str = "https://blackcatinformatics.ca/raf/workplan/documentation#"
 /// be completed. An orphan temporary file or a directory lacking its manifest
 /// instead fails with its path for inspection; unknown files are never removed.
 pub fn publish(bundle: &DiagramBundle, root: &Path) -> Result<PathBuf, DiagramError> {
-    publish_files(documentation::build(bundle)?, root)
+    let files = documentation::build(bundle)?;
+    publish_files(
+        files,
+        &Root::open(root).map_err(DiagramError::data)?,
+        &RelPath::root(),
+    )
 }
 
-fn publish_files(mut files: Vec<(RelPath, String)>, root: &Path) -> Result<PathBuf, DiagramError> {
+/// Publish a named view with repository-relative source and capability navigation.
+///
+/// The existing output directory is bound beneath the exact opened workspace
+/// before generation. Only its `raf-workplan/<digest>/` subtree is written.
+/// Contextual native bundles are ephemeral and never replace cached named views.
+/// Serve the workspace tree unchanged, including under any URL prefix.
+///
+/// Source lines remain provenance rather than invented raw-file anchors.
+/// Authority and destination checks are observations, not an immutable snapshot,
+/// an atomic directory transaction or isolation from concurrent writers.
+///
+/// # Errors
+/// Refuses missing, outside or changed output/source bindings, unknown views,
+/// native generation failures and the immutable publisher's ownership refusals.
+pub fn publish_repository(
+    opened: &crate::Opened,
+    reference: &str,
+    output: &Path,
+) -> Result<PathBuf, DiagramError> {
+    let root = Root::from_tree(opened.shared_tree()).map_err(DiagramError::data)?;
+    let output = std::path::absolute(output).map_err(DiagramError::data)?;
+    let prefix = output.strip_prefix(root.path()).map_err(|_| {
+        refused("repository-linked output must lie beneath the opened canonical workspace".into())
+    })?;
+    let prefix = relative(prefix.to_str().ok_or_else(|| {
+        refused("repository-linked output must be representable as UTF-8".into())
+    })?)?;
+    let admitted = root.directory(&prefix).map_err(DiagramError::data)?;
+    let prefix = admitted.relative_path().map_err(DiagramError::data)?;
+    let plan = opened.workplan();
+    let navigation = RepositoryNavigation::new(Rc::clone(&root), prefix.clone());
+    let bundle = plan.named_diagram_with_navigation(reference, &navigation)?;
+    let files = documentation::build(&bundle)?;
+    navigation.verify()?;
+    admitted.verify().map_err(DiagramError::data)?;
+    publish_files(files, &root, &prefix)
+}
+
+fn publish_files(
+    mut files: Vec<(RelPath, String)>,
+    root: &Rc<Root>,
+    prefix: &RelPath,
+) -> Result<PathBuf, DiagramError> {
     let manifest = manifest(&files)?;
     let digest = ContentDigest::of(manifest.as_bytes());
     files.push((relative(MANIFEST)?, manifest));
-    let root = fs::canonicalize(root).map_err(DiagramError::data)?;
-    crate::files::protect_git(&root, &relative("raf-workplan")?)
-        .map_err(|error| DiagramError::data(error.source))?;
-    let tree = DiskTree::new(&root).map_err(DiagramError::data)?;
-    let namespace = relative("raf-workplan")?;
-    directory(&tree, &root, &namespace)?;
-    let destination = relative(&format!("raf-workplan/{digest}"))?;
-    let created = directory(&tree, &root, &destination)?;
+    let tree = root.tree();
+    let namespace = prefix.join("raf-workplan").map_err(DiagramError::data)?;
+    root.create_directory(&namespace)
+        .map_err(DiagramError::data)?;
+    let destination = namespace
+        .join(&digest.to_string())
+        .map_err(DiagramError::data)?;
+    let created = root
+        .create_directory(&destination)
+        .map_err(DiagramError::data)?;
     if created {
+        let initial = tree
+            .capture_directory_bounded(&destination, 0)
+            .map_err(DiagramError::data)?;
+        if !initial.entries.is_empty() {
+            return Err(refused(format!(
+                "new documentation directory {destination} is not empty"
+            )));
+        }
         // Ownership intent is itself complete before any payload is published.
         // A crash before this point leaves an unowned directory and refuses.
         let (path, text) = files.last().ok_or_else(|| {
             refused("ownership manifest is absent from the assembled inventory".to_owned())
         })?;
-        let target = root.join(destination.as_str()).join(path.as_str());
-        let staged = crate::sync::stage(&target, text).map_err(DiagramError::data)?;
-        if let Err(error) = fs::rename(&staged, &target) {
-            return Err(publication_failure(&error, &[staged]));
+        let target = root
+            .capture(&relative(&format!("{destination}/{path}"))?)
+            .map_err(DiagramError::data)?;
+        target.verify_content(None).map_err(DiagramError::data)?;
+        let staged = target.stage(text).map_err(DiagramError::data)?;
+        if let Err(error) = staged.publish() {
+            return Err(DiagramError::data(cleanup_after(error, &[staged])));
         }
     }
-    validate(&tree, &destination, &files, false)?;
+    validate(tree, &destination, &files, false)?;
     let mut missing = Vec::new();
     for (path, text) in &files {
         let full = relative(&format!("{destination}/{path}"))?;
@@ -74,83 +141,50 @@ fn publish_files(mut files: Vec<(RelPath, String)>, root: &Path) -> Result<PathB
             missing.push((full, text));
         }
     }
-    let mut staged = Vec::new();
+    let mut targets = Vec::new();
     for (full, text) in missing {
-        let target = root.join(full.as_str());
-        match crate::sync::stage(&target, text) {
-            Ok(temporary) => staged.push((temporary, target, full)),
+        let target = root.capture(&full).map_err(DiagramError::data)?;
+        target.verify_content(None).map_err(DiagramError::data)?;
+        targets.push((target, text));
+    }
+    let mut grant = root
+        .reserve_staging(targets.len(), targets.iter().map(|(target, _)| target))
+        .map_err(DiagramError::data)?;
+    let mut staged = Vec::new();
+    for (target, text) in targets {
+        match target.stage_reserved(text, &mut grant) {
+            Ok(temporary) => staged.push(temporary),
             Err(error) => {
-                let remaining: Vec<_> = staged.iter().map(|(path, _, _)| path.clone()).collect();
-                return Err(publication_failure(&error, &remaining));
+                drop(grant);
+                return Err(DiagramError::data(cleanup_after(error, &staged)));
             }
         }
     }
+    drop(grant);
     // Detect every late destination collision before publishing any payload.
     let admission = staged
         .iter()
-        .try_for_each(|(_, _, full)| match tree.entry(full) {
+        .try_for_each(|file| match tree.entry(file.target_path()) {
             Ok(None) => Ok(()),
             Ok(Some(_)) => Err(std::io::Error::new(
                 std::io::ErrorKind::AlreadyExists,
-                format!("documentation destination {full} appeared during staging"),
+                format!(
+                    "documentation destination {} appeared during staging",
+                    file.target_path()
+                ),
             )),
             Err(error) => Err(std::io::Error::other(error)),
         });
     if let Err(error) = admission {
-        let remaining: Vec<_> = staged.iter().map(|(path, _, _)| path.clone()).collect();
-        return Err(publication_failure(&error, &remaining));
+        return Err(DiagramError::data(cleanup_after(error, &staged)));
     }
-    for (index, (temporary, target, _)) in staged.iter().enumerate() {
-        if let Err(error) = fs::rename(temporary, target) {
-            let remaining: Vec<_> = staged[index..]
-                .iter()
-                .map(|(path, _, _)| path.clone())
-                .collect();
-            return Err(publication_failure(&error, &remaining));
+    for (index, file) in staged.iter().enumerate() {
+        if let Err(error) = file.publish() {
+            return Err(DiagramError::data(cleanup_after(error, &staged[index..])));
         }
     }
-    validate(&tree, &destination, &files, true)?;
-    Ok(root.join(destination.as_str()))
-}
-
-fn publication_failure(error: &std::io::Error, temporaries: &[PathBuf]) -> DiagramError {
-    let mut reason = format!("documentation publication failed: {error}");
-    for path in temporaries {
-        if let Err(cleanup) = fs::remove_file(path) {
-            use std::fmt::Write as _;
-            write!(
-                reason,
-                "; cannot remove owned temporary {}: {cleanup}",
-                path.display()
-            )
-            .expect("writing to String cannot fail");
-        }
-    }
-    refused(reason)
-}
-
-fn directory(tree: &DiskTree, root: &Path, path: &RelPath) -> Result<bool, DiagramError> {
-    match tree.entry(path).map_err(DiagramError::data)? {
-        Some(EntryKind::Dir) => Ok(false),
-        None => {
-            fs::create_dir(root.join(path.as_str())).map_err(DiagramError::data)?;
-            if tree
-                .capture_directory_bounded(path, 0)
-                .map_err(DiagramError::data)?
-                .entries
-                .is_empty()
-            {
-                Ok(true)
-            } else {
-                Err(refused(format!(
-                    "new documentation directory {path} is not empty"
-                )))
-            }
-        }
-        _ => Err(refused(format!(
-            "documentation directory {path} is a link or non-directory"
-        ))),
-    }
+    validate(tree, &destination, &files, true)?;
+    Ok(root.path().join(destination.as_str()))
 }
 
 fn validate(

@@ -3,6 +3,7 @@
 
 //! The RAF authoring-cover policy over native general RDF storage.
 
+mod index;
 mod read;
 mod write;
 

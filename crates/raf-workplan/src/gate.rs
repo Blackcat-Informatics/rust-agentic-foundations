@@ -12,6 +12,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use purrdf_lex::allocation::{Shared, SharedAllocError};
 use raf_okf::{DocType, Location};
 use raf_source::{DiskTree, EntryKind, LoadError, RelPath, Tree, TreeError, Workspace};
 
@@ -28,6 +29,13 @@ const INDEX_NAME: &str = "index.md";
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum GateError {
+    /// The native shared owner cannot retain the opened repository tree.
+    RetainTree {
+        /// The directory the gate was given.
+        dir: PathBuf,
+        /// The original native allocation refusal.
+        source: SharedAllocError,
+    },
     /// The directory cannot be opened as a tree.
     Root {
         /// The directory the gate was given.
@@ -64,6 +72,11 @@ pub enum GateError {
 impl fmt::Display for GateError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::RetainTree { dir, source } => write!(
+                f,
+                "cannot retain the opened repository tree for {}: {source}; free memory and retry",
+                dir.display()
+            ),
             Self::Root { dir, source } => write!(
                 f,
                 "cannot open {} as a repository tree: {source}; pass the directory that holds `docs/` and `work/`",
@@ -92,6 +105,7 @@ impl fmt::Display for GateError {
 impl Error for GateError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::RetainTree { source, .. } => Some(source),
             Self::Root { source, .. } => Some(source),
             Self::Source { source, .. } => Some(source),
             Self::NoCapabilities { .. } | Self::Tracked { .. } => None,
@@ -270,7 +284,8 @@ impl Gate {
     /// A [`GateError`] when the gate cannot look at the repository: the
     /// directory does not open, `docs/capabilities` is missing or holds no
     /// capability document, the source workspace does not load, or the
-    /// tracked paths of a git checkout cannot be listed.
+    /// tracked paths of a git checkout cannot be listed, or the native shared
+    /// owner cannot retain the opened tree.
     pub fn open(&self) -> Result<Opened, GateError> {
         let tree = DiskTree::new(&self.dir).map_err(|source| GateError::Root {
             dir: self.dir.clone(),
@@ -292,7 +307,10 @@ impl Gate {
             .collect();
         Ok(Opened {
             dir: self.dir.clone(),
-            tree,
+            tree: Shared::try_new(tree).map_err(|source| GateError::RetainTree {
+                dir: self.dir.clone(),
+                source,
+            })?,
             workspace,
             tracked,
             symlinks,
@@ -409,7 +427,7 @@ impl Gate {
 #[derive(Debug)]
 pub struct Opened {
     dir: PathBuf,
-    tree: DiskTree,
+    tree: Shared<DiskTree>,
     workspace: Workspace,
     tracked: Option<Vec<RelPath>>,
     symlinks: Vec<RelPath>,
@@ -433,7 +451,7 @@ impl Opened {
             .into_iter()
             .map(|preview| (preview.path, preview.text))
             .collect();
-        let tree = Staged::replacements(&self.tree, &replaced);
+        let tree = Staged::replacements(self.tree.as_ref(), &replaced);
         let links = match &self.tracked {
             Some(paths) => LinkContext::new(&tree, paths.iter().cloned())
                 .with_symlinks(self.symlinks.iter().cloned()),
@@ -481,7 +499,11 @@ impl Opened {
     /// The directory as a tree.
     #[must_use]
     pub fn tree(&self) -> &dyn Tree {
-        &self.tree
+        self.tree.as_ref()
+    }
+
+    pub(crate) fn shared_tree(&self) -> Shared<DiskTree> {
+        self.tree.clone()
     }
 
     /// The source workspace the documents bind to.
@@ -503,9 +525,9 @@ impl Opened {
     #[must_use]
     pub fn links(&self) -> LinkContext<'_> {
         match &self.tracked {
-            Some(paths) => LinkContext::new(&self.tree, paths.iter().cloned())
+            Some(paths) => LinkContext::new(self.tree.as_ref(), paths.iter().cloned())
                 .with_symlinks(self.symlinks.iter().cloned()),
-            None => LinkContext::of_tree(&self.tree),
+            None => LinkContext::of_tree(self.tree.as_ref()),
         }
     }
 
@@ -513,7 +535,7 @@ impl Opened {
     /// source workspace, using the complete repository policy.
     #[must_use]
     pub fn workplan(&self) -> Workplan<'_> {
-        Workplan::load_with(&self.tree, &self.workspace, &self.links())
+        Workplan::load_with(self.tree.as_ref(), &self.workspace, &self.links())
     }
 
     /// The documents as they will be once the file `hidden` is removed and the
@@ -527,7 +549,7 @@ impl Opened {
         replaced: &[(RelPath, String)],
         removed: &[RelPath],
     ) -> Workplan<'_> {
-        let tree = Staged::new(&self.tree, hidden, replaced).with_removed(removed);
+        let tree = Staged::new(self.tree.as_ref(), hidden, replaced).with_removed(removed);
         let links = match &self.tracked {
             Some(paths) => LinkContext::new(
                 &tree,

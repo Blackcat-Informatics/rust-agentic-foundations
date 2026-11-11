@@ -32,5 +32,11 @@ raf-rdf = { path = "../raf-rdf", version = "0.2.0" }
 [dev-dependencies]
 purrdf-testkit.workspace = true
 
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix.workspace = true
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+rustix = { workspace = true, features = ["process"] }
+
 [lints]
 workspace = true
