@@ -868,6 +868,7 @@ fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
     assert_eq!(from_file.stdout, pinned.stdout);
     let unpinned = run(root, &["check", "--reference-unpinned", plain]);
     assert_eq!(unpinned.stdout, pinned.stdout);
+    unpinned_notice(root, plain, outside.path(), &pinned, &from_file);
     let index = |words: &[&str]| {
         let result = run(root, words);
         assert!(result.status.success(), "{result:?}");
@@ -923,4 +924,42 @@ fn reference_option_refusals(root: &Path, repository: &str, commit: &str, plain:
         String::from_utf8_lossy(&refused.stderr).contains("reference options apply only to"),
         "{refused:?}"
     );
+}
+
+/// An unpinned run names its directory on stderr beside findings that match
+/// the pinned run, an unpinned run without reference findings says so too, a pinned run is silent,
+/// and an unpinned directory that does not exist refuses.
+fn unpinned_notice(root: &Path, plain: &str, outside: &Path, pinned: &Output, from_file: &Output) {
+    let unpinned = run(root, &["check", "--reference-unpinned", plain]);
+    let notice = String::from_utf8_lossy(&unpinned.stderr);
+    assert!(
+        notice.contains("unpinned reference") && notice.contains(plain),
+        "{notice}"
+    );
+    assert!(pinned.stderr.is_empty(), "{pinned:?}");
+    assert!(from_file.stderr.is_empty(), "{from_file:?}");
+    let other = outside.join("other");
+    files::write(
+        &other,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='other'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            ("src/lib.rs", "pub fn unrelated() -> u8 { 1 }\n"),
+        ],
+    );
+    let clean = run(
+        root,
+        &["check", "--reference-unpinned", other.to_str().unwrap()],
+    );
+    assert!(!String::from_utf8_lossy(&clean.stdout).contains("REFERENCE-COPY"));
+    assert!(String::from_utf8_lossy(&clean.stderr).contains("unpinned reference"));
+    let missing = outside.join("absent");
+    let refused = run(
+        root,
+        &["check", "--reference-unpinned", missing.to_str().unwrap()],
+    );
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("absent"));
 }

@@ -208,7 +208,7 @@ pub(crate) struct ReferenceArgs {
         value_name = "KEY"
     )]
     pub(crate) pin_key: Option<String>,
-    /// Directory whose current files are the reference; every report marks it unpinned.
+    /// Directory whose current files are the reference; every index and query marks its receipts unpinned, and every evaluating command prints an unpinned notice on stderr.
     #[arg(
         id = "reference_unpinned",
         long = "reference-unpinned",

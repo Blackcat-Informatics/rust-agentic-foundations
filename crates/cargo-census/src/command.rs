@@ -27,6 +27,25 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
         )
         .into());
     }
+    if external
+        .as_ref()
+        .is_some_and(ExternalReference::is_unpinned)
+    {
+        let directory = args
+            .reference
+            .unpinned
+            .as_deref()
+            .unwrap_or_else(|| Path::new(""));
+        writeln!(
+            std::io::stderr().lock(),
+            "cargo-census: unpinned reference: the comparison reads the current files of {}, not a pinned commit",
+            directory.display()
+        )
+        .map_err(|source| Error::Io {
+            file: "<stderr>".into(),
+            source,
+        })?;
+    }
     let gate = Gate::workspace(&args.workspace).external_references(external);
     match &args.command {
         Command::SelfTest => self_test(&gate, output),

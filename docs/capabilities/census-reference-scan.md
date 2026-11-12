@@ -119,8 +119,11 @@ location exactly as declared.
 A pinned receipt has source kind `git`, the commit as its revision and the
 `committed-git` observation. An unpinned receipt has source kind `path`, no
 revision and the `unpinned-tree` observation, so every index and query from
-that mode marks its source as unpinned. Because a debt record cannot carry that
-mark, an unpinned comparison refuses to record debt.
+that mode marks its source as unpinned. `cargo census` also prints one notice
+on stderr naming the unpinned directory for every evaluating command, so a
+`check` run is marked although its findings are identical to the pinned run.
+Because a debt record cannot carry that mark, an unpinned comparison refuses to
+record debt.
 
 A malformed commit ID, a missing repository, a commit absent from the
 repository, a location inside a repository rather than its root, a pin key that
