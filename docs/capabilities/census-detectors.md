@@ -106,7 +106,14 @@ Home-literal evidence includes empty ordinary strings and requires at least
 one home literal. Vocabulary evidence uses constants named `NS` or ending in
 `_NS` under the home or entry points. Each candidate must have one nonempty
 ordinary string initializer, optionally parenthesized or inside a single-value
-block; computed or unavailable values are errors. Sole-name includes test
+block; computed or unavailable values are errors. A literal that is an
+embedded document is not a vocabulary hit: it contains a line feed and, as a
+whole word in any ASCII letter case, one of the keywords `PREFIX`, `BASE`,
+`SELECT`, `WHERE`, `CONSTRUCT`, `ASK`, `DESCRIBE`, `INSERT` or `DELETE`. A
+word is a maximal run of alphanumeric characters and underscores, so a keyword
+inside a longer word such as `PREFIXED` or `select_all` does not count.
+A single-line literal remains a hit whatever words it contains, as does a
+multi-line literal without a listed keyword. Sole-name includes test
 targets in the home package and exempts the actual home and entry-point units.
 
 ### Complete fixture coverage
@@ -144,7 +151,7 @@ The census ships seventeen built-in detectors. Each reports hits as `rule:<id>`,
 | `hex-digit-radix` | shipping | A single hex digit decoded through a radix conversion. |
 | `home-literal` | shipping | A string literal equal to one the home item's own bodies spell, outside the home item. |
 | `sole-name` | all | A function inside the home crate that a `forbiddenName` expression matches, other than the home or an entry point. |
-| `vocabulary-literal` | shipping | A string literal equal to or starting with a namespace constant declared under the job's home and entry-point modules, outside those modules. |
+| `vocabulary-literal` | shipping | A string literal equal to or starting with a namespace constant declared under the job's home and entry-point modules, outside those modules, unless it is an embedded multi-line query or data document. |
 | `json-pointer-escape` | shipping | Hand-written escaping of `~` and `/` for a JSON Pointer. |
 | `length-prefix-frame` | shipping | A hand-written length-prefixed frame read or write. |
 | `le-slice-int` | shipping | An integer assembled from a little-endian byte slice by hand. |
@@ -258,6 +265,10 @@ For a `home-literal` job, the home package's function returns `"token"` and anot
 package repeats `"token"` in a helper. Naming `home-literal` reports that helper;
 removing the job leaves the same sources clean. A `sole-name` job likewise needs
 explicit selection, including for matching functions in the home package.
+A `vocabulary-literal` job whose home declares `NS` as `"urn:demo:"` reports
+`"urn:demo:term"`, `"urn:demo:term WHERE"` and a two-line literal whose second
+line is `PREFIXED reselect select_all ask1`; it leaves a two-line literal
+starting with the namespace and continuing `select ?s where {?s ?p ?o}` clean.
 <!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope -->
 
 A preferred-provider adapter can return the result of its admitted native
@@ -319,6 +330,14 @@ Pairing every detector with a negative fixture is deliberate. A detector that
 matches too much is worse than none, because its false positives teach people to
 add exemptions.
 
+`vocabulary-literal` targets a single term spelled by hand outside its home.
+A fixed query or a small data document embedded in code writes namespace IRIs
+as part of a larger text, and reporting each one would push a consumer to
+sanction every document or drop the detector. Requiring both a line feed and a
+whole-word keyword keeps the exemption narrow: the keyword set is the minimal
+Turtle, TriG and SPARQL vocabulary that opens or shapes such a document, and it
+grows only for a stated need.
+
 ## Verification
 
 The existing detector Gate case covers all three policy families with an
@@ -348,6 +367,10 @@ required findings with neighbouring clean source.
   detector shows it flags a positive source in both.
 - A fixture shows `home-literal`, `sole-name` and `vocabulary-literal` are silent
   for a job that does not name them.
+- `vocabulary-literal` fixtures flag a single-line literal with and without a
+  keyword, a multi-line literal without a keyword and one whose keywords appear
+  only inside longer words, and leave a multi-line literal with a lowercase
+  whole-word keyword clean.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
