@@ -246,3 +246,25 @@ fn a_decorative_provider_call_cannot_stand_in_for_the_delegation() {
         "{refusal}"
     );
 }
+
+#[test]
+fn an_oversized_cached_archive_is_refused_before_it_is_held_beside_a_valid_one() {
+    let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let index = scratch.path().join("index");
+    std::fs::create_dir(&index).unwrap();
+    std::fs::write(index.join("small-1.0.0.crate"), b"four").unwrap();
+    // A sparse file one byte over the budget: no large allocation is made.
+    let oversized = std::fs::File::create(index.join("large-1.0.0.crate")).unwrap();
+    oversized.set_len(9).unwrap();
+    assert_eq!(
+        policy::archive(scratch.path(), "small", "1.0.0", 8).unwrap(),
+        b"four"
+    );
+    let refused = policy::archive(scratch.path(), "large", "1.0.0", 8)
+        .expect_err("an archive over the budget must be refused");
+    let message = refused.to_string();
+    assert!(
+        message.contains("large 1.0.0") && message.contains("8 byte archive budget"),
+        "{message}"
+    );
+}

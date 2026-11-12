@@ -53,7 +53,16 @@ fn archive_cache() -> Result<PathBuf, Box<dyn Error>> {
     Ok(home.join("registry/cache"))
 }
 
-fn archive(cache: &Path, name: &str, version: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+/// The bytes of one archive found in the registry cache, never more than
+/// `limit`: the budget that `RegistryArchiveTree` applies to the same bytes, so
+/// an oversized cache entry is refused here before it is held in memory.
+pub(crate) fn archive(
+    cache: &Path,
+    name: &str,
+    version: &str,
+    limit: usize,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    use std::io::Read as _;
     let file = format!("{name}-{version}.crate");
     for index in std::fs::read_dir(cache).map_err(|error| {
         format!(
@@ -63,7 +72,18 @@ fn archive(cache: &Path, name: &str, version: &str) -> Result<Vec<u8>, Box<dyn E
     })? {
         let path = index?.path().join(&file);
         if path.is_file() {
-            return Ok(std::fs::read(path)?);
+            let mut bytes = Vec::new();
+            std::fs::File::open(&path)?
+                .take(u64::try_from(limit)?.saturating_add(1))
+                .read_to_end(&mut bytes)?;
+            if bytes.len() > limit {
+                return Err(format!(
+                    "{name} {version}: the cached archive {} is larger than the {limit} byte archive budget; remove it and run `cargo fetch --locked`",
+                    path.display()
+                )
+                .into());
+            }
+            return Ok(bytes);
         }
     }
     Err(format!(
@@ -244,7 +264,7 @@ fn locked<T>(
         .collect();
     let archives = natives
         .iter()
-        .map(|row| archive(&cache, row.name(), row.version()))
+        .map(|row| archive(&cache, row.name(), row.version(), options.max_total_bytes))
         .collect::<Result<Vec<_>, _>>()?;
     let trees = natives
         .iter()

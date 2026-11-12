@@ -129,6 +129,7 @@ bindings:
     - rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused
     - rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate
     - rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation
+    - rust_agentic_foundations::test_crate::self_census::an_oversized_cached_archive_is_refused_before_it_is_held_beside_a_valid_one
   examples:
     - rust_agentic_foundations::example_crate::repository_gate
 depends: [cap:workplan-document-model, cap:workplan-strict, cap:source-index, cap:census-debt-ratchet]
@@ -150,8 +151,8 @@ foreign launch interfaces and macro-hidden launch paths. Static checks never
 execute inspected tests, examples or doctests. Explicit documentation trust lives
 only in the private CLI operation and cannot be granted by repository content.
 Two files of the unpublished `raf-fixtures` crate run Git in scratch repositories for
-tests and are the only exemption; a gate requires that no crate lists `raf-fixtures`
-outside its `[dev-dependencies]`.
+tests and are the only exemption; a gate parses the manifests and requires that none lists `raf-fixtures`, renamed or as a subtable,
+outside `[dev-dependencies]` unless it declares `publish = false`.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority,rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths,rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies,rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms -->
 
 **Bounded CI.** Every workflow job declares an integer `timeout-minutes` from
@@ -181,7 +182,7 @@ registry cache named by `CARGO_HOME`, or `$HOME/.cargo`, which must hold the com
 locked set of archives of both lock files (`cargo fetch --locked`, and the same with
 `--manifest-path fuzz/Cargo.toml`; the hosted root-package jobs run both first); only their bytes come
 from there, and each must match the `Cargo.lock` checksum before any of it is read.
-A missing archive or a checksum mismatch is a hard failure. A library is judged in
+A missing archive, one larger than the load's byte budget (refused before it is read in full) or a checksum mismatch is a hard failure. A library is judged in
 its ordinary mode, so `cfg(test)` modules inside library sources are outside the
 locked census; every integration test, example and binary is judged with `cfg(test)`.
 That is a known coverage loss: a competing implementation inside a library `cfg(test)`
@@ -201,7 +202,7 @@ one package: the fixtures that several packages use live in the unpublished
 and its modules and items are excluded in `work/coverage/default.md` with a reason.
 Checks, Linux CI and the staged commit and merge
 snapshots execute the same test.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused,rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate,rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused,rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate,rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation,rust_agentic_foundations::test_crate::self_census::an_oversized_cached_archive_is_refused_before_it_is_held_beside_a_valid_one -->
 
 **Shared read root.** The gates and repository-gate example use `gate_root`:
 `RAF_GATE_ROOT` selects an explicit checkout snapshot, and its absence selects
@@ -480,6 +481,7 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::self_census::an_oversized_cached_archive_is_refused_before_it_is_held_beside_a_valid_one` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
 | `rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back` | test | [Contract](#contract) |

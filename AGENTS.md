@@ -263,7 +263,9 @@ make hooks   # point core.hooksPath at .githooks for this clone
   version (`allow-wildcard-paths`, identical in `fuzz/deny.toml`): the unpublished
   `raf-fixtures` crate is a path-only dev-dependency because `cargo package` drops
   such a dependency, while a versioned one would make the package need an unpublished
-  crate. A gate allows it only in `[dev-dependencies]` of publishable crates.
+  crate. A gate parses the first-party manifests natively and refuses a `raf-fixtures`
+  dependency, including a renamed or subtable one, outside `[dev-dependencies]` unless
+  the manifest declares `publish = false`.
 - Analysis requires no process runner, PID namespace, executable helper or host
   security-policy change. Native Git reads do not depend on an installed Git
   executable. The documentation command refuses unavailable required toolchains;
