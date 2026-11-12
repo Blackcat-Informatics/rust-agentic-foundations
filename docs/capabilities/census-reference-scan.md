@@ -61,13 +61,18 @@ it does not execute Cargo metadata, download packages or inspect shared caches.
 
 A `reference` value is an exact package name or a family selector: a
 package-name prefix followed by `-*`, such as `acme-*`, which names every
-package whose name continues that prefix after its hyphen. Selection resolves
-the selectors once over the lock rows reachable from the first-party packages.
-A family selects every reachable locked package it names that is not a
+package whose name continues that prefix after its hyphen: `acme-a` and
+`acme-a-extra` match `acme-*`, while `acme`, `acmeish` and `other-x` do not.
+Selection resolves the selectors over the lock rows reachable from the
+first-party packages, in the dependency planning step and again when the
+reference sources are prepared; both passes read the same lock graph and
+resolve the same names. A family selects every reachable locked package it names that is not a
 first-party package, so a package added to the lock graph under the prefix is
 scanned with no ledger change. A family that selects no package refuses with a
 message naming the selector. An exact name keeps selecting a first-party
 package. A package selected by several values is scanned once.
+A selected package name that has two reachable locked versions refuses as
+ambiguous, whether an exact name or a family selected it.
 
 ### Contained acquisition
 <!-- raf:tested-by raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes,raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity -->

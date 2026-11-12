@@ -5,9 +5,8 @@
 
 use raf_census::{Gate, Index, MatchClass, Query, QueryReport, ReferenceRoot};
 use raf_rdf::{Builder, Format, Graph, TermValue, Triple, vocab};
-use raf_source::{MemoryTree, RelPath, Tree as _};
+use raf_source::{RelPath, Tree as _};
 use std::fmt::Write as _;
-use std::path::Path;
 #[path = "support/reference.rs"]
 mod reference;
 use reference::fixture;
@@ -72,7 +71,7 @@ fn path_references_preserve_all_witnesses_with_one_physical_consumer_count() {
     }
 }
 
-fn witness_limits_require_complete_evidence(tree: &MemoryTree, expected: &Index) {
+fn witness_limits_require_complete_evidence(tree: &raf_source::MemoryTree, expected: &Index) {
     use purrdf_jsonschema::ecma::MatchLimits;
     for (limits, cause) in [
         (
@@ -113,7 +112,7 @@ fn witness_limits_require_complete_evidence(tree: &MemoryTree, expected: &Index)
     assert_eq!(complete.census().index(complete.jobs()).unwrap(), *expected);
 }
 
-fn unitless_references_keep_a_complete_index(tree: &MemoryTree) {
+fn unitless_references_keep_a_complete_index(tree: &raf_source::MemoryTree) {
     let mut unitless = tree.clone();
     unitless
         .replace(&RelPath::new("helper/src/lib.rs").unwrap(), String::new())
@@ -149,14 +148,17 @@ fn unitless_references_keep_a_complete_index(tree: &MemoryTree) {
     assert_eq!(Index::from_ntriples(&text).unwrap(), index);
 }
 
-fn direct_parent_path_keeps_the_same_reference_evidence(tree: &MemoryTree, expected: &Index) {
+fn direct_parent_path_keeps_the_same_reference_evidence(
+    tree: &raf_source::MemoryTree,
+    expected: &Index,
+) {
     let mut direct = tree.clone();
     direct.replace(&RelPath::new("app/Cargo.toml").unwrap(), "[package]\nname='app'\nversion.workspace=true\nedition='2024'\n[dependencies]\nrenamed={package='helper',path='../helper',version='1'}\n".into()).unwrap();
     let report = Gate::workspace(".").check_tree(&direct).unwrap();
     assert_eq!(report.census().index(report.jobs()).unwrap(), *expected);
 }
 
-fn reference_names_must_belong_to_the_owning_graph(tree: &MemoryTree) {
+fn reference_names_must_belong_to_the_owning_graph(tree: &raf_source::MemoryTree) {
     let mut missing = tree.clone();
     let path = RelPath::new("helpers-ledger.ttl").unwrap();
     let text = tree.read(&path, 1_048_576).unwrap();
@@ -188,7 +190,7 @@ fn reference_names_must_belong_to_the_owning_graph(tree: &MemoryTree) {
     );
 }
 
-fn hardlinked_path_packages_keep_their_own_directory(root: &Path) {
+fn hardlinked_path_packages_keep_their_own_directory(root: &std::path::Path) {
     let ledger = std::fs::read_to_string(root.join("helpers-ledger.ttl")).unwrap();
     let original = Graph::from_text(&ledger, Format::Turtle).unwrap();
     let old_root = original
@@ -258,7 +260,8 @@ fn explicit_path_roots_require_the_actual_owning_manifest_locator() {
         "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
         "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
     );
-    let parent = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.stage/reference-sources");
+    let parent =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.stage/reference-sources");
     let owned = purrdf_testkit::TempDir::new_in(&parent).unwrap();
     let root = owned.path();
     for path in [
@@ -443,7 +446,8 @@ fn reject_historical_reference_provenance(current: &Graph) {
 /// ledger declares the given reference selectors and no job.
 fn family_fixture(selectors: &[&str], vendors: &[&str], consumer: &str) -> purrdf_testkit::TempDir {
     use raf_rdf::TermValue as Term;
-    let parent = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.stage/reference-sources");
+    let parent =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.stage/reference-sources");
     std::fs::create_dir_all(&parent).unwrap();
     let owned = purrdf_testkit::TempDir::new_in(&parent).unwrap();
     let mut ledger = Builder::new();
@@ -533,17 +537,35 @@ fn scanned(fixture: &purrdf_testkit::TempDir) -> Vec<String> {
     packages
 }
 
-/// A family selector names every locked dependency package with its prefix,
-/// so each one's source is read for comparison, while a first-party member
-/// whose name also matches stays a consumer rather than a reference.
+/// A family selector names every locked dependency package whose name
+/// continues its prefix after the hyphen, so each one's source is read for
+/// comparison. The boundary holds both ways: the bare prefix `acme`, the
+/// hyphen-less `acmeish` and the other family `other-x` are reachable and
+/// stay unscanned, a longer name `acme-a-extra` is scanned, and a first-party
+/// member that matches stays a consumer rather than a reference.
 #[test]
 fn family_selector_scans_every_matching_dependency_but_no_member() {
     let fixture = family_fixture(
         &["acme-*"],
-        &["acme-a", "acme-b", "acme-c"],
+        &[
+            "acme-a",
+            "acme-b",
+            "acme-c",
+            "acme-a-extra",
+            "acme",
+            "acmeish",
+            "other-x",
+        ],
         "pub fn local(value:u32)->u32 { value }",
     );
-    assert_eq!(scanned(&fixture), ["acme-a", "acme-b", "acme-c"]);
+    let scanned = scanned(&fixture);
+    for absent in ["acme", "acmeish", "other-x"] {
+        assert!(
+            !scanned.iter().any(|name| name == absent),
+            "{absent}: {scanned:?}"
+        );
+    }
+    assert_eq!(scanned, ["acme-a", "acme-a-extra", "acme-b", "acme-c"]);
     let report = Gate::workspace(fixture.path().join("ws")).check().unwrap();
     assert!(
         report
@@ -574,25 +596,17 @@ fn family_selector_follows_lock_growth_without_a_ledger_edit() {
 /// anywhere but after a prefix and its hyphen is not a selector.
 #[test]
 fn family_selector_matching_nothing_refuses_naming_the_selector() {
-    for (selector, cause) in [
-        (
-            "other-*",
-            "matches no locked dependency package outside the workspace members",
-        ),
-        (
-            "acme-member-*",
-            "matches no locked dependency package outside the workspace members",
-        ),
-        (
-            "acme*",
-            "a family selector is a package-name prefix followed by `-*`",
-        ),
-        (
-            "-*",
-            "a family selector is a package-name prefix followed by `-*`",
-        ),
+    const EMPTY: &str = "matches no locked dependency package outside the workspace members";
+    const MALFORMED: &str = "a family selector is a package-name prefix followed by `-*`";
+    // `acme-member` continues the prefix `acme-` but is first-party, so it
+    // cannot satisfy the family by itself.
+    for (selector, vendors, cause) in [
+        ("other-*", &["acme-a"][..], EMPTY),
+        ("acme-*", &["other-x"][..], EMPTY),
+        ("acme*", &["acme-a"][..], MALFORMED),
+        ("zq-*-x", &["acme-a"][..], MALFORMED),
     ] {
-        let fixture = family_fixture(&[selector], &["acme-a"], "");
+        let fixture = family_fixture(&[selector], vendors, "");
         let error = Gate::workspace(fixture.path().join("ws"))
             .check()
             .unwrap_err()
