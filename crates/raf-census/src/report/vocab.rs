@@ -121,3 +121,80 @@ shapes! {
     ("debt","JobDebt","jobId",1,1,"string"),
     ("debt","JobDebt","copies",1,1,"positive integer"),
 }
+
+/// The closed property set of each engine-owned Ledger class; `rdf:type` is
+/// required once per node. An `Extension` root and the nodes it reaches are
+/// absent: that content belongs to the consumer and passes unchanged to the
+/// consumer's validator.
+pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
+    (
+        "Ledger",
+        &[
+            "normalForm",
+            "reportForm",
+            "minTokens",
+            "maxFileBytes",
+            "excludeTestItems",
+            "excludeDir",
+            "root",
+            "reference",
+            "job",
+            "distinct",
+            "pattern",
+        ],
+    ),
+    (
+        "LedgerJob",
+        &[
+            "jobId",
+            "summary",
+            "homeSymbol",
+            "entryPoint",
+            "enforced",
+            "forbiddenName",
+            "forbiddenConstant",
+            "forbiddenFingerprint",
+            "forbiddenPattern",
+            "variant",
+            "extension",
+            "preferredProvider",
+        ],
+    ),
+    (
+        "Variant",
+        &[
+            "symbol",
+            "file",
+            "detector",
+            "criterion",
+            "anchor",
+            "reason",
+        ],
+    ),
+    (
+        "Distinct",
+        &[
+            "memberSymbol",
+            "multiplicity",
+            "kind",
+            "criterion",
+            "anchor",
+            "reason",
+        ],
+    ),
+    ("MemberMultiplicity", &["symbol", "copies"]),
+    ("PreferredProvider", &["package", "entryPoint", "consumer"]),
+    (
+        "Pattern",
+        &[
+            "patternId",
+            "summary",
+            "call",
+            "path",
+            "macro",
+            "typePath",
+            "literalRegex",
+            "tokens",
+        ],
+    ),
+];
