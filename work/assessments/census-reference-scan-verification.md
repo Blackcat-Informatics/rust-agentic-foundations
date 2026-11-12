@@ -22,7 +22,7 @@ inputs:
     digest: b2c06ca3ba1b22ec1504d2ff6838f1b7052f833014f4fb8932dd2d1068bc8e10
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_reference_tree
-    digest: de2e0ba06e171f18e3052067cdd49cd91264ff03aeee78d62ea5790813369587
+    digest: 6ea0f3f5f3f2160b3bd5123ca04307832186cf8357075a9bc1f4e95bcbd377bf
   - kind: symbol
     name: raf_census::gate::reference
     digest: 3a87e9cbf2abf8f9ddeb0875e1ad8f6d92779e40f5372d85605ecaeaccb6624f

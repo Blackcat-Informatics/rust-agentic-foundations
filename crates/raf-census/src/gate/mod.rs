@@ -6,6 +6,7 @@
 mod context;
 mod evaluate;
 mod migrate;
+mod module_paths;
 mod owners;
 mod patterns;
 mod providers;
@@ -106,6 +107,11 @@ impl GateReport {
     pub const fn debt(&self) -> &DebtRecord {
         &self.debt
     }
+    fn with_findings(mut self, findings: Vec<String>) -> Self {
+        self.findings.extend(findings);
+        self
+    }
+
     /// Whether all findings are absent.
     #[must_use]
     pub fn is_clean(&self) -> bool {
@@ -119,6 +125,7 @@ pub struct Gate {
     dir: PathBuf,
     rules: Vec<Box<dyn Rule>>,
     required_rules: Vec<String>,
+    module_paths_in_package: bool,
     extensions: Vec<Box<dyn LedgerExtension>>,
     matching_limits: MatchLimits,
 }
@@ -139,6 +146,7 @@ impl Gate {
             dir: dir.as_ref().to_path_buf(),
             rules: Vec::new(),
             required_rules: Vec::new(),
+            module_paths_in_package: false,
             extensions: Vec::new(),
             matching_limits: MatchLimits::default(),
         }
@@ -180,6 +188,20 @@ impl Gate {
     pub fn require_rules(mut self, rules: impl IntoIterator<Item = impl Into<String>>) -> Self {
         self.required_rules
             .extend(rules.into_iter().map(Into::into));
+        self
+    }
+
+    /// Require every module `path` attribute to resolve inside its own package.
+    ///
+    /// A `path` on a `mod` declaration, plain or inside `cfg_attr`, followed by
+    /// any target of a censused package, whose resolved file lies outside that
+    /// package's directory or inside a package nested below it, is a hard
+    /// finding naming the declaring file, the line and the resolved file. No
+    /// ledger job, home or debt record can exempt it, and it is never recorded
+    /// as debt.
+    #[must_use]
+    pub const fn require_module_paths_in_package(mut self) -> Self {
+        self.module_paths_in_package = true;
         self
     }
 
@@ -415,6 +437,7 @@ impl Gate {
             .intersection(&references.consumers)
             .copied()
             .collect();
+        let paths = self.module_path_findings(&workspace, &consumers);
         let mut census = Census::from_packages(&workspace, ledger.options(), &consumers)?;
         let mut limits = self.matching_limits;
         references.attach(&mut census, &mut limits)?;
@@ -430,6 +453,19 @@ impl Gate {
             limits,
             &references,
         )
+        .map(|report| report.with_findings(paths))
+    }
+
+    fn module_path_findings(
+        &self,
+        workspace: &Workspace,
+        selected: &std::collections::BTreeSet<raf_source::PackageId>,
+    ) -> Vec<String> {
+        if self.module_paths_in_package {
+            module_paths::findings(workspace, selected)
+        } else {
+            Vec::new()
+        }
     }
 
     fn evaluate_tree(&self, tree: &impl Tree) -> Result<GateReport, Error> {
@@ -495,6 +531,7 @@ impl Gate {
         } else {
             reference::References::empty(workspace)
         };
+        let paths = self.module_path_findings(workspace, &references.consumers);
         let mut census = Census::from_packages(workspace, ledger.options(), &references.consumers)?;
         let mut limits = self.matching_limits;
         references.attach(&mut census, &mut limits)?;
@@ -510,6 +547,7 @@ impl Gate {
             limits,
             &references,
         )
+        .map(|report| report.with_findings(paths))
     }
 }
 

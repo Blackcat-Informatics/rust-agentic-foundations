@@ -208,7 +208,7 @@ pub use locked::{
 };
 pub use manifest::{DependencyDeclaration, DependencyKind, DependencySpec, InheritedDependency};
 pub use meter::Usage;
-pub use modtree::{Reach, TargetId};
+pub use modtree::{PathSite, Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
 pub use parse::{
     PARSE_STACK_BYTES, ParsedSource, PreparedSource, parse_source, parse_source_with_tokens,
@@ -228,9 +228,9 @@ pub use tree::{
     FileId, MemoryTree, Opened, OpenedBytes, RegistryArchiveTree, SourceTrees, Tree,
 };
 pub use workspace::{
-    LockedBinding, LockedEdge, LockedManifest, LockedPackageRoots, LockedTree, ReferenceBinding,
-    ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree, SourceFile,
-    TestFn, Workspace,
+    ForeignModulePath, LockedBinding, LockedEdge, LockedManifest, LockedPackageRoots, LockedTree,
+    ReferenceBinding, ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree,
+    SourceFile, TestFn, Workspace,
 };
 /// Native read-only repository and object access, without executable helpers.
 pub mod git;
