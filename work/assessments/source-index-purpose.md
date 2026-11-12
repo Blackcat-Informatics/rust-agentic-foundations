@@ -46,7 +46,7 @@ inputs:
     digest: 35c9a85662ee7b6c80838931cd9c4c57e8dc7da7146eefbd67d8ab6858226258
   - kind: symbol
     name: raf_source::CommittedGitTree
-    digest: 5f4df910ea521c3e373ff525a45bc7f7ca62b1e9efa47b8a95c1708fcbe2746b
+    digest: 40e6b2bddf2aacf10c939f6a220fb3720d99b0184571558243fa69efe8f61ba8
   - kind: symbol
     name: raf_source::CommittedGitTree::open
     digest: c2e20e1a2065c09a58d17529e246c45b10364bc83ad798bc14bd56b9867dbcaf
@@ -457,7 +457,7 @@ inputs:
     digest: decf25b8720addc5994dca976c46ea7f846dbd6c1321f82887c7990c29ab9c7f
   - kind: symbol
     name: raf_source::git
-    digest: 8dde371d890a2bd414d328f61909a6f6d468e9212d0b7283adbb25f6c8b440fa
+    digest: 4c604e45e3e78c4721ba4f923ca58ad579fd3e384fb3db424369fe1747775ed3
   - kind: symbol
     name: raf_source::item
     digest: ad09f5dc9cc8bbcf01296985c4d4bda792ebe123255366e365c623c2e1117d1b
@@ -481,7 +481,7 @@ inputs:
     digest: ea58202fe55d35139111d5203eb4d561953c0b118cacd4e3bbe55c5a4f98febd
   - kind: symbol
     name: raf_source::tree
-    digest: 0cc426e2f6e58956744c717186472e05531533a72655c68657ee0ab49e068838
+    digest: a9a1a209096e32843a5ffcf76dbfebdb9ee7665b4efbf137034c3bff797acc75
   - kind: symbol
     name: raf_source::tree::disk
     digest: 7b505520fb8fc0e8c4e7049d8db1e12c5da00800fc5417cd3066fdbffa1fd80b

@@ -199,7 +199,62 @@ pub struct ReferenceObservation {
     checksum: Option<[u8; 32]>,
 }
 
+/// The explicit or inherited `[package] version` of discovered package zero,
+/// `None` when the manifest sets none.
+fn declared_version(
+    tree: &dyn Tree,
+    meter: &Meter,
+    discovered: &crate::discovery::Discovered,
+    manifest: &RelPath,
+) -> Result<Option<String>, LoadError> {
+    let found = &discovered.packages[0];
+    let dirs = package_directory_index(&discovered.packages, meter)?;
+    let reader = Reader {
+        tree,
+        meter,
+        dirs: &dirs,
+        found: &discovered.packages,
+    };
+    Ok(match &found.declared.version {
+        crate::manifest::VersionDecl::Explicit(version) => Some(version.clone()),
+        crate::manifest::VersionDecl::Inherited => {
+            match workspace_of(&reader, &found.package.dir, &mut Caches::default())? {
+                WorkspaceOf::Member {
+                    version: Some(version),
+                    ..
+                } => Some(version.as_str().to_owned()),
+                _ => {
+                    return Err(failure(
+                        manifest,
+                        "local package version has no admitted workspace value",
+                    ));
+                }
+            }
+        }
+        crate::manifest::VersionDecl::Unset => None,
+    })
+}
+
 impl ReferenceObservation {
+    /// The version Cargo gives the package whose manifest is `manifest` in a
+    /// reference tree with no lock identity: its explicit or
+    /// workspace-inherited `[package] version`, or `0.0.0`, Cargo's value for
+    /// a manifest that sets none.
+    ///
+    /// # Errors
+    /// Refuses an inherited version without a workspace value and every
+    /// bounded discovery or manifest failure.
+    pub fn package_version(
+        tree: &dyn Tree,
+        manifest: &RelPath,
+        options: &LoadOptions,
+    ) -> Result<String, LoadError> {
+        let meter = Meter::new(options);
+        let discovered = crate::discovery::single(tree, manifest, &meter)?;
+        Ok(declared_version(tree, &meter, &discovered, manifest)?
+            .unwrap_or_else(|| "0.0.0".to_owned()))
+    }
+
     /// Observe one actual local root package and associate its explicit or
     /// inherited version with a unique source-less lock row. This is the owning
     /// manifest context for subsequent declaration-qualified reference requests.
@@ -218,39 +273,13 @@ impl ReferenceObservation {
         let image = manifest_image(tree, manifest, &meter)?;
         let discovered = crate::discovery::single(tree, &image, &meter)?;
         let found = &discovered.packages[0];
-        let dirs = package_directory_index(&discovered.packages, &meter)?;
-        let reader = Reader {
-            tree,
-            meter: &meter,
-            dirs: &dirs,
-            found: &discovered.packages,
-        };
-        let mut caches = Caches::default();
-        let inherited;
-        let version = match &found.declared.version {
-            crate::manifest::VersionDecl::Explicit(version) => version.as_str(),
-            crate::manifest::VersionDecl::Inherited => {
-                inherited = match workspace_of(&reader, &found.package.dir, &mut caches)? {
-                    WorkspaceOf::Member {
-                        version: Some(version),
-                        ..
-                    } => version,
-                    _ => {
-                        return Err(failure(
-                            manifest,
-                            "local package version has no admitted workspace value",
-                        ));
-                    }
-                };
-                inherited.as_str()
-            }
-            crate::manifest::VersionDecl::Unset => {
-                return Err(failure(
-                    manifest,
-                    "local package needs explicit or inherited version evidence",
-                ));
-            }
-        };
+        let version = declared_version(tree, &meter, &discovered, manifest)?.ok_or_else(|| {
+            failure(
+                manifest,
+                "local package needs explicit or inherited version evidence",
+            )
+        })?;
+        let version = version.as_str();
         let mut selected = None;
         for row in catalog.packages() {
             let comparison = row

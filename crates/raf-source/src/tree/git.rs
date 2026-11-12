@@ -23,18 +23,36 @@ use std::path::{Path, PathBuf};
 /// Decoder internals are outside RAF's portable meters; acquired buffers and
 /// model processing retain their original grants.
 pub struct CommittedGitTree<'a> {
-    repository: PathBuf,
-    native: crate::git::Repository,
     source: &'a LockedSource,
-    commit: [u8; 20],
-    entries: Vec<Record>,
-    meter: SealedMeter<'a>,
+    tree: PinnedGitTree<'a>,
 }
 impl std::fmt::Debug for CommittedGitTree<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CommittedGitTree")
             .field("source", &self.source)
+            .field("repository", &self.tree.repository)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The committed objects of one caller-declared commit, without a lock identity.
+///
+/// It reads exactly like [`CommittedGitTree`]: committed objects only, through
+/// the native library, with no process, fetch, hook, filter or checkout read.
+/// It carries no locked source, so it never enters the locked package join or
+/// supplies preferred-provider proof; it is comparison evidence only.
+pub struct PinnedGitTree<'a> {
+    repository: PathBuf,
+    native: crate::git::Repository,
+    commit: [u8; 20],
+    entries: Vec<Record>,
+    meter: SealedMeter<'a>,
+}
+impl std::fmt::Debug for PinnedGitTree<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PinnedGitTree")
             .field("repository", &self.repository)
+            .field("commit", &hex::Lower(&self.commit).to_string())
             .finish_non_exhaustive()
     }
 }
@@ -77,23 +95,97 @@ impl<'a> CommittedGitTree<'a> {
         &'m self,
         meter: &'m Meter,
     ) -> Result<CommittedGitTree<'m>, LoadError> {
-        CommittedGitTree::checked(self.source, &self.repository, SealedMeter::Borrowed(meter))
+        CommittedGitTree::checked(
+            self.source,
+            &self.tree.repository,
+            SealedMeter::Borrowed(meter),
+        )
     }
     fn checked(
         source: &'a LockedSource,
         repository: &Path,
         meter: SealedMeter<'a>,
     ) -> Result<Self, LoadError> {
-        let path = RelPath::root();
         let revision = source
             .revision()
             .filter(|revision| revision.len() == 40)
             .ok_or_else(|| {
                 refused(
-                    &path,
+                    &RelPath::root(),
                     "committed Git source loading requires a full SHA-1 revision",
                 )
             })?;
+        Ok(Self {
+            source,
+            tree: PinnedGitTree::checked(revision, repository, meter)?,
+        })
+    }
+    /// The exact locked source selected for this committed host Tree.
+    #[must_use]
+    pub const fn source(&self) -> &LockedSource {
+        self.source
+    }
+    /// RAF's acquired protocol, native storage and processing charges.
+    #[must_use]
+    pub fn usage(&self) -> Usage {
+        self.tree.usage()
+    }
+}
+
+impl PinnedGitTree<'static> {
+    /// Open the committed objects of `commit` in the repository at `repository`.
+    ///
+    /// `commit` is a full 40-character lowercase hexadecimal SHA-1 object ID.
+    /// `repository` must be the repository's own checkout root or Git
+    /// directory, not a directory inside another repository. The commit must
+    /// already be present: nothing is fetched. A dirty worktree is neither read
+    /// nor certified clean.
+    ///
+    /// # Errors
+    /// Refuses a malformed commit ID, a missing repository or commit, a
+    /// location that is not the repository root, invalid objects/modes and
+    /// original resource failures.
+    pub fn open(
+        repository: impl AsRef<Path>,
+        commit: &str,
+        options: &LoadOptions,
+    ) -> Result<Self, LoadError> {
+        let path = RelPath::root();
+        let mut id = [0; 20];
+        if commit.len() != 40 || hex::decode_canonical_to_slice(commit, &mut id).is_err() {
+            return Err(refused(
+                &path,
+                "a pinned commit is a full 40-character lowercase hexadecimal SHA-1 object ID",
+            ));
+        }
+        let tree = Self::checked(
+            commit,
+            repository.as_ref(),
+            SealedMeter::Owned(Meter::new(options)),
+        )?;
+        let roots = [tree.native.work_dir(), Some(tree.native.git_dir())];
+        let canonical = |directory: &Path| directory.canonicalize().ok();
+        if !roots
+            .into_iter()
+            .flatten()
+            .any(|root| canonical(root).as_deref() == Some(tree.repository.as_path()))
+        {
+            return Err(refused(
+                &path,
+                "the pinned location is inside a repository rather than its root; name the repository's checkout root or Git directory",
+            ));
+        }
+        Ok(tree)
+    }
+}
+
+impl<'a> PinnedGitTree<'a> {
+    fn checked(
+        revision: &str,
+        repository: &Path,
+        meter: SealedMeter<'a>,
+    ) -> Result<Self, LoadError> {
+        let path = RelPath::root();
         let commit = parse_id(revision.as_bytes(), &path)?;
         let repository = super::disk::canonical_root(repository)
             .map_err(|source| git_io(&path, "repository", source))?;
@@ -112,7 +204,7 @@ impl<'a> CommittedGitTree<'a> {
         if actual != revision {
             return Err(refused(
                 &path,
-                "the full locked ID does not name that exact commit",
+                "the full commit ID does not name that exact commit",
             ));
         }
         let mut admission = ItemAdmission::new(&meter, &path);
@@ -130,16 +222,10 @@ impl<'a> CommittedGitTree<'a> {
         Ok(Self {
             repository,
             native,
-            source,
             commit,
             entries,
             meter,
         })
-    }
-    /// The exact locked source selected for this committed host Tree.
-    #[must_use]
-    pub const fn source(&self) -> &LockedSource {
-        self.source
     }
     /// RAF's acquired protocol, native storage and processing charges.
     #[must_use]
@@ -171,6 +257,29 @@ impl<'a> CommittedGitTree<'a> {
 }
 
 impl Tree for CommittedGitTree<'_> {
+    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+        self.tree.read(path, max_bytes)
+    }
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<Opened, TreeError> {
+        self.tree.read_unseen(path, max_bytes, seen)
+    }
+    fn identity(&self, path: &RelPath) -> Result<FileId, TreeError> {
+        self.tree.identity(path)
+    }
+    fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
+        self.tree.list(path)
+    }
+    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
+        self.tree.entry(path)
+    }
+}
+
+impl Tree for PinnedGitTree<'_> {
     fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
         match self.read_unseen(path, max_bytes, &|_| false)? {
             Opened::Read { text, .. } => Ok(text),

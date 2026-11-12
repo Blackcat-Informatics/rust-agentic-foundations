@@ -4,7 +4,7 @@
 type: Capability
 id: cap:census-reference-scan
 title: "Census reference scan"
-description: "Compare first-party code with exact dependency identities selected through lock files and manifest declarations."
+description: "Compare first-party code with exact dependency identities selected through lock files and manifest declarations, or with caller-declared pinned commits and unpinned directories."
 state: delivered
 bindings:
   code:
@@ -18,6 +18,13 @@ bindings:
     - raf_source::workspace::locked::reference
     - raf_census::ReferenceSource
     - raf_census::ReferenceWitness
+    - raf_census::ExternalReference
+    - raf_census::Gate::external_references
+    - raf_census::gate::reference::external
+    - raf_source::PinnedGitTree
+    - raf_source::PinnedGitTree::open
+    - raf_source::ReferenceObservation::package_version
+    - raf_source::git::Repository::main_work_dir
   tests:
     - raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count
     - raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts
@@ -29,6 +36,11 @@ bindings:
     - raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name
     - raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions
     - raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding
+    - raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference
+    - raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit
+    - raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree
+    - raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt
+    - cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory
 
     - raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes
     - raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity
@@ -47,7 +59,9 @@ depends: [cap:census-ledger]
 A project can duplicate an implementation that one of its dependencies already
 provides. Reference scanning compares first-party implementations with named
 dependency packages, or with every package of a named family, and permits a job
-to name its home in a dependency.
+to name its home in a dependency. It can also compare them with another
+repository at an exact reviewed commit that the lock graph does not record.
+
 
 ## Contract
 
@@ -76,6 +90,43 @@ message naming the selector. An exact name keeps selecting a first-party
 package. A package selected by several values is scanned once.
 A selected name with two reachable locked versions refuses as ambiguous, whether
 an exact name selected it or a family selected two non-first-party versions.
+
+### Declared reference trees
+<!-- raf:tested-by raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference,raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit,raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory -->
+
+A caller can declare a reference tree that the lock graph does not select,
+through `Gate::external_references` and an `ExternalReference`. A pinned
+reference names a repository location and a commit: a full 40-character
+lowercase hexadecimal SHA-1 given directly, or the string value of a dotted
+key in a workspace-relative TOML pin file. `PinnedGitTree` reads that commit's
+committed objects through the native read-only Git library; it never reads the
+repository's working tree, fetches an object or starts a process, and it
+carries no lock identity, so it never supplies preferred-provider proof. An
+unpinned reference names a directory and reads its current files through a
+contained disk tree.
+
+Every package that the ordinary source walk discovers from the tree's root is
+a reference package, whatever the ledger's `reference` values select. Its
+version is the manifest's explicit or workspace-inherited version, or `0.0.0`
+when the manifest sets none. Declared packages are compared exactly as
+lock-selected ones, so the same copy yields the same `REFERENCE-COPY` finding,
+and a job's home can name one of their implementations. A relative location is
+resolved from the main checkout of the workspace's Git repository, so a linked
+worktree and the main checkout read the same tree and produce identical
+reports. A relative location refuses where there is no main checkout to
+resolve it from, including on an opaque Tree. Each receipt records the
+location exactly as declared.
+A pinned receipt has source kind `git`, the commit as its revision and the
+`committed-git` observation. An unpinned receipt has source kind `path`, no
+revision and the `unpinned-tree` observation, so every index and query from
+that mode marks its source as unpinned. Because a debt record cannot carry that
+mark, an unpinned comparison refuses to record debt.
+
+A malformed commit ID, a missing repository, a commit absent from the
+repository, a location inside a repository rather than its root, a pin key that
+names no string, a tree that yields no packages, and one tree declared twice
+each refuse with a message naming the input to fix. An empty comparison is
+never reported as clean.
 
 ### Contained acquisition
 <!-- raf:tested-by raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes,raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity -->
@@ -122,7 +173,7 @@ enforced counts its classified copies as job debt under the debt ratchet
 instead.
 
 ### Closed native evidence
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt -->
 
 Report form 5 carries source receipts, qualified reference units and full
 cross-boundary fingerprint witnesses. Every job occurrence resolves to an indexed
@@ -131,6 +182,9 @@ endpoint and source closure. Reference units cannot receive a COPY role or enter
 a first-party structural group. Migrating form 4 preserves its ordinary
 first-party rows without inventing historical source observations. Normal form 1
 fingerprints remain unchanged.
+Form 5 receipts also admit the `unpinned-tree` observation, only with the `path`
+source kind and no checksum; every existing receipt keeps its bytes and
+identity.
 
 ## Usage
 <!-- raf:tested-by raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator -->
@@ -169,7 +223,14 @@ same identity checks; traversing their path declarations requires an owning
 source locator. The native CLI reads the same Gate directly and exports its complete Index.
 Repository callbacks are supplied through the library builder, never by selecting
 an executable target on the shipped command.
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit -->
+`Gate::external_references` declares a reference tree outside the lock graph,
+and the command line declares one with
+`--reference-repo ../upstream --reference-commit COMMIT`, with
+`--reference-repo ../upstream --reference-pin-file pins.toml --reference-pin-key upstream.rev`,
+or with `--reference-unpinned DIRECTORY`. Such a tree needs no ledger
+The pin key `upstream.rev` reads the string `rev` of the `[upstream]` table.
+`reference` value; a job home may name its implementations.
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit,cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree -->
 
 ## Examples
 <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts -->
@@ -190,8 +251,9 @@ The command never builds a repository target to obtain a reference index.
 
 ## Constraints
 
-- Only Rust source is compared, and named references and family members must be
-  reachable from the owning lock graph.
+- Only Rust source is compared. Named references and family members must be
+  reachable from the owning lock graph; a caller-declared tree is outside it and
+  contributes every package found from its root.
   <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member -->
 - Source reads retain the source loader's containment, regular-file, file-size
   and parse limits. Acquisition shares cumulative source, item, fact, resolver
@@ -212,6 +274,10 @@ The command never builds a repository target to obtain a reference index.
 <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
 
 Lock identities and actual dependency declarations provide the selection context.
+A caller-declared commit supplies that context for a repository whose reviewed
+revision is maintained apart from dependency resolution; reading only its
+committed objects keeps the comparison reproducible, and resolving relative
+locations from the main checkout keeps linked worktrees in agreement.
 Source observations supply comparison evidence while preserving the stronger
 sealed authority required for preferred-provider admission. Source-qualified
 locators prevent independent workspaces' local package and item identifiers from
@@ -229,11 +295,17 @@ reject package/receipt disagreement, invalid source-relative manifests and
 witnesses unrelated to the original selection. Source fixtures compare invalid
 manifest identities and generic Git Trees with valid registry and exact committed
 neighbors, and confirm that provider bindings do not escape observations.
+Declared-tree fixtures build Git repositories with a later head and an edited
+checkout, compare a pinned commit with the same package selected through the
+lock graph, read the same pinned tree from a linked worktree and the main
+checkout, compare an unpinned directory with its pinned commit, and pair each
+refusal with a valid commit or pin key.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
+| `cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_census::example_crate::references` | example target | [Usage](#usage) |
 | `raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
@@ -242,9 +314,13 @@ neighbors, and confirm that provider bindings do not escape observations.
 | `raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count` | test | [Purpose](#purpose), [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
+| `raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_sources::local_reference_owner_selection_spends_its_original_work_allowance` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes` | test | [Contract](#contract), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity` | test | [Contract](#contract) |

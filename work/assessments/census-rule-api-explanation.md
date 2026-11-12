@@ -28,7 +28,7 @@ inputs:
     digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86
   - kind: symbol
     name: raf_census::Gate::workspace
-    digest: 464ca227fd7291cdbb8d180f2ca79404adc8f3d7e6b2f8f323f71346c166375e
+    digest: ee73f3e1b34baee6fe1444c47168271822b40aa62a586a43e5f2a752bad1e91a
   - kind: symbol
     name: raf_census::gate::module_paths
     digest: 555ba10ab2f0f84ce48c296b5d50840bb632b0462be969692e8eef99b25b8fc7

@@ -3,6 +3,10 @@
 
 //! Actual migration and debt commands, with read-only inputs and refusal neighbours.
 
+#[path = "../../raf-census/tests/support/files.rs"]
+mod files;
+#[path = "../../raf-census/tests/support/git_repo.rs"]
+mod git_repo;
 #[path = "../../raf-census/tests/support/layout.rs"]
 mod layout;
 
@@ -794,4 +798,129 @@ fn self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist() {
     assert_eq!(flagged.status.code(), plain.status.code(), "{flagged:?}");
     assert_eq!(flagged.stdout, plain.stdout);
     assert!(flagged.stderr.is_empty(), "{flagged:?}");
+}
+
+/// The command line declares one reference tree for the evaluating commands:
+/// a repository at a commit given directly or through a pin file, or an
+/// unpinned directory whose index receipts carry the `unpinned-tree` label.
+/// Incomplete or conflicting reference options refuse, and a command
+/// that does not evaluate the Gate refuses them rather than ignoring them.
+#[test]
+fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
+    let scratch = fixture();
+    let root = scratch.path();
+    let body = "(value:u32)->u32 { let scaled=value*3; let shifted=scaled+7; if shifted>100 { shifted-100 } else { shifted*2 } }";
+    let consumer = format!("pub fn copy{body}\n");
+    let mut text = fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    text.push_str(&consumer);
+    fs::write(root.join("src/lib.rs"), text).unwrap();
+    let outside = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let repository = outside.path().join("upstream");
+    let plain = outside.path().join("plain");
+    let library = format!("pub fn provided{body}\n");
+    let files = [
+        (
+            "Cargo.toml",
+            "[package]\nname='upstream'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("src/lib.rs", library.as_str()),
+    ];
+    git_repo::init(&repository);
+    files::write(&repository, &files);
+    let commit = git_repo::commit_all(&repository);
+    files::write(&plain, &files);
+    fs::write(
+        root.join("pins.toml"),
+        format!("[upstream]\nrev = \"{commit}\"\n"),
+    )
+    .unwrap();
+    let repository = repository.to_str().unwrap();
+    let plain = plain.to_str().unwrap();
+
+    let pinned = run(
+        root,
+        &[
+            "check",
+            "--reference-repo",
+            repository,
+            "--reference-commit",
+            &commit,
+        ],
+    );
+    assert_eq!(pinned.status.code(), Some(1), "{pinned:?}");
+    let stdout = String::from_utf8(pinned.stdout.clone()).unwrap();
+    assert!(
+        stdout.contains("REFERENCE-COPY src/lib.rs:5 demo::copy matches upstream::provided "),
+        "{stdout}"
+    );
+    let from_file = run(
+        root,
+        &[
+            "check",
+            "--reference-repo",
+            repository,
+            "--reference-pin-file",
+            "pins.toml",
+            "--reference-pin-key",
+            "upstream.rev",
+        ],
+    );
+    assert_eq!(from_file.stdout, pinned.stdout);
+    let unpinned = run(root, &["check", "--reference-unpinned", plain]);
+    assert_eq!(unpinned.stdout, pinned.stdout);
+    let index = |words: &[&str]| {
+        let result = run(root, words);
+        assert!(result.status.success(), "{result:?}");
+        String::from_utf8(result.stdout).unwrap()
+    };
+    let labelled = index(&["index", "--reference-unpinned", plain]);
+    assert!(labelled.contains("\"unpinned-tree\""), "{labelled}");
+    let committed = index(&[
+        "index",
+        "--reference-repo",
+        repository,
+        "--reference-commit",
+        &commit,
+    ]);
+    assert!(committed.contains("\"committed-git\""), "{committed}");
+    assert!(!committed.contains("\"unpinned-tree\""));
+    reference_option_refusals(root, repository, &commit, plain);
+}
+
+/// The refusals of the reference options, each beside the valid uses above.
+fn reference_option_refusals(root: &Path, repository: &str, commit: &str, plain: &str) {
+    for words in [
+        &["check", "--reference-repo", repository][..],
+        &["check", "--reference-commit", commit],
+        &[
+            "check",
+            "--reference-repo",
+            repository,
+            "--reference-pin-file",
+            "pins.toml",
+        ],
+        &[
+            "check",
+            "--reference-repo",
+            repository,
+            "--reference-commit",
+            commit,
+            "--reference-unpinned",
+            plain,
+        ],
+    ] {
+        let refused = run(root, words);
+        assert_eq!(refused.status.code(), Some(1), "{words:?}");
+        assert!(
+            String::from_utf8_lossy(&refused.stderr)
+                .contains("reference options: give --reference-repo"),
+            "{refused:?}"
+        );
+    }
+    let refused = run(root, &["baseline", "--reference-unpinned", plain]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("reference options apply only to"),
+        "{refused:?}"
+    );
 }

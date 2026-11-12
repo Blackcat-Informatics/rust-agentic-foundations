@@ -4,8 +4,10 @@
 //! Reference-only package collection and cross-boundary evidence.
 
 pub(super) mod acquire;
+pub(super) mod external;
 mod witness;
 pub use acquire::ReferenceRoot;
+pub use external::ExternalReference;
 
 use crate::{
     Census, Error, Fingerprint, IndexUnit, JobReport, Ledger, MatchClass, ReferenceSource, Unit,
@@ -26,7 +28,7 @@ pub(super) struct ReferencePackage<'a> {
 }
 
 impl<'a> ReferencePackage<'a> {
-    fn collect(
+    fn locked(
         workspace: &'a Workspace,
         package: PackageId,
         row: &LockedPackage,
@@ -36,7 +38,15 @@ impl<'a> ReferencePackage<'a> {
             .package(package)
             .ok_or_else(|| refusal("reference package is absent from its observation"))?
             .manifest;
-        let source = receipt(row, manifest.as_str());
+        Self::collect(workspace, package, receipt(row, manifest.as_str()), ledger)
+    }
+
+    fn collect(
+        workspace: &'a Workspace,
+        package: PackageId,
+        source: ReferenceSource,
+        ledger: &Ledger,
+    ) -> Result<Self, Error> {
         let identity = source.identity()?;
         let mut units = crate::units::collect_packages(
             workspace,
@@ -394,11 +404,50 @@ impl<'a> References<'a> {
             memory
                 .push(
                     &mut result.packages,
-                    ReferencePackage::collect(reference_workspace, package, row, ledger)?,
+                    ReferencePackage::locked(reference_workspace, package, row, ledger)?,
                 )
                 .map_err(storage)?;
         }
         Ok(result)
+    }
+
+    /// Add every package of the caller-declared trees, beside any packages the
+    /// ledger selected through the lock graph. Two packages with the same
+    /// receipt, such as one tree declared twice, refuse.
+    pub(super) fn extend_external(
+        &mut self,
+        trees: &'a [external::ExternalTree],
+        ledger: &Ledger,
+    ) -> Result<(), Error> {
+        let mut resident = Resident;
+        let mut memory = Memory::new(&mut resident);
+        let storage = |source| Error::SourceIndexStorage { source };
+        let mut identities = BTreeSet::new();
+        for package in &self.packages {
+            identities.insert(package.source.identity()?);
+        }
+        for tree in trees {
+            for (package, source) in &tree.packages {
+                if !identities.insert(source.identity()?) {
+                    return Err(refusal(format!(
+                        "reference package {:?} from {:?} is declared twice",
+                        source.package, source.repository
+                    )));
+                }
+                memory
+                    .push(
+                        &mut self.packages,
+                        ReferencePackage::collect(
+                            &tree.workspace,
+                            *package,
+                            source.clone(),
+                            ledger,
+                        )?,
+                    )
+                    .map_err(storage)?;
+            }
+        }
+        Ok(())
     }
 
     pub(super) fn attach(

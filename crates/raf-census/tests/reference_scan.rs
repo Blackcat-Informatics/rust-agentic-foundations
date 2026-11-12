@@ -3,10 +3,14 @@
 
 //! Reference packages supply evidence without entering first-party structural debt.
 
-use raf_census::{Gate, Index, MatchClass, Query, QueryReport, ReferenceRoot};
+use raf_census::{ExternalReference, Gate, Index, MatchClass, Query, QueryReport, ReferenceRoot};
 use raf_rdf::{Builder, Format, Graph, TermValue, Triple, vocab};
 use raf_source::{RelPath, Tree as _};
 use std::fmt::Write as _;
+#[path = "support/files.rs"]
+mod files;
+#[path = "support/git_repo.rs"]
+mod git_repo;
 #[path = "support/reference.rs"]
 mod reference;
 use reference::fixture;
@@ -747,4 +751,297 @@ fn family_selector_refuses_a_name_with_two_reachable_versions() {
         scanned_versions(&single),
         [("acme-core".to_owned(), "2.0.0".to_owned())]
     );
+}
+
+/// The consumer of the external-reference cases: `copy` repeats the
+/// `upstream` body committed first, and `extra` repeats only the body that a
+/// later dirty checkout of that repository holds.
+const EXTERNAL_CONSUMER: &str = "pub fn copy(value:u32)->u32 { let scaled=value*1; scaled+7 }\npub fn extra(value:u32)->u32 { let scaled=value*9; scaled+7 }";
+
+/// An `upstream` repository at `dir` whose first commit holds the body that
+/// `copy` repeats. Its later head holds another body, and its checkout is then
+/// edited to the body that `extra` repeats without committing. Returns the
+/// first commit and the head.
+fn upstream_repository(dir: &std::path::Path) -> (String, String) {
+    let library = |factor: u32| {
+        format!("pub fn provided(value:u32)->u32 {{ let scaled=value*{factor}; scaled+7 }}")
+    };
+    git_repo::init(dir);
+    files::write(
+        dir,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='upstream'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            ("src/lib.rs", &library(1)),
+        ],
+    );
+    let first = git_repo::commit_all(dir);
+    files::write(dir, &[("src/lib.rs", library(2).as_str())]);
+    let head = git_repo::commit_all(dir);
+    files::write(dir, &[("src/lib.rs", library(9).as_str())]);
+    (first, head)
+}
+
+fn external_report(ws: &std::path::Path, reference: ExternalReference) -> raf_census::GateReport {
+    Gate::workspace(ws)
+        .external_references([reference])
+        .check()
+        .unwrap()
+}
+
+/// A pinned commit of a repository outside the lock graph yields the same
+/// `REFERENCE-COPY` finding as the same package selected through the lock
+/// graph. The declared commit is read, not the head, and never the edited
+/// checkout: pinning the head finds nothing although the checkout repeats
+/// `extra`.
+#[test]
+fn pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference() {
+    let locked = workspace_fixture(
+        &["upstream"],
+        "acme-member",
+        &["upstream"],
+        EXTERNAL_CONSUMER,
+    );
+    let expected = Gate::workspace(locked.path().join("ws"))
+        .check()
+        .unwrap()
+        .findings()
+        .to_vec();
+    assert_eq!(expected.len(), 1, "{expected:?}");
+    assert!(
+        expected[0]
+            .starts_with("REFERENCE-COPY app/src/lib.rs:1 app::copy matches upstream::provided "),
+        "{expected:?}"
+    );
+
+    let fixture = workspace_fixture(&[], "acme-member", &[], EXTERNAL_CONSUMER);
+    let repository = fixture.path().join("upstream");
+    let (first, head) = upstream_repository(&repository);
+    let ws = fixture.path().join("ws");
+    let pinned = external_report(&ws, ExternalReference::commit(&repository, &first));
+    assert_eq!(pinned.findings(), expected);
+    let index = pinned.census().index(pinned.jobs()).unwrap();
+    let [source] = index.reference_sources.as_slice() else {
+        panic!("one receipt: {:?}", index.reference_sources);
+    };
+    assert_eq!(
+        (
+            source.package.as_str(),
+            source.version.as_str(),
+            source.source_kind.as_str(),
+            source.repository.as_str(),
+            source.revision.as_str(),
+            source.observation.as_str(),
+        ),
+        (
+            "upstream",
+            "1.0.0",
+            "git",
+            repository.to_str().unwrap(),
+            first.as_str(),
+            "committed-git",
+        )
+    );
+    assert!(external_report(&ws, ExternalReference::commit(&repository, &head)).is_clean());
+}
+
+/// Each unusable pinned input refuses with a message naming what to fix,
+/// beside the exact commit and pin key that succeed: a malformed commit ID, a
+/// commit absent from the repository, a missing repository, a location inside
+/// the repository rather than its root, a tree with no packages, a pin key
+/// that names no commit, one tree declared twice, and a relative location on
+/// an opaque Tree, which has no main checkout to resolve it from.
+#[test]
+fn pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit() {
+    let fixture = workspace_fixture(&[], "acme-member", &[], EXTERNAL_CONSUMER);
+    let repository = fixture.path().join("upstream");
+    let (first, _) = upstream_repository(&repository);
+    let empty = fixture.path().join("empty");
+    git_repo::init(&empty);
+    files::write(&empty, &[("README", "no packages\n")]);
+    let packageless = git_repo::commit_all(&empty);
+    let ws = fixture.path().join("ws");
+    files::write(
+        &ws,
+        &[(
+            "pins.toml",
+            format!("[upstream]\nrev = \"{first}\"\nsize = 3\n").as_str(),
+        )],
+    );
+    let pins = |key: &str| {
+        ExternalReference::pin_file(&repository, RelPath::new("pins.toml").unwrap(), key)
+    };
+    assert!(!external_report(&ws, ExternalReference::commit(&repository, &first)).is_clean());
+    assert!(!external_report(&ws, pins("upstream.rev")).is_clean());
+    for (reference, expected) in [
+        (
+            ExternalReference::commit(&repository, &first[..12]),
+            "full 40-character lowercase hexadecimal SHA-1",
+        ),
+        (
+            ExternalReference::commit(&repository, first.to_uppercase()),
+            "full 40-character lowercase hexadecimal SHA-1",
+        ),
+        (
+            ExternalReference::commit(&repository, "0".repeat(40)),
+            "Git commit failed",
+        ),
+        (
+            ExternalReference::commit(fixture.path().join("absent"), &first),
+            "Git repository failed",
+        ),
+        (
+            ExternalReference::commit(repository.join("src"), &first),
+            "name the repository's checkout root or Git directory",
+        ),
+        (
+            ExternalReference::commit(&empty, &packageless),
+            "yields no packages; an empty comparison is never reported as clean",
+        ),
+        (
+            pins("upstream.tag"),
+            "key \"upstream.tag\": the key is absent",
+        ),
+        (
+            pins("upstream.size"),
+            "the value must be a commit ID string",
+        ),
+    ] {
+        let error = Gate::workspace(&ws)
+            .external_references([reference])
+            .check()
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains(expected), "{expected:?} in {error}");
+    }
+    let twice = Gate::workspace(&ws)
+        .external_references([
+            ExternalReference::commit(&repository, &first),
+            ExternalReference::commit(&repository, &first),
+        ])
+        .check()
+        .unwrap_err()
+        .to_string();
+    assert!(twice.contains("is declared twice"), "{twice}");
+    let opaque = Gate::workspace(".")
+        .external_references([ExternalReference::commit("../upstream", &first)])
+        .check_tree(&reference::fixture("", "pub fn provided() {}"))
+        .unwrap_err()
+        .to_string();
+    assert!(opaque.contains("which an opaque Tree lacks"), "{opaque}");
+}
+
+/// A relative location is resolved from the main checkout of the consumer's
+/// repository, so a linked worktree and the main checkout read the same pinned
+/// tree and produce byte-identical indexes. Resolved from the linked
+/// worktree's own directory, `../upstream` would name a directory that does
+/// not exist.
+#[test]
+fn linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree() {
+    let fixture = workspace_fixture(&[], "acme-member", &[], EXTERNAL_CONSUMER);
+    let (first, _) = upstream_repository(&fixture.path().join("upstream"));
+    let main = fixture.path().join("ws");
+    files::write(
+        &main,
+        &[(
+            "pins.toml",
+            format!("[upstream]\nrev = \"{first}\"\n").as_str(),
+        )],
+    );
+    git_repo::init(&main);
+    git_repo::commit_all(&main);
+    git_repo::git(&main, &["worktree", "add", "--quiet", ".worktrees/linked"]);
+    let linked = main.join(".worktrees/linked");
+    assert!(!linked.join("../upstream").exists());
+    let index = |ws: &std::path::Path, reference: ExternalReference| {
+        let report = external_report(ws, reference);
+        assert_eq!(report.findings().len(), 1, "{:?}", report.findings());
+        report
+            .census()
+            .index(report.jobs())
+            .unwrap()
+            .to_ntriples()
+            .unwrap()
+    };
+    let pinned = || {
+        ExternalReference::pin_file(
+            "../upstream",
+            RelPath::new("pins.toml").unwrap(),
+            "upstream.rev",
+        )
+    };
+    let expected = index(&main, pinned());
+    assert_eq!(index(&linked, pinned()), expected);
+    assert_eq!(
+        index(&linked, ExternalReference::commit("../upstream", &first)),
+        expected
+    );
+}
+
+/// The unpinned mode reads a directory's current files and finds exactly what
+/// the pinned commit of the same tree finds, while every receipt of its native
+/// index carries the `unpinned-tree` observation. Its manifest sets no version,
+/// so the receipt records Cargo's `0.0.0`. Because a debt record cannot
+/// carry that label, an unpinned comparison refuses to record debt, where a
+/// pinned one reaches the ordinary findings refusal instead.
+#[test]
+fn unpinned_directory_finds_the_same_copies_and_labels_every_receipt() {
+    let fixture = workspace_fixture(&[], "acme-member", &[], EXTERNAL_CONSUMER);
+    let repository = fixture.path().join("upstream");
+    let (first, _) = upstream_repository(&repository);
+    let plain = fixture.path().join("plain");
+    files::write(
+        &plain,
+        &[
+            ("Cargo.toml", "[package]\nname='upstream'\nedition='2024'\n"),
+            (
+                "src/lib.rs",
+                "pub fn provided(value:u32)->u32 { let scaled=value*1; scaled+7 }",
+            ),
+        ],
+    );
+    let ws = fixture.path().join("ws");
+    let pinned = external_report(&ws, ExternalReference::commit(&repository, &first));
+    let unpinned = external_report(&ws, ExternalReference::unpinned(&plain));
+    assert!(!pinned.is_clean());
+    assert_eq!(unpinned.findings(), pinned.findings());
+    let encoded = unpinned
+        .census()
+        .index(unpinned.jobs())
+        .unwrap()
+        .to_ntriples()
+        .unwrap();
+    let index = Index::from_ntriples(&encoded).unwrap();
+    assert_eq!(index.reference_sources.len(), 1);
+    for source in &index.reference_sources {
+        assert_eq!(
+            (
+                source.observation.as_str(),
+                source.source_kind.as_str(),
+                source.revision.as_str(),
+                source.version.as_str()
+            ),
+            ("unpinned-tree", "path", "", "0.0.0")
+        );
+    }
+    let refused = Gate::workspace(&ws)
+        .external_references([ExternalReference::unpinned(&plain)])
+        .write_debt()
+        .unwrap_err()
+        .to_string();
+    assert!(
+        refused.contains("an unpinned reference comparison cannot record debt"),
+        "{refused}"
+    );
+    let findings = Gate::workspace(&ws)
+        .external_references([ExternalReference::commit(&repository, &first)])
+        .write_debt()
+        .unwrap_err();
+    assert!(
+        matches!(findings, raf_census::Error::Findings(_)),
+        "{findings}"
+    );
+    assert!(!ws.join(raf_census::DEBT_FILE).exists());
 }
