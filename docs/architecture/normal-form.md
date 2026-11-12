@@ -507,7 +507,7 @@ the property, not with the report-form message. The grouping-scope properties
 `excludeTestItems` and `excludeDir` are such additions within report form 5.
 A value newly accepted in an existing closed set, emitted only in a new mode and
 never for an existing input, is likewise within form 5: the `unpinned-tree`
-observation of a reference receipt. An earlier reader refuses it by name as an
+observation of a reference receipt. An earlier reader refuses it as an
 invalid observation kind.
 
 A normal form version is fixed by the content of its first merge to the default

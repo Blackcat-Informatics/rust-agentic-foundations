@@ -7,9 +7,7 @@
 use super::refusal;
 use crate::{Error, Ledger, ReferenceSource};
 use purrdf_toml::{Bounds, Kind, Profile, Scalar, SourceDocument, Vocabulary};
-use raf_source::{
-    DiskTree, LoadOptions, PackageId, PinnedGitTree, ReferenceObservation, RelPath, Tree, Workspace,
-};
+use raf_source::{DiskTree, LoadOptions, PackageId, PinnedGitTree, RelPath, Tree, Workspace};
 use std::path::{Path, PathBuf};
 
 /// The `observation` token of a receipt read from an unpinned directory.
@@ -128,8 +126,11 @@ pub(crate) fn load(
         let info = workspace
             .package(package)
             .ok_or_else(|| refusal("external reference package is absent"))?;
-        let version =
-            ReferenceObservation::package_version(tree.as_ref(), &info.manifest, &options)?;
+        let version = workspace
+            .package_version(package)
+            .map_err(|error| refusal(format!("reference tree {label}: {error}")))?
+            .unwrap_or("0.0.0")
+            .to_owned();
         packages.push((
             package,
             ReferenceSource {

@@ -19,6 +19,7 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
         "GIT_PREFIX",
+        "GIT_TEMPLATE_DIR",
     ] {
         command.env_remove(name);
     }

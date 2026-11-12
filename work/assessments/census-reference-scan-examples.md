@@ -31,16 +31,16 @@ inputs:
     digest: d624f8a5470e951d8dcfcec0269d114e1cfa3bd35397845a2907469e71c9ae00
   - kind: symbol
     name: raf_census::gate::reference
-    digest: 4d2ea8f3e2dbbb16168e4beb6023d789ea83a046d4f9380c6886157fe5bf87f9
+    digest: 5a4f23102234c8a595a3af75b89756d9cd40d0c9aca0521b6b0e65e38c5465f6
   - kind: symbol
     name: raf_census::gate::reference::external
-    digest: 933e191e9bc01a041e52e81c0fd4928f4eeb37187ec249ae47e960a4ac6526ae
+    digest: 483f06fca67b8b2097bceb2e803b7b4a641099ab26cf185f68878384634d610d
   - kind: symbol
     name: raf_census::report::reference
-    digest: d5caa1f2e1e94da6325cf97bf8ea0a0309f6d44d8332e62e4b6dc93b052ca2bb
+    digest: c190f8b01e736cddc4262cdb7e07468dbc1fa46272b4ad86cbe42d0dee9e29d0
   - kind: symbol
     name: raf_source::PinnedGitTree
-    digest: bdf4350b1d4cf84f554f4bdf4f8c81004ea98db57962b3839cf210940ebc6efd
+    digest: 3a9d76397494b37297a9f0e1c973cc8a7a1421636e4bf290901c060972d80038
   - kind: symbol
     name: raf_source::PinnedGitTree::open
     digest: a6ae4174ad924bbc05e8125a1b82a020f027558ba45d8064a10bc68c57df8a4e
@@ -48,17 +48,17 @@ inputs:
     name: raf_source::ReferenceObservation
     digest: de8fa7c6e008ee0dbfe4be3e089b77fc3351f0411c6552fd89aeb60a0edacb6d
   - kind: symbol
-    name: raf_source::ReferenceObservation::package_version
-    digest: f808732d200769052dd6f29abd1ba1ceb76d279d16a18d1ef261bc791a0a9869
-  - kind: symbol
     name: raf_source::ReferenceRequest
     digest: 866ef48e0fd38b0cf973154ac083374c203f96c6a26983e604aae4eaeb3f15c1
+  - kind: symbol
+    name: raf_source::Workspace::package_version
+    digest: 45f56b0b8440e3433775796a49c801e44862260c98590a3a820e6251ad90cf0a
   - kind: symbol
     name: raf_source::git::Repository::main_work_dir
     digest: e013eb3abf08341a4b162ba445bca36b9c558b121650cd3b18962f6cab61ff73
   - kind: symbol
     name: raf_source::workspace::locked::reference
-    digest: d9c000aa7662f889a039cdcf3884690e08579709ef5a8887fb56977ff38cac93
+    digest: fd6c1c386536fcb1b27c99c106b699acb509a02439ac0d4a37c25e7085a8c8c8
 verdict: accepted
 by: agent
 ---

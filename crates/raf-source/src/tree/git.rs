@@ -47,6 +47,9 @@ pub struct PinnedGitTree<'a> {
     commit: [u8; 20],
     entries: Vec<Record>,
     meter: SealedMeter<'a>,
+    /// Whether a file the caller already holds is still read and hashed,
+    /// which a locked snapshot requires and a declared pin does not.
+    verify_seen: bool,
 }
 impl std::fmt::Debug for PinnedGitTree<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -115,10 +118,9 @@ impl<'a> CommittedGitTree<'a> {
                     "committed Git source loading requires a full SHA-1 revision",
                 )
             })?;
-        Ok(Self {
-            source,
-            tree: PinnedGitTree::checked(revision, repository, meter)?,
-        })
+        let mut tree = PinnedGitTree::checked(revision, repository, meter)?;
+        tree.verify_seen = true;
+        Ok(Self { source, tree })
     }
     /// The exact locked source selected for this committed host Tree.
     #[must_use]
@@ -225,6 +227,7 @@ impl<'a> PinnedGitTree<'a> {
             commit,
             entries,
             meter,
+            verify_seen: false,
         })
     }
     /// RAF's acquired protocol, native storage and processing charges.
@@ -322,6 +325,9 @@ impl Tree for PinnedGitTree<'_> {
         let canonical_path = RelPath::new(&canonical).map_err(TreeError::from)?;
         let id = FileId::git(self.commit, &canonical_path);
         let previously_seen = seen(&id);
+        if previously_seen && !self.verify_seen {
+            return Ok(Opened::Seen(id));
+        }
         let limit = if previously_seen {
             self.meter.options().max_file_bytes
         } else {

@@ -376,7 +376,7 @@ inputs:
     digest: 8942fde727fab96a3c0dad2ae30198f9adb717868189f69716dac5314bf4fedc
   - kind: symbol
     name: raf_source::Workspace
-    digest: 8ea5019a18360e0db3123e26c9fc768f80df20595fbdbbb1f56c436d1158662f
+    digest: eec438cf1fc54b7039eca2425308aefbb2b42e3a9b9f15dc14fce977e520db58
   - kind: symbol
     name: raf_source::Workspace::code_resolver
     digest: e1b516fb173d981ee22520060699be7f1d8fb140f51a2802c835e50eafa9d88c
@@ -481,7 +481,7 @@ inputs:
     digest: ea58202fe55d35139111d5203eb4d561953c0b118cacd4e3bbe55c5a4f98febd
   - kind: symbol
     name: raf_source::tree
-    digest: a9a1a209096e32843a5ffcf76dbfebdb9ee7665b4efbf137034c3bff797acc75
+    digest: 078796918c101347df949cb2d69a03d131f88b87ae18c88fd9aa6bb387d40a67
   - kind: symbol
     name: raf_source::tree::disk
     digest: 7b505520fb8fc0e8c4e7049d8db1e12c5da00800fc5417cd3066fdbffa1fd80b

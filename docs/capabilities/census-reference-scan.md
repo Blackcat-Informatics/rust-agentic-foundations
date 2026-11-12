@@ -23,7 +23,7 @@ bindings:
     - raf_census::gate::reference::external
     - raf_source::PinnedGitTree
     - raf_source::PinnedGitTree::open
-    - raf_source::ReferenceObservation::package_version
+    - raf_source::Workspace::package_version
     - raf_source::git::Repository::main_work_dir
   tests:
     - raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count
@@ -40,6 +40,7 @@ bindings:
     - raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit
     - raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree
     - raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt
+    - raf_source::test_crate::git_tree::pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds
     - cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory
 
     - raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes
@@ -92,7 +93,7 @@ A selected name with two reachable locked versions refuses as ambiguous, whether
 an exact name selected it or a family selected two non-first-party versions.
 
 ### Declared reference trees
-<!-- raf:tested-by raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference,raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit,raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference,raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit,raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,raf_source::test_crate::git_tree::pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds -->
 
 A caller can declare a reference tree that the lock graph does not select,
 through `Gate::external_references` and an `ExternalReference`. A pinned
@@ -101,7 +102,8 @@ lowercase hexadecimal SHA-1 given directly, or the string value of a dotted
 key in a workspace-relative TOML pin file. `PinnedGitTree` reads that commit's
 committed objects through the native read-only Git library; it never reads the
 repository's working tree, fetches an object or starts a process, and it
-carries no lock identity, so it never supplies preferred-provider proof. An
+carries no lock identity, so it never supplies preferred-provider proof. A file the caller already holds is returned as seen without a size check or
+blob read, so an accepted oversized file is never refused or read. An
 unpinned reference names a directory and reads its current files through a
 contained disk tree.
 
@@ -231,8 +233,8 @@ and the command line declares one with
 `--reference-repo ../upstream --reference-commit COMMIT`, with
 `--reference-repo ../upstream --reference-pin-file pins.toml --reference-pin-key upstream.rev`,
 or with `--reference-unpinned DIRECTORY`. Such a tree needs no ledger
-The pin key `upstream.rev` reads the string `rev` of the `[upstream]` table.
 `reference` value; a job home may name its implementations.
+The pin key `upstream.rev` reads the string `rev` of the `[upstream]` table.
 <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit,cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree -->
 
 ## Examples
@@ -324,6 +326,7 @@ refusal with a valid commit or pin key.
 | `raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt` | test | [Contract](#contract) |
+| `raf_source::test_crate::git_tree::pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_sources::local_reference_owner_selection_spends_its_original_work_allowance` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes` | test | [Contract](#contract), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity` | test | [Contract](#contract) |

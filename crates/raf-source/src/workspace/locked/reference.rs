@@ -236,25 +236,6 @@ fn declared_version(
 }
 
 impl ReferenceObservation {
-    /// The version Cargo gives the package whose manifest is `manifest` in a
-    /// reference tree with no lock identity: its explicit or
-    /// workspace-inherited `[package] version`, or `0.0.0`, Cargo's value for
-    /// a manifest that sets none.
-    ///
-    /// # Errors
-    /// Refuses an inherited version without a workspace value and every
-    /// bounded discovery or manifest failure.
-    pub fn package_version(
-        tree: &dyn Tree,
-        manifest: &RelPath,
-        options: &LoadOptions,
-    ) -> Result<String, LoadError> {
-        let meter = Meter::new(options);
-        let discovered = crate::discovery::single(tree, manifest, &meter)?;
-        Ok(declared_version(tree, &meter, &discovered, manifest)?
-            .unwrap_or_else(|| "0.0.0".to_owned()))
-    }
-
     /// Observe one actual local root package and associate its explicit or
     /// inherited version with a unique source-less lock row. This is the owning
     /// manifest context for subsequent declaration-qualified reference requests.

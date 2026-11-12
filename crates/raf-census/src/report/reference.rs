@@ -89,9 +89,10 @@ impl ReferenceSource {
                 "contained-tree" | "committed-git" | "unpinned-tree"
             )
         {
-            return Err(E::Value(
-                "invalid reference identity or observation kind".into(),
-            ));
+            return Err(E::Value(format!(
+                "invalid reference identity or observation kind (source kind {:?}, observation {:?})",
+                self.source_kind, self.observation
+            )));
         }
         if (self.source_kind == "git") != (self.observation == "committed-git")
             || (self.source_kind == "git"

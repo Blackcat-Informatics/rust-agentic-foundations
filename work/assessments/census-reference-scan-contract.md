@@ -7,7 +7,7 @@ subject: cap:census-reference-scan#contract
 inputs:
   - kind: section
     name: cap:census-reference-scan#contract
-    digest: f51572385a0bd72f89ea22c156b330758536b087fae298981b465c8c0f14fcbe
+    digest: c72da2c511d608788623dc097b023a8a91172414e2053a8582ce73ba8b190940
   - kind: symbol
     name: raf_census::ExternalReference
     digest: dff9ba21af812a6448881bf2fda85215d82d533591e85489c9f8e454bc9ba7ce
@@ -16,19 +16,19 @@ inputs:
     digest: 203e097a440d87e226a19737629540596262176ef6dba84291ce2bcd060f3adb
   - kind: symbol
     name: raf_census::gate::reference
-    digest: 4d2ea8f3e2dbbb16168e4beb6023d789ea83a046d4f9380c6886157fe5bf87f9
+    digest: 5a4f23102234c8a595a3af75b89756d9cd40d0c9aca0521b6b0e65e38c5465f6
   - kind: symbol
     name: raf_census::report::reference
-    digest: d5caa1f2e1e94da6325cf97bf8ea0a0309f6d44d8332e62e4b6dc93b052ca2bb
+    digest: c190f8b01e736cddc4262cdb7e07468dbc1fa46272b4ad86cbe42d0dee9e29d0
   - kind: symbol
     name: raf_source::PinnedGitTree
-    digest: bdf4350b1d4cf84f554f4bdf4f8c81004ea98db57962b3839cf210940ebc6efd
+    digest: 3a9d76397494b37297a9f0e1c973cc8a7a1421636e4bf290901c060972d80038
   - kind: symbol
     name: raf_source::ReferenceObservation
     digest: de8fa7c6e008ee0dbfe4be3e089b77fc3351f0411c6552fd89aeb60a0edacb6d
   - kind: symbol
     name: raf_source::workspace::locked::reference
-    digest: d9c000aa7662f889a039cdcf3884690e08579709ef5a8887fb56977ff38cac93
+    digest: fd6c1c386536fcb1b27c99c106b699acb509a02439ac0d4a37c25e7085a8c8c8
 verdict: accepted
 by: agent
 ---

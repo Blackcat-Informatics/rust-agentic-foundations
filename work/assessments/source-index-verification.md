@@ -70,7 +70,7 @@ inputs:
     digest: 1870f1f59aec46e41cf5240d1029068a8038cb77307e2221a53bee581121fc48
   - kind: symbol
     name: raf_source::Workspace
-    digest: 8ea5019a18360e0db3123e26c9fc768f80df20595fbdbbb1f56c436d1158662f
+    digest: eec438cf1fc54b7039eca2425308aefbb2b42e3a9b9f15dc14fce977e520db58
   - kind: symbol
     name: raf_source::Workspace::exported_items
     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
@@ -106,7 +106,7 @@ inputs:
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3
   - kind: symbol
     name: raf_source::tree
-    digest: a9a1a209096e32843a5ffcf76dbfebdb9ee7665b4efbf137034c3bff797acc75
+    digest: 078796918c101347df949cb2d69a03d131f88b87ae18c88fd9aa6bb387d40a67
 verdict: accepted
 by: agent
 ---
