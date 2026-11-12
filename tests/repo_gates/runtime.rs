@@ -144,10 +144,12 @@ fn runtime_analysis_libraries_have_no_process_authority() {
         {
             continue;
         }
-        // The unpublished fixture crate runs Git in scratch repositories for the
+        // Two files of the unpublished fixture crate run Git in scratch repositories for the
         // tests of several packages. It is an analysis library of no package: no
         // shipped crate depends on it.
-        if parts.get(1) == Some(&"raf-fixtures") {
+        if parts.get(1) == Some(&"raf-fixtures")
+            && matches!(parts.get(3), Some(&("git_repo.rs" | "fixture_signing.rs")))
+        {
             continue;
         }
         let bytes = read_tracked(&root, &path);
@@ -179,6 +181,68 @@ fn runtime_refuses_launches_aliases_and_hidden_macro_paths() {
     assert_eq!(
         violations(
             "fn identity() -> u32 { std::process::id() } fn display() -> String { format!(\"{}\", std::process::id()) } fn data() -> &'static str { \"std::process::Command\" } fn flag(process: bool) -> bool { process }"
+        ),
+        Vec::<String>::new()
+    );
+}
+
+/// Lines of a manifest that list `raf-fixtures` in a table other than
+/// `[dev-dependencies]`.
+fn shipped_fixture_dependencies(manifest: &str) -> Vec<String> {
+    let mut table = "";
+    let mut found = Vec::new();
+    for line in manifest.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            table = line;
+        } else if line.starts_with("raf-fixtures")
+            && table.contains("dependencies")
+            && !table.contains("dev-dependencies")
+        {
+            found.push(format!("{table} {line}"));
+        }
+    }
+    found
+}
+
+#[test]
+fn no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies() {
+    let root = gate_root();
+    let mut inspected = 0;
+    for path in tracked_paths() {
+        let text_path = path.to_string_lossy();
+        let parts: Vec<_> = text_path.split('/').collect();
+        if parts.len() != 3
+            || parts[0] != "crates"
+            || parts[1] == "raf-fixtures"
+            || parts[2] != "Cargo.toml"
+        {
+            continue;
+        }
+        let bytes = read_tracked(&root, &path);
+        let text = decode_text(&bytes).expect("a manifest is text");
+        assert_eq!(
+            shipped_fixture_dependencies(&text),
+            Vec::<String>::new(),
+            "{}",
+            path.display()
+        );
+        inspected += 1;
+    }
+    assert!(inspected > 0, "no crate manifest was inspected");
+}
+
+#[test]
+fn a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_form() {
+    assert_eq!(
+        shipped_fixture_dependencies(
+            "[dependencies]\nraf-fixtures = { path = \"../raf-fixtures\" }\n"
+        ),
+        ["[dependencies] raf-fixtures = { path = \"../raf-fixtures\" }"]
+    );
+    assert_eq!(
+        shipped_fixture_dependencies(
+            "[dev-dependencies]\nraf-fixtures = { path = \"../raf-fixtures\" }\n"
         ),
         Vec::<String>::new()
     );

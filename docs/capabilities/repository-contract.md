@@ -13,6 +13,8 @@ bindings:
   tests:
     - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority
     - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths
+    - rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies
+    - rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_form
     - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
     - rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling
     - rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory
@@ -147,7 +149,10 @@ assessments to the same complete workplan policy that the libraries provide.
 foreign launch interfaces and macro-hidden launch paths. Static checks never
 execute inspected tests, examples or doctests. Explicit documentation trust lives
 only in the private CLI operation and cannot be granted by repository content.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority,rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths -->
+Two files of the unpublished `raf-fixtures` crate run Git in scratch repositories for
+tests and are the only exemption; a gate requires that no crate lists `raf-fixtures`
+outside its `[dev-dependencies]`.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority,rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths,rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies,rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_form -->
 
 **Bounded CI.** Every workflow job declares an integer `timeout-minutes` from
 one through nine, reserving execution headroom below a ten-minute job ceiling.
@@ -172,11 +177,17 @@ locked evaluation takes the lock catalog from `Cargo.lock` (the fuzz harness
 row from `fuzz/Cargo.lock`), every first-party manifest with its discovered targets
 under a declared Linux configuration, and the direct `purrdf-*` registry sources
 sealed from their original `.crate` archives. The archives are found in the Cargo
-registry cache named by `CARGO_HOME`, or `$HOME/.cargo`; only their bytes come
+registry cache named by `CARGO_HOME`, or `$HOME/.cargo`, which must hold the complete
+locked set of archives of both lock files (`cargo fetch --locked`, and the same with
+`--manifest-path fuzz/Cargo.toml`; the hosted root-package jobs run both first); only their bytes come
 from there, and each must match the `Cargo.lock` checksum before any of it is read.
 A missing archive or a checksum mismatch is a hard failure. A library is judged in
 its ordinary mode, so `cfg(test)` modules inside library sources are outside the
 locked census; every integration test, example and binary is judged with `cfg(test)`.
+That is a known coverage loss: a competing implementation inside a library `cfg(test)`
+module is not found, and 14 debt groups left the adopted record with it. One of them,
+the `Handle::metadata` pair, was non-Linux platform code, which the primary-Linux scope
+does not judge; the rest were `cfg(test)` modules.
 `census-debt.ttl` holds the exact adopted duplication; growth and stale slack both
 fail. The census must contain actual units from the root package and fuzz harness.
 The read-only test never writes or increases debt; the registered `repository_census`
@@ -186,7 +197,9 @@ a discarded provider call) fails this gate on the real repository, a thin adapte
 passes, and a delegation replaced by a discarded provider call is refused. No test
 shares a source file across packages, because a locked load judges each file under
 one package: the fixtures that several packages use live in the unpublished
-`raf-fixtures` crate. Ordinary checks, Linux CI and the staged commit and merge
+`raf-fixtures` crate, which states no capability: it is outside the coverage `scope`,
+and its modules and items are excluded in `work/coverage/default.md` with a reason.
+Checks, Linux CI and the staged commit and merge
 snapshots execute the same test.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused,rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate,rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation -->
 
@@ -450,6 +463,8 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_tracked_files_are_forbidden` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_form` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_exempts_the_clock_file_but_not_its_neighbour` | test | [Verification](#verification) |

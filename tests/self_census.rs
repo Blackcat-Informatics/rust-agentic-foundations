@@ -195,10 +195,13 @@ pub(crate) fn decorative_call_beside_an_initial_state() -> u32 {
         ("pub(crate) fn local_table", "rule hex-table"),
         ("pub(crate) fn imported_beside_a_table", "rule hex-table"),
     ] {
-        let expected = format!("{DIGEST}:{}", line_of(needle));
+        let expected = format!(
+            "{DIGEST}:{}: job \"purrdf-digest\", {rule}:",
+            line_of(needle)
+        );
         assert!(
-            findings.contains(&expected) && findings.contains(rule),
-            "{expected} {rule} missing from:\n{findings}"
+            findings.contains(&expected),
+            "{expected} missing from:\n{findings}"
         );
     }
     let constant = format!(
@@ -214,14 +217,17 @@ pub(crate) fn decorative_call_beside_an_initial_state() -> u32 {
         !findings.contains(&thin),
         "the thin adapter was refused:\n{findings}"
     );
-    // The recorded debt is part of this tree and holds none of it: every
-    // planted finding is a failure of the gate, never an adoptable debt group.
-    assert!(
-        findings
-            .lines()
-            .all(|finding| !finding.contains("MissingGroup")),
-        "{findings}"
-    );
+    // The recorded debt is part of this tree and holds none of it: the planted
+    // symbols are failures of the gate and appear in no adoptable debt group.
+    let debt = format!("{:?}", report.debt());
+    for symbol in [
+        "local_table",
+        "imported_beside_a_table",
+        "decorative_call_beside_an_initial_state",
+        "thin_adapter",
+    ] {
+        assert!(!debt.contains(symbol), "{symbol} entered the debt: {debt}");
+    }
 }
 
 #[test]

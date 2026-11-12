@@ -67,7 +67,7 @@ fn archive(cache: &Path, name: &str, version: &str) -> Result<Vec<u8>, Box<dyn E
         }
     }
     Err(format!(
-        "{file} is not in {}: build the workspace once so Cargo stores the locked archive",
+        "{file} is not in {}: run `cargo fetch --locked` for the root lock file and for fuzz/Cargo.lock so Cargo stores the complete locked set",
         cache.display()
     )
     .into())
