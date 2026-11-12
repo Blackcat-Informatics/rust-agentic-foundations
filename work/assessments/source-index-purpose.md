@@ -391,7 +391,7 @@ inputs:
     digest: 891632117c7ea376a68691c23ca1ae03e6f88c002d95a80507482e496d40b3b5
   - kind: symbol
     name: raf_source::Workspace::foreign_module_paths
-    digest: 3e30edcddda5806cd11d5cd946322c7cb364c9fa15713888ef31fcc12d2d3355
+    digest: 1c6db4b84719eb8a22cf0e58a3b33fb5848f91a548ebca5598068af24790acc4
   - kind: symbol
     name: raf_source::Workspace::impl_block
     digest: fb2b7a91c6018c4ba02bc6a2ac0aa2053e3a41ec045247b03c254ab70047cbdf

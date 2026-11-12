@@ -2122,7 +2122,8 @@ spelling in the same source, so a member nested below a root package owns its ow
 directory. A spelling that keeps a `..` below a package directory is not owned by that
 package. The owner is `None` when no loaded package holds the spelling. Library, binary,
 test, bench, example and build-script targets are all covered. A raw module name
-leaves the attribute and its resolution unchanged.
+leaves the attribute and its resolution unchanged. Module declarations inside function
+bodies are not followed by the module walk, so the check does not see them.
 
 ### Module identity and cycles
 <!-- raf:tested-by raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files,raf_source::test_crate::module_tree::a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_path -->

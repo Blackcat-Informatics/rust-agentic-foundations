@@ -93,7 +93,8 @@ ledger job, home, variant or debt record cannot exempt the finding, so a gate th
 requires it refuses to write debt while one remains. A path shared on purpose
 between packages leaves the requirement unselected or moves the shared module
 into a package the others depend on. The structural and locked checks apply it
-alike. Without the requirement no module path is judged, and nothing of the
+alike. Module declarations inside function bodies are not followed by the module
+walk, so the check does not see them. Without the requirement no module path is judged, and nothing of the
 ledger, the debt record or the reports changes with it.
 
 ### Rule interface
