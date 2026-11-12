@@ -139,18 +139,32 @@ pub(crate) const HEX: [(&str, &str, &str, bool); 3] = [
     ),
 ];
 
-pub(crate) const CONTEXTUAL: [(&str, &str, &str, &str); 2] = [
+/// Job-scoped detectors: id, home source, positive and negative consumers.
+///
+/// The `vocabulary-literal` sides cover its embedded-document exemption: a
+/// keyword without a line break, a line break without a keyword and keywords
+/// only inside longer words stay hits; a multi-line literal with a whole-word
+/// keyword in any letter case is clean.
+pub(crate) const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 2] = [
     (
         "home-literal",
         "/// Home.\npub fn home()->&'static str {\"token\"}",
-        "fn copy(){let _=\"token\";}",
-        "fn copy(){let _=\"different\";}",
+        &["fn copy(){let _=\"token\";}"],
+        &["fn copy(){let _=\"different\";}"],
     ),
     (
         "vocabulary-literal",
         "/// Vocabulary.\npub mod home {pub const NS:&str={ (\"urn:demo:\") };}",
-        "fn copy(){let _=\"urn:demo:term\";}",
-        "fn copy(){let _=\"urn:other:term\";}",
+        &[
+            "fn copy(){let _=\"urn:demo:term\";}",
+            "fn copy(){let _=\"urn:demo:term WHERE\";}",
+            "fn copy(){let _=\"urn:demo:term\\nurn:demo:other\";}",
+            "fn copy(){let _=\"urn:demo:term\\nPREFIXED reselect select_all ask1\";}",
+        ],
+        &[
+            "fn copy(){let _=\"urn:other:term\";}",
+            "fn copy(){let _=\"urn:demo:\\nselect ?s where {?s ?p ?o}\";}",
+        ],
     ),
 ];
 

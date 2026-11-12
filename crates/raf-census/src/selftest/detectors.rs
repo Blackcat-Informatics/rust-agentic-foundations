@@ -136,15 +136,20 @@ fn family(id: &str) -> Option<Family> {
     }
     if let Some((_, home, positive, negative)) = fixtures::CONTEXTUAL.iter().find(|row| row.0 == id)
     {
-        let probe = |consumer| Probe {
-            home: (*home).into(),
-            consumer,
-            rows: Vec::new(),
+        let probes = |consumers: &[&'static str]| {
+            consumers
+                .iter()
+                .map(|consumer| Probe {
+                    home: (*home).into(),
+                    consumer,
+                    rows: Vec::new(),
+                })
+                .collect()
         };
         return Some(Family {
             selection: Selection::Job,
-            positive: vec![probe(positive)],
-            negative: vec![probe(negative)],
+            positive: probes(positive),
+            negative: probes(negative),
         });
     }
     if fixtures::RDF.iter().any(|row| row.0 == id) {

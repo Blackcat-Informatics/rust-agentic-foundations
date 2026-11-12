@@ -111,6 +111,7 @@ pub(super) fn collect<'a>(
                 );
             }
             if vocabulary
+                && !embedded_document(&literal.value)
                 && let Some(namespace) = namespaces
                     .iter()
                     .filter(|namespace| literal.value.starts_with(**namespace))
@@ -130,6 +131,34 @@ pub(super) fn collect<'a>(
         }
     }
     Ok(result)
+}
+
+/// Turtle, `TriG` and SPARQL keywords that mark a literal as an embedded document.
+const EMBEDDED_DOCUMENT_KEYWORDS: [&str; 9] = [
+    "PREFIX",
+    "BASE",
+    "SELECT",
+    "WHERE",
+    "CONSTRUCT",
+    "ASK",
+    "DESCRIBE",
+    "INSERT",
+    "DELETE",
+];
+
+/// Whether a literal is an embedded query or data document rather than a
+/// hand-spelled term: it spans more than one line and contains a listed
+/// keyword as a whole word, in any ASCII letter case. A word is a maximal run
+/// of alphanumeric characters and underscores.
+fn embedded_document(value: &str) -> bool {
+    value.contains('\n')
+        && value
+            .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+            .any(|word| {
+                EMBEDDED_DOCUMENT_KEYWORDS
+                    .iter()
+                    .any(|keyword| word.eq_ignore_ascii_case(keyword))
+            })
 }
 
 fn namespaces<'a>(
