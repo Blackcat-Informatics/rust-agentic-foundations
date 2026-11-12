@@ -4,11 +4,13 @@
 //! The loaded workspace: packages, targets and the files of every module tree.
 
 mod locked;
+mod module_paths;
 mod selected;
 pub use locked::{
     LockedBinding, LockedEdge, LockedManifest, LockedPackageRoots, LockedTree, ReferenceBinding,
     ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree,
 };
+pub use module_paths::ForeignModulePath;
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};

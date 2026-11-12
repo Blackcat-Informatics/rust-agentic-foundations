@@ -7,7 +7,7 @@ subject: cap:source-index#verification
 inputs:
   - kind: section
     name: cap:source-index#verification
-    digest: 7fb0c87ef8b013a04b1ca2bab4523d1b6f05ea41975eb30d33df93248b1d0b1a
+    digest: ba541c2c902eb909e5220b5dbf0ca42ea9479ec5ceb8d05b463e4dd0484e62d0
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -17,6 +17,9 @@ inputs:
   - kind: symbol
     name: raf_source::Entry
     digest: 643dfd3058b51a0c966bf62bd198068186dda5ddf8a10224bf1d6d6526254e76
+  - kind: symbol
+    name: raf_source::ForeignModulePath
+    digest: 41dfdd9d116c07e64aad2370fc6a167c9472c5bb2b378e90b040e2c92c53c2c9
   - kind: symbol
     name: raf_source::LoadError
     digest: 0385f2e238aa06dc8b8bf67e52f5dcdf0f0385091c8ba8d0f9162620190ce379
@@ -36,11 +39,14 @@ inputs:
     name: raf_source::PathError
     digest: a8d006e0bbc52c46b77ad06d0c7fd4037f6da3938cc26e000f988031dec4efb1
   - kind: symbol
+    name: raf_source::PathSite
+    digest: 393d1eeee67698d71c513c3d6590c508d76fb0a495133e94e555eccb8bbb1d16
+  - kind: symbol
     name: raf_source::PreparedSource::parse
     digest: cae35d4df2b3ef7c80b8171a8457444818d2bf162e4d327d8ac744f7a663f79e
   - kind: symbol
     name: raf_source::Reach
-    digest: 29cde46d34604e6ba2624de8016f124a93e71ad5d123df536ec171ec351e7afa
+    digest: 0e20285426d60116d397c17add6c629f1d96ef51fe7b86825b1fa6392bf60d99
   - kind: symbol
     name: raf_source::Reexport
     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2

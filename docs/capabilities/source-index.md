@@ -151,6 +151,9 @@ bindings:
     - raf_source::PARSE_STACK_BYTES
     - raf_source::Package
     - raf_source::PathError
+    - raf_source::PathSite
+    - raf_source::ForeignModulePath
+    - raf_source::Workspace::foreign_module_paths
     - raf_source::Reach
     - raf_source::SharedStr
     - raf_source::SourceFile
@@ -431,6 +434,8 @@ bindings:
     - raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate
     - raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files
     - raf_source::test_crate::module_tree::a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it
+    - raf_source::test_crate::module_tree::foreign_module_paths_name_only_attributes_that_leave_their_package
+    - raf_source::test_crate::module_tree::a_module_path_outside_every_package_is_reported_without_an_owner
     - raf_source::test_crate::module_tree::the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone
     - raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond
     - raf_source::test_crate::module_tree::a_child_file_that_sorts_before_its_mod_rs_parent_is_placed_under_its_own_path
@@ -2101,6 +2106,24 @@ whether by `..` segments, an absolute path or a symlink, is an error that names 
 module and the attribute and does not read the file. An unresolved `mod` is an error
 that names the declaring file and its line.
 
+### Module paths outside their package
+<!-- raf:tested-by raf_source::test_crate::module_tree::foreign_module_paths_name_only_attributes_that_leave_their_package,raf_source::test_crate::module_tree::a_module_path_outside_every_package_is_reported_without_an_owner -->
+
+Each `Reach` records in `path_attribute` the `path` attribute that led the walk to the
+file, as a `PathSite`: the declaring file, the line of the module's name and the
+resolved spelling, with `dir/..` collapsed through real directories. A `path` on
+`mod name;`, plain or inside `cfg_attr`, leads to the file it names. A `path` on an
+inline module leads to each file module found by name inside that module, at any
+inline depth. A file's own children are reached through the file, so they record no
+attribute. `Workspace::foreign_module_paths` lists every such arrival whose resolved
+spelling the arriving target's package does not own, with that package and the owner.
+The owner is the package whose directory is the deepest one that lexically holds the
+spelling in the same source, so a member nested below a root package owns its own
+directory. A spelling that keeps a `..` below a package directory is not owned by that
+package. The owner is `None` when no loaded package holds the spelling. Library, binary,
+test, bench, example and build-script targets are all covered. A raw module name
+leaves the attribute and its resolution unchanged.
+
 ### Module identity and cycles
 <!-- raf:tested-by raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files,raf_source::test_crate::module_tree::a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_path -->
 
@@ -3225,7 +3248,7 @@ The two visibility rules of the use-alias index reach the surface as follows. A 
 <!-- raf:tested-by raf_source::test_crate::memory_tree::entry_reports_file_dir_and_absence_without_an_error,raf_source::test_crate::symbol_index::files_items_in_and_item_at_answer_by_position,raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included,raf_source::test_crate::reachability::the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run -->
 
 The data structs a caller reads, `Package`, `Target`, `SourceFile`,
-`Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so adding a field
+`Reach`, `PathSite`, `ForeignModulePath`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so adding a field
 is not a breaking change: a pattern over one names the fields it reads and ends in
 `..`, and a `Tree` backend outside the crate builds an `Entry` with `Entry::new`. The
 per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
@@ -4204,7 +4227,7 @@ one-byte-short refusal.
   defaults; a setting of the wrong type in each kind of table is a `Manifest` error
   naming its key.
 - A `compile_fail` doctest on each of `Package`, `Target`, `SourceFile`, `Reach`,
-  `Entry` and `SpanFact` destructures it with every field and no `..` and must fail
+  `PathSite`, `ForeignModulePath`, `Entry` and `SpanFact` destructures it with every field and no `..` and must fail
   with E0638, the error of a pattern over a non-exhaustive struct. The pattern for
   `SourceFile` omits its crate-private `facts` field, so it is refused for that field
   too, and only the seal makes it E0638. A `required-features` key on the library is a
@@ -5452,6 +5475,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::module_tree::a_flat_module_file_and_its_child_below_a_parent_that_sorts_first_keep_their_own_paths` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_malformed_cfg_path_or_test_attribute_is_an_error_naming_its_line` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_module_path_outside_every_package_is_reported_without_an_owner` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_module_with_both_name_rs_and_name_mod_rs_is_an_error_naming_both_files` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_nested_cfg_attr_path_is_flattened_with_the_combined_predicate` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_non_literal_path_attribute_is_reported_as_such_from_the_attribute` | test | [Contract](#contract) |
@@ -5469,6 +5493,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::module_tree::an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::an_unresolved_mod_names_the_declaring_file_and_line` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::foreign_module_paths_name_only_attributes_that_leave_their_package` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::inline_modules_add_directory_components_for_their_file_children` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::module_depth_of_exactly_the_budget_loads_and_one_more_is_refused` | test | [Verification](#verification) |

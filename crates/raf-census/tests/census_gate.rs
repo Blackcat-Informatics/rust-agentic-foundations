@@ -4558,3 +4558,76 @@ fn ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record() {
         assert!(error.contains(needle), "{error}");
     }
 }
+
+/// A required module path containment check reports each `path` attribute,
+/// plain or inside `cfg_attr`, that leads a censused package into a sibling
+/// package, through both the structural and the locked gate; one that stays
+/// in its own package is not reported, and without the requirement the
+/// verdict is unchanged.
+#[test]
+fn module_paths_outside_their_package_are_required_findings_beside_contained_ones() {
+    use raf_source::{LoadOptions, LockedCatalog, LockedManifest, RelPath};
+
+    let ledger = base().finish().unwrap().to_text(Format::Turtle).unwrap();
+    let tree = MemoryTree::from([
+        ("Cargo.toml", "[workspace]\nmembers=['one','two']\n"),
+        (
+            "one/Cargo.toml",
+            "[package]\nname='one'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        (
+            "one/src/lib.rs",
+            "#[path = \"inside.rs\"]\nmod inside;\n\
+             #[path = \"../../two/src/shared.rs\"]\nmod shared;\n\
+             #[cfg_attr(feature = \"extra\", path = \"../../two/src/extra.rs\")]\nmod extra;\n",
+        ),
+        ("one/src/inside.rs", ""),
+        (
+            "two/Cargo.toml",
+            "[package]\nname='two'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("two/src/lib.rs", "#[path = \"shared.rs\"]\nmod own;\n"),
+        ("two/src/shared.rs", ""),
+        ("two/src/extra.rs", ""),
+        (
+            "Cargo.lock",
+            "version=4\n[[package]]\nname='one'\nversion='1.0.0'\n[[package]]\nname='two'\nversion='1.0.0'\n",
+        ),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let plain = Gate::workspace(".").check_tree(&tree).unwrap();
+    assert!(plain.is_clean(), "{:?}", plain.findings());
+    let required = Gate::workspace(".").require_module_paths_in_package();
+    let report = required.check_tree(&tree).unwrap();
+    assert_eq!(
+        report.findings(),
+        [
+            "module path attribute: one/src/lib.rs:4: module `one::shared` of package `one` resolves to two/src/shared.rs, in package `two`; move the file into the directory of `one` or use it through a dependency",
+            "module path attribute: one/src/lib.rs:6: module `one::extra` of package `one` resolves to two/src/extra.rs, in package `two`; move the file into the directory of `one` or use it through a dependency",
+        ]
+    );
+    // The locked gate reports the same sites through its own load.
+    let catalog = LockedCatalog::load(
+        &tree,
+        &RelPath::new("Cargo.lock").unwrap(),
+        &LoadOptions::default(),
+    )
+    .unwrap();
+    let local: Vec<_> = ["one", "two"]
+        .into_iter()
+        .map(|name| {
+            let row = catalog
+                .packages()
+                .find(|row| row.name() == name)
+                .unwrap()
+                .id();
+            LockedManifest::new(
+                row,
+                RelPath::new(&format!("{name}/Cargo.toml")).unwrap(),
+                &[],
+            )
+        })
+        .collect();
+    let locked = required.check_locked(&tree, &catalog, &local, &[]).unwrap();
+    assert_eq!(locked.findings(), report.findings());
+}

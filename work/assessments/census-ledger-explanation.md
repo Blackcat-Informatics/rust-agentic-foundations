@@ -10,7 +10,7 @@ inputs:
     digest: 75e9fdd5b753b3a1b1923b2e723d5b1b453be904ede05226385fd3ad8077873e
   - kind: symbol
     name: raf_census::Gate
-    digest: 9cf24e4b6294148fee1998dcc198c95e8ddff447e889b6e26500cee38496048a
+    digest: 4d5a11a829a9b566330efbde452c74aced98e1408118a910ae0545d88327369d
   - kind: symbol
     name: raf_census::Gate::assert_clean
     digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25
@@ -34,7 +34,7 @@ inputs:
     digest: d32147afa2dc624555778ac873967a55756ee85a2100657e2751d3981c7cf051
   - kind: symbol
     name: raf_census::Gate::workspace
-    digest: 3a68ccc2c6992945c8aeba9f72a8290cd3ffefe6a27ce9daebb03ceafd659e78
+    digest: 464ca227fd7291cdbb8d180f2ca79404adc8f3d7e6b2f8f323f71346c166375e
   - kind: symbol
     name: raf_census::Gate::write_debt_locked
     digest: 8c1d011ff76066b8b0f503eff79bfe5e4deab230e3f3fa6f083b9dffee1db68b
@@ -82,7 +82,7 @@ inputs:
     digest: 356e10fa9aa88605cafbb5e03b520149b50997e534cefb98e254898cdf5f38ab
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_locked
-    digest: e048a8b0a3686a75ef4e03b34b7eae37e3893aaa64ae7b90f3d419182005aca8
+    digest: 87713ceeb5def05a1e90aab5c386f3a63f155f3a02a2140fe757ab9ee3a4d5ef
   - kind: symbol
     name: raf_census::gate::evaluate
     digest: ea58376c5bb540b4b426e5f0287e6eb6a1f4764f2265f96aae81e32c71d8f06b
