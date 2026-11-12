@@ -7,10 +7,19 @@ subject: cap:census-reference-scan#verification
 inputs:
   - kind: section
     name: cap:census-reference-scan#verification
-    digest: 659c86097c4b99351b320b4e7f23ed3ea258b61c9bb0bf45d143374598792951
+    digest: c43f120c31295910134cb3985ae6587e602072eb73436dbf37426e1713512515
+  - kind: symbol
+    name: raf_census::ArchiveCache
+    digest: e5c3e45db9221f00ace57803096fe0f3a9ecc8a8489cb60eec94c90a2319b937
   - kind: symbol
     name: raf_census::ExternalReference
     digest: dff9ba21af812a6448881bf2fda85215d82d533591e85489c9f8e454bc9ba7ce
+  - kind: symbol
+    name: raf_census::Gate::check_locked_registry
+    digest: 469c0bc06984a4ee08ef751e6e3e72694d7741048688ae7a7630792f5f1c7532
+  - kind: symbol
+    name: raf_census::Gate::check_registry
+    digest: 5f3e0ceda37af2c3585c5571c0ca39e1e57f4e7b28fb1bf83fc47ab2f1f9330f
   - kind: symbol
     name: raf_census::Gate::check_tree_with_references
     digest: c5087ae773dfc4b1246c1a9498aa45fbe698686a15afef9ecc6786beb2ff8ec8
@@ -20,6 +29,12 @@ inputs:
   - kind: symbol
     name: raf_census::Gate::reference_roots
     digest: fb7552389a703dcbb4da65f26224530d5b67448fa60350c87a0f9f48e66a93b5
+  - kind: symbol
+    name: raf_census::Gate::write_debt_registry
+    digest: cd64507978316827035e756255a3349f17f3a20e754f52add06695d8198ca1c5
+  - kind: symbol
+    name: raf_census::LockedRegistry
+    digest: 12a731b7ba9c1e48a544fe8c29a7552921e25d6f017bbb2dbb92d0ecad01120e
   - kind: symbol
     name: raf_census::ReferenceConstantRow
     digest: 553be507c6f6454a9bd7b7746d27c6f9f79e9461e1c2db7fc0c4c57582e02767

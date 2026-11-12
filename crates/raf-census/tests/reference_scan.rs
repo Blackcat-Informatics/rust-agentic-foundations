@@ -1597,3 +1597,134 @@ fn external_references_report_cross_boundary_constants_like_a_lock_selected_one(
         1
     );
 }
+
+const PROVIDED: &str = "pub fn provided(input:u32)->u32 { let result=input*2; result+7 }";
+
+/// A consumer `app` whose registry dependency `acme-core` was stored in a cache
+/// directory below the test target area. Returns the consumer tree and the
+/// cache; `archive` is what the cache holds, and the lock names the checksum of
+/// `locked`, the archive that Cargo would have stored.
+fn registry_consumer(
+    selector: &str,
+    source: &str,
+    locked: &[u8],
+    archive: Option<&[u8]>,
+) -> (raf_source::MemoryTree, purrdf_testkit::TempDir) {
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    if let Some(archive) = archive {
+        raf_fixtures::registry::place(
+            cache.path(),
+            "index.crates.io-0000000000000000",
+            "acme-core",
+            "1.0.0",
+            archive,
+        );
+    }
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='registry+https://github.com/rust-lang/crates.io-index'\nchecksum='{}'\n",
+        raf_fixtures::registry::checksum(locked)
+    );
+    let ledger = unhomed_ledger(&[selector]);
+    let tree = raf_source::MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\n",
+        ),
+        ("src/lib.rs", source),
+        ("Cargo.lock", lock.as_str()),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    (tree, cache)
+}
+
+fn acme_core(body: &str) -> Vec<u8> {
+    raf_fixtures::registry::crate_archive(
+        "acme-core",
+        "1.0.0",
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='acme-core'\nversion='1.0.0'\nedition='2024'\n[lib]\nname='acme_core'\npath='src/lib.rs'\n",
+            ),
+            ("src/lib.rs", body),
+        ],
+    )
+}
+
+fn registry_check(
+    tree: &raf_source::MemoryTree,
+    cache: &purrdf_testkit::TempDir,
+) -> Result<raf_census::GateReport, raf_census::Error> {
+    let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()));
+    Gate::workspace(".").check_locked_registry(tree, &registry)
+}
+
+/// A copied body of a registry dependency, sealed from the lock file's checksum
+/// and the cache, is a hard non-debt finding for an exact and a family selector,
+/// and a changed body stays clean.
+#[test]
+fn registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour() {
+    let archive = acme_core(PROVIDED);
+    for selector in ["acme-core", "acme-*"] {
+        let (tree, cache) = registry_consumer(
+            selector,
+            "pub fn copy(input:u32)->u32 { let result=input*2; result+7 }",
+            &archive,
+            Some(&archive),
+        );
+        let report = registry_check(&tree, &cache).unwrap();
+        assert_eq!(report.findings().len(), 1, "{:?}", report.findings());
+        assert!(
+            report.findings()[0]
+                .starts_with("REFERENCE-COPY src/lib.rs:1 app::copy matches acme_core::provided "),
+            "{:?}",
+            report.findings()
+        );
+        assert!(report.debt().groups().is_empty() && report.debt().job_copies().is_empty());
+        let (neighbor, cache) = registry_consumer(
+            selector,
+            "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+            &archive,
+            Some(&archive),
+        );
+        let clean = registry_check(&neighbor, &cache).unwrap();
+        assert!(clean.is_clean(), "{:?}", clean.findings());
+    }
+}
+
+/// An archive absent from the cache, a cached archive that is not the locked
+/// bytes and an oversized one each refuse by name and never pass silently.
+#[test]
+fn absent_mismatching_and_oversized_registry_archives_refuse() {
+    let archive = acme_core(PROVIDED);
+    let consumer = "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }";
+    let (tree, cache) = registry_consumer("acme-core", consumer, &archive, None);
+    let message = registry_check(&tree, &cache).unwrap_err().to_string();
+    for expected in [
+        "acme-core 1.0.0",
+        "acme-core-1.0.0.crate",
+        &cache.path().display().to_string(),
+        "cargo fetch --locked",
+    ] {
+        assert!(message.contains(expected), "{expected} missing: {message}");
+    }
+    let other = acme_core("pub fn provided() {}");
+    let (tree, cache) = registry_consumer("acme-core", consumer, &archive, Some(&other));
+    let message = registry_check(&tree, &cache).unwrap_err().to_string();
+    assert!(
+        message.contains("acme-core 1.0.0") && message.contains("checksum"),
+        "{message}"
+    );
+    let (tree, cache) = registry_consumer("acme-core", consumer, &archive, None);
+    let index = cache.path().join("index.crates.io-0000000000000000");
+    std::fs::create_dir(&index).unwrap();
+    // A sparse file one byte over the 256 MiB budget: no large allocation is made.
+    std::fs::File::create(index.join("acme-core-1.0.0.crate"))
+        .unwrap()
+        .set_len((256 << 20) + 1)
+        .unwrap();
+    let message = registry_check(&tree, &cache).unwrap_err().to_string();
+    assert!(message.contains("byte archive budget"), "{message}");
+    let (tree, cache) = registry_consumer("acme-core", consumer, &archive, Some(&archive));
+    assert!(registry_check(&tree, &cache).unwrap().is_clean());
+}
