@@ -5,10 +5,8 @@
 
 #[path = "census_gate/configured_provider_targets.rs"]
 mod configured_provider_targets;
-#[path = "../src/selftest/fixtures.rs"]
-mod detector_fixtures;
-#[path = "support/layout.rs"]
-mod layout;
+use raf_census::detector_fixtures;
+use raf_fixtures::layout;
 #[path = "census_gate/native_provider.rs"]
 mod native_provider;
 #[path = "support/vocabulary.rs"]

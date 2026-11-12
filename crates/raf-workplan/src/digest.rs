@@ -52,7 +52,13 @@ use crate::lifecycle::section_digest;
 
 /// Exact native BLAKE3 identity, separate from framed record-input digests.
 pub(crate) fn semantic_hash(text: &str) -> String {
-    purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(text.as_bytes()).as_bytes()).to_string()
+    blake3_hex(text.as_bytes())
+}
+
+/// The lowercase hexadecimal BLAKE3 digest of `bytes`, delegated whole to the native hash library.
+pub(crate) fn blake3_hex(bytes: &[u8]) -> String {
+    let digest = purrdf_hash::blake3::hash(bytes);
+    purrdf_hash::hex::encode(purrdf_hash::blake3::Hash::as_bytes(&digest))
 }
 
 /// The SHA-256 digest of a record input, written as 64 lowercase hexadecimal

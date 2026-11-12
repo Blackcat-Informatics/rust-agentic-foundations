@@ -37,6 +37,7 @@ bindings:
     - raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name
     - raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions
     - raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding
+    - raf_census::test_crate::reference_scan::an_existing_debt_record_does_not_hold_a_reference_copy
     - raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours
     - raf_census::test_crate::reference_scan::locked_git_reference_copy_is_a_hard_finding
     - raf_census::test_crate::reference_scan::first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_rows
@@ -84,6 +85,9 @@ row. Actual dependency declarations, including inherited declarations and rename
 packages, select exact outgoing rows. Missing, ambiguous, incompatible and
 unavailable sources fail with context. Acquisition uses lock files and manifests;
 it does not execute Cargo metadata, download packages or inspect shared caches.
+The shipped `cargo census` command acquires only contained path dependencies;
+a registry or Git package is compared only through the locked check, which takes
+its sealed source from the caller.
 
 A `reference` value is an exact package name or a family selector: a
 package-name prefix followed by `-*`, such as `acme-*`, which names every
@@ -194,10 +198,13 @@ the finding and records nothing, and a body that differs stays clean. A
 reference with a home job is a different declaration: its copies are classified
 into the job, and an unenforced job records them as job debt that may only
 shrink under the debt ratchet, while an enforced job reports them as findings of that job.
+The ban applies per reference unit, not per declaration: a job's home classifies
+copies of the units under that home only, so a copy of any other unit of the same
+reference stays a `REFERENCE-COPY` finding, and an adopted debt record never holds it.
 Choose the unhomed form to forbid every copy, and a homed job to adopt a
 reference module with a recorded allowance. The index, `job`, `count` and
 `fingerprint` evaluate the same inputs as `check`, so they cannot disagree.
-<!-- raf:tested-by raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding,raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours,raf_census::test_crate::reference_scan::locked_git_reference_copy_is_a_hard_finding,cargo_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding,raf_census::test_crate::reference_scan::an_existing_debt_record_does_not_hold_a_reference_copy,raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours,raf_census::test_crate::reference_scan::locked_git_reference_copy_is_a_hard_finding,cargo_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict -->
 
 ### Closed native evidence
 <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::large_constants_shared_with_a_reference_cross_the_boundary_by_value,raf_census::test_crate::reference_scan::first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_rows,raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,raf_census::test_crate::reference_scan::a_constant_held_only_by_two_reference_packages_has_no_row,raf_census::test_crate::reference_scan::external_references_report_cross_boundary_constants_like_a_lock_selected_one -->
@@ -348,6 +355,7 @@ refusal with a valid commit or pin key.
 | `cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_census::example_crate::references` | example target | [Usage](#usage) |
 | `raf_census::test_crate::reference_scan::a_constant_held_only_by_two_reference_packages_has_no_row` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::an_existing_debt_record_does_not_hold_a_reference_copy` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |

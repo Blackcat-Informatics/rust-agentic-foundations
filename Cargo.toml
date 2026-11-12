@@ -22,6 +22,7 @@ purrdf-testkit.workspace = true
 purrdf-toml.workspace = true
 raf-okf = { path = "crates/raf-okf", version = "0.2.0" }
 raf-census = { path = "crates/raf-census", version = "0.2.0" }
+raf-rdf = { path = "crates/raf-rdf", version = "0.2.0" }
 raf-source = { path = "crates/raf-source", version = "0.2.0" }
 
 [lints]
@@ -29,7 +30,7 @@ workspace = true
 
 [workspace]
 resolver = "3"
-members = ["crates/cargo-census", "crates/cargo-workplan", "crates/raf-census", "crates/raf-okf", "crates/raf-rdf", "crates/raf-source", "crates/raf-workplan"]
+members = ["crates/cargo-census", "crates/cargo-workplan", "crates/raf-census", "crates/raf-fixtures", "crates/raf-okf", "crates/raf-rdf", "crates/raf-source", "crates/raf-workplan"]
 exclude = ["fuzz"]
 
 [workspace.dependencies]

@@ -6,12 +6,7 @@
 use super::*;
 use raf_source::{LoadOptions, MemoryTree, Workspace};
 
-#[path = "../../../raf-workplan/tests/support/strict.rs"]
-#[allow(
-    dead_code,
-    reason = "this test uses the capability from the shared fixture module"
-)]
-mod strict;
+use raf_fixtures::strict;
 
 fn reach_item_budget_error(limit: usize) -> String {
     format!(

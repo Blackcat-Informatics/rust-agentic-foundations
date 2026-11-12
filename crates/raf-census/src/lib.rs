@@ -96,6 +96,9 @@ pub use report::{
     MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
 };
 pub use rule::{Rule, RuleFixtures, RuleHit};
+/// The inputs of the built-in detector self-test, shared with this crate's detector tests.
+#[doc(hidden)]
+pub use selftest::fixtures as detector_fixtures;
 pub use selftest::{SelfTest, SelfTestCase};
 pub use units::{StringKind, StringLiteral, Unit, UnitKind};
 pub use version::{NORMAL_FORM, check_normal_form};

@@ -11,10 +11,8 @@ use raf_source::{DiskTree, MemoryTree};
 use std::path::Path;
 #[path = "support/builtin.rs"]
 mod builtin;
-#[path = "support/files.rs"]
-mod files;
-#[path = "support/layout.rs"]
-mod layout;
+use raf_fixtures::files;
+use raf_fixtures::layout;
 #[path = "support/reference.rs"]
 mod reference;
 #[path = "support/vocabulary.rs"]

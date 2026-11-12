@@ -94,7 +94,7 @@ inputs:
     digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
-    digest: 77a5f5bfc9bdd9b0bfa4a4ff8b83ef55e9aa66108d764fb7ceb1a3a3cf9c5111
+    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
   - kind: symbol
     name: raf_workplan::escape
     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25

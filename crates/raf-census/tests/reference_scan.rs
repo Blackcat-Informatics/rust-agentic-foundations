@@ -4,13 +4,11 @@
 //! Reference packages supply evidence without entering first-party structural debt.
 
 use raf_census::{ExternalReference, Gate, Index, MatchClass, Query, QueryReport, ReferenceRoot};
+use raf_fixtures::files;
+use raf_fixtures::git_repo;
 use raf_rdf::{Builder, Format, Graph, TermValue, Triple, vocab};
 use raf_source::{RelPath, Tree as _};
 use std::fmt::Write as _;
-#[path = "support/files.rs"]
-mod files;
-#[path = "support/git_repo.rs"]
-mod git_repo;
 #[path = "support/reference.rs"]
 mod reference;
 use reference::fixture;
@@ -726,6 +724,42 @@ fn unhomed_reference_copy_is_a_hard_finding() {
         .unwrap();
 }
 
+/// An adopted debt record does not hold the ban: a workspace that already has a
+/// record, written while it was clean, still fails when a copy is introduced,
+/// and the refused write leaves the record byte for byte as it was.
+#[test]
+fn an_existing_debt_record_does_not_hold_a_reference_copy() {
+    let vendors = ["acme-a", "acme-b", "acme-c"];
+    let fixture = family_fixture(
+        &["acme-*"],
+        &vendors,
+        "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+    );
+    let root = fixture.path().join("ws");
+    Gate::workspace(&root).write_debt().unwrap();
+    let record = std::fs::read(root.join(raf_census::DEBT_FILE)).unwrap();
+    std::fs::write(
+        root.join("app/src/lib.rs"),
+        "pub fn copy(input:u32)->u32 { let result=input*2; result+7 }",
+    )
+    .unwrap();
+    let report = Gate::workspace(&root).check().unwrap();
+    assert!(!report.is_clean());
+    assert!(
+        report
+            .findings()
+            .iter()
+            .any(|finding| finding.starts_with("REFERENCE-COPY app/src/lib.rs:1 app::copy ")),
+        "{:?}",
+        report.findings()
+    );
+    Gate::workspace(&root).write_debt().unwrap_err();
+    assert_eq!(
+        std::fs::read(root.join(raf_census::DEBT_FILE)).unwrap(),
+        record
+    );
+}
+
 /// The ban is the declaration `reference` with no job homing the dependency:
 /// a copy of a body, of a shim, and of a package that is also a workspace
 /// member is a non-debt finding, and only the copy is flagged (the member's
@@ -773,7 +807,8 @@ fn unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours() {
 /// A sealed Git dependency selected by the lock file is scanned under
 /// `check_locked` exactly as a path dependency is: its committed body copied
 /// into the consumer is a hard finding, a changed body is clean, and the
-/// source tree is never read from a checkout.
+/// source tree is read from its committed objects, never from the working tree,
+/// although the fixture repository keeps its working tree on disk.
 #[test]
 fn locked_git_reference_copy_is_a_hard_finding() {
     use raf_source::{

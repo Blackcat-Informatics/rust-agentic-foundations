@@ -6,7 +6,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-pub(crate) fn after_git(args: &[&str], git: impl Fn(&[&str]) -> String) {
+/// Run the signing set-up that follows a fixture `git init`, using `git` for each step.
+pub fn after_git(args: &[&str], git: impl Fn(&[&str]) -> String) {
     if args.first() == Some(&"init") {
         initialize(&git);
     }

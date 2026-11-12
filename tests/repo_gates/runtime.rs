@@ -144,6 +144,12 @@ fn runtime_analysis_libraries_have_no_process_authority() {
         {
             continue;
         }
+        // The unpublished fixture crate runs Git in scratch repositories for the
+        // tests of several packages. It is an analysis library of no package: no
+        // shipped crate depends on it.
+        if parts.get(1) == Some(&"raf-fixtures") {
+            continue;
+        }
         let bytes = read_tracked(&root, &path);
         let text = decode_text(&bytes).expect("Rust source must be text");
         let problems = violations(&text);

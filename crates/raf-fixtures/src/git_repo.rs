@@ -9,7 +9,7 @@ use std::process::Command;
 
 /// Run Git in `dir` with no user or system configuration, so hooks, signing
 /// and ambient repository selectors cannot affect the fixture.
-pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
+pub fn git(dir: &Path, args: &[&str]) -> String {
     let mut command = Command::new("git");
     for name in [
         "GIT_DIR",
@@ -49,13 +49,13 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
 }
 
 /// Create a repository at `dir`.
-pub(crate) fn init(dir: &Path) {
+pub fn init(dir: &Path) {
     std::fs::create_dir_all(dir).expect("repository directory");
     git(dir, &["init", "--quiet"]);
 }
 
 /// Commit every file of the checkout and return the full commit ID.
-pub(crate) fn commit_all(dir: &Path) -> String {
+pub fn commit_all(dir: &Path) -> String {
     git(dir, &["add", "--all"]);
     git(
         dir,
