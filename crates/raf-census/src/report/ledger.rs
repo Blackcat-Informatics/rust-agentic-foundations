@@ -144,7 +144,8 @@ impl Ledger {
         &self.roots
     }
 
-    /// Reference packages, in lexical order.
+    /// Reference selectors, in lexical order: exact package names and
+    /// name families such as `acme-*`.
     #[must_use]
     pub fn reference(&self) -> &[String] {
         &self.reference
@@ -256,6 +257,15 @@ impl Ledger {
             roots.push(".".into());
         }
         let reference = strings(&root, "reference")?;
+        if let Some(value) = reference
+            .iter()
+            .find(|value| value.contains('*') && reference_family(value).is_none())
+        {
+            return Err(E::Value(format!(
+                "ledger reference {value:?}: a family selector is a package-name prefix followed by `-*`"
+            ))
+            .into());
+        }
         let mut reached = BTreeSet::from([String::new()]);
         let mut jobs = Vec::new();
         let mut job_ids = BTreeSet::new();
@@ -451,6 +461,17 @@ fn fields(node: &Node<'_>, class: &str) -> Result<(), E> {
         }
     }
     Ok(())
+}
+
+/// The hyphen-terminated prefix of a `reference` family selector.
+///
+/// A family is a nonempty package-name prefix followed by `-*`, such as
+/// `acme-*`. Package names cannot contain `*`, so an exact name is never a
+/// family.
+pub(crate) fn reference_family(value: &str) -> Option<&str> {
+    value
+        .strip_suffix('*')
+        .filter(|prefix| prefix.len() > 1 && prefix.ends_with('-') && !prefix.contains('*'))
 }
 
 fn required_text(node: &Node<'_>, key: &str) -> Result<String, E> {

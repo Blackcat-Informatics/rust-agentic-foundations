@@ -18,6 +18,7 @@ pub(crate) mod write;
 
 pub use debt::{DebtChange, DebtGroup, DebtRecord, MAX_DEBT_BYTES};
 pub use error::ReportError;
+pub(crate) use ledger::reference_family;
 pub use ledger::{
     Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern, LedgerVariant,
     MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
