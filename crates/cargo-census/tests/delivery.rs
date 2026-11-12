@@ -963,3 +963,194 @@ fn unpinned_notice(root: &Path, plain: &str, outside: &Path, pinned: &Output, fr
     assert_eq!(refused.status.code(), Some(1), "{refused:?}");
     assert!(String::from_utf8_lossy(&refused.stderr).contains("absent"));
 }
+
+/// The body `provided` and a consumer copy repeat: `value*factor` plus `offset`.
+fn scaled(factor: u32, offset: u32) -> String {
+    format!("(value:u32)->u32 {{ let scaled=value*{factor}; scaled+{offset} }}")
+}
+
+/// Write the ledger of a consumer that declares `selector` as a reference and
+/// homes it with no job.
+fn write_reference_ledger(root: &Path, selector: &str) {
+    let mut graph = Builder::new();
+    put(
+        &mut graph,
+        "",
+        "type",
+        Term::iri(format!("{}Ledger", vocab::REPORT)),
+    );
+    for (key, value) in [
+        ("normalForm", 1),
+        ("reportForm", raf_census::REPORT_FORM),
+        ("minTokens", 1),
+    ] {
+        put(
+            &mut graph,
+            "",
+            key,
+            Term::typed_literal(value.to_string(), vocab::INTEGER),
+        );
+    }
+    put(&mut graph, "", "root", Term::simple_literal("."));
+    put(&mut graph, "", "reference", Term::simple_literal(selector));
+    fs::write(
+        root.join("helpers-ledger.ttl"),
+        graph.finish().unwrap().to_text(Format::Turtle).unwrap(),
+    )
+    .unwrap();
+}
+
+/// A workspace `ws` depending on the path package `acme-a` beside it, whose
+/// `provided` body is `scaled(2, 7)`, and a ledger referencing the family
+/// `acme-*`. The consumer source is written by the caller.
+fn ban_workspace(scratch: &Path) -> std::path::PathBuf {
+    let root = scratch.join("ws");
+    files::write(
+        &root,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-a={path='../vendor/acme-a'}\n[workspace]\n",
+            ),
+            (
+                "Cargo.lock",
+                "version=4\n[[package]]\nname='acme-a'\nversion='1.0.0'\n[[package]]\nname='demo'\nversion='1.0.0'\ndependencies=['acme-a']\n",
+            ),
+        ],
+    );
+    files::write(
+        scratch,
+        &[
+            (
+                "vendor/acme-a/Cargo.toml",
+                "[package]\nname='acme-a'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            (
+                "vendor/acme-a/src/lib.rs",
+                format!("pub fn provided{}\n", scaled(2, 7)).as_str(),
+            ),
+        ],
+    );
+    write_reference_ledger(&root, "acme-*");
+    root
+}
+
+fn write_consumer(root: &Path, copy: &str, extra: &str) {
+    files::write(
+        root,
+        &[("src/lib.rs", format!("pub fn copy{copy}\n{extra}").as_str())],
+    );
+}
+
+/// A consumer adopts the copy ban with a ledger `reference` and no job:
+/// `check` fails with exit 1 on a copied body and passes on a changed one,
+/// `debt --write` refuses the same finding and records nothing, and `index`
+/// and `fingerprint` read the same inputs and carry the same witness. An
+/// unusable declaration or a missing source refuses every evaluating command
+/// with no verdict on stdout, and a ledger reference composes with a pinned
+/// external commit.
+#[test]
+fn ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict() {
+    let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let root = ban_workspace(scratch.path());
+    write_consumer(&root, &scaled(2, 7), "");
+    let checked = run(&root, &["check"]);
+    let stdout = String::from_utf8(checked.stdout).unwrap();
+    assert_eq!(checked.status.code(), Some(1), "{stdout}");
+    assert!(
+        stdout.starts_with("REFERENCE-COPY src/lib.rs:1 demo::copy matches acme_a::provided "),
+        "{stdout}"
+    );
+    assert_eq!(stdout.lines().count(), 1, "{stdout}");
+    assert_eq!(checked.stderr, Vec::<u8>::new());
+    let debt = run(&root, &["debt", "--write"]);
+    assert_eq!(debt.status.code(), Some(1), "{debt:?}");
+    assert!(String::from_utf8_lossy(&debt.stderr).contains("REFERENCE-COPY"));
+    assert!(!root.join(raf_census::DEBT_FILE).exists());
+    let index = run(&root, &["index"]);
+    assert!(index.status.success(), "{index:?}");
+    assert!(String::from_utf8_lossy(&index.stdout).contains("ReferenceWitness"));
+    let fingerprint = run(&root, &["fingerprint", "demo::copy"]);
+    assert!(fingerprint.status.success(), "{fingerprint:?}");
+
+    // The neighbour with a changed body is clean and carries no witness.
+    write_consumer(&root, &scaled(2, 8), "");
+    let clean = run(&root, &["check"]);
+    assert!(clean.status.success(), "{clean:?}");
+    assert_eq!(clean.stdout, Vec::<u8>::new());
+    let index = run(&root, &["index"]);
+    assert!(!String::from_utf8_lossy(&index.stdout).contains("ReferenceWitness"));
+
+    ledger_reference_composes_with_a_pinned_commit(scratch.path(), &root);
+    unusable_reference_inputs_refuse_without_a_verdict(scratch.path(), &root);
+}
+
+/// The ledger's lock-selected reference and a pinned external commit are both
+/// compared in one run.
+fn ledger_reference_composes_with_a_pinned_commit(scratch: &Path, root: &Path) {
+    let upstream = scratch.join("upstream");
+    git_repo::init(&upstream);
+    files::write(
+        &upstream,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='upstream'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            (
+                "src/lib.rs",
+                format!("pub fn provided{}\n", scaled(5, 3)).as_str(),
+            ),
+        ],
+    );
+    let commit = git_repo::commit_all(&upstream);
+    write_consumer(
+        root,
+        &scaled(2, 7),
+        &format!("pub fn more{}\n", scaled(5, 3)),
+    );
+    let both = run(
+        root,
+        &[
+            "check",
+            "--reference-repo",
+            upstream.to_str().unwrap(),
+            "--reference-commit",
+            &commit,
+        ],
+    );
+    let stdout = String::from_utf8(both.stdout).unwrap();
+    assert_eq!(both.status.code(), Some(1), "{stdout}");
+    assert!(
+        stdout.contains("demo::copy matches acme_a::provided "),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("demo::more matches upstream::provided "),
+        "{stdout}"
+    );
+}
+
+/// A family that selects nothing and a vanished source each refuse `check`,
+/// `index` and `fingerprint` with a message and an empty stdout.
+fn unusable_reference_inputs_refuse_without_a_verdict(scratch: &Path, root: &Path) {
+    write_reference_ledger(root, "zz-*");
+    for words in [&["check"][..], &["index"], &["fingerprint", "demo::copy"]] {
+        let refused = run(root, words);
+        assert_eq!(refused.status.code(), Some(1), "{words:?}");
+        assert_eq!(refused.stdout, Vec::<u8>::new(), "{words:?}");
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        assert!(
+            stderr.contains("\"zz-*\"") && stderr.contains("matches no locked dependency"),
+            "{stderr}"
+        );
+    }
+    write_reference_ledger(root, "acme-*");
+    fs::remove_dir_all(scratch.join("vendor")).unwrap();
+    for words in [&["check"][..], &["index"]] {
+        let refused = run(root, words);
+        assert_eq!(refused.status.code(), Some(1), "{words:?}");
+        assert_eq!(refused.stdout, Vec::<u8>::new(), "{words:?}");
+        assert!(String::from_utf8_lossy(&refused.stderr).starts_with("cargo-census: "));
+    }
+}

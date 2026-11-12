@@ -444,33 +444,10 @@ fn reject_historical_reference_provenance(current: &Graph) {
     }
 }
 
-/// A Cargo workspace `ws` whose `app` depends on the member `acme-member`,
-/// which every `acme-*` family also names, and on each named package under
-/// `vendor/`, beside the workspace and outside its first-party packages. The
-/// ledger declares the given reference selectors and no job.
-fn family_fixture(selectors: &[&str], vendors: &[&str], consumer: &str) -> purrdf_testkit::TempDir {
-    workspace_fixture(selectors, "acme-member", vendors, consumer)
-}
-
-/// As [`family_fixture`] with a chosen member. The member and each vendor are
-/// `name` or `name@version`; the version defaults to 1.0.0, and a name may
-/// occur at two versions.
-fn workspace_fixture(
-    selectors: &[&str],
-    member: &str,
-    vendors: &[&str],
-    consumer: &str,
-) -> purrdf_testkit::TempDir {
+/// A ledger that declares the given `reference` selectors and no job, so no
+/// reference unit has a home.
+fn unhomed_ledger(selectors: &[&str]) -> String {
     use raf_rdf::TermValue as Term;
-    let spec = |text: &str| {
-        let (name, version) = text.split_once('@').unwrap_or((text, "1.0.0"));
-        (name.to_owned(), version.to_owned())
-    };
-    let (member, member_version) = spec(member);
-    let parent =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.stage/reference-sources");
-    std::fs::create_dir_all(&parent).unwrap();
-    let owned = purrdf_testkit::TempDir::new_in(&parent).unwrap();
     let mut ledger = Builder::new();
     let property = |name: &str| Term::iri(format!("{}{name}", vocab::REPORT));
     let integer = |value: u32| Term::integer(i128::from(value));
@@ -498,6 +475,35 @@ fn workspace_fixture(
             })
             .unwrap();
     }
+    ledger.finish().unwrap().to_text(Format::Turtle).unwrap()
+}
+
+/// A Cargo workspace `ws` whose `app` depends on the member `acme-member`,
+/// which every `acme-*` family also names, and on each named package under
+/// `vendor/`, beside the workspace and outside its first-party packages. The
+/// ledger declares the given reference selectors and no job.
+fn family_fixture(selectors: &[&str], vendors: &[&str], consumer: &str) -> purrdf_testkit::TempDir {
+    workspace_fixture(selectors, "acme-member", vendors, consumer)
+}
+
+/// As [`family_fixture`] with a chosen member. The member and each vendor are
+/// `name` or `name@version`; the version defaults to 1.0.0, and a name may
+/// occur at two versions.
+fn workspace_fixture(
+    selectors: &[&str],
+    member: &str,
+    vendors: &[&str],
+    consumer: &str,
+) -> purrdf_testkit::TempDir {
+    let spec = |text: &str| {
+        let (name, version) = text.split_once('@').unwrap_or((text, "1.0.0"));
+        (name.to_owned(), version.to_owned())
+    };
+    let (member, member_version) = spec(member);
+    let parent =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.stage/reference-sources");
+    std::fs::create_dir_all(&parent).unwrap();
+    let owned = purrdf_testkit::TempDir::new_in(&parent).unwrap();
     let mut files = vec![
         (
             "ws/Cargo.toml".to_owned(),
@@ -512,10 +518,7 @@ fn workspace_fixture(
             "pub fn member(value:u32)->u32 { let tripled=value*3; tripled+5 }".into(),
         ),
         ("ws/app/src/lib.rs".into(), consumer.into()),
-        (
-            "ws/helpers-ledger.ttl".into(),
-            ledger.finish().unwrap().to_text(Format::Turtle).unwrap(),
-        ),
+        ("ws/helpers-ledger.ttl".into(), unhomed_ledger(selectors)),
     ];
     let mut manifest = format!(
         "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nmember={{package='{member}',path='../{member}',version='{member_version}'}}\n"
@@ -692,6 +695,21 @@ fn unhomed_reference_copy_is_a_hard_finding() {
     );
     assert!(report.debt().groups().is_empty());
     assert!(report.debt().job_copies().is_empty());
+    // Debt writing refuses the finding and records nothing.
+    let refused = Gate::workspace(banned.path().join("ws"))
+        .write_debt()
+        .unwrap_err();
+    assert!(
+        matches!(&refused, raf_census::Error::Findings(rows) if rows == report.findings()),
+        "{refused}"
+    );
+    assert!(
+        !banned
+            .path()
+            .join("ws")
+            .join(raf_census::DEBT_FILE)
+            .exists()
+    );
     let neighbor = family_fixture(
         &["acme-*"],
         &vendors,
@@ -703,6 +721,140 @@ fn unhomed_reference_copy_is_a_hard_finding() {
             .unwrap()
             .is_clean()
     );
+    Gate::workspace(neighbor.path().join("ws"))
+        .write_debt()
+        .unwrap();
+}
+
+/// The ban is the declaration `reference` with no job homing the dependency:
+/// a copy of a body, of a shim, and of a package that is also a workspace
+/// member is a non-debt finding, and only the copy is flagged (the member's
+/// own units are not). A job-less ledger evaluates; it does not refuse.
+#[test]
+fn unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours() {
+    let library = "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } pub fn wrap(value:u32)->u32 { std::convert::identity(value) } }";
+    let banned = |consumer: &str| {
+        let mut tree = fixture(consumer, library);
+        tree.replace(
+            &RelPath::new("helpers-ledger.ttl").unwrap(),
+            unhomed_ledger(&["helper"]),
+        )
+        .unwrap();
+        Gate::workspace(".").check_tree(&tree).unwrap()
+    };
+    let body = banned("pub fn copy(input:u32)->u32 { let result=input*2; result+11 }");
+    let shim = banned("pub fn shim(input:u32)->u32 { std::convert::identity(input) }");
+    for (report, symbol, kind, count) in [
+        (&body, "app::copy", "body", 1),
+        (&shim, "app::shim", "shim", 2),
+    ] {
+        assert!(!report.is_clean(), "{kind}");
+        // A shim body is both a body and a shim fingerprint, so it matches twice.
+        assert_eq!(
+            report.findings().len(),
+            count,
+            "{kind}: {:?}",
+            report.findings()
+        );
+        for finding in report.findings() {
+            assert!(
+                finding.starts_with(&format!(
+                    "REFERENCE-COPY app/src/lib.rs:1 {symbol} matches helper::api::"
+                )),
+                "{kind}: {finding}"
+            );
+        }
+        assert!(report.debt().groups().is_empty() && report.debt().job_copies().is_empty());
+    }
+    let neighbour = banned("pub fn copy(input:u32)->u32 { let result=input*2; result+12 }");
+    assert!(neighbour.is_clean(), "{:?}", neighbour.findings());
+}
+
+/// A sealed Git dependency selected by the lock file is scanned under
+/// `check_locked` exactly as a path dependency is: its committed body copied
+/// into the consumer is a hard finding, a changed body is clean, and the
+/// source tree is never read from a checkout.
+#[test]
+fn locked_git_reference_copy_is_a_hard_finding() {
+    use raf_source::{
+        CommittedGitTree, LoadOptions, LockedCatalog, LockedEdge, LockedManifest,
+        LockedPackageRoots, LockedTree, MemoryTree,
+    };
+    let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let repository = scratch.path().join("kit");
+    git_repo::init(&repository);
+    files::write(
+        &repository,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='kit'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            (
+                "src/lib.rs",
+                "pub fn provided(value:u32)->u32 { let scaled=value*4; scaled+7 }",
+            ),
+        ],
+    );
+    let commit = git_repo::commit_all(&repository);
+    let source = format!("git+https://example.test/kit?rev={commit}#{commit}");
+    let lock = format!(
+        "version=4\n[[package]]\nname='kit'\nversion='1.0.0'\nsource={source:?}\n[[package]]\nname='demo'\nversion='1.0.0'\ndependencies=[{:?}]\n",
+        format!("kit 1.0.0 ({source})")
+    );
+    let options = LoadOptions::default();
+    let catalog = LockedCatalog::load(
+        &MemoryTree::from([("Cargo.lock", lock.as_str())]),
+        &RelPath::new("Cargo.lock").unwrap(),
+        &options,
+    )
+    .unwrap();
+    let row = |name: &str| {
+        catalog
+            .packages()
+            .find(|row| row.name() == name)
+            .unwrap()
+            .id()
+    };
+    let git = CommittedGitTree::open(&catalog, row("kit"), &repository, &options).unwrap();
+    let manifest = format!(
+        "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nkit={{git='https://example.test/kit',rev='{commit}'}}\n"
+    );
+    let ledger = unhomed_ledger(&["kit"]);
+    let check = |consumer: &str| {
+        let tree = MemoryTree::from([
+            ("Cargo.toml", manifest.as_str()),
+            ("src/lib.rs", consumer),
+            ("Cargo.lock", lock.as_str()),
+            ("helpers-ledger.ttl", ledger.as_str()),
+        ]);
+        let edges = [LockedEdge::new("dependencies.kit", None)];
+        let local = [LockedManifest::new(
+            row("demo"),
+            RelPath::new("Cargo.toml").unwrap(),
+            &edges,
+        )];
+        let kit = [LockedManifest::new(
+            row("kit"),
+            RelPath::new("Cargo.toml").unwrap(),
+            &[],
+        )];
+        let sources = [LockedPackageRoots::new(LockedTree::Git(&git), &kit)];
+        Gate::workspace(".")
+            .check_locked(&tree, &catalog, &local, &sources)
+            .unwrap()
+    };
+    let copied = check("pub fn copy(input:u32)->u32 { let result=input*4; result+7 }");
+    assert_eq!(copied.findings().len(), 1, "{:?}", copied.findings());
+    assert!(
+        copied.findings()[0]
+            .starts_with("REFERENCE-COPY src/lib.rs:1 demo::copy matches kit::provided "),
+        "{:?}",
+        copied.findings()
+    );
+    assert!(copied.debt().groups().is_empty() && copied.debt().job_copies().is_empty());
+    let changed = check("pub fn copy(input:u32)->u32 { let result=input*4; result+8 }");
+    assert!(changed.is_clean(), "{:?}", changed.findings());
 }
 
 /// A family excludes the member lock rows only. A member and an external
@@ -797,40 +949,190 @@ fn large_constants_shared_with_a_reference_cross_the_boundary_by_value() {
             ),
         ]
     );
-    // Reference-only values and the threshold itself never appear, and the
-    // first-party shared-constant list is unchanged.
-    assert_eq!(report.census().baseline().shared_constants, []);
+    // Reference-only values and the threshold itself never appear.
     let encoded = index.to_ntriples().unwrap();
     assert_eq!(Index::from_ntriples(&encoded).unwrap(), index);
     reject_misplaced_constant_members(&encoded);
+    reject_writing_misplaced_constant_members(&index);
+    reject_historical_constant_rows_alone(&encoded);
+}
+
+/// Two first-party packages that share a large constant keep their row in the
+/// baseline's shared constants, which holds first-party members only; a value
+/// one of them also shares with a reference additionally gets a separate
+/// cross-boundary row, and a value only the first-party packages hold gets none.
+#[test]
+fn first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_rows() {
+    let ledger = unhomed_ledger(&["helper"]);
+    let tree = raf_source::MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers=['app','other','helper']\n",
+        ),
+        (
+            "app/Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nhelper={path='../helper'}\n",
+        ),
+        ("app/src/lib.rs", "pub fn a()->u64 { 0x2_0000 ^ 0x1_0000 }"),
+        (
+            "other/Cargo.toml",
+            "[package]\nname='other'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("other/src/lib.rs", "pub fn b()->u64 { 131072 ^ 65_536 }"),
+        (
+            "helper/Cargo.toml",
+            "[package]\nname='helper'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("helper/src/lib.rs", "pub fn h()->u64 { 65_536 }"),
+        (
+            "Cargo.lock",
+            "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['helper']\n[[package]]\nname='other'\nversion='1.0.0'\n[[package]]\nname='helper'\nversion='1.0.0'\n",
+        ),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let report = Gate::workspace(".").check_tree(&tree).unwrap();
+    let baseline = report.census().baseline();
+    let shared: Vec<_> = baseline
+        .shared_constants
+        .iter()
+        .map(|row| {
+            (
+                row.value,
+                row.members
+                    .iter()
+                    .map(|m| m.symbol.as_str())
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        shared,
+        [
+            (65_536, vec!["app::a", "other::b"]),
+            (131_072, vec!["app::a", "other::b"])
+        ]
+    );
+    assert_eq!(
+        constant_rows(&report),
+        [(
+            65_536,
+            vec!["app::a".to_owned(), "other::b".to_owned()],
+            vec!["helper::h".to_owned()]
+        )]
+    );
 }
 
 fn reject_misplaced_constant_members(encoded: &str) {
     let original = Graph::from_text(encoded, Format::NTriples).unwrap();
     let first_party = format!("{}firstPartyMember", vocab::REPORT);
     let reference = format!("{}referenceMember", vocab::REPORT);
-    let row = original
-        .assertions()
-        .find(|triple| triple.predicate == TermValue::iri(&first_party))
-        .unwrap();
-    let wrong = original
-        .assertions()
-        .find(|triple| triple.predicate == TermValue::iri(&reference))
-        .unwrap();
-    let mut swapped = Builder::from_graph(&original);
-    assert!(swapped.remove(row.clone()).unwrap());
-    swapped
-        .insert(Triple {
-            predicate: TermValue::iri(&first_party),
-            object: wrong.object,
-            ..row
-        })
-        .unwrap();
-    let text = swapped.finish().unwrap().to_text(Format::NTriples).unwrap();
-    let error = Index::from_ntriples(&text).unwrap_err().to_string();
+    let member = |predicate: &str| {
+        original
+            .assertions()
+            .find(|triple| triple.predicate == TermValue::iri(predicate))
+            .unwrap()
+    };
+    // Each side's member is pointed at a unit of the other side, in both
+    // directions.
+    for (own, other) in [(&first_party, &reference), (&reference, &first_party)] {
+        let row = member(own);
+        let wrong = member(other);
+        let mut swapped = Builder::from_graph(&original);
+        assert!(swapped.remove(row.clone()).unwrap());
+        swapped
+            .insert(Triple {
+                object: wrong.object,
+                ..row
+            })
+            .unwrap();
+        let text = swapped.finish().unwrap().to_text(Format::NTriples).unwrap();
+        let error = Index::from_ntriples(&text).unwrap_err().to_string();
+        assert!(
+            error.contains("own side of the reference boundary"),
+            "{own}: {error}"
+        );
+    }
+}
+
+/// The writer refuses a constant row whose members stand on the wrong side of
+/// the reference boundary, as the reader does; the same row on its own sides
+/// writes.
+fn reject_writing_misplaced_constant_members(index: &Index) {
+    let mut misplaced = index.clone();
+    let row = &mut misplaced.reference_constants[0];
+    std::mem::swap(&mut row.first_party, &mut row.reference);
+    let error = misplaced.to_ntriples().unwrap_err().to_string();
     assert!(
         error.contains("own side of the reference boundary"),
         "{error}"
+    );
+}
+
+/// Reference constant rows alone make an index too new for the older-form
+/// conversion: with every reference source and unit receipt stripped, a form 3
+/// document that keeps its constant rows refuses, and the same document
+/// without them is refused for its dangling unit receipts instead.
+fn reject_historical_constant_rows_alone(encoded: &str) {
+    let property = |name: &str| TermValue::iri(format!("{}{name}", vocab::REPORT));
+    let current = Graph::from_text(encoded, Format::NTriples).unwrap();
+    let typed = |name: &str| -> Vec<TermValue> {
+        current
+            .assertions()
+            .filter(|triple| {
+                triple.predicate == TermValue::iri(vocab::TYPE) && triple.object == property(name)
+            })
+            .map(|triple| triple.subject)
+            .collect()
+    };
+    let sources = typed("ReferenceSource");
+    let rows = typed("ReferenceConstant");
+    assert!(!sources.is_empty() && !rows.is_empty());
+    let header = current
+        .assertions()
+        .find(|triple| {
+            triple.subject == TermValue::iri("") && triple.predicate == property("reportForm")
+        })
+        .unwrap();
+    let older = |keep_rows: bool| {
+        let mut graph = Builder::from_graph(&current);
+        for triple in current.assertions() {
+            if sources.contains(&triple.subject)
+                || triple.predicate == property("referenceSource")
+                || (!keep_rows && rows.contains(&triple.subject))
+            {
+                graph.remove(triple).unwrap();
+            }
+        }
+        assert!(graph.remove(header.clone()).unwrap());
+        graph
+            .insert(Triple {
+                object: TermValue::integer(3),
+                ..header.clone()
+            })
+            .unwrap();
+        graph.finish().unwrap().to_text(Format::NTriples).unwrap()
+    };
+    let convert = |text: &str| {
+        raf_census::upgrade_report_form(
+            raf_census::ReportKind::Index,
+            raf_census::MigrationInput {
+                path: "historical-constant-rows",
+                text,
+            },
+            Format::NTriples,
+        )
+    };
+    let refused = convert(&older(true)).unwrap_err().to_string();
+    assert!(
+        refused.contains("older report forms cannot carry reference"),
+        "{refused}"
+    );
+    // Without the rows the conversion is no longer refused for carrying
+    // reference evidence; the units still name their stripped receipts.
+    let neighbour = convert(&older(false)).unwrap_err().to_string();
+    assert!(
+        !neighbour.contains("older report forms cannot carry reference"),
+        "{neighbour}"
     );
 }
 

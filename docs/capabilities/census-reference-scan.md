@@ -37,6 +37,9 @@ bindings:
     - raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name
     - raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions
     - raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding
+    - raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours
+    - raf_census::test_crate::reference_scan::locked_git_reference_copy_is_a_hard_finding
+    - raf_census::test_crate::reference_scan::first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_rows
     - raf_census::test_crate::reference_scan::large_constants_shared_with_a_reference_cross_the_boundary_by_value
     - raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows
     - raf_census::test_crate::reference_scan::a_constant_held_only_by_two_reference_packages_has_no_row
@@ -47,6 +50,7 @@ bindings:
     - raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt
     - raf_source::test_crate::git_tree::pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds
     - cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory
+    - cargo_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict
 
     - raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes
     - raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity
@@ -167,7 +171,7 @@ configured external dependency edge. Reference observations never constitute
 preferred-provider proof.
 
 ### Matching and isolation
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts,raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts,raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding,raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours,raf_census::test_crate::reference_scan::locked_git_reference_copy_is_a_hard_finding -->
 
 Reference units use the same normal form as first-party units. They remain
 separate from first-party structural groups, ordinary rule execution and group
@@ -177,13 +181,26 @@ fingerprints from reference homes classify first-party copies even when the
 job's explicit forbidden selectors are empty. Each physical consumer counts once
 per job; every matching reference witness is retained. A copy without a matching
 reference home is a `REFERENCE-COPY` finding that names the consumer, the
-reference unit and the fingerprint. It is never debt, so a reference that no job
-names as a home bans copies of its implementations. A home job that is not
-enforced counts its classified copies as job debt under the debt ratchet
-instead.
+reference unit and the fingerprint. It is never debt, and a baseline or debt record cannot hold it.
+
+**The ban.** The declaration that bans copies is a ledger `reference` that no
+job names as a home, with no other job needed: a ledger with a `reference` and
+an empty job set evaluates and bans. Every first-party body or shim whose full
+fingerprint equals a reference unit is then a `REFERENCE-COPY` finding, whether
+the dependency is selected by an exact name, a family, a sealed Git or registry
+source under `Gate::check_locked`, or is also a workspace member; the member's
+own units are not copies of themselves. `check` fails, `debt --write` refuses
+the finding and records nothing, and a body that differs stays clean. A
+reference with a home job is a different declaration: its copies are classified
+into the job, and an unenforced job records them as job debt that may only
+shrink under the debt ratchet, while an enforced job reports them as findings of that job.
+Choose the unhomed form to forbid every copy, and a homed job to adopt a
+reference module with a recorded allowance. The index, `job`, `count` and
+`fingerprint` evaluate the same inputs as `check`, so they cannot disagree.
+<!-- raf:tested-by raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding,raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours,raf_census::test_crate::reference_scan::locked_git_reference_copy_is_a_hard_finding,cargo_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict -->
 
 ### Closed native evidence
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::large_constants_shared_with_a_reference_cross_the_boundary_by_value,raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,raf_census::test_crate::reference_scan::a_constant_held_only_by_two_reference_packages_has_no_row,raf_census::test_crate::reference_scan::external_references_report_cross_boundary_constants_like_a_lock_selected_one -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::large_constants_shared_with_a_reference_cross_the_boundary_by_value,raf_census::test_crate::reference_scan::first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_rows,raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,raf_census::test_crate::reference_scan::a_constant_held_only_by_two_reference_packages_has_no_row,raf_census::test_crate::reference_scan::external_references_report_cross_boundary_constants_like_a_lock_selected_one -->
 
 Report form 5 carries source receipts, qualified reference units and full
 cross-boundary fingerprint witnesses. It also carries each
@@ -245,8 +262,14 @@ and the command line declares one with
 `--reference-repo ../upstream --reference-pin-file pins.toml --reference-pin-key upstream.rev`,
 or with `--reference-unpinned DIRECTORY`. Such a tree needs no ledger
 `reference` value; a job home may name its implementations.
+To adopt the ban, give the ledger one `reference` line per package or family
+(`<> report:reference "acme-*"`), no job homing it, and a `Cargo.lock` that
+lists the packages; add a reference option only for a tree outside the lock
+graph. A selector that matches nothing, a missing source, a malformed option
+or an unavailable commit makes `check`, `index`, `job`, `count`, `fingerprint`
+and `debt` refuse with a message and no verdict on stdout.
 The pin key `upstream.rev` reads the string `rev` of the `[upstream]` table.
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit,cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,cargo_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict,raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit,cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree -->
 
 ## Examples
 <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts -->
@@ -320,6 +343,7 @@ refusal with a valid commit or pin key.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
 | `cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_census::example_crate::references` | example target | [Usage](#usage) |
@@ -333,12 +357,15 @@ refusal with a valid commit or pin key.
 | `raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::reference_scan::first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_rows` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::large_constants_shared_with_a_reference_cross_the_boundary_by_value` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree` | test | [Contract](#contract), [Usage](#usage) |
+| `raf_census::test_crate::reference_scan::locked_git_reference_copy_is_a_hard_finding` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count` | test | [Purpose](#purpose), [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt` | test | [Contract](#contract) |
 | `raf_source::test_crate::git_tree::pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds` | test | [Contract](#contract) |
