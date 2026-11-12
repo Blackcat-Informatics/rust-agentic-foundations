@@ -40,6 +40,26 @@ pub struct Shape {
     /// Object type and range.
     pub object: &'static str,
 }
+impl Shape {
+    /// Whether the reader of report kind `report` admits this row. A row
+    /// applies to its own kind; a `both` row applies to the baseline and the
+    /// index, and its Unit rows to the job and fingerprint queries. The index
+    /// Unit and reference rows also apply to those queries, and its Job and
+    /// Match rows to the job query.
+    #[must_use]
+    pub fn applies_to(&self, report: &str) -> bool {
+        self.report == report
+            || (self.report == "both"
+                && (matches!(report, "baseline" | "index")
+                    || (matches!(report, "job-query" | "fingerprint-query")
+                        && self.class == "Unit")))
+            || (self.report == "index"
+                && ((self.class == "Unit" && matches!(report, "job-query" | "fingerprint-query"))
+                    || (matches!(self.class, "Job" | "Match") && report == "job-query")
+                    || (matches!(self.class, "ReferenceSource" | "ReferenceWitness")
+                        && matches!(report, "job-query" | "fingerprint-query"))))
+    }
+}
 macro_rules! shapes {
     ($(($r:literal,$c:literal,$p:literal,$min:expr,$max:expr,$o:literal)),* $(,)?) => {
         /// All permitted report properties; rdf:type is required once per node.

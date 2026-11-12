@@ -177,7 +177,7 @@ fn validate_properties(
     let class = class(node)?;
     let rows: Vec<_> = vocab::SHAPES
         .iter()
-        .filter(|s| s.class == class && applies(s, report))
+        .filter(|s| s.class == class && s.applies_to(report))
         .collect();
     if rows.is_empty() {
         return Err(E::Class(format!("{id}: census:{class}")));
@@ -275,17 +275,6 @@ fn class_link(
     referenced.insert(id.to_owned());
     Ok(true)
 }
-fn applies(row: &vocab::Shape, report: &str) -> bool {
-    row.report == report
-        || (row.report == "both"
-            && (matches!(report, "baseline" | "index")
-                || (matches!(report, "job-query" | "fingerprint-query") && row.class == "Unit")))
-        || (row.report == "index"
-            && ((row.class == "Unit" && matches!(report, "job-query" | "fingerprint-query"))
-                || (matches!(row.class, "Job" | "Match") && report == "job-query")
-                || (matches!(row.class, "ReferenceSource" | "ReferenceWitness")
-                    && matches!(report, "job-query" | "fingerprint-query"))))
-}
 pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
     // Check every class before following references, so a foreign class is
     // diagnosed at its node rather than disguised as a missing unit.
@@ -293,7 +282,7 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
         let class = class(&node)?;
         if !vocab::SHAPES
             .iter()
-            .any(|row| row.class == class && applies(row, report))
+            .any(|row| row.class == class && row.applies_to(report))
         {
             return Err(E::Class(format!("{id}: census:{class}")));
         }

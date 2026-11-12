@@ -598,8 +598,11 @@ in both carriers, a record with one property outside the vocabulary, in the
 census namespace and in a foreign one, on one node of each class the reader
 admits. Every node of a class passes through the same validation, so the
 parses grow with the classes and not with the size of a record. The classes
-injected must include every class of the report shape table under its reader
-and every class of the Ledger field table, so a class without a fixture node
+injected must equal the classes each reader admits: every report shape row
+under each reader it applies to, by the rule the readers validate with, and
+every class of the Ledger field table. Job and fingerprint queries of an index
+with reference observations supply the units, jobs, matches, reference
+sources and witnesses those queries carry, so a class without a fixture node
 fails the case. The layout conversion of each report kind receives the
 property on the root of a prior layout. Each refuses by the property's name,
 and the same record without it reads. The same properties on the extension

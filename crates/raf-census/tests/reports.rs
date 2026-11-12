@@ -126,18 +126,30 @@ fn census_vocabulary_reports() -> Vec<String> {
     ]
 }
 
-fn reference_report() -> String {
+fn reference_index() -> Index {
     let tree = reference::fixture(
         "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
         "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
     );
     let report = raf_census::Gate::workspace(".").check_tree(&tree).unwrap();
-    report
-        .census()
-        .index(report.jobs())
-        .unwrap()
-        .to_ntriples()
-        .unwrap()
+    report.census().index(report.jobs()).unwrap()
+}
+
+fn reference_report() -> String {
+    reference_index().to_ntriples().unwrap()
+}
+
+/// The job and fingerprint queries of the reference index, which carry its
+/// reference sources and witnesses.
+fn reference_queries() -> Vec<String> {
+    let index = reference_index();
+    [
+        raf_census::Query::Job("arithmetic"),
+        raf_census::Query::Fingerprint("app::copy"),
+    ]
+    .into_iter()
+    .map(|query| index.query(query).unwrap().to_ntriples().unwrap())
+    .collect()
 }
 
 fn shared_constant_report() -> String {
@@ -1023,24 +1035,30 @@ fn declared_ledger() -> String {
 
 /// Every node class each reader admits, keyed by the census class of the
 /// record root that selects the reader: each row of the report shape table
-/// under the reader its report kind names, and each class of the Ledger field
-/// table under the Ledger reader.
+/// under every reader whose report kind the row applies to, by the rule the
+/// readers validate with, and each class of the Ledger field table under the
+/// Ledger reader.
 fn reader_classes() -> std::collections::BTreeSet<(&'static str, &'static str)> {
     use raf_census::report::vocab::{LEDGER_FIELDS, SHAPES};
+    const READERS: [(&str, &str); 6] = [
+        ("baseline", "Baseline"),
+        ("index", "Index"),
+        ("job-query", "JobQuery"),
+        ("count-query", "CountQuery"),
+        ("fingerprint-query", "FingerprintQuery"),
+        ("debt", "DebtRecord"),
+    ];
     let mut classes = std::collections::BTreeSet::new();
     for shape in SHAPES {
-        let readers: &[&str] = match shape.report {
-            "baseline" => &["Baseline"],
-            "index" => &["Index"],
-            "both" => &["Baseline", "Index"],
-            "job-query" => &["JobQuery"],
-            "count-query" => &["CountQuery"],
-            "fingerprint-query" => &["FingerprintQuery"],
-            "debt" => &["DebtRecord"],
-            other => panic!("no reader for the {other} shape rows"),
-        };
-        for reader in readers {
-            classes.insert((*reader, shape.class));
+        assert!(
+            shape.report == "both" || READERS.iter().any(|(kind, _)| *kind == shape.report),
+            "no reader for the {} shape rows",
+            shape.report
+        );
+        for (kind, reader) in READERS {
+            if shape.applies_to(kind) {
+                classes.insert((reader, shape.class));
+            }
         }
     }
     for (class, _) in LEDGER_FIELDS {
@@ -1058,9 +1076,18 @@ fn census_class(node: &raf_rdf::Node<'_>) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// Read `text` with the Ledger reader, in `format`.
+fn read_ledger(text: &str, format: Format) -> Result<raf_census::Ledger, Error> {
+    if format == Format::Turtle {
+        raf_census::Ledger::from_turtle(text)
+    } else {
+        raf_census::Ledger::from_ntriples(text)
+    }
+}
+
 /// Read `text` with the reader of its root class, in `format`.
 fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
-    use raf_census::{DebtRecord, Ledger, QueryReport};
+    use raf_census::{DebtRecord, QueryReport};
     let turtle = format == Format::Turtle;
     match class {
         "Baseline" if turtle => Baseline::from_turtle(text).map(drop),
@@ -1069,8 +1096,7 @@ fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
         "Index" => Index::from_ntriples(text).map(drop),
         "DebtRecord" if turtle => DebtRecord::from_turtle(text).map(drop),
         "DebtRecord" => DebtRecord::from_ntriples(text).map(drop),
-        "Ledger" if turtle => Ledger::from_turtle(text).map(drop),
-        "Ledger" => Ledger::from_ntriples(text).map(drop),
+        "Ledger" => read_ledger(text, format).map(drop),
         "JobQuery" | "CountQuery" | "FingerprintQuery" if turtle => {
             QueryReport::from_turtle(text).map(drop)
         }
@@ -1105,12 +1131,8 @@ fn consumer_content_passes_unchanged(
 ) {
     for predicate in predicates {
         let edited = with_assertion(graph, format, subject, predicate);
-        let ledger = if format == Format::Turtle {
-            raf_census::Ledger::from_turtle(&edited)
-        } else {
-            raf_census::Ledger::from_ntriples(&edited)
-        }
-        .expect("consumer content is outside the engine vocabulary");
+        let ledger = read_ledger(&edited, format)
+            .expect("consumer content is outside the engine vocabulary");
         let node = ledger
             .extension("#job/extension")
             .and_then(|extension| extension.get(subject))
@@ -1163,9 +1185,11 @@ fn prior_layout_converts_and_refuses(
 /// conversion, refuses a census-namespace property and a foreign one outside
 /// its vocabulary by name, while the same record without it reads. Every node
 /// of a class passes through the same validation, so one node of each class
-/// that a reader admits takes the injection, once per format, and every class
-/// of the shape and Ledger field tables must be reached. Nodes inside a job's
-/// extension are the consumer's and pass to its validator unchanged.
+/// that a reader admits takes the injection, once per format, and the classes
+/// injected must equal those each reader admits: the shape table rows under
+/// the applicability rule the readers validate with, and the Ledger field
+/// table. Nodes inside a job's extension are the consumer's and pass to its
+/// validator unchanged.
 #[test]
 fn every_report_reader_refuses_a_property_outside_its_vocabulary_by_name() {
     use raf_census::ReportKind;
@@ -1173,6 +1197,7 @@ fn every_report_reader_refuses_a_property_outside_its_vocabulary_by_name() {
     let foreign = "https://foreign.example/scope";
     let unknown = [(added.as_str(), "excludeVendoredItems"), (foreign, foreign)];
     let mut records = census_vocabulary_reports();
+    records.extend(reference_queries());
     records.push(declared_ledger());
     let mut per_format = Vec::new();
     for format in [Format::Turtle, Format::NTriples] {
@@ -1237,15 +1262,13 @@ fn every_report_reader_refuses_a_property_outside_its_vocabulary_by_name() {
             "the extension root and its consumer node"
         );
         assert_eq!(upgraded.len(), 4, "every convertible report kind");
-        let missing: Vec<_> = reader_classes()
+        let expected: std::collections::BTreeSet<_> = reader_classes()
             .into_iter()
-            .filter(|(reader, class)| {
-                !injected.contains(&((*reader).to_owned(), (*class).to_owned()))
-            })
+            .map(|(reader, class)| (reader.to_owned(), class.to_owned()))
             .collect();
-        assert!(
-            missing.is_empty(),
-            "{format:?}: node classes without an injection: {missing:?}"
+        assert_eq!(
+            injected, expected,
+            "{format:?}: the injected classes are exactly the classes each reader admits"
         );
         per_format.push(injected);
     }
