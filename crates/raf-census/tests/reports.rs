@@ -889,16 +889,174 @@ fn two_fresh_loads_of_the_fixtures_give_identical_bytes() {
     );
 }
 
+/// A three-package workspace, with paths relative to its directory `ws`.
+///
+/// It is large enough that an unstable iteration order would show in a
+/// report: one body group has five members across all three packages, a
+/// library, a binary, nested module files and an inline nested module; a
+/// second body group spans two packages and a private module; a third holds
+/// the `cfg(unix)` and `cfg(windows)` alternatives of `native`, one symbol at
+/// two positions; `one` and
+/// `two` are a shim group; two packages hold the constant 65536 and two the
+/// same hexadecimal digit table.
+const SPREAD: &[(&str, &str)] = &[
+    (
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"alpha\", \"beta\", \"gamma\"]\nresolver = \"2\"\n",
+    ),
+    (
+        "alpha/Cargo.toml",
+        "[package]\nname = \"alpha\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    ),
+    (
+        "alpha/src/lib.rs",
+        "pub mod outer;
+pub fn helper(x: u32, y: u32) -> u32 { x + y }
+pub fn one(a: u32) -> u32 { helper(a, 1) }
+pub fn two(b: u32) -> u32 { helper(b, 1) }
+pub fn sum(a: u32) -> u32 { a + a + a + a + a + a + a + a + a + a + a }
+#[cfg(unix)]
+pub fn native(a: u32) -> u32 { a - a - a - a - a - a - a - a - a - a - a }
+#[cfg(windows)]
+pub fn native(b: u32) -> u32 { b - b - b - b - b - b - b - b - b - b - b }
+pub const LIMIT: u32 = 65536;
+",
+    ),
+    ("alpha/src/outer.rs", "pub mod inner;\n"),
+    (
+        "alpha/src/outer/inner.rs",
+        "pub fn product(c: u32) -> u32 { c * c * c * c * c * c * c * c * c * c * c }
+pub fn digits() -> &'static str { \"0123456789abcdef\" }
+pub fn total(d: u32) -> u32 { d + d + d + d + d + d + d + d + d + d + d }
+",
+    ),
+    (
+        "beta/Cargo.toml",
+        "[package]\nname = \"beta\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    ),
+    (
+        "beta/src/lib.rs",
+        "pub mod nested {
+    pub mod deeper {
+        pub fn sum(b: u32) -> u32 { b + b + b + b + b + b + b + b + b + b + b }
+    }
+}
+pub const LIMIT: u32 = 65536;
+",
+    ),
+    (
+        "beta/src/main.rs",
+        "fn main() { let _ = beta::nested::deeper::sum(2); }
+fn total(e: u32) -> u32 { e + e + e + e + e + e + e + e + e + e + e }
+",
+    ),
+    (
+        "gamma/Cargo.toml",
+        "[package]\nname = \"gamma\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    ),
+    (
+        "gamma/src/lib.rs",
+        "mod hidden;
+pub fn sum(g: u32) -> u32 { g + g + g + g + g + g + g + g + g + g + g }
+pub fn digits() -> &'static str { \"0123456789abcdef\" }
+",
+    ),
+    (
+        "gamma/src/hidden.rs",
+        "pub(crate) fn product(h: u32) -> u32 { h * h * h * h * h * h * h * h * h * h * h }\n",
+    ),
+];
+
+/// `files` in memory, each under the directory `ws`.
+fn spread_tree(files: &[(&str, &str)]) -> MemoryTree {
+    files
+        .iter()
+        .map(|(path, text)| (format!("ws/{path}"), *text))
+        .collect()
+}
+
+/// Writes `files` below `dir`, creating each file and its directories in
+/// the order given.
+fn write_spread<'a>(dir: &Path, files: impl IntoIterator<Item = &'a (&'a str, &'a str)>) {
+    for (path, text) in files {
+        let path = dir.join(path);
+        std::fs::create_dir_all(path.parent().expect("a fixture file has a parent"))
+            .expect("the fixture directory is created");
+        std::fs::write(&path, text).expect("the fixture file is written");
+    }
+}
+
+/// The report bytes do not depend on the load: two fresh loads of one
+/// workspace, and loads of the same files written to disk in opposite
+/// orders, render the same bytes.
+///
+/// Each load builds its own maps and reads its own directory listings, so a
+/// report whose group, member, unit or constant order followed a hash seed or
+/// a listing order would differ between them. The two disk copies are written
+/// forward and in reverse, so a file system that lists entries in creation
+/// order (tmpfs lists the newest first) gives the two loads opposite listings.
+/// The fixture is checked for the groups, packages and cfg alternatives that
+/// give that order something to vary, and a neighbour with two items swapped
+/// renders different bytes, so the comparison observes unit positions.
+///
+/// Loading this repository's crates proved the same contract over a corpus of
+/// real code; that load took over a minute per pair. The repository's own
+/// Census gate still loads the repository on every change through the
+/// production gate and holds its groups to the ledger and exact debt.
 #[test]
-fn two_fresh_loads_of_this_repository_give_identical_bytes() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let run = || {
-        let tree = DiskTree::new(&root).expect("the repository root opens");
-        builtin::of(&tree, "crates").expect("the crates load and render")
-    };
-    let first = run();
-    assert!(first.contains(&format!("<{}normalForm> \"1\"", vocab::REPORT)));
-    identical_report_bytes(&first, &run());
+fn two_fresh_loads_of_a_multi_package_workspace_give_identical_bytes() {
+    let census = Census::load(&spread_tree(SPREAD), &["ws"], &CensusOptions::default())
+        .expect("the fixture loads");
+    let baseline = census.baseline();
+    let mut sizes: Vec<usize> = baseline
+        .body_groups
+        .iter()
+        .map(|group| group.members.len())
+        .collect();
+    sizes.sort_unstable();
+    assert_eq!(sizes, [2, 2, 5], "the body groups of the fixture");
+    assert_eq!(baseline.shim_groups.len(), 1, "the shim group");
+    assert_eq!(baseline.hex_tables.len(), 2, "both digit tables");
+    assert_eq!(baseline.shared_constants.len(), 1, "the shared constant");
+    assert_eq!(
+        census.units_of("alpha::native").count(),
+        2,
+        "both cfg alternatives are units"
+    );
+
+    let first = builtin::of(&spread_tree(SPREAD), "ws").expect("first load");
+    identical_report_bytes(
+        &first,
+        &builtin::of(&spread_tree(SPREAD), "ws").expect("second load"),
+    );
+
+    let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("scratch");
+    for (name, forward) in [("forward", true), ("reverse", false)] {
+        let dir = scratch.path().join(name);
+        if forward {
+            write_spread(&dir.join("ws"), SPREAD);
+        } else {
+            write_spread(&dir.join("ws"), SPREAD.iter().rev());
+        }
+        let tree = DiskTree::new(&dir).expect("the copy opens");
+        identical_report_bytes(&first, &builtin::of(&tree, "ws").expect(name));
+    }
+
+    let mut swapped = SPREAD.to_vec();
+    let lib = swapped
+        .iter_mut()
+        .find(|(path, _)| *path == "gamma/src/lib.rs")
+        .expect("the gamma library");
+    let reordered = "mod hidden;
+pub fn digits() -> &'static str { \"0123456789abcdef\" }
+pub fn sum(g: u32) -> u32 { g + g + g + g + g + g + g + g + g + g + g }
+";
+    lib.1 = reordered;
+    assert_ne!(
+        first,
+        builtin::of(&spread_tree(&swapped), "ws").expect("the swapped neighbour"),
+        "moving two items must change the report"
+    );
 }
 
 fn identical_report_bytes(first: &str, second: &str) {
@@ -915,14 +1073,42 @@ fn identical_report_bytes(first: &str, second: &str) {
     );
 }
 
+/// An absolute directory reports the same bytes as the relative spelling of
+/// that directory from its parent, and the report does not hold the absolute
+/// path.
+///
+/// The fixture is written to a scratch directory. A copy of it under another
+/// directory name renders different bytes, because report file paths begin
+/// with the directory's name; the equality therefore compares spellings that
+/// reach the report. Running this over this repository's crates added no
+/// spelling case beyond one absolute and one relative root, at over a minute
+/// per run; the repository's own Census gate still loads the repository on
+/// every change.
 #[test]
 fn an_absolute_directory_reports_the_same_as_the_relative_spelling() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let root = root.canonicalize().expect("the repository root exists");
-    let absolute = builtin::of_dir(root.join("crates").to_str().expect("utf-8 path"))
-        .expect("the absolute spelling reports");
-    let tree = DiskTree::new(&root).expect("the repository root opens");
-    identical_report_bytes(&absolute, &builtin::of(&tree, "crates").expect("relative"));
+    let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("scratch");
+    let root = scratch
+        .path()
+        .canonicalize()
+        .expect("the scratch directory exists");
+    write_spread(&root.join("ws"), SPREAD);
+    let spelled = root.join("ws");
+    let spelled = spelled.to_str().expect("utf-8 path");
+    let absolute = builtin::of_dir(spelled).expect("the absolute spelling reports");
+    let tree = DiskTree::new(&root).expect("the scratch directory opens");
+    identical_report_bytes(&absolute, &builtin::of(&tree, "ws").expect("relative"));
+    assert!(
+        !absolute.contains(root.to_str().expect("utf-8 path")),
+        "the report holds the absolute path"
+    );
+
+    write_spread(&root.join("other"), SPREAD);
+    let other = root.join("other");
+    assert_ne!(
+        absolute,
+        builtin::of_dir(other.to_str().expect("utf-8 path")).expect("the other name reports"),
+        "a different directory name must reach the report"
+    );
 }
 
 /// A ledger whose root states a grouping scope, with a job and its sanctioned
