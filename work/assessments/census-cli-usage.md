@@ -7,7 +7,7 @@ subject: cap:census-cli#usage
 inputs:
   - kind: section
     name: cap:census-cli#usage
-    digest: 6e80391c223aadaf8ee44b6e990761b91fe9819133d2ee8c3720fce33e0d8ecb
+    digest: 2420484c2c662d43843f8e75bbfee2aca10438351767a506aaddbbc4d0efab4a
   - kind: symbol
     name: raf_census::Gate::self_test
     digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86

@@ -68,8 +68,8 @@ mod version;
 pub use census::{Census, FileCtx};
 pub use error::Error;
 pub use gate::{
-    DEBT_FILE, DebtWrite, ForeignField, ForeignLedgerAdapter, Gate, GateReport, LEDGER_FILE,
-    LedgerExtension, MAX_INDEX_BYTES, Migration, MigrationInput, ReferenceRoot,
+    DEBT_FILE, DebtWrite, ExternalReference, ForeignField, ForeignLedgerAdapter, Gate, GateReport,
+    LEDGER_FILE, LedgerExtension, MAX_INDEX_BYTES, Migration, MigrationInput, ReferenceRoot,
     SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index, migrate_legacy,
     migrate_legacy_with_extensions,
 };

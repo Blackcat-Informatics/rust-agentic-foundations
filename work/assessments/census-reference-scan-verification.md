@@ -7,28 +7,43 @@ subject: cap:census-reference-scan#verification
 inputs:
   - kind: section
     name: cap:census-reference-scan#verification
-    digest: 355afa0a75e9e28571c3c14c5592356e47e8111c69aaacb8a14368001179aa49
+    digest: 9c8ba9e05d568816a06939ac3ad65f50acfca474ee1fc81f0d1ed57fb64daddf
+  - kind: symbol
+    name: raf_census::ExternalReference
+    digest: dff9ba21af812a6448881bf2fda85215d82d533591e85489c9f8e454bc9ba7ce
   - kind: symbol
     name: raf_census::Gate::check_tree_with_references
     digest: c5087ae773dfc4b1246c1a9498aa45fbe698686a15afef9ecc6786beb2ff8ec8
+  - kind: symbol
+    name: raf_census::Gate::external_references
+    digest: 203e097a440d87e226a19737629540596262176ef6dba84291ce2bcd060f3adb
   - kind: symbol
     name: raf_census::Gate::reference_roots
     digest: fb7552389a703dcbb4da65f26224530d5b67448fa60350c87a0f9f48e66a93b5
   - kind: symbol
     name: raf_census::ReferenceSource
-    digest: 92b6b841671cc5df99751e19ba571a19300e7a0e51e29e51e3b54a078cb20d0f
+    digest: 1194fa432612b8cace74775c68a615ba3405ffb79f8126ea16e4bdab700ed9fd
   - kind: symbol
     name: raf_census::ReferenceWitness
     digest: b2c06ca3ba1b22ec1504d2ff6838f1b7052f833014f4fb8932dd2d1068bc8e10
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_reference_tree
-    digest: 6ea0f3f5f3f2160b3bd5123ca04307832186cf8357075a9bc1f4e95bcbd377bf
+    digest: d624f8a5470e951d8dcfcec0269d114e1cfa3bd35397845a2907469e71c9ae00
   - kind: symbol
     name: raf_census::gate::reference
-    digest: 3a87e9cbf2abf8f9ddeb0875e1ad8f6d92779e40f5372d85605ecaeaccb6624f
+    digest: 5a4f23102234c8a595a3af75b89756d9cd40d0c9aca0521b6b0e65e38c5465f6
+  - kind: symbol
+    name: raf_census::gate::reference::external
+    digest: 483f06fca67b8b2097bceb2e803b7b4a641099ab26cf185f68878384634d610d
   - kind: symbol
     name: raf_census::report::reference
-    digest: 7c7f1698a910ad8f061dc1511b9328b2811c884186cde6b1c4e0fcfad7a6860f
+    digest: c190f8b01e736cddc4262cdb7e07468dbc1fa46272b4ad86cbe42d0dee9e29d0
+  - kind: symbol
+    name: raf_source::PinnedGitTree
+    digest: 3a9d76397494b37297a9f0e1c973cc8a7a1421636e4bf290901c060972d80038
+  - kind: symbol
+    name: raf_source::PinnedGitTree::open
+    digest: a6ae4174ad924bbc05e8125a1b82a020f027558ba45d8064a10bc68c57df8a4e
   - kind: symbol
     name: raf_source::ReferenceObservation
     digest: de8fa7c6e008ee0dbfe4be3e089b77fc3351f0411c6552fd89aeb60a0edacb6d
@@ -36,8 +51,14 @@ inputs:
     name: raf_source::ReferenceRequest
     digest: 866ef48e0fd38b0cf973154ac083374c203f96c6a26983e604aae4eaeb3f15c1
   - kind: symbol
+    name: raf_source::Workspace::package_version
+    digest: 45f56b0b8440e3433775796a49c801e44862260c98590a3a820e6251ad90cf0a
+  - kind: symbol
+    name: raf_source::git::Repository::main_work_dir
+    digest: e013eb3abf08341a4b162ba445bca36b9c558b121650cd3b18962f6cab61ff73
+  - kind: symbol
     name: raf_source::workspace::locked::reference
-    digest: 3b0aeb89d8dbfa2309a08ad29247b4b1f90cb1a740ef8b37de9a23b420ede5f9
+    digest: fd6c1c386536fcb1b27c99c106b699acb509a02439ac0d4a37c25e7085a8c8c8
 verdict: accepted
 by: agent
 ---

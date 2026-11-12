@@ -6,8 +6,8 @@
 use std::error::Error;
 
 use raf_source::{
-    CommittedGitTree, EntryKind, LoadOptions, LockedCatalog, MemoryTree, RelPath, Tree, TreeError,
-    Workspace,
+    CommittedGitTree, EntryKind, LoadOptions, LockedCatalog, MemoryTree, Opened, PinnedGitTree,
+    RelPath, Tree, TreeError, Workspace,
 };
 
 #[path = "support/git_objects.rs"]
@@ -396,4 +396,23 @@ fn native_selected_index_is_read_only_and_committed_grants_remain_exact() {
     let mut no_work = normal;
     no_work.max_work = 0;
     assert!(CommittedGitTree::open(&catalog, row, objects.path(), &no_work).is_err());
+}
+
+#[test]
+fn pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds() {
+    let (objects, commit, blob) = fixture();
+    let mut options = LoadOptions::default();
+    options.max_file_bytes = 4;
+    let tree =
+        PinnedGitTree::open(objects.path(), &commit.to_string(), &options).expect("pinned commit");
+    let path = RelPath::new("src/lib.rs").expect("path");
+    assert!(matches!(
+        tree.read_unseen(&path, 100, &|_| false),
+        Err(TreeError::TooLarge { .. })
+    ));
+    remove_object(&objects, blob);
+    assert!(matches!(
+        tree.read_unseen(&path, 100, &|_| true),
+        Ok(Opened::Seen(_))
+    ));
 }
