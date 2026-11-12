@@ -877,3 +877,63 @@ fn library_declaration(
         settings: settings(document, table, "lib")?,
     }))
 }
+
+/// The name of the library target that the root manifest of `tree` declares,
+/// which a locked configuration must name to select that target.
+///
+/// A `[lib]` table names the library itself, or takes the package name; a
+/// package without one has a library only when `src/lib.rs` exists. Nothing
+/// but the root manifest is parsed, so a package whose other targets are
+/// absent from `tree`, as in a registry archive, is not loaded.
+///
+/// # Errors
+/// Refuses an unreadable, oversized or malformed manifest, and one that is not
+/// a package manifest.
+pub fn library_target_name(
+    tree: &dyn crate::Tree,
+    options: &crate::LoadOptions,
+) -> Result<Option<String>, crate::LoadError> {
+    let path = crate::RelPath::new("Cargo.toml").map_err(|error| {
+        crate::LoadError::new(
+            &crate::RelPath::root(),
+            None,
+            crate::LoadErrorKind::Manifest {
+                message: error.to_string(),
+                source: None,
+            },
+        )
+    })?;
+    let origin = crate::Origin::Discovery;
+    let text = tree
+        .read(&path, options.max_file_bytes)
+        .map_err(|error| crate::LoadError::tree(&path, None, &origin, error))?;
+    let parsed = parse(&text).map_err(|problem| {
+        crate::LoadError::new(
+            &path,
+            None,
+            crate::LoadErrorKind::Manifest {
+                message: problem.message,
+                source: problem.source,
+            },
+        )
+    })?;
+    let Some(package) = parsed.package else {
+        return Err(crate::LoadError::new(
+            &path,
+            None,
+            crate::LoadErrorKind::Manifest {
+                message: "the root manifest declares no package".to_owned(),
+                source: None,
+            },
+        ));
+    };
+    if let Some(lib) = parsed.lib {
+        return Ok(Some(lib.name.unwrap_or(package.name)));
+    }
+    let default = crate::RelPath::new("src/lib.rs")
+        .map_err(|error| crate::LoadError::tree(&path, None, &origin, error.into()))?;
+    let present = tree
+        .entry(&default)
+        .map_err(|error| crate::LoadError::tree(&path, None, &origin, error))?;
+    Ok(present.map(|_| package.name))
+}

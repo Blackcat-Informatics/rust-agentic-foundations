@@ -47,6 +47,9 @@ bindings:
     - raf_census::test_crate::reference_scan::locked_git_reference_copy_is_a_hard_finding
     - raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour
     - raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse
+    - raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows
+    - raf_census::test_crate::reference_scan::a_transitive_row_of_the_same_name_is_not_sealed
+    - raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded
     - raf_census::test_crate::reference_scan::first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_rows
     - raf_census::test_crate::reference_scan::large_constants_shared_with_a_reference_cross_the_boundary_by_value
     - raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows
@@ -115,7 +118,7 @@ A selected name with two reachable locked versions refuses as ambiguous, whether
 an exact name selected it or a family selected two non-first-party versions.
 
 ### Registry dependencies sealed by the lock file
-<!-- raf:tested-by raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour,raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour,raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse,raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows,raf_census::test_crate::reference_scan::a_transitive_row_of_the_same_name_is_not_sealed,raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded -->
 
 A consumer whose dependency comes from a registry needs no sibling checkout, no
 pinned commit and no installed command. `Gate::check_locked_registry` (and
@@ -127,8 +130,11 @@ the primary Linux target, seals each selected registry package from its original
 then the same non-debt `REFERENCE-COPY` finding as for a path dependency, and a
 changed body stays clean.
 
-The sealed set is every registry package of the lock file that a first-party
-package depends on directly and that a selector names: the ledger's `reference`
+The sealed set is every registry row of the lock file that a first-party
+package depends on directly and that a selector names. Each declaration, whether
+inherited from the workspace table, renamed, written with a named registry or an
+explicit registry index, is matched to its own outgoing row, so a transitive row
+of the same name at another version is not sealed. A selector is: the ledger's `reference`
 values (an exact name or a `prefix-*` family) and any selector added with
 `LockedRegistry::seal`, which names providers that the ledger declares by
 another property. A `reference` that names a path package keeps the contained
@@ -146,12 +152,13 @@ for a directory or `ArchiveCache::cargo_home` for `$CARGO_HOME/registry/cache`
 (`$HOME/.cargo` when `CARGO_HOME` is unset). The helper only reads files named
 `NAME-VERSION.crate` below that directory, bounded by the source loader's
 archive budget; it fetches nothing, starts no process and reads nothing outside the workspace besides those archives.
-The lock file is the only authority: the bytes must equal the checksum the lock
-names, and a mismatch refuses. An archive missing from the cache refuses naming
+The lock file is the only authority: of the candidates found in the index
+directories, in sorted order, the first whose bytes equal the checksum the lock
+names is used, and when none does the refusal names every candidate. An archive missing from the cache refuses naming
 the crate, the version, the file and the directory searched, with the
 instruction to run `cargo fetch --locked`; it is never a silent pass. An
-oversized archive refuses. The package's published manifest must name its
-library target, as Cargo's published manifests do.
+oversized archive refuses. The library target compared is the one that the
+authenticated archive manifest declares, and a package without one refuses.
 
 ### Declared reference trees
 <!-- raf:tested-by raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference,raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit,raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,raf_source::test_crate::git_tree::pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds -->
@@ -478,6 +485,7 @@ refusal with a valid commit or pin key.
 | `cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_census::example_crate::references` | example target | [Usage](#usage) |
 | `raf_census::test_crate::reference_scan::a_constant_held_only_by_two_reference_packages_has_no_row` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::a_transitive_row_of_the_same_name_is_not_sealed` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::an_existing_debt_record_does_not_hold_a_reference_copy` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows` | test | [Contract](#contract) |
@@ -497,7 +505,9 @@ refusal with a valid commit or pin key.
 | `raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt` | test | [Contract](#contract) |

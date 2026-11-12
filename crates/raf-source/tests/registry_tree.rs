@@ -295,3 +295,41 @@ fn a_first_party_archive_cannot_bind_to_a_different_catalogs_row() {
     let refused = load(&other, other_row).expect_err("another catalog's row refuses");
     assert!(refused.to_string().contains("differs"), "{refused}");
 }
+
+/// A locked configuration names the library target of the root manifest alone:
+/// a `[lib]` name, the package name for a default or unnamed library, nothing
+/// without a library, and no other target is read.
+#[test]
+fn the_library_target_name_comes_from_the_root_manifest_alone() {
+    let named = MemoryTree::from([(
+        "Cargo.toml",
+        "[package]\nname='acme-core'\nversion='1.0.0'\n[lib]\nname='api'\n",
+    )]);
+    let options = LoadOptions::default();
+    assert_eq!(
+        raf_source::library_target_name(&named, &options).unwrap(),
+        Some("api".to_owned())
+    );
+    let unnamed = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='acme-core'\nversion='1.0.0'\n",
+        ),
+        ("src/lib.rs", ""),
+        ("benches/gone.rs", "#[path = \"missing.rs\"] mod fixture;"),
+    ]);
+    assert_eq!(
+        raf_source::library_target_name(&unnamed, &options).unwrap(),
+        Some("acme-core".to_owned())
+    );
+    let binary = MemoryTree::from([
+        ("Cargo.toml", "[package]\nname='tool'\nversion='1.0.0'\n"),
+        ("src/main.rs", "fn main() {}"),
+    ]);
+    assert_eq!(
+        raf_source::library_target_name(&binary, &options).unwrap(),
+        None
+    );
+    let workspace = MemoryTree::from([("Cargo.toml", "[workspace]\nmembers=[]\n")]);
+    assert!(raf_source::library_target_name(&workspace, &options).is_err());
+}

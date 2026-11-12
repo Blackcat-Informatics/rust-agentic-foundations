@@ -107,6 +107,7 @@ bindings:
     - raf_source::LockedTree
     - raf_source::RegistryArchiveTree
     - raf_source::RegistryArchiveTree::from_bytes
+    - raf_source::library_target_name
     - raf_source::CfgAtom
     - raf_source::DeclaredCfg
     - raf_source::DeclaredCfg::complete
@@ -177,6 +178,7 @@ bindings:
     - raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path
     - raf_source::test_crate::registry_tree::an_archive_of_many_small_files_loads_within_the_default_work_grant
     - raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit
+    - raf_source::test_crate::registry_tree::the_library_target_name_comes_from_the_root_manifest_alone
     - raf_source::test_crate::registry_tree::a_first_party_archive_cannot_bind_to_a_different_catalogs_row
     - raf_source::tree::disk::tests::root_acquisition_refuses_replaced_components_before_exposing_a_directory
     - raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory
@@ -2924,7 +2926,9 @@ Native decoder internal CPU and allocations remain outside portable meters.
 The decoded tar buffer is admitted before the strict inventory runs; RAF-owned
 retained files, inventory, path traversal and source reads consume their grants.
 This supplies no universal native peak-memory or CPU guarantee.
-<!-- raf:tested-by raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries,raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive,raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path,raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit,raf_source::test_crate::registry_tree::a_first_party_archive_cannot_bind_to_a_different_catalogs_row -->
+
+`library_target_name` reads only a tree's root manifest to name its library target: the `[lib]` name, otherwise the package name when a `[lib]` table or `src/lib.rs` makes a library, so a locked configuration can select the library of a registry archive without loading its other targets, which an archive may omit.
+<!-- raf:tested-by raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries,raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive,raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path,raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit,raf_source::test_crate::registry_tree::a_first_party_archive_cannot_bind_to_a_different_catalogs_row,raf_source::test_crate::registry_tree::the_library_target_name_comes_from_the_root_manifest_alone -->
 
 `Workspace::load_locked_sources` joins explicit local manifest locators and opaque
 checked Git snapshots or registry archives to actual discovered `PackageId`s. `LockedManifest` names a
@@ -5590,6 +5594,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries` | test | [Contract](#contract) |
 | `raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path` | test | [Contract](#contract) |
 | `raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_tree::the_library_target_name_comes_from_the_root_manifest_alone` | test | [Contract](#contract) |
 | `raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside` | test | [Contract](#contract) |
 | `raf_source::test_crate::relpath::a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve` | test | [Contract](#contract) |

@@ -8,9 +8,10 @@ use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
 use raf_source::{
-    CfgAtom, DeclaredCfg, DeclaredConfiguration, LoadOptions, LockedCatalog, LockedEdge,
-    LockedManifest, LockedPackageId, LockedPackageRoots, LockedSourceKind, LockedTree, MemoryTree,
-    PackageId, RegistryArchiveTree, RegistryIndex, RelPath, TargetKind, Tree, Workspace,
+    CfgAtom, DeclaredCfg, DeclaredConfiguration, DependencyDeclaration, DependencySpec,
+    LoadOptions, LockedCatalog, LockedEdge, LockedManifest, LockedPackageId, LockedPackageRoots,
+    LockedSourceKind, LockedTree, MemoryTree, PackageId, RegistryArchiveTree, RegistryIndex,
+    RelPath, TargetKind, Tree, Workspace,
 };
 
 use super::{DebtWrite, Gate, GateReport, read_ledger};
@@ -91,10 +92,19 @@ impl ArchiveCache {
         &self.directory
     }
 
-    /// The bytes of one archive, never more than `limit`: the budget that
-    /// `RegistryArchiveTree` applies to the same bytes, so an oversized entry
-    /// is refused before it is held in memory.
-    fn read(&self, name: &str, version: &str, limit: usize) -> Result<Vec<u8>, Error> {
+    /// The bytes of the archive whose digest is `checksum`, never more than
+    /// `limit` per candidate: the budget that `RegistryArchiveTree` applies to
+    /// the same bytes, so an oversized entry is skipped before it is held in
+    /// memory. Every index directory is searched in sorted order and the first
+    /// candidate that matches the lock checksum wins; when none matches, the
+    /// refusal names every candidate and why it was rejected.
+    fn read(
+        &self,
+        name: &str,
+        version: &str,
+        limit: usize,
+        checksum: &[u8],
+    ) -> Result<Vec<u8>, Error> {
         let file = format!("{name}-{version}.crate");
         let mut indexes: Vec<_> = std::fs::read_dir(&self.directory)
             .map_err(|error| {
@@ -112,43 +122,53 @@ impl ArchiveCache {
                 ))
             })?;
         indexes.sort();
+        let mut rejected = Vec::new();
         for path in indexes.into_iter().map(|index| index.join(&file)) {
             if !path.is_file() {
                 continue;
             }
-            let oversized = || {
-                refusal(format!(
-                    "{name} {version}: the cached archive {} is larger than the {limit} byte archive budget; remove it and run `cargo fetch --locked`",
+            match read_candidate(&path, limit) {
+                Ok(bytes) if purrdf_core::ContentDigest::of(&bytes).as_bytes() == checksum => {
+                    return Ok(bytes);
+                }
+                Ok(_) => rejected.push(format!(
+                    "{} does not match the lock checksum",
                     path.display()
-                ))
-            };
-            let unreadable = |error: std::io::Error| {
-                refusal(format!(
-                    "{name} {version}: cannot read {}: {error}",
-                    path.display()
-                ))
-            };
-            let file = std::fs::File::open(&path).map_err(unreadable)?;
-            let length = file.metadata().map_err(unreadable)?.len();
-            if length > u64::try_from(limit).unwrap_or(u64::MAX) {
-                return Err(oversized());
+                )),
+                Err(reason) => rejected.push(format!("{}: {reason}", path.display())),
             }
-            // The length check is advisory: the bounded read also refuses a
-            // file that grows while it is read.
-            let mut bytes = Vec::new();
-            file.take(length.saturating_add(1))
-                .read_to_end(&mut bytes)
-                .map_err(unreadable)?;
-            if bytes.len() > limit {
-                return Err(oversized());
-            }
-            return Ok(bytes);
+        }
+        if rejected.is_empty() {
+            return Err(refusal(format!(
+                "{name} {version}: {file} is not in {}; run `cargo fetch --locked` for the workspace lock file so Cargo stores the locked archives (the check fetches nothing)",
+                self.directory.display()
+            )));
         }
         Err(refusal(format!(
-            "{name} {version}: {file} is not in {}; run `cargo fetch --locked` for the workspace lock file so Cargo stores the locked archives (the check fetches nothing)",
-            self.directory.display()
+            "{name} {version}: no cached archive is the locked source ({}); remove the rejected files and run `cargo fetch --locked`",
+            rejected.join("; ")
         )))
     }
+}
+
+/// One candidate archive, refused when it is larger than `limit`.
+fn read_candidate(path: &Path, limit: usize) -> Result<Vec<u8>, String> {
+    let oversized = || format!("larger than the {limit} byte archive budget");
+    let file = std::fs::File::open(path).map_err(|error| error.to_string())?;
+    let length = file.metadata().map_err(|error| error.to_string())?.len();
+    if length > u64::try_from(limit).unwrap_or(u64::MAX) {
+        return Err(oversized());
+    }
+    // The length check is advisory: the bounded read also refuses a file that
+    // grows while it is read.
+    let mut bytes = Vec::new();
+    file.take(length.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() > limit {
+        return Err(oversized());
+    }
+    Ok(bytes)
 }
 
 /// The registry dependencies that a locked check seals from the archive cache.
@@ -278,44 +298,129 @@ impl Gate {
     }
 }
 
+/// A registry declaration matched to its own outgoing lock row.
+struct Matched<'a> {
+    key: &'a str,
+    row: LockedPackageId,
+    /// The registry-name configuration and index of the row's source, or
+    /// `None` when the declaration writes its own registry index.
+    index: Option<(Option<&'a str>, String)>,
+}
+
+/// The declaration's effective specification: the workspace entry that an
+/// inherited declaration names, otherwise its own.
+fn effective(dependency: &DependencyDeclaration) -> &DependencySpec {
+    match &dependency.inherited {
+        Some(inherited) if dependency.specification.workspace => &inherited.specification,
+        _ => &dependency.specification,
+    }
+}
+
+/// Match each registry declaration of one package, whose effective package name
+/// a selector names, to its own outgoing row of `owner`: the row that the
+/// locked selector picks for that declaration's version requirement and
+/// registry. Declarations that select no row stay unmatched and unsealed.
+fn matches_of<'a>(
+    catalog: &LockedCatalog,
+    workspace: &'a Workspace,
+    package: PackageId,
+    owner: LockedPackageId,
+    selectors: &[&str],
+    options: &LoadOptions,
+) -> Vec<Matched<'a>> {
+    let Some(owner_row) = catalog.package(owner) else {
+        return Vec::new();
+    };
+    let mut matched = Vec::new();
+    for dependency in workspace
+        .dependency_declarations(package)
+        .unwrap_or_default()
+    {
+        let spec = effective(dependency);
+        let name = spec.package.as_deref().unwrap_or(&dependency.name);
+        if spec.path.is_some()
+            || spec.git.is_some()
+            || !selectors.iter().any(|selector| selects(selector, name))
+        {
+            continue;
+        }
+        for id in owner_row.dependencies() {
+            let Some(row) = catalog.package(*id) else {
+                continue;
+            };
+            let Some(source) = row.source().filter(|source| {
+                matches!(
+                    source.kind(),
+                    LockedSourceKind::Registry | LockedSourceKind::SparseRegistry
+                )
+            }) else {
+                continue;
+            };
+            if row.name() != name {
+                continue;
+            }
+            let index = if spec.registry_index.is_some() {
+                None
+            } else {
+                Some((
+                    spec.registry.as_deref(),
+                    index_source(source.kind(), source.repository()),
+                ))
+            };
+            let chosen = catalog.select_dependency(
+                owner,
+                dependency,
+                index
+                    .as_ref()
+                    .map(|(name, source)| RegistryIndex::new(*name, source)),
+                options,
+            );
+            if chosen.is_ok_and(|chosen| chosen == *id) {
+                matched.push(Matched {
+                    key: &dependency.key,
+                    row: *id,
+                    index,
+                });
+                break;
+            }
+        }
+    }
+    matched
+}
+
 /// The outgoing edges whose rows have a checked source: contained path packages
-/// and the sealed registry packages, each with the index of its lock row.
+/// and the matched registry declarations, each with the registry configuration
+/// of its own lock row.
 fn edges_of<'a>(
     workspace: &'a Workspace,
     id: PackageId,
-    sealed: &'a BTreeMap<&str, String>,
+    matched: &'a [Matched<'a>],
 ) -> Vec<LockedEdge<'a>> {
     workspace
         .dependency_declarations(id)
         .unwrap_or_default()
         .iter()
         .filter_map(|dependency| {
-            let path = dependency.specification.path.is_some()
-                || dependency
-                    .inherited
+            let spec = effective(dependency);
+            if spec.path.is_some() {
+                return Some(LockedEdge::new(&dependency.key, None));
+            }
+            let found = matched.iter().find(|entry| entry.key == dependency.key)?;
+            Some(LockedEdge::new(
+                &dependency.key,
+                found
+                    .index
                     .as_ref()
-                    .is_some_and(|inherited| inherited.specification.path.is_some());
-            let package = dependency
-                .specification
-                .package
-                .as_deref()
-                .unwrap_or(&dependency.name);
-            let index = sealed.get(package);
-            (path || index.is_some()).then(|| {
-                LockedEdge::new(
-                    &dependency.key,
-                    index
-                        .filter(|_| !path)
-                        .map(|source| RegistryIndex::new(None, source)),
-                )
-            })
+                    .map(|(name, source)| RegistryIndex::new(*name, source)),
+            ))
         })
         .collect()
 }
 
 /// The declared context of every target of one package. A library is judged in
 /// the ordinary mode that its other targets require of their own-library
-/// companion; every other target is built by `cargo test`.
+/// companion; every other target is built by `cargo test`, and a build script
+/// also names the ordinary configuration as its host.
 fn targets_of<'a>(
     workspace: &'a Workspace,
     package: &str,
@@ -331,7 +436,13 @@ fn targets_of<'a>(
             } else {
                 testing
             };
-            DeclaredConfiguration::new(declared, &[], target.kind, &target.name)
+            let configuration =
+                DeclaredConfiguration::new(declared, &[], target.kind, &target.name);
+            if target.kind == TargetKind::BuildScript {
+                configuration.with_host(ordinary)
+            } else {
+                configuration
+            }
         })
         .collect()
 }
@@ -375,27 +486,25 @@ fn with_registry<T>(
     let roots: Vec<&str> = ledger.roots().iter().map(String::as_str).collect();
     let workspace = Workspace::load(tree, &roots)?;
 
-    let natives = sealed_rows(&catalog, &workspace, &selectors);
-    let indexes: BTreeMap<&str, String> = natives
+    let owners = owner_rows(&catalog, &workspace)?;
+    let matched: Vec<_> = workspace
+        .package_ids()
+        .zip(&owners)
+        .map(|(id, owner)| matches_of(&catalog, &workspace, id, *owner, &selectors, &options))
+        .collect();
+    let sealed: BTreeSet<LockedPackageId> =
+        matched.iter().flatten().map(|entry| entry.row).collect();
+    let natives: Vec<_> = sealed
         .iter()
-        .filter_map(|row| {
-            row.source()
-                .map(|source| (row.name(), index_source(source.kind(), source.repository())))
-        })
+        .filter_map(|id| catalog.package(*id))
         .collect();
 
-    let row = |name: &str| -> Result<LockedPackageId, Error> {
-        catalog
-            .packages()
-            .find(|row| row.name() == name && row.source().is_none())
-            .map(raf_source::LockedPackage::id)
-            .ok_or_else(|| refusal(format!("Cargo.lock has no first-party row for {name}")))
-    };
     let cfg = DeclaredCfg::complete(TARGET, ORDINARY);
     let testing = DeclaredCfg::complete(TARGET, TESTING);
     let edges: Vec<_> = workspace
         .package_ids()
-        .map(|id| edges_of(&workspace, id, &indexes))
+        .zip(&matched)
+        .map(|(id, matched)| edges_of(&workspace, id, matched))
         .collect();
     let configs: Vec<_> = workspace
         .package_ids()
@@ -412,16 +521,17 @@ fn with_registry<T>(
             .package(id)
             .ok_or_else(|| refusal("a workspace package vanished"))?;
         local.push(
-            LockedManifest::new(row(&package.name)?, package.manifest.clone(), &edges[index])
+            LockedManifest::new(owners[index], package.manifest.clone(), &edges[index])
                 .with_configurations(&configs[index]),
         );
     }
 
     let trees = open_trees(&catalog, &natives, registry, &options)?;
-    let names: Vec<String> = natives
+    let names = trees
         .iter()
-        .map(|row| row.name().replace('-', "_"))
-        .collect();
+        .zip(&natives)
+        .map(|(tree, row)| library_name(tree, row.name(), &options))
+        .collect::<Result<Vec<_>, _>>()?;
     let enabled: Vec<Vec<&str>> = natives
         .iter()
         .map(|row| {
@@ -456,44 +566,22 @@ fn with_registry<T>(
     action(&catalog, &local, &sources)
 }
 
-fn lock_path() -> Result<RelPath, Error> {
-    RelPath::new("Cargo.lock").map_err(|error| refusal(error.to_string()))
+/// The library target name that the authenticated manifest of a sealed package
+/// declares.
+fn library_name(
+    tree: &RegistryArchiveTree<'_>,
+    package: &str,
+    options: &LoadOptions,
+) -> Result<String, Error> {
+    raf_source::library_target_name(tree, options)?.ok_or_else(|| {
+        refusal(format!(
+            "{package}: the sealed package has no library target to compare"
+        ))
+    })
 }
 
-/// The registry rows that a workspace package depends on directly and that a
-/// selector names.
-fn sealed_rows<'c>(
-    catalog: &'c LockedCatalog,
-    workspace: &Workspace,
-    selectors: &[&str],
-) -> Vec<&'c raf_source::LockedPackage> {
-    let direct: BTreeSet<&str> = workspace
-        .package_ids()
-        .filter_map(|id| workspace.dependency_declarations(id))
-        .flatten()
-        .map(|dependency| {
-            dependency
-                .specification
-                .package
-                .as_deref()
-                .unwrap_or(&dependency.name)
-        })
-        .collect();
-    catalog
-        .packages()
-        .filter(|row| {
-            direct.contains(row.name())
-                && selectors
-                    .iter()
-                    .any(|selector| selects(selector, row.name()))
-                && row.source().is_some_and(|source| {
-                    matches!(
-                        source.kind(),
-                        LockedSourceKind::Registry | LockedSourceKind::SparseRegistry
-                    )
-                })
-        })
-        .collect()
+fn lock_path() -> Result<RelPath, Error> {
+    RelPath::new("Cargo.lock").map_err(|error| refusal(error.to_string()))
 }
 
 /// The authenticated tree of every sealed row, read from the archive cache.
@@ -506,9 +594,16 @@ fn open_trees<'c>(
     let archives = rows
         .iter()
         .map(|row| {
+            let checksum = row.checksum().ok_or_else(|| {
+                refusal(format!(
+                    "{} {}: the lock row has no archive checksum",
+                    row.name(),
+                    row.version()
+                ))
+            })?;
             registry
                 .cache
-                .read(row.name(), row.version(), options.max_total_bytes)
+                .read(row.name(), row.version(), options.max_total_bytes, checksum)
         })
         .collect::<Result<Vec<_>, _>>()?;
     rows.iter()
@@ -526,7 +621,7 @@ fn open_trees<'c>(
 }
 
 /// The lock catalog of the workspace: the explicit lock text, or the root
-/// `Cargo.lock` of `tree`.
+/// `Cargo.lock` of `tree`, read within the load's file-size bound.
 fn load_catalog(
     tree: &impl Tree,
     registry: &LockedRegistry,
@@ -535,7 +630,7 @@ fn load_catalog(
     let lock = match &registry.lock {
         Some(lock) => lock.clone(),
         None => tree
-            .read(&lock_path()?, u64::MAX)
+            .read(&lock_path()?, options.max_file_bytes)
             .map_err(|source| Error::Tree {
                 file: "Cargo.lock".into(),
                 source,
@@ -543,4 +638,29 @@ fn load_catalog(
     };
     let lock_tree = MemoryTree::from([("Cargo.lock", lock.as_str())]);
     Ok(LockedCatalog::load(&lock_tree, &lock_path()?, options)?)
+}
+
+/// The first-party lock row of every workspace package, in package order.
+fn owner_rows(
+    catalog: &LockedCatalog,
+    workspace: &Workspace,
+) -> Result<Vec<LockedPackageId>, Error> {
+    workspace
+        .package_ids()
+        .map(|id| {
+            let package = workspace
+                .package(id)
+                .ok_or_else(|| refusal("a workspace package vanished"))?;
+            catalog
+                .packages()
+                .find(|row| row.name() == package.name && row.source().is_none())
+                .map(raf_source::LockedPackage::id)
+                .ok_or_else(|| {
+                    refusal(format!(
+                        "Cargo.lock has no first-party row for {}",
+                        package.name
+                    ))
+                })
+        })
+        .collect()
 }
