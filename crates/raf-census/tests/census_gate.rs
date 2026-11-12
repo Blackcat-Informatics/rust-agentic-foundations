@@ -401,6 +401,13 @@ fn ledger_vocabulary_matches_validated_graphs() {
 
 fn ledger_vocabulary_settings() -> Builder {
     let mut graph = job(true);
+    put(&mut graph, "", "excludeTestItems", Term::boolean(true));
+    put(
+        &mut graph,
+        "",
+        "excludeDir",
+        Term::simple_literal("generated"),
+    );
     for (key, value) in [("minTokens", "1"), ("maxFileBytes", "8192")] {
         put(
             &mut graph,
@@ -4401,4 +4408,100 @@ fn index_migration_refuses_oversized_split_output_beside_a_same_size_mapping() {
     let result = migrated(&tree, &ledger, &index.to_turtle().unwrap()).unwrap();
     assert_eq!(result.ledger.len(), ledger.len());
     assert_eq!(result.unmapped, []);
+}
+
+fn scope_ledger(settings: &[(&str, Term)]) -> Builder {
+    let mut graph = base();
+    put(
+        &mut graph,
+        "",
+        "minTokens",
+        Term::typed_literal("1", vocab::INTEGER),
+    );
+    for (key, value) in settings {
+        put(&mut graph, "", key, value.clone());
+    }
+    graph
+}
+
+/// The ledger's grouping scope reaches the census, and the index and the exact
+/// debt record state it; a record of another scope is a difference that is
+/// not growth. Only a true flag and plain directory names are accepted.
+#[test]
+fn ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record() {
+    let source = "#[cfg(test)]\nmod tests {\n/// One.\npub fn f(a:u32)->u32 { a+a+a+a }\n/// Two.\npub fn g(b:u32)->u32 { b+b+b+b }\n}";
+    let gate = Gate::workspace(".");
+    let complete = gate
+        .check_tree(&tree(source, scope_ledger(&[]), 0))
+        .unwrap();
+    assert_eq!(complete.debt().groups().len(), 1);
+    assert!(complete.debt().scope().is_complete());
+    assert!(!complete.debt().to_turtle().unwrap().contains("exclude"));
+
+    let settings = [
+        ("excludeTestItems", Term::boolean(true)),
+        ("excludeDir", Term::simple_literal("generated")),
+    ];
+    let scoped = gate
+        .check_tree(&tree(source, scope_ledger(&settings), 0))
+        .unwrap();
+    assert!(scoped.is_clean(), "{:?}", scoped.findings());
+    assert!(scoped.debt().groups().is_empty());
+    let scope = scoped.census().options().scope.clone();
+    assert!(scope.excludes_test_items());
+    assert_eq!(scope.excluded_dirs().collect::<Vec<_>>(), ["generated"]);
+    assert_eq!(scoped.debt().scope(), &scope);
+    let record = scoped.debt().to_turtle().unwrap();
+    assert!(record.contains("excludeTestItems") && record.contains("\"generated\""));
+    assert_eq!(DebtRecord::from_turtle(&record).unwrap().scope(), &scope);
+    let index = scoped.census().index(scoped.jobs()).unwrap();
+    assert_eq!(index.scope, scope);
+    let text = index.to_turtle().unwrap();
+    assert_eq!(raf_census::Index::from_turtle(&text).unwrap().scope, scope);
+
+    let unscoped = DebtRecord::new(NORMAL_FORM, [], BTreeMap::new()).unwrap();
+    let changes = unscoped.compare(scoped.debt()).unwrap();
+    assert!(matches!(
+        changes.as_slice(),
+        [raf_census::DebtChange::Scope { .. }]
+    ));
+    assert!(!changes[0].is_growth());
+    let ledger = scope_ledger(&settings)
+        .finish()
+        .unwrap()
+        .to_text(Format::Turtle)
+        .unwrap();
+    let stale: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        ),
+        ("src/lib.rs", source),
+        ("helpers-ledger.ttl", ledger.as_str()),
+        ("census-debt.ttl", unscoped.to_turtle().unwrap().as_str()),
+    ]
+    .into();
+    let stale = gate.check_tree(&stale).unwrap();
+    assert!(
+        stale
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("record the present grouping scope")),
+        "{:?}",
+        stale.findings()
+    );
+
+    for (key, value, needle) in [
+        ("excludeTestItems", Term::boolean(false), "only as true"),
+        ("excludeDir", Term::simple_literal("a/b"), "plain directory"),
+        ("excludeDir", Term::simple_literal(".."), "plain directory"),
+    ] {
+        let text = scope_ledger(&[(key, value)])
+            .finish()
+            .unwrap()
+            .to_text(Format::Turtle)
+            .unwrap();
+        let error = Ledger::from_turtle(&text).unwrap_err().to_string();
+        assert!(error.contains(needle), "{error}");
+    }
 }

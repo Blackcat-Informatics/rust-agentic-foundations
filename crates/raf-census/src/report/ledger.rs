@@ -244,6 +244,8 @@ impl Ledger {
                 "reportForm",
                 "minTokens",
                 "maxFileBytes",
+                "excludeTestItems",
+                "excludeDir",
                 "root",
                 "reference",
                 "job",
@@ -263,6 +265,7 @@ impl Ledger {
             options.max_file_bytes = u64::try_from(shape::number(&root, "maxFileBytes")?)
                 .map_err(|_| E::Value("ledger maxFileBytes exceeds u64".into()))?;
         }
+        options.scope = shape::scope(&root)?;
         let mut roots = strings(&root, "root")?;
         if roots.is_empty() {
             roots.push(".".into());

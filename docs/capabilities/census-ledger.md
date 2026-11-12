@@ -43,6 +43,7 @@ bindings:
     - raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope
     - raf_census::gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set
     - raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation
+    - raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
     - raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate
@@ -160,14 +161,21 @@ shared with that library must independently prove the library's eligible route;
 the build dependency cannot authorize both contexts.
 
 ### Closed native policy
-<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation,raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record -->
 
 The production file helpers-ledger.ttl is canonical RDF 1.2. Ledger::from_turtle
 and Ledger::from_ntriples validate equivalent representations through the shared
 native profile. Its Ledger root requires normalForm and reportForm; optional
 minTokens and maxFileBytes default to 20 and eight MiB. Repeated root, reference,
 job, distinct and pattern properties declare sets; the default root is the
-workspace. An incompatible normal form refuses before job interpretation.
+workspace. Optional excludeTestItems, stated only as true, and repeated
+excludeDir directory names set the grouping scope of the census normal form;
+false, a path or a dot name refuses. Excluded items stay units and leave only
+body and shim grouping and the group debt it produces; jobs, sanctions and
+detectors still see them, and a job copy inside an excluded file still counts.
+The gate evaluates the census under that scope, and its index and debt record
+state it. An incompatible normal form
+refuses before job interpretation.
 Unknown core properties, wrong classes, missing required values, invalid
 cardinalities and unowned nodes refuse. Input is at most one MiB.
 
@@ -446,8 +454,8 @@ same source passes with an ordinary dependency. A package with no eligible
 selected target refuses during Source loading before provider execution.
 
 The bound integration cases exercise real MemoryTree workspaces, reexports,
-physical aliases, sanctions, staleness, extension ownership, closed declarations
-and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
+physical aliases, sanctions, staleness, extension ownership, closed declarations,
+the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -480,6 +488,7 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 | `raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path` | test | [Contract](#contract) |

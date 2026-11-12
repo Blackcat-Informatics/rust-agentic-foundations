@@ -39,6 +39,12 @@ bindings:
     - raf_census::CensusOptions
     - raf_census::CensusOptions::max_file_bytes
     - raf_census::CensusOptions::min_tokens
+    - raf_census::GroupingScope
+    - raf_census::GroupingScope::exclude_test_items
+    - raf_census::GroupingScope::exclude_dir
+    - raf_census::GroupingScope::excludes_test_items
+    - raf_census::GroupingScope::excluded_dirs
+    - raf_census::GroupingScope::is_complete
     - raf_census::ConstantRow
     - raf_census::DEFAULT_MAX_FILE_BYTES
     - raf_census::DEFAULT_MIN_TOKENS
@@ -148,6 +154,11 @@ bindings:
     - raf_census::normalize::literal::tests::floats_and_strings_are_not_integers
     - raf_census::normalize::literal::tests::spellings_of_one_value_respell_alike
     - raf_census::options::tests::defaults_are_twenty_tokens_and_eight_mebibytes
+    - raf_census::options::tests::excluded_directories_are_plain_names_matched_only_above_the_file
+    - raf_census::test_crate::grouping_scope::the_complete_scope_groups_every_copy_and_keeps_its_reports_unchanged
+    - raf_census::test_crate::grouping_scope::excluding_test_items_drops_library_test_code_and_keeps_test_targets
+    - raf_census::test_crate::grouping_scope::excluding_a_directory_drops_only_library_files_under_it
+    - raf_census::test_crate::grouping_scope::a_unit_with_any_kept_reach_still_groups_and_test_only_forwarders_leave_shim_groups
     - raf_census::options::tests::max_file_bytes_is_set
     - raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted
     - raf_census::report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes
@@ -398,8 +409,8 @@ Reading a version out of a ledger file is the ledger's.
 ### Load options
 <!-- raf:tested-by raf_census::options::tests::defaults_are_twenty_tokens_and_eight_mebibytes,raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted,raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads -->
 
-`raf_census::CensusOptions` is `#[non_exhaustive]` and has `Default` and two
-setters. `min_tokens` defaults to 20, and the setter refuses 0 with
+`raf_census::CensusOptions` is `#[non_exhaustive]` and has `Default`, two
+setters and a `scope`. `min_tokens` defaults to 20, and the setter refuses 0 with
 `Error::Options`. `max_file_bytes` defaults to 8 MiB and is the per-file read cap
 of the workspace load; a file above it is a load error that names the file.
 
@@ -467,6 +478,34 @@ members. A group has two or more members. Groups sort by member count descending
 then tokens descending, then fingerprint ascending, and their members by symbol,
 file, line and start byte, so the same source always produces the same output. Body and shim prints each hold a single complete fingerprint,
 without a redundant truncated identity or separate digest.
+
+### Grouping scope
+<!-- raf:tested-by raf_census::test_crate::grouping_scope::the_complete_scope_groups_every_copy_and_keeps_its_reports_unchanged,raf_census::test_crate::grouping_scope::excluding_test_items_drops_library_test_code_and_keeps_test_targets,raf_census::test_crate::grouping_scope::excluding_a_directory_drops_only_library_files_under_it,raf_census::test_crate::grouping_scope::a_unit_with_any_kept_reach_still_groups_and_test_only_forwarders_leave_shim_groups,raf_census::options::tests::excluded_directories_are_plain_names_matched_only_above_the_file -->
+
+`CensusOptions::scope` is a `GroupingScope`. Its default excludes nothing, so
+every group, report and record keeps its complete-scope form.
+Each exclusion leaves units out of body and shim grouping only.
+`exclude_test_items(true)` leaves out every test-only item: an item whose own
+`cfg`, or an enclosing module's, holds only in a test build (`test`,
+`all(.., test, ..)`, or an `any(..)` whose every arm does) and every `#[test]`
+function. `exclude_dir(name)` leaves out the units of every file with a
+directory segment equal to `name`, at any depth below the workspace root; the
+name of the file itself never matches. Those files still contribute units. It
+refuses an empty name, `.`, `..` and a name holding `/` or `\` with
+`Error::Options`.
+
+Both exclusions apply only to a reach from a library, a binary or a build
+script. A reach from an integration test, a bench or an example always stays in
+scope, so copies between test files, their `#[test]` functions included, still
+group. A unit stays in scope while any one of its reaches does. An excluded unit
+is still a unit: detectors, jobs, patterns, homes, sanctions, hexadecimal
+tables, shared constants and the unit index see it unchanged. Only body and
+shim groups, and the group debt they carry, omit it. A job copy inside an
+excluded file still counts toward that job's copies and its job debt. Its
+fingerprints are unchanged.
+The baseline and the index state a scope that excludes something with
+`excludeTestItems` and one `excludeDir` per name; a complete scope adds no
+assertion, so their bytes are those of the complete scope.
 
 ### Tables and shared constants
 <!-- raf:tested-by raf_census::test_crate::groups::every_form_of_a_hex_table_is_reported_in_both_cases,raf_census::test_crate::groups::near_misses_of_a_hex_table_are_not_reported,raf_census::test_crate::groups::constants_above_ffff_in_two_packages_are_shared,raf_census::test_crate::groups::a_constant_in_one_package_is_not_shared,raf_census::test_crate::groups::shared_constants_run_by_value_ascending -->
@@ -983,6 +1022,16 @@ and escapes controls beside a plain diagnostic neighbor.
   versions and `cargo census migrate`) and with 1 (accepted). `CensusOptions` is
   tested with `min_tokens` 0 (refused) and 1 (accepted), with the defaults, and with
   a file above and a file at `max_file_bytes`.
+- Grouping-scope tests over one two-package workspace show that the complete
+  scope groups every copy and writes the pinned report bytes; that excluding test
+  items drops each test-only form a library reaches, keeps `any(test, unix)` and
+  keeps integration-test and example copies, `#[test]` functions included; and
+  that excluding a directory drops only the library copy under it while a job
+  still counts that copy. Excluded items remain units. A file that the library
+  reaches under `cfg(test)` and an integration test reaches through `#[path]`
+  keeps its group, and test-only forwarders leave their shim group while library
+  forwarders keep theirs. Empty, dot and path directory names refuse beside a
+  plain name.
 - Grouping tests show groups of one are dropped, the order of groups and members,
   the hex tables of each form and case beside the near misses that are not tables,
   and the shared constants across packages.
@@ -1022,6 +1071,7 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::normalize::literal::tests::floats_and_strings_are_not_integers` | test | [Verification](#verification) |
 | `raf_census::normalize::literal::tests::spellings_of_one_value_respell_alike` | test | [Verification](#verification) |
 | `raf_census::options::tests::defaults_are_twenty_tokens_and_eight_mebibytes` | test | [Contract](#contract) |
+| `raf_census::options::tests::excluded_directories_are_plain_names_matched_only_above_the_file` | test | [Contract](#contract) |
 | `raf_census::options::tests::max_file_bytes_is_set` | test | [Verification](#verification) |
 | `raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted` | test | [Contract](#contract) |
 | `raf_census::report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes` | test | [Verification](#verification) |
@@ -1061,6 +1111,10 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::golden::the_manifest_is_pinned` | test | [Contract](#contract) |
 | `raf_census::test_crate::golden::the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry` | test | [Verification](#verification) |
 | `raf_census::test_crate::golden::the_pinned_version_is_the_implemented_one` | test | [Verification](#verification) |
+| `raf_census::test_crate::grouping_scope::a_unit_with_any_kept_reach_still_groups_and_test_only_forwarders_leave_shim_groups` | test | [Contract](#contract) |
+| `raf_census::test_crate::grouping_scope::excluding_a_directory_drops_only_library_files_under_it` | test | [Contract](#contract) |
+| `raf_census::test_crate::grouping_scope::excluding_test_items_drops_library_test_code_and_keeps_test_targets` | test | [Contract](#contract) |
+| `raf_census::test_crate::grouping_scope::the_complete_scope_groups_every_copy_and_keeps_its_reports_unchanged` | test | [Contract](#contract) |
 | `raf_census::test_crate::groups::a_block_after_a_constant_in_a_head_is_a_block_and_its_locals_are_renamed` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::a_constant_in_one_package_is_not_shared` | test | [Contract](#contract) |
 | `raf_census::test_crate::groups::a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group` | test | [Contract](#contract), [Constraints](#constraints) |

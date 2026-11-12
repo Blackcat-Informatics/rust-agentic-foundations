@@ -38,6 +38,7 @@ bindings:
     - raf_census::test_crate::debt::counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity
     - raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions
     - raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record
+    - raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record
     - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
     - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
     - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
@@ -70,7 +71,7 @@ The writer receives the complete evaluation before it compares prior debt.
 It accepts no caller-built GateReport and has no structural fallback.
 
 ### Exact counted relations
-<!-- raf:tested-by raf_census::test_crate::debt::counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::commas_percent_signs_and_unicode_do_not_alias_member_sets,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused -->
+<!-- raf:tested-by raf_census::test_crate::debt::counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::commas_percent_signs_and_unicode_do_not_alias_member_sets,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused,raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record -->
 
 The workspace-root census-debt.ttl is a canonical native RDF 1.2 DebtRecord
 with normalForm and reportForm, body/shim groups and positive per-job copy counts.
@@ -80,9 +81,12 @@ MemberMultiplicity nodes; ordinary one-count symbols keep memberSymbol.
 Source lines and byte offsets are not debt identity. Equal duplication
 relations coalesce, even if separate fingerprint groups project to that relation.
 Both canonical RDF formats represent the same record; the stored file is Turtle.
+A record computed under a grouping scope that excludes something states it with
+excludeTestItems and one excludeDir per name; a record of the complete scope
+states nothing more, so its bytes are those of the complete scope.
 
 ### Growth and shrinking records
-<!-- raf:tested-by raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth,raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group,raf_census::test_crate::debt::resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record,raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate -->
+<!-- raf:tested-by raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth,raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group,raf_census::test_crate::debt::resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record,raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record -->
 
 New groups, counted supersets and rising copy counts are growth. Missing groups,
 counted strict subsets and falling copy counts are shrinkage. Both fail a check.
@@ -91,6 +95,10 @@ a surviving superset cannot hide a missing exact row. Growth cannot be written.
 After shrinkage, debt --write or the matching Gate::write_debt or
 Gate::write_debt_locked records exactly present debt.
 The record never carries unused allowance.
+A record of another grouping scope is a DebtChange::Scope difference. It fails a
+check and is not growth by itself, since every group a wider scope adds is a new
+group; a write records the present scope. An absent record takes the present
+scope, so a scope alone never requires a record.
 
 ### Exclusive writer coordination
 <!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records -->
@@ -279,7 +287,8 @@ errors. Fixture programs and example consumers are never initiated by RAF.
 <!-- raf:tested-by cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records,raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures -->
 
 Bound cases cover both ratchet directions, kind changes, counted cfg members,
-canonical formats, shape/digest refusal and version comparison. Actual command
+canonical formats, shape/digest refusal, version comparison and the grouping
+scope a record states. Actual command
 fixtures prove adoption, growth refusal, lowering, registration refusal and
 preservation of the previous file. The existing executable example includes
 ordinary and configured locked disk writing with registered Rules, a nonempty
@@ -304,6 +313,7 @@ or execution of an external native implementation.
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes` | test | [Contract](#contract) |

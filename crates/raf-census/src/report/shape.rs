@@ -388,6 +388,37 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
     super::reference::validate(graph, nf)?;
     Ok(())
 }
+/// Read the grouping scope stated on a root. `excludeTestItems` is stated only
+/// as true, because its absence already means false, and every `excludeDir`
+/// must be one plain directory name.
+pub(super) fn scope(root: &Node<'_>) -> Result<crate::GroupingScope, E> {
+    let mut scope = crate::GroupingScope::default();
+    let mut flags = root.values(&property("excludeTestItems"));
+    match (flags.next(), flags.next()) {
+        (None, _) => {}
+        (Some(value), None) if boolean_value(value) == Some(true) => {
+            scope = scope.exclude_test_items(true);
+        }
+        (Some(_), None) => {
+            return Err(E::Value(
+                "census:excludeTestItems is stated only as true; omit it to keep test items".into(),
+            ));
+        }
+        _ => return Err(E::Repeated("census:excludeTestItems".into())),
+    }
+    for value in root.values(&property("excludeDir")) {
+        let Some((name, datatype)) = value.literal() else {
+            return Err(E::Value("census:excludeDir: string expected".into()));
+        };
+        if datatype != raf_rdf::vocab::STRING {
+            return Err(E::Value("census:excludeDir: string expected".into()));
+        }
+        scope = scope
+            .exclude_dir(name)
+            .map_err(|error| E::Value(format!("census:excludeDir: {error}")))?;
+    }
+    Ok(scope)
+}
 pub(super) fn baseline(graph: &Graph) -> Result<Baseline, E> {
     let nf = nf(graph, "Baseline")?;
     validate(graph, "baseline", nf)?;
@@ -395,6 +426,7 @@ pub(super) fn baseline(graph: &Graph) -> Result<Baseline, E> {
     let mut report = Baseline {
         normal_form: nf,
         min_tokens: count(&root, "minTokens")?,
+        scope: scope(&root)?,
         units: count(&root, "unitCount")?,
         body_groups: Vec::new(),
         shim_groups: Vec::new(),
@@ -508,8 +540,10 @@ fn index_unit(graph: &Graph, id: &str, node: &Node<'_>, nf: u32) -> Result<Index
 pub(super) fn index(graph: &Graph) -> Result<Index, E> {
     let nf = nf(graph, "Index")?;
     validate(graph, "index", nf)?;
+    let root = graph.get("").expect("validated report root");
     let mut report = Index {
         normal_form: nf,
+        scope: scope(&root)?,
         reference_sources: Vec::new(),
         reference_witnesses: Vec::new(),
         units: Vec::new(),

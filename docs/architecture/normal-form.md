@@ -374,6 +374,12 @@ The closed shape is stated below. Every class also requires exactly one rdf:type
 no other subject, predicate, class, individual or datatype is admitted. Baseline
 units must be referenced by a group, shared constant or holds property. Every
 reference must resolve, and minted node names must agree with their properties.
+A Baseline, Index or DebtRecord states its grouping scope with excludeTestItems,
+written only as true, and one excludeDir for each excluded directory name. A
+complete scope writes neither, so a report or record computed without an
+exclusion holds no scope assertion. An excluded item stays a unit and leaves
+only body and shim grouping and the group debt it produces; jobs, sanctions and
+detectors still see it, and a job copy inside an excluded file still counts.
 
 | Report | Class | Property | Count | Object |
 |---|---|---|---|---|
@@ -381,9 +387,13 @@ reference must resolve, and minted node names must agree with their properties.
 | baseline | `census:Baseline` | `census:normalForm` | 1..1 | u32 |
 | baseline | `census:Baseline` | `census:reportForm` | 1..1 | report version |
 | baseline | `census:Baseline` | `census:unitCount` | 1..1 | integer |
+| baseline | `census:Baseline` | `census:excludeTestItems` | 0..1 | boolean |
+| baseline | `census:Baseline` | `census:excludeDir` | 0..unbounded | string |
 | index | `census:Index` | `census:normalForm` | 1..1 | u32 |
 | index | `census:Index` | `census:reportForm` | 1..1 | report version |
 | index | `census:Index` | `census:referenceSource` | 0..unbounded | reference source |
+| index | `census:Index` | `census:excludeTestItems` | 0..1 | boolean |
+| index | `census:Index` | `census:excludeDir` | 0..unbounded | string |
 | job-query | `census:JobQuery` | `census:normalForm` | 1..1 | u32 |
 | job-query | `census:JobQuery` | `census:reportForm` | 1..1 | report version |
 | job-query | `census:JobQuery` | `census:jobId` | 1..1 | string |
@@ -436,6 +446,8 @@ reference must resolve, and minted node names must agree with their properties.
 | index | `census:Match` | `census:matchClass` | 1..1 | match class |
 | debt | `census:DebtRecord` | `census:normalForm` | 1..1 | u32 |
 | debt | `census:DebtRecord` | `census:reportForm` | 1..1 | report version |
+| debt | `census:DebtRecord` | `census:excludeTestItems` | 0..1 | boolean |
+| debt | `census:DebtRecord` | `census:excludeDir` | 0..unbounded | string |
 | debt | `census:BodyDebt` | `census:memberSymbol` | 1..unbounded | string |
 | debt | `census:ShimDebt` | `census:memberSymbol` | 1..unbounded | string |
 | debt | `census:BodyDebt` | `census:multiplicity` | 0..unbounded | multiplicity |
@@ -476,7 +488,20 @@ invents them. Ordinary readers require form 5. Layout conversion never authorize
 policy execution or debt growth.
 
 A change to report vocabulary, shape or canonical layout bumps `census:reportForm`,
-not `normal_form`.
+not `normal_form`, under one rule. An additive optional property that is omitted
+at its default does not bump the report form. A change that alters existing bytes,
+or removes or renames something, does. A change alters existing bytes when it
+changes any byte that an existing ledger, baseline, index or debt record produces
+today, whether through a changed value, a new always-written property, a
+reordered or renamed term, or a changed default.
+
+The rule is sound only because every reader refuses what it does not know. The
+Ledger, Baseline, Index, DebtRecord and query readers refuse a property outside
+their vocabulary by name and never ignore it. A record that omits an added
+property keeps the bytes an earlier reader of the same form accepts. A record
+that states it is refused by that earlier reader as an unknown predicate naming
+the property, not with the report-form message. The grouping-scope properties
+`excludeTestItems` and `excludeDir` are such additions within report form 5.
 
 A normal form version is fixed by the content of its first merge to the default
 branch. After that, any change that can alter a fingerprint of any input is a new
@@ -505,7 +530,10 @@ without a fixture.
 The report reader returns its declared `census:normalForm` without gating it; callers
 apply `check_normal_form`, so migration can read another normal form. Its body and
 shim namespaces must agree with that version. `census:reportForm` gates the layout
-and must equal the implemented `REPORT_FORM` (5).
+and must equal the implemented `REPORT_FORM` (5). Within one report form the
+vocabulary can grow only by additive optional properties omitted at their
+default, as the version-bump rule states; a reader without such a property
+refuses a record that states it, by name.
 
 A ledger names the version it was written for with `normal_form`. If the value differs
 from the version the census implements, the census fails hard before reading any job.

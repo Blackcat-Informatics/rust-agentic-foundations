@@ -7,7 +7,7 @@ subject: cap:census-ledger#verification
 inputs:
   - kind: section
     name: cap:census-ledger#verification
-    digest: 53fc197b6b1afd6162bb6b6ba3f0ebce7eb139884f9c273697fcd5047670f5f4
+    digest: 2af5f8bd23947b0b8e427be1798e1e06ecdbecee92240fc113b083802fed6bd7
   - kind: symbol
     name: raf_census::Gate
     digest: 9cf24e4b6294148fee1998dcc198c95e8ddff447e889b6e26500cee38496048a
@@ -85,7 +85,7 @@ inputs:
     digest: e048a8b0a3686a75ef4e03b34b7eae37e3893aaa64ae7b90f3d419182005aca8
   - kind: symbol
     name: raf_census::gate::evaluate
-    digest: 73b27c45302b72961699514b5921bef7cc8dea95998dc2a3294ece8d9182365e
+    digest: ea58376c5bb540b4b426e5f0287e6eb6a1f4764f2265f96aae81e32c71d8f06b
   - kind: symbol
     name: raf_census::gate::owners
     digest: 4b4dfa5fa054de94ba02c843d0250930207a6d6595f839521760cf646c41c1ac
@@ -94,7 +94,7 @@ inputs:
     digest: 042e52bfcc94421723e93aba659428e970fa6d6d4f98708d94681a7c1b6c5c08
   - kind: symbol
     name: raf_census::report::ledger
-    digest: ad077d29d7853c27d634f0580222c264fa2dd7f204eecb98e08390ebb83b450a
+    digest: 3e92eac0074993fb21616b20dab252f9f08af3bd16f1d1010f5014c2fa51610e
 verdict: accepted
 by: agent
 ---

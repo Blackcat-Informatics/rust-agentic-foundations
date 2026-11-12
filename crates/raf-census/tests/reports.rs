@@ -92,7 +92,13 @@ fn census_vocabulary_reports() -> Vec<String> {
         ],
         BTreeMap::from([("copies".into(), 2)]),
     )
-    .unwrap();
+    .unwrap()
+    .scoped(
+        raf_census::GroupingScope::default()
+            .exclude_test_items(true)
+            .exclude_dir("generated")
+            .unwrap(),
+    );
     vec![
         Baseline::from_turtle(&baseline)
             .unwrap()
@@ -917,4 +923,190 @@ fn an_absolute_directory_reports_the_same_as_the_relative_spelling() {
         .expect("the absolute spelling reports");
     let tree = DiskTree::new(&root).expect("the repository root opens");
     identical_report_bytes(&absolute, &builtin::of(&tree, "crates").expect("relative"));
+}
+
+/// A ledger whose root states a grouping scope, with a job and its sanctioned
+/// variant, so that each core Ledger class carries a node.
+fn scoped_ledger() -> String {
+    let mut graph = Builder::new();
+    let mut put = |node: &str, key: &str, object: TermValue| {
+        let predicate = if key == "type" {
+            TermValue::iri(vocab::TYPE)
+        } else {
+            property(key)
+        };
+        graph
+            .insert(Triple {
+                subject: TermValue::iri(node),
+                predicate,
+                object,
+            })
+            .unwrap();
+    };
+    put("", "type", property("Ledger"));
+    put(
+        "",
+        "normalForm",
+        TermValue::integer(i128::from(raf_census::NORMAL_FORM)),
+    );
+    put(
+        "",
+        "reportForm",
+        TermValue::integer(i128::from(raf_census::REPORT_FORM)),
+    );
+    put("", "excludeTestItems", TermValue::boolean(true));
+    put("", "excludeDir", TermValue::simple_literal("generated"));
+    put("", "job", TermValue::iri("#job"));
+    put("#job", "type", property("LedgerJob"));
+    for (key, value) in [
+        ("jobId", "sum"),
+        ("summary", "One summing helper"),
+        ("homeSymbol", "demo::alpha"),
+    ] {
+        put("#job", key, TermValue::simple_literal(value));
+    }
+    put("#job", "enforced", TermValue::boolean(true));
+    put("#job", "variant", TermValue::iri("#job/variant"));
+    put("#job/variant", "type", property("Variant"));
+    for (key, value) in [
+        ("symbol", "demo::beta"),
+        ("file", "src/lib.rs"),
+        ("detector", "body"),
+        ("criterion", "A sanctioned copy"),
+        ("reason", "It differs on purpose"),
+    ] {
+        put("#job/variant", key, TermValue::simple_literal(value));
+    }
+    put(
+        "#job/variant",
+        "anchor",
+        TermValue::iri("https://example.org/docs#variant"),
+    );
+    graph.finish().unwrap().to_text(Format::NTriples).unwrap()
+}
+
+/// Read `text` with the reader of its root class, in `format`.
+fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
+    use raf_census::{DebtRecord, Ledger, QueryReport};
+    let turtle = format == Format::Turtle;
+    match class {
+        "Baseline" if turtle => Baseline::from_turtle(text).map(drop),
+        "Baseline" => Baseline::from_ntriples(text).map(drop),
+        "Index" if turtle => Index::from_turtle(text).map(drop),
+        "Index" => Index::from_ntriples(text).map(drop),
+        "DebtRecord" if turtle => DebtRecord::from_turtle(text).map(drop),
+        "DebtRecord" => DebtRecord::from_ntriples(text).map(drop),
+        "Ledger" if turtle => Ledger::from_turtle(text).map(drop),
+        "Ledger" => Ledger::from_ntriples(text).map(drop),
+        "JobQuery" | "CountQuery" | "FingerprintQuery" if turtle => {
+            QueryReport::from_turtle(text).map(drop)
+        }
+        "JobQuery" | "CountQuery" | "FingerprintQuery" => {
+            QueryReport::from_ntriples(text).map(drop)
+        }
+        other => panic!("no reader for census:{other}"),
+    }
+}
+
+/// `text` with one more assertion of `predicate` on `subject`.
+fn with_assertion(text: &str, format: Format, subject: &str, predicate: &str) -> String {
+    let original = Graph::from_text(text, format).unwrap();
+    let mut graph = Builder::from_graph(&original);
+    graph
+        .insert(Triple {
+            subject: TermValue::iri(subject),
+            predicate: TermValue::iri(predicate),
+            object: TermValue::boolean(true),
+        })
+        .unwrap();
+    graph.finish().unwrap().to_text(format).unwrap()
+}
+
+/// An optional property added within one report form, absent at its default,
+/// is safe only because a reader that predates it refuses a record stating it
+/// rather than ignoring it. Every reader at the current form, the ledger,
+/// baseline, index, debt and query readers in both formats and the layout
+/// conversion, refuses a property outside its vocabulary on any node, by its
+/// name, while the same record without it reads.
+#[test]
+fn every_report_reader_refuses_a_property_outside_its_vocabulary_by_name() {
+    use raf_census::{MigrationInput, ReportKind, upgrade_report_form};
+    let added = format!("{}excludeVendoredItems", vocab::REPORT);
+    let foreign = "https://foreign.example/scope";
+    let mut classes = std::collections::BTreeSet::new();
+    let mut records = census_vocabulary_reports();
+    records.push(scoped_ledger());
+    for record in records {
+        for format in [Format::Turtle, Format::NTriples] {
+            let text = Graph::from_text(&record, Format::NTriples)
+                .unwrap()
+                .to_text(format)
+                .unwrap();
+            let graph = Graph::from_text(&text, format).unwrap();
+            let root = graph.get("").expect("a record has a root");
+            let class = root
+                .values(vocab::TYPE)
+                .next()
+                .and_then(raf_rdf::Value::iri)
+                .and_then(|iri| iri.strip_prefix(vocab::REPORT))
+                .expect("a root has a census class")
+                .to_owned();
+            read_record(&class, &text, format).expect("the valid neighbour reads");
+            for (subject, _) in graph.nodes() {
+                for (predicate, name) in
+                    [(added.as_str(), "excludeVendoredItems"), (foreign, foreign)]
+                {
+                    let edited = with_assertion(&text, format, &subject, predicate);
+                    let error = read_record(&class, &edited, format)
+                        .expect_err("a property outside the vocabulary refuses")
+                        .to_string();
+                    assert!(
+                        error.contains(name),
+                        "{class} <{subject}> {predicate}: {error}"
+                    );
+                }
+            }
+            let kind = match class.as_str() {
+                "Baseline" => Some(ReportKind::Baseline),
+                // A prior layout cannot carry reference observations.
+                "Index" if !text.contains("ReferenceSource") => Some(ReportKind::Index),
+                "DebtRecord" => Some(ReportKind::Debt),
+                "Ledger" => Some(ReportKind::Ledger),
+                _ => None,
+            };
+            if let Some(kind) = kind {
+                let convert = |text: &str| {
+                    upgrade_report_form(
+                        kind,
+                        MigrationInput {
+                            path: "prior",
+                            text,
+                        },
+                        format,
+                    )
+                };
+                let prior = layout::form3(&text, format);
+                assert!(
+                    convert(&prior).is_ok(),
+                    "{class}: the prior layout converts"
+                );
+                let edited = with_assertion(&prior, format, "", &added);
+                let error = format!("{:?}", convert(&edited).unwrap_err());
+                assert!(error.contains("excludeVendoredItems"), "{class}: {error}");
+            }
+            classes.insert(class);
+        }
+    }
+    assert_eq!(
+        classes.into_iter().collect::<Vec<_>>(),
+        [
+            "Baseline",
+            "CountQuery",
+            "DebtRecord",
+            "FingerprintQuery",
+            "Index",
+            "JobQuery",
+            "Ledger"
+        ]
+    );
 }

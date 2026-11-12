@@ -160,7 +160,10 @@ fn collect_debt(
             ));
         }
     }
-    DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)
+    Ok(
+        DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)?
+            .scoped(census.options().scope.clone()),
+    )
 }
 
 fn debt_groups(census: &Census) -> Result<BTreeSet<DebtGroup>, Error> {

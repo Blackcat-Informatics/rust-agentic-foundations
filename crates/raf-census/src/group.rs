@@ -154,10 +154,14 @@ pub(crate) struct Grouping {
     pub(crate) shared_constants: Vec<SharedConstant>,
 }
 
-/// Groups `units`, finds their hex tables and their shared large constants.
+/// Groups the `units` inside the grouping scope, and finds the hex tables and
+/// the shared large constants of every unit.
 pub(crate) fn group(units: &[Unit]) -> Grouping {
     let mut candidates = Vec::new();
-    for unit in units {
+    for unit in units
+        .iter()
+        .filter(|unit| unit.grouping == crate::units::Grouping::InScope)
+    {
         let Some(print) = &unit.print else { continue };
         if print.shim.is_some() {
             // A forwarder is never compared by structure; it groups by its
