@@ -748,3 +748,102 @@ fn family_selector_refuses_a_name_with_two_reachable_versions() {
         [("acme-core".to_owned(), "2.0.0".to_owned())]
     );
 }
+
+/// A large constant held on both sides of the reference boundary is a
+/// cross-boundary shared constant by value, whatever its spelling; a value at
+/// or below the threshold, or held only by reference units, is not, and
+/// first-party grouping is untouched.
+#[test]
+fn large_constants_shared_with_a_reference_cross_the_boundary_by_value() {
+    let tree = fixture(
+        "pub fn mix(seed:u64)->u64 { seed ^ 0x1_0000u32 as u64 ^ 0xffff ^ 0xABCD_1234_5678 }\npub fn other()->u64 { 0x1_0000 }",
+        "pub mod api { pub fn hash()->u64 { 65_536 ^ 65535 ^ 0xabcd12345678 } pub fn salt()->u64 { 0xdead_beef_u64 } pub fn pepper()->u64 { 3735928559 } }",
+    );
+    let report = Gate::workspace(".").check_tree(&tree).unwrap();
+    let index = report.census().index(report.jobs()).unwrap();
+    let rows: Vec<_> = index
+        .reference_constants
+        .iter()
+        .map(|row| {
+            (
+                row.value,
+                row.first_party
+                    .iter()
+                    .map(|m| m.symbol.as_str())
+                    .collect::<Vec<_>>(),
+                row.reference
+                    .iter()
+                    .map(|m| m.symbol.as_str())
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (
+                65_536,
+                vec!["app::mix", "app::other"],
+                vec!["helper::api::hash"]
+            ),
+            (
+                0xabcd_1234_5678,
+                vec!["app::mix"],
+                vec!["helper::api::hash"]
+            ),
+        ]
+    );
+    // Reference-only values and the threshold itself never appear, and the
+    // first-party shared-constant list is unchanged.
+    assert_eq!(report.census().baseline().shared_constants, []);
+    let encoded = index.to_ntriples().unwrap();
+    assert_eq!(Index::from_ntriples(&encoded).unwrap(), index);
+    reject_misplaced_constant_members(&encoded);
+}
+
+fn reject_misplaced_constant_members(encoded: &str) {
+    let original = Graph::from_text(encoded, Format::NTriples).unwrap();
+    let first_party = format!("{}firstPartyMember", vocab::REPORT);
+    let reference = format!("{}referenceMember", vocab::REPORT);
+    let row = original
+        .assertions()
+        .find(|triple| triple.predicate == TermValue::iri(&first_party))
+        .unwrap();
+    let wrong = original
+        .assertions()
+        .find(|triple| triple.predicate == TermValue::iri(&reference))
+        .unwrap();
+    let mut swapped = Builder::from_graph(&original);
+    assert!(swapped.remove(row.clone()).unwrap());
+    swapped
+        .insert(Triple {
+            predicate: TermValue::iri(&first_party),
+            object: wrong.object,
+            ..row
+        })
+        .unwrap();
+    let text = swapped.finish().unwrap().to_text(Format::NTriples).unwrap();
+    let error = Index::from_ntriples(&text).unwrap_err().to_string();
+    assert!(
+        error.contains("own side of the reference boundary"),
+        "{error}"
+    );
+}
+
+/// An index with no reference package carries no constant row and no new
+/// property, so its bytes are those of the previous layout.
+#[test]
+fn an_index_without_a_reference_has_no_reference_constant_rows() {
+    let tree = raf_source::MemoryTree::from([
+        ("Cargo.toml", "[workspace]\nmembers=['app']\n"),
+        (
+            "app/Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("app/src/lib.rs", "pub fn mix()->u64 { 0x1_0000 }"),
+    ]);
+    let census =
+        raf_census::Census::load(&tree, &["."], &raf_census::CensusOptions::default()).unwrap();
+    let text = census.index(&[]).unwrap().to_ntriples().unwrap();
+    assert!(!text.contains("ReferenceConstant") && !text.contains("Member"));
+}

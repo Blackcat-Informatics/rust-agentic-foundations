@@ -177,6 +177,7 @@ unchanged to the consumer's validator, so they carry no engine vocabulary.
 | `Unit` | `symbol`, `file` strings; `line` positive integer; `startByte` nonnegative integer; index units also carry `package` string, `tokens` integer and `shipping` boolean; optional `body`, `shim` fingerprint IRIs; `holds` links to hexadecimal-table IRIs; optional `referenceSource` receipt link |
 | `ReferenceSource` | `package`, `version`, `sourceKind`, `repository`, `selector`, `revision`, `manifest`, `checksum`, `observation` strings; identity is its native RDF snapshot |
 | `ReferenceWitness` | `consumer` and `reference` unit links and their equal full `fingerprint` |
+| `ReferenceConstant` | `value` integer greater than 65535; one or more `firstPartyMember` unit links to first-party units and one or more `referenceMember` unit links to reference units |
 | `Job` | `jobId`, `homeSymbol` strings; `copies` integer; `match` links to units |
 | `Match` | `matchClass` match-role IRI; standard RDF reifies links the quoted job-to-unit match |
 | `Home`, `Variant`, `Copy` | Enumerated match-role IRIs, with no owned properties |

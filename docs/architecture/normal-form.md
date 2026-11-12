@@ -438,6 +438,9 @@ detectors still see it, and a job copy inside an excluded file still counts.
 | index | `census:ReferenceWitness` | `census:consumer` | 1..1 | unit |
 | index | `census:ReferenceWitness` | `census:reference` | 1..1 | unit |
 | index | `census:ReferenceWitness` | `census:fingerprint` | 1..1 | reference fingerprint |
+| index | `census:ReferenceConstant` | `census:value` | 1..1 | large integer |
+| index | `census:ReferenceConstant` | `census:firstPartyMember` | 1..unbounded | unit |
+| index | `census:ReferenceConstant` | `census:referenceMember` | 1..unbounded | unit |
 | index | `census:Job` | `census:jobId` | 1..1 | string |
 | index | `census:Job` | `census:homeSymbol` | 1..1 | string |
 | index | `census:Job` | `census:copies` | 1..1 | integer |
@@ -468,6 +471,12 @@ receipt node. Witnesses link a first-party consumer and reference unit with thei
 equal complete body or shim fingerprint. Selected queries retain each incident
 witness and its endpoint/source closure.
 
+A reference constant is a large integer constant that at least one first-party unit
+and at least one reference unit hold, compared by value. It is an additive row of
+the Index: an index without a reference scan, or without such a constant, writes no
+such node and keeps its earlier bytes, so it stays within report form 5. Older
+readers refuse the class by name.
+
 A debt group contains at least two physical members. Distinct sites sharing one
 canonical symbol use an owned `MemberMultiplicity` with at least two copies;
 ordinary symbols imply one. Every multiplicity belongs to exactly one group,
@@ -483,7 +492,7 @@ and returns the original graph, validates the selected current shape and
 preserves every normalized assertion except reportForm. Owned snapshot IRIs
 rebase; external IRIs, literal pins and historical normalForm values do not
 change. Opaque Ledger extension assertions remain intact. Historical Index
-carriers cannot contain reference observations or witnesses; conversion never
+carriers cannot contain reference observations, witnesses or constants; conversion never
 invents them. Ordinary readers require form 5. Layout conversion never authorizes
 policy execution or debt growth.
 
