@@ -22,6 +22,13 @@ bindings:
     - raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count
     - raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts
     - raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator
+    - raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member
+    - raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit
+    - raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector
+    - raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once
+    - raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name
+    - raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions
+    - raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding
 
     - raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes
     - raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity
@@ -39,12 +46,13 @@ depends: [cap:census-ledger]
 
 A project can duplicate an implementation that one of its dependencies already
 provides. Reference scanning compares first-party implementations with named
-dependency packages and permits a job to name its home in a dependency.
+dependency packages, or with every package of a named family, and permits a job
+to name its home in a dependency.
 
 ## Contract
 
 ### Declaration selection
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes,raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes,raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity,raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member,raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit,raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector,raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once,raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name,raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions -->
 
 The native RDF ledger's `reference` values name dependency packages. The owning
 package's actual manifest name and explicit or inherited version select its lock
@@ -52,6 +60,22 @@ row. Actual dependency declarations, including inherited declarations and rename
 packages, select exact outgoing rows. Missing, ambiguous, incompatible and
 unavailable sources fail with context. Acquisition uses lock files and manifests;
 it does not execute Cargo metadata, download packages or inspect shared caches.
+
+A `reference` value is an exact package name or a family selector: a
+package-name prefix followed by `-*`, such as `acme-*`, which names every
+package whose name continues that prefix after its hyphen: `acme-a` and
+`acme-a-extra` match `acme-*`, while `acme`, `acmeish` and `other-x` do not.
+Selection resolves the selectors over the lock rows reachable from the
+first-party packages, in the dependency planning step and again when the
+reference sources are prepared; both passes read the same lock graph and
+resolve the same names. A family selects every reachable locked row it names except the rows of
+first-party packages, so an external package that shares a first-party
+package's name at another version is still selected, and a package added to the lock graph under the prefix is
+scanned with no ledger change. A family that selects no package refuses with a
+message naming the selector. An exact name keeps selecting a first-party
+package. A package selected by several values is scanned once.
+A selected name with two reachable locked versions refuses as ambiguous, whether
+an exact name selected it or a family selected two non-first-party versions.
 
 ### Contained acquisition
 <!-- raf:tested-by raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes,raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity -->
@@ -82,7 +106,7 @@ configured external dependency edge. Reference observations never constitute
 preferred-provider proof.
 
 ### Matching and isolation
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts,raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding -->
 
 Reference units use the same normal form as first-party units. They remain
 separate from first-party structural groups, ordinary rule execution and group
@@ -91,7 +115,11 @@ or entry point can name a reference implementation or module. Full body and shim
 fingerprints from reference homes classify first-party copies even when the
 job's explicit forbidden selectors are empty. Each physical consumer counts once
 per job; every matching reference witness is retained. A copy without a matching
-reference home produces an unclassified finding.
+reference home is a `REFERENCE-COPY` finding that names the consumer, the
+reference unit and the fingerprint. It is never debt, so a reference that no job
+names as a home bans copies of its implementations. A home job that is not
+enforced counts its classified copies as job debt under the debt ratchet
+instead.
 
 ### Closed native evidence
 <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count -->
@@ -133,12 +161,15 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/4a9ae8720de8c7
 `Gate::reference_roots` supplies locally available external roots and manifests,
 including workspace context required for inherited package fields. A registry
 locator also supplies the explicit registry-name/index mapping.
+A family value such as `acme-*` in place of `acme-core` selects every reachable
+locked dependency package named `acme-` and a suffix, with no ledger edit when
+the family gains a package.
 `Gate::check_tree_with_references` accepts opaque source observations with the
 same identity checks; traversing their path declarations requires an owning
 source locator. The native CLI reads the same Gate directly and exports its complete Index.
 Repository callbacks are supplied through the library builder, never by selecting
 an executable target on the shipped command.
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit -->
 
 ## Examples
 <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts -->
@@ -159,9 +190,9 @@ The command never builds a repository target to obtain a reference index.
 
 ## Constraints
 
-- Only Rust source is compared, and named references must be reachable from the
-  owning lock graph.
-  <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count -->
+- Only Rust source is compared, and named references and family members must be
+  reachable from the owning lock graph.
+  <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member -->
 - Source reads retain the source loader's containment, regular-file, file-size
   and parse limits. Acquisition shares cumulative source, item, fact, resolver
   and work allowances across observations. Exhaustion fails rather than returning
@@ -187,10 +218,11 @@ locators prevent independent workspaces' local package and item identifiers from
 colliding in a report.
 
 ## Verification
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes,raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member,raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding -->
 
 Owned fixtures cover inherited renamed path dependencies, workspace-member
-selection, body and shim copies, multiple reference witnesses with one consumer
+selection, family selection with a matching member, lock growth, empty and
+malformed families and overlapping selectors, unhomed reference copies, body and shim copies, multiple reference witnesses with one consumer
 count, changed-body neighbors and reference isolation from group debt. Native
 round trips and queries preserve full receipts and witnesses. Closed readers
 reject package/receipt disagreement, invalid source-relative manifests and
@@ -203,9 +235,16 @@ neighbors, and confirm that provider bindings do not escape observations.
 | --- | --- | --- |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
 | `raf_census::example_crate::references` | example target | [Usage](#usage) |
+| `raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
+| `raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit` | test | [Contract](#contract), [Usage](#usage) |
+| `raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count` | test | [Purpose](#purpose), [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_sources::local_reference_owner_selection_spends_its_original_work_allowance` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes` | test | [Contract](#contract), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity` | test | [Contract](#contract) |
