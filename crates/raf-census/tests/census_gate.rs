@@ -5,7 +5,7 @@
 
 #[path = "census_gate/configured_provider_targets.rs"]
 mod configured_provider_targets;
-#[path = "support/detector_fixtures.rs"]
+#[path = "../src/selftest/fixtures.rs"]
 mod detector_fixtures;
 #[path = "support/layout.rs"]
 mod layout;

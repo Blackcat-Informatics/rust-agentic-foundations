@@ -60,6 +60,7 @@ mod publication;
 mod registered;
 pub mod report;
 mod rule;
+mod selftest;
 mod syntax;
 mod units;
 mod version;
@@ -94,5 +95,6 @@ pub use report::{
     MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
 };
 pub use rule::{Rule, RuleFixtures, RuleHit};
+pub use selftest::{SelfTest, SelfTestCase};
 pub use units::{StringKind, StringLiteral, Unit, UnitKind};
 pub use version::{NORMAL_FORM, check_normal_form};

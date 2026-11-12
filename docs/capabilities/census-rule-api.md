@@ -15,6 +15,7 @@ bindings:
     - raf_census::Gate::rules
     - raf_census::Gate::extensions
     - raf_census::Gate::assert_clean
+    - raf_census::Gate::self_test
   tests:
     - raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries
 
@@ -22,6 +23,8 @@ bindings:
     - raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour
     - raf_census::test_crate::rules::invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case
     - raf_census::test_crate::rules::positive_misses_and_negative_hits_are_refused
+    - raf_census::selftest::tests::a_registered_rule_whose_fixture_fails_is_a_named_failing_case
+    - raf_census::selftest::tests::a_registered_rule_whose_fixtures_hold_is_a_passing_case
     - raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt
     - raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
     - raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library
@@ -52,6 +55,11 @@ Configured provider checks apply the same gate to each selected consumer target,
 so a dependency available to one target cannot authorize another target's calls.
 
 ## Contract
+
+### Self-test
+
+`Gate::self_test` runs the fixtures of every rule registered with `.rules(...)` through `RuleFixtures::validate` beside the engine and built-in detector cases of [the command line](./census-cli.md), and reports each as `rule/ID/fixtures`. A rule whose fixture no longer holds fails that named case rather than the run silently skipping it.
+<!-- raf:tested-by raf_census::selftest::tests::a_registered_rule_whose_fixture_fails_is_a_named_failing_case,raf_census::selftest::tests::a_registered_rule_whose_fixtures_hold_is_a_passing_case -->
 
 ### Required rules
 
@@ -358,6 +366,8 @@ The self-Census exercises the same builder path over the actual snapshot.
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::registered` | example target | [Usage](#usage), [Examples](#examples) |
+| `raf_census::selftest::tests::a_registered_rule_whose_fixture_fails_is_a_named_failing_case` | test | [Contract](#contract) |
+| `raf_census::selftest::tests::a_registered_rule_whose_fixtures_hold_is_a_passing_case` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |

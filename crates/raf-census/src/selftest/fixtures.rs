@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Shared inputs for the production Gate's built-in detector cases.
+//! Positive and negative inputs of every built-in detector, shared by the
+//! shipped self-test and the detector tests of this crate.
 
 pub(crate) const RDF: [(&str, &str, &str); 3] = [
     (

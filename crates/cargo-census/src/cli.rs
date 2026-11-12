@@ -70,6 +70,8 @@ pub(crate) enum Command {
     Check,
     /// Emit a migrated RDF ledger to stdout without modifying either input.
     Migrate(MigrationArgs),
+    /// Prove the installed census still finds seeded copies; needs no workspace and writes nothing.
+    SelfTest,
     /// Record present debt through `Gate::write_debt`, refusing growth.
     Debt {
         /// Publish the exact present record.
