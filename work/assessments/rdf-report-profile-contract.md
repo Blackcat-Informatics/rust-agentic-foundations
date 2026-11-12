@@ -7,7 +7,7 @@ subject: cap:rdf-report-profile#contract
 inputs:
   - kind: section
     name: cap:rdf-report-profile#contract
-    digest: a46e1a82c1d36da172babd71545c46c52065bbe9ede5b7f27075ab797925b293
+    digest: e4e9b02f4b1ad603402515727cf0d4e4d9349be3e219b590c808a87cef877148
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
     digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc

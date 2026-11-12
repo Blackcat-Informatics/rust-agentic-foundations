@@ -161,8 +161,8 @@ report form 5.
 
 | Census class | Properties and object types |
 |---|---|
-| `Baseline` | `normalForm`, `reportForm` version integers; `minTokens` positive integer; `unitCount` nonnegative integer |
-| `Index` | `normalForm`, `reportForm` integers; optional `referenceSource` links to source receipts |
+| `Baseline` | `normalForm`, `reportForm` version integers; `minTokens` positive integer; `unitCount` nonnegative integer; optional grouping scope |
+| `Index` | `normalForm`, `reportForm` integers; optional `referenceSource` links to source receipts; optional grouping scope |
 | `JobQuery` | `normalForm`, `reportForm` integers; selected `jobId` string; exactly one `job` link to its complete job |
 | `CountQuery` | `normalForm`, `reportForm` integers; selected `jobId` string; `copies` nonnegative integer |
 | `FingerprintQuery` | `normalForm`, `reportForm` integers; selected `symbol` string; one or more `member` links to every matching physical unit |
@@ -174,14 +174,15 @@ report form 5.
 | `Match` | `matchClass` match-role IRI; standard RDF reifies links the quoted job-to-unit match |
 | `Home`, `Variant`, `Copy` | Enumerated match-role IRIs, with no owned properties |
 | `SharedConstant` | `value` integer greater than 65535; `packageCount` integer at least two and no greater than the member count; `member` links to units |
-| `DebtRecord` | `normalForm`, `reportForm` integers |
+| `DebtRecord` | `normalForm`, `reportForm` integers; optional grouping scope |
 | `BodyDebt`, `ShimDebt` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members |
 | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
 | `JobDebt` | `jobId` string; `copies` positive integer |
+| Grouping scope | On a `Baseline`, `Index` or `DebtRecord` root: optional `excludeTestItems` boolean, written only as true; repeated `excludeDir` directory-name strings; both absent for the complete scope |
 
 | Census Ledger class | Properties and object types |
 |---|---|
-| `Ledger` | `normalForm`, `reportForm` version integers; optional `minTokens` positive integer and `maxFileBytes` nonnegative integer; repeated `root`, `reference` strings; `job`, `distinct`, `pattern` links to owned declarations |
+| `Ledger` | `normalForm`, `reportForm` version integers; optional `minTokens` positive integer and `maxFileBytes` nonnegative integer; optional `excludeTestItems` boolean, stated only as true; repeated `excludeDir` directory-name strings; repeated `root`, `reference` strings; `job`, `distinct`, `pattern` links to owned declarations |
 | `LedgerJob` | `jobId`, `summary`, `homeSymbol` strings; `enforced` boolean; repeated `entryPoint`, `forbiddenName`, `forbiddenFingerprint`, `forbiddenPattern` strings and `forbiddenConstant` unsigned integer values; `variant`, `extension`, `preferredProvider` links to owned declarations |
 | `Variant` | `symbol`, `file`, `detector`, `criterion`, `reason` strings; `anchor` documentation IRI |
 | `Distinct` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members; `kind` string body or shim; `criterion`, `reason` strings; `anchor` documentation IRI |

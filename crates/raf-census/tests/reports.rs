@@ -92,7 +92,13 @@ fn census_vocabulary_reports() -> Vec<String> {
         ],
         BTreeMap::from([("copies".into(), 2)]),
     )
-    .unwrap();
+    .unwrap()
+    .scoped(
+        raf_census::GroupingScope::default()
+            .exclude_test_items(true)
+            .exclude_dir("generated")
+            .unwrap(),
+    );
     vec![
         Baseline::from_turtle(&baseline)
             .unwrap()

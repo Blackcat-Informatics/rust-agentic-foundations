@@ -10,7 +10,7 @@ inputs:
     digest: 470f1e9667a6f309e1c4c38794aff75f0e9177f337a3e4515327a01cb05b2d52
   - kind: symbol
     name: raf_census::Baseline
-    digest: 79033c79f4d11654eaca8e0765fcd3ae438248382961ae0bb77f0bebfcc5b66b
+    digest: 97ef16f0b7baf2b24d9a0a572de39f6e2e5c6328dfd47e6eba6e489b61147861
   - kind: symbol
     name: raf_census::Baseline::from_ntriples
     digest: 3d3d3fb2dfab3d7633af1135ed8520921e9ca26b02095d00e6267964ae215b69
@@ -31,7 +31,7 @@ inputs:
     digest: ec379796c3168e36aff2c0013bb11b386b7cb0132916e86f9481c6d9ee3c0442
   - kind: symbol
     name: raf_census::Census::baseline
-    digest: 96e7a3a451b71f0d553632dae4fc5292ef260c01b380bf3c003e3ba910647b53
+    digest: b3652d9c57957b08b41c024bc1ce34fa84a302be1cabceb1c9e77afe7e202ffa
   - kind: symbol
     name: raf_census::Census::body_groups
     digest: 527fdf3ff8cdea454013daf1816b8e8307bd7e2bb7dbd938aabf4f18defe0f8d
@@ -49,7 +49,7 @@ inputs:
     digest: f859dd2ff349b68907b45292f05f87bf1c8485c2d433ec8e16807a166caa8c85
   - kind: symbol
     name: raf_census::Census::index
-    digest: 730e2eabab6a403bac7463f62eb8be05fa50f787831ad1fc1e9da835c5c06aac
+    digest: 7d1f22d66af4d9d9dfe4a6f8837c5ecf7f4b253834dbd5b06a841b50b1f6c303
   - kind: symbol
     name: raf_census::Census::load
     digest: 96ff33527e1e19f9d2c99e340d236918e767ddcf556bed725f10495a4970145b
@@ -85,7 +85,7 @@ inputs:
     digest: c804a5d715f3800597674844642fe7789f1d1f51ed5e5bb8f46d6237c14844ac
   - kind: symbol
     name: raf_census::CensusOptions
-    digest: 3374a4ce9c59f9ee5a5444a70a1803f5a560846fb99259baa6bad8ebf721ed2c
+    digest: bcb8ab378e8f8736c6253067c68fe1e4e5102c3a4df9f6ee0c89736e8da6713e
   - kind: symbol
     name: raf_census::CensusOptions::max_file_bytes
     digest: f2b8608bc6fa2a63b793880707e3d72480ef2702447f4d0a317c85d090ed0922
@@ -153,11 +153,29 @@ inputs:
     name: raf_census::GroupKind
     digest: 4ad8dfee4a8a6c69498e55f4f2b32044e3b215e14528aab9655fa8bd221ac182
   - kind: symbol
+    name: raf_census::GroupingScope
+    digest: 3f0a4776aa14f902c7d5d135417df08aea5f478ba09b893959fbb32f79c5f9b5
+  - kind: symbol
+    name: raf_census::GroupingScope::exclude_dir
+    digest: 57611a108029dfe4f25095b204d8fe529ecabaaea842a41080bb534d577d62a0
+  - kind: symbol
+    name: raf_census::GroupingScope::exclude_test_items
+    digest: dc85280c5bd5b5ca6368830f498e66d20e424336a5cd36d0ed33864ace6719a7
+  - kind: symbol
+    name: raf_census::GroupingScope::excluded_dirs
+    digest: 5750da365d1e4192cd0cd80aa0dfc100a1399ab7e9a3132cb33b3d40e280d3f4
+  - kind: symbol
+    name: raf_census::GroupingScope::excludes_test_items
+    digest: 8ab3e2e57076b4a5e7a3708addaf4b68ac60f62662d4aaf67c1c6af5d1e3a5d8
+  - kind: symbol
+    name: raf_census::GroupingScope::is_complete
+    digest: d256532bd456b4ee16667fe971554e23c05390e530253370cb9b6018ab50b15a
+  - kind: symbol
     name: raf_census::HexTable
     digest: e6fcb7c28ae863ded739cae83eaa7c147891bb7b1b38d546652e7684f50f43b8
   - kind: symbol
     name: raf_census::Index
-    digest: 6e68e4fe1f06360ca3abb61ea4c91caf6a81a750fa6b1926cf116aa001be0bd2
+    digest: 609a26d654c8dcfa854e7f900f3d0781338bfbd529107b99ff77553ba682ed42
   - kind: symbol
     name: raf_census::Index::from_ntriples
     digest: 6de0c429c5cd414a37a015a5cc93673fdc7b52b7eec328f11f1a4b5155f22567
@@ -361,7 +379,7 @@ inputs:
     digest: 5663162682fe9f6e586110d75d2b732184696beb853ae21c8208a861ea084b2d
   - kind: symbol
     name: raf_census::Unit
-    digest: 40c99f27e139d7be0b7bc135e539a6c4b5423a9d220e091c3530fc6ee8768a77
+    digest: 4cd4f84f0f0b3a5721c5045a96ef4c8839b505b7d89157ac34d938b148a165fb
   - kind: symbol
     name: raf_census::UnitKind
     digest: 442d0de85e7a025ffc99b02e3af0483042db1a33d9eba0e9e73b612d8d5702d2
@@ -379,10 +397,10 @@ inputs:
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
     name: raf_census::report
-    digest: 6c6a7de79c473ee961ecca51ad820a65dab8149b5d5b74fc68cec4adaefb3419
+    digest: 74efe3982c0db9f7001237e8dbafd883c70b76c550bd37cf803da33234ea6033
   - kind: symbol
     name: raf_census::report::vocab
-    digest: 3a8b165a958a908b1b903c3d4d5541a051cf4fa58369b373fae00d674b478630
+    digest: 85e09119a9632796a3f8450d1b1556458cb50d43ed5d73ac4de0aded0f71c0b9
   - kind: symbol
     name: raf_source_fuzz::bin_crate::census_normalize::exercise
     digest: 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941

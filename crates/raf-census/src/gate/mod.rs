@@ -518,14 +518,18 @@ fn read_ledger(tree: &impl Tree) -> Result<Ledger, Error> {
 }
 
 fn check_debt(tree: &impl Tree, mut report: GateReport) -> Result<GateReport, Error> {
-    let previous = read_debt(tree)?.unwrap_or(DebtRecord::new(
-        NORMAL_FORM,
-        [],
-        std::collections::BTreeMap::default(),
-    )?);
+    // An absent record states no debt under the present scope, so a scope
+    // alone never requires a record.
+    let previous = match read_debt(tree)? {
+        Some(previous) => previous,
+        None => DebtRecord::new(NORMAL_FORM, [], std::collections::BTreeMap::default())?
+            .scoped(report.debt.scope().clone()),
+    };
     for change in previous.compare(&report.debt)? {
         let direction = if change.is_growth() {
             "growth cannot be recorded"
+        } else if matches!(change, crate::DebtChange::Scope { .. }) {
+            "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to record the present grouping scope"
         } else {
             "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to lower the record"
         };

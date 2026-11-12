@@ -79,7 +79,7 @@ pub use normalize::{
     Normalizer, PASSES, ParseFingerprintError, Print, RuleId, SHIM_MAX_TOKENS, Slice, TableKind,
     Token, TokenDiff, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
 };
-pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS};
+pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS, GroupingScope};
 pub use registered::{
     CHECK_PROTOCOL_VERSION, DEBT_WRITE_PROTOCOL_VERSION, MAX_CHECK_RESPONSE_BYTES, RegisteredCheck,
     RegisteredDebtWrite, RegisteredOperation,

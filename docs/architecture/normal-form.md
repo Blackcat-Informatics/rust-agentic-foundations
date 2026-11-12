@@ -374,6 +374,10 @@ The closed shape is stated below. Every class also requires exactly one rdf:type
 no other subject, predicate, class, individual or datatype is admitted. Baseline
 units must be referenced by a group, shared constant or holds property. Every
 reference must resolve, and minted node names must agree with their properties.
+A Baseline, Index or DebtRecord states its grouping scope with excludeTestItems,
+written only as true, and one excludeDir for each excluded directory name. A
+complete scope writes neither, so a report or record computed without an
+exclusion holds no scope assertion.
 
 | Report | Class | Property | Count | Object |
 |---|---|---|---|---|
@@ -381,9 +385,13 @@ reference must resolve, and minted node names must agree with their properties.
 | baseline | `census:Baseline` | `census:normalForm` | 1..1 | u32 |
 | baseline | `census:Baseline` | `census:reportForm` | 1..1 | report version |
 | baseline | `census:Baseline` | `census:unitCount` | 1..1 | integer |
+| baseline | `census:Baseline` | `census:excludeTestItems` | 0..1 | boolean |
+| baseline | `census:Baseline` | `census:excludeDir` | 0..unbounded | string |
 | index | `census:Index` | `census:normalForm` | 1..1 | u32 |
 | index | `census:Index` | `census:reportForm` | 1..1 | report version |
 | index | `census:Index` | `census:referenceSource` | 0..unbounded | reference source |
+| index | `census:Index` | `census:excludeTestItems` | 0..1 | boolean |
+| index | `census:Index` | `census:excludeDir` | 0..unbounded | string |
 | job-query | `census:JobQuery` | `census:normalForm` | 1..1 | u32 |
 | job-query | `census:JobQuery` | `census:reportForm` | 1..1 | report version |
 | job-query | `census:JobQuery` | `census:jobId` | 1..1 | string |
@@ -436,6 +444,8 @@ reference must resolve, and minted node names must agree with their properties.
 | index | `census:Match` | `census:matchClass` | 1..1 | match class |
 | debt | `census:DebtRecord` | `census:normalForm` | 1..1 | u32 |
 | debt | `census:DebtRecord` | `census:reportForm` | 1..1 | report version |
+| debt | `census:DebtRecord` | `census:excludeTestItems` | 0..1 | boolean |
+| debt | `census:DebtRecord` | `census:excludeDir` | 0..unbounded | string |
 | debt | `census:BodyDebt` | `census:memberSymbol` | 1..unbounded | string |
 | debt | `census:ShimDebt` | `census:memberSymbol` | 1..unbounded | string |
 | debt | `census:BodyDebt` | `census:multiplicity` | 0..unbounded | multiplicity |
