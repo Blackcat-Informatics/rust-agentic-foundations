@@ -60,17 +60,19 @@ pub struct GroupingScope {
 }
 
 impl GroupingScope {
-    /// Leaves out test-only items: an item whose own `cfg`, or an enclosing
-    /// module's, holds only in a test build (`test`, `all(.., test, ..)` or an
-    /// `any(..)` whose every arm does), and a `#[test]` function.
+    /// Leaves test-only items out of body and shim grouping: an item whose own
+    /// `cfg`, or an enclosing module's, holds only in a test build (`test`,
+    /// `all(.., test, ..)` or an `any(..)` whose every arm does), and a
+    /// `#[test]` function.
     #[must_use]
     pub const fn exclude_test_items(mut self, exclude: bool) -> Self {
         self.exclude_test_items = exclude;
         self
     }
 
-    /// Leaves out every file under a directory named `name`, at any depth
-    /// below the workspace root.
+    /// Leaves the units of every file under a directory named `name`, at any
+    /// depth below the workspace root, out of body and shim grouping. They stay
+    /// units, and a job still counts a copy among them.
     ///
     /// # Errors
     ///

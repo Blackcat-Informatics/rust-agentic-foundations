@@ -37,6 +37,7 @@ bindings:
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
+    - raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name
     - raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors
     - raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement
     - raf_rdf::test_crate::profile::duplicate_native_membership_and_real_subject_queries_have_valid_neighbors
@@ -152,12 +153,15 @@ Standard structural terms are `rdf:type` and `rdf:reifies`; literal primitives u
 the XML Schema namespace. Domain registries enumerate the terms they permit.
 
 ### Census vocabulary
-<!-- raf:tested-by raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors -->
+<!-- raf:tested-by raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name,raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors -->
 
 Engine-owned Census report terms occupy the shared versioned namespace.
 The inventories cover baseline, index, selected queries, debt, native Ledger
 policy and registered response outcomes. Ordinary Census report readers require
-report form 5.
+report form 5. Report form 5 admits the optional grouping-scope properties as
+additions omitted at their default, under the version-bump rule of the
+[normal-form decision](../architecture/normal-form.md#version-bump-rule); a reader that lacks a
+property refuses a record stating it, by name.
 
 | Census class | Properties and object types |
 |---|---|
@@ -178,11 +182,11 @@ report form 5.
 | `BodyDebt`, `ShimDebt` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members |
 | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
 | `JobDebt` | `jobId` string; `copies` positive integer |
-| Grouping scope | On a `Baseline`, `Index` or `DebtRecord` root: optional `excludeTestItems` boolean, written only as true; repeated `excludeDir` directory-name strings; both absent for the complete scope |
+| Grouping scope | On a `Baseline`, `Index` or `DebtRecord` root: optional `excludeTestItems` boolean, written only as true; repeated `excludeDir` directory-name strings; both absent for the complete scope. Excluded items stay units and leave only body and shim grouping and its group debt; jobs, sanctions and detectors still see them, and a job copy inside an excluded file still counts |
 
 | Census Ledger class | Properties and object types |
 |---|---|
-| `Ledger` | `normalForm`, `reportForm` version integers; optional `minTokens` positive integer and `maxFileBytes` nonnegative integer; optional `excludeTestItems` boolean, stated only as true; repeated `excludeDir` directory-name strings; repeated `root`, `reference` strings; `job`, `distinct`, `pattern` links to owned declarations |
+| `Ledger` | `normalForm`, `reportForm` version integers; optional `minTokens` positive integer and `maxFileBytes` nonnegative integer; optional `excludeTestItems` boolean, stated only as true; repeated `excludeDir` directory-name strings, which leave excluded units out of body and shim grouping only; repeated `root`, `reference` strings; `job`, `distinct`, `pattern` links to owned declarations |
 | `LedgerJob` | `jobId`, `summary`, `homeSymbol` strings; `enforced` boolean; repeated `entryPoint`, `forbiddenName`, `forbiddenFingerprint`, `forbiddenPattern` strings and `forbiddenConstant` unsigned integer values; `variant`, `extension`, `preferredProvider` links to owned declarations |
 | `Variant` | `symbol`, `file`, `detector`, `criterion`, `reason` strings; `anchor` documentation IRI |
 | `Distinct` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members; `kind` string body or shim; `criterion`, `reason` strings; `anchor` documentation IRI |
@@ -586,6 +590,12 @@ each new class and property alongside complete Index and Baseline graphs;
 selected-result readers independently enforce their closed domain shapes.
 <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
 
+A reader case gives the Ledger, Baseline, Index, DebtRecord and query readers,
+in both carriers, a record with one property outside the vocabulary on each node
+in turn, and the layout conversion one on the root of a prior layout. Each
+refuses by the property's name, and the same record without it reads.
+<!-- raf:tested-by raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name -->
+
 The claim-view integration case uses native parsers for its semantic dataset;
 the snapshot registry and its remaining golden carriers cover the other command
 results without admitting semantic document subjects into snapshot ownership.
@@ -637,6 +647,7 @@ retains its separate semantic and normal-form golden checks.
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
 | `raf_rdf::example_crate::report` | example target | [Usage](#usage) |
 | `raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |

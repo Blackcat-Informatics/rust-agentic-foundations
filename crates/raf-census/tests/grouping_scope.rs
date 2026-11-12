@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use raf_census::{Census, CensusOptions, GroupingScope};
+use raf_census::{Census, CensusOptions, Group, GroupingScope, Job, JobForbidden, MatchClass};
 #[path = "support/scope_fixture.rs"]
 mod fixture;
 
@@ -18,16 +18,22 @@ use fixture::tree;
 const OFF: &str = include_str!("fixtures/reports/scope-off.ttl");
 
 fn census(scope: GroupingScope) -> Census {
+    load(&tree(), scope)
+}
+
+fn load(tree: &raf_source::MemoryTree, scope: GroupingScope) -> Census {
     let mut options = CensusOptions::default();
     options.scope = scope;
-    Census::load(&tree(), &["."], &options).expect("the workspace loads")
+    Census::load(tree, &["."], &options).expect("the workspace loads")
 }
 
 /// The member symbols of every group, each group in member order.
 fn groups(census: &Census) -> BTreeSet<Vec<String>> {
-    census
-        .groups()
-        .iter()
+    symbols(census.groups().iter())
+}
+
+fn symbols<'a>(groups: impl Iterator<Item = &'a Group>) -> BTreeSet<Vec<String>> {
+    groups
         .map(|group| group.member_symbols().map(str::to_owned).collect())
         .collect()
 }
@@ -118,7 +124,9 @@ fn excluding_test_items_drops_library_test_code_and_keeps_test_targets() {
 
 /// Excluding a directory removes the library copy under it and keeps the
 /// copies elsewhere, so the group shrinks to them; a file under a directory
-/// of that name that an integration test reaches keeps its group.
+/// of that name that an integration test reaches keeps its group. The
+/// excluded copy is still a unit that a job finds, so it still counts as a
+/// copy toward the job.
 #[test]
 fn excluding_a_directory_drops_only_library_files_under_it() {
     let scope = GroupingScope::default().exclude_dir("generated").unwrap();
@@ -137,7 +145,24 @@ fn excluding_a_directory_drops_only_library_files_under_it() {
             EXAMPLES
         ])
     );
-    assert!(has_unit(&census, "one::generated::copy"));
+    let copy = census
+        .unit("one::generated::copy")
+        .and_then(|unit| unit.print.as_ref())
+        .and_then(|print| print.body.clone())
+        .expect("the excluded copy is a unit with a body fingerprint");
+    let job = Job::new("copy", "two::copy_again").forbidding(JobForbidden {
+        fingerprints: vec![copy],
+        constants: Vec::new(),
+    });
+    let report = census.match_jobs(&[job]).remove(0);
+    assert!(
+        report
+            .matches
+            .iter()
+            .any(|found| found.symbol == "one::generated::copy" && found.class == MatchClass::Copy),
+        "{report:?}"
+    );
+    assert_eq!(report.copies, 2);
     let baseline = census.baseline();
     assert_eq!(
         baseline.scope.excluded_dirs().collect::<Vec<_>>(),
@@ -145,4 +170,30 @@ fn excluding_a_directory_drops_only_library_files_under_it() {
     );
     let text = baseline.to_turtle().unwrap();
     assert_eq!(raf_census::Baseline::from_turtle(&text).unwrap(), baseline);
+}
+
+/// A unit stays in scope while any one of its reaches does. The file that the
+/// library reaches only under `cfg(test)` and an integration test reaches
+/// through `#[path]` keeps its body group when test items are excluded; a rule
+/// that required every reach to stay in scope would drop it. Shim grouping
+/// applies the same scope: the test-only forwarders group without the
+/// exclusion and leave with it, while the library forwarders keep theirs.
+#[test]
+fn a_unit_with_any_kept_reach_still_groups_and_test_only_forwarders_leave_shim_groups() {
+    let tree = fixture::reach_tree();
+    let both = expected(&[&["one::shared::both", "two::both"]]);
+    let relay = ["one::relay", "two::relay"];
+    let forward = ["one::tests::forward", "two::tests::forward"];
+
+    let complete = load(&tree, GroupingScope::default());
+    assert_eq!(symbols(complete.body_groups()), both);
+    assert_eq!(
+        symbols(complete.shim_groups()),
+        expected(&[&relay, &forward])
+    );
+
+    let excluded = load(&tree, GroupingScope::default().exclude_test_items(true));
+    assert_eq!(symbols(excluded.body_groups()), both);
+    assert_eq!(symbols(excluded.shim_groups()), expected(&[&relay]));
+    assert!(has_unit(&excluded, "one::tests::forward"));
 }

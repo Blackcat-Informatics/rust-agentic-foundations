@@ -94,3 +94,47 @@ pub(crate) fn tree() -> MemoryTree {
         .map(|(path, text)| (path.as_str(), text.as_str()))
         .collect()
 }
+
+/// A forwarder of 6 value tokens, a shim candidate that never body-groups.
+fn forwarder(attributes: &str, name: &str, callee: &str) -> String {
+    format!("{attributes}pub fn {name}(a: u32) -> u32 {{ {callee}(a, 1) }}\n")
+}
+
+/// A two-package workspace in which `one/src/shared.rs` is reached twice: by
+/// the library under `#[cfg(test)]` and by an integration test through
+/// `#[path]`. Package `two` holds a library copy of its body. Both libraries
+/// also hold a test-only forwarder and a plain forwarder, each pair with one
+/// shim form.
+pub(crate) fn reach_tree() -> MemoryTree {
+    let library = |package: &str| {
+        let shared = if package == "one" {
+            "#[cfg(test)]\nmod shared;\n".to_owned()
+        } else {
+            function("", "both", "+")
+        };
+        format!(
+            "{shared}#[cfg(test)]\nmod tests {{\n{}}}\n{}",
+            forwarder("", "forward", "helper"),
+            forwarder("", "relay", "other"),
+        )
+    };
+    let files = [
+        (
+            "Cargo.toml".to_owned(),
+            "[workspace]\nmembers = [\"one\", \"two\"]\nresolver = \"2\"\n".to_owned(),
+        ),
+        ("one/Cargo.toml".to_owned(), manifest("one")),
+        ("one/src/lib.rs".to_owned(), library("one")),
+        ("one/src/shared.rs".to_owned(), function("", "both", "+")),
+        (
+            "one/tests/it.rs".to_owned(),
+            "#[path = \"../src/shared.rs\"]\nmod shared;\n".to_owned(),
+        ),
+        ("two/Cargo.toml".to_owned(), manifest("two")),
+        ("two/src/lib.rs".to_owned(), library("two")),
+    ];
+    files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect()
+}

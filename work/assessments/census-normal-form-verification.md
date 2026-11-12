@@ -7,7 +7,7 @@ subject: cap:census-normal-form#verification
 inputs:
   - kind: section
     name: cap:census-normal-form#verification
-    digest: 23ad2bd1d6170642095a517483471ded507cb47c75313a02942f7b75c49ba952
+    digest: 65b73280e6f587bc2be4ee173d838d54b17a41ce43caf58a19895ec09714b743
   - kind: symbol
     name: raf_census::Baseline
     digest: 97ef16f0b7baf2b24d9a0a572de39f6e2e5c6328dfd47e6eba6e489b61147861
@@ -157,10 +157,10 @@ inputs:
     digest: 3f0a4776aa14f902c7d5d135417df08aea5f478ba09b893959fbb32f79c5f9b5
   - kind: symbol
     name: raf_census::GroupingScope::exclude_dir
-    digest: 57611a108029dfe4f25095b204d8fe529ecabaaea842a41080bb534d577d62a0
+    digest: f5c1a8e4b24c05c4b773f1a551bec2ce067e69c9ebfdec7da1c5518b8ac2dc53
   - kind: symbol
     name: raf_census::GroupingScope::exclude_test_items
-    digest: dc85280c5bd5b5ca6368830f498e66d20e424336a5cd36d0ed33864ace6719a7
+    digest: ebb48692a1d4dae47a5b735b3c8cb50b9d6a1b57aad81f4359dd68df0241b805
   - kind: symbol
     name: raf_census::GroupingScope::excluded_dirs
     digest: 5750da365d1e4192cd0cd80aa0dfc100a1399ab7e9a3132cb33b3d40e280d3f4

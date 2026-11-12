@@ -158,6 +158,7 @@ bindings:
     - raf_census::test_crate::grouping_scope::the_complete_scope_groups_every_copy_and_keeps_its_reports_unchanged
     - raf_census::test_crate::grouping_scope::excluding_test_items_drops_library_test_code_and_keeps_test_targets
     - raf_census::test_crate::grouping_scope::excluding_a_directory_drops_only_library_files_under_it
+    - raf_census::test_crate::grouping_scope::a_unit_with_any_kept_reach_still_groups_and_test_only_forwarders_leave_shim_groups
     - raf_census::options::tests::max_file_bytes_is_set
     - raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted
     - raf_census::report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes
@@ -479,17 +480,19 @@ file, line and start byte, so the same source always produces the same output. B
 without a redundant truncated identity or separate digest.
 
 ### Grouping scope
-<!-- raf:tested-by raf_census::test_crate::grouping_scope::the_complete_scope_groups_every_copy_and_keeps_its_reports_unchanged,raf_census::test_crate::grouping_scope::excluding_test_items_drops_library_test_code_and_keeps_test_targets,raf_census::test_crate::grouping_scope::excluding_a_directory_drops_only_library_files_under_it,raf_census::options::tests::excluded_directories_are_plain_names_matched_only_above_the_file -->
+<!-- raf:tested-by raf_census::test_crate::grouping_scope::the_complete_scope_groups_every_copy_and_keeps_its_reports_unchanged,raf_census::test_crate::grouping_scope::excluding_test_items_drops_library_test_code_and_keeps_test_targets,raf_census::test_crate::grouping_scope::excluding_a_directory_drops_only_library_files_under_it,raf_census::test_crate::grouping_scope::a_unit_with_any_kept_reach_still_groups_and_test_only_forwarders_leave_shim_groups,raf_census::options::tests::excluded_directories_are_plain_names_matched_only_above_the_file -->
 
 `CensusOptions::scope` is a `GroupingScope`. Its default excludes nothing, so
 every group, report and record keeps its complete-scope form.
+Each exclusion leaves units out of body and shim grouping only.
 `exclude_test_items(true)` leaves out every test-only item: an item whose own
 `cfg`, or an enclosing module's, holds only in a test build (`test`,
 `all(.., test, ..)`, or an `any(..)` whose every arm does) and every `#[test]`
-function. `exclude_dir(name)` leaves out every file with a directory segment
-equal to `name`, at any depth below the workspace root; the name of the file
-itself never matches. It refuses an empty name, `.`, `..` and a name holding
-`/` or `\` with `Error::Options`.
+function. `exclude_dir(name)` leaves out the units of every file with a
+directory segment equal to `name`, at any depth below the workspace root; the
+name of the file itself never matches. Those files still contribute units. It
+refuses an empty name, `.`, `..` and a name holding `/` or `\` with
+`Error::Options`.
 
 Both exclusions apply only to a reach from a library, a binary or a build
 script. A reach from an integration test, a bench or an example always stays in
@@ -497,8 +500,9 @@ scope, so copies between test files, their `#[test]` functions included, still
 group. A unit stays in scope while any one of its reaches does. An excluded unit
 is still a unit: detectors, jobs, patterns, homes, sanctions, hexadecimal
 tables, shared constants and the unit index see it unchanged. Only body and
-shim groups, and the group debt they carry, omit it. Its fingerprints are
-unchanged.
+shim groups, and the group debt they carry, omit it. A job copy inside an
+excluded file still counts toward that job's copies and its job debt. Its
+fingerprints are unchanged.
 The baseline and the index state a scope that excludes something with
 `excludeTestItems` and one `excludeDir` per name; a complete scope adds no
 assertion, so their bytes are those of the complete scope.
@@ -1022,8 +1026,12 @@ and escapes controls beside a plain diagnostic neighbor.
   scope groups every copy and writes the pinned report bytes; that excluding test
   items drops each test-only form a library reaches, keeps `any(test, unix)` and
   keeps integration-test and example copies, `#[test]` functions included; and
-  that excluding a directory drops only the library copy under it. Excluded items
-  remain units. Empty, dot and path directory names refuse beside a plain name.
+  that excluding a directory drops only the library copy under it while a job
+  still counts that copy. Excluded items remain units. A file that the library
+  reaches under `cfg(test)` and an integration test reaches through `#[path]`
+  keeps its group, and test-only forwarders leave their shim group while library
+  forwarders keep theirs. Empty, dot and path directory names refuse beside a
+  plain name.
 - Grouping tests show groups of one are dropped, the order of groups and members,
   the hex tables of each form and case beside the near misses that are not tables,
   and the shared constants across packages.
@@ -1103,6 +1111,7 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::golden::the_manifest_is_pinned` | test | [Contract](#contract) |
 | `raf_census::test_crate::golden::the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry` | test | [Verification](#verification) |
 | `raf_census::test_crate::golden::the_pinned_version_is_the_implemented_one` | test | [Verification](#verification) |
+| `raf_census::test_crate::grouping_scope::a_unit_with_any_kept_reach_still_groups_and_test_only_forwarders_leave_shim_groups` | test | [Contract](#contract) |
 | `raf_census::test_crate::grouping_scope::excluding_a_directory_drops_only_library_files_under_it` | test | [Contract](#contract) |
 | `raf_census::test_crate::grouping_scope::excluding_test_items_drops_library_test_code_and_keeps_test_targets` | test | [Contract](#contract) |
 | `raf_census::test_crate::grouping_scope::the_complete_scope_groups_every_copy_and_keeps_its_reports_unchanged` | test | [Contract](#contract) |

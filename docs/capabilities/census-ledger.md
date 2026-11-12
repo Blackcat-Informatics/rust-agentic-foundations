@@ -170,8 +170,11 @@ minTokens and maxFileBytes default to 20 and eight MiB. Repeated root, reference
 job, distinct and pattern properties declare sets; the default root is the
 workspace. Optional excludeTestItems, stated only as true, and repeated
 excludeDir directory names set the grouping scope of the census normal form;
-false, a path or a dot name refuses. The gate evaluates the census under that
-scope, and its index and debt record state it. An incompatible normal form
+false, a path or a dot name refuses. Excluded items stay units and leave only
+body and shim grouping and the group debt it produces; jobs, sanctions and
+detectors still see them, and a job copy inside an excluded file still counts.
+The gate evaluates the census under that scope, and its index and debt record
+state it. An incompatible normal form
 refuses before job interpretation.
 Unknown core properties, wrong classes, missing required values, invalid
 cardinalities and unowned nodes refuse. Input is at most one MiB.
