@@ -7,7 +7,7 @@ subject: cap:census-ledger#contract
 inputs:
   - kind: section
     name: cap:census-ledger#contract
-    digest: c9f52f8cd92c90030aefeaa2520f1317fbac7357af44ee685ccdd26764794eae
+    digest: 5aa2f0f508267b778e1f926473ba40a009b86df979b79b41fe4abd7a2abbb00d
   - kind: symbol
     name: raf_census::Gate::check_locked
     digest: 5487e95aa6f3ffa03cc74a6ec4157def9e60fabf2e2ecdaf88454c134d4f01da

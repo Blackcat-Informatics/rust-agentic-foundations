@@ -62,6 +62,8 @@ impl<'a> ReferencePackage<'a> {
 pub(super) struct References<'a> {
     packages: Vec<ReferencePackage<'a>>,
     pub(super) consumers: BTreeSet<PackageId>,
+    /// The concrete package names that the ledger's selectors resolved to.
+    pub(super) names: Vec<String>,
 }
 
 pub(super) fn refusal(message: impl Into<String>) -> Error {
@@ -120,6 +122,58 @@ fn reference_row(workspace: &Workspace, package: PackageId) -> Option<raf_source
         })
 }
 
+/// Resolves the ledger's reference selectors over the reachable lock rows.
+///
+/// An exact name passes through unchanged: its own selection keeps its
+/// refusals and may name a workspace member. A family selector expands to
+/// every reachable locked package it names that is not a first-party member,
+/// and refuses when it names none. The result is sorted and holds each package
+/// once, however many selectors name it. `charge` meters each comparison.
+fn select(
+    selectors: &[String],
+    catalog: &LockedCatalog,
+    reachable: &OrderedTable<raf_source::LockedPackageId, ()>,
+    members: &BTreeSet<&str>,
+    memory: &mut Memory<'_, Resident>,
+    mut charge: impl FnMut(usize) -> Result<(), Error>,
+) -> Result<Vec<String>, Error> {
+    let mut selected = BTreeSet::new();
+    for selector in selectors {
+        let Some(prefix) = crate::report::reference_family(selector) else {
+            selected.insert(selector.as_str());
+            continue;
+        };
+        let mut matched = false;
+        for row in catalog.packages() {
+            charge(
+                row.name()
+                    .len()
+                    .saturating_add(selector.len())
+                    .saturating_add(2_usize.saturating_mul(reachable.len().bit_width() as usize))
+                    .saturating_add(2),
+            )?;
+            if row
+                .name()
+                .strip_prefix(prefix)
+                .is_some_and(|suffix| !suffix.is_empty())
+                && reachable.get(&row.id()).is_some()
+                && !members.contains(row.name())
+            {
+                matched = true;
+                selected.insert(row.name());
+            }
+        }
+        if !matched {
+            return Err(refusal(format!(
+                "reference family {selector:?} matches no locked dependency package outside the workspace members"
+            )));
+        }
+    }
+    memory
+        .collect(selected.into_iter().map(str::to_owned))
+        .map_err(|source| Error::SourceIndexStorage { source })
+}
+
 fn consumer_graph(
     ledger: &Ledger,
     workspace: &Workspace,
@@ -131,6 +185,8 @@ fn consumer_graph(
     let storage = |source| Error::SourceIndexStorage { source };
     let mut reachable = OrderedTable::default();
     let mut pending = Vec::new();
+    // Only an exact selector can name a member and remove it from the roots;
+    // a family never selects a member, and `*` never occurs in a package name.
     for row in consumers
         .iter()
         .copied()
@@ -183,6 +239,7 @@ impl<'a> References<'a> {
         Self {
             packages: Vec::new(),
             consumers: workspace.package_ids().collect(),
+            names: Vec::new(),
         }
     }
 
@@ -226,7 +283,24 @@ impl<'a> References<'a> {
             &result.consumers,
             &mut memory,
         )?;
-        for name in ledger.reference() {
+        let members: BTreeSet<&str> = workspace
+            .package_ids()
+            .filter_map(|package| workspace.package(package))
+            .filter(|package| {
+                package.manifest.authority() == raf_source::SourceAuthorityId::FIRST_PARTY
+            })
+            .map(|package| package.name.as_str())
+            .chain(owners.iter().map(|(_, input)| input.name()))
+            .collect();
+        result.names = select(
+            ledger.reference(),
+            catalog,
+            &reachable,
+            &members,
+            &mut memory,
+            |_| Ok(()),
+        )?;
+        for name in &result.names {
             let mut rows = catalog
                 .packages()
                 .filter(|row| row.name() == name && reachable.get(&row.id()).is_some());

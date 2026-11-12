@@ -28,7 +28,7 @@ pub(super) fn evaluate(
     let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
     let mut collected = rules::collect(workspace, &census, &selected, &owners, ledger)?;
     collect_patterns(
-        ledger,
+        (ledger, &references.names),
         workspace,
         &census,
         &code,
@@ -220,7 +220,7 @@ fn matching_units<'a>(
 }
 
 fn collect_patterns(
-    ledger: &Ledger,
+    (ledger, references): (&Ledger, &[String]),
     workspace: &Workspace,
     census: &Census,
     code: &raf_source::CodeResolver<'_>,
@@ -243,7 +243,7 @@ fn collect_patterns(
         census,
         code,
         owners,
-        ledger.reference(),
+        references,
         limits,
     )? {
         rules::record_hit(

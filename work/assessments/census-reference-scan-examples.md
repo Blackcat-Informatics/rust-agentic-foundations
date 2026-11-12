@@ -25,7 +25,7 @@ inputs:
     digest: de2e0ba06e171f18e3052067cdd49cd91264ff03aeee78d62ea5790813369587
   - kind: symbol
     name: raf_census::gate::reference
-    digest: d0497185f1251d794d6d14006a815bb342dcea27aa252309e65421b08709560f
+    digest: 813bb30527f7deafdee88e2cf11a577aae70e26274d4798d9b2feb8234c3d52d
   - kind: symbol
     name: raf_census::report::reference
     digest: 7c7f1698a910ad8f061dc1511b9328b2811c884186cde6b1c4e0fcfad7a6860f
