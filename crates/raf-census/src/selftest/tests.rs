@@ -138,3 +138,45 @@ fn a_registered_rule_whose_fixtures_hold_is_a_passing_case() {
             .contains("pass rule/healthy-rule/fixtures\n")
     );
 }
+
+const CLI_DOC: &str = include_str!("../../../../docs/capabilities/census-cli.md");
+
+/// The documented detector list and case counts equal the registry's run, so adding, removing
+/// or renaming a detector, or changing the case count, fails until the capability document
+/// states the new list.
+#[test]
+fn the_documented_detector_list_and_case_count_equal_the_registry() {
+    let report = Gate::workspace("/nonexistent").self_test();
+    let total = report.cases().len();
+
+    let (_, after) = CLI_DOC
+        .split_once("The detectors are ")
+        .expect("the cases list names the detectors");
+    let sentence = after.split_once(".\n").expect("the sentence ends").0;
+    let documented: Vec<&str> = sentence.split('`').skip(1).step_by(2).collect();
+    let mut registered: Vec<&str> = Vec::new();
+    for case in report.cases() {
+        if let Some(id) = case
+            .id()
+            .strip_prefix("detector/")
+            .and_then(|rest| rest.strip_suffix("/positive"))
+        {
+            registered.push(id);
+        }
+    }
+    assert_eq!(documented, registered);
+
+    let counts: Vec<&str> = CLI_DOC
+        .match_indices(" cases, 0 failed")
+        .map(|(end, _)| {
+            let head = &CLI_DOC[..end];
+            &head[head
+                .rfind(|c: char| !c.is_ascii_digit())
+                .map_or(0, |at| at + 1)..]
+        })
+        .collect();
+    assert!(!counts.is_empty(), "the document states the case count");
+    for count in counts {
+        assert_eq!(count, total.to_string(), "documented case count");
+    }
+}
