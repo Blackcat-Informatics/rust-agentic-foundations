@@ -4424,9 +4424,38 @@ fn scope_ledger(settings: &[(&str, Term)]) -> Builder {
     graph
 }
 
+/// The scope ledger with a distinct sanction over the test helpers `f` and `g`.
+fn sanctioned_scope_ledger(settings: &[(&str, Term)]) -> Builder {
+    let mut graph = scope_ledger(settings);
+    put(&mut graph, "", "distinct", Term::iri("#distinct"));
+    put(
+        &mut graph,
+        "#distinct",
+        "type",
+        Term::iri(format!("{}Distinct", vocab::REPORT)),
+    );
+    for (key, value) in [
+        ("kind", "body"),
+        ("memberSymbol", "demo::tests::f"),
+        ("memberSymbol", "demo::tests::g"),
+        ("criterion", "test helpers"),
+        ("reason", "Kept apart on purpose"),
+    ] {
+        put(&mut graph, "#distinct", key, Term::simple_literal(value));
+    }
+    put(
+        &mut graph,
+        "#distinct",
+        "anchor",
+        Term::iri("urn:raf:code:demo::tests::f"),
+    );
+    graph
+}
+
 /// The ledger's grouping scope reaches the census, and the index and the exact
 /// debt record state it; a record of another scope is a difference that is
-/// not growth. Only a true flag and plain directory names are accepted.
+/// not growth, and a sanction over a group the scope removes is stale. Only a
+/// true flag and plain directory names are accepted.
 #[test]
 fn ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record() {
     let source = "#[cfg(test)]\nmod tests {\n/// One.\npub fn f(a:u32)->u32 { a+a+a+a }\n/// Two.\npub fn g(b:u32)->u32 { b+b+b+b }\n}";
@@ -4458,6 +4487,24 @@ fn ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record() {
     assert_eq!(index.scope, scope);
     let text = index.to_turtle().unwrap();
     assert_eq!(raf_census::Index::from_turtle(&text).unwrap().scope, scope);
+
+    // A sanction over the group that the exclusion removes holds under the
+    // complete scope and is stale once the scope is on.
+    let sanctioned = |settings: &[(&str, Term)]| {
+        gate.check_tree(&tree(source, sanctioned_scope_ledger(settings), 0))
+            .unwrap()
+    };
+    let held = sanctioned(&[]);
+    assert!(held.is_clean(), "{:?}", held.findings());
+    let removed = sanctioned(&settings);
+    assert!(
+        removed
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("equals no current group")),
+        "{:?}",
+        removed.findings()
+    );
 
     let unscoped = DebtRecord::new(NORMAL_FORM, [], BTreeMap::new()).unwrap();
     let changes = unscoped.compare(scoped.debt()).unwrap();

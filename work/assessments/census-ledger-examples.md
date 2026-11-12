@@ -94,7 +94,7 @@ inputs:
     digest: 042e52bfcc94421723e93aba659428e970fa6d6d4f98708d94681a7c1b6c5c08
   - kind: symbol
     name: raf_census::report::ledger
-    digest: 3e92eac0074993fb21616b20dab252f9f08af3bd16f1d1010f5014c2fa51610e
+    digest: 454bf414ef8349cc0dfbe039b45b27c92d02c324ca8f7560bb6eabc89b6fadfe
 verdict: accepted
 by: agent
 ---

@@ -161,7 +161,10 @@ policy and registered response outcomes. Ordinary Census report readers require
 report form 5. Report form 5 admits the optional grouping-scope properties as
 additions omitted at their default, under the version-bump rule of the
 [normal-form decision](../architecture/normal-form.md#version-bump-rule); a reader that lacks a
-property refuses a record stating it, by name.
+property refuses a record stating it, by name. Each reader refuses a property
+outside its vocabulary on a node of every class it admits. The nodes a ledger
+job's `extension` reaches belong to the consumer: the Ledger reader passes them
+unchanged to the consumer's validator, so they carry no engine vocabulary.
 
 | Census class | Properties and object types |
 |---|---|
@@ -591,9 +594,20 @@ selected-result readers independently enforce their closed domain shapes.
 <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
 
 A reader case gives the Ledger, Baseline, Index, DebtRecord and query readers,
-in both carriers, a record with one property outside the vocabulary on each node
-in turn, and the layout conversion one on the root of a prior layout. Each
-refuses by the property's name, and the same record without it reads.
+in both carriers, a record with one property outside the vocabulary, in the
+census namespace and in a foreign one, on one node of each class the reader
+admits. Every node of a class passes through the same validation, so the
+parses grow with the classes and not with the size of a record. The classes
+injected must equal the classes each reader admits: every report shape row
+under each reader it applies to, by the rule the readers validate with, and
+every class of the Ledger field table. Job and fingerprint queries of an index
+with reference observations supply the units, jobs, matches, reference
+sources and witnesses those queries carry, so a class without a fixture node
+fails the case. The layout conversion of each report kind receives the
+property on the root of a prior layout. Each refuses by the property's name,
+and the same record without it reads. The same properties on the extension
+root of a ledger job and on the consumer node it reaches are accepted and
+reach the consumer through the extension graph.
 <!-- raf:tested-by raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name -->
 
 The claim-view integration case uses native parsers for its semantic dataset;

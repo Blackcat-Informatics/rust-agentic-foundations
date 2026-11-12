@@ -40,6 +40,26 @@ pub struct Shape {
     /// Object type and range.
     pub object: &'static str,
 }
+impl Shape {
+    /// Whether the reader of report kind `report` admits this row. A row
+    /// applies to its own kind; a `both` row applies to the baseline and the
+    /// index, and its Unit rows to the job and fingerprint queries. The index
+    /// Unit and reference rows also apply to those queries, and its Job and
+    /// Match rows to the job query.
+    #[must_use]
+    pub fn applies_to(&self, report: &str) -> bool {
+        self.report == report
+            || (self.report == "both"
+                && (matches!(report, "baseline" | "index")
+                    || (matches!(report, "job-query" | "fingerprint-query")
+                        && self.class == "Unit")))
+            || (self.report == "index"
+                && ((self.class == "Unit" && matches!(report, "job-query" | "fingerprint-query"))
+                    || (matches!(self.class, "Job" | "Match") && report == "job-query")
+                    || (matches!(self.class, "ReferenceSource" | "ReferenceWitness")
+                        && matches!(report, "job-query" | "fingerprint-query"))))
+    }
+}
 macro_rules! shapes {
     ($(($r:literal,$c:literal,$p:literal,$min:expr,$max:expr,$o:literal)),* $(,)?) => {
         /// All permitted report properties; rdf:type is required once per node.
@@ -121,3 +141,80 @@ shapes! {
     ("debt","JobDebt","jobId",1,1,"string"),
     ("debt","JobDebt","copies",1,1,"positive integer"),
 }
+
+/// The closed property set of each engine-owned Ledger class; `rdf:type` is
+/// required once per node. An `Extension` root and the nodes it reaches are
+/// absent: that content belongs to the consumer and passes unchanged to the
+/// consumer's validator.
+pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
+    (
+        "Ledger",
+        &[
+            "normalForm",
+            "reportForm",
+            "minTokens",
+            "maxFileBytes",
+            "excludeTestItems",
+            "excludeDir",
+            "root",
+            "reference",
+            "job",
+            "distinct",
+            "pattern",
+        ],
+    ),
+    (
+        "LedgerJob",
+        &[
+            "jobId",
+            "summary",
+            "homeSymbol",
+            "entryPoint",
+            "enforced",
+            "forbiddenName",
+            "forbiddenConstant",
+            "forbiddenFingerprint",
+            "forbiddenPattern",
+            "variant",
+            "extension",
+            "preferredProvider",
+        ],
+    ),
+    (
+        "Variant",
+        &[
+            "symbol",
+            "file",
+            "detector",
+            "criterion",
+            "anchor",
+            "reason",
+        ],
+    ),
+    (
+        "Distinct",
+        &[
+            "memberSymbol",
+            "multiplicity",
+            "kind",
+            "criterion",
+            "anchor",
+            "reason",
+        ],
+    ),
+    ("MemberMultiplicity", &["symbol", "copies"]),
+    ("PreferredProvider", &["package", "entryPoint", "consumer"]),
+    (
+        "Pattern",
+        &[
+            "patternId",
+            "summary",
+            "call",
+            "path",
+            "macro",
+            "typePath",
+            "literalRegex",
+            "tokens",
+        ],
+    ),
+];
