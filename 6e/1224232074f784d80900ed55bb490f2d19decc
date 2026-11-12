@@ -1,0 +1,19 @@
+ghprsq source head backlink metadata
+
+parent_hashes: 6e1224232074f784d80900ed55bb490f2d19decc
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash-head-backlink
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 227
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/227
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 4df98d0897efc1adcf1e04a33eace7cfee162c3f
+GhpRsq-Head-Ref: paudley/226-census-reports-prove-load-determinism
+GhpRsq-Head-OID: 6e1224232074f784d80900ed55bb490f2d19decc
+GhpRsq-Result-Tree: 9c53646eac661a77c6ebf3a7ecf95db5e9938a55
+GhpRsq-Result-Commit: f1c4a6351583c6da745a670f5b74eebaabfb1857
+GhpRsq-Parent-Hashes: 6e1224232074f784d80900ed55bb490f2d19decc
+GhpRsq-Squash-Notes-SHA256: 2a50c04ae71c0719e51e506ffeb14eb9229c107d7fa8531ec5e86226f4622675
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Evidence: none
