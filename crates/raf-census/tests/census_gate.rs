@@ -3201,16 +3201,22 @@ fn hex_detectors_apply_to_their_declared_targets_and_actual_format_fields() {
 
 #[test]
 fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
-    for (id, home, positive, negative) in detector_fixtures::CONTEXTUAL {
-        let inactive = Gate::workspace(".")
-            .check_tree(&detector_fixture(base(), home, positive))
-            .unwrap();
-        assert!(inactive.is_clean(), "{id}: {:?}", inactive.findings());
-        for (source, expected) in [
-            (positive.to_owned(), true),
-            (negative.to_owned(), false),
-            (format!("#[cfg(test)] mod oracle {{{positive}}}"), false),
-        ] {
+    for (id, home, positives, negatives) in detector_fixtures::CONTEXTUAL {
+        let mut sources = Vec::new();
+        for positive in positives {
+            let inactive = Gate::workspace(".")
+                .check_tree(&detector_fixture(base(), home, positive))
+                .unwrap();
+            assert!(inactive.is_clean(), "{id}: {:?}", inactive.findings());
+            sources.push(((*positive).to_owned(), true));
+            sources.push((format!("#[cfg(test)] mod oracle {{{positive}}}"), false));
+        }
+        sources.extend(
+            negatives
+                .iter()
+                .map(|negative| ((*negative).to_owned(), false)),
+        );
+        for (source, expected) in sources {
             let report = Gate::workspace(".")
                 .check_tree(&detector_tree(id, home, &source))
                 .unwrap();
