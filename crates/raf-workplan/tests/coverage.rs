@@ -1135,10 +1135,10 @@ fn this_repository_enforces_all_packages_with_zero_coverage_debt() {
     ];
     assert_eq!(record.value().scope, packages);
     // The shared fixture crate states no capability: it is outside `scope`, and
-    // each of its seven modules and their items is excluded with a reason. Its
+    // each of its eight modules and their items is excluded with a reason. Its
     // lines are still counted by the reverse line report, with no orphan.
     let fixtures = record.value().exclusions.as_slice();
-    assert_eq!(fixtures.len(), 14);
+    assert_eq!(fixtures.len(), 16);
     assert!(fixtures.iter().all(|exclusion| {
         format!("{:?}", exclusion.item).contains("raf_fixtures::") && !exclusion.reason.is_empty()
     }));
