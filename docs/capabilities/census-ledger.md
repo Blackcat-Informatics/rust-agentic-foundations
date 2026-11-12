@@ -172,7 +172,7 @@ minTokens and maxFileBytes default to 20 and eight MiB. Repeated root, reference
 job, distinct and pattern properties declare sets; the default root is the
 workspace. A reference value names one package or a package family: a
 package-name prefix followed by `-*`, such as `acme-*`. Any other value holding
-`*` refuses. A reference that no job homes is the copy ban: a first-party copy of its bodies or shims is a non-debt REFERENCE-COPY finding that no baseline or debt record can hold, even with an empty job set. A job that homes a reference module instead classifies the copies into the job, as recordable debt while the job is not enforced. Optional excludeTestItems, stated only as true, and repeated
+`*` refuses. A reference that no job homes is the copy ban: a first-party copy of its bodies or shims is a non-debt REFERENCE-COPY finding that no baseline or debt record can hold, even with an empty job set. The ban applies per reference unit, not per declaration: a job that homes one unit of a reference leaves every other unit of it banned. The shipped command acquires only contained path dependencies; a registry or Git reference is compared only through the locked check. A job that homes a reference module instead classifies the copies into the job, as recordable debt while the job is not enforced. Optional excludeTestItems, stated only as true, and repeated
 excludeDir directory names set the grouping scope of the census normal form;
 false, a path or a dot name refuses. Excluded items stay units and leave only
 body and shim grouping and the group debt it produces; jobs, sanctions and
@@ -311,7 +311,10 @@ table in the adapter package remains a finding.
 Those structural entry points refuse preferred-provider rows that need grounded
 configuration. Evaluate those rows through `check_locked` with the supplied
 complete source and target context, or explicitly publish their admissible debt
-through `write_debt_locked`.
+through `write_debt_locked`. The shipped `cargo census check` is such a structural
+entry point: on a ledger with preferred-provider rows it refuses with that
+requirement and never reports a clean verdict, so a repository that declares
+them judges itself through `check_locked` from its own test or target.
 
 Install custom owner validation through `Gate::extensions` before calling
 `check` or `check_tree`. A nonempty extension with no accepting validator is an

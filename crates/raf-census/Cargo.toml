@@ -37,6 +37,7 @@ purrdf-core.workspace = true
 syn = { workspace = true, features = ["full", "parsing", "printing", "visit"] }
 
 [dev-dependencies]
+raf-fixtures = { path = "../raf-fixtures" }
 purrdf-testkit.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]

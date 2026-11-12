@@ -30,6 +30,7 @@ purrdf-toml.workspace = true
 proc-macro2 = { workspace = true, features = ["span-locations"] }
 
 [dev-dependencies]
+raf-fixtures = { path = "../raf-fixtures" }
 purrdf-testkit.workspace = true
 
 # Only constants are taken from libc.

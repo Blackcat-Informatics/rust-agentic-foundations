@@ -19,6 +19,8 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   instead of replacing undecodable subject bytes. UTC dates use `+00:00` rather
   than `Z` in report output.
 
+- **Self-Census:** the repository gate runs the locked check and enforces a `purrdf.*` preferred-provider job for the BLAKE3 digest and its hexadecimal text, with no exclusion and no debt. The registry sources are sealed from archives authenticated by the lock checksums; a missing archive or a mismatch refuses. Test helpers shared by several packages moved into the unpublished `raf-fixtures` crate.
+
 - **`raf-workplan`:** line coverage recognizes direct compiler allocator
   registrations in participating target contexts, preserving test-only roles and
   refusing malformed or unindexed registrations without partial totals.

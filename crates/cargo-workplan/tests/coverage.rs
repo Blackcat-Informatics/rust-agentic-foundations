@@ -229,7 +229,15 @@ fn this_repository_has_no_code_or_test_gaps_in_its_scoped_packages() {
         let whole = at(&["coverage", direction]).expect(0);
         let rdf = Rdf::of(&whole);
         assert!(rdf.rows("CoverageGap").is_empty(), "{whole:#?}");
-        assert!(rdf.rows("CoverageExcluded").is_empty(), "{whole:#?}");
+        // Only the shared fixture crate is excluded, with its stated reasons.
+        let excluded = rdf.rows("CoverageExcluded");
+        assert_eq!(!excluded.is_empty(), direction == "code", "{whole:#?}");
+        assert!(
+            excluded
+                .iter()
+                .all(|row| row.required("path").starts_with("raf_fixtures")),
+            "{whole:#?}"
+        );
         assert!(rdf.rows("CoverageError").is_empty(), "{whole:#?}");
         let packages = rdf.rows("CoveragePackage");
         assert_eq!(
@@ -241,6 +249,7 @@ fn this_repository_has_no_code_or_test_gaps_in_its_scoped_packages() {
                 "cargo-census",
                 "cargo-workplan",
                 "raf-census",
+                "raf-fixtures",
                 "raf-okf",
                 "raf-rdf",
                 "raf-source",
@@ -250,7 +259,15 @@ fn this_repository_has_no_code_or_test_gaps_in_its_scoped_packages() {
             ]
         );
         for row in packages {
-            assert!(row.boolean("inScope"), "{whole:#?}");
+            // The fixture crate is excluded item by item, so none of its items
+            // is covered by a capability; every other package covers all.
+            let fixtures = row.required("package") == "raf-fixtures";
+            assert_eq!(row.boolean("inScope"), !fixtures, "{whole:#?}");
+            if fixtures {
+                assert_eq!(row.number("coveredItems"), 0, "{whole:#?}");
+                assert_eq!(row.number("coveredTests"), 0, "{whole:#?}");
+                continue;
+            }
             assert_eq!(
                 row.number("items"),
                 row.number("coveredItems"),

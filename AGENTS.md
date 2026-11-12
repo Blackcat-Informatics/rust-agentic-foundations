@@ -79,12 +79,16 @@ of `raf-workplan` over the tracked documents, the self-workplan test
 every assessment to be current and accepted, and the repository gates
 (`tests/repo_gates.rs`: licence digests, issue-reference and process-wording
 scan, version agreement, and the clock gate below). The self-Census test
-(`tests/self_census.rs`) runs the production Census gate over the workspace and
-fuzz roots with the canonical ledger and exact adopted debt.
+(`tests/self_census.rs`) runs the production Census gate through the locked check
+over the workspace and fuzz roots with the canonical ledger and exact adopted debt,
+and that ledger requires `purrdf.*` to supply the BLAKE3 digest and hexadecimal
+text, with no exclusion and no debt. Test helpers that several packages use live in
+the unpublished `raf-fixtures` crate, because the locked load judges each source
+file under one package.
 
 ### Crates
 
-`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan`, `cargo-census` and `cargo-workplan` are workspace members. `raf-okf` and
+`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan`, `cargo-census`, `cargo-workplan` and the unpublished `raf-fixtures` are workspace members. `raf-okf` and
 `raf-source` are **delivered**: the frontmatter reader, the deterministic writer,
 the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
@@ -119,6 +123,7 @@ retain their designed contracts. The capability documents in `docs/capabilities/
 |---|---|---|
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
 | `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage | delivered |
+| `raf-fixtures` | Unpublished test fixtures used by more than one package, so that no source file is shared across packages and the locked Census gate can judge every package | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form, fingerprints, grouping, ledger, debt ratchet, migration and detector integration | delivered for normal form, reports, ledger, debt and migration; remaining detector capabilities are implementing or designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | complete CLI delivered, including native checks, queries, migration and debt writing |
@@ -133,7 +138,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan`, `cargo-census` and `cargo-workplan`) |
+| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan`, `cargo-census`, `cargo-workplan` and `raf-fixtures`) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile, debt ratchet) |
 | `work/changes/` | In-flight change records |
@@ -254,6 +259,13 @@ make hooks   # point core.hooksPath at .githooks for this clone
   Malformed manifests and exhausted bounds refuse; dependency aliases and target
   keys are inspected in lexical order. Cargo-specific field selection and decimal
   float-overflow refusal remain repository policy, including in metadata.
+  `deny.toml` denies wildcard requirements but allows path dependencies without a
+  version (`allow-wildcard-paths`, identical in `fuzz/deny.toml`): the unpublished
+  `raf-fixtures` crate is a path-only dev-dependency because `cargo package` drops
+  such a dependency, while a versioned one would make the package need an unpublished
+  crate. A gate parses the first-party manifests natively and refuses a `raf-fixtures`
+  dependency, including a renamed or subtable one, outside `[dev-dependencies]` unless
+  the manifest declares `publish = false`.
 - Analysis requires no process runner, PID namespace, executable helper or host
   security-policy change. Native Git reads do not depend on an installed Git
   executable. The documentation command refuses unavailable required toolchains;

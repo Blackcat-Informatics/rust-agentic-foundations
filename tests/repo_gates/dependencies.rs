@@ -40,11 +40,11 @@ fn table<'a>(
     Ok(fields)
 }
 
-fn check_table(
+fn collect_table(
     document: &Document<'_>,
     node: &Node,
     section: &str,
-    findings: &mut Vec<String>,
+    entries: &mut Vec<DependencyEntry>,
 ) -> Result<(), String> {
     for (alias, dependency) in table(document, node, section)? {
         let package = match &dependency.kind {
@@ -70,17 +70,45 @@ fn check_table(
                 ));
             }
         };
-        if package.replace('-', "_") == "serde_json" {
-            findings.push(format!(
-                "{section}.{}: serde_json is forbidden; use the typed RDF report path",
-                alias.escape_debug()
-            ));
-        }
+        entries.push(DependencyEntry {
+            section: section.to_owned(),
+            alias: alias.to_owned(),
+            package: package.to_owned(),
+        });
     }
     Ok(())
 }
 
+/// One dependency of a manifest, named by the table that holds it, its alias and
+/// the package it selects, whether written inline, as a subtable or renamed.
+/// The dependencies of a manifest and whether it declares `publish = false`.
+pub(super) struct Manifest {
+    pub(super) unpublished: bool,
+    pub(super) entries: Vec<DependencyEntry>,
+}
+
+pub(super) struct DependencyEntry {
+    pub(super) section: String,
+    pub(super) alias: String,
+    pub(super) package: String,
+}
+
 fn dependency_problems(manifest: &str) -> Result<Vec<String>, String> {
+    Ok(read_manifest(manifest)?
+        .entries
+        .into_iter()
+        .filter(|entry| entry.package.replace('-', "_") == "serde_json")
+        .map(|entry| {
+            format!(
+                "{}.{}: serde_json is forbidden; use the typed RDF report path",
+                entry.section,
+                entry.alias.escape_debug()
+            )
+        })
+        .collect())
+}
+
+pub(super) fn read_manifest(manifest: &str) -> Result<Manifest, String> {
     let profile = Profile::standard().map_err(|e| format!("invalid manifest profile: {e}"))?;
     let document = purrdf_toml::analyze(
         SourceDocument {
@@ -105,16 +133,16 @@ fn dependency_problems(manifest: &str) -> Result<Vec<String>, String> {
         }
     }
     let root = table(&document, &document.nodes()[0], "manifest")?;
-    let mut findings = Vec::new();
+    let mut entries = Vec::new();
     for name in ["dependencies", "build-dependencies", "dev-dependencies"] {
         if let Some(value) = get(&root, name) {
-            check_table(&document, value, name, &mut findings)?;
+            collect_table(&document, value, name, &mut entries)?;
         }
     }
     if let Some(workspace) = get(&root, "workspace") {
         let workspace = table(&document, workspace, "workspace")?;
         if let Some(value) = get(&workspace, "dependencies") {
-            check_table(&document, value, "workspace.dependencies", &mut findings)?;
+            collect_table(&document, value, "workspace.dependencies", &mut entries)?;
         }
     }
     if let Some(targets) = get(&root, "target") {
@@ -122,17 +150,25 @@ fn dependency_problems(manifest: &str) -> Result<Vec<String>, String> {
             let target_table = table(&document, value, "target entry")?;
             for name in ["dependencies", "build-dependencies", "dev-dependencies"] {
                 if let Some(value) = get(&target_table, name) {
-                    check_table(
+                    collect_table(
                         &document,
                         value,
                         &format!("target.{}.{name}", target.escape_debug()),
-                        &mut findings,
+                        &mut entries,
                     )?;
                 }
             }
         }
     }
-    Ok(findings)
+    let unpublished = get(&root, "package")
+        .map(|package| table(&document, package, "package"))
+        .transpose()?
+        .and_then(|package| get(&package, "publish").copied())
+        .is_some_and(|publish| matches!(publish.kind, Kind::Scalar(Scalar::Boolean(false))));
+    Ok(Manifest {
+        unpublished,
+        entries,
+    })
 }
 
 #[test]

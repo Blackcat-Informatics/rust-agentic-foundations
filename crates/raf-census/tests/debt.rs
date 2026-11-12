@@ -6,8 +6,7 @@
 use std::collections::BTreeMap;
 
 use raf_census::{DebtChange, DebtGroup, DebtRecord, GroupKind, MAX_DEBT_BYTES, NORMAL_FORM};
-#[path = "support/layout.rs"]
-mod layout;
+use raf_fixtures::layout;
 
 #[test]
 fn oversized_records_refuse_before_parsing_beside_a_readable_record() {

@@ -7,7 +7,7 @@ use std::path::Path;
 
 /// Writes `files` below `dir`, creating each file and its directories in
 /// the order given.
-pub(crate) fn write<'a>(dir: &Path, files: impl IntoIterator<Item = &'a (&'a str, &'a str)>) {
+pub fn write<'a>(dir: &Path, files: impl IntoIterator<Item = &'a (&'a str, &'a str)>) {
     for (path, text) in files {
         let path = dir.join(path);
         std::fs::create_dir_all(path.parent().expect("a fixture file has a parent"))

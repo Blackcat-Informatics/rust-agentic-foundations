@@ -3,12 +3,7 @@
 
 //! Actual migration and debt commands, with read-only inputs and refusal neighbours.
 
-#[path = "../../raf-census/tests/support/files.rs"]
-mod files;
-#[path = "../../raf-census/tests/support/git_repo.rs"]
-mod git_repo;
-#[path = "../../raf-census/tests/support/layout.rs"]
-mod layout;
+use raf_fixtures::{files, git_repo, layout};
 
 use raf_census::{Baseline, Census, CensusOptions, DebtRecord, Gate, Ledger, MAX_LEDGER_BYTES};
 use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
@@ -1072,6 +1067,10 @@ fn ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partia
     assert!(String::from_utf8_lossy(&index.stdout).contains("ReferenceWitness"));
     let fingerprint = run(&root, &["fingerprint", "demo::copy"]);
     assert!(fingerprint.status.success(), "{fingerprint:?}");
+    assert!(
+        String::from_utf8_lossy(&fingerprint.stdout).contains("acme_a::provided"),
+        "{fingerprint:?}"
+    );
 
     // The neighbour with a changed body is clean and carries no witness.
     write_consumer(&root, &scaled(2, 8), "");

@@ -9,7 +9,7 @@
 
 mod detectors;
 mod engine;
-pub(crate) mod fixtures;
+pub mod fixtures;
 #[cfg(test)]
 mod tests;
 

@@ -124,7 +124,7 @@ inputs:
     digest: 116bcb10c96cebf7344e2a3ca0746921d0265d7a9e4fd01bfbfc96697e1ad64c
   - kind: symbol
     name: raf_workplan::digest
-    digest: c1a5374c5fa19aba4acca92daa229a5e3af8a5d7f3d791f9338ad083f7d7d11b
+    digest: c88ff91b0bf499f7c272a931c0df3c1a00f11161d289a5542bb29a06077b3d91
   - kind: symbol
     name: raf_workplan::digest::Digest
     digest: 6c7d21b4cba7380d4dcffe0adcc0a59123376b9416b489895f3bbed78b3bba9c

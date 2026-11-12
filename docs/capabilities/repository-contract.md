@@ -13,6 +13,8 @@ bindings:
   tests:
     - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority
     - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths
+    - rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies
+    - rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms
     - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
     - rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling
     - rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory
@@ -125,6 +127,9 @@ bindings:
     - rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed
     - rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed
     - rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused
+    - rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate
+    - rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation
+    - rust_agentic_foundations::test_crate::self_census::an_oversized_cached_archive_is_refused_before_it_is_held_beside_a_valid_one
   examples:
     - rust_agentic_foundations::example_crate::repository_gate
 depends: [cap:workplan-document-model, cap:workplan-strict, cap:source-index, cap:census-debt-ratchet]
@@ -145,7 +150,10 @@ assessments to the same complete workplan policy that the libraries provide.
 foreign launch interfaces and macro-hidden launch paths. Static checks never
 execute inspected tests, examples or doctests. Explicit documentation trust lives
 only in the private CLI operation and cannot be granted by repository content.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority,rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths -->
+Two files of the unpublished `raf-fixtures` crate run Git in scratch repositories for
+tests and are the only exemption; a gate parses the manifests and requires that none lists `raf-fixtures`, renamed or as a subtable,
+outside `[dev-dependencies]` unless it declares `publish = false`.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority,rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths,rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies,rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms -->
 
 **Bounded CI.** Every workflow job declares an integer `timeout-minutes` from
 one through nine, reserving execution headroom below a ten-minute job ceiling.
@@ -161,15 +169,40 @@ and harness-policy results require their applicable jobs to succeed.
 
 **Binding validation.** The self-workplan gate validates source bindings and the complete static document model. Consumer tests, examples and doctests are never executed by RAF. Verification prints declarations and static findings; completion uses a prospective document overlay and owned data writes. Maintainer-controlled RAF checks use explicitly controlled fixtures and never grant inspected source execution authority.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed,cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
-
 **Self-Census.** The root package runs the production Census gate over the same
-selected read root. The canonical `helpers-ledger.ttl` declares both the first-party
-workspace and `fuzz` roots, with the standard token threshold and source limits.
+selected read root, through `Gate::check_locked`. The canonical `helpers-ledger.ttl`
+declares both the first-party workspace and `fuzz` roots, with the standard token
+threshold and source limits, and one enforced job that requires `purrdf.*` to supply
+the BLAKE3 digest and its hexadecimal text, with no exclusion and no debt. The
+locked evaluation takes the lock catalog from `Cargo.lock` (the fuzz harness
+row from `fuzz/Cargo.lock`), every first-party manifest with its discovered targets
+under a declared Linux configuration, and the direct `purrdf-*` registry sources
+sealed from their original `.crate` archives. The archives are found in the Cargo
+registry cache named by `CARGO_HOME`, or `$HOME/.cargo`, which must hold the complete
+locked set of archives of both lock files (`cargo fetch --locked`, and the same with
+`--manifest-path fuzz/Cargo.toml`; the hosted root-package jobs run both first); only their bytes come
+from there, and each must match the `Cargo.lock` checksum before any of it is read.
+A missing archive, one larger than the load's byte budget (refused before it is read in full) or a checksum mismatch is a hard failure. A library is judged in
+its ordinary mode, so `cfg(test)` modules inside library sources are outside the
+locked census; every integration test, example and binary is judged with `cfg(test)`.
+That is a known coverage loss: a competing implementation inside a library `cfg(test)`
+module is not found, and 14 debt groups left the adopted record with it. One of them,
+the `Handle::metadata` pair, was non-Linux platform code, which the primary-Linux scope
+does not judge; the rest were `cfg(test)` modules.
 `census-debt.ttl` holds the exact adopted duplication; growth and stale slack both
 fail. The census must contain actual units from the root package and fuzz harness.
-The read-only test never writes or increases debt. Ordinary checks, Linux CI and
-the staged commit and merge snapshots execute the same test.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused -->
+The read-only test never writes or increases debt; the registered `repository_census`
+example publishes it through `Gate::write_debt_locked`. Planted competing code
+(a hex table with and without a PurRDF import, and an initial-state constant beside
+a discarded provider call) fails this gate on the real repository, a thin adapter
+passes, and a delegation replaced by a discarded provider call is refused. No test
+shares a source file across packages, because a locked load judges each file under
+one package: the fixtures that several packages use live in the unpublished
+`raf-fixtures` crate, which states no capability: it is outside the coverage `scope`,
+and its modules and items are excluded in `work/coverage/default.md` with a reason.
+Checks, Linux CI and the staged commit and merge
+snapshots execute the same test.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused,rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate,rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation,rust_agentic_foundations::test_crate::self_census::an_oversized_cached_archive_is_refused_before_it_is_held_beside_a_valid_one -->
 
 **Shared read root.** The gates and repository-gate example use `gate_root`:
 `RAF_GATE_ROOT` selects an explicit checkout snapshot, and its absence selects
@@ -227,7 +260,7 @@ Use the static verification command to inspect declared example and test binding
 
 Run `cargo test --locked --test self_census` to judge the repository ledger and
 debt. Adopt missing debt or lower resolved debt explicitly with
-`cargo run --locked -p cargo-census -- debt --write`, then review the complete
+`cargo run --locked --example repository_census -- --census-debt-write-v1`, then review the complete
 `census-debt.ttl` diff. The writer refuses growth into a current record; deleting
 that record and adopting again does not prove that debt did not grow.
 
@@ -431,6 +464,8 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_tracked_files_are_forbidden` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_exempts_the_clock_file_but_not_its_neighbour` | test | [Verification](#verification) |
@@ -444,6 +479,9 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_each_crate_spelling_in_every_other_directory` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock` | test | [Verification](#verification) |
+| `rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::self_census::an_oversized_cached_archive_is_refused_before_it_is_held_beside_a_valid_one` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
 | `rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back` | test | [Contract](#contract) |

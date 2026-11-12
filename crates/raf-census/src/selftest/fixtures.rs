@@ -3,8 +3,9 @@
 
 //! Positive and negative inputs of every built-in detector, shared by the
 //! shipped self-test and the detector tests of this crate.
+#![doc(hidden)]
 
-pub(crate) const RDF: [(&str, &str, &str); 3] = [
+pub const RDF: [(&str, &str, &str); 3] = [
     (
         "serde-json",
         "use serde_json as json; fn copy(){let _=json::from_str::<u8>(\"1\");}",
@@ -22,7 +23,7 @@ pub(crate) const RDF: [(&str, &str, &str); 3] = [
     ),
 ];
 
-pub(crate) const RDF_NESTED: [(&str, &str, &str); 5] = [
+pub const RDF_NESTED: [(&str, &str, &str); 5] = [
     (
         "serde-json",
         "mod outer {extern crate purrdf_lex as serde_json; mod inner {fn copy(){let _=::serde_json::from_str::<u8>(\"1\");}}}",
@@ -50,7 +51,7 @@ pub(crate) const RDF_NESTED: [(&str, &str, &str); 5] = [
     ),
 ];
 
-pub(crate) const HASHER_POSITIVE: [&str; 11] = [
+pub const HASHER_POSITIVE: [&str; 11] = [
     "use std::collections::HashMap as Map; fn copy(){let _=Map::<u8,u8>::new();}",
     "use std::collections::HashMap as r#Map; fn copy(){let _=r#Map::<u8,u8>::r#new();}",
     "mod std {} use ::std::collections::HashMap as Map; fn copy(){let _=Map::<u8,u8>::new();}",
@@ -64,7 +65,7 @@ pub(crate) const HASHER_POSITIVE: [&str; 11] = [
     "fn copy(){let _: std::collections::HashMap<u8,u8,Fixed> = wrap(std::collections::HashMap::default());}",
 ];
 
-pub(crate) const HASHER_NEGATIVE: [&str; 8] = [
+pub const HASHER_NEGATIVE: [&str; 8] = [
     "use foreign::HashMap; fn copy(_:HashMap<u8,u8>){}",
     "use std::collections::HashMap; fn copy<HashMap>(_:HashMap){}",
     "use std::collections::HashMap; struct Cache<HashMap>{map:HashMap}",
@@ -75,7 +76,7 @@ pub(crate) const HASHER_NEGATIVE: [&str; 8] = [
     "fn copy(){let _=std::collections::HashMap::with_hasher(Fixed);}",
 ];
 
-pub(crate) const LAYOUT: [(&str, &str, &str); 5] = [
+pub const LAYOUT: [(&str, &str, &str); 5] = [
     (
         "length-prefix-frame",
         "fn copy(out:&mut Vec<u8>,b:&[u8]) {out.extend_from_slice(&(b.len() as u64).to_le_bytes());out.extend_from_slice(b);}",
@@ -103,7 +104,7 @@ pub(crate) const LAYOUT: [(&str, &str, &str); 5] = [
     ),
 ];
 
-pub(crate) const FACTS: [(&str, &str, &str, bool); 2] = [
+pub const FACTS: [(&str, &str, &str, bool); 2] = [
     (
         "hex-table",
         "fn copy(){let _=b\"0123456789abcdef\";}",
@@ -118,7 +119,7 @@ pub(crate) const FACTS: [(&str, &str, &str, bool); 2] = [
     ),
 ];
 
-pub(crate) const HEX: [(&str, &str, &str, bool); 3] = [
+pub const HEX: [(&str, &str, &str, bool); 3] = [
     (
         "hex-pair-radix",
         "fn copy(s:&str){let _=<u8>::from_str_radix(s,0x10);}",
@@ -145,7 +146,7 @@ pub(crate) const HEX: [(&str, &str, &str, bool); 3] = [
 /// keyword without a line break, a line break without a keyword and keywords
 /// only inside longer words stay hits; a multi-line literal with a whole-word
 /// keyword in any letter case is clean.
-pub(crate) const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 2] = [
+pub const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 2] = [
     (
         "home-literal",
         "/// Home.\npub fn home()->&'static str {\"token\"}",
@@ -168,9 +169,8 @@ pub(crate) const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 2] = [
     ),
 ];
 
-pub(crate) const HASHER_ID: &str = "std-default-hasher";
-pub(crate) const SOLE_NAME_ID: &str = "sole-name";
-pub(crate) const SOLE_NAME_POSITIVE: [&str; 2] =
-    ["fn copy(){}", "#[cfg(test)] mod oracle {fn copy(){}}"];
-pub(crate) const SOLE_NAME_NEGATIVE: [(&str, &str); 1] =
+pub const HASHER_ID: &str = "std-default-hasher";
+pub const SOLE_NAME_ID: &str = "sole-name";
+pub const SOLE_NAME_POSITIVE: [&str; 2] = ["fn copy(){}", "#[cfg(test)] mod oracle {fn copy(){}}"];
+pub const SOLE_NAME_NEGATIVE: [(&str, &str); 1] =
     [("/// Home.\npub fn home(){} pub fn copy(){}", "demo::copy")];

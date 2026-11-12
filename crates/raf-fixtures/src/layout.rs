@@ -9,7 +9,8 @@ use raf_census::{
 };
 use raf_rdf::{Builder, Format, Graph, TermValue, Triple, vocab};
 
-pub(crate) fn form3(text: &str, format: Format) -> String {
+/// The text of `text` with its report form set back to form 3.
+pub fn form3(text: &str, format: Format) -> String {
     prior_form(text, format, 3)
 }
 
@@ -33,7 +34,8 @@ fn prior_form(text: &str, format: Format, form: i128) -> String {
     graph.finish().unwrap().to_text(format).unwrap()
 }
 
-pub(crate) fn assert_upgrade(kind: ReportKind, current: &str, format: Format) -> String {
+/// Assert that a report written in form 3 upgrades to exactly `current`, returning the old text.
+pub fn assert_upgrade(kind: ReportKind, current: &str, format: Format) -> String {
     let old = form3(current, format);
     let input = MigrationInput {
         path: "prior-layout",

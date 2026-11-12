@@ -137,6 +137,7 @@ dependencies = [
  "purrdf-lex",
  "purrdf-testkit",
  "raf-census",
+ "raf-fixtures",
  "raf-rdf",
  "raf-source",
  "syn 3.0.8",
@@ -152,6 +153,7 @@ dependencies = [
  "purrdf-testkit",
  "purrdf-toml",
  "purrdf-xsd",
+ "raf-fixtures",
  "raf-okf",
  "raf-rdf",
  "raf-source",
@@ -1754,10 +1756,22 @@ dependencies = [
  "purrdf-testkit",
  "purrdf-toml",
  "purrdf-xsd",
+ "raf-fixtures",
  "raf-rdf",
  "raf-source",
  "rustix",
  "syn 3.0.8",
+]
+
+[[package]]
+name = "raf-fixtures"
+version = "0.2.0"
+dependencies = [
+ "raf-census",
+ "raf-okf",
+ "raf-rdf",
+ "raf-source",
+ "raf-workplan",
 ]
 
 [[package]]
@@ -1804,6 +1818,7 @@ dependencies = [
  "purrdf-toml",
  "purrdf-xsd",
  "quote",
+ "raf-fixtures",
  "rustix",
  "syn 3.0.8",
  "windows-sys",
@@ -1823,6 +1838,7 @@ dependencies = [
  "purrdf-testkit",
  "purrdf-text",
  "purrdf-xsd",
+ "raf-fixtures",
  "raf-okf",
  "raf-rdf",
  "raf-source",
@@ -1899,6 +1915,7 @@ dependencies = [
  "purrdf-toml",
  "raf-census",
  "raf-okf",
+ "raf-rdf",
  "raf-source",
  "raf-workplan",
 ]

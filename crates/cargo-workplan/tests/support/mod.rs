@@ -22,13 +22,7 @@ pub(crate) mod completion;
 pub(crate) mod history;
 pub(crate) mod rdf;
 
-/// The helper of the library's fixtures that assesses the sections a change
-/// affects, through the library, shared as one file.
-#[path = "../../../raf-workplan/tests/support/assessed.rs"]
-pub(crate) mod assessed;
-/// The strict-clean repository of the library's fixtures, shared as one file.
-#[path = "../../../raf-workplan/tests/support/strict.rs"]
-pub(crate) mod strict;
+pub(crate) use raf_fixtures::{assessed, strict};
 #[cfg(unix)]
 pub(crate) mod stubs;
 
@@ -625,8 +619,7 @@ pub(crate) const BLOCKS: &str = "\n<!-- raf:generated:verification-matrix -->\n<
 /// command and the user's configuration out of the way. Returns standard
 /// output without its last line ending. Repository-local hooks and signing
 /// settings remain in force.
-#[path = "../../../../tests/support/fixture_signing.rs"]
-mod fixture_signing;
+use raf_fixtures::fixture_signing;
 
 pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
     git_with(dir, args, &[])
