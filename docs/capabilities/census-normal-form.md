@@ -232,7 +232,7 @@ bindings:
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
     - raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job
     - raf_census::test_crate::reports::two_fresh_loads_of_the_fixtures_give_identical_bytes
-    - raf_census::test_crate::reports::two_fresh_loads_of_this_repository_give_identical_bytes
+    - raf_census::test_crate::reports::two_fresh_loads_of_a_multi_package_workspace_give_identical_bytes
     - raf_census::test_crate::units::a_constant_whose_type_names_a_number_does_not_hold_it
     - raf_census::test_crate::units::a_deep_constant_type_loads_on_a_small_stack
     - raf_census::test_crate::units::a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused
@@ -1040,7 +1040,11 @@ and escapes controls beside a plain diagnostic neighbor.
   constant by value, with a copy count of 2, and a job that matches nothing has no
   matches.
 - The reports are tested for byte-identical output over two fresh loads, including
-  this repository's own crates, and for both canonical RDF 1.2 formats. Negative
+  a three-package workspace with nested modules, a binary, cfg alternatives and
+  groups across packages, loaded from memory and from disk copies written in
+  opposite orders; an absolute directory and its relative spelling give the same
+  bytes, and a moved item or another directory name gives different bytes. The
+  reports are tested for both canonical RDF 1.2 formats. Negative
   fixtures refuse unknown predicates/classes, missing, repeated and mistyped
   properties, inconsistent matches, node names, unsupported constructs, respacing
   and edits without a fresh digest; the canonical neighbours read. Retained
@@ -1163,8 +1167,8 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::two_fresh_loads_of_a_multi_package_workspace_give_identical_bytes` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::two_fresh_loads_of_the_fixtures_give_identical_bytes` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::two_fresh_loads_of_this_repository_give_identical_bytes` | test | [Verification](#verification) |
 | `raf_census::test_crate::selection::fixture_counts_are_pinned_and_default_selection_matches_production` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_constant_whose_type_names_a_number_does_not_hold_it` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::units::a_deep_constant_type_loads_on_a_small_stack` | test | [Constraints](#constraints) |
