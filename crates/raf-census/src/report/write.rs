@@ -176,6 +176,15 @@ pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
     for witness in &report.reference_witnesses {
         super::reference::witness(&mut graph, witness, report.normal_form)?;
     }
+    for row in &report.reference_constants {
+        for member in row.first_party.iter().chain(&row.reference) {
+            let id = mint::unit(&member.symbol, &member.file, member.line, member.start_byte);
+            if !has_unit(&graph, &id)? {
+                return Err(E::Dangling(id));
+            }
+        }
+        super::reference::constant(&mut graph, row)?;
+    }
     for g in &report.groups {
         if !matches!(
             (&g.fingerprint, g.kind),

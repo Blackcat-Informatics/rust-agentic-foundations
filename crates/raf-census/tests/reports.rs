@@ -130,8 +130,8 @@ fn census_vocabulary_reports() -> Vec<String> {
 
 fn reference_index() -> Index {
     let tree = reference::fixture(
-        "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
-        "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
+        "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+65536 }",
+        "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+65536 } }",
     );
     let report = raf_census::Gate::workspace(".").check_tree(&tree).unwrap();
     report.census().index(report.jobs()).unwrap()

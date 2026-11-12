@@ -7,7 +7,7 @@ subject: cap:census-reference-scan#verification
 inputs:
   - kind: section
     name: cap:census-reference-scan#verification
-    digest: 9c8ba9e05d568816a06939ac3ad65f50acfca474ee1fc81f0d1ed57fb64daddf
+    digest: 659c86097c4b99351b320b4e7f23ed3ea258b61c9bb0bf45d143374598792951
   - kind: symbol
     name: raf_census::ExternalReference
     digest: dff9ba21af812a6448881bf2fda85215d82d533591e85489c9f8e454bc9ba7ce
@@ -21,6 +21,9 @@ inputs:
     name: raf_census::Gate::reference_roots
     digest: fb7552389a703dcbb4da65f26224530d5b67448fa60350c87a0f9f48e66a93b5
   - kind: symbol
+    name: raf_census::ReferenceConstantRow
+    digest: 553be507c6f6454a9bd7b7746d27c6f9f79e9461e1c2db7fc0c4c57582e02767
+  - kind: symbol
     name: raf_census::ReferenceSource
     digest: 1194fa432612b8cace74775c68a615ba3405ffb79f8126ea16e4bdab700ed9fd
   - kind: symbol
@@ -31,13 +34,13 @@ inputs:
     digest: d624f8a5470e951d8dcfcec0269d114e1cfa3bd35397845a2907469e71c9ae00
   - kind: symbol
     name: raf_census::gate::reference
-    digest: 5a4f23102234c8a595a3af75b89756d9cd40d0c9aca0521b6b0e65e38c5465f6
+    digest: 48313bbcadf36e610cacfd128c68e0d065b3040b7e8878f5df9ce26ad623804f
   - kind: symbol
     name: raf_census::gate::reference::external
     digest: 483f06fca67b8b2097bceb2e803b7b4a641099ab26cf185f68878384634d610d
   - kind: symbol
     name: raf_census::report::reference
-    digest: c190f8b01e736cddc4262cdb7e07468dbc1fa46272b4ad86cbe42d0dee9e29d0
+    digest: 32962a6648baff61a37ed57137c4173a3287eedd29605861bd9c061e72cad75b
   - kind: symbol
     name: raf_source::PinnedGitTree
     digest: 3a9d76397494b37297a9f0e1c973cc8a7a1421636e4bf290901c060972d80038

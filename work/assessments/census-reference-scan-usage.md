@@ -19,10 +19,10 @@ inputs:
     digest: fb7552389a703dcbb4da65f26224530d5b67448fa60350c87a0f9f48e66a93b5
   - kind: symbol
     name: raf_census::gate::reference
-    digest: 5a4f23102234c8a595a3af75b89756d9cd40d0c9aca0521b6b0e65e38c5465f6
+    digest: 48313bbcadf36e610cacfd128c68e0d065b3040b7e8878f5df9ce26ad623804f
   - kind: symbol
     name: raf_census::report::reference
-    digest: c190f8b01e736cddc4262cdb7e07468dbc1fa46272b4ad86cbe42d0dee9e29d0
+    digest: 32962a6648baff61a37ed57137c4173a3287eedd29605861bd9c061e72cad75b
   - kind: symbol
     name: raf_source::workspace::locked::reference
     digest: fd6c1c386536fcb1b27c99c106b699acb509a02439ac0d4a37c25e7085a8c8c8

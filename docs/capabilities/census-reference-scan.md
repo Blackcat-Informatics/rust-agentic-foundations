@@ -18,6 +18,7 @@ bindings:
     - raf_source::workspace::locked::reference
     - raf_census::ReferenceSource
     - raf_census::ReferenceWitness
+    - raf_census::ReferenceConstantRow
     - raf_census::ExternalReference
     - raf_census::Gate::external_references
     - raf_census::gate::reference::external
@@ -36,6 +37,10 @@ bindings:
     - raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name
     - raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions
     - raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding
+    - raf_census::test_crate::reference_scan::large_constants_shared_with_a_reference_cross_the_boundary_by_value
+    - raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows
+    - raf_census::test_crate::reference_scan::a_constant_held_only_by_two_reference_packages_has_no_row
+    - raf_census::test_crate::reference_scan::external_references_report_cross_boundary_constants_like_a_lock_selected_one
     - raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference
     - raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit
     - raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree
@@ -178,10 +183,16 @@ enforced counts its classified copies as job debt under the debt ratchet
 instead.
 
 ### Closed native evidence
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::large_constants_shared_with_a_reference_cross_the_boundary_by_value,raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,raf_census::test_crate::reference_scan::a_constant_held_only_by_two_reference_packages_has_no_row,raf_census::test_crate::reference_scan::external_references_report_cross_boundary_constants_like_a_lock_selected_one -->
 
 Report form 5 carries source receipts, qualified reference units and full
-cross-boundary fingerprint witnesses. Every job occurrence resolves to an indexed
+cross-boundary fingerprint witnesses. It also carries each
+cross-boundary shared constant: an integer constant strictly above `0xffff` that
+at least one first-party unit and at least one reference unit both hold, compared
+by value in any spelling, listed with its first-party and reference members. A
+value held only by first-party units stays in the baseline shared constants, and a
+value held only by reference units, or at or below the threshold, is not reported.
+An index without such a constant has no such row. Every job occurrence resolves to an indexed
 unit. Native Index queries retain the selected occurrences and incident witness,
 endpoint and source closure. Reference units cannot receive a COPY role or enter
 a first-party structural group. Migrating form 4 preserves its ordinary
@@ -294,7 +305,7 @@ colliding in a report.
 Owned fixtures cover inherited renamed path dependencies, workspace-member
 selection, family selection with a matching member, lock growth, empty and
 malformed families and overlapping selectors, unhomed reference copies, body and shim copies, multiple reference witnesses with one consumer
-count, changed-body neighbors and reference isolation from group debt. Native
+count, changed-body neighbors and reference isolation from group debt. Fixtures also cover a constant shared across spellings, the threshold itself, a constant held only by two reference packages, pinned and unpinned external references that report the same rows as a lock-selected one, and a member listed on the wrong side of the boundary. Native
 round trips and queries preserve full receipts and witnesses. Closed readers
 reject package/receipt disagreement, invalid source-relative manifests and
 witnesses unrelated to the original selection. Source fixtures compare invalid
@@ -312,13 +323,17 @@ refusal with a valid commit or pin key.
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
 | `cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_census::example_crate::references` | example target | [Usage](#usage) |
+| `raf_census::test_crate::reference_scan::a_constant_held_only_by_two_reference_packages_has_no_row` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
+| `raf_census::test_crate::reference_scan::external_references_report_cross_boundary_constants_like_a_lock_selected_one` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::reference_scan::large_constants_shared_with_a_reference_cross_the_boundary_by_value` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count` | test | [Purpose](#purpose), [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference` | test | [Contract](#contract) |

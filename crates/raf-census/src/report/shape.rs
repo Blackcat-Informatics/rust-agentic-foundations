@@ -535,6 +535,7 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
         scope: scope(&root)?,
         reference_sources: Vec::new(),
         reference_witnesses: Vec::new(),
+        reference_constants: Vec::new(),
         units: Vec::new(),
         groups: Vec::new(),
         jobs: Vec::new(),
@@ -544,6 +545,9 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
             "ReferenceSource" => report
                 .reference_sources
                 .push(super::reference::read_source(&node)?),
+            "ReferenceConstant" => report
+                .reference_constants
+                .push(super::reference::read_constant(graph, &node)?),
             "ReferenceWitness" => report
                 .reference_witnesses
                 .push(super::reference::read_witness(graph, &node, nf)?),
@@ -616,6 +620,7 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
             .then(a.fingerprint.cmp(&b.fingerprint))
     });
     report.jobs.sort_by(|a, b| a.id.cmp(&b.id));
+    report.reference_constants.sort_by_key(|row| row.value);
     Ok(report)
 }
 
@@ -630,8 +635,8 @@ mod tests {
 
     fn with_reference_fixture(index: &Graph) -> Graph {
         let tree = reference_fixture::fixture(
-            "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
-            "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
+            "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+65536 }",
+            "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+65536 } }",
         );
         let report = crate::Gate::workspace(".").check_tree(&tree).unwrap();
         let reference = report.census().index(report.jobs()).unwrap();

@@ -24,7 +24,7 @@ pub use ledger::{
     MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
 };
 pub use query::{Query, QueryReport};
-pub use reference::{ReferenceSource, ReferenceWitness};
+pub use reference::{ReferenceConstantRow, ReferenceSource, ReferenceWitness};
 pub use upgrade::{ReportKind, upgrade_report_form};
 pub use vocab::REPORT_FORM;
 
@@ -194,6 +194,9 @@ pub struct Index {
     pub reference_sources: Vec<ReferenceSource>,
     /// Every full-fingerprint cross-boundary match, independently of job counts.
     pub reference_witnesses: Vec<ReferenceWitness>,
+    /// Every large integer constant held by a first-party unit and a reference
+    /// unit, by value; empty when no reference package was scanned.
+    pub reference_constants: Vec<ReferenceConstantRow>,
     /// Every unit, ordered by symbol, then file, then line.
     pub units: Vec<IndexUnit>,
     /// Every group, in the order of [`Census::groups`].
@@ -342,6 +345,15 @@ impl Census {
             scope: self.options().scope.clone(),
             reference_sources: self.reference_sources.clone(),
             reference_witnesses: self.reference_witnesses.clone(),
+            reference_constants: self
+                .reference_constants
+                .iter()
+                .map(|c| ReferenceConstantRow {
+                    value: c.value,
+                    first_party: rows(&c.first_party),
+                    reference: rows(&c.reference),
+                })
+                .collect(),
             units,
             groups: self
                 .groups()

@@ -506,6 +506,8 @@ impl<'a> References<'a> {
             }
         }
         census.reference_witnesses = witness::collect(census.units(), &by_print, limits)?;
+        census.reference_constants =
+            crate::group::cross_boundary_constants(census.units(), &census.reference_raw_units);
         Ok(())
     }
 

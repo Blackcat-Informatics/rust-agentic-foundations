@@ -753,6 +753,105 @@ fn family_selector_refuses_a_name_with_two_reachable_versions() {
     );
 }
 
+/// A large constant held on both sides of the reference boundary is a
+/// cross-boundary shared constant by value, whatever its spelling; a value at
+/// or below the threshold, or held only by reference units, is not, and
+/// first-party grouping is untouched.
+#[test]
+fn large_constants_shared_with_a_reference_cross_the_boundary_by_value() {
+    let tree = fixture(
+        "pub fn mix(seed:u64)->u64 { seed ^ 0x1_0000u32 as u64 ^ 0xffff ^ 0xABCD_1234_5678 }\npub fn other()->u64 { 0x1_0000 }",
+        "pub mod api { pub fn hash()->u64 { 65_536 ^ 65535 ^ 0xabcd12345678 } pub fn salt()->u64 { 0xdead_beef_u64 } pub fn pepper()->u64 { 3735928559 } }",
+    );
+    let report = Gate::workspace(".").check_tree(&tree).unwrap();
+    let index = report.census().index(report.jobs()).unwrap();
+    let rows: Vec<_> = index
+        .reference_constants
+        .iter()
+        .map(|row| {
+            (
+                row.value,
+                row.first_party
+                    .iter()
+                    .map(|m| m.symbol.as_str())
+                    .collect::<Vec<_>>(),
+                row.reference
+                    .iter()
+                    .map(|m| m.symbol.as_str())
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (
+                65_536,
+                vec!["app::mix", "app::other"],
+                vec!["helper::api::hash"]
+            ),
+            (
+                0xabcd_1234_5678,
+                vec!["app::mix"],
+                vec!["helper::api::hash"]
+            ),
+        ]
+    );
+    // Reference-only values and the threshold itself never appear, and the
+    // first-party shared-constant list is unchanged.
+    assert_eq!(report.census().baseline().shared_constants, []);
+    let encoded = index.to_ntriples().unwrap();
+    assert_eq!(Index::from_ntriples(&encoded).unwrap(), index);
+    reject_misplaced_constant_members(&encoded);
+}
+
+fn reject_misplaced_constant_members(encoded: &str) {
+    let original = Graph::from_text(encoded, Format::NTriples).unwrap();
+    let first_party = format!("{}firstPartyMember", vocab::REPORT);
+    let reference = format!("{}referenceMember", vocab::REPORT);
+    let row = original
+        .assertions()
+        .find(|triple| triple.predicate == TermValue::iri(&first_party))
+        .unwrap();
+    let wrong = original
+        .assertions()
+        .find(|triple| triple.predicate == TermValue::iri(&reference))
+        .unwrap();
+    let mut swapped = Builder::from_graph(&original);
+    assert!(swapped.remove(row.clone()).unwrap());
+    swapped
+        .insert(Triple {
+            predicate: TermValue::iri(&first_party),
+            object: wrong.object,
+            ..row
+        })
+        .unwrap();
+    let text = swapped.finish().unwrap().to_text(Format::NTriples).unwrap();
+    let error = Index::from_ntriples(&text).unwrap_err().to_string();
+    assert!(
+        error.contains("own side of the reference boundary"),
+        "{error}"
+    );
+}
+
+/// An index with no reference package carries no constant row and no new
+/// property, so its bytes are those of the previous layout.
+#[test]
+fn an_index_without_a_reference_has_no_reference_constant_rows() {
+    let tree = raf_source::MemoryTree::from([
+        ("Cargo.toml", "[workspace]\nmembers=['app']\n"),
+        (
+            "app/Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("app/src/lib.rs", "pub fn mix()->u64 { 0x1_0000 }"),
+    ]);
+    let census =
+        raf_census::Census::load(&tree, &["."], &raf_census::CensusOptions::default()).unwrap();
+    let text = census.index(&[]).unwrap().to_ntriples().unwrap();
+    assert!(!text.contains("ReferenceConstant") && !text.contains("Member"));
+}
+
 /// The consumer of the external-reference cases: `copy` repeats the
 /// `upstream` body committed first, and `extra` repeats only the body that a
 /// later dirty checkout of that repository holds.
@@ -1044,4 +1143,120 @@ fn unpinned_directory_finds_the_same_copies_and_labels_every_receipt() {
         "{findings}"
     );
     assert!(!ws.join(raf_census::DEBT_FILE).exists());
+}
+
+/// The cross-boundary constants of a report as `(value, first-party symbols,
+/// reference symbols)`.
+fn constant_rows(report: &raf_census::GateReport) -> Vec<(u128, Vec<String>, Vec<String>)> {
+    let index = report.census().index(report.jobs()).unwrap();
+    let symbols = |rows: &[raf_census::MemberRow]| {
+        rows.iter()
+            .map(|row| row.symbol.clone())
+            .collect::<Vec<_>>()
+    };
+    index
+        .reference_constants
+        .iter()
+        .map(|row| {
+            (
+                row.value,
+                symbols(&row.first_party),
+                symbols(&row.reference),
+            )
+        })
+        .collect()
+}
+
+/// A value that only reference units hold never appears, however many
+/// reference packages hold it, while a value a first-party unit shares with
+/// one of them does.
+#[test]
+fn a_constant_held_only_by_two_reference_packages_has_no_row() {
+    let fixture = family_fixture(
+        &["acme-*"],
+        &["acme-a", "acme-b"],
+        "pub fn local()->u64 { 0x1_0000 }",
+    );
+    let vendor = |name: &str| fixture.path().join(format!("vendor/{name}-1.0.0"));
+    files::write(
+        &vendor("acme-a"),
+        &[("src/lib.rs", "pub fn a()->u64 { 0xdead_beef ^ 65_536 }")],
+    );
+    files::write(
+        &vendor("acme-b"),
+        &[("src/lib.rs", "pub fn b()->u64 { 3735928559 }")],
+    );
+    let report = Gate::workspace(fixture.path().join("ws")).check().unwrap();
+    assert_eq!(
+        report
+            .census()
+            .index(report.jobs())
+            .unwrap()
+            .reference_sources
+            .len(),
+        2
+    );
+    assert_eq!(
+        constant_rows(&report),
+        [(
+            65_536,
+            vec!["app::local".to_owned()],
+            vec!["acme_a::a".to_owned()]
+        )]
+    );
+}
+
+/// An external reference, pinned or unpinned, yields the same cross-boundary
+/// constant rows as the same package selected through the lock graph.
+#[test]
+fn external_references_report_cross_boundary_constants_like_a_lock_selected_one() {
+    const CONSUMER: &str = "pub fn local()->u64 { 0x1_0000u32 as u64 ^ 0xffff }";
+    const LIBRARY: &str = "pub fn provided()->u64 { 65_536 ^ 65535 }";
+    let locked = workspace_fixture(&["upstream"], "acme-member", &["upstream"], CONSUMER);
+    files::write(
+        &locked.path().join("vendor/upstream-1.0.0"),
+        &[("src/lib.rs", LIBRARY)],
+    );
+    let expected = constant_rows(&Gate::workspace(locked.path().join("ws")).check().unwrap());
+    assert_eq!(
+        expected,
+        [(
+            65_536,
+            vec!["app::local".to_owned()],
+            vec!["upstream::provided".to_owned()]
+        )]
+    );
+
+    let fixture = workspace_fixture(&[], "acme-member", &[], CONSUMER);
+    let repository = fixture.path().join("upstream");
+    git_repo::init(&repository);
+    files::write(
+        &repository,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='upstream'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            ("src/lib.rs", LIBRARY),
+        ],
+    );
+    let commit = git_repo::commit_all(&repository);
+    let ws = fixture.path().join("ws");
+    let pinned = external_report(&ws, ExternalReference::commit(&repository, &commit));
+    assert_eq!(constant_rows(&pinned), expected);
+    let unpinned = external_report(&ws, ExternalReference::unpinned(&repository));
+    assert_eq!(constant_rows(&unpinned), expected);
+    let encoded = unpinned
+        .census()
+        .index(unpinned.jobs())
+        .unwrap()
+        .to_ntriples()
+        .unwrap();
+    assert_eq!(
+        Index::from_ntriples(&encoded)
+            .unwrap()
+            .reference_constants
+            .len(),
+        1
+    );
 }
