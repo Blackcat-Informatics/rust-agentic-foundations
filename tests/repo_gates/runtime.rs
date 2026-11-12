@@ -186,17 +186,28 @@ fn runtime_refuses_launches_aliases_and_hidden_macro_paths() {
     );
 }
 
-/// Lines of a manifest that list `raf-fixtures` in a table other than
-/// `[dev-dependencies]`.
+/// Entries of a manifest that make `raf-fixtures` a dependency outside
+/// `[dev-dependencies]`, in the inline or the table form. A manifest that
+/// declares `publish = false` ships nothing and may use it as an ordinary
+/// dependency.
 fn shipped_fixture_dependencies(manifest: &str) -> Vec<String> {
+    if manifest
+        .lines()
+        .any(|line| line.trim() == "publish = false")
+    {
+        return Vec::new();
+    }
     let mut table = "";
     let mut found = Vec::new();
     for line in manifest.lines() {
         let line = line.trim();
         if line.starts_with('[') {
             table = line;
+            if table.contains("dependencies.raf-fixtures") && !table.contains("dev-dependencies") {
+                found.push(table.to_owned());
+            }
         } else if line.starts_with("raf-fixtures")
-            && table.contains("dependencies")
+            && table.ends_with("dependencies]")
             && !table.contains("dev-dependencies")
         {
             found.push(format!("{table} {line}"));
@@ -211,12 +222,13 @@ fn no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies() 
     let mut inspected = 0;
     for path in tracked_paths() {
         let text_path = path.to_string_lossy();
-        let parts: Vec<_> = text_path.split('/').collect();
-        if parts.len() != 3
-            || parts[0] != "crates"
-            || parts[1] == "raf-fixtures"
-            || parts[2] != "Cargo.toml"
-        {
+        let manifest = text_path == "Cargo.toml"
+            || text_path == "fuzz/Cargo.toml"
+            || (text_path.starts_with("crates/")
+                && text_path.ends_with("/Cargo.toml")
+                && text_path.matches('/').count() == 2
+                && text_path != "crates/raf-fixtures/Cargo.toml");
+        if !manifest {
             continue;
         }
         let bytes = read_tracked(&root, &path);
@@ -229,21 +241,33 @@ fn no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies() 
         );
         inspected += 1;
     }
-    assert!(inspected > 0, "no crate manifest was inspected");
+    assert!(inspected > 7, "the manifests were not inspected");
 }
 
 #[test]
-fn a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_form() {
+fn a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms() {
+    let inline = "[dependencies]\nraf-fixtures = { path = \"../raf-fixtures\" }\n";
+    let table = "[build-dependencies.raf-fixtures]\npath = \"../raf-fixtures\"\n";
+    let target = "[target.'cfg(unix)'.dependencies]\nraf-fixtures = { path = \"x\" }\n";
     assert_eq!(
-        shipped_fixture_dependencies(
-            "[dependencies]\nraf-fixtures = { path = \"../raf-fixtures\" }\n"
-        ),
+        shipped_fixture_dependencies(inline),
         ["[dependencies] raf-fixtures = { path = \"../raf-fixtures\" }"]
     );
     assert_eq!(
-        shipped_fixture_dependencies(
-            "[dev-dependencies]\nraf-fixtures = { path = \"../raf-fixtures\" }\n"
-        ),
-        Vec::<String>::new()
+        shipped_fixture_dependencies(table),
+        ["[build-dependencies.raf-fixtures]"]
     );
+    assert_eq!(shipped_fixture_dependencies(target).len(), 1);
+    // Accepted: a dev-dependency in either form, and any dependency of an
+    // unpublished manifest such as the fuzz harness or the root package.
+    for accepted in [
+        "[dev-dependencies]\nraf-fixtures = { path = \"../raf-fixtures\" }\n".to_owned(),
+        "[dev-dependencies.raf-fixtures]\npath = \"../raf-fixtures\"\n".to_owned(),
+        format!("[package]\npublish = false\n{inline}"),
+    ] {
+        assert_eq!(
+            shipped_fixture_dependencies(&accepted),
+            Vec::<String>::new()
+        );
+    }
 }

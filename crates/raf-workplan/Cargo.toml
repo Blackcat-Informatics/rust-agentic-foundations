@@ -30,7 +30,7 @@ raf-source = { path = "../raf-source", version = "0.2.0" }
 raf-rdf = { path = "../raf-rdf", version = "0.2.0" }
 
 [dev-dependencies]
-raf-fixtures = { path = "../raf-fixtures", version = "0.2.0" }
+raf-fixtures = { path = "../raf-fixtures" }
 purrdf-testkit.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]

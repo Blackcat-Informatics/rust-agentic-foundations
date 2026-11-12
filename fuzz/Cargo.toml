@@ -25,7 +25,7 @@ libfuzzer-sys = "0.4"
 raf-okf = { path = "../crates/raf-okf", version = "0.2.0" }
 raf-source = { path = "../crates/raf-source", version = "0.2.0" }
 raf-census = { path = "../crates/raf-census", version = "0.2.0" }
-raf-fixtures = { path = "../crates/raf-fixtures", version = "0.2.0" }
+raf-fixtures = { path = "../crates/raf-fixtures" }
 proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
 purrdf-rdf = { version = "=4" }
 

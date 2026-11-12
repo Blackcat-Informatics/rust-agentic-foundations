@@ -14,7 +14,7 @@ bindings:
     - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority
     - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths
     - rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies
-    - rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_form
+    - rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms
     - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
     - rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling
     - rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory
@@ -152,7 +152,7 @@ only in the private CLI operation and cannot be granted by repository content.
 Two files of the unpublished `raf-fixtures` crate run Git in scratch repositories for
 tests and are the only exemption; a gate requires that no crate lists `raf-fixtures`
 outside its `[dev-dependencies]`.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority,rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths,rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies,rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_form -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority,rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths,rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies,rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms -->
 
 **Bounded CI.** Every workflow job declares an integer `timeout-minutes` from
 one through nine, reserving execution headroom below a ten-minute job ceiling.
@@ -463,7 +463,7 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::python::python_tracked_files_are_forbidden` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_form` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths` | test | [Contract](#contract) |
