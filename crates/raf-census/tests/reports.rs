@@ -126,18 +126,30 @@ fn census_vocabulary_reports() -> Vec<String> {
     ]
 }
 
-fn reference_report() -> String {
+fn reference_index() -> Index {
     let tree = reference::fixture(
         "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
         "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
     );
     let report = raf_census::Gate::workspace(".").check_tree(&tree).unwrap();
-    report
-        .census()
-        .index(report.jobs())
-        .unwrap()
-        .to_ntriples()
-        .unwrap()
+    report.census().index(report.jobs()).unwrap()
+}
+
+fn reference_report() -> String {
+    reference_index().to_ntriples().unwrap()
+}
+
+/// The job and fingerprint queries of the reference index, which carry its
+/// reference sources and witnesses.
+fn reference_queries() -> Vec<String> {
+    let index = reference_index();
+    [
+        raf_census::Query::Job("arithmetic"),
+        raf_census::Query::Fingerprint("app::copy"),
+    ]
+    .into_iter()
+    .map(|query| index.query(query).unwrap().to_ntriples().unwrap())
+    .collect()
 }
 
 fn shared_constant_report() -> String {
@@ -925,15 +937,90 @@ fn an_absolute_directory_reports_the_same_as_the_relative_spelling() {
     identical_report_bytes(&absolute, &builtin::of(&tree, "crates").expect("relative"));
 }
 
-/// A ledger whose root states a grouping scope, with a job and its sanctioned
-/// variant, so that each core Ledger class carries a node.
-fn scoped_ledger() -> String {
+/// A ledger with one node of every engine-owned Ledger class and a grouping
+/// scope on its root. The job's extension root reaches one consumer node.
+fn declared_ledger() -> String {
+    let text = TermValue::simple_literal;
+    let link = TermValue::iri;
+    let consumer = |name: &str| format!("https://consumer.example/{name}");
+    let facts = [
+        ("", "type", property("Ledger")),
+        (
+            "",
+            "normalForm",
+            TermValue::integer(i128::from(raf_census::NORMAL_FORM)),
+        ),
+        (
+            "",
+            "reportForm",
+            TermValue::integer(i128::from(raf_census::REPORT_FORM)),
+        ),
+        ("", "excludeTestItems", TermValue::boolean(true)),
+        ("", "excludeDir", text("generated")),
+        ("", "job", link("#job")),
+        ("", "distinct", link("#distinct")),
+        ("", "pattern", link("#pattern")),
+        ("#job", "type", property("LedgerJob")),
+        ("#job", "jobId", text("sum")),
+        ("#job", "summary", text("One summing helper")),
+        ("#job", "homeSymbol", text("demo::alpha")),
+        ("#job", "enforced", TermValue::boolean(true)),
+        ("#job", "forbiddenPattern", text("approved-call")),
+        ("#job", "variant", link("#job/variant")),
+        ("#job", "preferredProvider", link("#job/provider")),
+        ("#job", "extension", link("#job/extension")),
+        ("#job/variant", "type", property("Variant")),
+        ("#job/variant", "symbol", text("demo::beta")),
+        ("#job/variant", "file", text("src/lib.rs")),
+        ("#job/variant", "detector", text("body")),
+        ("#job/variant", "criterion", text("A sanctioned copy")),
+        ("#job/variant", "reason", text("It differs on purpose")),
+        (
+            "#job/variant",
+            "anchor",
+            link("https://example.org/docs#variant"),
+        ),
+        ("#job/provider", "type", property("PreferredProvider")),
+        ("#job/provider", "package", text("demo-provider")),
+        ("#job/provider", "entryPoint", text("demo_provider::sum")),
+        ("#job/provider", "consumer", text("demo::alpha")),
+        ("#job/extension", "type", property("Extension")),
+        (
+            "#job/extension",
+            &consumer("item"),
+            link("#job/extension/item"),
+        ),
+        ("#job/extension/item", &consumer("setting"), text("kept")),
+        ("#pattern", "type", property("Pattern")),
+        ("#pattern", "patternId", text("approved-call")),
+        ("#pattern", "summary", text("The approved operation")),
+        ("#pattern", "call", text("demo::alpha")),
+        ("#distinct", "type", property("Distinct")),
+        ("#distinct", "kind", text("body")),
+        ("#distinct", "memberSymbol", text("demo::a")),
+        ("#distinct", "memberSymbol", text("demo::b")),
+        ("#distinct", "multiplicity", link("#distinct/a")),
+        ("#distinct", "criterion", text("layering")),
+        (
+            "#distinct",
+            "reason",
+            text("Separate target implementations"),
+        ),
+        (
+            "#distinct",
+            "anchor",
+            link("https://example.org/docs#distinct"),
+        ),
+        ("#distinct/a", "type", property("MemberMultiplicity")),
+        ("#distinct/a", "symbol", text("demo::a")),
+        ("#distinct/a", "copies", TermValue::integer(2)),
+    ];
     let mut graph = Builder::new();
-    let mut put = |node: &str, key: &str, object: TermValue| {
-        let predicate = if key == "type" {
-            TermValue::iri(vocab::TYPE)
-        } else {
-            property(key)
+    for (node, key, object) in facts {
+        let predicate = match key {
+            "type" => TermValue::iri(vocab::TYPE),
+            _ if key.starts_with("https:") => TermValue::iri(key),
+            _ => property(key),
         };
         graph
             .insert(Triple {
@@ -942,52 +1029,65 @@ fn scoped_ledger() -> String {
                 object,
             })
             .unwrap();
-    };
-    put("", "type", property("Ledger"));
-    put(
-        "",
-        "normalForm",
-        TermValue::integer(i128::from(raf_census::NORMAL_FORM)),
-    );
-    put(
-        "",
-        "reportForm",
-        TermValue::integer(i128::from(raf_census::REPORT_FORM)),
-    );
-    put("", "excludeTestItems", TermValue::boolean(true));
-    put("", "excludeDir", TermValue::simple_literal("generated"));
-    put("", "job", TermValue::iri("#job"));
-    put("#job", "type", property("LedgerJob"));
-    for (key, value) in [
-        ("jobId", "sum"),
-        ("summary", "One summing helper"),
-        ("homeSymbol", "demo::alpha"),
-    ] {
-        put("#job", key, TermValue::simple_literal(value));
     }
-    put("#job", "enforced", TermValue::boolean(true));
-    put("#job", "variant", TermValue::iri("#job/variant"));
-    put("#job/variant", "type", property("Variant"));
-    for (key, value) in [
-        ("symbol", "demo::beta"),
-        ("file", "src/lib.rs"),
-        ("detector", "body"),
-        ("criterion", "A sanctioned copy"),
-        ("reason", "It differs on purpose"),
-    ] {
-        put("#job/variant", key, TermValue::simple_literal(value));
-    }
-    put(
-        "#job/variant",
-        "anchor",
-        TermValue::iri("https://example.org/docs#variant"),
-    );
     graph.finish().unwrap().to_text(Format::NTriples).unwrap()
+}
+
+/// Every node class each reader admits, keyed by the census class of the
+/// record root that selects the reader: each row of the report shape table
+/// under every reader whose report kind the row applies to, by the rule the
+/// readers validate with, and each class of the Ledger field table under the
+/// Ledger reader.
+fn reader_classes() -> std::collections::BTreeSet<(&'static str, &'static str)> {
+    use raf_census::report::vocab::{LEDGER_FIELDS, SHAPES};
+    const READERS: [(&str, &str); 6] = [
+        ("baseline", "Baseline"),
+        ("index", "Index"),
+        ("job-query", "JobQuery"),
+        ("count-query", "CountQuery"),
+        ("fingerprint-query", "FingerprintQuery"),
+        ("debt", "DebtRecord"),
+    ];
+    let mut classes = std::collections::BTreeSet::new();
+    for shape in SHAPES {
+        assert!(
+            shape.report == "both" || READERS.iter().any(|(kind, _)| *kind == shape.report),
+            "no reader for the {} shape rows",
+            shape.report
+        );
+        for (kind, reader) in READERS {
+            if shape.applies_to(kind) {
+                classes.insert((reader, shape.class));
+            }
+        }
+    }
+    for (class, _) in LEDGER_FIELDS {
+        classes.insert(("Ledger", *class));
+    }
+    classes
+}
+
+/// The census class a node states, if any.
+fn census_class(node: &raf_rdf::Node<'_>) -> Option<String> {
+    node.values(vocab::TYPE)
+        .next()
+        .and_then(raf_rdf::Value::iri)
+        .and_then(|iri| iri.strip_prefix(vocab::REPORT))
+        .map(str::to_owned)
+}
+
+/// Read `text` with the Ledger reader, in `format`.
+fn read_ledger(text: &str, format: Format) -> Result<raf_census::Ledger, Error> {
+    if format == Format::Turtle {
+        raf_census::Ledger::from_turtle(text)
+    } else {
+        raf_census::Ledger::from_ntriples(text)
+    }
 }
 
 /// Read `text` with the reader of its root class, in `format`.
 fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
-    use raf_census::{DebtRecord, Ledger, QueryReport};
+    use raf_census::{DebtRecord, QueryReport};
     let turtle = format == Format::Turtle;
     match class {
         "Baseline" if turtle => Baseline::from_turtle(text).map(drop),
@@ -996,8 +1096,7 @@ fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
         "Index" => Index::from_ntriples(text).map(drop),
         "DebtRecord" if turtle => DebtRecord::from_turtle(text).map(drop),
         "DebtRecord" => DebtRecord::from_ntriples(text).map(drop),
-        "Ledger" if turtle => Ledger::from_turtle(text).map(drop),
-        "Ledger" => Ledger::from_ntriples(text).map(drop),
+        "Ledger" => read_ledger(text, format).map(drop),
         "JobQuery" | "CountQuery" | "FingerprintQuery" if turtle => {
             QueryReport::from_turtle(text).map(drop)
         }
@@ -1008,10 +1107,9 @@ fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
     }
 }
 
-/// `text` with one more assertion of `predicate` on `subject`.
-fn with_assertion(text: &str, format: Format, subject: &str, predicate: &str) -> String {
-    let original = Graph::from_text(text, format).unwrap();
-    let mut graph = Builder::from_graph(&original);
+/// The record of `graph` with one more assertion of `predicate` on `subject`.
+fn with_assertion(graph: &Graph, format: Format, subject: &str, predicate: &str) -> String {
+    let mut graph = Builder::from_graph(graph);
     graph
         .insert(Triple {
             subject: TermValue::iri(subject),
@@ -1022,51 +1120,131 @@ fn with_assertion(text: &str, format: Format, subject: &str, predicate: &str) ->
     graph.finish().unwrap().to_text(format).unwrap()
 }
 
+/// A node inside a job's extension belongs to the consumer: the Ledger reader
+/// accepts any property on it and hands it unchanged to the consumer's
+/// validator through the extension graph.
+fn consumer_content_passes_unchanged(
+    graph: &Graph,
+    format: Format,
+    subject: &str,
+    predicates: &[&str],
+) {
+    for predicate in predicates {
+        let edited = with_assertion(graph, format, subject, predicate);
+        let ledger = read_ledger(&edited, format)
+            .expect("consumer content is outside the engine vocabulary");
+        let node = ledger
+            .extension("#job/extension")
+            .and_then(|extension| extension.get(subject))
+            .expect("the extension owns the consumer subject");
+        assert!(
+            node.values(predicate).next().is_some(),
+            "<{subject}> {predicate} reaches the consumer's validator"
+        );
+    }
+}
+
+/// The layout conversion of `kind` converts the prior layout of `text` and
+/// refuses it by name once it states `added`.
+fn prior_layout_converts_and_refuses(
+    kind: raf_census::ReportKind,
+    text: &str,
+    format: Format,
+    added: &str,
+) {
+    use raf_census::{MigrationInput, upgrade_report_form};
+    let convert = |text: &str| {
+        upgrade_report_form(
+            kind,
+            MigrationInput {
+                path: "prior",
+                text,
+            },
+            format,
+        )
+    };
+    let prior = layout::form3(text, format);
+    assert!(
+        convert(&prior).is_ok(),
+        "{kind:?}: the prior layout converts"
+    );
+    let edited = with_assertion(
+        &Graph::from_text(&prior, format).unwrap(),
+        format,
+        "",
+        added,
+    );
+    let error = format!("{:?}", convert(&edited).unwrap_err());
+    assert!(error.contains("excludeVendoredItems"), "{kind:?}: {error}");
+}
+
 /// An optional property added within one report form, absent at its default,
 /// is safe only because a reader that predates it refuses a record stating it
 /// rather than ignoring it. Every reader at the current form, the ledger,
 /// baseline, index, debt and query readers in both formats and the layout
-/// conversion, refuses a property outside its vocabulary on any node, by its
-/// name, while the same record without it reads.
+/// conversion, refuses a census-namespace property and a foreign one outside
+/// its vocabulary by name, while the same record without it reads. Every node
+/// of a class passes through the same validation, so one node of each class
+/// that a reader admits takes the injection, once per format, and the classes
+/// injected must equal those each reader admits: the shape table rows under
+/// the applicability rule the readers validate with, and the Ledger field
+/// table. Nodes inside a job's extension are the consumer's and pass to its
+/// validator unchanged.
 #[test]
 fn every_report_reader_refuses_a_property_outside_its_vocabulary_by_name() {
-    use raf_census::{MigrationInput, ReportKind, upgrade_report_form};
+    use raf_census::ReportKind;
     let added = format!("{}excludeVendoredItems", vocab::REPORT);
     let foreign = "https://foreign.example/scope";
-    let mut classes = std::collections::BTreeSet::new();
+    let unknown = [(added.as_str(), "excludeVendoredItems"), (foreign, foreign)];
     let mut records = census_vocabulary_reports();
-    records.push(scoped_ledger());
-    for record in records {
-        for format in [Format::Turtle, Format::NTriples] {
-            let text = Graph::from_text(&record, Format::NTriples)
+    records.extend(reference_queries());
+    records.push(declared_ledger());
+    let mut per_format = Vec::new();
+    for format in [Format::Turtle, Format::NTriples] {
+        // One injection per reader and node class, and one layout conversion
+        // per report kind: a record repeating a class adds no parse, so the
+        // parses grow with the classes and not with the nodes of a record.
+        let mut injected = std::collections::BTreeSet::new();
+        let mut consumer_nodes = 0;
+        let mut upgraded = Vec::new();
+        for record in &records {
+            let text = Graph::from_text(record, Format::NTriples)
                 .unwrap()
                 .to_text(format)
                 .unwrap();
             let graph = Graph::from_text(&text, format).unwrap();
-            let root = graph.get("").expect("a record has a root");
-            let class = root
-                .values(vocab::TYPE)
-                .next()
-                .and_then(raf_rdf::Value::iri)
-                .and_then(|iri| iri.strip_prefix(vocab::REPORT))
-                .expect("a root has a census class")
-                .to_owned();
-            read_record(&class, &text, format).expect("the valid neighbour reads");
-            for (subject, _) in graph.nodes() {
-                for (predicate, name) in
-                    [(added.as_str(), "excludeVendoredItems"), (foreign, foreign)]
-                {
-                    let edited = with_assertion(&text, format, &subject, predicate);
-                    let error = read_record(&class, &edited, format)
+            let reader = census_class(&graph.get("").expect("a record has a root"))
+                .expect("a root has a census class");
+            read_record(&reader, &text, format).expect("the valid neighbour reads");
+            for (subject, node) in graph.nodes() {
+                let class = census_class(&node);
+                let consumer = class.as_deref().is_none_or(|class| class == "Extension");
+                if reader == "Ledger" && consumer {
+                    consumer_content_passes_unchanged(
+                        &graph,
+                        format,
+                        &subject,
+                        &[added.as_str(), foreign],
+                    );
+                    consumer_nodes += 1;
+                    continue;
+                }
+                let class = class.expect("an engine node states its census class");
+                if !injected.insert((reader.clone(), class.clone())) {
+                    continue;
+                }
+                for (predicate, name) in unknown {
+                    let edited = with_assertion(&graph, format, &subject, predicate);
+                    let error = read_record(&reader, &edited, format)
                         .expect_err("a property outside the vocabulary refuses")
                         .to_string();
                     assert!(
                         error.contains(name),
-                        "{class} <{subject}> {predicate}: {error}"
+                        "{reader} {class} <{subject}> {predicate}: {error}"
                     );
                 }
             }
-            let kind = match class.as_str() {
+            let kind = match reader.as_str() {
                 "Baseline" => Some(ReportKind::Baseline),
                 // A prior layout cannot carry reference observations.
                 "Index" if !text.contains("ReferenceSource") => Some(ReportKind::Index),
@@ -1074,39 +1252,28 @@ fn every_report_reader_refuses_a_property_outside_its_vocabulary_by_name() {
                 "Ledger" => Some(ReportKind::Ledger),
                 _ => None,
             };
-            if let Some(kind) = kind {
-                let convert = |text: &str| {
-                    upgrade_report_form(
-                        kind,
-                        MigrationInput {
-                            path: "prior",
-                            text,
-                        },
-                        format,
-                    )
-                };
-                let prior = layout::form3(&text, format);
-                assert!(
-                    convert(&prior).is_ok(),
-                    "{class}: the prior layout converts"
-                );
-                let edited = with_assertion(&prior, format, "", &added);
-                let error = format!("{:?}", convert(&edited).unwrap_err());
-                assert!(error.contains("excludeVendoredItems"), "{class}: {error}");
+            if let Some(kind) = kind.filter(|kind| !upgraded.contains(kind)) {
+                upgraded.push(kind);
+                prior_layout_converts_and_refuses(kind, &text, format, &added);
             }
-            classes.insert(class);
         }
+        assert_eq!(
+            consumer_nodes, 2,
+            "the extension root and its consumer node"
+        );
+        assert_eq!(upgraded.len(), 4, "every convertible report kind");
+        let expected: std::collections::BTreeSet<_> = reader_classes()
+            .into_iter()
+            .map(|(reader, class)| (reader.to_owned(), class.to_owned()))
+            .collect();
+        assert_eq!(
+            injected, expected,
+            "{format:?}: the injected classes are exactly the classes each reader admits"
+        );
+        per_format.push(injected);
     }
     assert_eq!(
-        classes.into_iter().collect::<Vec<_>>(),
-        [
-            "Baseline",
-            "CountQuery",
-            "DebtRecord",
-            "FingerprintQuery",
-            "Index",
-            "JobQuery",
-            "Ledger"
-        ]
+        per_format[0], per_format[1],
+        "both formats inject the same classes"
     );
 }

@@ -497,7 +497,10 @@ reordered or renamed term, or a changed default.
 
 The rule is sound only because every reader refuses what it does not know. The
 Ledger, Baseline, Index, DebtRecord and query readers refuse a property outside
-their vocabulary by name and never ignore it. A record that omits an added
+their vocabulary by name and never ignore it. The nodes a ledger job's
+`extension` reaches are not engine vocabulary: they belong to the consumer and
+pass unchanged to the consumer's validator. An added engine property therefore
+never lands on a node that a reader passes through unread. A record that omits an added
 property keeps the bytes an earlier reader of the same form accepts. A record
 that states it is refused by that earlier reader as an unknown predicate naming
 the property, not with the report-form message. The grouping-scope properties

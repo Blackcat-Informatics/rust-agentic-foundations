@@ -173,7 +173,10 @@ excludeDir directory names set the grouping scope of the census normal form;
 false, a path or a dot name refuses. Excluded items stay units and leave only
 body and shim grouping and the group debt it produces; jobs, sanctions and
 detectors still see them, and a job copy inside an excluded file still counts.
-The gate evaluates the census under that scope, and its index and debt record
+A distinct sanction still resolves its members, but its set must equal a group
+of the present scope: once an exclusion removes the group, or changes its
+members, the sanction is the finding "equals no current group" until it is
+removed or restated. The gate evaluates the census under that scope, and its index and debt record
 state it. An incompatible normal form
 refuses before job interpretation.
 Unknown core properties, wrong classes, missing required values, invalid

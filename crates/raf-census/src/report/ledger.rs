@@ -237,22 +237,7 @@ impl Ledger {
 
     pub(super) fn from_graph(graph: Graph) -> Result<Self, Error> {
         let root = graph.get("").expect("validated root");
-        fields(
-            &root,
-            &[
-                "normalForm",
-                "reportForm",
-                "minTokens",
-                "maxFileBytes",
-                "excludeTestItems",
-                "excludeDir",
-                "root",
-                "reference",
-                "job",
-                "distinct",
-                "pattern",
-            ],
-        )?;
+        fields(&root, "Ledger")?;
         let mut options = CensusOptions::default();
         if let Some(value) = optional_count(&root, "minTokens")? {
             options = options.min_tokens(value)?;
@@ -289,17 +274,7 @@ impl Ledger {
         for id in targets(&root, "distinct")? {
             reached.insert(id.clone());
             let node = node_at(&graph, &id, "Distinct")?;
-            fields(
-                &node,
-                &[
-                    "memberSymbol",
-                    "multiplicity",
-                    "kind",
-                    "criterion",
-                    "anchor",
-                    "reason",
-                ],
-            )?;
+            fields(&node, "Distinct")?;
             let kind = match required_text(&node, "kind")?.as_str() {
                 "body" => GroupKind::Body,
                 "shim" => GroupKind::Shim,
@@ -345,7 +320,7 @@ fn read_distinct_members(
             return Err(E::Repeated(format!("distinct multiplicity {id}")).into());
         }
         let row = node_at(graph, &id, "MemberMultiplicity")?;
-        fields(&row, &["symbol", "copies"])?;
+        fields(&row, "MemberMultiplicity")?;
         let symbol = required_text(&row, "symbol")?;
         let count = shape::count(&row, "copies")?;
         let member = counts
@@ -364,23 +339,7 @@ fn read_distinct_members(
 
 fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<LedgerJob, Error> {
     let node = node_at(graph, id, "LedgerJob")?;
-    fields(
-        &node,
-        &[
-            "jobId",
-            "summary",
-            "homeSymbol",
-            "entryPoint",
-            "enforced",
-            "forbiddenName",
-            "forbiddenConstant",
-            "forbiddenFingerprint",
-            "forbiddenPattern",
-            "variant",
-            "extension",
-            "preferredProvider",
-        ],
-    )?;
+    fields(&node, "LedgerJob")?;
     let job_id = required_text(&node, "jobId")?;
     let names = read_names(&node, &job_id)?;
     let preferred_provider = declarations::provider(graph, &node, reached)?;
@@ -407,17 +366,7 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
             return Err(E::Repeated(format!("ledger variant {variant}")).into());
         }
         let row = node_at(graph, &variant, "Variant")?;
-        fields(
-            &row,
-            &[
-                "symbol",
-                "file",
-                "detector",
-                "criterion",
-                "anchor",
-                "reason",
-            ],
-        )?;
+        fields(&row, "Variant")?;
         variants.push(LedgerVariant {
             symbol: required_text(&row, "symbol")?,
             file: required_text(&row, "file")?,
@@ -484,7 +433,16 @@ fn node_at<'a>(graph: &'a Graph, id: &str, class: &str) -> Result<Node<'a>, E> {
     Ok(node)
 }
 
-fn fields(node: &Node<'_>, allowed: &[&str]) -> Result<(), E> {
+/// Refuse a property of `node` outside the closed shape of its Ledger `class`.
+fn fields(node: &Node<'_>, class: &str) -> Result<(), E> {
+    let Some((_, allowed)) = super::vocab::LEDGER_FIELDS
+        .iter()
+        .find(|(name, _)| *name == class)
+    else {
+        return Err(E::Class(format!(
+            "ledger census:{class} has no closed shape"
+        )));
+    };
     for property in node.properties() {
         if property != raf_rdf::vocab::TYPE
             && !allowed.iter().any(|key| property == shape::property(key))
