@@ -225,7 +225,7 @@ pub use syn;
 pub use target::{Package, PackageId, Target, TargetKind};
 pub use tree::{
     CapturedDirectory, CapturedFile, CapturedLink, CommittedGitTree, DiskTree, Entry, EntryKind,
-    FileId, MemoryTree, Opened, OpenedBytes, RegistryArchiveTree, SourceTrees, Tree,
+    FileId, MemoryTree, Opened, OpenedBytes, PinnedGitTree, RegistryArchiveTree, SourceTrees, Tree,
 };
 pub use workspace::{
     ForeignModulePath, LockedBinding, LockedEdge, LockedManifest, LockedPackageRoots, LockedTree,

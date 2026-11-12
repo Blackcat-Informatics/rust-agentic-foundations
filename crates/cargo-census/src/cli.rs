@@ -19,6 +19,8 @@ pub(crate) struct Args {
     /// Directory inside the workspace; ancestor manifests locate its root.
     #[arg(long, default_value = ".", global = true)]
     pub(crate) workspace: PathBuf,
+    #[command(flatten)]
+    pub(crate) reference: ReferenceArgs,
     #[command(subcommand)]
     pub(crate) command: Command,
 }
@@ -167,4 +169,51 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, cl
     }
     let Cargo::Census(args) = Cargo::try_parse_from(words)?;
     Ok(args)
+}
+
+/// One caller-declared reference tree, compared beside the ledger's
+/// lock-selected references by the commands that evaluate the Gate.
+#[derive(ClapArgs)]
+pub(crate) struct ReferenceArgs {
+    /// Repository whose committed objects at the pinned commit are the
+    /// reference; a relative location is resolved from the main checkout.
+    #[arg(
+        id = "reference_repo",
+        long = "reference-repo",
+        global = true,
+        value_name = "LOCATION"
+    )]
+    pub(crate) repo: Option<PathBuf>,
+    /// Full 40-character lowercase hexadecimal commit ID to compare against.
+    #[arg(
+        id = "reference_commit",
+        long = "reference-commit",
+        global = true,
+        value_name = "COMMIT"
+    )]
+    pub(crate) commit: Option<String>,
+    /// Workspace-relative TOML file that names the pinned commit.
+    #[arg(
+        id = "reference_pin_file",
+        long = "reference-pin-file",
+        global = true,
+        value_name = "FILE"
+    )]
+    pub(crate) pin_file: Option<String>,
+    /// Dotted key whose string value in the pin file is the commit ID.
+    #[arg(
+        id = "reference_pin_key",
+        long = "reference-pin-key",
+        global = true,
+        value_name = "KEY"
+    )]
+    pub(crate) pin_key: Option<String>,
+    /// Directory whose current files are the reference; every index and query marks its receipts unpinned, and every evaluating command prints an unpinned notice on stderr.
+    #[arg(
+        id = "reference_unpinned",
+        long = "reference-unpinned",
+        global = true,
+        value_name = "DIRECTORY"
+    )]
+    pub(crate) unpinned: Option<PathBuf>,
 }

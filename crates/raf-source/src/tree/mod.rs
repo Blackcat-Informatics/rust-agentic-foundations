@@ -11,7 +11,7 @@ mod registry;
 mod sources;
 
 pub use disk::{CapturedDirectory, CapturedFile, CapturedLink, DiskTree};
-pub use git::CommittedGitTree;
+pub use git::{CommittedGitTree, PinnedGitTree};
 pub use memory::MemoryTree;
 pub use registry::RegistryArchiveTree;
 pub use sources::SourceTrees;

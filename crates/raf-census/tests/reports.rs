@@ -11,6 +11,8 @@ use raf_source::{DiskTree, MemoryTree};
 use std::path::Path;
 #[path = "support/builtin.rs"]
 mod builtin;
+#[path = "support/files.rs"]
+mod files;
 #[path = "support/layout.rs"]
 mod layout;
 #[path = "support/reference.rs"]
@@ -987,17 +989,6 @@ fn spread_tree(files: &[(&str, &str)]) -> MemoryTree {
         .collect()
 }
 
-/// Writes `files` below `dir`, creating each file and its directories in
-/// the order given.
-fn write_spread<'a>(dir: &Path, files: impl IntoIterator<Item = &'a (&'a str, &'a str)>) {
-    for (path, text) in files {
-        let path = dir.join(path);
-        std::fs::create_dir_all(path.parent().expect("a fixture file has a parent"))
-            .expect("the fixture directory is created");
-        std::fs::write(&path, text).expect("the fixture file is written");
-    }
-}
-
 /// The report bytes do not depend on the load: two fresh loads of one
 /// workspace, and loads of the same files written to disk in opposite
 /// orders, render the same bytes.
@@ -1046,9 +1037,9 @@ fn two_fresh_loads_of_a_multi_package_workspace_give_identical_bytes() {
     for (name, forward) in [("forward", true), ("reverse", false)] {
         let dir = scratch.path().join(name);
         if forward {
-            write_spread(&dir.join("ws"), SPREAD);
+            files::write(&dir.join("ws"), SPREAD);
         } else {
-            write_spread(&dir.join("ws"), SPREAD.iter().rev());
+            files::write(&dir.join("ws"), SPREAD.iter().rev());
         }
         let tree = DiskTree::new(&dir).expect("the copy opens");
         identical_report_bytes(&first, &builtin::of(&tree, "ws").expect(name));
@@ -1103,7 +1094,7 @@ fn an_absolute_directory_reports_the_same_as_the_relative_spelling() {
         .path()
         .canonicalize()
         .expect("the scratch directory exists");
-    write_spread(&root.join("ws"), SPREAD);
+    files::write(&root.join("ws"), SPREAD);
     let spelled = root.join("ws");
     let spelled = spelled.to_str().expect("utf-8 path");
     let absolute = builtin::of_dir(spelled).expect("the absolute spelling reports");
@@ -1114,7 +1105,7 @@ fn an_absolute_directory_reports_the_same_as_the_relative_spelling() {
         "the report holds the absolute path"
     );
 
-    write_spread(&root.join("other"), SPREAD);
+    files::write(&root.join("other"), SPREAD);
     let other = root.join("other");
     assert_ne!(
         absolute,

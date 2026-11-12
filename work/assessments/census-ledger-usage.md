@@ -13,7 +13,7 @@ inputs:
     digest: 7135af913fcf26db9027c4b5f7f35d30abdab5af67b884abe0e2a82e08f49536
   - kind: symbol
     name: raf_census::Gate::check_locked
-    digest: 5487e95aa6f3ffa03cc74a6ec4157def9e60fabf2e2ecdaf88454c134d4f01da
+    digest: 46d5e36bbf71d6541dc629ebc8f2e0491a3cbafc194a2dc0d54cc09288706c17
   - kind: symbol
     name: raf_census::Gate::check_tree
     digest: eb42ff3aeb65568bc7c5e604b672291c0a2ea78b8812a460e16600941feb9080
@@ -22,7 +22,7 @@ inputs:
     digest: f4325ff16655a45eb8216b2658b9c48879346d2934b729c2f1d4922854c1acf1
   - kind: symbol
     name: raf_census::Gate::write_debt_locked
-    digest: 8c1d011ff76066b8b0f503eff79bfe5e4deab230e3f3fa6f083b9dffee1db68b
+    digest: 9d4d516c66d8b2011694153e910a86b8db7ff4a51c604bc8f1e55a959d14a946
   - kind: symbol
     name: raf_census::LedgerExtension
     digest: 3cf51559c3301b4f81086b1935d12e26605ab2750fb46631aa68aab70a340652

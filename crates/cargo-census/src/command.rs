@@ -3,16 +3,42 @@
 
 //! Host input adapter; Census policy lives in the repository target and library.
 
-use crate::cli::{Args, Command, MigrationArgs, QueryTarget, RdfFormat};
+use crate::cli::{Args, Command, MigrationArgs, QueryTarget, RdfFormat, ReferenceArgs};
 use raf_census::{
-    Census, CensusOptions, Error, Gate, LEDGER_FILE, Ledger, MAX_INDEX_BYTES, MAX_LEDGER_BYTES,
-    MigrationInput, ReportError, migrate_index, migrate_legacy,
+    Census, CensusOptions, Error, ExternalReference, Gate, LEDGER_FILE, Ledger, MAX_INDEX_BYTES,
+    MAX_LEDGER_BYTES, MigrationInput, ReportError, migrate_index, migrate_legacy,
 };
 use raf_source::{DiskTree, RelPath, Tree as _};
 use std::{io::Write, path::Path};
 
 pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
-    let gate = Gate::workspace(&args.workspace);
+    let external = external(&args.reference)?;
+    if external.is_some()
+        && matches!(
+            args.command,
+            Command::SelfTest
+                | Command::DumpLedger { .. }
+                | Command::Baseline { .. }
+                | Command::Migrate(_)
+        )
+    {
+        return Err(Error::Options(
+            "reference options apply only to check, index, job, count, fingerprint and debt".into(),
+        )
+        .into());
+    }
+    if let Some(directory) = &args.reference.unpinned {
+        writeln!(
+            std::io::stderr().lock(),
+            "cargo-census: unpinned reference: the comparison reads the current files of {}, not a pinned commit",
+            directory.display()
+        )
+        .map_err(|source| Error::Io {
+            file: "<stderr>".into(),
+            source,
+        })?;
+    }
+    let gate = Gate::workspace(&args.workspace).external_references(external);
     match &args.command {
         Command::SelfTest => self_test(&gate, output),
         Command::DumpLedger { format, out } => {
@@ -32,7 +58,7 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
         }
 
         Command::Index(target) => {
-            let index = native_index(&gate.root()?, target.max_index_bytes)?;
+            let index = native_index(&gate, target.max_index_bytes)?;
             let text = match target.format {
                 RdfFormat::Ntriples => index.to_ntriples()?,
                 RdfFormat::Turtle => index.to_turtle()?,
@@ -40,14 +66,10 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
             write_report(&gate.root()?, &text, target.out.as_deref(), output)?;
             Ok(0)
         }
-        Command::Job { id, target } => {
-            query(&gate.root()?, target, raf_census::Query::Job(id), output)
-        }
-        Command::Count { id, target } => {
-            query(&gate.root()?, target, raf_census::Query::Count(id), output)
-        }
+        Command::Job { id, target } => query(&gate, target, raf_census::Query::Job(id), output),
+        Command::Count { id, target } => query(&gate, target, raf_census::Query::Count(id), output),
         Command::Fingerprint { symbol, target } => query(
-            &gate.root()?,
+            &gate,
             target,
             raf_census::Query::Fingerprint(symbol),
             output,
@@ -61,8 +83,8 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
     }
 }
 
-fn native_index(root: &Path, limit: usize) -> Result<raf_census::Index, crate::error::Error> {
-    let report = Gate::workspace(root).check()?;
+fn native_index(gate: &Gate, limit: usize) -> Result<raf_census::Index, crate::error::Error> {
+    let report = gate.check()?;
     let index = report.census().index(report.jobs())?;
     let serialized = index.to_ntriples()?;
     if serialized.len() > limit {
@@ -76,19 +98,51 @@ fn native_index(root: &Path, limit: usize) -> Result<raf_census::Index, crate::e
 }
 
 fn query(
-    root: &Path,
+    gate: &Gate,
     target: &QueryTarget,
     selector: raf_census::Query<'_>,
     output: &mut dyn Write,
 ) -> Result<u8, crate::error::Error> {
-    let index = native_index(root, target.max_index_bytes)?;
+    let root = gate.root()?;
+    let index = native_index(gate, target.max_index_bytes)?;
     let result = index.query(selector)?;
     let text = match target.format {
         RdfFormat::Ntriples => result.to_ntriples()?,
         RdfFormat::Turtle => result.to_turtle()?,
     };
-    write_report(root, &text, target.out.as_deref(), output)?;
+    write_report(&root, &text, target.out.as_deref(), output)?;
     Ok(0)
+}
+
+/// The one caller-declared reference tree, when the options name one.
+fn external(args: &ReferenceArgs) -> Result<Option<ExternalReference>, Error> {
+    Ok(Some(
+        match (
+            &args.repo,
+            &args.commit,
+            &args.pin_file,
+            &args.pin_key,
+            &args.unpinned,
+        ) {
+            (None, None, None, None, None) => return Ok(None),
+            (None, None, None, None, Some(directory)) => ExternalReference::unpinned(directory),
+            (Some(repository), Some(commit), None, None, None) => {
+                ExternalReference::commit(repository, commit)
+            }
+            (Some(repository), None, Some(file), Some(key), None) => ExternalReference::pin_file(
+                repository,
+                RelPath::new(file).map_err(|error| {
+                    Error::Options(format!("--reference-pin-file {file:?}: {error}"))
+                })?,
+                key,
+            ),
+            _ => {
+                return Err(Error::Options(
+                    "reference options: give --reference-repo with --reference-commit, or with --reference-pin-file and --reference-pin-key, or give --reference-unpinned alone".into(),
+                ));
+            }
+        },
+    ))
 }
 
 fn migrate(

@@ -27,7 +27,8 @@ pub struct ReferenceSource {
     pub manifest: String,
     /// Native lowercase registry archive digest; empty when the lock row has none.
     pub checksum: String,
-    /// `contained-tree` observes local contents; `committed-git` reads sealed bytes.
+    /// `contained-tree` observes local contents; `committed-git` reads sealed bytes;
+    /// `unpinned-tree` reads the current files of a caller-declared directory.
     pub observation: String,
 }
 
@@ -85,12 +86,13 @@ impl ReferenceSource {
             )
             || !matches!(
                 self.observation.as_str(),
-                "contained-tree" | "committed-git"
+                "contained-tree" | "committed-git" | "unpinned-tree"
             )
         {
-            return Err(E::Value(
-                "invalid reference identity or observation kind".into(),
-            ));
+            return Err(E::Value(format!(
+                "invalid reference identity or observation kind (source kind {:?}, observation {:?})",
+                self.source_kind, self.observation
+            )));
         }
         if (self.source_kind == "git") != (self.observation == "committed-git")
             || (self.source_kind == "git"
@@ -98,6 +100,8 @@ impl ReferenceSource {
                     || purrdf_hash::hex::decode_canonical(&self.revision).is_err()))
             || (self.source_kind != "git"
                 && (!self.revision.is_empty() || !self.selector.is_empty()))
+            || (self.observation == "unpinned-tree"
+                && (self.source_kind != "path" || !self.checksum.is_empty()))
             || (self.source_kind == "local" && !self.repository.is_empty())
             || (self.source_kind != "local" && self.repository.is_empty())
             || (!self.checksum.is_empty()
