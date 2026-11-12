@@ -13,7 +13,7 @@ inputs:
     digest: f35d44214c2ea51c71605e99affb2c601d87072a1d416d1918766b683aeaca10
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: 1cd77e23237a908e2b173f5e68dd8b133fc63393d125ea02475b00db735fd826
+    digest: e7206dfa23a4725ff9114c4c5fd3096b9f98a3fd13404e9f88fbab252d6f86b6
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1

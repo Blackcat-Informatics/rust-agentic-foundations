@@ -776,3 +776,22 @@ fn self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines() {
     );
     assert_eq!(fs::read_dir(empty.path()).unwrap().count(), 0);
 }
+
+#[test]
+fn self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist() {
+    let empty = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let plain = run(empty.path(), &["census", "self-test"]);
+    let flagged = run(
+        empty.path(),
+        &[
+            "census",
+            "--workspace",
+            "/nonexistent/self-test-workspace",
+            "self-test",
+        ],
+    );
+    assert!(plain.status.success(), "{plain:?}");
+    assert_eq!(flagged.status.code(), plain.status.code(), "{flagged:?}");
+    assert_eq!(flagged.stdout, plain.stdout);
+    assert!(flagged.stderr.is_empty(), "{flagged:?}");
+}

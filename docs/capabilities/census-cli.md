@@ -36,6 +36,9 @@ bindings:
     - raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers
     - cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy
     - cargo_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines
+    - cargo_census::test_crate::delivery::self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist
+    - cargo_census::bin_crate::cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds
+    - raf_census::selftest::tests::the_documented_detector_list_and_case_count_equal_the_registry
     - raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text
     - raf_census::selftest::tests::a_detector_that_stops_firing_or_starts_over_firing_fails_its_side
     - raf_census::selftest::tests::a_normal_form_that_merges_or_splits_wrongly_fails_its_case
@@ -60,8 +63,8 @@ Expose native duplication and ledger data without building or executing reposito
 `debt --write` uses the native debt ratchet, permitting adoption and shrink while refusing growth. Migration reads explicit input carriers and writes the converted result to stdout. Malformed inputs and unsupported declarations fail actionably.
 <!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
 
-**Self-test.** `self-test` and the library call `Gate::self_test` run a fixed set of seeded in-memory workspaces through the same evaluation as `check`, and report one `pass ID` or `fail ID: reason` line per case, then a `N cases, M failed` line. The command needs no workspace and `--workspace` is ignored. It reads and writes no file, creates nothing and prints no path or clock reading, so two runs of one build print identical text. The exit status is 0 only when every case holds. A census that finds nothing, through a broken walk, a changed normal form or a mismatched build, fails the named case instead of passing. Rules registered on the Gate join the run as one `rule/ID/fixtures` case each, from their own positive and negative fixtures; required rules, extensions and reference roots do not apply.
-<!-- raf:tested-by cargo_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines,raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text -->
+**Self-test.** `self-test` and the library call `Gate::self_test` run a fixed set of seeded in-memory workspaces through the same evaluation as `check`, and report one `pass ID` or `fail ID: reason` line per case, then a `N cases, M failed` line. The command needs no workspace and `--workspace` is ignored. It reads and writes no file, creates nothing and prints no path or clock reading, so two runs of one build print identical text. The exit status is 0 only when every case holds. The cases check the evaluation engine, each built-in detector, the sanction and ratchet logic and the two grouping behaviours of the normal form, all over in-memory sources; a census that finds nothing where a case seeds a copy fails that named case instead of passing. No case reads the on-disk tree backend or compares the running build with any other. Rules registered on the Gate join the run as one `rule/ID/fixtures` case each, from their own positive and negative fixtures; required rules, extensions and reference roots do not apply.
+<!-- raf:tested-by cargo_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines,cargo_census::test_crate::delivery::self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist,cargo_census::bin_crate::cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds,raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text -->
 
 The cases, in the order they run:
 
@@ -73,7 +76,7 @@ The cases, in the order they run:
 - `sanction/variant-detector/exact-site-holds`, `stale-path`, `stale-file` and `stale-detector`, and `sanction/variant-isomorphic/exact-site-holds` and `stale-detector`: an exact variant is classified as a variant and leaves the gate clean, and a path, file or detector that no longer matches is a finding.
 - `debt/exact-record-holds`, `debt/rising-copies-refused`, `debt/falling-copies-require-lowering`, `debt/new-group-refused` and `debt/resolved-group-requires-lowering`: the ratchet accepts the exact record, refuses growth and requires a lowering write after shrinkage.
 - `rule/ID/fixtures` for each rule registered on the Gate.
-<!-- raf:tested-by raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text,raf_census::selftest::tests::a_detector_that_stops_firing_or_starts_over_firing_fails_its_side,raf_census::selftest::tests::a_normal_form_that_merges_or_splits_wrongly_fails_its_case -->
+<!-- raf:tested-by raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text,raf_census::selftest::tests::a_detector_that_stops_firing_or_starts_over_firing_fails_its_side,raf_census::selftest::tests::a_normal_form_that_merges_or_splits_wrongly_fails_its_case,raf_census::selftest::tests::the_documented_detector_list_and_case_count_equal_the_registry -->
 
 ## Usage
 
@@ -101,11 +104,13 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_census::bin_crate::cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Verification](#verification) |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines` | test | [Contract](#contract) |
 | `raf_census::example_crate::registered` | example target | [Usage](#usage) |
 | `raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers` | test | [Verification](#verification) |
@@ -115,6 +120,7 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `raf_census::selftest::tests::a_detector_that_stops_firing_or_starts_over_firing_fails_its_side` | test | [Contract](#contract) |
 | `raf_census::selftest::tests::a_normal_form_that_merges_or_splits_wrongly_fails_its_case` | test | [Contract](#contract) |
 | `raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text` | test | [Contract](#contract) |
+| `raf_census::selftest::tests::the_documented_detector_list_and_case_count_equal_the_registry` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Verification](#verification) |
 | `rust_agentic_foundations::example_crate::repository_census` | example target | [Usage](#usage) |
 <!-- raf:generated:end -->

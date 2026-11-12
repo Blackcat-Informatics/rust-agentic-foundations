@@ -14,11 +14,7 @@ use std::{io::Write, path::Path};
 pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
     let gate = Gate::workspace(&args.workspace);
     match &args.command {
-        Command::SelfTest => {
-            let report = gate.self_test();
-            write!(output, "{report}").map_err(stdout)?;
-            Ok(u8::from(!report.passed()))
-        }
+        Command::SelfTest => self_test(&gate, output),
         Command::DumpLedger { format, out } => {
             dump_ledger(&gate.root()?, *format, out.as_deref(), output)?;
             Ok(0)
@@ -308,5 +304,59 @@ fn stdout(source: std::io::Error) -> Error {
     Error::Io {
         file: "<stdout>".into(),
         source,
+    }
+}
+
+/// Print the self-test report and map it to the exit status: 0 only when every case held.
+fn self_test(gate: &Gate, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
+    let report = gate.self_test();
+    write!(output, "{report}").map_err(stdout)?;
+    Ok(u8::from(!report.passed()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::self_test;
+    use raf_census::{FileCtx, Gate, Rule, RuleFixtures, RuleHit};
+
+    /// A registered rule whose positive fixture is never flagged, so its fixture case fails.
+    struct NeverFlags;
+
+    impl Rule for NeverFlags {
+        fn id(&self) -> &'static str {
+            "never-flags"
+        }
+        fn check(&self, _: &FileCtx, _: &syn::File, _: &mut Vec<RuleHit>) {}
+        fn fixtures(&self) -> RuleFixtures {
+            RuleFixtures {
+                positive: vec!["fn copy() {}"],
+                negative: vec!["fn home() {}"],
+            }
+        }
+    }
+
+    /// The command path exits 1 and prints the failing case when a case fails, and exits 0
+    /// otherwise. The command binary registers no rules, so a rule on the Gate is the only way
+    /// to make a case fail through the same function the command calls.
+    #[test]
+    fn self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds() {
+        let mut out = Vec::new();
+        let failing =
+            Gate::workspace("/nonexistent").rules(vec![Box::new(NeverFlags) as Box<dyn Rule>]);
+        assert_eq!(self_test(&failing, &mut out).unwrap(), 1);
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("fail rule/never-flags/fixtures: "), "{text}");
+        assert!(text.ends_with(" cases, 1 failed\n"), "{text}");
+
+        let mut out = Vec::new();
+        assert_eq!(
+            self_test(&Gate::workspace("/nonexistent"), &mut out).unwrap(),
+            0
+        );
+        assert!(
+            String::from_utf8(out)
+                .unwrap()
+                .ends_with(" cases, 0 failed\n")
+        );
     }
 }
