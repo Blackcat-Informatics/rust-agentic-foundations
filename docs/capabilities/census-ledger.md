@@ -59,6 +59,7 @@ bindings:
     - raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package
     - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
     - raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector
+    - raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours
     - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
     - raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers
     - raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library
@@ -162,7 +163,7 @@ shared with that library must independently prove the library's eligible route;
 the build dependency cannot authorize both contexts.
 
 ### Closed native policy
-<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation,raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record,raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation,raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record,raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector,raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours -->
 
 The production file helpers-ledger.ttl is canonical RDF 1.2. Ledger::from_turtle
 and Ledger::from_ntriples validate equivalent representations through the shared
@@ -171,7 +172,7 @@ minTokens and maxFileBytes default to 20 and eight MiB. Repeated root, reference
 job, distinct and pattern properties declare sets; the default root is the
 workspace. A reference value names one package or a package family: a
 package-name prefix followed by `-*`, such as `acme-*`. Any other value holding
-`*` refuses. Optional excludeTestItems, stated only as true, and repeated
+`*` refuses. A reference that no job homes is the copy ban: a first-party copy of its bodies or shims is a non-debt REFERENCE-COPY finding that no baseline or debt record can hold, even with an empty job set. A job that homes a reference module instead classifies the copies into the job, as recordable debt while the job is not enforced. Optional excludeTestItems, stated only as true, and repeated
 excludeDir directory names set the grouping scope of the census normal form;
 false, a path or a dot name refuses. Excluded items stay units and leave only
 body and shim grouping and the group debt it produces; jobs, sanctions and
@@ -505,6 +506,7 @@ the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise de
 | `raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy` | test | [Contract](#contract) |
 | `raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension` | test | [Usage](#usage), [Examples](#examples) |
 | `raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours` | test | [Contract](#contract) |
 <!-- raf:generated:end -->
 <!-- raf:generated:relationships -->
 | Relation | Capability |
