@@ -7,7 +7,7 @@ subject: cap:census-reference-scan#contract
 inputs:
   - kind: section
     name: cap:census-reference-scan#contract
-    digest: 96e88120fe21b71be570411daee90959782562fa558e6eb8a762849ea7b61582
+    digest: a200d36f287536d08f8b288322d31c758eba418b58f1be3145cc9a158731f7e0
   - kind: symbol
     name: raf_census::Gate::check_tree_with_references
     digest: c5087ae773dfc4b1246c1a9498aa45fbe698686a15afef9ecc6786beb2ff8ec8
@@ -25,7 +25,7 @@ inputs:
     digest: de2e0ba06e171f18e3052067cdd49cd91264ff03aeee78d62ea5790813369587
   - kind: symbol
     name: raf_census::gate::reference
-    digest: 813bb30527f7deafdee88e2cf11a577aae70e26274d4798d9b2feb8234c3d52d
+    digest: 3a87e9cbf2abf8f9ddeb0875e1ad8f6d92779e40f5372d85605ecaeaccb6624f
   - kind: symbol
     name: raf_census::report::reference
     digest: 7c7f1698a910ad8f061dc1511b9328b2811c884186cde6b1c4e0fcfad7a6860f

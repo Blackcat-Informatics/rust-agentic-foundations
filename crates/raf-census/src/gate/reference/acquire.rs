@@ -384,7 +384,7 @@ fn reference_ancestors(
     let (reachable, reverse) = forward_graph(inputs, owners, options, memory)?;
     let mut pending = Vec::new();
     let mut needed = OrderedTable::default();
-    let members = owners.iter().map(|(_, input)| input.name()).collect();
+    let members = owners.iter().map(|(_, input)| input.row()).collect();
     let selected = super::select(
         ledger.reference(),
         catalog,
@@ -393,9 +393,9 @@ fn reference_ancestors(
         memory,
         |amount| work(options, amount),
     )?;
-    for name in &selected {
-        let mut target = None;
-        for row in catalog.packages() {
+    for super::Selected { name, row: chosen } in &selected {
+        let mut target = *chosen;
+        for row in catalog.packages().filter(|_| chosen.is_none()) {
             work(
                 options,
                 row.name()

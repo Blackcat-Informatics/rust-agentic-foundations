@@ -445,7 +445,24 @@ fn reject_historical_reference_provenance(current: &Graph) {
 /// `vendor/`, beside the workspace and outside its first-party packages. The
 /// ledger declares the given reference selectors and no job.
 fn family_fixture(selectors: &[&str], vendors: &[&str], consumer: &str) -> purrdf_testkit::TempDir {
+    workspace_fixture(selectors, "acme-member", vendors, consumer)
+}
+
+/// As [`family_fixture`] with a chosen member. The member and each vendor are
+/// `name` or `name@version`; the version defaults to 1.0.0, and a name may
+/// occur at two versions.
+fn workspace_fixture(
+    selectors: &[&str],
+    member: &str,
+    vendors: &[&str],
+    consumer: &str,
+) -> purrdf_testkit::TempDir {
     use raf_rdf::TermValue as Term;
+    let spec = |text: &str| {
+        let (name, version) = text.split_once('@').unwrap_or((text, "1.0.0"));
+        (name.to_owned(), version.to_owned())
+    };
+    let (member, member_version) = spec(member);
     let parent =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.stage/reference-sources");
     std::fs::create_dir_all(&parent).unwrap();
@@ -480,14 +497,14 @@ fn family_fixture(selectors: &[&str], vendors: &[&str], consumer: &str) -> purrd
     let mut files = vec![
         (
             "ws/Cargo.toml".to_owned(),
-            "[workspace]\nmembers=['app','acme-member']\n".to_owned(),
+            format!("[workspace]\nmembers=['app','{member}']\n"),
         ),
         (
-            "ws/acme-member/Cargo.toml".into(),
-            "[package]\nname='acme-member'\nversion='1.0.0'\nedition='2024'\n".into(),
+            format!("ws/{member}/Cargo.toml"),
+            format!("[package]\nname='{member}'\nversion='{member_version}'\nedition='2024'\n"),
         ),
         (
-            "ws/acme-member/src/lib.rs".into(),
+            format!("ws/{member}/src/lib.rs"),
             "pub fn member(value:u32)->u32 { let tripled=value*3; tripled+5 }".into(),
         ),
         ("ws/app/src/lib.rs".into(), consumer.into()),
@@ -496,20 +513,29 @@ fn family_fixture(selectors: &[&str], vendors: &[&str], consumer: &str) -> purrd
             ledger.finish().unwrap().to_text(Format::Turtle).unwrap(),
         ),
     ];
-    let mut manifest = "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-member={path='../acme-member'}\n".to_owned();
-    let mut lock = "version=4\n[[package]]\nname='acme-member'\nversion='1.0.0'\n".to_owned();
-    let mut app =
-        "[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-member'".to_owned();
-    for (factor, vendor) in (1_u32..).zip(vendors) {
-        writeln!(manifest, "{vendor}={{path='../../vendor/{vendor}'}}").unwrap();
-        write!(lock, "[[package]]\nname='{vendor}'\nversion='1.0.0'\n").unwrap();
-        write!(app, ",'{vendor}'").unwrap();
+    let mut manifest = format!(
+        "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nmember={{package='{member}',path='../{member}',version='{member_version}'}}\n"
+    );
+    let mut lock = format!("version=4\n[[package]]\nname='{member}'\nversion='{member_version}'\n");
+    let mut app = format!(
+        "[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['{member} {member_version}'"
+    );
+    for (index, vendor) in vendors.iter().enumerate() {
+        let (name, version) = spec(vendor);
+        let factor = index + 1;
+        writeln!(
+            manifest,
+            "dep{index}={{package='{name}',path='../../vendor/{name}-{version}',version='{version}'}}"
+        )
+        .unwrap();
+        write!(lock, "[[package]]\nname='{name}'\nversion='{version}'\n").unwrap();
+        write!(app, ",'{name} {version}'").unwrap();
         files.push((
-            format!("vendor/{vendor}/Cargo.toml"),
-            format!("[package]\nname='{vendor}'\nversion='1.0.0'\nedition='2024'\n"),
+            format!("vendor/{name}-{version}/Cargo.toml"),
+            format!("[package]\nname='{name}'\nversion='{version}'\nedition='2024'\n"),
         ));
         files.push((
-            format!("vendor/{vendor}/src/lib.rs"),
+            format!("vendor/{name}-{version}/src/lib.rs"),
             format!("pub fn provided(value:u32)->u32 {{ let scaled=value*{factor}; scaled+7 }}"),
         ));
     }
@@ -524,17 +550,25 @@ fn family_fixture(selectors: &[&str], vendors: &[&str], consumer: &str) -> purrd
     owned
 }
 
-/// The packages whose source the reference scan read, by actual name.
-fn scanned(fixture: &purrdf_testkit::TempDir) -> Vec<String> {
+/// The packages whose source the reference scan read, as sorted `(name, version)`.
+fn scanned_versions(fixture: &purrdf_testkit::TempDir) -> Vec<(String, String)> {
     let report = Gate::workspace(fixture.path().join("ws")).check().unwrap();
     let index = report.census().index(report.jobs()).unwrap();
-    let mut packages: Vec<String> = index
+    let mut packages: Vec<_> = index
         .reference_sources
         .iter()
-        .map(|source| source.package.clone())
+        .map(|source| (source.package.clone(), source.version.clone()))
         .collect();
     packages.sort();
     packages
+}
+
+/// The names of the packages whose source the reference scan read.
+fn scanned(fixture: &purrdf_testkit::TempDir) -> Vec<String> {
+    scanned_versions(fixture)
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect()
 }
 
 /// A family selector names every locked dependency package whose name
@@ -664,5 +698,53 @@ fn unhomed_reference_copy_is_a_hard_finding() {
             .check()
             .unwrap()
             .is_clean()
+    );
+}
+
+/// A family excludes the member lock rows only. A member and an external
+/// package may share a name at different versions, and the family still scans
+/// the external one; with no external package of that name the member alone
+/// selects nothing.
+#[test]
+fn family_selector_excludes_member_rows_not_every_row_with_a_member_name() {
+    let shared = workspace_fixture(
+        &["acme-*"],
+        "acme-core@2.0.0",
+        &["acme-core@1.0.0", "acme-util"],
+        "",
+    );
+    assert_eq!(
+        scanned_versions(&shared),
+        [
+            ("acme-core".to_owned(), "1.0.0".to_owned()),
+            ("acme-util".to_owned(), "1.0.0".to_owned())
+        ]
+    );
+    let only_util = workspace_fixture(&["acme-*"], "acme-core@2.0.0", &["acme-util"], "");
+    assert_eq!(scanned(&only_util), ["acme-util"]);
+}
+
+/// A family whose name has two reachable non-member versions is ambiguous and
+/// refuses rather than scanning one of them.
+#[test]
+fn family_selector_refuses_a_name_with_two_reachable_versions() {
+    let ambiguous = workspace_fixture(
+        &["acme-*"],
+        "acme-member",
+        &["acme-core@1.0.0", "acme-core@2.0.0"],
+        "",
+    );
+    let error = Gate::workspace(ambiguous.path().join("ws"))
+        .check()
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("\"acme-core\" is ambiguous in the lock graph"),
+        "{error}"
+    );
+    let single = workspace_fixture(&["acme-*"], "acme-member", &["acme-core@2.0.0"], "");
+    assert_eq!(
+        scanned_versions(&single),
+        [("acme-core".to_owned(), "2.0.0".to_owned())]
     );
 }

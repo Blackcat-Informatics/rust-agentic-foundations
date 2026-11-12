@@ -26,6 +26,8 @@ bindings:
     - raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit
     - raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector
     - raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once
+    - raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name
+    - raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions
     - raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding
 
     - raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes
@@ -50,7 +52,7 @@ to name its home in a dependency.
 ## Contract
 
 ### Declaration selection
-<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes,raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity,raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member,raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit,raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector,raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes,raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity,raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member,raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit,raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector,raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once,raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name,raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions -->
 
 The native RDF ledger's `reference` values name dependency packages. The owning
 package's actual manifest name and explicit or inherited version select its lock
@@ -66,13 +68,14 @@ package whose name continues that prefix after its hyphen: `acme-a` and
 Selection resolves the selectors over the lock rows reachable from the
 first-party packages, in the dependency planning step and again when the
 reference sources are prepared; both passes read the same lock graph and
-resolve the same names. A family selects every reachable locked package it names that is not a
-first-party package, so a package added to the lock graph under the prefix is
+resolve the same names. A family selects every reachable locked row it names except the rows of
+first-party packages, so an external package that shares a first-party
+package's name at another version is still selected, and a package added to the lock graph under the prefix is
 scanned with no ledger change. A family that selects no package refuses with a
 message naming the selector. An exact name keeps selecting a first-party
 package. A package selected by several values is scanned once.
-A selected package name that has two reachable locked versions refuses as
-ambiguous, whether an exact name or a family selected it.
+A selected name with two reachable locked versions refuses as ambiguous, whether
+an exact name selected it or a family selected two non-first-party versions.
 
 ### Contained acquisition
 <!-- raf:tested-by raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator,raf_source::test_crate::locked_sources::reference_observations_verify_manifests_without_admitting_provider_routes,raf_source::test_crate::locked_sources::registry_reference_observations_match_selected_manifest_identity -->
@@ -234,8 +237,10 @@ neighbors, and confirm that provider bindings do not escape observations.
 | `raf_census::example_crate::references` | example target | [Usage](#usage) |
 | `raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
+| `raf_census::test_crate::reference_scan::family_selector_excludes_member_rows_not_every_row_with_a_member_name` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::family_selector_follows_lock_growth_without_a_ledger_edit` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::family_selector_refuses_a_name_with_two_reachable_versions` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::family_selector_scans_every_matching_dependency_but_no_member` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count` | test | [Purpose](#purpose), [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts` | test | [Contract](#contract), [Examples](#examples) |
