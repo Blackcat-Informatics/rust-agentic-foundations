@@ -132,8 +132,11 @@ package depends on directly and that a selector names: the ledger's `reference`
 values (an exact name or a `prefix-*` family) and any selector added with
 `LockedRegistry::seal`, which names providers that the ledger declares by
 another property. A `reference` that names a path package keeps the contained
-acquisition, and one that names a Git package keeps the locked Git check;
-neither is read from the archive cache. A selected registry package that no
+acquisition, which works only for a package inside the workspace; neither that
+nor a Git package is read from the archive cache. A `reference` that names a Git
+package is refused by this helper as having no admitted local source: a Git
+reference is checked only by `Gate::check_locked` with a caller-supplied
+committed tree. A selected registry package that no
 first-party package depends on directly is not sealed, and its reference
 refuses as having no admitted source. A name with two locked versions refuses as
 ambiguous, as for every other source.
