@@ -3,8 +3,7 @@
 
 //! Registry completeness of the inputs exercised through the production Gate.
 
-#[path = "../../tests/support/detector_fixtures.rs"]
-mod fixtures;
+use crate::selftest::fixtures;
 
 #[test]
 fn every_executable_detector_has_positive_and_negative_gate_fixtures() {

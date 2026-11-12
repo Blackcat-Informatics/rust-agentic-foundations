@@ -21,6 +21,9 @@ inputs:
     name: raf_census::Gate::rules
     digest: d32147afa2dc624555778ac873967a55756ee85a2100657e2751d3981c7cf051
   - kind: symbol
+    name: raf_census::Gate::self_test
+    digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86
+  - kind: symbol
     name: raf_census::Gate::workspace
     digest: 3a68ccc2c6992945c8aeba9f72a8290cd3ffefe6a27ce9daebb03ceafd659e78
   - kind: symbol

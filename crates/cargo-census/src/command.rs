@@ -14,6 +14,11 @@ use std::{io::Write, path::Path};
 pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
     let gate = Gate::workspace(&args.workspace);
     match &args.command {
+        Command::SelfTest => {
+            let report = gate.self_test();
+            write!(output, "{report}").map_err(stdout)?;
+            Ok(u8::from(!report.passed()))
+        }
         Command::DumpLedger { format, out } => {
             dump_ledger(&gate.root()?, *format, out.as_deref(), output)?;
             Ok(0)

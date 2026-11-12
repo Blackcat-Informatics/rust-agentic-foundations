@@ -255,6 +255,17 @@ impl Gate {
         check_debt(tree, self.evaluate_locked(tree, catalog, local, sources)?)
     }
 
+    /// Prove that this build of the census still finds what it is built to find.
+    ///
+    /// Runs the fixed engine cases and every built-in detector's positive and
+    /// negative fixtures through [`Self::check_tree`] over in-memory workspaces,
+    /// then each registered rule's fixtures, under this Gate's matching grant.
+    /// Required rules, extensions and reference roots do not apply. It needs no
+    /// workspace: it never reads this Gate's directory and writes nothing.
+    pub fn self_test(&self) -> crate::SelfTest {
+        crate::selftest::run(&self.rules, self.matching_limits)
+    }
+
     /// Assert that the actual workspace has no findings.
     ///
     /// # Panics

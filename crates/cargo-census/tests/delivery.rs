@@ -755,3 +755,24 @@ fn registered_code_is_required_explicitly_without_recording_partial_debt() {
         assert!(!root.join("census-debt.ttl").exists());
     }
 }
+
+#[test]
+fn self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines() {
+    let empty = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let first = run(empty.path(), &["census", "self-test"]);
+    let second = run(empty.path(), &["census", "self-test"]);
+    let text = String::from_utf8(first.stdout.clone()).unwrap();
+    assert!(first.status.success(), "{text}{:?}", first.stderr);
+    assert_eq!(first.stdout, second.stdout);
+    assert!(
+        text.contains("pass detector/hex-table/positive\n"),
+        "{text}"
+    );
+    assert!(text.contains("pass debt/rising-copies-refused\n"), "{text}");
+    assert!(text.ends_with(" cases, 0 failed\n"), "{text}");
+    assert!(
+        !text.lines().any(|line| line.starts_with("fail ")),
+        "{text}"
+    );
+    assert_eq!(fs::read_dir(empty.path()).unwrap().count(), 0);
+}
