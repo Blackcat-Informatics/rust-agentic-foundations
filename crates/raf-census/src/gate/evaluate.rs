@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use purrdf_jsonschema::ecma::MatchLimits;
-use raf_source::{RelPath, Tree, TreeError, Workspace};
+use raf_source::{RelPath, TestRole, Tree, TreeError, Workspace};
 
 use super::{GateReport, LedgerExtension, SYMBOL_ANCHOR_PREFIX, owners, rules};
 use crate::{
@@ -247,6 +247,16 @@ fn collect_patterns(
         references,
         limits,
     )? {
+        if !in_scope(
+            found.pattern,
+            found.file,
+            found.byte,
+            found.owners.as_deref(),
+            workspace,
+            census,
+        ) {
+            continue;
+        }
         rules::record_hit(
             workspace,
             found.file,
@@ -752,4 +762,48 @@ fn evidence_links(
         }
     }
     Ok(())
+}
+
+/// True when the pattern's declared scope admits the hit. An unscoped pattern
+/// admits every hit. A file outside the selected packages has no context and
+/// is never scoped in.
+fn in_scope(
+    pattern: &crate::LedgerPattern,
+    file: &RelPath,
+    byte: usize,
+    owners: Option<&[raf_source::ItemId]>,
+    workspace: &Workspace,
+    census: &Census,
+) -> bool {
+    let scope = &pattern.scope;
+    if scope.is_unscoped() {
+        return true;
+    }
+    let Some(context) = census.source_context(file) else {
+        return false;
+    };
+    if !scope.admits_file(context, file) {
+        return false;
+    }
+    let spans = workspace.unexpanded().iter().filter(|record| {
+        record.file == *file && record.span.start_byte <= byte && byte < record.span.end_byte
+    });
+    let mut invocations = spans.peekable();
+    if invocations.peek().is_some() {
+        return invocations.any(|record| {
+            workspace
+                .target(record.target)
+                .is_some_and(|target| scope.admits_item(target.kind, record.test == TestRole::None))
+        });
+    }
+    let items = workspace.item_at(file, byte);
+    items.is_empty()
+        || items
+            .iter()
+            .filter(|item| owners.is_none_or(|ids| ids.contains(&item.id)))
+            .any(|item| {
+                workspace.target(item.target).is_some_and(|target| {
+                    scope.admits_item(target.kind, workspace.is_shipping(item))
+                })
+            })
 }

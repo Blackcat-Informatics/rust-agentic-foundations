@@ -72,6 +72,7 @@ pub(super) fn collect<'p, 'w>(
                 hit.file,
                 hit.byte,
                 hit.line,
+                hit.owners,
                 limits,
             )?;
         }

@@ -288,12 +288,32 @@ impl Paths<'_, '_, '_, '_> {
             match matched {
                 Ok(true) => {
                     self.seen.insert((expected.pattern.id.as_str(), site.byte));
+                    let matched_owners = if expected.pattern.scope.is_unscoped() {
+                        None
+                    } else {
+                        match matching_owners(
+                            owners,
+                            self.code,
+                            &self.scopes,
+                            expected,
+                            path,
+                            &site,
+                            self.limits,
+                        ) {
+                            Ok(ids) => Some(ids),
+                            Err(error) => {
+                                self.error = Some(error);
+                                return;
+                            }
+                        }
+                    };
                     if let Err(error) = super::super::retain(
                         &mut self.found,
                         expected.pattern,
                         &self.file.path,
                         site.byte,
                         site.line,
+                        matched_owners,
                         self.limits,
                     ) {
                         self.error = Some(error);
@@ -750,4 +770,33 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         }
         syn::visit::visit_macro(self, node);
     }
+}
+
+/// The owners whose own resolution matches the occurrence; a scope judges the
+/// hit by their targets, because a file shared by several targets can resolve
+/// one written path to a different definition in each.
+fn matching_owners(
+    owners: &[&raf_source::Item],
+    code: &CodeResolver<'_>,
+    scopes: &Scopes,
+    expected: &Compiled<'_>,
+    path: &syn::Path,
+    site: &Site<'_>,
+    limits: &mut MatchLimits,
+) -> Result<Vec<raf_source::ItemId>, Error> {
+    let mut ids = Vec::new();
+    for owner in owners {
+        if matches(
+            std::slice::from_ref(owner),
+            code,
+            scopes,
+            expected,
+            path,
+            site,
+            limits,
+        )? {
+            ids.push(owner.id);
+        }
+    }
+    Ok(ids)
 }

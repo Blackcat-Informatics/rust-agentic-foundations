@@ -21,7 +21,7 @@ pub use error::ReportError;
 pub(crate) use ledger::reference_family;
 pub use ledger::{
     BenchLink, Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern,
-    LedgerVariant, MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
+    LedgerVariant, MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PatternScope, PreferredProvider,
 };
 pub use query::{Query, QueryReport};
 pub use reference::{ReferenceConstantRow, ReferenceSource, ReferenceWitness};

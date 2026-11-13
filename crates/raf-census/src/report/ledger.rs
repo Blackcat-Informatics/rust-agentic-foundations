@@ -5,8 +5,10 @@
 
 mod declarations;
 mod extensions;
+mod scope;
 pub use declarations::{LedgerPattern, PatternMatcher, PreferredProvider};
 pub use extensions::LedgerExtensionGraph;
+pub use scope::PatternScope;
 
 use std::collections::{BTreeMap, BTreeSet};
 

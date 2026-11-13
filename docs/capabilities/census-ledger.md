@@ -33,6 +33,7 @@ bindings:
     - raf_census::LedgerDistinct
     - raf_census::LedgerPattern
     - raf_census::PatternMatcher
+    - raf_census::PatternScope
     - raf_census::PreferredProvider
     - raf_census::NamePattern
     - raf_census::MAX_LEDGER_BYTES
@@ -262,7 +263,8 @@ view and validator admission.
 Each Pattern has a unique RuleId-compatible patternId, one-line summary and exactly one of call,
 path, macro, typePath, literalRegex or tokens. Literal expressions compile through
 the native bounded matcher. Unknown references, unused declarations and
-collisions with built-in ids refuse. One owned PreferredProvider per job requires
+collisions with built-in ids refuse. A Pattern may add an optional target-kind and path scope (targetKind, excludeTargetKind,
+shippingOnly, includePath, excludePath), stated in the patterns capability; without one it applies everywhere. One owned PreferredProvider per job requires
 package, nonempty entryPoint APIs and nonempty consumer paths. The package is a
 selector; it is not evidence of a locked identity or actual delegation.
 

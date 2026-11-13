@@ -93,7 +93,7 @@ pub use report::{
 };
 pub use report::{
     BenchLink, Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern,
-    LedgerVariant, MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
+    LedgerVariant, MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PatternScope, PreferredProvider,
 };
 pub use rule::{Rule, RuleFixtures, RuleHit};
 /// The inputs of the built-in detector self-test, shared with this crate's detector tests.
