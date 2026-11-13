@@ -109,7 +109,11 @@ bindings:
     - raf_source::LockedBinding
     - raf_source::LockedManifest
     - raf_source::LockedEdge
-    - raf_source::GitPackageRoots
+    - raf_source::LockedPackageRoots
+    - raf_source::LockedTree
+    - raf_source::RegistryArchiveTree
+    - raf_source::RegistryArchiveTree::from_bytes
+    - raf_source::library_target_name
     - raf_source::CfgAtom
     - raf_source::DeclaredCfg
     - raf_source::DeclaredCfg::complete
@@ -154,6 +158,9 @@ bindings:
     - raf_source::PARSE_STACK_BYTES
     - raf_source::Package
     - raf_source::PathError
+    - raf_source::PathSite
+    - raf_source::ForeignModulePath
+    - raf_source::Workspace::foreign_module_paths
     - raf_source::Reach
     - raf_source::SharedStr
     - raf_source::SourceFile
@@ -181,6 +188,13 @@ bindings:
     - raf_source::test_crate::parallel_loading::canonical_fact_allowances_refuse_the_exact_serial_position_beside_the_valid_limit
     - raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics
     - raf_source::test_crate::rustc_oracle::serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data
+    - raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries
+    - raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive
+    - raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path
+    - raf_source::test_crate::registry_tree::an_archive_of_many_small_files_loads_within_the_default_work_grant
+    - raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit
+    - raf_source::test_crate::registry_tree::the_library_target_name_comes_from_the_root_manifest_alone
+    - raf_source::test_crate::registry_tree::a_first_party_archive_cannot_bind_to_a_different_catalogs_row
     - raf_source::tree::disk::tests::root_acquisition_refuses_replaced_components_before_exposing_a_directory
     - raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory
     - raf_source::test_crate::git_tree::native_selected_index_is_read_only_and_committed_grants_remain_exact
@@ -437,6 +451,8 @@ bindings:
     - raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate
     - raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files
     - raf_source::test_crate::module_tree::a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it
+    - raf_source::test_crate::module_tree::foreign_module_paths_name_only_attributes_that_leave_their_package
+    - raf_source::test_crate::module_tree::a_module_path_outside_every_package_is_reported_without_an_owner
     - raf_source::test_crate::module_tree::the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone
     - raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond
     - raf_source::test_crate::module_tree::a_child_file_that_sorts_before_its_mod_rs_parent_is_placed_under_its_own_path
@@ -722,7 +738,7 @@ bindings:
     - raf_source::test_crate::exported_items::a_carried_re_export_is_kept_out_exactly_where_every_route_passes_a_module_that_binds_its_name
     - raf_source::test_crate::exported_items::an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_ambiguous
     - raf_source::exports::tests::readers_of_carried_names_beside_sibling_shadows_list_in_linear_work_and_bounded_bytes
-    - raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget
+    - raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries
     - raf_source::test_crate::exported_items::a_re_export_that_only_a_hidden_glob_carries_past_a_shadow_is_hidden_as_an_item_would_be
     - raf_source::test_crate::exported_items::a_carrier_with_pub_globs_of_its_own_is_not_its_own_binder
     - raf_source::test_crate::exported_items::of_two_carriers_of_one_name_only_the_one_with_a_free_route_is_listed_with_its_own_line
@@ -1119,7 +1135,8 @@ Workplan resolves code and test bindings through it. Both consumers share the
 module and symbol interpretation of a given workspace and target context.
 
 Explicit locked-source loads additionally associate definitions with actual
-package identities and selected committed Git bytes. A declared configuration
+package identities and selected committed Git bytes or checksum-authenticated
+registry archive bytes. A declared configuration
 selects modeled declaration headers while retaining the input context needed to
 distinguish that query from a structural inventory of all alternatives.
 
@@ -1159,6 +1176,18 @@ provisional read failure cannot replace that observation: an earlier physical
 alias can make the current call return `Seen` without reading its payload.
 The provisional outcome remains retained until joined cleanup.
 <!-- raf:tested-by raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics -->
+
+The native differential boundary inventory names exact external-export
+observations independently of the generic resolver disagreement classes. The
+compiler sees the same controlled source as Source and emits metadata only.
+An accepted compiler observation does not turn Source's omitted carried export
+or typed resource refusal into agreement. Unrelated source-load or export failures
+still fail, and the generic known classes and index-failure handling are unchanged.
+The budget pair shares one compiler observation of a 50-link, 200-name source.
+Its tight Source profile adds a fixed 256 KiB query allowance to the loaded
+index's item-byte usage; the admitted neighbor uses the default grant.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
 
 Target edition metadata comes from the actual loaded package declarations,
 including workspace inheritance and the 2015 default for an omitted edition.
@@ -1238,7 +1267,7 @@ nothing. Existing seen-read and exact byte-limit behavior is unchanged.
 
 `Workspace::load_locked_sources_under` selects first-party discovery roots while
 retaining every discovered manifest's exact local association and every supplied
-sealed external Git source. An omitted or extra local association refuses; an
+sealed external source. An omitted or extra local association refuses; an
 explicitly narrower root admits its exact association set. Native storage keeps
 one valid allocation owner for each retained buffer, spends the original load
 grant and preserves the original typed refusal with its file, line and origin.
@@ -2130,6 +2159,25 @@ whether by `..` segments, an absolute path or a symlink, is an error that names 
 module and the attribute and does not read the file. An unresolved `mod` is an error
 that names the declaring file and its line.
 
+### Module paths outside their package
+<!-- raf:tested-by raf_source::test_crate::module_tree::foreign_module_paths_name_only_attributes_that_leave_their_package,raf_source::test_crate::module_tree::a_module_path_outside_every_package_is_reported_without_an_owner -->
+
+Each `Reach` records in `path_attribute` the `path` attribute that led the walk to the
+file, as a `PathSite`: the declaring file, the line of the module's name and the
+resolved spelling, with `dir/..` collapsed through real directories. A `path` on
+`mod name;`, plain or inside `cfg_attr`, leads to the file it names. A `path` on an
+inline module leads to each file module found by name inside that module, at any
+inline depth. A file's own children are reached through the file, so they record no
+attribute. `Workspace::foreign_module_paths` lists every such arrival whose resolved
+spelling the arriving target's package does not own, with that package and the owner.
+The owner is the package whose directory is the deepest one that lexically holds the
+spelling in the same source, so a member nested below a root package owns its own
+directory. A spelling that keeps a `..` below a package directory is not owned by that
+package. The owner is `None` when no loaded package holds the spelling. Library, binary,
+test, bench, example and build-script targets are all covered. A raw module name
+leaves the attribute and its resolution unchanged. Module declarations inside function
+bodies are not followed by the module walk, so the check does not see them.
+
 ### Module identity and cycles
 <!-- raf:tested-by raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files,raf_source::test_crate::module_tree::a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_path -->
 
@@ -2910,8 +2958,31 @@ source tree to a loaded `PackageId`.
 The adapter reads committed objects without launching Git, fetching, running hooks or filters, or modifying repository state. Worktree edits and replacement refs cannot affect its source view. Native object decoding has an explicit per-allocation bound, distinct from the portable total allocation and semantic-work meters applied to retained listings and blob buffers. This does not claim that native decoder CPU or all internal allocations are covered by portable meters. Git object-store access remains distinct from DiskTree filesystem-handle containment.
 <!-- raf:tested-by raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs -->
 
+`RegistryArchiveTree::from_bytes` admits supplied registry `.crate` bytes only
+after their native SHA-256 equals the selected lock row's checksum. Compressed
+and decompressed archives are separately capped by `max_total_bytes`. Native
+gzip decoding and the strict lossless tar inventory supply the archive interpretation;
+RAF never extracts files, fetches sources or executes package code.
+Nested transport envelopes, native diagnostics, non-UTF-8 member names, foreign package prefixes,
+links, special files, noncanonical paths, file/directory conflicts and a missing
+root Cargo manifest refuse. Binary payloads remain immutable; UTF-8 is required
+only when a source read asks for text. Parent traversal requires actual admitted
+directories, and seen reads retain their normal payload-limit behavior. A read
+never exceeds the configured per-file limit, whatever limit the caller passes.
+`LockedPackageRoots` selects `LockedTree::Git` or `LockedTree::Registry` through
+the same configured loader and provider-proof path. Registry manifests retain
+exact name, version, source and archive-checksum association, for a
+first-party archive as for any other. Neither cache paths, extracted package metadata nor caller labels establish admission.
+Native decoder internal CPU and allocations remain outside portable meters.
+The decoded tar buffer is admitted before the strict inventory runs; RAF-owned
+retained files, inventory, path traversal and source reads consume their grants.
+This supplies no universal native peak-memory or CPU guarantee.
+
+`library_target_name` reads only a tree's root manifest to name its library target: the `[lib]` name, otherwise the package name when a `[lib]` table or `src/lib.rs` makes a library, except that `autolib = false` leaves no library unless an explicit `[lib]` names one, so a locked configuration can select the library of a registry archive without loading its other targets, which an archive may omit.
+<!-- raf:tested-by raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries,raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive,raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path,raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit,raf_source::test_crate::registry_tree::a_first_party_archive_cannot_bind_to_a_different_catalogs_row,raf_source::test_crate::registry_tree::the_library_target_name_comes_from_the_root_manifest_alone -->
+
 `Workspace::load_locked_sources` joins explicit local manifest locators and opaque
-checked Git snapshots to actual discovered `PackageId`s. `LockedManifest` names a
+checked Git snapshots or registry archives to actual discovered `PackageId`s. `LockedManifest` names a
 candidate manifest and lock row; neither its path nor an authority label is proof.
 The load checks actual names and explicit or inherited versions. Git packages
 must be the unique matching package in the checked repository's root package or
@@ -2928,7 +2999,7 @@ destination package identity. Unrequested edges remain unresolved syntax and do
 not borrow same-named packages. Requested optional or target-conditional edges
 refuse without configuration admission. Catalog retention, checked snapshots,
 selection and ordinary source walking share one original resource grant.
-Without explicit configuration this proves committed source/package correspondence
+Without explicit configuration this proves authenticated source/package correspondence
 only. It does not imply active definitions, preferred-provider policy, repository
 authorship or dirty-checkout correspondence.
 <!-- raf:tested-by raf_source::test_crate::locked_sources::exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package,raf_source::test_crate::locked_sources::requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name,raf_source::test_crate::locked_sources::all_snapshots_catalog_and_walker_use_one_original_resource_grant -->
@@ -3233,7 +3304,7 @@ The two visibility rules of the use-alias index reach the surface as follows. A 
 <!-- raf:tested-by raf_source::test_crate::memory_tree::entry_reports_file_dir_and_absence_without_an_error,raf_source::test_crate::symbol_index::files_items_in_and_item_at_answer_by_position,raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included,raf_source::test_crate::reachability::the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run -->
 
 The data structs a caller reads, `Package`, `Target`, `SourceFile`,
-`Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so adding a field
+`Reach`, `PathSite`, `ForeignModulePath`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so adding a field
 is not a breaking change: a pattern over one names the fields it reads and ends in
 `..`, and a `Tree` backend outside the crate builds an `Entry` with `Entry::new`. The
 per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
@@ -3258,6 +3329,21 @@ workers are joined and speculative outcomes are destroyed; serial loads return
 requested stack bytes for started, unjoined workers. These operational
 counts are separate from semantic `Usage` and structural equality.
 <!-- raf:tested-by raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage -->
+
+Select the native external-export boundary inventory with
+`cargo test -p raf-source --test rustc_oracle external_carried_exports_and_carry_limits_have_named_compiler_boundaries`.
+This maintainer-controlled check compiles controlled RAF snippets to metadata;
+it does not execute their function bodies or inspect a consumer command.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
+
+Supply the selected `LockedCatalog` row, original `.crate` bytes and load options
+to `RegistryArchiveTree::from_bytes`. Bind its root `Cargo.toml` through
+`LockedPackageRoots::new(LockedTree::Registry(&archive), &manifests)`, and supply
+the exact registry mapping on the requested `LockedEdge`. Explicit configurations
+remain required for provider evidence. Cache acquisition belongs to the caller;
+its path cannot replace archive authentication.
+
 
 On native Linux, explicit metadata publishers can call
 `DiskTree::directory_handle` to clone the tree's original path-only root
@@ -3483,6 +3569,34 @@ invalid, the descendant's canonical input error wins even when the sibling's
 worker finishes first. A backend whose reads change with its call count uses
 the serial loader and cannot satisfy this parallel observation contract.
 <!-- raf:tested-by raf_source::test_crate::parallel_loading::an_earlier_canonical_descendant_error_wins_over_a_speculative_backend_panic,raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics -->
+
+The inventory contains four stable case names. Compiler observations use
+controlled sources with a root type-use that requires the external export.
+The two budget profiles reuse one observation of the identical bounded source.
+
+| Case | Source observation |
+| --- | --- |
+| `external-carried-value-shadow` | A value-namespace binder hides the carried type re-export from the structural surface. |
+| `external-carried-free-type-route` | An unshadowed route retains the exact external re-export without a defining ItemId. |
+| `external-carry-budget-refusal` | The bounded carrier under its tight declared grant refuses with `CarryBudget`, the exact item-byte limit and the original declaration path and line. |
+| `external-carry-budget-neighbor` | The identical bounded carrier under the default grant lists all 200 exact external re-exports. |
+
+These are exact boundary observations, not a namespace oracle or an expansion
+of the generic classes whose disagreements are tolerated.
+The original 5000-link, 2000-name carrier remains a separate Source-only
+default-budget regression with the same typed refusal and declaration provenance.
+Compiler acceptance of that large source is unverified.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
+
+A selected registry package containing a regular `src/lib.rs` and an unrelated
+binary asset loads its Rust definition without interpreting that binary asset.
+Reading the asset as source refuses invalid UTF-8. An altered archive fails its
+checksum; a different package prefix, a link, conflicting directory/file roles,
+a missing root manifest or a second compression envelope refuses beside a valid
+archive. The frozen provider fixture resolves the actual published native hash
+implementation through the same configured provider path.
+
 
 `prepare_source` accepts `const X:f64=1e2.3;` as guard-admitted source data.
 Its raw numeric guard run can cover several native leaves; use the separate
@@ -3715,6 +3829,25 @@ a nonconforming backend. Failures are not stringified, leaked, deliberately
 aborted or handled by detaching workers.
 <!-- raf:tested-by raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed -->
 
+The inventory does not add external/std namespace resolution, macro expansion
+or safe unsupported-item classification. Its carrier refusal is a typed resource
+observation, not a compiler rejection or a successful Source query. Only the
+named fixture's exact `CarryBudget` cause is expected there; another error,
+missing provenance or an unexpected load refusal fails the check.
+The large Source-only regression supplies no compiler acceptance evidence.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
+
+Registry archive admission bounds compressed bytes and decoded tar bytes
+separately. Native gzip decoding can hold additional internal memory and perform
+work outside RAF's portable meters. The decoded tar buffer is admitted before the
+strict tar inventory runs, and that inventory receives the item-byte and work
+grants as its storage and work limits. Retained RAF file storage and inventory
+traversal are metered. No universal native allocation or CPU bound is asserted. Registry source identity means equality to the selected lock's
+checksum, without a signature, author-trust or extracted-cache cleanliness claim.
+<!-- raf:tested-by raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive -->
+
+
 The instruction profile covers the stated generated populations and sizes on
 native Linux. It does not establish an instruction ceiling for arbitrary source
 inputs. Companion-bearing paths retain exact reconstruction and carrier proofs;
@@ -3890,7 +4023,7 @@ delegates to that library or enforce preferred-provider policy.
 - Output order is sorted by path, so two loads of the same tree give equal results.
   <!-- raf:tested-by raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order,raf_source::test_crate::exported_items::the_surface_is_the_same_in_every_load_and_in_every_order_of_the_declarations -->
 - The public surface of a structural load is the visibility rustc gives the items of a crate, read
-  <!-- raf:tested-by raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not,raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included,raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items,raf_source::test_crate::exported_items::an_exported_macro_is_exported_and_a_local_or_generated_one_is_not,raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists,raf_source::test_crate::exported_items::a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way,raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget,raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports -->
+  <!-- raf:tested-by raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not,raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included,raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items,raf_source::test_crate::exported_items::an_exported_macro_is_exported_and_a_local_or_generated_one_is_not,raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists,raf_source::test_crate::exported_items::a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way,raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries,raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports -->
   syntactically: no `cfg` other than the `test` tag is evaluated, so an item under
   any other `cfg` is listed whether or not a build has it, and nothing a macro
   generates is listed. `#[doc(hidden)]` and `#[macro_export]` are read as the index
@@ -3933,6 +4066,14 @@ adapter records peak ownership. Native synchronous progress controls and stack
 helpers do not supply parked task ownership or canonical outcome selection.
 A fresh scoped thread per input keeps native syntax and TLS destruction local.
 <!-- raf:tested-by raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage,raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed -->
+
+The sealed registry backend authenticates bytes before archive interpretation.
+Its private immutable inventory supplies files and absence through the existing
+Tree seam. Configured loading compares the exact package name, version, registry
+and checksum again against its own catalog, so another catalog cannot relabel an
+authenticated image. Committed Git and registry archives retain their distinct
+source proofs while sharing configured package, target and definition loading.
+
 
 One module fact sink retains module, trait, impl and foreign invocations. The
 existing native token work list, fact charges, string interning and indexed
@@ -4097,6 +4238,27 @@ destruction follow both windows. The collector retains exact counter coverage,
 allocation fields, semantic usage and the existing workspace report separately.
 <!-- raf:tested-by raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event -->
 
+The native boundary case compares identical controlled sources with the
+metadata-only compiler harness and the actual Source exported-surface API. The
+shadowed/free-route pair preserves the external namespace distinction. The
+tight/default carrier pair preserves the exact typed item-byte limit, exported
+path, source file and declaration line alongside all 200 accepted external
+paths, original written targets and absent defining item identities.
+The original large Source traversal runs once as a separate Source-only
+regression; the compiler never receives that source in this check.
+The generic differential classifier is unchanged; ordinary indexing failures
+remain failures.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries -->
+
+
+Controlled native archive fixtures cover immutable exact-byte reads, binary
+assets, seen reads, real-directory parent traversal, invalid inventory and nested
+transport refusals beside valid inputs. The native provider fixture checks a
+fixed nonempty BLAKE3 digest and actual published registry source resolution,
+including checksum corruption, catalog relabeling and absent-source refusals.
+Existing committed Git fixtures retain exact source and configuration coverage.
+
+
 Prepared-source fixtures compare the declared native-node ceiling with the
 original token tree for numeric, Unicode, lifetime and ignored-prefix inputs.
 Dangerous Unicode-separated recursion data is judged only by preparation, with
@@ -4238,7 +4400,7 @@ one-byte-short refusal.
   defaults; a setting of the wrong type in each kind of table is a `Manifest` error
   naming its key.
 - A `compile_fail` doctest on each of `Package`, `Target`, `SourceFile`, `Reach`,
-  `Entry` and `SpanFact` destructures it with every field and no `..` and must fail
+  `PathSite`, `ForeignModulePath`, `Entry` and `SpanFact` destructures it with every field and no `..` and must fail
   with E0638, the error of a pattern over a non-exhaustive struct. The pattern for
   `SourceFile` omits its crate-private `facts` field, so it is refused for that field
   too, and only the seal makes it E0638. A `required-features` key on the library is a
@@ -5333,7 +5495,6 @@ one-byte-short refusal.
 | `raf_source::test_crate::exported_items::in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::of_two_carriers_of_one_name_only_the_one_with_a_free_route_is_listed_with_its_own_line` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports` | test | [Constraints](#constraints) |
-| `raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::the_example_of_the_contract_lists_one_item_and_more_through_a_glob_or_a_pub_module` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::the_members_of_a_pub_trait_are_exported_and_those_of_a_private_trait_are_not` | test | [Verification](#verification) |
@@ -5491,6 +5652,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::module_tree::a_flat_module_file_and_its_child_below_a_parent_that_sorts_first_keep_their_own_paths` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_malformed_cfg_path_or_test_attribute_is_an_error_naming_its_line` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_module_path_outside_every_package_is_reported_without_an_owner` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_module_with_both_name_rs_and_name_mod_rs_is_an_error_naming_both_files` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_nested_cfg_attr_path_is_flattened_with_the_combined_predicate` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_non_literal_path_attribute_is_reported_as_such_from_the_attribute` | test | [Contract](#contract) |
@@ -5508,6 +5670,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::module_tree::an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::an_unresolved_mod_names_the_declaring_file_and_line` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::foreign_module_paths_name_only_attributes_that_leave_their_package` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::inline_modules_add_directory_components_for_their_file_children` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::module_depth_of_exactly_the_budget_loads_and_one_more_is_refused` | test | [Verification](#verification) |
@@ -5603,6 +5766,13 @@ one-byte-short refusal.
 | `raf_source::test_crate::registry_scan::tests::the_work_limit_reaches_the_load` | test | [Verification](#verification) |
 | `raf_source::test_crate::registry_scan::tests::version_components_and_prerelease_precedence_keep_their_width_and_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::registry_scan::tests::work_limit_refuses_zero_and_names_the_flag` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_tree::a_first_party_archive_cannot_bind_to_a_different_catalogs_row` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_tree::an_archive_of_many_small_files_loads_within_the_default_work_grant` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_tree::the_library_target_name_comes_from_the_root_manifest_alone` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside` | test | [Contract](#contract) |
 | `raf_source::test_crate::relpath::a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve` | test | [Contract](#contract) |
 | `raf_source::test_crate::relpath::an_absolute_input_is_refused_beside_its_relative_form` | test | [Contract](#contract) |
@@ -5642,6 +5812,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::diagnostic_levels_are_required_beside_a_valid_null_code` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data` | test | [Contract](#contract) |
 | `raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class` | test | [Verification](#verification) |

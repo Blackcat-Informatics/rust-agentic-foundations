@@ -7,10 +7,13 @@ subject: cap:census-ledger#verification
 inputs:
   - kind: section
     name: cap:census-ledger#verification
-    digest: 53fc197b6b1afd6162bb6b6ba3f0ebce7eb139884f9c273697fcd5047670f5f4
+    digest: 2af5f8bd23947b0b8e427be1798e1e06ecdbecee92240fc113b083802fed6bd7
+  - kind: symbol
+    name: raf_census::BenchLink
+    digest: 0cfb32481d48d75a47a6aa9abb72aa76a9a48fa4a0e495b3a8fdf364da325853
   - kind: symbol
     name: raf_census::Gate
-    digest: 9cf24e4b6294148fee1998dcc198c95e8ddff447e889b6e26500cee38496048a
+    digest: 8e019eb5a094a1bcac8ef88df54a7a87debd9f18fd92501806df57f088656dfc
   - kind: symbol
     name: raf_census::Gate::assert_clean
     digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25
@@ -19,7 +22,7 @@ inputs:
     digest: 7135af913fcf26db9027c4b5f7f35d30abdab5af67b884abe0e2a82e08f49536
   - kind: symbol
     name: raf_census::Gate::check_locked
-    digest: 2cb2ad081afa7034b3a8956b78b2fe67939b2e9ae71d0949365630d2de396e64
+    digest: a4750e277e048278a9b17432a57648744d2600f56e22bea9924017b788206b2d
   - kind: symbol
     name: raf_census::Gate::check_tree
     digest: eb42ff3aeb65568bc7c5e604b672291c0a2ea78b8812a460e16600941feb9080
@@ -34,10 +37,10 @@ inputs:
     digest: d32147afa2dc624555778ac873967a55756ee85a2100657e2751d3981c7cf051
   - kind: symbol
     name: raf_census::Gate::workspace
-    digest: 3a68ccc2c6992945c8aeba9f72a8290cd3ffefe6a27ce9daebb03ceafd659e78
+    digest: ee73f3e1b34baee6fe1444c47168271822b40aa62a586a43e5f2a752bad1e91a
   - kind: symbol
     name: raf_census::Gate::write_debt_locked
-    digest: 6eccf15bc7d5bd59ce33ee9c72c49239bad6c662887a6f3a46a835f41bee7e73
+    digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
   - kind: symbol
     name: raf_census::GateReport
     digest: c0bf5d269d59e7406a0cb28ffe1534cd177cea315e1d7f8428d0ebba2112b732
@@ -58,10 +61,10 @@ inputs:
     digest: bb829e6f568456dd6a5be2efc1bbb11079625c5c56c5d24f0dd652f6a424fefe
   - kind: symbol
     name: raf_census::LedgerJob
-    digest: 9bb8c37dc7ed6655e3371f467eafad3f07ded25d0c2abfe5bd0de56bf35330e0
+    digest: 0770979ea44c6552daacee29c6f20ee632ee1bdfb07369c56194515ac229d8d3
   - kind: symbol
     name: raf_census::LedgerPattern
-    digest: be1b80a317ec7ec6cfdf26dba07d4e92247cd534ef10794f63d5f1926f6fa661
+    digest: 531abbdfdc3ae411791975d33bd2ddb8fba474ff371cf6b6d532c05efbc74076
   - kind: symbol
     name: raf_census::LedgerVariant
     digest: 6cff865dc28265fb4c7899974210c0a4f56598b76c1f42071b0cc512501c0ed3
@@ -75,6 +78,9 @@ inputs:
     name: raf_census::PatternMatcher
     digest: 30a735bbbb30412ca5c41fe77b015dbaf13dc3b741ceb087d73a18ea016f144a
   - kind: symbol
+    name: raf_census::PatternScope
+    digest: 63f37e805fb303bce4b3800fe8be4728de43d732614ee66f7efde42884660f97
+  - kind: symbol
     name: raf_census::PreferredProvider
     digest: 7b658a1516d9e8a3ea7af76b94bc51ec1f8cb8b60f3c07775644f93c90ccec3c
   - kind: symbol
@@ -82,19 +88,19 @@ inputs:
     digest: 356e10fa9aa88605cafbb5e03b520149b50997e534cefb98e254898cdf5f38ab
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_locked
-    digest: d6094a34be80b07cd33928aa689b34ef8cf6e8e8396d61a13ae26318b3d48da7
+    digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
   - kind: symbol
     name: raf_census::gate::evaluate
-    digest: 73b27c45302b72961699514b5921bef7cc8dea95998dc2a3294ece8d9182365e
+    digest: 1e90ac3f6fea2b73e34a3eb38720468950a49d638e665535d9701bd2f9ca1198
   - kind: symbol
     name: raf_census::gate::owners
-    digest: 4b4dfa5fa054de94ba02c843d0250930207a6d6595f839521760cf646c41c1ac
+    digest: 42c47c5cb754e9d6284eb089c8ee9aa14bfaa04b41194c50f9416bcbd4b4a34c
   - kind: symbol
     name: raf_census::gate::providers
     digest: 042e52bfcc94421723e93aba659428e970fa6d6d4f98708d94681a7c1b6c5c08
   - kind: symbol
     name: raf_census::report::ledger
-    digest: ad077d29d7853c27d634f0580222c264fa2dd7f204eecb98e08390ebb83b450a
+    digest: b1dd05e30eb6dcf1df16512eb42758cd852e1f4e96ae603c52bdba128c4827dc
 verdict: accepted
 by: agent
 ---

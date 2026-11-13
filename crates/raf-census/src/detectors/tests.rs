@@ -3,8 +3,7 @@
 
 //! Registry completeness of the inputs exercised through the production Gate.
 
-#[path = "../../tests/support/detector_fixtures.rs"]
-mod fixtures;
+use crate::selftest::fixtures;
 
 #[test]
 fn every_executable_detector_has_positive_and_negative_gate_fixtures() {
@@ -13,7 +12,10 @@ fn every_executable_detector_has_positive_and_negative_gate_fixtures() {
         .into_iter()
         .chain(fixtures::FACTS.map(|(id, _, _, _)| (id, 1, 1)))
         .chain(fixtures::HEX.map(|(id, _, _, _)| (id, 1, 1)))
-        .chain(fixtures::CONTEXTUAL.map(|(id, _, _, _)| (id, 1, 1)))
+        .chain(
+            fixtures::CONTEXTUAL
+                .map(|(id, _, positive, negative)| (id, positive.len(), negative.len())),
+        )
         .chain(fixtures::RDF.map(|(id, _, _)| {
             let nested = fixtures::RDF_NESTED
                 .iter()

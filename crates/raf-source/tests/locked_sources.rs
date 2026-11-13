@@ -9,8 +9,8 @@ mod support;
 
 use git_objects::{GitObjectId, GitObjectKind, Objects, entry};
 use raf_source::{
-    Budget, CommittedGitTree, GitPackageRoots, LoadError, LoadErrorKind, LoadOptions,
-    LockedCatalog, LockedEdge, LockedManifest, LockedPackageId, MemoryTree, Namespace,
+    Budget, CommittedGitTree, LoadError, LoadErrorKind, LoadOptions, LockedCatalog, LockedEdge,
+    LockedManifest, LockedPackageId, LockedPackageRoots, LockedTree, MemoryTree, Namespace,
     ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree, RegistryIndex,
     RelPath, ResolutionAttempt, ResolveError, Workspace,
 };
@@ -792,8 +792,8 @@ impl Fixture {
             consumer,
             &local,
             &[
-                GitPackageRoots::new(&first, &first_roots),
-                GitPackageRoots::new(&other, &other_roots),
+                LockedPackageRoots::new(LockedTree::Git(&first), &first_roots),
+                LockedPackageRoots::new(LockedTree::Git(&other), &other_roots),
             ],
             options,
         )
@@ -1034,7 +1034,7 @@ fn another_checked_repository_cannot_supply_an_expected_source_by_name_or_author
         &fixture.catalog,
         &tree,
         &local,
-        &[GitPackageRoots::new(&other, &expected)],
+        &[LockedPackageRoots::new(LockedTree::Git(&other), &expected)],
         &LoadOptions::default(),
     )
     .expect_err("opaque source identity mismatch");

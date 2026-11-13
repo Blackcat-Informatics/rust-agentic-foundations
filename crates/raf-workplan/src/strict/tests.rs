@@ -5,12 +5,7 @@
 //! while every complete check judges each delivered capability and each
 //! binding-reached package once.
 
-#[allow(
-    dead_code,
-    reason = "the unit tests read a part of the fixture the integration tests share"
-)]
-#[path = "../../tests/support/strict.rs"]
-pub(crate) mod fixture;
+pub(crate) use raf_fixtures::strict as fixture;
 
 use raf_source::{MemoryTree, Workspace};
 

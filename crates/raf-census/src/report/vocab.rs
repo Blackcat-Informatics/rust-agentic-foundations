@@ -40,6 +40,26 @@ pub struct Shape {
     /// Object type and range.
     pub object: &'static str,
 }
+impl Shape {
+    /// Whether the reader of report kind `report` admits this row. A row
+    /// applies to its own kind; a `both` row applies to the baseline and the
+    /// index, and its Unit rows to the job and fingerprint queries. The index
+    /// Unit and reference rows also apply to those queries, and its Job and
+    /// Match rows to the job query.
+    #[must_use]
+    pub fn applies_to(&self, report: &str) -> bool {
+        self.report == report
+            || (self.report == "both"
+                && (matches!(report, "baseline" | "index")
+                    || (matches!(report, "job-query" | "fingerprint-query")
+                        && self.class == "Unit")))
+            || (self.report == "index"
+                && ((self.class == "Unit" && matches!(report, "job-query" | "fingerprint-query"))
+                    || (matches!(self.class, "Job" | "Match") && report == "job-query")
+                    || (matches!(self.class, "ReferenceSource" | "ReferenceWitness")
+                        && matches!(report, "job-query" | "fingerprint-query"))))
+    }
+}
 macro_rules! shapes {
     ($(($r:literal,$c:literal,$p:literal,$min:expr,$max:expr,$o:literal)),* $(,)?) => {
         /// All permitted report properties; rdf:type is required once per node.
@@ -51,9 +71,13 @@ shapes! {
     ("baseline","Baseline","normalForm",1,1,"u32"),
     ("baseline","Baseline","reportForm",1,1,"report version"),
     ("baseline","Baseline","unitCount",1,1,"integer"),
+    ("baseline","Baseline","excludeTestItems",0,1,"boolean"),
+    ("baseline","Baseline","excludeDir",0,usize::MAX,"string"),
     ("index","Index","normalForm",1,1,"u32"),
     ("index","Index","reportForm",1,1,"report version"),
     ("index","Index","referenceSource",0,usize::MAX,"reference source"),
+    ("index","Index","excludeTestItems",0,1,"boolean"),
+    ("index","Index","excludeDir",0,usize::MAX,"string"),
     ("job-query","JobQuery","normalForm",1,1,"u32"),
     ("job-query","JobQuery","reportForm",1,1,"report version"),
     ("job-query","JobQuery","jobId",1,1,"string"),
@@ -98,6 +122,9 @@ shapes! {
     ("index","ReferenceWitness","consumer",1,1,"unit"),
     ("index","ReferenceWitness","reference",1,1,"unit"),
     ("index","ReferenceWitness","fingerprint",1,1,"reference fingerprint"),
+    ("index","ReferenceConstant","value",1,1,"large integer"),
+    ("index","ReferenceConstant","firstPartyMember",1,usize::MAX,"unit"),
+    ("index","ReferenceConstant","referenceMember",1,usize::MAX,"unit"),
     ("index","Job","jobId",1,1,"string"),
     ("index","Job","homeSymbol",1,1,"string"),
     ("index","Job","copies",1,1,"integer"),
@@ -106,6 +133,8 @@ shapes! {
     ("index","Match","matchClass",1,1,"match class"),
     ("debt","DebtRecord","normalForm",1,1,"u32"),
     ("debt","DebtRecord","reportForm",1,1,"report version"),
+    ("debt","DebtRecord","excludeTestItems",0,1,"boolean"),
+    ("debt","DebtRecord","excludeDir",0,usize::MAX,"string"),
     ("debt","BodyDebt","memberSymbol",1,usize::MAX,"string"),
     ("debt","ShimDebt","memberSymbol",1,usize::MAX,"string"),
     ("debt","BodyDebt","multiplicity",0,usize::MAX,"multiplicity"),
@@ -115,3 +144,88 @@ shapes! {
     ("debt","JobDebt","jobId",1,1,"string"),
     ("debt","JobDebt","copies",1,1,"positive integer"),
 }
+
+/// The closed property set of each engine-owned Ledger class; `rdf:type` is
+/// required once per node. An `Extension` root and the nodes it reaches are
+/// absent: that content belongs to the consumer and passes unchanged to the
+/// consumer's validator.
+pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
+    (
+        "Ledger",
+        &[
+            "normalForm",
+            "reportForm",
+            "minTokens",
+            "maxFileBytes",
+            "excludeTestItems",
+            "excludeDir",
+            "root",
+            "reference",
+            "job",
+            "distinct",
+            "pattern",
+        ],
+    ),
+    (
+        "LedgerJob",
+        &[
+            "jobId",
+            "summary",
+            "homeSymbol",
+            "entryPoint",
+            "enforced",
+            "forbiddenName",
+            "forbiddenConstant",
+            "forbiddenFingerprint",
+            "forbiddenPattern",
+            "variant",
+            "extension",
+            "preferredProvider",
+            "vectorPath",
+            "benchTarget",
+            "specRef",
+        ],
+    ),
+    (
+        "Variant",
+        &[
+            "symbol",
+            "file",
+            "detector",
+            "criterion",
+            "anchor",
+            "reason",
+        ],
+    ),
+    (
+        "Distinct",
+        &[
+            "memberSymbol",
+            "multiplicity",
+            "kind",
+            "criterion",
+            "anchor",
+            "reason",
+        ],
+    ),
+    ("MemberMultiplicity", &["symbol", "copies"]),
+    ("PreferredProvider", &["package", "entryPoint", "consumer"]),
+    (
+        "Pattern",
+        &[
+            "patternId",
+            "summary",
+            "call",
+            "path",
+            "macro",
+            "typePath",
+            "literalRegex",
+            "tokens",
+            "targetKind",
+            "excludeTargetKind",
+            "shippingOnly",
+            "includePath",
+            "excludePath",
+        ],
+    ),
+];

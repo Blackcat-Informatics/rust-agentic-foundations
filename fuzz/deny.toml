@@ -5,6 +5,8 @@
 
 [graph]
 all-features = true
+# Rust on Linux is the only supported platform; other targets are not checked.
+targets = ["x86_64-unknown-linux-gnu"]
 
 [licenses]
 # The list is deliberately short: an addition should require someone to look at
@@ -33,40 +35,47 @@ allow = ["Unicode-3.0"]
 crate = "libfuzzer-sys@=0.4.13"
 allow = ["NCSA"]
 
-# purrdf-lex retains Unicode tables and BSD-licensed native parsing material.
+# purrdf-lex retains Unicode tables, BSD-licensed native parsing material and the
+# GB 18030 mapping data under its original ICU and Unicode Inc. agreements.
 # Its package notices govern the additional terms at the pinned source.
 [[licenses.exceptions]]
-crate = "purrdf-lex@=3.0.1"
-allow = ["Unicode-3.0", "BSD-3-Clause"]
+crate = "purrdf-lex@=4"
+allow = ["Unicode-3.0", "BSD-3-Clause", "Unicode-DFS-2016", "ICU"]
 
 # purrdf-iri ships Unicode IDNA tables with the same redistribution terms.
 # The exception covers only this audited release, not arbitrary dependencies.
 [[licenses.exceptions]]
-crate = "purrdf-iri@=3.0.1"
+crate = "purrdf-iri@=4"
 allow = ["Unicode-3.0"]
 
 # The native RDF kernel includes Unicode data under its original terms.
 [[licenses.exceptions]]
-crate = "purrdf-core@=3.0.1"
+crate = "purrdf-core@=4"
 allow = ["Unicode-3.0"]
 
 # The terminal bidi predicate comes from this native Unicode text package.
 # Its bundled Unicode tables retain the audited package's original notices.
 [[licenses.exceptions]]
-crate = "purrdf-text@=3.0.1"
+crate = "purrdf-text@=4"
 allow = ["Unicode-3.0"]
 
 # The native hash package retains EFF word data under Attribution 4.0.
 # Its bundled EFF notice and license remain controlling for that data.
 [[licenses.exceptions]]
-crate = "purrdf-hash@=3.0.1"
+crate = "purrdf-hash@=4"
 allow = ["CC-BY-4.0"]
 
 # The native ECMA matcher retains Unicode 17 property aliases and ranges.
 # The pinned package's data headers and license inventory retain Unicode's notice.
 [[licenses.exceptions]]
-crate = "purrdf-jsonschema@=3.0.1"
+crate = "purrdf-jsonschema@=4"
 allow = ["Unicode-3.0"]
+
+# Published test support embeds the JSON Schema specification's meta-schemas.
+# Its bundled BSD notice remains controlling for that data.
+[[licenses.exceptions]]
+crate = "purrdf-testkit@=4"
+allow = ["BSD-3-Clause"]
 
 # Native Git retains Unicode normalization tables under their original notice.
 [[licenses.exceptions]]
@@ -91,9 +100,13 @@ allow = ["Zlib"]
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"
-# The pinned native RDF wasm-bindgen macro closure uses syn 2; RAF uses syn 3.
+# Path dependencies that name no version (the unpublished test-fixture crate, a
+# dev-dependency that `cargo package` strips) are allowed; registry dependencies
+# still may not use a wildcard.
+allow-wildcard-paths = true
+# gix-macros, a proc macro of the native Git dependency, uses syn 2; RAF uses syn 3.
 skip = [
-    { crate = "syn@=2.0.119", reason = "Pinned native RDF wasm-bindgen macro closure; RAF source parsing uses syn 3." },
+    { crate = "syn@=2.0.119", reason = "gix-macros 0.2.1 requires syn 2; RAF source parsing uses syn 3." },
     { crate = "hashbrown@=0.15.5", reason = "imara-diff 0.2.0 requires hashbrown ^0.15; native Git's gix-hashtable requires ^0.17.1." },
     { crate = "hashbrown@=0.16.1", reason = "gix-pack 0.77.0 requires clru's dynamic object cache; current clru 0.6.3 requires hashbrown ^0.16." },
     { crate = "foldhash@=0.1.5", reason = "imara-diff's hashbrown 0.15.5 requires foldhash ^0.1; clru's hashbrown 0.16.1 requires ^0.2." },
@@ -106,5 +119,5 @@ yanked = "deny"
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = ["https://github.com/Blackcat-Informatics/purrdf.git"]
+allow-git = []
 required-git-spec = "rev"

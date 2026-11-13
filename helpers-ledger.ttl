@@ -1,7 +1,25 @@
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/8a17848aba764b48ebfd25880b6b982074d0f475b54a9e9289cd17bb924db25c>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a50bd678b87b4a31e64cc3bc3cc55e2e9df153a99a327d5419d8bc3d9b1bebca>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
+<> <https://blackcatinformatics.ca/raf/report/1#job> <#digest> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#root> "." .
 <> <https://blackcatinformatics.ca/raf/report/1#root> "fuzz" .
+<#digest> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LedgerJob> .
+<#digest> <https://blackcatinformatics.ca/raf/report/1#enforced> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#digest> <https://blackcatinformatics.ca/raf/report/1#forbiddenConstant> "1779033703"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#digest> <https://blackcatinformatics.ca/raf/report/1#forbiddenFingerprint> "rule:hex-digit-radix" .
+<#digest> <https://blackcatinformatics.ca/raf/report/1#forbiddenFingerprint> "rule:hex-format-loop" .
+<#digest> <https://blackcatinformatics.ca/raf/report/1#forbiddenFingerprint> "rule:hex-pair-radix" .
+<#digest> <https://blackcatinformatics.ca/raf/report/1#forbiddenFingerprint> "rule:hex-table" .
+<#digest> <https://blackcatinformatics.ca/raf/report/1#homeSymbol> "purrdf_hash::hex::encode" .
+<#digest> <https://blackcatinformatics.ca/raf/report/1#jobId> "purrdf-digest" .
+<#digest> <https://blackcatinformatics.ca/raf/report/1#preferredProvider> <#digest-provider> .
+<#digest> <https://blackcatinformatics.ca/raf/report/1#summary> "Digest and hexadecimal encoding come from PurRDF" .
+<#digest-provider> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#PreferredProvider> .
+<#digest-provider> <https://blackcatinformatics.ca/raf/report/1#consumer> "raf_workplan::digest::blake3_hex" .
+<#digest-provider> <https://blackcatinformatics.ca/raf/report/1#entryPoint> "purrdf_hash::blake3::Hash::as_bytes" .
+<#digest-provider> <https://blackcatinformatics.ca/raf/report/1#entryPoint> "purrdf_hash::blake3::hash" .
+<#digest-provider> <https://blackcatinformatics.ca/raf/report/1#entryPoint> "purrdf_hash::hex::encode" .
+<#digest-provider> <https://blackcatinformatics.ca/raf/report/1#package> "purrdf.*" .

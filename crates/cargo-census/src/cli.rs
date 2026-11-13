@@ -19,6 +19,10 @@ pub(crate) struct Args {
     /// Directory inside the workspace; ancestor manifests locate its root.
     #[arg(long, default_value = ".", global = true)]
     pub(crate) workspace: PathBuf,
+    #[command(flatten)]
+    pub(crate) reference: ReferenceArgs,
+    #[command(flatten)]
+    pub(crate) registry: RegistryArgs,
     #[command(subcommand)]
     pub(crate) command: Command,
 }
@@ -70,6 +74,8 @@ pub(crate) enum Command {
     Check,
     /// Emit a migrated RDF ledger to stdout without modifying either input.
     Migrate(MigrationArgs),
+    /// Prove the installed census still finds seeded copies; needs no workspace and writes nothing.
+    SelfTest,
     /// Record present debt through `Gate::write_debt`, refusing growth.
     Debt {
         /// Publish the exact present record.
@@ -165,4 +171,84 @@ pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, cl
     }
     let Cargo::Census(args) = Cargo::try_parse_from(words)?;
     Ok(args)
+}
+
+/// One caller-declared reference tree, compared beside the ledger's
+/// lock-selected references by the commands that evaluate the Gate.
+#[derive(ClapArgs)]
+pub(crate) struct ReferenceArgs {
+    /// Repository whose committed objects at the pinned commit are the
+    /// reference; a relative location is resolved from the main checkout.
+    #[arg(
+        id = "reference_repo",
+        long = "reference-repo",
+        global = true,
+        value_name = "LOCATION"
+    )]
+    pub(crate) repo: Option<PathBuf>,
+    /// Full 40-character lowercase hexadecimal commit ID to compare against.
+    #[arg(
+        id = "reference_commit",
+        long = "reference-commit",
+        global = true,
+        value_name = "COMMIT"
+    )]
+    pub(crate) commit: Option<String>,
+    /// Workspace-relative TOML file that names the pinned commit.
+    #[arg(
+        id = "reference_pin_file",
+        long = "reference-pin-file",
+        global = true,
+        value_name = "FILE"
+    )]
+    pub(crate) pin_file: Option<String>,
+    /// Dotted key whose string value in the pin file is the commit ID.
+    #[arg(
+        id = "reference_pin_key",
+        long = "reference-pin-key",
+        global = true,
+        value_name = "KEY"
+    )]
+    pub(crate) pin_key: Option<String>,
+    /// Directory whose current files are the reference; every index and query marks its receipts unpinned, and every evaluating command prints an unpinned notice on stderr.
+    #[arg(
+        id = "reference_unpinned",
+        long = "reference-unpinned",
+        global = true,
+        value_name = "DIRECTORY"
+    )]
+    pub(crate) unpinned: Option<PathBuf>,
+}
+
+/// Registry dependencies sealed from the lock file and Cargo's archive cache.
+#[derive(ClapArgs)]
+pub(crate) struct RegistryArgs {
+    /// Directory of Cargo's cached registry archives (`registry/cache`);
+    /// defaults to `$CARGO_HOME/registry/cache`, then `$HOME/.cargo/registry/cache`.
+    #[arg(
+        id = "registry_cache",
+        long = "registry-cache",
+        global = true,
+        value_name = "DIRECTORY"
+    )]
+    pub(crate) cache: Option<PathBuf>,
+    /// Registry package to compare against, sealed from the lock file: an
+    /// exact name or a `prefix-*` family. Repeatable; the ledger's reference
+    /// selectors are sealed as well.
+    #[arg(
+        id = "seal_registry",
+        long = "seal-registry",
+        global = true,
+        value_name = "SELECTOR"
+    )]
+    pub(crate) seal: Vec<String>,
+    /// Complete feature set the workspace enables on a sealed package,
+    /// `PACKAGE=feature,feature` (`PACKAGE=` for none). One flag per package.
+    #[arg(
+        id = "registry_features",
+        long = "registry-features",
+        global = true,
+        value_name = "PACKAGE=FEATURES"
+    )]
+    pub(crate) features: Vec<String>,
 }

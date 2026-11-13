@@ -651,6 +651,7 @@ fn fragment_carriers_refuse_before_inputs(repo: &Repo, args: &[&str]) {
 
 #[test]
 fn standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes() {
+    repository_navigation_publication();
     let repo = diagram_repo("standalone-publication");
     repo.put("published-docs/demo/index.html", "unrelated Rustdoc output");
     let args = [
@@ -731,6 +732,86 @@ fn standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes()
         repo.read("published-docs/demo/index.html"),
         "unrelated Rustdoc output"
     );
+}
+
+fn repository_navigation_publication() {
+    use raf_workplan::diagram::publication;
+    let repo = diagram_repo("repository-linked-cli");
+    let path = "docs/capabilities/alpha.md";
+    repo.edit(path, "kind: capability-dependencies", "kind: components");
+    repo.edit(path, "scope: workspace", "scope: cap:alpha");
+    let model = "model:\n  components:\n    - id: source\n      label: Source\n      kind: component\n      responsibility: Expose the source identity\n      bindings:\n        code: [demo::real]\n    - id: contract\n      label: Contract\n      kind: component\n      responsibility: Expose a capability contract\n      bindings:\n        capabilities: [cap:gamma]\n";
+    repo.edit(path, "bindings:", &format!("{model}bindings:"));
+    repo.put("src/escaped # café.rs", "pub fn real() {}\n");
+    repo.put(
+        "src/lib.rs",
+        "#[path = \"escaped # café.rs\"] mod implementation;\npub use implementation::real;\n",
+    );
+    for output in ["site # café", "published/nested output"] {
+        repo.put(&format!("{output}/host.html"), "unrelated host bytes");
+        let args = [
+            "--format",
+            "ntriples",
+            "docs",
+            "build",
+            "standalone",
+            "--view",
+            "cap:alpha#dependencies",
+            "--output-dir",
+            output,
+            "--repository-links",
+        ];
+        let result = repo.both(&args).expect(0);
+        let rdf = Rdf::of(&result);
+        let rows = rdf.rows("DocumentationBuilt");
+        let directory = std::path::Path::new(rows[0].required("directory"));
+        let opened = Gate::workspace(repo.root()).open().unwrap();
+        assert_eq!(
+            publication::publish_repository(
+                &opened,
+                "cap:alpha#dependencies",
+                &repo.root().join(output)
+            )
+            .unwrap(),
+            directory
+        );
+        let prefix = if output.contains('/') {
+            "../../../../"
+        } else {
+            "../../../"
+        };
+        let svg = std::fs::read_to_string(directory.join("dependencies.svg")).unwrap();
+        assert!(
+            svg.contains(&format!("{prefix}src/escaped%20%23%20caf%C3%A9.rs")),
+            "{svg}"
+        );
+        assert!(svg.contains(&format!("{prefix}docs/capabilities/gamma.md")));
+        assert!(!svg.contains("#L"));
+        let before = repo.snapshot();
+        assert_eq!(repo.both(&args).expect(0).stdout, result.stdout);
+        assert_eq!(repo.snapshot(), before);
+        assert_eq!(
+            repo.read(&format!("{output}/host.html")),
+            "unrelated host bytes"
+        );
+    }
+    for output in ["missing", "../outside"] {
+        let before = repo.snapshot();
+        let run = repo
+            .both(&[
+                "docs",
+                "build",
+                "standalone",
+                "--view",
+                "cap:alpha#dependencies",
+                "--output-dir",
+                output,
+                "--repository-links",
+            ])
+            .expect(2);
+        assert_eq!(run.stdout, "");
+        assert_eq!(repo.snapshot(), before);
+    }
 }
 
 fn mdbook_preserves_the_book_and_uses_the_shared_view() {

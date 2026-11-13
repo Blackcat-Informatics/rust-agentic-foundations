@@ -32,7 +32,7 @@ const QUERIES: [&str; 10] = [
 
 /// The tree an input describes, or `None` for bytes that are not UTF-8 and
 /// for keys the tree refuses.
-pub(crate) fn tree(data: &[u8]) -> Option<MemoryTree> {
+pub fn tree(data: &[u8]) -> Option<MemoryTree> {
     let text = std::str::from_utf8(data).ok()?;
     let mut pieces = text.split('\0');
     let manifest = format!("{MANIFEST}{}", pieces.next().unwrap_or_default());
@@ -45,7 +45,7 @@ pub(crate) fn tree(data: &[u8]) -> Option<MemoryTree> {
 /// namespace and package, the items of each file and under each query, the
 /// public surface of each target, hidden items included, and the test
 /// functions. Returns the number of items.
-pub(crate) fn exercise(workspace: &Workspace) -> usize {
+pub fn exercise(workspace: &Workspace) -> usize {
     let packages: Vec<String> = workspace
         .packages()
         .iter()
@@ -80,7 +80,7 @@ pub(crate) fn exercise(workspace: &Workspace) -> usize {
 /// A seed with items: it must load, and its index must hold items. A build
 /// whose parser lost the positions of what it parses fails here, before any
 /// input is judged.
-pub(crate) fn self_check() {
+pub fn self_check() {
     let seed = "\0src/lib.rs\npub mod a {\n    pub fn f() {}\n}\npub struct S;\n";
     let tree = tree(seed.as_bytes()).expect("the self-check seed is a tree");
     let workspace = match Workspace::load(&tree, &["."]) {

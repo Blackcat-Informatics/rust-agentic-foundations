@@ -7,13 +7,13 @@ subject: cap:rdf-report-profile#contract
 inputs:
   - kind: section
     name: cap:rdf-report-profile#contract
-    digest: a46e1a82c1d36da172babd71545c46c52065bbe9ede5b7f27075ab797925b293
+    digest: 99a6a4db1a2de82dff42e30b0f0d5b5ecc95cfe10c60c6198180c24f0bce1f19
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
     digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
-    digest: 77a5f5bfc9bdd9b0bfa4a4ff8b83ef55e9aa66108d764fb7ceb1a3a3cf9c5111
+    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
   - kind: symbol
     name: raf_census::Baseline::to_ntriples
     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544

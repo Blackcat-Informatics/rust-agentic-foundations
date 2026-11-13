@@ -1134,7 +1134,14 @@ fn this_repository_enforces_all_packages_with_zero_coverage_debt() {
         "rust-agentic-foundations",
     ];
     assert_eq!(record.value().scope, packages);
-    assert_eq!(record.value().exclusions.as_slice(), []);
+    // The shared fixture crate states no capability: it is outside `scope`, and
+    // each of its eight modules and their items is excluded with a reason. Its
+    // lines are still counted by the reverse line report, with no orphan.
+    let fixtures = record.value().exclusions.as_slice();
+    assert_eq!(fixtures.len(), 16);
+    assert!(fixtures.iter().all(|exclusion| {
+        format!("{:?}", exclusion.item).contains("raf_fixtures::") && !exclusion.reason.is_empty()
+    }));
     assert_eq!(record.value().exceptions.as_slice(), []);
     assert_eq!(record.value().ceilings.as_slice(), []);
     let report = plan.coverage_report();
@@ -1146,7 +1153,13 @@ fn this_repository_enforces_all_packages_with_zero_coverage_debt() {
     let lines = plan.lines_report();
     assert!(lines.errors().is_empty(), "{:?}", lines.errors());
     assert!(lines.is_complete(), "{:?}", lines.orphans());
-    assert_eq!(lines.crates().len(), packages.len());
+    assert_eq!(lines.crates().len(), packages.len() + 1);
+    assert!(
+        lines
+            .crates()
+            .iter()
+            .any(|row| row.package() == "raf-fixtures")
+    );
     for row in lines.crates() {
         assert_eq!(
             (row.orphan(), row.excepted(), row.debt()),

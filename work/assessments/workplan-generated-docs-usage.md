@@ -7,10 +7,10 @@ subject: cap:workplan-generated-docs#usage
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#usage
-    digest: 81afa4203f80d7c89fcff1203d3d1d0d28008cdf4a9ae6762cc1adce2ef8e05e
+    digest: edb44799b969fb16606103ed1c32d39ada0d19f1e532efb82039cb8457691c31
   - kind: symbol
     name: raf_workplan::Opened::preview_generated
-    digest: be58d7ce56cbb41c4d66dac333991ca584780d0389ff5a3ea5c885c2d3c30a6c
+    digest: f7a6f2c2949296be5ef567a886b1a93e08b98d7886771143411f8a334650f6c0
   - kind: symbol
     name: raf_workplan::SyncReport
     digest: 8c5ddb0bdd4816e53ff88ba345daec8cc8dd2ec2062cafb6e32eaaf3a51814f1
@@ -22,7 +22,10 @@ inputs:
     digest: 9ba560131a4fedddffd7453172f167de21c0f3559a1cd0417572f82d00b2ded4
   - kind: symbol
     name: raf_workplan::diagram
-    digest: 300a0a165b33cfd8feff80b817aaac88050deca22a70b9e58ea27552399e0614
+    digest: ffe747e9021d17890b41f9d09f68de919d988b193def0c7cb0de2e0d539718dd
+  - kind: symbol
+    name: raf_workplan::diagram::publication::publish_repository
+    digest: 0942902b5d134460b2f4e0be0fbbe2574a5e82e6a8f7ab6ef6d36cc2390cfec6
 verdict: accepted
 by: agent
 ---

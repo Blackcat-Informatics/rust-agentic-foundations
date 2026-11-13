@@ -7,22 +7,22 @@ subject: cap:census-ledger#contract
 inputs:
   - kind: section
     name: cap:census-ledger#contract
-    digest: 727c2bbe7df73148851f479a62d26ee7fb3b9b7669d7ccd8339eb26a3b53db34
+    digest: ccdf50812b3624c81be9b8420f5a26afb765e82a19b20d301bb3e241a859f606
   - kind: symbol
     name: raf_census::Gate::check_locked
-    digest: 2cb2ad081afa7034b3a8956b78b2fe67939b2e9ae71d0949365630d2de396e64
+    digest: a4750e277e048278a9b17432a57648744d2600f56e22bea9924017b788206b2d
   - kind: symbol
     name: raf_census::Gate::root
     digest: 33267fbb7491b78a5b2d9c396f48befa48ab7a2eed51b24f687c72a9e55ed19d
   - kind: symbol
     name: raf_census::Gate::write_debt_locked
-    digest: 6eccf15bc7d5bd59ce33ee9c72c49239bad6c662887a6f3a46a835f41bee7e73
+    digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
   - kind: symbol
     name: raf_census::LedgerExtensionGraph
     digest: bb829e6f568456dd6a5be2efc1bbb11079625c5c56c5d24f0dd652f6a424fefe
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_locked
-    digest: d6094a34be80b07cd33928aa689b34ef8cf6e8e8396d61a13ae26318b3d48da7
+    digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
 verdict: accepted
 by: agent
 ---

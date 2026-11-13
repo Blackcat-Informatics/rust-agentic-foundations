@@ -8,7 +8,15 @@ use crate::publication_io::{Root, cleanup_after};
 use purrdf_core::ContentDigest;
 use raf_rdf::{Builder, Format, TermValue, Triple};
 use raf_source::{DiskTree, EntryKind, RelPath, Tree};
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    rc::Rc,
+};
+
+mod navigation;
+#[cfg(test)]
+mod tests;
+pub(super) use navigation::RepositoryNavigation;
 
 const MANIFEST: &str = "manifest.ttl";
 const VOCAB: &str = "https://blackcatinformatics.ca/raf/workplan/documentation#";
@@ -38,19 +46,67 @@ const VOCAB: &str = "https://blackcatinformatics.ca/raf/workplan/documentation#"
 /// be completed. An orphan temporary file or a directory lacking its manifest
 /// instead fails with its path for inspection; unknown files are never removed.
 pub fn publish(bundle: &DiagramBundle, root: &Path) -> Result<PathBuf, DiagramError> {
-    publish_files(documentation::build(bundle)?, root)
+    let files = documentation::build(bundle)?;
+    publish_files(
+        files,
+        &Root::open(root).map_err(DiagramError::data)?,
+        &RelPath::root(),
+    )
 }
 
-fn publish_files(mut files: Vec<(RelPath, String)>, root: &Path) -> Result<PathBuf, DiagramError> {
+/// Publish a named view with repository-relative source and capability navigation.
+///
+/// The existing output directory is bound beneath the exact opened workspace
+/// before generation. Only its `raf-workplan/<digest>/` subtree is written.
+/// Contextual native bundles are ephemeral and never replace cached named views.
+/// Serve the workspace tree unchanged, including under any URL prefix.
+///
+/// Source lines remain provenance rather than invented raw-file anchors.
+/// Authority and destination checks are observations, not an immutable snapshot,
+/// an atomic directory transaction or isolation from concurrent writers.
+///
+/// # Errors
+/// Refuses missing, outside or changed output/source bindings, unknown views,
+/// native generation failures and the immutable publisher's ownership refusals.
+pub fn publish_repository(
+    opened: &crate::Opened,
+    reference: &str,
+    output: &Path,
+) -> Result<PathBuf, DiagramError> {
+    let root = Root::from_tree(opened.shared_tree()).map_err(DiagramError::data)?;
+    let output = std::path::absolute(output).map_err(DiagramError::data)?;
+    let prefix = output.strip_prefix(root.path()).map_err(|_| {
+        refused("repository-linked output must lie beneath the opened canonical workspace".into())
+    })?;
+    let prefix = relative(prefix.to_str().ok_or_else(|| {
+        refused("repository-linked output must be representable as UTF-8".into())
+    })?)?;
+    let admitted = root.directory(&prefix).map_err(DiagramError::data)?;
+    let prefix = admitted.relative_path().map_err(DiagramError::data)?;
+    let plan = opened.workplan();
+    let navigation = RepositoryNavigation::new(Rc::clone(&root), prefix.clone());
+    let bundle = plan.named_diagram_with_navigation(reference, &navigation)?;
+    let files = documentation::build(&bundle)?;
+    navigation.verify()?;
+    admitted.verify().map_err(DiagramError::data)?;
+    publish_files(files, &root, &prefix)
+}
+
+fn publish_files(
+    mut files: Vec<(RelPath, String)>,
+    root: &Rc<Root>,
+    prefix: &RelPath,
+) -> Result<PathBuf, DiagramError> {
     let manifest = manifest(&files)?;
     let digest = ContentDigest::of(manifest.as_bytes());
     files.push((relative(MANIFEST)?, manifest));
-    let root = Root::open(root).map_err(DiagramError::data)?;
     let tree = root.tree();
-    let namespace = relative("raf-workplan")?;
+    let namespace = prefix.join("raf-workplan").map_err(DiagramError::data)?;
     root.create_directory(&namespace)
         .map_err(DiagramError::data)?;
-    let destination = relative(&format!("raf-workplan/{digest}"))?;
+    let destination = namespace
+        .join(&digest.to_string())
+        .map_err(DiagramError::data)?;
     let created = root
         .create_directory(&destination)
         .map_err(DiagramError::data)?;

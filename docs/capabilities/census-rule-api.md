@@ -11,17 +11,23 @@ bindings:
     - raf_census::rule
     - raf_census::gate::rules
     - raf_census::Gate::require_rules
+    - raf_census::Gate::require_module_paths_in_package
+    - raf_census::gate::module_paths
     - raf_census::Gate::workspace
     - raf_census::Gate::rules
     - raf_census::Gate::extensions
     - raf_census::Gate::assert_clean
+    - raf_census::Gate::self_test
   tests:
     - raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries
+    - raf_census::test_crate::census_gate::module_paths_outside_their_package_are_required_findings_beside_contained_ones
 
     - raf_census::test_crate::rules::the_rule_runs_its_positive_and_negative_source_cases
     - raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour
     - raf_census::test_crate::rules::invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case
     - raf_census::test_crate::rules::positive_misses_and_negative_hits_are_refused
+    - raf_census::selftest::tests::a_registered_rule_whose_fixture_fails_is_a_named_failing_case
+    - raf_census::selftest::tests::a_registered_rule_whose_fixtures_hold_is_a_passing_case
     - raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt
     - raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
     - raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library
@@ -53,6 +59,11 @@ so a dependency available to one target cannot authorize another target's calls.
 
 ## Contract
 
+### Self-test
+
+`Gate::self_test` runs the fixtures of every rule registered with `.rules(...)` through `RuleFixtures::validate` beside the engine and built-in detector cases of [the command line](./census-cli.md), and reports each as `rule/ID/fixtures`. A rule whose fixture no longer holds fails that named case rather than the run silently skipping it.
+<!-- raf:tested-by raf_census::selftest::tests::a_registered_rule_whose_fixture_fails_is_a_named_failing_case,raf_census::selftest::tests::a_registered_rule_whose_fixtures_hold_is_a_passing_case -->
+
 ### Required rules
 
 `.require_rules(iter)` selects registered or executable built-in rule IDs whose
@@ -62,6 +73,29 @@ variant, unenforced job or debt record cannot exempt it. Detector-specific
 source eligibility remains unchanged. Unknown IDs, duplicate required IDs and
 home-dependent detectors refuse actionably.
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
+
+### Module paths in their package
+<!-- raf:tested-by raf_census::test_crate::census_gate::module_paths_outside_their_package_are_required_findings_beside_contained_ones -->
+
+`.require_module_paths_in_package()` requires every module `path` attribute, plain
+or inside `cfg_attr`, that a target of a censused package follows to resolve to a
+file that package owns, as [the source index](./source-index.md) defines ownership.
+Each distinct attribute that does not is one hard finding, after the findings of the
+evaluation and before debt changes, in the order of declaring file, line and resolved
+file:
+
+```text
+module path attribute: one/src/lib.rs:4: module `one::shared` of package `one` resolves to two/src/shared.rs, in package `two`; move the file into the directory of `one` or use it through a dependency
+```
+
+A file that no loaded package holds is named `outside every loaded package`. A
+ledger job, home, variant or debt record cannot exempt the finding, so a gate that
+requires it refuses to write debt while one remains. A path shared on purpose
+between packages leaves the requirement unselected or moves the shared module
+into a package the others depend on. The structural and locked checks apply it
+alike. Module declarations inside function bodies are not followed by the module
+walk, so the check does not see them. Without the requirement no module path is judged, and nothing of the
+ledger, the debt record or the reports changes with it.
 
 ### Rule interface
 <!-- raf:tested-by raf_census::test_crate::rules::the_rule_runs_its_positive_and_negative_source_cases,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
@@ -163,6 +197,8 @@ Register custom implementations with `.rules(iter)` and select their IDs with
 `.require_rules(iter)` when they must hold without a ledger job. Fixture
 admission still applies. Check and debt-writing operations share this same
 required-rule path.
+Select `.require_module_paths_in_package()` when a module `path` attribute must
+never make one source file part of two packages.
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
 
 Use `check_locked` for configured provider checks, supplying exact catalog rows,
@@ -344,6 +380,11 @@ The self-Census exercises the same builder path over the actual snapshot.
   byte-identical files.
 - A test shows `.write_debt()` returns an `Error` that lists the findings, and writes
   nothing, while a non-debt finding exists.
+- A test shows that with `.require_module_paths_in_package()` a plain and a
+  `cfg_attr` path into a sibling package are findings naming the file, the line and
+  the resolved file through both the structural and the locked check, that a path
+  inside its own package is not, and that the same tree is clean without the
+  requirement.
 - A test shows a job that forbids `rule:nope` fails the gate with a ledger error that
   names the id, and passes once a rule with that id is registered.
 - The root integration test consumes `raf-census` as a dev-dependency and calls
@@ -358,11 +399,14 @@ The self-Census exercises the same builder path over the actual snapshot.
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::registered` | example target | [Usage](#usage), [Examples](#examples) |
+| `raf_census::selftest::tests::a_registered_rule_whose_fixture_fails_is_a_named_failing_case` | test | [Contract](#contract) |
+| `raf_census::selftest::tests::a_registered_rule_whose_fixtures_hold_is_a_passing_case` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::module_paths_outside_their_package_are_required_findings_beside_contained_ones` | test | [Contract](#contract) |
 | `raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour` | test | [Contract](#contract) |
 | `raf_census::test_crate::rules::invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case` | test | [Contract](#contract) |
 | `raf_census::test_crate::rules::positive_misses_and_negative_hits_are_refused` | test | [Contract](#contract) |

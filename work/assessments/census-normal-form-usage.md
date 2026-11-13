@@ -22,10 +22,10 @@ inputs:
     digest: 17e7456e524ca6a934ffbd7156dbadc6e88852606713c52b31f43fb136bf0f8b
   - kind: symbol
     name: raf_census::Census::baseline
-    digest: 96e7a3a451b71f0d553632dae4fc5292ef260c01b380bf3c003e3ba910647b53
+    digest: b3652d9c57957b08b41c024bc1ce34fa84a302be1cabceb1c9e77afe7e202ffa
   - kind: symbol
     name: raf_census::Census::index
-    digest: 730e2eabab6a403bac7463f62eb8be05fa50f787831ad1fc1e9da835c5c06aac
+    digest: b23983795384d60f70155b6de14029b4064fefca5aca4e689952d5d5cc74512f
   - kind: symbol
     name: raf_census::Census::load
     digest: 96ff33527e1e19f9d2c99e340d236918e767ddcf556bed725f10495a4970145b

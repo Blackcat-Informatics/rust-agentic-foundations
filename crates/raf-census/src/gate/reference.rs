@@ -4,8 +4,10 @@
 //! Reference-only package collection and cross-boundary evidence.
 
 pub(super) mod acquire;
+pub(super) mod external;
 mod witness;
 pub use acquire::ReferenceRoot;
+pub use external::ExternalReference;
 
 use crate::{
     Census, Error, Fingerprint, IndexUnit, JobReport, Ledger, MatchClass, ReferenceSource, Unit,
@@ -16,7 +18,7 @@ use raf_source::{
     LockedCatalog, LockedGitReference, LockedPackage, LockedSourceKind, PackageId,
     ReferenceObservation, Workspace,
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) struct ReferencePackage<'a> {
     workspace: &'a Workspace,
@@ -26,7 +28,7 @@ pub(super) struct ReferencePackage<'a> {
 }
 
 impl<'a> ReferencePackage<'a> {
-    fn collect(
+    fn locked(
         workspace: &'a Workspace,
         package: PackageId,
         row: &LockedPackage,
@@ -36,7 +38,15 @@ impl<'a> ReferencePackage<'a> {
             .package(package)
             .ok_or_else(|| refusal("reference package is absent from its observation"))?
             .manifest;
-        let source = receipt(row, manifest.as_str());
+        Self::collect(workspace, package, receipt(row, manifest.as_str()), ledger)
+    }
+
+    fn collect(
+        workspace: &'a Workspace,
+        package: PackageId,
+        source: ReferenceSource,
+        ledger: &Ledger,
+    ) -> Result<Self, Error> {
         let identity = source.identity()?;
         let mut units = crate::units::collect_packages(
             workspace,
@@ -62,6 +72,8 @@ impl<'a> ReferencePackage<'a> {
 pub(super) struct References<'a> {
     packages: Vec<ReferencePackage<'a>>,
     pub(super) consumers: BTreeSet<PackageId>,
+    /// The concrete package names that the ledger's selectors resolved to.
+    pub(super) names: Vec<String>,
 }
 
 pub(super) fn refusal(message: impl Into<String>) -> Error {
@@ -120,6 +132,95 @@ fn reference_row(workspace: &Workspace, package: PackageId) -> Option<raf_source
         })
 }
 
+/// The lock rows of the first-party packages, which a family never selects.
+fn member_rows(
+    workspace: &Workspace,
+    owners: &[(PackageId, ReferenceObservation)],
+) -> BTreeSet<raf_source::LockedPackageId> {
+    workspace
+        .package_ids()
+        .filter(|package| {
+            workspace.package(*package).is_some_and(|package| {
+                package.manifest.authority() == raf_source::SourceAuthorityId::FIRST_PARTY
+            })
+        })
+        .filter_map(|package| reference_row(workspace, package))
+        .chain(owners.iter().map(|(_, input)| input.row()))
+        .collect()
+}
+
+/// One reference selection: a package name, and for a family match the lock
+/// row that the family chose.
+pub(super) struct Selected {
+    pub(super) name: String,
+    /// `Some` for a family match; `None` for an exact name, which selects by
+    /// name and keeps its own absent and ambiguous refusals.
+    pub(super) row: Option<raf_source::LockedPackageId>,
+}
+
+/// Resolves the ledger's reference selectors over the reachable lock rows.
+///
+/// An exact name passes through unchanged and may name a workspace member. A
+/// family selector chooses every reachable locked row it names except the
+/// `members` rows, so a member and an external package of the same name stay
+/// distinct, and refuses when it chooses none. A name with two reachable
+/// non-member rows is ambiguous and refuses. The result is sorted by name and
+/// holds each name once, however many selectors name it. `charge` meters each
+/// comparison.
+fn select(
+    selectors: &[String],
+    catalog: &LockedCatalog,
+    reachable: &OrderedTable<raf_source::LockedPackageId, ()>,
+    members: &BTreeSet<raf_source::LockedPackageId>,
+    memory: &mut Memory<'_, Resident>,
+    mut charge: impl FnMut(usize) -> Result<(), Error>,
+) -> Result<Vec<Selected>, Error> {
+    let mut chosen = BTreeMap::<&str, Option<raf_source::LockedPackageId>>::new();
+    for selector in selectors {
+        let Some(prefix) = crate::report::reference_family(selector) else {
+            chosen.insert(selector.as_str(), None);
+            continue;
+        };
+        let mut matched = false;
+        for row in catalog.packages() {
+            charge(
+                row.name()
+                    .len()
+                    .saturating_add(selector.len())
+                    .saturating_add(2_usize.saturating_mul(reachable.len().bit_width() as usize))
+                    .saturating_add(2),
+            )?;
+            if row.name().strip_prefix(prefix).is_none_or(str::is_empty)
+                || reachable.get(&row.id()).is_none()
+                || members.contains(&row.id())
+            {
+                continue;
+            }
+            matched = true;
+            match chosen.entry(row.name()).or_insert(Some(row.id())) {
+                Some(previous) if *previous != row.id() => {
+                    return Err(refusal(format!(
+                        "reference {:?} is ambiguous in the lock graph",
+                        row.name()
+                    )));
+                }
+                _ => {}
+            }
+        }
+        if !matched {
+            return Err(refusal(format!(
+                "reference family {selector:?} matches no locked dependency package outside the workspace members"
+            )));
+        }
+    }
+    memory
+        .collect(chosen.into_iter().map(|(name, row)| Selected {
+            name: name.to_owned(),
+            row,
+        }))
+        .map_err(|source| Error::SourceIndexStorage { source })
+}
+
 fn consumer_graph(
     ledger: &Ledger,
     workspace: &Workspace,
@@ -131,6 +232,8 @@ fn consumer_graph(
     let storage = |source| Error::SourceIndexStorage { source };
     let mut reachable = OrderedTable::default();
     let mut pending = Vec::new();
+    // Only an exact selector can name a member and remove it from the roots;
+    // a family never selects a member, and `*` never occurs in a package name.
     for row in consumers
         .iter()
         .copied()
@@ -183,6 +286,7 @@ impl<'a> References<'a> {
         Self {
             packages: Vec::new(),
             consumers: workspace.package_ids().collect(),
+            names: Vec::new(),
         }
     }
 
@@ -226,20 +330,39 @@ impl<'a> References<'a> {
             &result.consumers,
             &mut memory,
         )?;
-        for name in ledger.reference() {
-            let mut rows = catalog
-                .packages()
-                .filter(|row| row.name() == name && reachable.get(&row.id()).is_some());
-            let row = rows.next().ok_or_else(|| {
-                refusal(format!(
-                    "package {name:?} is not reachable from the admitted workspace lock roots"
-                ))
-            })?;
-            if rows.next().is_some() {
-                return Err(refusal(format!(
-                    "package {name:?} is ambiguous in the locked dependency graph"
-                )));
-            }
+        let selected = select(
+            ledger.reference(),
+            catalog,
+            &reachable,
+            &member_rows(workspace, owners),
+            &mut memory,
+            |_| Ok(()),
+        )?;
+        result.names = selected
+            .iter()
+            .map(|selected| selected.name.clone())
+            .collect();
+        for Selected { name, row } in &selected {
+            let row = if let Some(id) = row {
+                catalog
+                    .package(*id)
+                    .ok_or_else(|| refusal("selected locked row is missing"))?
+            } else {
+                let mut rows = catalog
+                    .packages()
+                    .filter(|row| row.name() == name && reachable.get(&row.id()).is_some());
+                let row = rows.next().ok_or_else(|| {
+                    refusal(format!(
+                        "package {name:?} is not reachable from the admitted workspace lock roots"
+                    ))
+                })?;
+                if rows.next().is_some() {
+                    return Err(refusal(format!(
+                        "package {name:?} is ambiguous in the locked dependency graph"
+                    )));
+                }
+                row
+            };
             let internal = memory
                 .collect(
                     workspace
@@ -281,11 +404,50 @@ impl<'a> References<'a> {
             memory
                 .push(
                     &mut result.packages,
-                    ReferencePackage::collect(reference_workspace, package, row, ledger)?,
+                    ReferencePackage::locked(reference_workspace, package, row, ledger)?,
                 )
                 .map_err(storage)?;
         }
         Ok(result)
+    }
+
+    /// Add every package of the caller-declared trees, beside any packages the
+    /// ledger selected through the lock graph. Two packages with the same
+    /// receipt, such as one tree declared twice, refuse.
+    pub(super) fn extend_external(
+        &mut self,
+        trees: &'a [external::ExternalTree],
+        ledger: &Ledger,
+    ) -> Result<(), Error> {
+        let mut resident = Resident;
+        let mut memory = Memory::new(&mut resident);
+        let storage = |source| Error::SourceIndexStorage { source };
+        let mut identities = BTreeSet::new();
+        for package in &self.packages {
+            identities.insert(package.source.identity()?);
+        }
+        for tree in trees {
+            for (package, source) in &tree.packages {
+                if !identities.insert(source.identity()?) {
+                    return Err(refusal(format!(
+                        "reference package {:?} from {:?} is declared twice",
+                        source.package, source.repository
+                    )));
+                }
+                memory
+                    .push(
+                        &mut self.packages,
+                        ReferencePackage::collect(
+                            &tree.workspace,
+                            *package,
+                            source.clone(),
+                            ledger,
+                        )?,
+                    )
+                    .map_err(storage)?;
+            }
+        }
+        Ok(())
     }
 
     pub(super) fn attach(
@@ -344,6 +506,8 @@ impl<'a> References<'a> {
             }
         }
         census.reference_witnesses = witness::collect(census.units(), &by_print, limits)?;
+        census.reference_constants =
+            crate::group::cross_boundary_constants(census.units(), &census.reference_raw_units);
         Ok(())
     }
 

@@ -164,6 +164,14 @@ jobs:
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
         with:
           toolchain: nightly # keep in sync with rust-toolchain.toml
+      # The root package's self-census seals the locked PurRDF registry sources
+      # from the registry cache, and a package-scoped test run stores only that
+      # package's closure. Fetch both lock files completely first.
+      - name: Fetch the complete locked set for the self-census gate
+        if: matrix.package == 'rust-agentic-foundations'
+        run: |
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path fuzz/Cargo.toml
       - name: Unit, integration and documentation tests
         run: |
           jq -j '.[] | . + "\u0000"' <<< "$RAF_CI_ARGS" > "$RUNNER_TEMP/test-args"
@@ -191,7 +199,7 @@ jobs:
     needs: packages
     if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

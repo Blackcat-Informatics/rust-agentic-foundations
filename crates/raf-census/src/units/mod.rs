@@ -19,7 +19,7 @@ pub(crate) use scan::decode as decode_string;
 
 use std::collections::BTreeSet;
 
-use raf_source::{Item, PackageId, RelPath, SymbolKind, Workspace};
+use raf_source::{Item, PackageId, RelPath, SymbolKind, TestRole, Workspace};
 
 use crate::normalize::{Level, TableKind};
 use crate::{CensusOptions, Error, Fingerprint, Normalizer, Print, Slice};
@@ -65,6 +65,15 @@ pub struct StringLiteral {
     pub line: usize,
 }
 
+/// Whether a unit takes part in body and shim grouping.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Grouping {
+    /// Some reach of the item lies inside the grouping scope.
+    InScope,
+    /// Every reach of the item is excluded by the grouping scope.
+    Excluded,
+}
+
 #[derive(Clone, Copy, Debug)]
 enum Initializer {
     Expression,
@@ -99,6 +108,8 @@ pub struct Unit {
     /// True when some target that ships reaches the item other than through
     /// test code.
     pub shipping: bool,
+    /// Whether body and shim grouping consider the unit under the run's scope.
+    pub(crate) grouping: Grouping,
     /// The names the parameters bind, in signature order; empty for a
     /// constant or a static.
     pub params: Vec<String>,
@@ -200,6 +211,7 @@ fn collect_units(
             reason: reason.to_owned(),
         };
         let mut reaches: Vec<&Item> = Vec::with_capacity(ids.len());
+        let mut grouping = Grouping::Excluded;
         for id in ids {
             let item = workspace
                 .item(*id)
@@ -208,6 +220,12 @@ fn collect_units(
                 .target(item.target)
                 .ok_or_else(|| source_error("an item of the source index has no owning target"))?;
             if packages.contains(&target.package_id) {
+                if options
+                    .scope
+                    .keeps(target.kind, item.test != TestRole::None, &item.file)
+                {
+                    grouping = Grouping::InScope;
+                }
                 reaches.push(item);
             }
         }
@@ -232,6 +250,7 @@ fn collect_units(
             chosen,
             (kind, trait_impl),
             shipping,
+            grouping,
         )? {
             units.push(unit);
         }
@@ -345,6 +364,7 @@ fn build(
     item: &Item,
     (kind, trait_impl): (UnitKind, bool),
     shipping: bool,
+    grouping: Grouping,
 ) -> Result<Option<Unit>, Error> {
     let file = item.file.to_string();
     let Some(SliceSource {
@@ -387,6 +407,7 @@ fn build(
         trait_impl,
         via_self,
         shipping,
+        grouping,
         params,
         print,
         shim_key,

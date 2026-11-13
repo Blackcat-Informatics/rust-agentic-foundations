@@ -3,6 +3,7 @@
 
 //! The analysis-library boundary rejects process launch capabilities in source.
 
+use super::dependencies::read_manifest;
 use super::support::{decode_text, gate_root, read_tracked, tracked_paths};
 use raf_source::syn::{self, ext::IdentExt as _, visit::Visit as _};
 
@@ -144,6 +145,14 @@ fn runtime_analysis_libraries_have_no_process_authority() {
         {
             continue;
         }
+        // Two files of the unpublished fixture crate run Git in scratch repositories for the
+        // tests of several packages. It is an analysis library of no package: no
+        // shipped crate depends on it.
+        if parts.get(1) == Some(&"raf-fixtures")
+            && matches!(parts.get(3), Some(&("git_repo.rs" | "fixture_signing.rs")))
+        {
+            continue;
+        }
         let bytes = read_tracked(&root, &path);
         let text = decode_text(&bytes).expect("Rust source must be text");
         let problems = violations(&text);
@@ -176,4 +185,98 @@ fn runtime_refuses_launches_aliases_and_hidden_macro_paths() {
         ),
         Vec::<String>::new()
     );
+}
+
+/// Dependencies, by package identity, that make `raf-fixtures` a dependency
+/// outside `[dev-dependencies]`: inline, as a subtable or under a renamed key,
+/// in any dependency table including target tables. A manifest that declares
+/// `publish = false` ships nothing and may use it as an ordinary dependency.
+fn shipped_fixture_dependencies(manifest: &str) -> Result<Vec<String>, String> {
+    let manifest = read_manifest(manifest)?;
+    if manifest.unpublished {
+        return Ok(Vec::new());
+    }
+    Ok(manifest
+        .entries
+        .into_iter()
+        .filter(|entry| {
+            entry.package == "raf-fixtures" && !entry.section.ends_with("dev-dependencies")
+        })
+        .map(|entry| format!("{} {}", entry.section, entry.alias))
+        .collect())
+}
+
+#[test]
+fn no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies() {
+    let root = gate_root();
+    let mut inspected = 0;
+    for path in tracked_paths() {
+        let text_path = path.to_string_lossy();
+        let manifest = text_path == "Cargo.toml"
+            || text_path == "fuzz/Cargo.toml"
+            || (text_path.starts_with("crates/")
+                && text_path.ends_with("/Cargo.toml")
+                && text_path.matches('/').count() == 2
+                && text_path != "crates/raf-fixtures/Cargo.toml");
+        if !manifest {
+            continue;
+        }
+        let bytes = read_tracked(&root, &path);
+        let text = decode_text(&bytes).expect("a manifest is text");
+        assert_eq!(
+            shipped_fixture_dependencies(&text),
+            Ok(Vec::<String>::new()),
+            "{}",
+            path.display()
+        );
+        inspected += 1;
+    }
+    assert!(inspected > 7, "the manifests were not inspected");
+}
+
+#[test]
+fn a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms() {
+    for (refused, found) in [
+        (
+            "[dependencies]\nraf-fixtures = { path = \"../raf-fixtures\" }\n",
+            "dependencies raf-fixtures",
+        ),
+        (
+            "[build-dependencies.raf-fixtures]\npath = \"../raf-fixtures\"\n",
+            "build-dependencies raf-fixtures",
+        ),
+        (
+            "[dependencies.fixtures]\npackage = \"raf-fixtures\"\npath = \"../raf-fixtures\"\n",
+            "dependencies fixtures",
+        ),
+        (
+            "[dependencies]\nfixtures = { package = \"raf-fixtures\", path = \"../raf-fixtures\" }\n",
+            "dependencies fixtures",
+        ),
+        (
+            "[target.'cfg(unix)'.dependencies]\nraf-fixtures = { path = \"x\" }\n",
+            "target.cfg(unix).dependencies raf-fixtures",
+        ),
+    ] {
+        assert_eq!(
+            shipped_fixture_dependencies(refused),
+            Ok(vec![found.to_owned()]),
+            "{refused}"
+        );
+    }
+    // Accepted: a dev-dependency in any form, a renamed unrelated package, and
+    // any dependency of an unpublished manifest such as the fuzz harness.
+    for accepted in [
+        "[dev-dependencies]\nraf-fixtures = { path = \"../raf-fixtures\" }\n",
+        "[dev-dependencies.raf-fixtures]\npath = \"../raf-fixtures\"\n",
+        "[dev-dependencies]\nfixtures = { package = \"raf-fixtures\", path = \"x\" }\n",
+        "[dependencies]\nraf-fixtures = { package = \"other\", version = \"1\" }\n",
+        "[package]\npublish = false\n[dependencies]\nraf-fixtures = { path = \"x\" }\n",
+    ] {
+        assert_eq!(
+            shipped_fixture_dependencies(accepted),
+            Ok(Vec::<String>::new()),
+            "{accepted}"
+        );
+    }
 }

@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use raf_rdf::{Builder, Format, Graph, TermValue};
 
 use super::{ReportError as E, mint, shape, vocab, write::put};
-use crate::{Error, GroupKind, check_normal_form};
+use crate::{Error, GroupKind, GroupingScope, check_normal_form};
 
 /// Maximum serialized debt record size, shared by readers and writers: 16 MiB.
 pub const MAX_DEBT_BYTES: usize = 16 * 1024 * 1024;
@@ -126,6 +126,7 @@ impl DebtGroup {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DebtRecord {
     normal_form: u32,
+    scope: GroupingScope,
     groups: BTreeSet<DebtGroup>,
     job_copies: BTreeMap<String, usize>,
 }
@@ -159,9 +160,24 @@ impl DebtRecord {
         }
         Ok(Self {
             normal_form,
+            scope: GroupingScope::default(),
             groups: unique,
             job_copies,
         })
+    }
+
+    /// The same record, computed under `scope`. The complete scope is the
+    /// default and is not written, so such a record keeps its earlier bytes.
+    #[must_use]
+    pub fn scoped(mut self, scope: GroupingScope) -> Self {
+        self.scope = scope;
+        self
+    }
+
+    /// The grouping scope the debt was computed under.
+    #[must_use]
+    pub const fn scope(&self) -> &GroupingScope {
+        &self.scope
     }
 
     /// The version in which this debt was recorded.
@@ -192,6 +208,12 @@ impl DebtRecord {
         check_normal_form(self.normal_form)?;
         check_normal_form(present.normal_form)?;
         let mut changes = Vec::new();
+        if self.scope != present.scope {
+            changes.push(DebtChange::Scope {
+                recorded: self.scope.clone(),
+                present: present.scope.clone(),
+            });
+        }
         for group in &present.groups {
             if !self.groups.iter().any(|recorded| {
                 group == recorded
@@ -280,6 +302,7 @@ impl DebtRecord {
             "reportForm",
             shape::integer(u128::from(vocab::REPORT_FORM)),
         )?;
+        super::write::scope(&mut graph, &self.scope)?;
         for group in &self.groups {
             let id = group.node();
             let class = match group.kind {
@@ -342,6 +365,7 @@ impl DebtRecord {
     pub(super) fn from_graph(graph: &Graph) -> Result<Self, Error> {
         let nf = shape::nf(graph, "DebtRecord")?;
         shape::validate(graph, "debt", nf)?;
+        let scope = shape::scope(&graph.get("").expect("validated debt root"))?;
         let mut groups = Vec::new();
         let mut jobs = BTreeMap::new();
         for (id, node) in graph.nodes() {
@@ -395,7 +419,7 @@ impl DebtRecord {
                 _ => return Err(E::Name(id).into()),
             }
         }
-        Self::new(nf, groups, jobs)
+        Ok(Self::new(nf, groups, jobs)?.scoped(scope))
     }
 }
 
@@ -411,6 +435,15 @@ pub enum DebtChange {
         recorded: DebtGroup,
         /// Present strict subsets; empty when no such subset remains.
         present: Vec<DebtGroup>,
+    },
+    /// The record was computed under another grouping scope. Recording the
+    /// present scope is not growth by itself: every group a wider scope adds
+    /// is reported as a new group.
+    Scope {
+        /// The recorded scope.
+        recorded: GroupingScope,
+        /// The scope of the present evaluation.
+        present: GroupingScope,
     },
     /// A job's positive copy count changed, appeared or disappeared.
     JobCopies {
@@ -429,7 +462,7 @@ impl DebtChange {
     pub const fn is_growth(&self) -> bool {
         match self {
             Self::NewGroup(_) => true,
-            Self::MissingGroup { .. } => false,
+            Self::MissingGroup { .. } | Self::Scope { .. } => false,
             Self::JobCopies {
                 recorded, present, ..
             } => *present > *recorded,

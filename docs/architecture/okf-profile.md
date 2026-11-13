@@ -524,6 +524,17 @@ are rules of [strict mode](../capabilities/workplan-strict.md).
 
 ## Files and repository rules
 
+Standalone repository navigation is explicit and uses the exact opened workspace
+authority. The existing contained output-directory binding is retained before
+native presentation generation; publication shares that authority and writes only
+the output prefix's versioned subtree. Existing authored source and capability
+links use native encoded relative references from the actual flat directory,
+without changing semantic identities or adding raw-file line anchors. Contextual
+bundles remain ephemeral rather than entering the owner/view cache. Default
+publication keeps its existing placement contract. Binding verification and
+publication are separate observations, with no immutable snapshot or atomic
+directory transaction.
+
 - SPDX lines in an OKF document are YAML comments inside the frontmatter. In all
   other Markdown they are HTML comments.
 - Every relative link resolves to an existing file, and a link anchor resolves

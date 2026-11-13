@@ -81,11 +81,23 @@ in addition to their code licenses. The dependency licence policy scopes these
 additional terms to the audited versions, including the IRI parser's generated
 IDNA tables. Their package notices and Unicode permission notice remain
 controlling for those tables; choosing a RAF code license does not replace them.
+
+The `purrdf-lex` package also ships GB 18030 mapping data that retains the ICU and
+Unicode, Inc. Data Files and Software agreements (`ICU` and `Unicode-DFS-2016`).
+The dependency policy admits those terms only for the audited published 4 release line; the
+package's `LICENSE-ICU-71` and `LICENSE-ICU-DATA` files remain controlling.
 PurRDF's lexical package also retains its additional MIT notices and the
 BSD-3-Clause notice for WHATWG HTML entity and numeric-recovery tables. Those
 notices and their redistribution conditions remain
 controlling. The dependency policy admits the additional Unicode and BSD terms
 only for their named packages; it does not add them to the general license list.
+
+The published `purrdf-testkit` package embeds JSON Schema specification
+meta-schemas under BSD-3-Clause. Its bundled copyright notice, redistribution
+conditions and disclaimer remain controlling for that data. The dependency
+policy admits these terms only for the audited published 4 release line. The `purrdf-text`
+package also retains the Snowball English conformance corpus's BSD-3-Clause
+notice; those test data keep their original terms.
 
 The native Git and diff dependencies include `foldhash` 0.1.5 and 0.2.0 and
 `zlib-rs` 0.6.8 under the Zlib license. Their package `LICENSE` files permit

@@ -56,6 +56,9 @@ mod support;
 #[path = "support/oracle.rs"]
 mod oracle;
 
+#[path = "support/export_boundaries.rs"]
+mod export_boundaries;
+
 use oracle::{
     Answer, Class, KNOWN, Kind, LIST_VARIABLE, MOST_REDUCED, ORDERS_TRIED, PROGRAMS_VARIABLE,
     SEED_BASE_VARIABLE, assert_corpus_writer, corpus, describe, describe_unstable, evaluate,
@@ -160,6 +163,11 @@ fn compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invent
     )
     .expect("unexpanded invalid invocation still has readable syntax");
     assert_eq!(source.unexpanded().len(), 4);
+}
+
+#[test]
+fn external_carried_exports_and_carry_limits_have_named_compiler_boundaries() {
+    export_boundaries::assert_inventory();
 }
 
 const TWO_STRUCTS: &str = "\

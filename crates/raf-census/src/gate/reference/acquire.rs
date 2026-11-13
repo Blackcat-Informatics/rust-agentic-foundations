@@ -315,6 +315,8 @@ fn forward_graph(
     let mut reachable = OrderedTable::default();
     let mut reverse = OrderedTable::<LockedPackageId, Vec<LockedPackageId>>::default();
     let mut pending = Vec::new();
+    // Only an exact selector can name an owner; a family never selects a
+    // member, and `*` never occurs in a package name.
     for (_, input) in owners {
         let mut is_reference = false;
         for name in ledger.reference() {
@@ -382,9 +384,18 @@ fn reference_ancestors(
     let (reachable, reverse) = forward_graph(inputs, owners, options, memory)?;
     let mut pending = Vec::new();
     let mut needed = OrderedTable::default();
-    for name in ledger.reference() {
-        let mut target = None;
-        for row in catalog.packages() {
+    let members = owners.iter().map(|(_, input)| input.row()).collect();
+    let selected = super::select(
+        ledger.reference(),
+        catalog,
+        &reachable,
+        &members,
+        memory,
+        |amount| work(options, amount),
+    )?;
+    for super::Selected { name, row: chosen } in &selected {
+        let mut target = *chosen;
+        for row in catalog.packages().filter(|_| chosen.is_none()) {
             work(
                 options,
                 row.name()

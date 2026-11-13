@@ -7,7 +7,7 @@ subject: cap:source-index#constraints
 inputs:
   - kind: section
     name: cap:source-index#constraints
-    digest: 8e4b87d570d1eb38533e6697c9dfdbc05786493f67ab77cd83917d6ab407af95
+    digest: 784d462e6c03857066c2a1e8248620fc9b9000350603d7ed106df26c5d581b9f
   - kind: symbol
     name: raf_source::DiskTree
     digest: 5496855041cec7a22d2303a3eb9049dbcafa368c7a19589c040d0e13f752702f
@@ -31,7 +31,7 @@ inputs:
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3
   - kind: symbol
     name: raf_source::tree
-    digest: a0d4844573e7fedfa60c8b43c6962c0e42ac88c47a12ae111933218773d4f5e3
+    digest: 078796918c101347df949cb2d69a03d131f88b87ae18c88fd9aa6bb387d40a67
 verdict: accepted
 by: agent
 ---

@@ -177,7 +177,7 @@ fn validate_properties(
     let class = class(node)?;
     let rows: Vec<_> = vocab::SHAPES
         .iter()
-        .filter(|s| s.class == class && applies(s, report))
+        .filter(|s| s.class == class && s.applies_to(report))
         .collect();
     if rows.is_empty() {
         return Err(E::Class(format!("{id}: census:{class}")));
@@ -275,17 +275,6 @@ fn class_link(
     referenced.insert(id.to_owned());
     Ok(true)
 }
-fn applies(row: &vocab::Shape, report: &str) -> bool {
-    row.report == report
-        || (row.report == "both"
-            && (matches!(report, "baseline" | "index")
-                || (matches!(report, "job-query" | "fingerprint-query") && row.class == "Unit")))
-        || (row.report == "index"
-            && ((row.class == "Unit" && matches!(report, "job-query" | "fingerprint-query"))
-                || (matches!(row.class, "Job" | "Match") && report == "job-query")
-                || (matches!(row.class, "ReferenceSource" | "ReferenceWitness")
-                    && matches!(report, "job-query" | "fingerprint-query"))))
-}
 pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
     // Check every class before following references, so a foreign class is
     // diagnosed at its node rather than disguised as a missing unit.
@@ -293,7 +282,7 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
         let class = class(&node)?;
         if !vocab::SHAPES
             .iter()
-            .any(|row| row.class == class && applies(row, report))
+            .any(|row| row.class == class && row.applies_to(report))
         {
             return Err(E::Class(format!("{id}: census:{class}")));
         }
@@ -388,6 +377,37 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
     super::reference::validate(graph, nf)?;
     Ok(())
 }
+/// Read the grouping scope stated on a root. `excludeTestItems` is stated only
+/// as true, because its absence already means false, and every `excludeDir`
+/// must be one plain directory name.
+pub(super) fn scope(root: &Node<'_>) -> Result<crate::GroupingScope, E> {
+    let mut scope = crate::GroupingScope::default();
+    let mut flags = root.values(&property("excludeTestItems"));
+    match (flags.next(), flags.next()) {
+        (None, _) => {}
+        (Some(value), None) if boolean_value(value) == Some(true) => {
+            scope = scope.exclude_test_items(true);
+        }
+        (Some(_), None) => {
+            return Err(E::Value(
+                "census:excludeTestItems is stated only as true; omit it to keep test items".into(),
+            ));
+        }
+        _ => return Err(E::Repeated("census:excludeTestItems".into())),
+    }
+    for value in root.values(&property("excludeDir")) {
+        let Some((name, datatype)) = value.literal() else {
+            return Err(E::Value("census:excludeDir: string expected".into()));
+        };
+        if datatype != raf_rdf::vocab::STRING {
+            return Err(E::Value("census:excludeDir: string expected".into()));
+        }
+        scope = scope
+            .exclude_dir(name)
+            .map_err(|error| E::Value(format!("census:excludeDir: {error}")))?;
+    }
+    Ok(scope)
+}
 pub(super) fn baseline(graph: &Graph) -> Result<Baseline, E> {
     let nf = nf(graph, "Baseline")?;
     validate(graph, "baseline", nf)?;
@@ -395,6 +415,7 @@ pub(super) fn baseline(graph: &Graph) -> Result<Baseline, E> {
     let mut report = Baseline {
         normal_form: nf,
         min_tokens: count(&root, "minTokens")?,
+        scope: scope(&root)?,
         units: count(&root, "unitCount")?,
         body_groups: Vec::new(),
         shim_groups: Vec::new(),
@@ -508,10 +529,13 @@ fn index_unit(graph: &Graph, id: &str, node: &Node<'_>, nf: u32) -> Result<Index
 pub(super) fn index(graph: &Graph) -> Result<Index, E> {
     let nf = nf(graph, "Index")?;
     validate(graph, "index", nf)?;
+    let root = graph.get("").expect("validated report root");
     let mut report = Index {
         normal_form: nf,
+        scope: scope(&root)?,
         reference_sources: Vec::new(),
         reference_witnesses: Vec::new(),
+        reference_constants: Vec::new(),
         units: Vec::new(),
         groups: Vec::new(),
         jobs: Vec::new(),
@@ -521,6 +545,9 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
             "ReferenceSource" => report
                 .reference_sources
                 .push(super::reference::read_source(&node)?),
+            "ReferenceConstant" => report
+                .reference_constants
+                .push(super::reference::read_constant(graph, &node)?),
             "ReferenceWitness" => report
                 .reference_witnesses
                 .push(super::reference::read_witness(graph, &node, nf)?),
@@ -593,6 +620,7 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
             .then(a.fingerprint.cmp(&b.fingerprint))
     });
     report.jobs.sort_by(|a, b| a.id.cmp(&b.id));
+    report.reference_constants.sort_by_key(|row| row.value);
     Ok(report)
 }
 
@@ -607,8 +635,8 @@ mod tests {
 
     fn with_reference_fixture(index: &Graph) -> Graph {
         let tree = reference_fixture::fixture(
-            "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
-            "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
+            "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+65536 }",
+            "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+65536 } }",
         );
         let report = crate::Gate::workspace(".").check_tree(&tree).unwrap();
         let reference = report.census().index(report.jobs()).unwrap();

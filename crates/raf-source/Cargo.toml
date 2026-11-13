@@ -17,6 +17,8 @@ targets = []
 
 [dependencies]
 gix.workspace = true
+purrdf-deflate.workspace = true
+purrdf-gts.workspace = true
 purrdf-core.workspace = true
 purrdf-lex.workspace = true
 purrdf-hash.workspace = true
@@ -28,6 +30,7 @@ purrdf-toml.workspace = true
 proc-macro2 = { workspace = true, features = ["span-locations"] }
 
 [dev-dependencies]
+raf-fixtures = { path = "../raf-fixtures" }
 purrdf-testkit.workspace = true
 purrdf-alloc-probe.workspace = true
 

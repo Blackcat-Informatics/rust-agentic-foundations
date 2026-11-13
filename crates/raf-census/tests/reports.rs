@@ -11,8 +11,8 @@ use raf_source::{DiskTree, MemoryTree};
 use std::path::Path;
 #[path = "support/builtin.rs"]
 mod builtin;
-#[path = "support/layout.rs"]
-mod layout;
+use raf_fixtures::files;
+use raf_fixtures::layout;
 #[path = "support/reference.rs"]
 mod reference;
 #[path = "support/vocabulary.rs"]
@@ -92,7 +92,13 @@ fn census_vocabulary_reports() -> Vec<String> {
         ],
         BTreeMap::from([("copies".into(), 2)]),
     )
-    .unwrap();
+    .unwrap()
+    .scoped(
+        raf_census::GroupingScope::default()
+            .exclude_test_items(true)
+            .exclude_dir("generated")
+            .unwrap(),
+    );
     vec![
         Baseline::from_turtle(&baseline)
             .unwrap()
@@ -120,18 +126,30 @@ fn census_vocabulary_reports() -> Vec<String> {
     ]
 }
 
-fn reference_report() -> String {
+fn reference_index() -> Index {
     let tree = reference::fixture(
-        "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
-        "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
+        "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+65536 }",
+        "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+65536 } }",
     );
     let report = raf_census::Gate::workspace(".").check_tree(&tree).unwrap();
-    report
-        .census()
-        .index(report.jobs())
-        .unwrap()
-        .to_ntriples()
-        .unwrap()
+    report.census().index(report.jobs()).unwrap()
+}
+
+fn reference_report() -> String {
+    reference_index().to_ntriples().unwrap()
+}
+
+/// The job and fingerprint queries of the reference index, which carry its
+/// reference sources and witnesses.
+fn reference_queries() -> Vec<String> {
+    let index = reference_index();
+    [
+        raf_census::Query::Job("arithmetic"),
+        raf_census::Query::Fingerprint("app::copy"),
+    ]
+    .into_iter()
+    .map(|query| index.query(query).unwrap().to_ntriples().unwrap())
+    .collect()
 }
 
 fn shared_constant_report() -> String {
@@ -883,16 +901,163 @@ fn two_fresh_loads_of_the_fixtures_give_identical_bytes() {
     );
 }
 
+/// A three-package workspace, with paths relative to its directory `ws`.
+///
+/// It is large enough that an unstable iteration order would show in a
+/// report: one body group has five members across all three packages, a
+/// library, a binary, nested module files and an inline nested module; a
+/// second body group spans two packages and a private module; a third holds
+/// the `cfg(unix)` and `cfg(windows)` alternatives of `native`, one symbol at
+/// two positions; `one` and
+/// `two` are a shim group; two packages hold the constant 65536 and two the
+/// same hexadecimal digit table.
+const SPREAD: &[(&str, &str)] = &[
+    (
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"alpha\", \"beta\", \"gamma\"]\nresolver = \"2\"\n",
+    ),
+    (
+        "alpha/Cargo.toml",
+        "[package]\nname = \"alpha\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    ),
+    (
+        "alpha/src/lib.rs",
+        "pub mod outer;
+pub fn helper(x: u32, y: u32) -> u32 { x + y }
+pub fn one(a: u32) -> u32 { helper(a, 1) }
+pub fn two(b: u32) -> u32 { helper(b, 1) }
+pub fn sum(a: u32) -> u32 { a + a + a + a + a + a + a + a + a + a + a }
+#[cfg(unix)]
+pub fn native(a: u32) -> u32 { a - a - a - a - a - a - a - a - a - a - a }
+#[cfg(windows)]
+pub fn native(b: u32) -> u32 { b - b - b - b - b - b - b - b - b - b - b }
+pub const LIMIT: u32 = 65536;
+",
+    ),
+    ("alpha/src/outer.rs", "pub mod inner;\n"),
+    (
+        "alpha/src/outer/inner.rs",
+        "pub fn product(c: u32) -> u32 { c * c * c * c * c * c * c * c * c * c * c }
+pub fn digits() -> &'static str { \"0123456789abcdef\" }
+pub fn total(d: u32) -> u32 { d + d + d + d + d + d + d + d + d + d + d }
+",
+    ),
+    (
+        "beta/Cargo.toml",
+        "[package]\nname = \"beta\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    ),
+    (
+        "beta/src/lib.rs",
+        "pub mod nested {
+    pub mod deeper {
+        pub fn sum(b: u32) -> u32 { b + b + b + b + b + b + b + b + b + b + b }
+    }
+}
+pub const LIMIT: u32 = 65536;
+",
+    ),
+    (
+        "beta/src/main.rs",
+        "fn main() { let _ = beta::nested::deeper::sum(2); }
+fn total(e: u32) -> u32 { e + e + e + e + e + e + e + e + e + e + e }
+",
+    ),
+    (
+        "gamma/Cargo.toml",
+        "[package]\nname = \"gamma\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    ),
+    (
+        "gamma/src/lib.rs",
+        "mod hidden;
+pub fn sum(g: u32) -> u32 { g + g + g + g + g + g + g + g + g + g + g }
+pub fn digits() -> &'static str { \"0123456789abcdef\" }
+",
+    ),
+    (
+        "gamma/src/hidden.rs",
+        "pub(crate) fn product(h: u32) -> u32 { h * h * h * h * h * h * h * h * h * h * h }\n",
+    ),
+];
+
+/// `files` in memory, each under the directory `ws`.
+fn spread_tree(files: &[(&str, &str)]) -> MemoryTree {
+    files
+        .iter()
+        .map(|(path, text)| (format!("ws/{path}"), *text))
+        .collect()
+}
+
+/// The report bytes do not depend on the load: two fresh loads of one
+/// workspace, and loads of the same files written to disk in opposite
+/// orders, render the same bytes.
+///
+/// Each load builds its own maps and reads its own directory listings, so a
+/// report whose group, member, unit or constant order followed a hash seed or
+/// a listing order would differ between them. The two disk copies are written
+/// forward and in reverse, so a file system that lists entries in creation
+/// order (tmpfs lists the newest first) gives the two loads opposite listings.
+/// The fixture is checked for the groups, packages and cfg alternatives that
+/// give that order something to vary, and a neighbour with two items swapped
+/// renders different bytes, so the comparison observes unit positions.
+///
+/// Loading this repository's crates proved the same contract over a corpus of
+/// real code; that load took over a minute per pair. The repository's own
+/// Census gate still loads the repository on every change through the
+/// production gate and holds its groups to the ledger and exact debt.
 #[test]
-fn two_fresh_loads_of_this_repository_give_identical_bytes() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let run = || {
-        let tree = DiskTree::new(&root).expect("the repository root opens");
-        builtin::of(&tree, "crates").expect("the crates load and render")
-    };
-    let first = run();
-    assert!(first.contains(&format!("<{}normalForm> \"1\"", vocab::REPORT)));
-    identical_report_bytes(&first, &run());
+fn two_fresh_loads_of_a_multi_package_workspace_give_identical_bytes() {
+    let census = Census::load(&spread_tree(SPREAD), &["ws"], &CensusOptions::default())
+        .expect("the fixture loads");
+    let baseline = census.baseline();
+    let mut sizes: Vec<usize> = baseline
+        .body_groups
+        .iter()
+        .map(|group| group.members.len())
+        .collect();
+    sizes.sort_unstable();
+    assert_eq!(sizes, [2, 2, 5], "the body groups of the fixture");
+    assert_eq!(baseline.shim_groups.len(), 1, "the shim group");
+    assert_eq!(baseline.hex_tables.len(), 2, "both digit tables");
+    assert_eq!(baseline.shared_constants.len(), 1, "the shared constant");
+    assert_eq!(
+        census.units_of("alpha::native").count(),
+        2,
+        "both cfg alternatives are units"
+    );
+
+    let first = builtin::of(&spread_tree(SPREAD), "ws").expect("first load");
+    identical_report_bytes(
+        &first,
+        &builtin::of(&spread_tree(SPREAD), "ws").expect("second load"),
+    );
+
+    let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("scratch");
+    for (name, forward) in [("forward", true), ("reverse", false)] {
+        let dir = scratch.path().join(name);
+        if forward {
+            files::write(&dir.join("ws"), SPREAD);
+        } else {
+            files::write(&dir.join("ws"), SPREAD.iter().rev());
+        }
+        let tree = DiskTree::new(&dir).expect("the copy opens");
+        identical_report_bytes(&first, &builtin::of(&tree, "ws").expect(name));
+    }
+
+    let mut swapped = SPREAD.to_vec();
+    let lib = swapped
+        .iter_mut()
+        .find(|(path, _)| *path == "gamma/src/lib.rs")
+        .expect("the gamma library");
+    let reordered = "mod hidden;
+pub fn digits() -> &'static str { \"0123456789abcdef\" }
+pub fn sum(g: u32) -> u32 { g + g + g + g + g + g + g + g + g + g + g }
+";
+    lib.1 = reordered;
+    assert_ne!(
+        first,
+        builtin::of(&spread_tree(&swapped), "ws").expect("the swapped neighbour"),
+        "moving two items must change the report"
+    );
 }
 
 fn identical_report_bytes(first: &str, second: &str) {
@@ -909,12 +1074,381 @@ fn identical_report_bytes(first: &str, second: &str) {
     );
 }
 
+/// An absolute directory reports the same bytes as the relative spelling of
+/// that directory from its parent, and the report does not hold the absolute
+/// path.
+///
+/// The fixture is written to a scratch directory. A copy of it under another
+/// directory name renders different bytes, because report file paths begin
+/// with the directory's name; the equality therefore compares spellings that
+/// reach the report. Running this over this repository's crates added no
+/// spelling case beyond one absolute and one relative root, at over a minute
+/// per run; the repository's own Census gate still loads the repository on
+/// every change.
 #[test]
 fn an_absolute_directory_reports_the_same_as_the_relative_spelling() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let root = root.canonicalize().expect("the repository root exists");
-    let absolute = builtin::of_dir(root.join("crates").to_str().expect("utf-8 path"))
-        .expect("the absolute spelling reports");
-    let tree = DiskTree::new(&root).expect("the repository root opens");
-    identical_report_bytes(&absolute, &builtin::of(&tree, "crates").expect("relative"));
+    let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("scratch");
+    let root = scratch
+        .path()
+        .canonicalize()
+        .expect("the scratch directory exists");
+    files::write(&root.join("ws"), SPREAD);
+    let spelled = root.join("ws");
+    let spelled = spelled.to_str().expect("utf-8 path");
+    let absolute = builtin::of_dir(spelled).expect("the absolute spelling reports");
+    let tree = DiskTree::new(&root).expect("the scratch directory opens");
+    identical_report_bytes(&absolute, &builtin::of(&tree, "ws").expect("relative"));
+    assert!(
+        !absolute.contains(root.to_str().expect("utf-8 path")),
+        "the report holds the absolute path"
+    );
+
+    files::write(&root.join("other"), SPREAD);
+    let other = root.join("other");
+    assert_ne!(
+        absolute,
+        builtin::of_dir(other.to_str().expect("utf-8 path")).expect("the other name reports"),
+        "a different directory name must reach the report"
+    );
+}
+
+/// A ledger with one node of every engine-owned Ledger class and a grouping
+/// scope on its root. The job's extension root reaches one consumer node.
+fn declared_ledger() -> String {
+    let text = TermValue::simple_literal;
+    let link = TermValue::iri;
+    let consumer = |name: &str| format!("https://consumer.example/{name}");
+    let facts = [
+        ("", "type", property("Ledger")),
+        (
+            "",
+            "normalForm",
+            TermValue::integer(i128::from(raf_census::NORMAL_FORM)),
+        ),
+        (
+            "",
+            "reportForm",
+            TermValue::integer(i128::from(raf_census::REPORT_FORM)),
+        ),
+        ("", "excludeTestItems", TermValue::boolean(true)),
+        ("", "excludeDir", text("generated")),
+        ("", "job", link("#job")),
+        ("", "distinct", link("#distinct")),
+        ("", "pattern", link("#pattern")),
+        ("#job", "type", property("LedgerJob")),
+        ("#job", "jobId", text("sum")),
+        ("#job", "summary", text("One summing helper")),
+        ("#job", "homeSymbol", text("demo::alpha")),
+        ("#job", "enforced", TermValue::boolean(true)),
+        ("#job", "forbiddenPattern", text("approved-call")),
+        ("#job", "variant", link("#job/variant")),
+        ("#job", "preferredProvider", link("#job/provider")),
+        ("#job", "extension", link("#job/extension")),
+        ("#job/variant", "type", property("Variant")),
+        ("#job/variant", "symbol", text("demo::beta")),
+        ("#job/variant", "file", text("src/lib.rs")),
+        ("#job/variant", "detector", text("body")),
+        ("#job/variant", "criterion", text("A sanctioned copy")),
+        ("#job/variant", "reason", text("It differs on purpose")),
+        (
+            "#job/variant",
+            "anchor",
+            link("https://example.org/docs#variant"),
+        ),
+        ("#job/provider", "type", property("PreferredProvider")),
+        ("#job/provider", "package", text("demo-provider")),
+        ("#job/provider", "entryPoint", text("demo_provider::sum")),
+        ("#job/provider", "consumer", text("demo::alpha")),
+        ("#job/extension", "type", property("Extension")),
+        (
+            "#job/extension",
+            &consumer("item"),
+            link("#job/extension/item"),
+        ),
+        ("#job/extension/item", &consumer("setting"), text("kept")),
+        ("#pattern", "type", property("Pattern")),
+        ("#pattern", "patternId", text("approved-call")),
+        ("#pattern", "summary", text("The approved operation")),
+        ("#pattern", "call", text("demo::alpha")),
+        ("#distinct", "type", property("Distinct")),
+        ("#distinct", "kind", text("body")),
+        ("#distinct", "memberSymbol", text("demo::a")),
+        ("#distinct", "memberSymbol", text("demo::b")),
+        ("#distinct", "multiplicity", link("#distinct/a")),
+        ("#distinct", "criterion", text("layering")),
+        (
+            "#distinct",
+            "reason",
+            text("Separate target implementations"),
+        ),
+        (
+            "#distinct",
+            "anchor",
+            link("https://example.org/docs#distinct"),
+        ),
+        ("#distinct/a", "type", property("MemberMultiplicity")),
+        ("#distinct/a", "symbol", text("demo::a")),
+        ("#distinct/a", "copies", TermValue::integer(2)),
+    ];
+    let mut graph = Builder::new();
+    for (node, key, object) in facts {
+        let predicate = match key {
+            "type" => TermValue::iri(vocab::TYPE),
+            _ if key.starts_with("https:") => TermValue::iri(key),
+            _ => property(key),
+        };
+        graph
+            .insert(Triple {
+                subject: TermValue::iri(node),
+                predicate,
+                object,
+            })
+            .unwrap();
+    }
+    graph.finish().unwrap().to_text(Format::NTriples).unwrap()
+}
+
+/// Every node class each reader admits, keyed by the census class of the
+/// record root that selects the reader: each row of the report shape table
+/// under every reader whose report kind the row applies to, by the rule the
+/// readers validate with, and each class of the Ledger field table under the
+/// Ledger reader.
+fn reader_classes() -> std::collections::BTreeSet<(&'static str, &'static str)> {
+    use raf_census::report::vocab::{LEDGER_FIELDS, SHAPES};
+    const READERS: [(&str, &str); 6] = [
+        ("baseline", "Baseline"),
+        ("index", "Index"),
+        ("job-query", "JobQuery"),
+        ("count-query", "CountQuery"),
+        ("fingerprint-query", "FingerprintQuery"),
+        ("debt", "DebtRecord"),
+    ];
+    let mut classes = std::collections::BTreeSet::new();
+    for shape in SHAPES {
+        assert!(
+            shape.report == "both" || READERS.iter().any(|(kind, _)| *kind == shape.report),
+            "no reader for the {} shape rows",
+            shape.report
+        );
+        for (kind, reader) in READERS {
+            if shape.applies_to(kind) {
+                classes.insert((reader, shape.class));
+            }
+        }
+    }
+    for (class, _) in LEDGER_FIELDS {
+        classes.insert(("Ledger", *class));
+    }
+    classes
+}
+
+/// The census class a node states, if any.
+fn census_class(node: &raf_rdf::Node<'_>) -> Option<String> {
+    node.values(vocab::TYPE)
+        .next()
+        .and_then(raf_rdf::Value::iri)
+        .and_then(|iri| iri.strip_prefix(vocab::REPORT))
+        .map(str::to_owned)
+}
+
+/// Read `text` with the Ledger reader, in `format`.
+fn read_ledger(text: &str, format: Format) -> Result<raf_census::Ledger, Error> {
+    if format == Format::Turtle {
+        raf_census::Ledger::from_turtle(text)
+    } else {
+        raf_census::Ledger::from_ntriples(text)
+    }
+}
+
+/// Read `text` with the reader of its root class, in `format`.
+fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
+    use raf_census::{DebtRecord, QueryReport};
+    let turtle = format == Format::Turtle;
+    match class {
+        "Baseline" if turtle => Baseline::from_turtle(text).map(drop),
+        "Baseline" => Baseline::from_ntriples(text).map(drop),
+        "Index" if turtle => Index::from_turtle(text).map(drop),
+        "Index" => Index::from_ntriples(text).map(drop),
+        "DebtRecord" if turtle => DebtRecord::from_turtle(text).map(drop),
+        "DebtRecord" => DebtRecord::from_ntriples(text).map(drop),
+        "Ledger" => read_ledger(text, format).map(drop),
+        "JobQuery" | "CountQuery" | "FingerprintQuery" if turtle => {
+            QueryReport::from_turtle(text).map(drop)
+        }
+        "JobQuery" | "CountQuery" | "FingerprintQuery" => {
+            QueryReport::from_ntriples(text).map(drop)
+        }
+        other => panic!("no reader for census:{other}"),
+    }
+}
+
+/// The record of `graph` with one more assertion of `predicate` on `subject`.
+fn with_assertion(graph: &Graph, format: Format, subject: &str, predicate: &str) -> String {
+    let mut graph = Builder::from_graph(graph);
+    graph
+        .insert(Triple {
+            subject: TermValue::iri(subject),
+            predicate: TermValue::iri(predicate),
+            object: TermValue::boolean(true),
+        })
+        .unwrap();
+    graph.finish().unwrap().to_text(format).unwrap()
+}
+
+/// A node inside a job's extension belongs to the consumer: the Ledger reader
+/// accepts any property on it and hands it unchanged to the consumer's
+/// validator through the extension graph.
+fn consumer_content_passes_unchanged(
+    graph: &Graph,
+    format: Format,
+    subject: &str,
+    predicates: &[&str],
+) {
+    for predicate in predicates {
+        let edited = with_assertion(graph, format, subject, predicate);
+        let ledger = read_ledger(&edited, format)
+            .expect("consumer content is outside the engine vocabulary");
+        let node = ledger
+            .extension("#job/extension")
+            .and_then(|extension| extension.get(subject))
+            .expect("the extension owns the consumer subject");
+        assert!(
+            node.values(predicate).next().is_some(),
+            "<{subject}> {predicate} reaches the consumer's validator"
+        );
+    }
+}
+
+/// The layout conversion of `kind` converts the prior layout of `text` and
+/// refuses it by name once it states `added`.
+fn prior_layout_converts_and_refuses(
+    kind: raf_census::ReportKind,
+    text: &str,
+    format: Format,
+    added: &str,
+) {
+    use raf_census::{MigrationInput, upgrade_report_form};
+    let convert = |text: &str| {
+        upgrade_report_form(
+            kind,
+            MigrationInput {
+                path: "prior",
+                text,
+            },
+            format,
+        )
+    };
+    let prior = layout::form3(text, format);
+    assert!(
+        convert(&prior).is_ok(),
+        "{kind:?}: the prior layout converts"
+    );
+    let edited = with_assertion(
+        &Graph::from_text(&prior, format).unwrap(),
+        format,
+        "",
+        added,
+    );
+    let error = format!("{:?}", convert(&edited).unwrap_err());
+    assert!(error.contains("excludeVendoredItems"), "{kind:?}: {error}");
+}
+
+/// An optional property added within one report form, absent at its default,
+/// is safe only because a reader that predates it refuses a record stating it
+/// rather than ignoring it. Every reader at the current form, the ledger,
+/// baseline, index, debt and query readers in both formats and the layout
+/// conversion, refuses a census-namespace property and a foreign one outside
+/// its vocabulary by name, while the same record without it reads. Every node
+/// of a class passes through the same validation, so one node of each class
+/// that a reader admits takes the injection, once per format, and the classes
+/// injected must equal those each reader admits: the shape table rows under
+/// the applicability rule the readers validate with, and the Ledger field
+/// table. Nodes inside a job's extension are the consumer's and pass to its
+/// validator unchanged.
+#[test]
+fn every_report_reader_refuses_a_property_outside_its_vocabulary_by_name() {
+    use raf_census::ReportKind;
+    let added = format!("{}excludeVendoredItems", vocab::REPORT);
+    let foreign = "https://foreign.example/scope";
+    let unknown = [(added.as_str(), "excludeVendoredItems"), (foreign, foreign)];
+    let mut records = census_vocabulary_reports();
+    records.extend(reference_queries());
+    records.push(declared_ledger());
+    let mut per_format = Vec::new();
+    for format in [Format::Turtle, Format::NTriples] {
+        // One injection per reader and node class, and one layout conversion
+        // per report kind: a record repeating a class adds no parse, so the
+        // parses grow with the classes and not with the nodes of a record.
+        let mut injected = std::collections::BTreeSet::new();
+        let mut consumer_nodes = 0;
+        let mut upgraded = Vec::new();
+        for record in &records {
+            let text = Graph::from_text(record, Format::NTriples)
+                .unwrap()
+                .to_text(format)
+                .unwrap();
+            let graph = Graph::from_text(&text, format).unwrap();
+            let reader = census_class(&graph.get("").expect("a record has a root"))
+                .expect("a root has a census class");
+            read_record(&reader, &text, format).expect("the valid neighbour reads");
+            for (subject, node) in graph.nodes() {
+                let class = census_class(&node);
+                let consumer = class.as_deref().is_none_or(|class| class == "Extension");
+                if reader == "Ledger" && consumer {
+                    consumer_content_passes_unchanged(
+                        &graph,
+                        format,
+                        &subject,
+                        &[added.as_str(), foreign],
+                    );
+                    consumer_nodes += 1;
+                    continue;
+                }
+                let class = class.expect("an engine node states its census class");
+                if !injected.insert((reader.clone(), class.clone())) {
+                    continue;
+                }
+                for (predicate, name) in unknown {
+                    let edited = with_assertion(&graph, format, &subject, predicate);
+                    let error = read_record(&reader, &edited, format)
+                        .expect_err("a property outside the vocabulary refuses")
+                        .to_string();
+                    assert!(
+                        error.contains(name),
+                        "{reader} {class} <{subject}> {predicate}: {error}"
+                    );
+                }
+            }
+            let kind = match reader.as_str() {
+                "Baseline" => Some(ReportKind::Baseline),
+                // A prior layout cannot carry reference observations.
+                "Index" if !text.contains("ReferenceSource") => Some(ReportKind::Index),
+                "DebtRecord" => Some(ReportKind::Debt),
+                "Ledger" => Some(ReportKind::Ledger),
+                _ => None,
+            };
+            if let Some(kind) = kind.filter(|kind| !upgraded.contains(kind)) {
+                upgraded.push(kind);
+                prior_layout_converts_and_refuses(kind, &text, format, &added);
+            }
+        }
+        assert_eq!(
+            consumer_nodes, 2,
+            "the extension root and its consumer node"
+        );
+        assert_eq!(upgraded.len(), 4, "every convertible report kind");
+        let expected: std::collections::BTreeSet<_> = reader_classes()
+            .into_iter()
+            .map(|(reader, class)| (reader.to_owned(), class.to_owned()))
+            .collect();
+        assert_eq!(
+            injected, expected,
+            "{format:?}: the injected classes are exactly the classes each reader admits"
+        );
+        per_format.push(injected);
+    }
+    assert_eq!(
+        per_format[0], per_format[1],
+        "both formats inject the same classes"
+    );
 }

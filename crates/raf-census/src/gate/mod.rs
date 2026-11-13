@@ -6,10 +6,12 @@
 mod context;
 mod evaluate;
 mod migrate;
+mod module_paths;
 mod owners;
 mod patterns;
 mod providers;
 mod reference;
+mod registry;
 mod rules;
 mod subjects;
 
@@ -17,14 +19,15 @@ pub use migrate::{
     ForeignField, ForeignLedgerAdapter, MAX_INDEX_BYTES, Migration, MigrationInput, UnmappedRow,
     migrate_index, migrate_legacy, migrate_legacy_with_extensions,
 };
-pub use reference::ReferenceRoot;
+pub use reference::{ExternalReference, ReferenceRoot};
+pub use registry::{ArchiveCache, LockedRegistry};
 
 use std::path::{Component, Path, PathBuf};
 
 use purrdf_jsonschema::ecma::MatchLimits;
 
 use raf_source::{
-    DiskTree, GitPackageRoots, LoadOptions, LockedCatalog, LockedManifest, ReferenceObservation,
+    DiskTree, LoadOptions, LockedCatalog, LockedManifest, LockedPackageRoots, ReferenceObservation,
     RelPath, SourceAuthorityId, Tree, Workspace, discover_root,
 };
 
@@ -106,6 +109,11 @@ impl GateReport {
     pub const fn debt(&self) -> &DebtRecord {
         &self.debt
     }
+    fn with_findings(mut self, findings: Vec<String>) -> Self {
+        self.findings.extend(findings);
+        self
+    }
+
     /// Whether all findings are absent.
     #[must_use]
     pub fn is_clean(&self) -> bool {
@@ -116,9 +124,11 @@ impl GateReport {
 /// The census builder used by repositories as a dev-dependency.
 pub struct Gate {
     reference_roots: Vec<ReferenceRoot>,
+    external_references: Vec<ExternalReference>,
     dir: PathBuf,
     rules: Vec<Box<dyn Rule>>,
     required_rules: Vec<String>,
+    module_paths_in_package: bool,
     extensions: Vec<Box<dyn LedgerExtension>>,
     matching_limits: MatchLimits,
 }
@@ -136,9 +146,11 @@ impl Gate {
     pub fn workspace(dir: impl AsRef<Path>) -> Self {
         Self {
             reference_roots: Vec::new(),
+            external_references: Vec::new(),
             dir: dir.as_ref().to_path_buf(),
             rules: Vec::new(),
             required_rules: Vec::new(),
+            module_paths_in_package: false,
             extensions: Vec::new(),
             matching_limits: MatchLimits::default(),
         }
@@ -150,6 +162,20 @@ impl Gate {
     #[must_use]
     pub fn reference_roots(mut self, roots: impl IntoIterator<Item = ReferenceRoot>) -> Self {
         self.reference_roots.extend(roots);
+        self
+    }
+
+    /// Compare with caller-declared reference trees: a pinned commit of a
+    /// repository, or an unpinned directory. Every package discovered from
+    /// each tree's root is a reference package; the lock graph does not select
+    /// them. A relative location is resolved from the main checkout of the
+    /// workspace's Git repository, which requires the disk gate.
+    #[must_use]
+    pub fn external_references(
+        mut self,
+        references: impl IntoIterator<Item = ExternalReference>,
+    ) -> Self {
+        self.external_references.extend(references);
         self
     }
 
@@ -180,6 +206,20 @@ impl Gate {
     pub fn require_rules(mut self, rules: impl IntoIterator<Item = impl Into<String>>) -> Self {
         self.required_rules
             .extend(rules.into_iter().map(Into::into));
+        self
+    }
+
+    /// Require every module `path` attribute to resolve inside its own package.
+    ///
+    /// A `path` on a `mod` declaration, plain or inside `cfg_attr`, followed by
+    /// any target of a censused package, whose resolved file lies outside that
+    /// package's directory or inside a package nested below it, is a hard
+    /// finding naming the declaring file, the line and the resolved file. No
+    /// ledger job, home or debt record can exempt it, and it is never recorded
+    /// as debt.
+    #[must_use]
+    pub const fn require_module_paths_in_package(mut self) -> Self {
+        self.module_paths_in_package = true;
         self
     }
 
@@ -239,7 +279,7 @@ impl Gate {
     /// Loads one source workspace, reusing its exact package and definition IDs
     /// for Census and policy execution. Every first-party package discovered under
     /// the ledger roots must have a checked local manifest association. Sealed Git
-    /// dependencies remain available for definition lookup and are excluded from
+    /// and registry dependencies remain available for definition lookup and are excluded from
     /// first-party unit collection and registered-rule execution.
     ///
     /// # Errors
@@ -250,9 +290,23 @@ impl Gate {
         tree: &impl Tree,
         catalog: &LockedCatalog,
         local: &[LockedManifest<'_>],
-        sources: &[GitPackageRoots<'_>],
+        sources: &[LockedPackageRoots<'_>],
     ) -> Result<GateReport, Error> {
-        check_debt(tree, self.evaluate_locked(tree, catalog, local, sources)?)
+        check_debt(
+            tree,
+            self.evaluate_locked(tree, None, &[], catalog, local, sources)?,
+        )
+    }
+
+    /// Prove that this build of the census still finds what it is built to find.
+    ///
+    /// Runs the fixed engine cases and every built-in detector's positive and
+    /// negative fixtures through [`Self::check_tree`] over in-memory workspaces,
+    /// then each registered rule's fixtures, under this Gate's matching grant.
+    /// Required rules, extensions and reference roots do not apply. It needs no
+    /// workspace: it never reads this Gate's directory and writes nothing.
+    pub fn self_test(&self) -> crate::SelfTest {
+        crate::selftest::run(&self.rules, self.matching_limits)
     }
 
     /// Assert that the actual workspace has no findings.
@@ -307,15 +361,27 @@ impl Gate {
         &self,
         catalog: &LockedCatalog,
         local: &[LockedManifest<'_>],
-        sources: &[GitPackageRoots<'_>],
+        sources: &[LockedPackageRoots<'_>],
     ) -> Result<DebtWrite, Error> {
-        self.write_debt_with(|tree| self.evaluate_locked(tree, catalog, local, sources))
+        let root = self.root()?;
+        self.write_debt_with(|tree| {
+            self.evaluate_locked(tree, Some(&root), &[], catalog, local, sources)
+        })
     }
 
     fn write_debt_with(
         &self,
         evaluate: impl FnOnce(&DiskTree) -> Result<GateReport, Error>,
     ) -> Result<DebtWrite, Error> {
+        if self
+            .external_references
+            .iter()
+            .any(ExternalReference::is_unpinned)
+        {
+            return Err(Error::Options(
+                "reference scan: an unpinned reference comparison cannot record debt, because a debt record cannot carry its unpinned label; pin the reference to a commit".into(),
+            ));
+        }
         #[cfg(target_os = "linux")]
         {
             let root = self.root()?;
@@ -373,11 +439,13 @@ impl Gate {
     fn evaluate_locked(
         &self,
         tree: &impl Tree,
+        host: Option<&Path>,
+        sealed: &[String],
         catalog: &LockedCatalog,
         local: &[LockedManifest<'_>],
-        sources: &[GitPackageRoots<'_>],
+        sources: &[LockedPackageRoots<'_>],
     ) -> Result<GateReport, Error> {
-        let ledger = read_ledger(tree)?;
+        let ledger = read_ledger(tree)?.with_reference_selectors(sealed);
         let mut options = LoadOptions::default();
         options.max_file_bytes = ledger.options().max_file_bytes;
         let roots = ledger
@@ -395,21 +463,24 @@ impl Gate {
                 })
             })
             .collect();
-        let references = if ledger.reference().is_empty() {
+        let external = self.external(tree, host, &ledger)?;
+        let mut references = if ledger.reference().is_empty() {
             reference::References::empty(&workspace)
         } else {
             reference::References::prepare(&ledger, &workspace, catalog, &[], &[])?
         };
+        references.extend_external(&external, &ledger)?;
         let consumers = consumers
             .intersection(&references.consumers)
             .copied()
             .collect();
+        let paths = self.module_path_findings(&workspace, &consumers);
         let mut census = Census::from_packages(&workspace, ledger.options(), &consumers)?;
         let mut limits = self.matching_limits;
         references.attach(&mut census, &mut limits)?;
         evaluate::evaluate(
             &ledger,
-            &workspace,
+            (&workspace, tree),
             census,
             rules::Selected {
                 registered: &self.rules,
@@ -419,6 +490,31 @@ impl Gate {
             limits,
             &references,
         )
+        .map(|report| report.with_findings(paths))
+    }
+
+    fn module_path_findings(
+        &self,
+        workspace: &Workspace,
+        selected: &std::collections::BTreeSet<raf_source::PackageId>,
+    ) -> Vec<String> {
+        if self.module_paths_in_package {
+            module_paths::findings(workspace, selected)
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn external(
+        &self,
+        tree: &impl Tree,
+        host: Option<&Path>,
+        ledger: &Ledger,
+    ) -> Result<Vec<reference::external::ExternalTree>, Error> {
+        self.external_references
+            .iter()
+            .map(|declared| reference::external::load(declared, tree, host, ledger))
+            .collect()
     }
 
     fn evaluate_tree(&self, tree: &impl Tree) -> Result<GateReport, Error> {
@@ -472,7 +568,8 @@ impl Gate {
         observed.extend(supplied.iter());
         // The owned acquired observations and caller observations share one
         // borrowed view; neither can contribute configured provider bindings.
-        let references = if let Some(acquired) = &acquired {
+        let external = self.external(tree, host, &ledger)?;
+        let mut references = if let Some(acquired) = &acquired {
             reference::References::prepare_borrowed(
                 &ledger,
                 workspace,
@@ -484,12 +581,14 @@ impl Gate {
         } else {
             reference::References::empty(workspace)
         };
+        references.extend_external(&external, &ledger)?;
+        let paths = self.module_path_findings(workspace, &references.consumers);
         let mut census = Census::from_packages(workspace, ledger.options(), &references.consumers)?;
         let mut limits = self.matching_limits;
         references.attach(&mut census, &mut limits)?;
         evaluate::evaluate(
             &ledger,
-            workspace,
+            (workspace, tree),
             census,
             rules::Selected {
                 registered: &self.rules,
@@ -499,6 +598,7 @@ impl Gate {
             limits,
             &references,
         )
+        .map(|report| report.with_findings(paths))
     }
 }
 
@@ -518,14 +618,18 @@ fn read_ledger(tree: &impl Tree) -> Result<Ledger, Error> {
 }
 
 fn check_debt(tree: &impl Tree, mut report: GateReport) -> Result<GateReport, Error> {
-    let previous = read_debt(tree)?.unwrap_or(DebtRecord::new(
-        NORMAL_FORM,
-        [],
-        std::collections::BTreeMap::default(),
-    )?);
+    // An absent record states no debt under the present scope, so a scope
+    // alone never requires a record.
+    let previous = match read_debt(tree)? {
+        Some(previous) => previous,
+        None => DebtRecord::new(NORMAL_FORM, [], std::collections::BTreeMap::default())?
+            .scoped(report.debt.scope().clone()),
+    };
     for change in previous.compare(&report.debt)? {
         let direction = if change.is_growth() {
             "growth cannot be recorded"
+        } else if matches!(change, crate::DebtChange::Scope { .. }) {
+            "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to record the present grouping scope"
         } else {
             "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to lower the record"
         };

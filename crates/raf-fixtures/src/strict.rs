@@ -17,43 +17,40 @@
 //! a [`MARKER`] naming the bound test.
 
 /// The capability document.
-pub(crate) const CAPABILITY: &str = "docs/capabilities/demo.md";
+pub const CAPABILITY: &str = "docs/capabilities/demo.md";
 /// The coverage record.
-pub(crate) const COVERAGE: &str = "work/coverage/default.md";
+pub const COVERAGE: &str = "work/coverage/default.md";
 /// The library of the package.
-pub(crate) const LIB: &str = "src/lib.rs";
+pub const LIB: &str = "src/lib.rs";
 
 /// Twenty words of prose: [`MIN_SECTION_WORDS`](raf_workplan::strict::MIN_SECTION_WORDS).
-pub(crate) const PROSE: &str = "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole.";
+pub const PROSE: &str = "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole.";
 /// [`PROSE`] without its last word: nineteen words.
-pub(crate) const THIN: &str = "This section of the demo capability states one plain fact in twenty words so that strict mode reads it.";
+pub const THIN: &str = "This section of the demo capability states one plain fact in twenty words so that strict mode reads it.";
 
 /// The manifest: a package of its own workspace, so `cargo metadata` run in the
 /// directory reads no enclosing workspace.
-pub(crate) const MANIFEST: &str =
+pub const MANIFEST: &str =
     "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n";
-/// The lock file of the manifest.
-pub(crate) const LOCK: &str = "version = 4\n\n[[package]]\nname = \"demo\"\nversion = \"0.1.0\"\n";
 /// The library: one documented function with a runnable documentation test.
-pub(crate) const LIBRARY: &str =
+pub const LIBRARY: &str =
     "/// Runs the demo.\n///\n/// ```\n/// demo::run();\n/// ```\npub fn run() {}\n";
 /// The integration test.
-pub(crate) const TEST: &str = "#[test]\nfn case() {}\n";
+pub const TEST: &str = "#[test]\nfn case() {}\n";
 
 /// The Usage line that names the bound documentation test in a code span.
-pub(crate) const USAGE_SPAN: &str = "Call `demo::run` once.";
+pub const USAGE_SPAN: &str = "Call `demo::run` once.";
 /// The limitation that Constraints lists.
-pub(crate) const LIMITATION: &str = "- One limitation of the demo.";
+pub const LIMITATION: &str = "- One limitation of the demo.";
 /// The tested-by marker that covers each claim, naming the bound test.
-pub(crate) const MARKER: &str = "<!-- raf:tested-by demo::test_crate::it::case -->";
+pub const MARKER: &str = "<!-- raf:tested-by demo::test_crate::it::case -->";
 /// The generated block the Verification section holds, empty until a sync.
-pub(crate) const MATRIX: &str =
-    "<!-- raf:generated:verification-matrix -->\n<!-- raf:generated:end -->\n";
+pub const MATRIX: &str = "<!-- raf:generated:verification-matrix -->\n<!-- raf:generated:end -->\n";
 /// The examples list of the capability.
-pub(crate) const EXAMPLES: &str = "  examples: [demo::run]\n";
+pub const EXAMPLES: &str = "  examples: [demo::run]\n";
 
 /// The files of the source workspace, by path.
-pub(crate) fn source_files() -> Vec<(&'static str, String)> {
+pub fn source_files() -> Vec<(&'static str, String)> {
     vec![
         ("Cargo.toml", MANIFEST.to_string()),
         (LIB, LIBRARY.to_string()),
@@ -62,7 +59,7 @@ pub(crate) fn source_files() -> Vec<(&'static str, String)> {
 }
 
 /// The capability document that every rule of strict mode accepts.
-pub(crate) fn capability() -> String {
+pub fn capability() -> String {
     let section = |name: &str, extra: &str| format!("## {name}\n\n{PROSE}\n{extra}");
     let sections = [
         section("Purpose", ""),
@@ -88,7 +85,7 @@ pub(crate) fn capability() -> String {
 
 /// The coverage record with the `strictness` line `strictness` (empty for
 /// none), enforcing no crate.
-pub(crate) fn coverage(strictness: &str) -> String {
+pub fn coverage(strictness: &str) -> String {
     format!(
         "---\ntype: Coverage\nid: coverage:default\n{strictness}scope: []\nexclusions: []\n---\n"
     )
@@ -96,18 +93,18 @@ pub(crate) fn coverage(strictness: &str) -> String {
 
 /// The documents of the strict-clean repository, by path, under a coverage
 /// record with no `strictness` key.
-pub(crate) fn documents() -> Vec<(&'static str, String)> {
+pub fn documents() -> Vec<(&'static str, String)> {
     vec![(CAPABILITY, capability()), (COVERAGE, coverage(""))]
 }
 
 /// `text` with its one `from` replaced by `to`.
-pub(crate) fn replaced(text: &str, from: &str, to: &str) -> String {
+pub fn replaced(text: &str, from: &str, to: &str) -> String {
     assert_eq!(text.matches(from).count(), 1, "`{from}` once in {text}");
     text.replacen(from, to, 1)
 }
 
 /// The first `count` words of [`PROSE`], as a sentence.
-pub(crate) fn words(count: usize) -> String {
+pub fn words(count: usize) -> String {
     let words: Vec<&str> = PROSE.trim_end_matches('.').split(' ').take(count).collect();
     format!("{}.", words.join(" "))
 }
@@ -124,7 +121,7 @@ fn extra_words(section: &str) -> usize {
 
 /// The capability with the prose of `section` cut so that the section holds
 /// nineteen words.
-pub(crate) fn thin(section: &str) -> String {
+pub fn thin(section: &str) -> String {
     replaced(
         &capability(),
         &format!("## {section}\n\n{PROSE}\n"),

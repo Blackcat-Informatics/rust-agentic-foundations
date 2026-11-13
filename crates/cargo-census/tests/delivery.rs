@@ -3,8 +3,7 @@
 
 //! Actual migration and debt commands, with read-only inputs and refusal neighbours.
 
-#[path = "../../raf-census/tests/support/layout.rs"]
-mod layout;
+use raf_fixtures::{files, git_repo, layout};
 
 use raf_census::{Baseline, Census, CensusOptions, DebtRecord, Gate, Ledger, MAX_LEDGER_BYTES};
 use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
@@ -94,12 +93,29 @@ fn source(root: &Path, copies: usize) {
     fs::write(root.join("src/lib.rs"), text).unwrap();
 }
 
+/// Every child of this binary is started and awaited under this lock. A child
+/// forked by one test thread holds a copy of every descriptor the other test
+/// threads have open until it execs; a copy of the descriptor of a directory
+/// lock that a test holds, or has just released, keeps the lock busy for the
+/// command another test starts next. With one child alive at a time, a command
+/// only ever sees the locks of its own test.
+static CHILD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Start a command and wait for it under [`CHILD`]; every command of this
+/// binary goes through it.
+fn alone(command: &mut Command) -> Output {
+    let _alone = CHILD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    command.output().unwrap()
+}
+
 fn run(root: &Path, words: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-        .current_dir(root)
-        .args(words)
-        .output()
-        .unwrap()
+    alone(
+        Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(root)
+            .args(words),
+    )
 }
 
 #[test]
@@ -163,13 +179,13 @@ fn report_exports_refuse_source_existing_files_and_git_administration() {
     )
     .unwrap();
     let destination = administration.join("report.ttl");
-    let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-        .current_dir(root)
-        .arg("baseline")
-        .arg("--out")
-        .arg(&destination)
-        .output()
-        .unwrap();
+    let result = alone(
+        Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(root)
+            .arg("baseline")
+            .arg("--out")
+            .arg(&destination),
+    );
     assert_eq!(result.status.code(), Some(1), "{result:?}");
     assert!(!destination.exists());
     let result = run(root, &["baseline", "--out", "report.ttl"]);
@@ -260,8 +276,11 @@ fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate()
     assert_eq!(fs::read_to_string(&path).unwrap(), before);
     source(root, 3);
     let growth = run(root, &["debt", "--write"]);
-    assert_eq!(growth.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&growth.stderr).contains("growth cannot be recorded"));
+    assert_eq!(growth.status.code(), Some(1), "{growth:?}");
+    assert!(
+        String::from_utf8_lossy(&growth.stderr).contains("growth cannot be recorded"),
+        "{growth:?}"
+    );
     assert_eq!(fs::read_to_string(&path).unwrap(), before);
     source(root, 1);
     let shrink = run(root, &["debt", "--write"]);
@@ -523,13 +542,13 @@ fn ledger_inspection() {
         "{error}"
     );
     let caller = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-        .current_dir(caller.path())
-        .args(["--workspace"])
-        .arg(root)
-        .args(["dump-ledger", "--format", "turtle", "--out", "policy.ttl"])
-        .output()
-        .unwrap();
+    let result = alone(
+        Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(caller.path())
+            .args(["--workspace"])
+            .arg(root)
+            .args(["dump-ledger", "--format", "turtle", "--out", "policy.ttl"]),
+    );
     assert!(result.status.success(), "{result:?}");
     assert_eq!(result.stdout, [] as [u8; 0]);
     let text = fs::read_to_string(caller.path().join("policy.ttl")).unwrap();
@@ -567,12 +586,12 @@ fn ledger_inspection_refusals(root: &Path, caller: &Path, original: &str) {
             } else {
                 fs::remove_file(&destination).unwrap();
             }
-            let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-                .current_dir(root)
-                .args(["dump-ledger", "--out"])
-                .arg(&destination)
-                .output()
-                .unwrap();
+            let result = alone(
+                Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+                    .current_dir(root)
+                    .args(["dump-ledger", "--out"])
+                    .arg(&destination),
+            );
             assert_eq!(result.status.code(), Some(1), "{result:?}");
             assert_eq!(result.stdout, [] as [u8; 0]);
             assert!(String::from_utf8_lossy(&result.stderr).contains("helpers-ledger.ttl"));
@@ -640,13 +659,13 @@ fn baseline_discovery() {
         native
     );
     let caller = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
-    let turtle = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-        .current_dir(caller.path())
-        .args(["--workspace"])
-        .arg(root)
-        .args(["baseline", "--format", "turtle", "--out", "report.ttl"])
-        .output()
-        .unwrap();
+    let turtle = alone(
+        Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(caller.path())
+            .args(["--workspace"])
+            .arg(root)
+            .args(["baseline", "--format", "turtle", "--out", "report.ttl"]),
+    );
     assert!(turtle.status.success(), "{turtle:?}");
     assert_eq!(turtle.stdout, [] as [u8; 0]);
     let text = fs::read_to_string(caller.path().join("report.ttl")).unwrap();
@@ -667,13 +686,13 @@ fn baseline_refusals(root: &Path, caller: &Path) {
         } else {
             fs::remove_file(&destination).unwrap();
         }
-        let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-            .current_dir(root)
-            .arg("baseline")
-            .arg("--out")
-            .arg(&destination)
-            .output()
-            .unwrap();
+        let result = alone(
+            Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+                .current_dir(root)
+                .arg("baseline")
+                .arg("--out")
+                .arg(&destination),
+        );
         assert_eq!(result.status.code(), Some(1), "{result:?}");
         assert_eq!(result.stdout, [] as [u8; 0]);
         assert!(String::from_utf8_lossy(&result.stderr).contains("Cargo.toml"));
@@ -753,5 +772,675 @@ fn registered_code_is_required_explicitly_without_recording_partial_debt() {
         assert_eq!(result.status.code(), Some(2), "{result:?}");
         assert!(String::from_utf8_lossy(&result.stderr).contains("Gate::write_debt"));
         assert!(!root.join("census-debt.ttl").exists());
+    }
+}
+
+#[test]
+fn self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines() {
+    let empty = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let first = run(empty.path(), &["census", "self-test"]);
+    let second = run(empty.path(), &["census", "self-test"]);
+    let text = String::from_utf8(first.stdout.clone()).unwrap();
+    assert!(first.status.success(), "{text}{:?}", first.stderr);
+    assert_eq!(first.stdout, second.stdout);
+    assert!(
+        text.contains("pass detector/hex-table/positive\n"),
+        "{text}"
+    );
+    assert!(text.contains("pass debt/rising-copies-refused\n"), "{text}");
+    assert!(text.ends_with(" cases, 0 failed\n"), "{text}");
+    assert!(
+        !text.lines().any(|line| line.starts_with("fail ")),
+        "{text}"
+    );
+    assert_eq!(fs::read_dir(empty.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist() {
+    let empty = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let plain = run(empty.path(), &["census", "self-test"]);
+    let flagged = run(
+        empty.path(),
+        &[
+            "census",
+            "--workspace",
+            "/nonexistent/self-test-workspace",
+            "self-test",
+        ],
+    );
+    assert!(plain.status.success(), "{plain:?}");
+    assert_eq!(flagged.status.code(), plain.status.code(), "{flagged:?}");
+    assert_eq!(flagged.stdout, plain.stdout);
+    assert!(flagged.stderr.is_empty(), "{flagged:?}");
+}
+
+/// The command line declares one reference tree for the evaluating commands:
+/// a repository at a commit given directly or through a pin file, or an
+/// unpinned directory whose index receipts carry the `unpinned-tree` label.
+/// Incomplete or conflicting reference options refuse, and a command
+/// that does not evaluate the Gate refuses them rather than ignoring them.
+#[test]
+fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
+    let scratch = fixture();
+    let root = scratch.path();
+    let body = "(value:u32)->u32 { let scaled=value*3; let shifted=scaled+7; if shifted>100 { shifted-100 } else { shifted*2 } }";
+    let consumer = format!("pub fn copy{body}\n");
+    let mut text = fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    text.push_str(&consumer);
+    fs::write(root.join("src/lib.rs"), text).unwrap();
+    let outside = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let repository = outside.path().join("upstream");
+    let plain = outside.path().join("plain");
+    let library = format!("pub fn provided{body}\n");
+    let files = [
+        (
+            "Cargo.toml",
+            "[package]\nname='upstream'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("src/lib.rs", library.as_str()),
+    ];
+    git_repo::init(&repository);
+    files::write(&repository, &files);
+    let commit = git_repo::commit_all(&repository);
+    files::write(&plain, &files);
+    fs::write(
+        root.join("pins.toml"),
+        format!("[upstream]\nrev = \"{commit}\"\n"),
+    )
+    .unwrap();
+    let repository = repository.to_str().unwrap();
+    let plain = plain.to_str().unwrap();
+
+    let pinned = run(
+        root,
+        &[
+            "check",
+            "--reference-repo",
+            repository,
+            "--reference-commit",
+            &commit,
+        ],
+    );
+    assert_eq!(pinned.status.code(), Some(1), "{pinned:?}");
+    let stdout = String::from_utf8(pinned.stdout.clone()).unwrap();
+    assert!(
+        stdout.contains("REFERENCE-COPY src/lib.rs:5 demo::copy matches upstream::provided "),
+        "{stdout}"
+    );
+    let from_file = run(
+        root,
+        &[
+            "check",
+            "--reference-repo",
+            repository,
+            "--reference-pin-file",
+            "pins.toml",
+            "--reference-pin-key",
+            "upstream.rev",
+        ],
+    );
+    assert_eq!(from_file.stdout, pinned.stdout);
+    let unpinned = run(root, &["check", "--reference-unpinned", plain]);
+    assert_eq!(unpinned.stdout, pinned.stdout);
+    unpinned_notice(root, plain, outside.path(), &pinned, &from_file);
+    let index = |words: &[&str]| {
+        let result = run(root, words);
+        assert!(result.status.success(), "{result:?}");
+        String::from_utf8(result.stdout).unwrap()
+    };
+    let labelled = index(&["index", "--reference-unpinned", plain]);
+    assert!(labelled.contains("\"unpinned-tree\""), "{labelled}");
+    let committed = index(&[
+        "index",
+        "--reference-repo",
+        repository,
+        "--reference-commit",
+        &commit,
+    ]);
+    assert!(committed.contains("\"committed-git\""), "{committed}");
+    assert!(!committed.contains("\"unpinned-tree\""));
+    reference_option_refusals(root, repository, &commit, plain);
+}
+
+/// The refusals of the reference options, each beside the valid uses above.
+fn reference_option_refusals(root: &Path, repository: &str, commit: &str, plain: &str) {
+    for words in [
+        &["check", "--reference-repo", repository][..],
+        &["check", "--reference-commit", commit],
+        &[
+            "check",
+            "--reference-repo",
+            repository,
+            "--reference-pin-file",
+            "pins.toml",
+        ],
+        &[
+            "check",
+            "--reference-repo",
+            repository,
+            "--reference-commit",
+            commit,
+            "--reference-unpinned",
+            plain,
+        ],
+    ] {
+        let refused = run(root, words);
+        assert_eq!(refused.status.code(), Some(1), "{words:?}");
+        assert!(
+            String::from_utf8_lossy(&refused.stderr)
+                .contains("reference options: give --reference-repo"),
+            "{refused:?}"
+        );
+    }
+    let refused = run(root, &["baseline", "--reference-unpinned", plain]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("reference options apply only to"),
+        "{refused:?}"
+    );
+}
+
+/// An unpinned run names its directory on stderr beside findings that match
+/// the pinned run, an unpinned run without reference findings says so too, a pinned run is silent,
+/// and an unpinned directory that does not exist refuses.
+fn unpinned_notice(root: &Path, plain: &str, outside: &Path, pinned: &Output, from_file: &Output) {
+    let unpinned = run(root, &["check", "--reference-unpinned", plain]);
+    let notice = String::from_utf8_lossy(&unpinned.stderr);
+    assert!(
+        notice.contains("unpinned reference") && notice.contains(plain),
+        "{notice}"
+    );
+    assert!(pinned.stderr.is_empty(), "{pinned:?}");
+    assert!(from_file.stderr.is_empty(), "{from_file:?}");
+    let other = outside.join("other");
+    files::write(
+        &other,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='other'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            ("src/lib.rs", "pub fn unrelated() -> u8 { 1 }\n"),
+        ],
+    );
+    let clean = run(
+        root,
+        &["check", "--reference-unpinned", other.to_str().unwrap()],
+    );
+    assert!(!String::from_utf8_lossy(&clean.stdout).contains("REFERENCE-COPY"));
+    assert!(String::from_utf8_lossy(&clean.stderr).contains("unpinned reference"));
+    let missing = outside.join("absent");
+    let refused = run(
+        root,
+        &["check", "--reference-unpinned", missing.to_str().unwrap()],
+    );
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("absent"));
+}
+
+/// The body `provided` and a consumer copy repeat: `value*factor` plus `offset`.
+fn scaled(factor: u32, offset: u32) -> String {
+    format!("(value:u32)->u32 {{ let scaled=value*{factor}; scaled+{offset} }}")
+}
+
+/// Write the ledger of a consumer that declares `selector` as a reference and
+/// homes it with no job.
+fn write_reference_ledger(root: &Path, selector: &str) {
+    write_ledger(root, &[selector]);
+}
+
+/// Write the ledger of a consumer that declares each of `selectors` as a
+/// reference, none when the list is empty.
+fn write_ledger(root: &Path, selectors: &[&str]) {
+    let mut graph = Builder::new();
+    put(
+        &mut graph,
+        "",
+        "type",
+        Term::iri(format!("{}Ledger", vocab::REPORT)),
+    );
+    for (key, value) in [
+        ("normalForm", 1),
+        ("reportForm", raf_census::REPORT_FORM),
+        ("minTokens", 1),
+    ] {
+        put(
+            &mut graph,
+            "",
+            key,
+            Term::typed_literal(value.to_string(), vocab::INTEGER),
+        );
+    }
+    put(&mut graph, "", "root", Term::simple_literal("."));
+    for selector in selectors {
+        put(&mut graph, "", "reference", Term::simple_literal(*selector));
+    }
+    fs::write(
+        root.join("helpers-ledger.ttl"),
+        graph.finish().unwrap().to_text(Format::Turtle).unwrap(),
+    )
+    .unwrap();
+}
+
+/// A workspace `ws` depending on the path package `acme-a` beside it, whose
+/// `provided` body is `scaled(2, 7)`, and a ledger referencing the family
+/// `acme-*`. The consumer source is written by the caller.
+fn ban_workspace(scratch: &Path) -> std::path::PathBuf {
+    let root = scratch.join("ws");
+    files::write(
+        &root,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-a={path='../vendor/acme-a'}\n[workspace]\n",
+            ),
+            (
+                "Cargo.lock",
+                "version=4\n[[package]]\nname='acme-a'\nversion='1.0.0'\n[[package]]\nname='demo'\nversion='1.0.0'\ndependencies=['acme-a']\n",
+            ),
+        ],
+    );
+    files::write(
+        scratch,
+        &[
+            (
+                "vendor/acme-a/Cargo.toml",
+                "[package]\nname='acme-a'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            (
+                "vendor/acme-a/src/lib.rs",
+                format!("pub fn provided{}\n", scaled(2, 7)).as_str(),
+            ),
+        ],
+    );
+    write_reference_ledger(&root, "acme-*");
+    root
+}
+
+fn write_consumer(root: &Path, copy: &str, extra: &str) {
+    files::write(
+        root,
+        &[("src/lib.rs", format!("pub fn copy{copy}\n{extra}").as_str())],
+    );
+}
+
+/// A consumer adopts the copy ban with a ledger `reference` and no job:
+/// `check` fails with exit 1 on a copied body and passes on a changed one,
+/// `debt --write` refuses the same finding and records nothing, and `index`
+/// and `fingerprint` read the same inputs and carry the same witness. An
+/// unusable declaration or a missing source refuses every evaluating command
+/// with no verdict on stdout, and a ledger reference composes with a pinned
+/// external commit.
+#[test]
+fn ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict() {
+    let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let root = ban_workspace(scratch.path());
+    write_consumer(&root, &scaled(2, 7), "");
+    let checked = run(&root, &["check"]);
+    let stdout = String::from_utf8(checked.stdout).unwrap();
+    assert_eq!(checked.status.code(), Some(1), "{stdout}");
+    assert!(
+        stdout.starts_with("REFERENCE-COPY src/lib.rs:1 demo::copy matches acme_a::provided "),
+        "{stdout}"
+    );
+    assert_eq!(stdout.lines().count(), 1, "{stdout}");
+    assert_eq!(checked.stderr, Vec::<u8>::new());
+    let debt = run(&root, &["debt", "--write"]);
+    assert_eq!(debt.status.code(), Some(1), "{debt:?}");
+    assert!(String::from_utf8_lossy(&debt.stderr).contains("REFERENCE-COPY"));
+    assert!(!root.join(raf_census::DEBT_FILE).exists());
+    let index = run(&root, &["index"]);
+    assert!(index.status.success(), "{index:?}");
+    assert!(String::from_utf8_lossy(&index.stdout).contains("ReferenceWitness"));
+    let fingerprint = run(&root, &["fingerprint", "demo::copy"]);
+    assert!(fingerprint.status.success(), "{fingerprint:?}");
+    assert!(
+        String::from_utf8_lossy(&fingerprint.stdout).contains("acme_a::provided"),
+        "{fingerprint:?}"
+    );
+
+    // The neighbour with a changed body is clean and carries no witness.
+    write_consumer(&root, &scaled(2, 8), "");
+    let clean = run(&root, &["check"]);
+    assert!(clean.status.success(), "{clean:?}");
+    assert_eq!(clean.stdout, Vec::<u8>::new());
+    let index = run(&root, &["index"]);
+    assert!(!String::from_utf8_lossy(&index.stdout).contains("ReferenceWitness"));
+
+    ledger_reference_composes_with_a_pinned_commit(scratch.path(), &root);
+    unusable_reference_inputs_refuse_without_a_verdict(scratch.path(), &root);
+}
+
+/// The ledger's lock-selected reference and a pinned external commit are both
+/// compared in one run.
+fn ledger_reference_composes_with_a_pinned_commit(scratch: &Path, root: &Path) {
+    let upstream = scratch.join("upstream");
+    git_repo::init(&upstream);
+    files::write(
+        &upstream,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='upstream'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            (
+                "src/lib.rs",
+                format!("pub fn provided{}\n", scaled(5, 3)).as_str(),
+            ),
+        ],
+    );
+    let commit = git_repo::commit_all(&upstream);
+    write_consumer(
+        root,
+        &scaled(2, 7),
+        &format!("pub fn more{}\n", scaled(5, 3)),
+    );
+    let both = run(
+        root,
+        &[
+            "check",
+            "--reference-repo",
+            upstream.to_str().unwrap(),
+            "--reference-commit",
+            &commit,
+        ],
+    );
+    let stdout = String::from_utf8(both.stdout).unwrap();
+    assert_eq!(both.status.code(), Some(1), "{stdout}");
+    assert!(
+        stdout.contains("demo::copy matches acme_a::provided "),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("demo::more matches upstream::provided "),
+        "{stdout}"
+    );
+}
+
+/// A family that selects nothing and a vanished source each refuse `check`,
+/// `index` and `fingerprint` with a message and an empty stdout.
+fn unusable_reference_inputs_refuse_without_a_verdict(scratch: &Path, root: &Path) {
+    write_reference_ledger(root, "zz-*");
+    for words in [&["check"][..], &["index"], &["fingerprint", "demo::copy"]] {
+        let refused = run(root, words);
+        assert_eq!(refused.status.code(), Some(1), "{words:?}");
+        assert_eq!(refused.stdout, Vec::<u8>::new(), "{words:?}");
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        assert!(
+            stderr.contains("\"zz-*\"") && stderr.contains("matches no locked dependency"),
+            "{stderr}"
+        );
+    }
+    write_reference_ledger(root, "acme-*");
+    fs::remove_dir_all(scratch.join("vendor")).unwrap();
+    for words in [&["check"][..], &["index"]] {
+        let refused = run(root, words);
+        assert_eq!(refused.status.code(), Some(1), "{words:?}");
+        assert_eq!(refused.stdout, Vec::<u8>::new(), "{words:?}");
+        assert!(String::from_utf8_lossy(&refused.stderr).starts_with("cargo-census: "));
+    }
+}
+
+const CRATES_IO: &str = "registry+https://github.com/rust-lang/crates.io-index";
+
+/// The provider archive `acme-core 1.0.0` whose `provided` body the consumer
+/// may copy, with the library manifest `manifest`.
+fn acme_core_archive(manifest: &str) -> Vec<u8> {
+    raf_fixtures::registry::crate_archive(
+        "acme-core",
+        "1.0.0",
+        &[
+            ("Cargo.toml", manifest),
+            (
+                "src/lib.rs",
+                "pub fn provided(input:u32)->u32 { let result=input*2; result+7 }\n",
+            ),
+        ],
+    )
+}
+
+const ACME_CORE: &str = "[package]\nname='acme-core'\nversion='1.0.0'\nedition='2024'\n";
+
+/// A consumer `app` below `scratch` whose registry dependency `acme-core` is
+/// locked to the checksum of `locked`, with the ledger referencing it, and an
+/// empty cache directory. Returns the consumer root and the cache directory.
+fn registry_workspace(scratch: &Path, locked: &[u8]) -> (std::path::PathBuf, std::path::PathBuf) {
+    let root = scratch.join("ws");
+    let cache = scratch.join("cache");
+    fs::create_dir_all(&cache).unwrap();
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n",
+        raf_fixtures::registry::checksum(locked)
+    );
+    files::write(
+        &root,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\n[workspace]\n",
+            ),
+            ("Cargo.lock", lock.as_str()),
+        ],
+    );
+    write_reference_ledger(&root, "acme-core");
+    (root, cache)
+}
+
+fn sealed_words<'a>(command: &[&'a str], cache: &'a Path) -> Vec<&'a str> {
+    let mut words = command.to_vec();
+    words.extend([
+        "--registry-cache",
+        cache.to_str().unwrap(),
+        "--registry-features",
+        "acme-core=",
+    ]);
+    words
+}
+
+/// A copied body of a registry dependency sealed from the lock file fails
+/// `check` with exit 1 and one `REFERENCE-COPY` line, `debt --write` refuses it
+/// and records nothing, and `index` and `fingerprint` carry the same witness;
+/// a changed body is clean. The consumer's build script, tests and examples
+/// never run, and the cache is only read.
+#[test]
+fn registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set() {
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let archive = acme_core_archive(ACME_CORE);
+    let (root, cache) = registry_workspace(scratch.path(), &archive);
+    raf_fixtures::registry::place(&cache, "index.crates.io-0", "acme-core", "1.0.0", &archive);
+    // Each target differs in length, so none is a copy of another.
+    let dangerous = |repeats: usize| {
+        let write = "std::fs::write(\"consumer-executed\", b\"bad\").unwrap();";
+        format!(
+            "fn main() {{ {} panic!(\"must not execute\"); }}\n",
+            write.repeat(repeats)
+        )
+    };
+    let targets = ["build.rs", "examples/registered.rs", "tests/destructive.rs"];
+    for (repeats, path) in targets.iter().enumerate() {
+        files::write(&root, &[(*path, dangerous(repeats + 1).as_str())]);
+    }
+    write_consumer(&root, &scaled(2, 7), "");
+
+    let checked = run(&root, &sealed_words(&["check"], &cache));
+    let stdout = String::from_utf8(checked.stdout).unwrap();
+    assert_eq!(checked.status.code(), Some(1), "{stdout}");
+    assert!(
+        stdout.starts_with("REFERENCE-COPY src/lib.rs:1 app::copy matches acme_core::provided "),
+        "{stdout}"
+    );
+    assert_eq!(stdout.lines().count(), 1, "{stdout}");
+    assert_eq!(checked.stderr, Vec::<u8>::new());
+    let debt = run(&root, &sealed_words(&["debt", "--write"], &cache));
+    assert_eq!(debt.status.code(), Some(1), "{debt:?}");
+    assert!(String::from_utf8_lossy(&debt.stderr).contains("REFERENCE-COPY"));
+    assert!(!root.join(raf_census::DEBT_FILE).exists());
+    let index = run(&root, &sealed_words(&["index"], &cache));
+    assert!(index.status.success(), "{index:?}");
+    assert!(String::from_utf8_lossy(&index.stdout).contains("ReferenceWitness"));
+    let fingerprint = run(&root, &sealed_words(&["fingerprint", "app::copy"], &cache));
+    assert!(fingerprint.status.success(), "{fingerprint:?}");
+    assert!(String::from_utf8_lossy(&fingerprint.stdout).contains("acme_core::provided"));
+    let ordinary = run(&root, &["check"]);
+    assert!(!String::from_utf8_lossy(&ordinary.stdout).contains("acme_core::provided"));
+
+    // The default cache is the Cargo home's, named by the environment.
+    let home = scratch.path().join("home");
+    fs::create_dir_all(home.join("registry")).unwrap();
+    fs::rename(&cache, home.join("registry/cache")).unwrap();
+    let from_home = alone(
+        Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(&root)
+            .env("CARGO_HOME", &home)
+            .args(["check", "--registry-features", "acme-core="]),
+    );
+    assert_eq!(from_home.status.code(), Some(1), "{from_home:?}");
+    assert_eq!(from_home.stdout, stdout.as_bytes());
+    fs::rename(home.join("registry/cache"), &cache).unwrap();
+
+    // The neighbour with a changed body is clean and carries no witness.
+    write_consumer(&root, &scaled(2, 8), "");
+    let clean = run(&root, &sealed_words(&["check"], &cache));
+    assert!(clean.status.success(), "{clean:?}");
+    assert_eq!(clean.stdout, Vec::<u8>::new());
+    let index = run(&root, &sealed_words(&["index"], &cache));
+    assert!(!String::from_utf8_lossy(&index.stdout).contains("ReferenceWitness"));
+
+    assert!(!root.join("consumer-executed").exists());
+    assert!(!root.join("target").exists());
+    for (repeats, path) in targets.iter().enumerate() {
+        assert_eq!(
+            fs::read_to_string(root.join(path)).unwrap(),
+            dangerous(repeats + 1)
+        );
+    }
+}
+
+/// An absent, mismatched or oversized archive and an undeclared, incomplete
+/// or misdirected feature declaration each refuse `check` and `index` with
+/// exit 1, the named refusal on stderr and an empty stdout, beside the same
+/// command with everything in order.
+#[test]
+fn registry_options_refuse_by_name_without_a_partial_verdict() {
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let featured = "[package]\nname='acme-core'\nversion='1.0.0'\nedition='2024'\n[features]\ndefault=['std']\nstd=[]\n";
+    let archive = acme_core_archive(featured);
+    let (root, cache) = registry_workspace(scratch.path(), &archive);
+    write_consumer(&root, &scaled(2, 7), "");
+    let refuses = |words: &[&str], expected: &[&str]| {
+        for command in ["check", "index"] {
+            let mut all = vec![command];
+            all.extend_from_slice(words);
+            let refused = run(&root, &all);
+            assert_eq!(refused.status.code(), Some(1), "{all:?}: {refused:?}");
+            assert_eq!(refused.stdout, Vec::<u8>::new(), "{all:?}");
+            let stderr = String::from_utf8_lossy(&refused.stderr);
+            for text in expected {
+                assert!(stderr.contains(text), "{text} missing: {stderr}");
+            }
+        }
+    };
+    let cache_text = cache.to_str().unwrap();
+    let both = ["--registry-cache", cache_text, "--registry-features"];
+    let declare = |set: &'static str| {
+        let mut words = both.to_vec();
+        words.push(set);
+        words
+    };
+
+    refuses(
+        &declare("acme-core=default,std"),
+        &["acme-core-1.0.0.crate is not in"],
+    );
+
+    let index = cache.join("index.crates.io-0");
+    fs::create_dir_all(&index).unwrap();
+    fs::write(
+        index.join("acme-core-1.0.0.crate"),
+        b"not the locked archive",
+    )
+    .unwrap();
+    refuses(
+        &declare("acme-core=default,std"),
+        &["does not match the lock checksum"],
+    );
+    // A sparse file one byte over the archive budget: nothing is allocated.
+    fs::File::create(index.join("acme-core-1.0.0.crate"))
+        .unwrap()
+        .set_len((256 << 20) + 1)
+        .unwrap();
+    refuses(&declare("acme-core=default,std"), &["byte archive budget"]);
+
+    raf_fixtures::registry::place(&cache, "index.crates.io-0", "acme-core", "1.0.0", &archive);
+    refuses(&both[..2], &["acme-core 1.0.0", "no declared feature set"]);
+    refuses(
+        &declare("acme-core=default"),
+        &["missing an implied feature"],
+    );
+    refuses(&declare("acme-core=nope"), &["unknown enabled feature"]);
+    refuses(&declare("misspelt="), &["features declared for misspelt"]);
+    refuses(&declare("acme-core"), &["expected PACKAGE=FEATURE"]);
+    let mut twice = declare("acme-core=default,std");
+    twice.extend(["--registry-features", "acme-core="]);
+    refuses(&twice, &["name each package once"]);
+
+    // The neighbour with the complete set reads the sealed archive.
+    for command in ["check", "index"] {
+        let mut words = vec![command];
+        words.extend(declare("acme-core=default,std"));
+        let accepted = run(&root, &words);
+        assert_eq!(
+            accepted.status.code(),
+            Some(i32::from(command == "check")),
+            "{accepted:?}"
+        );
+    }
+}
+
+/// A sealed package is a reference for the ban exactly as a ledger `reference`
+/// is: a consumer whose ledger names no reference fails `check` on a copied
+/// body with one `REFERENCE-COPY` line when `--seal-registry` names the
+/// provider, by exact name or by `prefix-*` family, and is clean on a changed
+/// body; the same copy passes without the flag, since nothing is implied.
+#[test]
+fn a_sealed_registry_selector_is_a_reference_without_a_ledger_entry() {
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let archive = acme_core_archive(ACME_CORE);
+    let (root, cache) = registry_workspace(scratch.path(), &archive);
+    raf_fixtures::registry::place(&cache, "index.crates.io-0", "acme-core", "1.0.0", &archive);
+    write_ledger(&root, &[]);
+    let cache_text = cache.to_str().unwrap();
+    let sealed = |selector: &'static str| {
+        vec![
+            "check",
+            "--registry-cache",
+            cache_text,
+            "--registry-features",
+            "acme-core=",
+            "--seal-registry",
+            selector,
+        ]
+    };
+    write_consumer(&root, &scaled(2, 7), "");
+    let unflagged = run(&root, &["check"]);
+    assert!(unflagged.status.success(), "{unflagged:?}");
+    assert_eq!(unflagged.stdout, Vec::<u8>::new());
+    for selector in ["acme-core", "acme-*"] {
+        let copied = run(&root, &sealed(selector));
+        let stdout = String::from_utf8(copied.stdout).unwrap();
+        assert_eq!(copied.status.code(), Some(1), "{selector}: {stdout}");
+        assert!(
+            stdout
+                .starts_with("REFERENCE-COPY src/lib.rs:1 app::copy matches acme_core::provided "),
+            "{selector}: {stdout}"
+        );
+        assert_eq!(stdout.lines().count(), 1, "{selector}: {stdout}");
+    }
+    write_consumer(&root, &scaled(2, 8), "");
+    for selector in ["acme-core", "acme-*"] {
+        let changed = run(&root, &sealed(selector));
+        assert!(changed.status.success(), "{selector}: {changed:?}");
+        assert_eq!(changed.stdout, Vec::<u8>::new(), "{selector}");
     }
 }

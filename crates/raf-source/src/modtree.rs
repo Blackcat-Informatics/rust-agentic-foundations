@@ -82,6 +82,33 @@ pub struct Reach {
     pub test: bool,
     /// The `cfg_attr` predicate of the `path` that led here, if any.
     pub predicate: Option<String>,
+    /// The `path` attribute that led the walk to this file, if one did.
+    pub path_attribute: Option<PathSite>,
+}
+
+/// The `path` attribute through which the walk reached a file.
+///
+/// A `path` on `mod name;`, plain or inside `cfg_attr`, names the file
+/// itself. A `path` on an inline module names a directory, and a file module
+/// declared inside it, at any inline depth, is reached through that
+/// attribute. A file's own children are reached through the file, not
+/// through the attribute that led to it.
+///
+/// ```compile_fail,E0638
+/// # fn names(site: &raf_source::PathSite) {
+/// let raf_source::PathSite { file, line, resolved } = site;
+/// # }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PathSite {
+    /// The file that holds the module declaration carrying the attribute.
+    pub file: RelPath,
+    /// The line of that module's name.
+    pub line: usize,
+    /// The spelling the walk followed to the reached file: relative to the
+    /// tree root, with `dir/..` collapsed through real directories.
+    pub resolved: RelPath,
 }
 
 /// A parsed file.
@@ -98,14 +125,27 @@ struct DirCtx<'a> {
     /// The stem of a non-`mod.rs` file, whose children live in `dir/stem`;
     /// folded into `dir` as soon as an inline module is entered.
     relative: Option<String>,
+    /// The declaring file and line of the inline module `path` attribute
+    /// that set `dir`, if one did.
+    via: Option<(RelPath, usize)>,
     // The original subgrant is refunded only after the owned string dies.
     _admission: Option<OwnedAdmission<FrameAdmission<'a>>>,
+}
+
+/// How the walk arrives at a file.
+#[derive(Default)]
+struct Arrival<'p> {
+    /// The `cfg_attr` predicate of the `path` that leads to the file.
+    predicate: Option<&'p str>,
+    /// The `path` attribute that leads to the file.
+    path_attribute: Option<PathSite>,
 }
 
 impl<'a> DirCtx<'a> {
     fn new(
         dir: RelPath,
         relative: Option<&str>,
+        via: Option<(RelPath, usize)>,
         parser: Option<&'a dyn Parser>,
     ) -> Result<Self, LoadError> {
         let mut admission =
@@ -122,12 +162,18 @@ impl<'a> DirCtx<'a> {
         Ok(Self {
             dir,
             relative,
+            via,
             _admission: admission,
         })
     }
 
     fn copy(&self, parser: Option<&'a dyn Parser>) -> Result<Self, LoadError> {
-        Self::new(self.dir.clone(), self.relative.as_deref(), parser)
+        Self::new(
+            self.dir.clone(),
+            self.relative.as_deref(),
+            self.via.clone(),
+            parser,
+        )
     }
 
     fn module_dir(
@@ -423,13 +469,17 @@ fn file_bytes(id: &FileId) -> usize {
         + vec_first::<ItemId>()
 }
 
-/// What an arrival allocates at most: its reach and predicate in its file's
-/// list, its place in both orders of arrivals, the entry that marks its file,
-/// target and module path as indexed, and its entry and first room among the
-/// files of each module path while the index is built.
+/// What an arrival allocates at most: its reach, predicate and the spellings
+/// of its path attribute in its file's list, its place in both orders of
+/// arrivals, the entry that marks its file, target and module path as
+/// indexed, and its entry and first room among the files of each module path
+/// while the index is built.
 fn reach_bytes(reach: &Reach) -> usize {
     vec_slot::<Reach>()
         + reach.predicate.as_ref().map_or(0, String::capacity)
+        + reach.path_attribute.as_ref().map_or(0, |site| {
+            shared_text(site.file.as_str().len()) + shared_text(site.resolved.as_str().len())
+        })
         + vec_slot::<(usize, usize)>()
         + vec_slot::<Visit>()
         + btree_entry::<(RelPath, TargetId, SharedStr), ()>()
@@ -652,7 +702,7 @@ impl<'a> Walker<'a> {
         module_path: &str,
         origin: &Origin,
     ) -> Result<(), LoadError> {
-        let ctx = DirCtx::new(parent_dir(root)?, None, self.parser)?;
+        let ctx = DirCtx::new(parent_dir(root)?, None, None, self.parser)?;
         let (module_path, cost) = self.paths.intern(module_path);
         self.meter.items(cost, root, None)?;
         let scope = Scope {
@@ -670,7 +720,7 @@ impl<'a> Walker<'a> {
             },
             depth: 0,
         };
-        self.enter(root, None, origin, scope, None, ctx)?;
+        self.enter(root, None, origin, scope, Arrival::default(), ctx)?;
         self.run()
     }
 
@@ -881,7 +931,7 @@ impl<'a> Walker<'a> {
         site: Option<Site<'_>>,
         origin: &Origin,
         scope: Scope,
-        predicate: Option<&str>,
+        arrival: Arrival<'_>,
         ctx: DirCtx<'a>,
     ) -> Result<(), LoadError> {
         let opened = self.identify(path, site, origin)?;
@@ -905,7 +955,8 @@ impl<'a> Walker<'a> {
             target: scope.target,
             module_path: scope.module_path.clone(),
             test: scope.test,
-            predicate: predicate.map(str::to_owned),
+            predicate: arrival.predicate.map(str::to_owned),
+            path_attribute: arrival.path_attribute,
         };
         let (charged, line) = site.map_or((path, None), |s| (s.file, Some(s.line)));
         self.meter
@@ -1022,23 +1073,29 @@ impl<'a> Walker<'a> {
         scope: &Scope,
     ) -> Result<(), LoadError> {
         let ctx = &declared.ctx;
-        let dir = if let Some(path) = module.paths.unconditional.first() {
+        let (dir, via) = if let Some(path) = module.paths.unconditional.first() {
             let origin = Origin::PathAttr {
                 module: module.name.clone(),
                 predicate: None,
             };
-            join(&ctx.dir, path, site.file, site.line, &origin)?
+            (
+                join(&ctx.dir, path, site.file, site.line, &origin)?,
+                Some((site.file.clone(), site.line)),
+            )
         } else {
             let by_name = Origin::ModDecl {
                 module: module.name.clone(),
             };
             let base = ctx.module_dir(&by_name, site.file, site.line)?;
-            join(&base, &module.name, site.file, site.line, &by_name)?
+            (
+                join(&base, &module.name, site.file, site.line, &by_name)?,
+                ctx.via.clone(),
+            )
         };
         self.stack.push(Frame::Decls {
             at: declared.at.copy(Some(declared.position), self.parser)?,
             file: site.file.clone(),
-            ctx: DirCtx::new(dir, None, self.parser)?,
+            ctx: DirCtx::new(dir, None, via, self.parser)?,
             scope: scope.clone(),
             next: 0,
             frontier: (0, 0),
@@ -1115,7 +1172,7 @@ impl<'a> Walker<'a> {
             self.stack.push(Frame::Decls {
                 at,
                 file: file.clone(),
-                ctx: DirCtx::new(dir, None, self.parser)?,
+                ctx: DirCtx::new(dir, None, Some((file.clone(), line)), self.parser)?,
                 scope: alternative_scope,
                 next: 0,
                 frontier: (0, 0),
@@ -1171,8 +1228,16 @@ impl<'a> Walker<'a> {
         scope: Scope,
         predicate: Option<&str>,
     ) -> Result<(), LoadError> {
-        let ctx = DirCtx::new(parent_dir(file)?, None, self.parser)?;
-        self.enter(file, Some(site), origin, scope, predicate, ctx)
+        let ctx = DirCtx::new(parent_dir(file)?, None, None, self.parser)?;
+        let arrival = Arrival {
+            predicate,
+            path_attribute: Some(PathSite {
+                file: site.file.clone(),
+                line: site.line,
+                resolved: file.clone(),
+            }),
+        };
+        self.enter(file, Some(site), origin, scope, arrival, ctx)
     }
 
     /// `mod name;` without a `path`: `name.rs` or `name/mod.rs`.
@@ -1202,6 +1267,22 @@ impl<'a> Walker<'a> {
             site.line,
             &origin,
         )?;
+        // A file found by name in a directory that an inline module's `path`
+        // set is reached through that attribute.
+        let arrival = |found: &RelPath| -> Result<Arrival<'_>, LoadError> {
+            let path_attribute = match &ctx.via {
+                Some((file, line)) => Some(PathSite {
+                    file: file.clone(),
+                    line: *line,
+                    resolved: self.tidy(found, site, &origin)?,
+                }),
+                None => None,
+            };
+            Ok(Arrival {
+                predicate: None,
+                path_attribute,
+            })
+        };
         match (
             self.exists(&flat, site, &origin)?,
             self.exists(&nested, site, &origin)?,
@@ -1217,12 +1298,21 @@ impl<'a> Walker<'a> {
             )
             .reached_by(&origin)),
             (true, false) => {
-                let children = DirCtx::new(base, Some(&module.name), self.parser)?;
-                self.enter(&flat, Some(site), &origin, scope.clone(), None, children)
+                let children = DirCtx::new(base, Some(&module.name), None, self.parser)?;
+                let arrival = arrival(&flat)?;
+                self.enter(&flat, Some(site), &origin, scope.clone(), arrival, children)
             }
             (false, true) => {
-                let children = DirCtx::new(parent_dir(&nested)?, None, self.parser)?;
-                self.enter(&nested, Some(site), &origin, scope.clone(), None, children)
+                let children = DirCtx::new(parent_dir(&nested)?, None, None, self.parser)?;
+                let arrival = arrival(&nested)?;
+                self.enter(
+                    &nested,
+                    Some(site),
+                    &origin,
+                    scope.clone(),
+                    arrival,
+                    children,
+                )
             }
             // Every `cfg_attr` alternative names a file; none of them need the
             // default one.

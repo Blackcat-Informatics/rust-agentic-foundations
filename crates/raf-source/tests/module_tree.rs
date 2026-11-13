@@ -1164,3 +1164,128 @@ fn a_non_literal_path_attribute_is_reported_as_such_from_the_attribute() {
         .is_ok()
     );
 }
+
+/// A module `path` attribute that leads a target into a directory another
+/// package owns is reported with its declaring
+/// file, line and resolved spelling; one that stays in its own package is
+/// not, and a package nested below another owns its own directory.
+#[test]
+fn foreign_module_paths_name_only_attributes_that_leave_their_package() {
+    const SHARED: &str = "#[path = \"../../q/src/shared.rs\"]\nmod shared;";
+    let tree: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"top\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
+             [workspace]\nmembers = [\"p\", \"q\"]\n",
+        ),
+        (
+            "p/Cargo.toml",
+            "[package]\nname = \"p\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+        ),
+        (
+            "p/src/lib.rs",
+            "#[path = \"own.rs\"]\nmod own;\n\
+             #[path = \"../../q/src/shared.rs\"]\nmod shared;\n\
+             #[cfg_attr(feature = \"x\", path = \"../../q/src/cond.rs\")]\nmod cond;\n\
+             #[path = \"../../src/top.rs\"]\nmod up;\n\
+             #[path = \"../../q/src/dir\"]\nmod moved { mod child; }\n\
+             #[path = \"../../q/src/raw.rs\"]\nmod r#type;",
+        ),
+        ("p/src/own.rs", ""),
+        ("p/src/main.rs", SHARED),
+        ("p/tests/t.rs", SHARED),
+        ("p/benches/b.rs", SHARED),
+        ("p/examples/e.rs", SHARED),
+        (
+            "src/lib.rs",
+            "// The root package holds the members.\n#[path = \"../p/src/own.rs\"]\nmod member;",
+        ),
+        ("src/top.rs", ""),
+        (
+            "q/Cargo.toml",
+            "[package]\nname = \"q\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+        ),
+        ("q/src/lib.rs", "#[path = \"shared.rs\"]\nmod mine;"),
+        ("q/src/shared.rs", ""),
+        ("q/src/cond.rs", ""),
+        ("q/src/raw.rs", ""),
+        ("q/src/dir/child.rs", ""),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    let name = |id| ws.package(id).expect("package").name.clone();
+    let mut found: Vec<_> = ws
+        .foreign_module_paths()
+        .into_iter()
+        .map(|foreign| {
+            let kind = ws.target(foreign.reach.target).expect("target").kind;
+            (
+                format!("{}:{}", foreign.site.file, foreign.site.line),
+                foreign.site.resolved.to_string(),
+                name(foreign.package),
+                foreign.owner.map(name),
+                format!("{kind:?}"),
+            )
+        })
+        .collect();
+    found.sort();
+    let row = |at: &str, resolved: &str, owner: Option<&str>, kind: &str| {
+        (
+            at.to_owned(),
+            resolved.to_owned(),
+            "p".to_owned(),
+            owner.map(str::to_owned),
+            kind.to_owned(),
+        )
+    };
+    let mut expected = vec![
+        row("p/benches/b.rs:2", "q/src/shared.rs", Some("q"), "Bench"),
+        row("p/examples/e.rs:2", "q/src/shared.rs", Some("q"), "Example"),
+        row("p/src/lib.rs:4", "q/src/shared.rs", Some("q"), "Lib"),
+        row("p/src/lib.rs:6", "q/src/cond.rs", Some("q"), "Lib"),
+        row("p/src/lib.rs:8", "src/top.rs", Some("top"), "Lib"),
+        row("p/src/lib.rs:10", "q/src/dir/child.rs", Some("q"), "Lib"),
+        row("p/src/lib.rs:12", "q/src/raw.rs", Some("q"), "Lib"),
+        row("p/src/main.rs:2", "q/src/shared.rs", Some("q"), "Bin"),
+        row("p/tests/t.rs:2", "q/src/shared.rs", Some("q"), "Test"),
+    ];
+    // A member nested below the root package owns its own directory.
+    expected.push((
+        "src/lib.rs:3".to_owned(),
+        "p/src/own.rs".to_owned(),
+        "top".to_owned(),
+        Some("p".to_owned()),
+        "Lib".to_owned(),
+    ));
+    expected.sort();
+    assert_eq!(found, expected);
+    let raw = ws
+        .foreign_module_paths()
+        .into_iter()
+        .find(|foreign| foreign.site.resolved.as_str() == "q/src/raw.rs")
+        .expect("the raw module is reported");
+    assert_eq!(raw.reach.module_path.as_str(), "p::type");
+}
+
+/// Without a root package, a module `path` attribute that leads outside every
+/// member is reported with no owner.
+#[test]
+fn a_module_path_outside_every_package_is_reported_without_an_owner() {
+    let tree: MemoryTree = [
+        ("Cargo.toml", "[workspace]\nmembers = [\"p\"]\n"),
+        (
+            "p/Cargo.toml",
+            "[package]\nname = \"p\"\nversion = \"0.1.0\"\n",
+        ),
+        ("p/src/lib.rs", "#[path = \"../../loose.rs\"]\nmod loose;"),
+        ("loose.rs", ""),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    let foreign = ws.foreign_module_paths();
+    assert_eq!(foreign.len(), 1);
+    assert_eq!(foreign[0].site.resolved.as_str(), "loose.rs");
+    assert_eq!(foreign[0].owner, None);
+}

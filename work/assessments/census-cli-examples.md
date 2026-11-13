@@ -7,13 +7,13 @@ subject: cap:census-cli#examples
 inputs:
   - kind: section
     name: cap:census-cli#examples
-    digest: 920af8b96942f7fb9a206a5910605075776df7bf0d3cb7e2e5c1440cd8176933
+    digest: 67ab8791fd5d3c681a5b2a3a6f44fc9a63bc70506bc4060fc94608c2943d8bcb
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: d093edbd945873ee24c23bc737c7b35e0687c27c6e655f764850b0979abc9766
+    digest: 782348c0694a58fa27f412cde5ed4b9f9536edefa0f5c8e4b527cfde7a81c99b
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: 5847e7b9ce65dcdbdab3c79659d90ba2750dc9042faf48345dd7661009efe248
+    digest: b76ed9cdc1e20a5d1046ceceebd2678e44f777339b89b604e06fd129772b1ec0
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::error
     digest: 5c18f105079fccd0601e8d1b0eb0620c3361511e1c07d81945bd54f062974ae2
@@ -26,6 +26,9 @@ inputs:
   - kind: symbol
     name: raf_census::DEBT_WRITE_PROTOCOL_VERSION
     digest: 040b9a659209a7f711df38dd99d36a6cfa1d7dd1bcc916218334eba9c5edf364
+  - kind: symbol
+    name: raf_census::Gate::self_test
+    digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86
   - kind: symbol
     name: raf_census::MAX_CHECK_RESPONSE_BYTES
     digest: c8a061c28be622be14d14f7667e80cf9fa3c2b5f3bc44a9dcbc0a5b5561caa0c
@@ -42,8 +45,17 @@ inputs:
     name: raf_census::RegisteredOperation
     digest: 98bcfe7fbfb82787e373bc668fe6ed676710da4e3558b9fd8822e7b7367fb640
   - kind: symbol
+    name: raf_census::SelfTest
+    digest: dac276ea90de583da4c32e7c1c6505d709d86f4ed5d191da69e4a0f824e0bd95
+  - kind: symbol
+    name: raf_census::SelfTestCase
+    digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+  - kind: symbol
     name: raf_census::registered
     digest: efc94d08846e404a1c7bf1c4ae162f0b16eaf78faf8ab0f6763bdc0e230fdcbc
+  - kind: symbol
+    name: raf_census::selftest
+    digest: a64d1bf9f0f15c51a0a6cc0d2146533530e4f9b46cb3f433c46dad397514c684
 verdict: accepted
 by: agent
 ---

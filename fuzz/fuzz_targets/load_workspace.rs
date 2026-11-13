@@ -3,7 +3,7 @@
 
 //! Builds a small workspace in memory from the input, loads it through
 //! `Workspace::load` and asks the index what a tool asks. The input format is
-//! in `workspace_input.rs`, which the seed replay test shares.
+//! in `raf_fixtures::workspace_input`, which the seed replay test shares.
 //!
 //! A tree that refuses its keys, a load error or a resolution error is a
 //! normal result. A panic, a stack overflow or unbounded memory is a finding.
@@ -13,7 +13,7 @@
 
 #![no_main]
 
-mod workspace_input;
+use raf_fixtures::workspace_input;
 
 use std::sync::Once;
 

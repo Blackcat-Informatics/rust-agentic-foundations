@@ -248,6 +248,27 @@ impl Repository {
         self.inner.workdir()
     }
 
+    /// The canonical checkout root of the main worktree, from a linked
+    /// checkout or the main checkout alike; absent when the main repository
+    /// is bare. The main repository is opened with the same isolated,
+    /// read-only options as this handle.
+    ///
+    /// # Errors
+    /// Fails when the main repository cannot be opened or its checkout root
+    /// cannot be resolved.
+    pub fn main_work_dir(&self) -> Result<Option<PathBuf>, Error> {
+        let main = self
+            .inner
+            .main_repo()
+            .map_err(|error| Error::native("main worktree", error))?;
+        main.workdir()
+            .map(|root| {
+                root.canonicalize()
+                    .map_err(|error| Error::native("main worktree", error))
+            })
+            .transpose()
+    }
+
     /// The explicitly selected or ordinary private index path.
     #[must_use]
     pub fn index_path(&self) -> PathBuf {

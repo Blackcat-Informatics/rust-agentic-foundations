@@ -238,6 +238,13 @@ Expose the library's static contract and explicit data operations through consis
 
 ## Contract
 
+`docs build standalone --repository-links` publishes existing authored source
+and capability navigation relative to its actual versioned output directory.
+The library receives the exact opened workspace and retains its existing
+contained output-directory binding before contextual generation. Without the
+flag, output bytes and placement restrictions remain unchanged.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
+
 `docs export PATH --iri ABSOLUTE_IRI` exports the canonical navigation Index
 through its separate native carrier. The option is required for that path and
 refused for ordinary Documents. Contained reads and the actual native RDF
@@ -260,6 +267,10 @@ Exit zero denotes a successful static outcome or explicit data operation; exit o
 
 ## Usage
 
+Add `--repository-links` to standalone publication only when its existing output
+directory lies beneath the canonical workspace. Serve that workspace tree
+unchanged; a non-root URL prefix is supported.
+
 Use `cargo workplan --format turtle docs export docs/capabilities/index.md
 --iri https://example.org/navigation`. Ordinary Document export omits `--iri`.
 
@@ -270,6 +281,10 @@ The commands are `check`, `status`, `diagram`, `docs sync|preview|export|mdbook|
 Use `docs fragment --package PACKAGE --metadata META --target-directory OUTPUT --view OWNER#NAME --module MODULE --capability CAPABILITY`. The target directory must already exist and match the imported metadata. The source index uses the same bounded static default load as `diagram`; metadata features do not select effective compiler configuration. Save stdout through a caller-owned operation when an include file is wanted.
 
 ## Examples
+
+`cargo workplan docs build standalone --view cap:api#workspace --output-dir
+published/site --repository-links` keeps existing source and capability links
+usable from the generated overview and detail pages.
 
 `cargo-workplan --format ntriples docs export docs/capabilities/index.md --iri
 https://example.org/navigation` emits the same navigation carrier as the Cargo
@@ -300,6 +315,12 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/909ce0bb63eae8
 
 ## Constraints
 
+Repository navigation refuses missing, outside or changed required bindings
+before publishing owned payloads. It preserves cumulative host files and native
+immutable-publication ownership checks. It supplies no server, host assembly,
+remote source URL, raw-file line anchor or atomic directory transaction.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
+
 Navigation export inherits the Index codec's exact identity, closed shape and
 combined IRI/body text bound. It never retries a refused Document as an Index.
 The eight Document carriers retain their existing identities and output path.
@@ -318,6 +339,12 @@ The fragment command supplies the native static API with the shared named bundle
 CLI results own domain values so human rendering and machine projections share one static answer. No ambient pre-parser compiler dispatch or command-executing evidence recorder exists.
 
 ## Verification
+
+Both actual invocation forms exercise repository navigation at two depths with
+escaped paths, repeat publication, retained host files and invalid locations.
+The public API returns the same directory, and existing default publication
+and changed-owned-byte refusals remain covered.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
 
 Both actual invocation forms export the generated navigation Index through
 native Turtle and N-Triples, preserve decorated bytes and inputs, and refuse
@@ -464,7 +491,7 @@ CLI fixtures compare static verification with the library, exercise prospective 
 | `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::bound_example_bodies_are_inert_and_reconciliation_writes_nothing` | test | [Verification](#verification) |

@@ -13,7 +13,7 @@
 | [census-migration](./census-migration.md) | Read-only fingerprint migration and foreign dialect import to one native RDF ledger. |  |
 | [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. |  |
 | [census-patterns](./census-patterns.md) | Native RDF declarations for call, path, macro, type, string and balanced-token syntax bans. |  |
-| [census-reference-scan](./census-reference-scan.md) | Compare first-party code with exact dependency identities selected through lock files and manifest declarations. |  |
+| [census-reference-scan](./census-reference-scan.md) | Compare first-party code with exact dependency identities selected through lock files and manifest declarations, with registry archives sealed by their lock checksums, or with caller-declared pinned commits and unpinned directories. |  |
 | [census-rule-api](./census-rule-api.md) | The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test. |  |
 | [okf-profile](./okf-profile.md) | The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically. |  |
 | [rdf-report-profile](./rdf-report-profile.md) | The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections. |  |

@@ -10,7 +10,7 @@ inputs:
     digest: 5b098f6d15c946d4282bfeda3b8ff2fe1463a836fb3605b3591d05b26199a346
   - kind: symbol
     name: raf_source::ReferenceTree
-    digest: b2006e66fa6f3af379e9f43560a952226fec5cd96d7afbf4461ac0a9d2a56a09
+    digest: a0c3d9ff22fcba3a9e0f4f5ec842131d66a80ef525420309c948c94ec047570a
   - kind: symbol
     name: raf_source::ResolutionAttempt
     digest: f76cce55e915c8e375bf62e637aa8da216f8aadfb40455bce0cbc7169fd9b848

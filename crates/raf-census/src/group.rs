@@ -100,6 +100,48 @@ pub struct SharedConstant {
     pub members: Vec<Member>,
 }
 
+/// An integer constant above `0xffff` that a first-party unit and a reference
+/// unit both hold.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CrossConstant {
+    pub(crate) value: u128,
+    pub(crate) first_party: Vec<Member>,
+    pub(crate) reference: Vec<Member>,
+}
+
+/// The large constants held on both sides of the reference boundary, by value.
+///
+/// A value held only by first-party units, or only by reference units, is not
+/// reported here.
+pub(crate) fn cross_boundary_constants(
+    first_party: &[Unit],
+    reference: &[Unit],
+) -> Vec<CrossConstant> {
+    let mut by_value: BTreeMap<u128, (Vec<Member>, Vec<Member>)> = BTreeMap::new();
+    for (units, side) in [(first_party, 0), (reference, 1)] {
+        for unit in units {
+            for &value in unit.constants.range(LARGE_CONSTANT + 1..) {
+                let held = by_value.entry(value).or_default();
+                let members = if side == 0 { &mut held.0 } else { &mut held.1 };
+                members.push(Member::of(unit));
+            }
+        }
+    }
+    by_value
+        .into_iter()
+        .filter(|(_, (first_party, reference))| !first_party.is_empty() && !reference.is_empty())
+        .map(|(value, (mut first_party, mut reference))| {
+            first_party.sort();
+            reference.sort();
+            CrossConstant {
+                value,
+                first_party,
+                reference,
+            }
+        })
+        .collect()
+}
+
 /// A unit offered to the group builder.
 pub(crate) struct Candidate<'a> {
     pub(crate) kind: GroupKind,
@@ -154,10 +196,14 @@ pub(crate) struct Grouping {
     pub(crate) shared_constants: Vec<SharedConstant>,
 }
 
-/// Groups `units`, finds their hex tables and their shared large constants.
+/// Groups the `units` inside the grouping scope, and finds the hex tables and
+/// the shared large constants of every unit.
 pub(crate) fn group(units: &[Unit]) -> Grouping {
     let mut candidates = Vec::new();
-    for unit in units {
+    for unit in units
+        .iter()
+        .filter(|unit| unit.grouping == crate::units::Grouping::InScope)
+    {
         let Some(print) = &unit.print else { continue };
         if print.shim.is_some() {
             // A forwarder is never compared by structure; it groups by its

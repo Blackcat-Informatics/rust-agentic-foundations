@@ -4,11 +4,13 @@
 //! The loaded workspace: packages, targets and the files of every module tree.
 
 mod locked;
+mod module_paths;
 mod selected;
 pub use locked::{
-    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceBinding,
+    LockedBinding, LockedEdge, LockedManifest, LockedPackageRoots, LockedTree, ReferenceBinding,
     ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree,
 };
+pub use module_paths::ForeignModulePath;
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,7 +28,7 @@ use crate::index::{DependencyInfo, Index, LOAD_BASE_BYTES, PackageInfo};
 use crate::item::{ImplBlock, ImplId, Item, ItemId, Namespace, UnresolvedImpl};
 use crate::manifest::{
     self, Dependency, DependencyDeclaration, EditionDecl, InheritedDependency, Manifest,
-    PackageDecl, PathSource, WorkspaceDependency,
+    PackageDecl, PathSource, VersionDecl, WorkspaceDependency,
 };
 use crate::members::members;
 use crate::meter::{ItemAdmission, Meter, Usage};
@@ -91,6 +93,8 @@ impl SourceFile {
 pub struct Workspace {
     packages: Vec<Package>,
     dependencies: Vec<Vec<DependencyDeclaration>>,
+    /// The version each package declares, retained from the load's own read.
+    versions: Vec<DeclaredVersion>,
     locked: Vec<LockedBinding>,
     references: Vec<LockedBinding>,
     selected_configuration: Option<crate::ActiveConfiguration>,
@@ -111,6 +115,7 @@ impl PartialEq for Workspace {
     fn eq(&self, other: &Self) -> bool {
         self.packages == other.packages
             && self.dependencies == other.dependencies
+            && self.versions == other.versions
             && self.locked == other.locked
             && self.references == other.references
             && self.selected_configuration == other.selected_configuration
@@ -323,18 +328,16 @@ impl Workspace {
             dirs: &dirs,
             found,
         };
-        let mut locked = if let Some(binding) = binding {
-            locked::bind_found(binding, &reader, &mut caches)?
-        } else {
-            Vec::new()
-        };
-        let mut packages = Vec::new();
+        let mut locked = binding.map_or_else(
+            || Ok(Vec::new()),
+            |binding| locked::bind_found(binding, &reader, &mut caches),
+        )?;
+        let (mut packages, mut derived) = (Vec::new(), Vec::new());
         let mut dependencies = Vec::new();
         let mut dependency_admission = ItemAdmission::new(meter, &root);
         Memory::new(&mut dependency_admission)
             .reserve(&mut dependencies, found.len())
             .map_err(|error| dependency_admission.error(error))?;
-        let mut derived = Vec::new();
         for (package_index, entry) in found.iter().enumerate() {
             let context = Context {
                 package_id: PackageId(package_index),
@@ -371,6 +374,7 @@ impl Workspace {
             &mut derived,
             selected,
         )?;
+        let versions = declared_versions(&reader, found, &mut caches)?;
         let package_names = package_name_index(&packages, meter)?;
         let (targets, origins) = selected_targets(derived)?;
         let walked = walk_sources(
@@ -396,6 +400,7 @@ impl Workspace {
         Ok(Self {
             packages,
             dependencies,
+            versions,
             locked,
             references,
             selected_configuration: selected,
@@ -462,6 +467,31 @@ impl Workspace {
     #[must_use]
     pub fn package(&self, id: PackageId) -> Option<&Package> {
         self.packages.get(id.index())
+    }
+
+    /// The version that package `id` declares, explicit or inherited from its
+    /// workspace, read once by the load that built this workspace. `None` is a
+    /// manifest that sets no version, which Cargo reads as `0.0.0`.
+    ///
+    /// # Errors
+    /// Refuses a package whose inherited version the nearest workspace manifest
+    /// does not supply, and an identity this workspace does not hold.
+    pub fn package_version(&self, id: PackageId) -> Result<Option<&str>, LoadError> {
+        match self.versions.get(id.index()) {
+            Some(DeclaredVersion::Value(version)) => Ok(Some(version)),
+            Some(DeclaredVersion::Unset) => Ok(None),
+            Some(DeclaredVersion::Unresolved) | None => {
+                let manifest = self
+                    .packages
+                    .get(id.index())
+                    .map_or_else(RelPath::root, |package| package.manifest.clone());
+                Err(manifest_error(
+                    &manifest,
+                    "package.version",
+                    "the package inherits its version and the nearest workspace manifest supplies none".to_owned(),
+                ))
+            }
+        }
     }
 
     /// Package identities in the manifest order of [`Workspace::packages`].
@@ -1234,6 +1264,63 @@ impl Reader<'_> {
         }
         Ok(())
     }
+}
+
+/// The version one package declares, as its load read it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DeclaredVersion {
+    Value(String),
+    Unset,
+    Unresolved,
+}
+
+/// The declared version of every discovered package, in discovery order.
+fn declared_versions(
+    reader: &Reader<'_>,
+    found: &[Found],
+    caches: &mut Caches,
+) -> Result<Vec<DeclaredVersion>, LoadError> {
+    let mut versions = Vec::new();
+    let root = RelPath::root();
+    let mut admission = ItemAdmission::new(reader.meter, &root);
+    Memory::new(&mut admission)
+        .reserve(&mut versions, found.len())
+        .map_err(|error| admission.error(error))?;
+    for entry in found {
+        versions.push(declared_version(
+            reader,
+            &entry.package,
+            &entry.declared,
+            caches,
+        )?);
+    }
+    Ok(versions)
+}
+
+/// Read a package's declared version under the load's item allowance.
+fn declared_version(
+    reader: &Reader<'_>,
+    package: &Package,
+    declared: &PackageDecl,
+    caches: &mut Caches,
+) -> Result<DeclaredVersion, LoadError> {
+    let version = match &declared.version {
+        VersionDecl::Explicit(version) => version.clone(),
+        VersionDecl::Unset => return Ok(DeclaredVersion::Unset),
+        VersionDecl::Inherited => match workspace_of(reader, &package.dir, caches)? {
+            WorkspaceOf::Member {
+                version: Some(version),
+                ..
+            } => version.as_str().to_owned(),
+            _ => return Ok(DeclaredVersion::Unresolved),
+        },
+    };
+    reader.meter.items(
+        version.len().saturating_add(size_of::<DeclaredVersion>()),
+        &package.manifest,
+        None,
+    )?;
+    Ok(DeclaredVersion::Value(version))
 }
 
 /// The nearest workspace manifest above a package, as far as the package can

@@ -5,10 +5,8 @@
 
 #[path = "census_gate/configured_provider_targets.rs"]
 mod configured_provider_targets;
-#[path = "support/detector_fixtures.rs"]
-mod detector_fixtures;
-#[path = "support/layout.rs"]
-mod layout;
+use raf_census::detector_fixtures;
+use raf_fixtures::layout;
 #[path = "census_gate/native_provider.rs"]
 mod native_provider;
 #[path = "support/vocabulary.rs"]
@@ -365,6 +363,16 @@ fn ledger_vocabulary_matches_validated_graphs() {
         provider_policy("native-alias", "native_alias::encode"),
         ledger_vocabulary_settings(),
     ];
+    builders.push(scoped_pattern(
+        &[
+            ("targetKind", "lib"),
+            ("targetKind", "bin"),
+            ("excludeTargetKind", "test"),
+            ("includePath", "src"),
+            ("excludePath", "src/generated"),
+        ],
+        true,
+    ));
     builders.extend(
         [
             "call",
@@ -401,6 +409,13 @@ fn ledger_vocabulary_matches_validated_graphs() {
 
 fn ledger_vocabulary_settings() -> Builder {
     let mut graph = job(true);
+    put(&mut graph, "", "excludeTestItems", Term::boolean(true));
+    put(
+        &mut graph,
+        "",
+        "excludeDir",
+        Term::simple_literal("generated"),
+    );
     for (key, value) in [("minTokens", "1"), ("maxFileBytes", "8192")] {
         put(
             &mut graph,
@@ -411,6 +426,13 @@ fn ledger_vocabulary_settings() -> Builder {
     }
     for (key, value) in [("root", "src"), ("reference", "reference")] {
         put(&mut graph, "", key, Term::simple_literal(value));
+    }
+    for (key, value) in [
+        ("vectorPath", "vectors/add.json"),
+        ("benchTarget", "demo:speed"),
+        ("specRef", "RFC 0000"),
+    ] {
+        put(&mut graph, "#job", key, Term::simple_literal(value));
     }
     for (key, value) in [("entryPoint", "demo::entry"), ("forbiddenName", "^copy$")] {
         put(&mut graph, "#job", key, Term::simple_literal(value));
@@ -1127,7 +1149,7 @@ fn configured_provider_audits_inherited_inline_and_file_module_attributes() {
 
 #[test]
 fn configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation() {
-    native_provider::actual_pinned_hasher();
+    native_provider::actual_registry_hasher();
     configured_provider_state_transitions();
 }
 
@@ -3194,16 +3216,22 @@ fn hex_detectors_apply_to_their_declared_targets_and_actual_format_fields() {
 
 #[test]
 fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
-    for (id, home, positive, negative) in detector_fixtures::CONTEXTUAL {
-        let inactive = Gate::workspace(".")
-            .check_tree(&detector_fixture(base(), home, positive))
-            .unwrap();
-        assert!(inactive.is_clean(), "{id}: {:?}", inactive.findings());
-        for (source, expected) in [
-            (positive.to_owned(), true),
-            (negative.to_owned(), false),
-            (format!("#[cfg(test)] mod oracle {{{positive}}}"), false),
-        ] {
+    for (id, home, positives, negatives) in detector_fixtures::CONTEXTUAL {
+        let mut sources = Vec::new();
+        for positive in positives {
+            let inactive = Gate::workspace(".")
+                .check_tree(&detector_fixture(base(), home, positive))
+                .unwrap();
+            assert!(inactive.is_clean(), "{id}: {:?}", inactive.findings());
+            sources.push(((*positive).to_owned(), true));
+            sources.push((format!("#[cfg(test)] mod oracle {{{positive}}}"), false));
+        }
+        sources.extend(
+            negatives
+                .iter()
+                .map(|negative| ((*negative).to_owned(), false)),
+        );
+        for (source, expected) in sources {
             let report = Gate::workspace(".")
                 .check_tree(&detector_tree(id, home, &source))
                 .unwrap();
@@ -4401,4 +4429,452 @@ fn index_migration_refuses_oversized_split_output_beside_a_same_size_mapping() {
     let result = migrated(&tree, &ledger, &index.to_turtle().unwrap()).unwrap();
     assert_eq!(result.ledger.len(), ledger.len());
     assert_eq!(result.unmapped, []);
+}
+
+fn scope_ledger(settings: &[(&str, Term)]) -> Builder {
+    let mut graph = base();
+    put(
+        &mut graph,
+        "",
+        "minTokens",
+        Term::typed_literal("1", vocab::INTEGER),
+    );
+    for (key, value) in settings {
+        put(&mut graph, "", key, value.clone());
+    }
+    graph
+}
+
+/// The scope ledger with a distinct sanction over the test helpers `f` and `g`.
+fn sanctioned_scope_ledger(settings: &[(&str, Term)]) -> Builder {
+    let mut graph = scope_ledger(settings);
+    put(&mut graph, "", "distinct", Term::iri("#distinct"));
+    put(
+        &mut graph,
+        "#distinct",
+        "type",
+        Term::iri(format!("{}Distinct", vocab::REPORT)),
+    );
+    for (key, value) in [
+        ("kind", "body"),
+        ("memberSymbol", "demo::tests::f"),
+        ("memberSymbol", "demo::tests::g"),
+        ("criterion", "test helpers"),
+        ("reason", "Kept apart on purpose"),
+    ] {
+        put(&mut graph, "#distinct", key, Term::simple_literal(value));
+    }
+    put(
+        &mut graph,
+        "#distinct",
+        "anchor",
+        Term::iri("urn:raf:code:demo::tests::f"),
+    );
+    graph
+}
+
+/// The ledger's grouping scope reaches the census, and the index and the exact
+/// debt record state it; a record of another scope is a difference that is
+/// not growth, and a sanction over a group the scope removes is stale. Only a
+/// true flag and plain directory names are accepted.
+#[test]
+fn ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record() {
+    let source = "#[cfg(test)]\nmod tests {\n/// One.\npub fn f(a:u32)->u32 { a+a+a+a }\n/// Two.\npub fn g(b:u32)->u32 { b+b+b+b }\n}";
+    let gate = Gate::workspace(".");
+    let complete = gate
+        .check_tree(&tree(source, scope_ledger(&[]), 0))
+        .unwrap();
+    assert_eq!(complete.debt().groups().len(), 1);
+    assert!(complete.debt().scope().is_complete());
+    assert!(!complete.debt().to_turtle().unwrap().contains("exclude"));
+
+    let settings = [
+        ("excludeTestItems", Term::boolean(true)),
+        ("excludeDir", Term::simple_literal("generated")),
+    ];
+    let scoped = gate
+        .check_tree(&tree(source, scope_ledger(&settings), 0))
+        .unwrap();
+    assert!(scoped.is_clean(), "{:?}", scoped.findings());
+    assert!(scoped.debt().groups().is_empty());
+    let scope = scoped.census().options().scope.clone();
+    assert!(scope.excludes_test_items());
+    assert_eq!(scope.excluded_dirs().collect::<Vec<_>>(), ["generated"]);
+    assert_eq!(scoped.debt().scope(), &scope);
+    let record = scoped.debt().to_turtle().unwrap();
+    assert!(record.contains("excludeTestItems") && record.contains("\"generated\""));
+    assert_eq!(DebtRecord::from_turtle(&record).unwrap().scope(), &scope);
+    let index = scoped.census().index(scoped.jobs()).unwrap();
+    assert_eq!(index.scope, scope);
+    let text = index.to_turtle().unwrap();
+    assert_eq!(raf_census::Index::from_turtle(&text).unwrap().scope, scope);
+
+    // A sanction over the group that the exclusion removes holds under the
+    // complete scope and is stale once the scope is on.
+    let sanctioned = |settings: &[(&str, Term)]| {
+        gate.check_tree(&tree(source, sanctioned_scope_ledger(settings), 0))
+            .unwrap()
+    };
+    let held = sanctioned(&[]);
+    assert!(held.is_clean(), "{:?}", held.findings());
+    let removed = sanctioned(&settings);
+    assert!(
+        removed
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("equals no current group")),
+        "{:?}",
+        removed.findings()
+    );
+
+    let unscoped = DebtRecord::new(NORMAL_FORM, [], BTreeMap::new()).unwrap();
+    let changes = unscoped.compare(scoped.debt()).unwrap();
+    assert!(matches!(
+        changes.as_slice(),
+        [raf_census::DebtChange::Scope { .. }]
+    ));
+    assert!(!changes[0].is_growth());
+    let ledger = scope_ledger(&settings)
+        .finish()
+        .unwrap()
+        .to_text(Format::Turtle)
+        .unwrap();
+    let stale: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        ),
+        ("src/lib.rs", source),
+        ("helpers-ledger.ttl", ledger.as_str()),
+        ("census-debt.ttl", unscoped.to_turtle().unwrap().as_str()),
+    ]
+    .into();
+    let stale = gate.check_tree(&stale).unwrap();
+    assert!(
+        stale
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("record the present grouping scope")),
+        "{:?}",
+        stale.findings()
+    );
+
+    for (key, value, needle) in [
+        ("excludeTestItems", Term::boolean(false), "only as true"),
+        ("excludeDir", Term::simple_literal("a/b"), "plain directory"),
+        ("excludeDir", Term::simple_literal(".."), "plain directory"),
+    ] {
+        let text = scope_ledger(&[(key, value)])
+            .finish()
+            .unwrap()
+            .to_text(Format::Turtle)
+            .unwrap();
+        let error = Ledger::from_turtle(&text).unwrap_err().to_string();
+        assert!(error.contains(needle), "{error}");
+    }
+}
+
+/// A required module path containment check reports each `path` attribute,
+/// plain or inside `cfg_attr`, that leads a censused package into a sibling
+/// package, through both the structural and the locked gate; one that stays
+/// in its own package is not reported, and without the requirement the
+/// verdict is unchanged.
+#[test]
+fn module_paths_outside_their_package_are_required_findings_beside_contained_ones() {
+    use raf_source::{LoadOptions, LockedCatalog, LockedManifest, RelPath};
+
+    let ledger = base().finish().unwrap().to_text(Format::Turtle).unwrap();
+    let tree = MemoryTree::from([
+        ("Cargo.toml", "[workspace]\nmembers=['one','two']\n"),
+        (
+            "one/Cargo.toml",
+            "[package]\nname='one'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        (
+            "one/src/lib.rs",
+            "#[path = \"inside.rs\"]\nmod inside;\n\
+             #[path = \"../../two/src/shared.rs\"]\nmod shared;\n\
+             #[cfg_attr(feature = \"extra\", path = \"../../two/src/extra.rs\")]\nmod extra;\n",
+        ),
+        ("one/src/inside.rs", ""),
+        (
+            "two/Cargo.toml",
+            "[package]\nname='two'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("two/src/lib.rs", "#[path = \"shared.rs\"]\nmod own;\n"),
+        ("two/src/shared.rs", ""),
+        ("two/src/extra.rs", ""),
+        (
+            "Cargo.lock",
+            "version=4\n[[package]]\nname='one'\nversion='1.0.0'\n[[package]]\nname='two'\nversion='1.0.0'\n",
+        ),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let plain = Gate::workspace(".").check_tree(&tree).unwrap();
+    assert!(plain.is_clean(), "{:?}", plain.findings());
+    let required = Gate::workspace(".").require_module_paths_in_package();
+    let report = required.check_tree(&tree).unwrap();
+    assert_eq!(
+        report.findings(),
+        [
+            "module path attribute: one/src/lib.rs:4: module `one::shared` of package `one` resolves to two/src/shared.rs, in package `two`; move the file into the directory of `one` or use it through a dependency",
+            "module path attribute: one/src/lib.rs:6: module `one::extra` of package `one` resolves to two/src/extra.rs, in package `two`; move the file into the directory of `one` or use it through a dependency",
+        ]
+    );
+    // The locked gate reports the same sites through its own load.
+    let catalog = LockedCatalog::load(
+        &tree,
+        &RelPath::new("Cargo.lock").unwrap(),
+        &LoadOptions::default(),
+    )
+    .unwrap();
+    let local: Vec<_> = ["one", "two"]
+        .into_iter()
+        .map(|name| {
+            let row = catalog
+                .packages()
+                .find(|row| row.name() == name)
+                .unwrap()
+                .id();
+            LockedManifest::new(
+                row,
+                RelPath::new(&format!("{name}/Cargo.toml")).unwrap(),
+                &[],
+            )
+        })
+        .collect();
+    let locked = required.check_locked(&tree, &catalog, &local, &[]).unwrap();
+    assert_eq!(locked.findings(), report.findings());
+}
+
+fn scoped_pattern(scope: &[(&str, &str)], shipping_only: bool) -> Builder {
+    let mut graph = lexical_pattern_graph("call", "std::mem::drop");
+    for (key, value) in scope {
+        put(&mut graph, "#pattern", key, Term::simple_literal(*value));
+    }
+    if shipping_only {
+        put(&mut graph, "#pattern", "shippingOnly", Term::boolean(true));
+    }
+    graph
+}
+
+/// One drop call placed at `site`, beside the approved home, in a package with
+/// a library, an integration test, a build script and a legacy module.
+fn scoped_tree(site: &str, graph: Builder) -> MemoryTree {
+    let call = "std::mem::drop(2);";
+    let mut lib = String::from(
+        "pub mod legacy;\npub fn home(){std::mem::drop(1);}\npub use home as alias;\n",
+    );
+    let mut files = vec![
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n".to_owned(),
+        ),
+        ("src/legacy/mod.rs", "pub fn old(){}\n".to_owned()),
+        ("tests/it.rs", "#[test]\nfn clean(){}\n".to_owned()),
+        ("build.rs", "fn main(){}\n".to_owned()),
+    ];
+    match site {
+        "lib" => lib = format!("{lib}pub fn alternate(){{{call}}}\n"),
+        "cfg-test" => {
+            lib = format!("{lib}#[cfg(test)]\nmod checks {{ fn alternate(){{{call}}} }}\n");
+        }
+        "legacy" => files[1].1 = format!("pub fn old(){{{call}}}\n"),
+        "test" => files[2].1 = format!("#[test]\nfn it(){{{call}}}\n"),
+        "build" => files[3].1 = format!("fn main(){{{call}}}\n"),
+        _ => unreachable!("closed fixture sites"),
+    }
+    files.push(("src/lib.rs", lib));
+    files.push((
+        "helpers-ledger.ttl",
+        graph.finish().unwrap().to_text(Format::Turtle).unwrap(),
+    ));
+    files.into_iter().collect()
+}
+
+fn scoped_copies(site: &str, scope: &[(&str, &str)], shipping_only: bool) -> usize {
+    let tree = scoped_tree(site, scoped_pattern(scope, shipping_only));
+    Gate::workspace(".").check_tree(&tree).unwrap().jobs()[0].copies
+}
+
+#[test]
+fn shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts() {
+    for (site, scoped) in [("lib", 1), ("test", 0), ("cfg-test", 0), ("build", 0)] {
+        assert_eq!(scoped_copies(site, &[], true), scoped, "scoped: {site}");
+        assert_eq!(scoped_copies(site, &[], false), 1, "unscoped: {site}");
+    }
+}
+
+#[test]
+fn target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits() {
+    for (site, scope, copies) in [
+        ("test", &[("targetKind", "test")][..], 1),
+        ("lib", &[("targetKind", "test")][..], 0),
+        ("build", &[("excludeTargetKind", "buildScript")][..], 0),
+        ("lib", &[("excludeTargetKind", "buildScript")][..], 1),
+        ("test", &[("excludeTargetKind", "test")][..], 0),
+    ] {
+        assert_eq!(
+            scoped_copies(site, scope, false),
+            copies,
+            "{site}: {scope:?}"
+        );
+    }
+}
+
+#[test]
+fn path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it() {
+    let exclude = &[("excludePath", "src/legacy")][..];
+    assert_eq!(scoped_copies("legacy", exclude, false), 0);
+    assert_eq!(scoped_copies("lib", exclude, false), 1);
+    assert_eq!(scoped_copies("test", exclude, false), 1);
+    let include = &[("includePath", "src/legacy")][..];
+    assert_eq!(scoped_copies("legacy", include, false), 1);
+    assert_eq!(scoped_copies("lib", include, false), 0);
+    assert_eq!(scoped_copies("legacy", &[], false), 1);
+}
+
+#[test]
+fn contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour() {
+    let load = |scope: &[(&str, &str)], shipping: bool| {
+        let graph = scoped_pattern(scope, shipping).finish().unwrap();
+        Ledger::from_turtle(&graph.to_text(Format::Turtle).unwrap())
+    };
+    load(
+        &[
+            ("targetKind", "lib"),
+            ("excludeTargetKind", "test"),
+            ("includePath", "src"),
+            ("excludePath", "src/legacy"),
+        ],
+        true,
+    )
+    .unwrap();
+    load(
+        &[
+            ("includePath", "src/legacy/deep"),
+            ("excludePath", "src/legacy2"),
+        ],
+        false,
+    )
+    .unwrap();
+    for (scope, shipping, fix) in [
+        (&[("targetKind", "library")][..], false, "not a target kind"),
+        (
+            &[("excludeTargetKind", "Lib")][..],
+            false,
+            "not a target kind",
+        ),
+        (
+            &[("targetKind", "lib"), ("excludeTargetKind", "lib")][..],
+            false,
+            "both included and excluded",
+        ),
+        (
+            &[("excludeTargetKind", "lib"), ("excludeTargetKind", "bin")][..],
+            true,
+            "admit no target kind",
+        ),
+        (&[("targetKind", "test")][..], true, "admit no target kind"),
+        (
+            &[("includePath", "src/legacy"), ("excludePath", "src")][..],
+            false,
+            "lies inside excludePath",
+        ),
+        (
+            &[("includePath", "src"), ("excludePath", "src")][..],
+            false,
+            "lies inside excludePath",
+        ),
+        (
+            &[("excludePath", "/etc")][..],
+            false,
+            "relative to the workspace root",
+        ),
+        (
+            &[("includePath", "../out")][..],
+            false,
+            "relative to the workspace root",
+        ),
+        (
+            &[("excludePath", ".")][..],
+            false,
+            "names the workspace root",
+        ),
+    ] {
+        let error = load(scope, shipping).unwrap_err().to_string();
+        assert!(error.contains(fix), "{scope:?}: {error}");
+    }
+    let mut graph = scoped_pattern(&[], false);
+    put(&mut graph, "#pattern", "shippingOnly", Term::boolean(false));
+    let error = Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("stated only as true"), "{error}");
+}
+
+fn macro_scope_tree(lib_tail: &str, extra: &[(&str, &str)], graph: Builder) -> MemoryTree {
+    let mut files = vec![
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n".to_owned(),
+        ),
+        (
+            "src/lib.rs",
+            format!("pub fn home(){{blocked!();}}\npub use home as alias;\n{lib_tail}"),
+        ),
+        (
+            "helpers-ledger.ttl",
+            graph.finish().unwrap().to_text(Format::Turtle).unwrap(),
+        ),
+    ];
+    files.extend(extra.iter().map(|(path, text)| (*path, (*text).to_owned())));
+    files.into_iter().collect()
+}
+
+#[test]
+fn shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation() {
+    for (tail, copies) in [("blocked!();\n", 1), ("#[cfg(test)]\nblocked!();\n", 0)] {
+        let mut graph = lexical_pattern_graph("macro", "blocked");
+        put(&mut graph, "#pattern", "shippingOnly", Term::boolean(true));
+        let report = Gate::workspace(".")
+            .check_tree(&macro_scope_tree(tail, &[], graph))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{tail}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched() {
+    let shared = [
+        ("src/shared.rs", "pub fn used(){ super::blocked(); }\n"),
+        (
+            "tests/it.rs",
+            "#[path = \"../src/shared.rs\"]\nmod shared;\nfn blocked(){}\n#[test]\nfn it(){}\n",
+        ),
+    ];
+    for (kind, copies) in [("lib", 1), ("test", 0)] {
+        let mut graph = lexical_pattern_graph("call", "demo::blocked");
+        put(
+            &mut graph,
+            "#pattern",
+            "targetKind",
+            Term::simple_literal(kind),
+        );
+        let tail = "pub mod shared;\npub fn blocked(){}\n";
+        let report = Gate::workspace(".")
+            .check_tree(&macro_scope_tree(tail, &shared, graph))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{kind}: {:?}",
+            report.findings()
+        );
+    }
 }

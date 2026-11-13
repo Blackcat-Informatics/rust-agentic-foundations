@@ -28,10 +28,12 @@ bindings:
     - raf_census::LedgerExtensionGraph
     - raf_census::Ledger
     - raf_census::LedgerJob
+    - raf_census::BenchLink
     - raf_census::LedgerVariant
     - raf_census::LedgerDistinct
     - raf_census::LedgerPattern
     - raf_census::PatternMatcher
+    - raf_census::PatternScope
     - raf_census::PreferredProvider
     - raf_census::NamePattern
     - raf_census::MAX_LEDGER_BYTES
@@ -43,6 +45,7 @@ bindings:
     - raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope
     - raf_census::gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set
     - raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation
+    - raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
     - raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate
@@ -57,6 +60,8 @@ bindings:
     - raf_census::test_crate::census_gate::configured_provider_missing_paths_keep_the_original_typed_source_failure
     - raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package
     - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
+    - raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector
+    - raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours
     - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
     - raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers
     - raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library
@@ -64,6 +69,12 @@ bindings:
     - raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once
     - raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours
     - raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy
+    - raf_census::test_crate::ledger_evidence::a_job_naming_an_existing_vector_and_bench_is_clean
+    - raf_census::test_crate::ledger_evidence::a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link
+    - raf_census::test_crate::ledger_evidence::a_link_that_escapes_the_workspace_root_is_refused
+    - raf_census::test_crate::ledger_evidence::a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link
+    - raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links
+    - raf_census::test_crate::ledger_evidence::a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one
     - raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor
     - raf_census::test_crate::census_gate::a_home_reached_through_two_modules_uses_one_physical_owner
     - raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package
@@ -96,7 +107,7 @@ those declarations tied to the current workspace rather than remembered counts.
 `Gate::write_debt_locked` reads first-party source through its own DiskTree at the
 Gate's discovered workspace root. The caller supplies the LockedCatalog, local
 LockedManifest associations, declared target configurations and sealed
-GitPackageRoots used by the complete locked evaluation. It runs the same
+LockedPackageRoots used by the complete locked evaluation. It runs the same
 registered Rules, Extensions and preferred-provider proofs as `Gate::check_locked`
 before debt-difference findings are added. The shared writing ratchet refuses
 non-debt findings and same-form growth, preserves unchanged records and publishes
@@ -160,14 +171,26 @@ shared with that library must independently prove the library's eligible route;
 the build dependency cannot authorize both contexts.
 
 ### Closed native policy
-<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation,raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record,raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector,raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours -->
 
 The production file helpers-ledger.ttl is canonical RDF 1.2. Ledger::from_turtle
 and Ledger::from_ntriples validate equivalent representations through the shared
 native profile. Its Ledger root requires normalForm and reportForm; optional
 minTokens and maxFileBytes default to 20 and eight MiB. Repeated root, reference,
 job, distinct and pattern properties declare sets; the default root is the
-workspace. An incompatible normal form refuses before job interpretation.
+workspace. A reference value names one package or a package family: a
+package-name prefix followed by `-*`, such as `acme-*`. Any other value holding
+`*` refuses. A reference that no job homes is the copy ban: a first-party copy of its bodies or shims is a non-debt REFERENCE-COPY finding that no baseline or debt record can hold, even with an empty job set. The ban applies per reference unit, not per declaration: a job that homes one unit of a reference leaves every other unit of it banned. The shipped command acquires only contained path dependencies; a registry or Git reference is compared only through the locked check. A job that homes a reference module instead classifies the copies into the job, as recordable debt while the job is not enforced. Optional excludeTestItems, stated only as true, and repeated
+excludeDir directory names set the grouping scope of the census normal form;
+false, a path or a dot name refuses. Excluded items stay units and leave only
+body and shim grouping and the group debt it produces; jobs, sanctions and
+detectors still see them, and a job copy inside an excluded file still counts.
+A distinct sanction still resolves its members, but its set must equal a group
+of the present scope: once an exclusion removes the group, or changes its
+members, the sanction is the finding "equals no current group" until it is
+removed or restated. The gate evaluates the census under that scope, and its index and debt record
+state it. An incompatible normal form
+refuses before job interpretation.
 Unknown core properties, wrong classes, missing required values, invalid
 cardinalities and unowned nodes refuse. Input is at most one MiB.
 
@@ -182,6 +205,13 @@ constants compare by value. The Source index resolves aliases; module homes
 include descendant implementation units. Each physical selected item counts
 once as HOME, VARIANT or COPY, even if several selectors match it.
 
+A job may declare its supporting evidence with core properties: repeated
+vectorPath (a workspace-relative file path), repeated benchTarget (`package:target`,
+the Cargo package name and bench target name) and one optional specRef text that
+is stored and never resolved. The ledger refuses a vectorPath that is absolute,
+uses a backslash, or climbs above the workspace root, and a benchTarget that is
+not exactly a nonempty package and target joined by one colon.
+
 A Variant requires symbol, file, detector, criterion, anchor and reason. It
 sanctions only matching sites in its declared file. A Distinct requires
 memberSymbol, kind (body or shim), criterion, anchor and reason. Its counted
@@ -191,10 +221,18 @@ increase the count. Documentation anchors are absolute urn:raf:code: IRIs
 followed by a percent-encoded Source path that resolves to documented items.
 
 ### Staleness and registered code
-<!-- raf:tested-by raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy,raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
+<!-- raf:tested-by raf_census::test_crate::ledger_evidence::a_job_naming_an_existing_vector_and_bench_is_clean,raf_census::test_crate::ledger_evidence::a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link,raf_census::test_crate::ledger_evidence::a_link_that_escapes_the_workspace_root_is_refused,raf_census::test_crate::ledger_evidence::a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link,raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links,raf_census::test_crate::ledger_evidence::a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one,raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy,raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
 
 Missing homes, entries, members or variants, unmatched body/shim fingerprints,
-obsolete sanctions and unenforced jobs with zero copies are findings. Enforced
+obsolete sanctions and unenforced jobs with zero copies are findings. A declared
+vectorPath that names no file in the workspace tree, or a path that is not a
+regular file, and a benchTarget that is not a bench target of a first-party
+package, are findings naming the job and the link. Evaluation identifies each
+vector through the Tree and reads no contents; no vector is interpreted and no
+bench is built or run. A vector path whose resolution leads out of the workspace
+root refuses, and so does any vectorPath or benchTarget on a job whose home is
+in a reference dependency. These checks are core ledger behaviour, available to
+every consumer; a registered LedgerExtension still sees only the job's graph. Enforced
 copies fail the gate. A job may own one Extension. Exactly one registered
 LedgerExtension must claim and validate nonempty content; zero or multiple
 claims refuse. Missing custom rules require repository registration. Rule
@@ -225,11 +263,21 @@ view and validator admission.
 Each Pattern has a unique RuleId-compatible patternId, one-line summary and exactly one of call,
 path, macro, typePath, literalRegex or tokens. Literal expressions compile through
 the native bounded matcher. Unknown references, unused declarations and
-collisions with built-in ids refuse. One owned PreferredProvider per job requires
+collisions with built-in ids refuse. A Pattern may add an optional target-kind and path scope (targetKind, excludeTargetKind,
+shippingOnly, includePath, excludePath), stated in the patterns capability; without one it applies everywhere. One owned PreferredProvider per job requires
 package, nonempty entryPoint APIs and nonempty consumer paths. The package is a
 selector; it is not evidence of a locked identity or actual delegation.
 
+Configured preferred-provider evaluation accepts sealed Git or checksum-authenticated
+registry archive sources through `LockedPackageRoots`. The same loaded package,
+target, configured definition and delegation identities govern both backends.
+A registry declaration needs an explicit matching registry index, and absent
+authenticated source evidence refuses rather than borrowing an observed tree.
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation -->
+
 ## Usage
+
+Pass an authenticated `RegistryArchiveTree` as `LockedTree::Registry` within the same `LockedPackageRoots` argument used for committed Git provider sources. Supply explicit registry selection and declared target configuration; ordinary observed reference trees cannot establish this proof.
 
 A foreign-value migration adapter declares source-schema acceptance and
 vocabulary through `migrate_legacy_with_extensions`. Its registered
@@ -243,7 +291,7 @@ nonempty extension content refuses without exactly one accepting validator.
 
 
 Supply the complete `LockedCatalog`, local `LockedManifest` associations and
-sealed `GitPackageRoots` to `Gate::check_locked`. Each participating package
+sealed `LockedPackageRoots` to `Gate::check_locked`. Each participating package
 needs its complete declared target configuration. Declare the approved package
 selector, public API paths and actual consumer paths on the job's
 `PreferredProvider`; a selector such as `purrdf.*` selects the admitted project
@@ -287,7 +335,10 @@ table in the adapter package remains a finding.
 Those structural entry points refuse preferred-provider rows that need grounded
 configuration. Evaluate those rows through `check_locked` with the supplied
 complete source and target context, or explicitly publish their admissible debt
-through `write_debt_locked`.
+through `write_debt_locked`. The shipped `cargo census check` is such a structural
+entry point: on a ledger with preferred-provider rows it refuses with that
+requirement and never reports a clean verdict, so a repository that declares
+them judges itself through `check_locked` from its own test or target.
 
 Install custom owner validation through `Gate::extensions` before calling
 `check` or `check_tree`. A nonempty extension with no accepting validator is an
@@ -296,6 +347,8 @@ the library Gate when policy requires one.
 <!-- raf:tested-by raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
 
 ## Examples
+
+The native hash consumer resolves the published registry provider and matches an independent nonempty digest. Corrupted archive bytes, another catalog checksum and omitted provider sources each refuse beside the valid provider.
 
 The foreign-policy fixture retains two capacity-proof rows and repeated ordered
 authority values in one job-owned graph. The original source-pin literal remains
@@ -321,13 +374,14 @@ result or first assigning `&mut state` to a local is outside the proof grammar.
 An extra unused `Hasher::new()` or finalization call also refuses because its
 receipt does not reach the returned value.
 
-The native Hasher case uses the compiled PurRDF dependency's workspace locator
-and exact lock row to open sealed committed source. The declared APIs resolve
-through `Hasher = Streaming<16384>` to their actual definitions. The same
-consumer source is compiled against that dependency and judged by the Gate;
-its returned `Hash` supplies the bytes checked against a frozen nonempty BLAKE3
-vector. Unavailable committed source refuses instead of substituting a fixture
-implementation or searching a shared package cache.
+The native Hasher case uses the compiled PurRDF dependency's exact lock row and
+its original Cargo registry archive, authenticated by the lock checksum, as the
+sealed provider source. The declared `Hasher::new`, `Hasher::update` and
+`Hasher::finalize` APIs resolve to their actual definitions in that archive.
+The same consumer source is compiled against that dependency and judged by the
+Gate; its returned `Hash` supplies the bytes checked against a frozen nonempty
+BLAKE3 vector. Unavailable archive bytes refuse instead of substituting a
+fixture implementation.
 <!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation -->
 
 A job may name demo_util::encode as its home, demo_util::public_encode as an
@@ -434,8 +488,8 @@ same source passes with an ordinary dependency. A package with no eligible
 selected target refuses during Source loading before provider execution.
 
 The bound integration cases exercise real MemoryTree workspaces, reexports,
-physical aliases, sanctions, staleness, extension ownership, closed declarations
-and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
+physical aliases, sanctions, staleness, extension ownership, closed declarations,
+the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -468,6 +522,7 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 | `raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path` | test | [Contract](#contract) |
@@ -476,7 +531,15 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 | `raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::rules_and_variants_share_physical_ownership_without_widening_file_sanctions` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_job_naming_an_existing_vector_and_bench_is_clean` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_link_that_escapes_the_workspace_root_is_refused` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link` | test | [Contract](#contract) |
 | `raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension` | test | [Usage](#usage), [Examples](#examples) |
+| `raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours` | test | [Contract](#contract) |
 <!-- raf:generated:end -->
 <!-- raf:generated:relationships -->
 | Relation | Capability |

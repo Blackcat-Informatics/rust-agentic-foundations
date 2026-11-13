@@ -27,7 +27,8 @@ pub struct ReferenceSource {
     pub manifest: String,
     /// Native lowercase registry archive digest; empty when the lock row has none.
     pub checksum: String,
-    /// `contained-tree` observes local contents; `committed-git` reads sealed bytes.
+    /// `contained-tree` observes local contents; `committed-git` reads sealed bytes;
+    /// `unpinned-tree` reads the current files of a caller-declared directory.
     pub observation: String,
 }
 
@@ -85,12 +86,13 @@ impl ReferenceSource {
             )
             || !matches!(
                 self.observation.as_str(),
-                "contained-tree" | "committed-git"
+                "contained-tree" | "committed-git" | "unpinned-tree"
             )
         {
-            return Err(E::Value(
-                "invalid reference identity or observation kind".into(),
-            ));
+            return Err(E::Value(format!(
+                "invalid reference identity or observation kind (source kind {:?}, observation {:?})",
+                self.source_kind, self.observation
+            )));
         }
         if (self.source_kind == "git") != (self.observation == "committed-git")
             || (self.source_kind == "git"
@@ -98,6 +100,8 @@ impl ReferenceSource {
                     || purrdf_hash::hex::decode_canonical(&self.revision).is_err()))
             || (self.source_kind != "git"
                 && (!self.revision.is_empty() || !self.selector.is_empty()))
+            || (self.observation == "unpinned-tree"
+                && (self.source_kind != "path" || !self.checksum.is_empty()))
             || (self.source_kind == "local" && !self.repository.is_empty())
             || (self.source_kind != "local" && self.repository.is_empty())
             || (!self.checksum.is_empty()
@@ -109,6 +113,18 @@ impl ReferenceSource {
         }
         Ok(())
     }
+}
+
+/// An integer constant above `0xffff` that first-party and reference units both
+/// hold, compared by value in any spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceConstantRow {
+    /// The integer value.
+    pub value: u128,
+    /// The first-party units that hold it, ordered by symbol, file and line.
+    pub first_party: Vec<MemberRow>,
+    /// The reference units that hold it, ordered by symbol, file and line.
+    pub reference: Vec<MemberRow>,
 }
 
 /// A physical first-party unit matching one exact reference body or shim.
@@ -154,6 +170,54 @@ pub(super) fn witness(graph: &mut Builder, row: &ReferenceWitness, nf: u32) -> R
         "fingerprint",
         write::fingerprint(&row.fingerprint, nf)?,
     )
+}
+
+pub(super) fn constant_id(value: u128) -> String {
+    format!("#reference-constant/{value}")
+}
+
+pub(super) fn constant(graph: &mut Builder, row: &ReferenceConstantRow) -> Result<(), E> {
+    let id = constant_id(row.value);
+    write::class(graph, &id, "ReferenceConstant")?;
+    write::put(graph, &id, "value", shape::integer(row.value))?;
+    for (key, members) in [
+        ("firstPartyMember", &row.first_party),
+        ("referenceMember", &row.reference),
+    ] {
+        for member in members {
+            write::put(graph, &id, key, Term::iri(site(member)))?;
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn read_constant(
+    graph: &Graph,
+    node: &raf_rdf::Node<'_>,
+) -> Result<ReferenceConstantRow, E> {
+    let members = |key| {
+        let mut rows = Vec::new();
+        for value in node.values(&shape::property(key)) {
+            let id = value
+                .iri()
+                .ok_or_else(|| E::Value(format!("{key}: unit IRI required")))?;
+            rows.push(shape::member(graph, id)?);
+        }
+        rows.sort_by(|a, b| {
+            (&a.symbol, &a.file, a.line, a.start_byte).cmp(&(
+                &b.symbol,
+                &b.file,
+                b.line,
+                b.start_byte,
+            ))
+        });
+        Ok::<_, E>(rows)
+    };
+    Ok(ReferenceConstantRow {
+        value: shape::number(node, "value")?,
+        first_party: members("firstPartyMember")?,
+        reference: members("referenceMember")?,
+    })
 }
 
 pub(super) fn read_source(node: &raf_rdf::Node<'_>) -> Result<ReferenceSource, E> {
@@ -218,6 +282,31 @@ fn validate_unit(graph: &Graph, node: &raf_rdf::Node<'_>) -> Result<(), E> {
     Ok(())
 }
 
+fn validate_constant(graph: &Graph, id: &str, node: &raf_rdf::Node<'_>) -> Result<(), E> {
+    let row = read_constant(graph, node)?;
+    if constant_id(row.value) != id {
+        return Err(E::Name(id.into()));
+    }
+    for (members, held) in [(&row.first_party, false), (&row.reference, true)] {
+        for member in members {
+            let unit = graph
+                .get(&site(member))
+                .ok_or_else(|| E::Dangling(site(member)))?;
+            let has_receipt = unit
+                .values(&shape::property("referenceSource"))
+                .next()
+                .is_some();
+            if has_receipt != held {
+                return Err(E::Inconsistent(
+                    "reference constant members must stand on their own side of the reference boundary"
+                        .into(),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate(graph: &Graph, nf: u32) -> Result<(), E> {
     for (id, node) in graph.nodes() {
         match shape::class(&node)? {
@@ -233,6 +322,7 @@ pub(super) fn validate(graph: &Graph, nf: u32) -> Result<(), E> {
                     return Err(E::Orphan(id));
                 }
             }
+            "ReferenceConstant" => validate_constant(graph, &id, &node)?,
             "ReferenceWitness" => {
                 let row = read_witness(graph, &node, nf)?;
                 if witness_id(&row) != id {
