@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 1ed321259a0fbd6f841793c136eef0d0d5d739f7753f5a094d3335c6d68ecf92
+    digest: fa0d484adec3551638d9f7d58f843bf63bbabc7f44f7d7cc7ef3fd32e7ce5ab1
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -174,6 +174,9 @@ inputs:
     name: raf_source::PackageId
     digest: 074faf46dd258b3f6c550568b4013c17b0d8dd52381f8e6194c4647e4285c61d
   - kind: symbol
+    name: raf_source::ParallelTree
+    digest: 6ccc1b1da048b16d1c431aea9089bb84960632497c18e1d49932d61aeea5b25d
+  - kind: symbol
     name: raf_source::ParsedSource
     digest: 6ca54f6d5936a9b8b9a76a10bd47d3bbc1287b3240d51839b6d1b29389f4a2b2
   - kind: symbol
@@ -255,6 +258,9 @@ inputs:
     name: raf_source::Unexpanded
     digest: 36f0ee4f2dc764bc82ca5889055b9815c8cdd4fd51904f6d6f3c130f75c09151
   - kind: symbol
+    name: raf_source::Usage
+    digest: c86ad8e58151210ec1ffd4f0de601b6f82dd60eeccde1eb0b5d815a28ceec492
+  - kind: symbol
     name: raf_source::Workspace::code_resolver
     digest: e1b516fb173d981ee22520060699be7f1d8fb140f51a2802c835e50eafa9d88c
   - kind: symbol
@@ -284,6 +290,9 @@ inputs:
   - kind: symbol
     name: raf_source::Workspace::locked_binding
     digest: f84151b4e181d69f1c3ca5b7798c7f22042fe8e3b96979b6f27873c31a5ce093
+  - kind: symbol
+    name: raf_source::Workspace::par_load
+    digest: 712a1eed4eb212f40ca664dbf0cad603e2d9ba1a2f17042d606f3bde528b1859
   - kind: symbol
     name: raf_source::Workspace::reachable
     digest: 3051902c7f4936bdad513b7d19838cd8e9368d013d83f73c91c8ae41090e74ac

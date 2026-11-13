@@ -14,6 +14,12 @@ bindings:
     - raf_source::cargo_version
     - raf_source::resolve
     - raf_source::Tree
+    - raf_source::ParallelTree
+    - raf_source::ParallelOptions
+    - raf_source::ParallelOptionsError
+    - raf_source::ParallelUsage
+    - raf_source::Workspace::par_load
+    - raf_source::Workspace::parallel_usage
     - raf_source::discover_root
     - raf_source::DiskTree
     - raf_source::DiskTree::directory_handle
@@ -166,6 +172,15 @@ bindings:
     - raf_source::work
     - raf_source_fuzz::bin_crate::load_workspace::exercise
   tests:
+    - raf_source::parse::parallel::tests::native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling
+    - raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed
+    - raf_source::parse::parallel::tests::candidate_preparation_is_bounded_before_materializing_a_long_borrowed_path
+    - raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage
+    - raf_source::test_crate::parallel_loading::an_earlier_canonical_descendant_error_wins_over_a_speculative_backend_panic
+    - raf_source::test_crate::parallel_loading::reached_backend_failures_keep_original_typed_causes_and_panic_payloads
+    - raf_source::test_crate::parallel_loading::canonical_fact_allowances_refuse_the_exact_serial_position_beside_the_valid_limit
+    - raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics
+    - raf_source::test_crate::rustc_oracle::serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data
     - raf_source::tree::disk::tests::root_acquisition_refuses_replaced_components_before_exposing_a_directory
     - raf_source::tree::disk::tests::replacing_the_root_during_open_never_redirects_its_retained_directory
     - raf_source::test_crate::git_tree::native_selected_index_is_read_only_and_committed_grants_remain_exact
@@ -1080,6 +1095,7 @@ bindings:
     - raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant
     - raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor
   examples:
+    - raf_source::example_crate::parallel_cost
     - raf_source::example_crate::shape_cost
     - raf_source::example_crate::ws_cost
     - raf_source::example_crate::answer_dump
@@ -1108,6 +1124,41 @@ selects modeled declaration headers while retaining the input context needed to
 distinguish that query from a structural inventory of all alternatives.
 
 ## Contract
+
+`ParallelTree: Tree + Sync` is an explicit stable-observation capability consumed
+by `Workspace::par_load(tree, roots, options, parallel)`. `MemoryTree` and native
+Linux `DiskTree` implement it explicitly; thread safety alone supplies no blanket
+implementation. Contents, physical identities, listings and operation errors must
+remain stable and independent of observation order throughout the load.
+Returned values, transitive opaque error sources and panic payloads exposed to
+read-ahead must have normal nonpanicking destruction without dependence on
+speculative disposal or panic-hook effects. These are behavioral eligibility
+conditions, not an unsafe marker or exceptions to corpus coverage.
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::reached_backend_failures_keep_original_typed_causes_and_panic_payloads,raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics -->
+
+Under that condition and the same `LoadOptions`, ordinary static parallel loading
+preserves the serial index, semantic `Usage` and canonical input-error result.
+The coordinator owns every Tree operation, canonical module traversal,
+configuration decision, fact allowance, committed meter, interner and index ID.
+Independent owned inputs overlap lexing and native parsing on fresh workers;
+only the canonical head receives the current allowance and extracts facts.
+Native syntax, spans and parser TLS stay on their original worker.
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage,raf_source::test_crate::parallel_loading::canonical_fact_allowances_refuse_the_exact_serial_position_beside_the_valid_limit,raf_source::parse::parallel::tests::native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling,raf_source::test_crate::corpus_replay::every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts,raf_source::test_crate::rustc_oracle::serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data -->
+
+Canonical reach selects buffered exceptional outcomes. An earlier input error
+wins over an unreached speculative failure; a selected worker panic resumes its
+original payload. Native and third-party typed errors retain their original
+causes. Selection stops admission and cancels parked workers, then explicitly
+joins every owned worker into admitted fixed outcome slots before disposing any
+unselected result, error or panic payload. For eligible backends and normally
+completing cleanup, the selected outcome survives return or panic resumption.
+<!-- raf:tested-by raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed,raf_source::test_crate::parallel_loading::an_earlier_canonical_descendant_error_wins_over_a_speculative_backend_panic,raf_source::test_crate::parallel_loading::reached_backend_failures_keep_original_typed_causes_and_panic_payloads -->
+
+Every canonical Tree read uses its current committed-identity predicate. A
+provisional read failure cannot replace that observation: an earlier physical
+alias can make the current call return `Seen` without reading its payload.
+The provisional outcome remains retained until joined cleanup.
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics -->
 
 Target edition metadata comes from the actual loaded package declarations,
 including workspace inheritance and the 2015 default for an omitted edition.
@@ -3193,6 +3244,21 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Call `Workspace::par_load` with `&dyn ParallelTree`, root paths, ordinary
+`LoadOptions` and separate `ParallelOptions`. Construct explicit limits with
+`ParallelOptions::new(NonZeroUsize, max_speculative_bytes)`. The default is two
+worker slots and 16 MiB of additional scheduler and speculative ownership;
+one worker is valid. `ParallelOptionsError` refuses unrepresentable stack or
+scheduler layouts and a grant below the fixed scheduler layouts before traversal.
+Worker counts come from explicit options, without an ambient executor setting.
+Keep `Workspace::load_with` for order-dependent Tree observations.
+`Workspace::parallel_usage()` returns `Some(ParallelUsage)` only after all
+workers are joined and speculative outcomes are destroyed; serial loads return
+`None`. Its peaks cover live admitted jobs, admitted scheduler ownership and
+requested stack bytes for started, unjoined workers. These operational
+counts are separate from semantic `Usage` and structural equality.
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage -->
+
 On native Linux, explicit metadata publishers can call
 `DiskTree::directory_handle` to clone the tree's original path-only root
 description. Verify any readable reopen against that description before locking
@@ -3407,6 +3473,17 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 
 ## Examples
 
+For a stable `MemoryTree`, load the same roots through `Workspace::load_with`
+and `Workspace::par_load` with `ParallelOptions::default()`. Compare structural
+indexes and `Usage` separately; structural equality excludes usage and options.
+A one-worker `ParallelOptions` value preserves the same semantic result.
+
+If an early module discovers a descendant before a sibling whose syntax is
+invalid, the descendant's canonical input error wins even when the sibling's
+worker finishes first. A backend whose reads change with its call count uses
+the serial loader and cannot satisfy this parallel observation contract.
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::an_earlier_canonical_descendant_error_wins_over_a_speculative_backend_panic,raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics -->
+
 `prepare_source` accepts `const X:f64=1e2.3;` as guard-admitted source data.
 Its raw numeric guard run can cover several native leaves; use the separate
 native-node ceiling when admitting parser resources. A macro payload with
@@ -3595,6 +3672,49 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 
 ## Constraints
 
+This entrypoint covers ordinary static workspace loading on native Linux.
+Import settling and index construction remain serial; it supplies no parallel
+configured or locked loading entrypoint. Speculative reads do not freeze a
+filesystem or preserve the observation behavior of a stateful Tree.
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage -->
+
+All admitted states occupy bounded slots through consumption or discard and
+join: queued inputs, active workers, parked syntax and completed outcomes.
+Scheduler layouts, owned input capacities, paths and captured context share
+one checked native admission account. Worker stacks request 64 MiB each and
+have separate checked accounting. Source, token, fact and index budgets retain
+their serial meaning. Speculation that cannot fit is not admitted; canonical
+progress uses its ordinary input admission rather than a new semantic refusal.
+Frontier context admission can return a typed native storage refusal; increasing
+the independent scheduler grant changes that allowance without changing the
+source, fact or index budgets. A speculative candidate path is admitted before it
+is materialized.
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage,raf_source::test_crate::parallel_loading::canonical_fact_allowances_refuse_the_exact_serial_position_beside_the_valid_limit,raf_source::parse::parallel::tests::candidate_preparation_is_bounded_before_materializing_a_long_borrowed_path -->
+
+Tree read internals, complete native AST heaps, parser work, parser TLS and
+thread/runtime allocations are outside the additional ownership ceiling.
+Fixed error and panic carriers are admitted. Original backend-returned failure
+payload allocations, including native path/name buffers and transitive error
+sources, remain outside the scheduler-created allocation ceiling, as do opaque
+panic payload allocations. Known scheduler-created path and context copies,
+captures, containers and boxes retain their ordinary layout charges; wrapping
+an external payload does not exempt them. No complete transitive heap ceiling
+follows from the bounded outcome count.
+Bounded live workers bound AST count without establishing a process-memory
+ceiling. Host allocation and worker startup failures remain distinct execution
+failures; equivalent input does not promise identical host-resource failures.
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage,raf_source::test_crate::parallel_loading::reached_backend_failures_keep_original_typed_causes_and_panic_payloads -->
+
+Cancellation is cooperative between parsing and extraction, without preemption
+or a shutdown-time bound. Panic hooks remain unchanged; their runtime output is
+outside deterministic returned reports. Process aborts are not recoverable
+outcomes. Nonconforming external destruction or hook failures are execution
+behavior outside the deterministic result guarantee; scheduler cleanup defects
+remain bugs. Joining all workers precedes unselected outcome disposal even for
+a nonconforming backend. Failures are not stringified, leaked, deliberately
+aborted or handled by detaching workers.
+<!-- raf:tested-by raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed -->
+
 The instruction profile covers the stated generated populations and sizes on
 native Linux. It does not establish an instruction ceiling for arbitrary source
 inputs. Companion-bearing paths retain exact reconstruction and carrier proofs;
@@ -3760,8 +3880,9 @@ delegates to that library or enforce preferred-provider policy.
   terminal; the fields of the error keep the raw text.
 - The index is built once per `Workspace::load`; callers reload to see changed files.
   <!-- raf:tested-by raf_source::test_crate::index_disk::a_reload_observes_changed_source_while_the_previous_workspace_keeps_its_snapshot -->
-- Loading is serial; requiring `Tree: Sync` for a parallel load would be a breaking
-  change to `Workspace::load`.
+- `Workspace::load` and `load_with` retain serial loading through an object-safe
+  `Tree` without a `Sync` bound. Native Linux `Workspace::par_load` consumes the
+  separate `ParallelTree` capability.
   <!-- raf:tested-by raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state -->
 - `raf_source::syn` is re-exported so consumers use the syn version that produced the
   <!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
@@ -3798,6 +3919,20 @@ delegates to that library or enforce preferred-provider policy.
   executed by the standard checks.
 
 ## Explanation
+
+One reserved slot admits the canonical head even when speculative siblings hold
+native syntax awaiting extraction. Canonical order is determined when the Walker
+reaches a file, since an earlier descendant can be discovered after siblings
+start. Provisional observations do not commit spelling, physical identity,
+configuration or visit state; reused diagnostics acquire canonical provenance.
+<!-- raf:tested-by raf_source::parse::parallel::tests::native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling,raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics -->
+
+Native `Ceiling` and `Memory` supply checked ownership admission. The original
+account survives with its payloads through destruction and joins; the local
+adapter records peak ownership. Native synchronous progress controls and stack
+helpers do not supply parked task ownership or canonical outcome selection.
+A fresh scoped thread per input keeps native syntax and TLS destruction local.
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage,raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed -->
 
 One module fact sink retains module, trait, impl and foreign invocations. The
 existing native token work list, fact charges, string interning and indexed
@@ -3928,6 +4063,39 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+Qualification requires serial and parallel comparisons over the same stable
+corpus and controlled compiler-oracle source data. Compare indexes, semantic
+`Usage`, canonical errors and byte-identical reports across repeated loads and
+worker limits, including one. Nested traversal, aliases, exact budget positions
+and invalid inputs beside valid neighbours exercise the actual public loader.
+<!-- raf:tested-by raf_source::test_crate::corpus_replay::every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts,raf_source::test_crate::rustc_oracle::serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data,raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage,raf_source::test_crate::parallel_loading::canonical_fact_allowances_refuse_the_exact_serial_position_beside_the_valid_limit -->
+
+Controlled synchronization without clocks must establish overlapping parsing,
+canonical extraction, head progress with parked siblings and complete joining
+after errors, worker panics and coordinator unwinding. Cleanup cases must retain
+original native and third-party typed error causes and establish that all joins
+finish before unselected results, errors or panic payloads are destroyed.
+<!-- raf:tested-by raf_source::parse::parallel::tests::native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling,raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed -->
+
+Paired native instruction and whole-process allocation evidence must cover
+startup, synchronization, parsing, extraction, destruction, parser TLS cleanup
+and joining. Retain allocation count, requested bytes, retained bytes and peak
+separately. Instruction counters must include workers with complete coverage;
+missing tools or incomplete counters refuse. Report the actual tradeoff without
+an invented ratio requirement or an elapsed-speed claim. Demonstrated overlap
+alone is not evidence of beneficial instruction or allocation results.
+
+`parallel_cost collect <new-output-directory>` supplies a resident memory-backed
+workspace with 64 sibling modules and 64 public functions per module. It runs
+serial and two-worker loads in isolated processes through native inherited perf
+control. Fixture construction precedes both windows. The whole-process allocator
+window closes after loading, retaining the index; parser destruction, TLS cleanup
+and joins complete inside it. The instruction window also includes allocator
+window bookkeeping and perf protocol boundary overhead. Validation and index
+destruction follow both windows. The collector retains exact counter coverage,
+allocation fields, semantic usage and the existing workspace report separately.
+<!-- raf:tested-by raf_source::test_crate::glob_instruction_gate::counter_requires_one_positive_fully_counted_event -->
 
 Prepared-source fixtures compare the declared native-node ceiling with the
 original token tree for numeric, Unicode, lifetime and ignored-prefix inputs.
@@ -4867,6 +5035,7 @@ one-byte-short refusal.
 | `raf_source::example_crate::code_contexts` | example target | [Usage](#usage) |
 | `raf_source::example_crate::corpus_generate` | example target | [Usage](#usage) |
 | `raf_source::example_crate::glob_instruction_gate` | example target | [Verification](#verification) |
+| `raf_source::example_crate::parallel_cost` | example target | [Verification](#verification) |
 | `raf_source::example_crate::registry_scan` | example target | [Usage](#usage) |
 | `raf_source::example_crate::shape_cost` | example target | [Verification](#verification) |
 | `raf_source::example_crate::ws_cost` | example target | [Verification](#verification) |
@@ -4977,6 +5146,9 @@ one-byte-short refusal.
 | `raf_source::meter::tests::transient_reservations_refuse_atomically_and_release_on_every_exit` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused` | test | [Verification](#verification) |
+| `raf_source::parse::parallel::tests::candidate_preparation_is_bounded_before_materializing_a_long_borrowed_path` | test | [Constraints](#constraints) |
+| `raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed` | test | [Contract](#contract), [Constraints](#constraints), [Explanation](#explanation) |
+| `raf_source::parse::parallel::tests::native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling` | test | [Contract](#contract), [Explanation](#explanation) |
 | `raf_source::path::display_tests::control_characters_in_a_refused_path_are_escaped` | test | [Constraints](#constraints) |
 | `raf_source::platform::tests::compiler_platform_refuses_incomplete_or_malformed_output` | test | [Contract](#contract) |
 | `raf_source::platform::tests::conditional_module_routes_remain_unknown` | test | [Contract](#contract) |
@@ -5065,7 +5237,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::corpus_replay::child_main` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::corpus_files_hold_exactly_the_text_of_their_shapes` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::evasion_shapes_are_refused_naming_their_budget_beside_their_at_budget_neighbours` | test | [Verification](#verification) |
-| `raf_source::test_crate::corpus_replay::every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts` | test | [Verification](#verification) |
+| `raf_source::test_crate::corpus_replay::every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts` | test | [Contract](#contract) |
 | `raf_source::test_crate::corpus_replay::every_named_shape_has_a_corpus_file_and_no_file_is_unrecorded` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::the_shape_table_matches_the_expected_names` | test | [Verification](#verification) |
@@ -5360,6 +5532,11 @@ one-byte-short refusal.
 | `raf_source::test_crate::overflow_harness::the_classifier_accepts_only_a_signal_a_stack_overflow_status_or_the_runtime_message_as_an_abort` | test | [Verification](#verification) |
 | `raf_source::test_crate::overflow_harness::the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::overflow_harness::the_parse_thread_is_named_after_the_file_and_has_the_stated_stack` | test | [Contract](#contract) |
+| `raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics` | test | [Contract](#contract), [Examples](#examples), [Explanation](#explanation) |
+| `raf_source::test_crate::parallel_loading::an_earlier_canonical_descendant_error_wins_over_a_speculative_backend_panic` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_source::test_crate::parallel_loading::canonical_fact_allowances_refuse_the_exact_serial_position_beside_the_valid_limit` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints), [Explanation](#explanation) |
+| `raf_source::test_crate::parallel_loading::reached_backend_failures_keep_original_typed_causes_and_panic_payloads` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::prescan_budgets::a_block_as_the_condition_of_each_else_if_still_counts_the_chain` | test | [Contract](#contract) |
 | `raf_source::test_crate::prescan_budgets::a_comment_or_string_that_looks_like_the_end_of_another_does_not_hide_real_tokens` | test | [Contract](#contract) |
 | `raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count` | test | [Contract](#contract) |
@@ -5465,6 +5642,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::rustc_oracle::compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::diagnostic_levels_are_required_beside_a_valid_null_code` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::rustc_oracle::serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data` | test | [Contract](#contract) |
 | `raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else` | test | [Verification](#verification) |

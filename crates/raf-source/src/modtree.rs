@@ -30,6 +30,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use purrdf_hash::fixed::FixedState;
+use purrdf_lex::allocation::{Admission, Memory, OwnedAdmission, StorageError, growth_capacity};
+use std::alloc::Layout;
 use std::mem::size_of;
 use std::rc::Rc;
 
@@ -40,7 +42,7 @@ use crate::facts::{ExtractError, FileFacts, ModBody, ModFact, TestRole, extract}
 use crate::intern::Interner;
 use crate::item::{ItemId, SharedStr};
 use crate::meter::{Meter, over_budget};
-use crate::parse::{parse_counted, parse_counted_mut};
+use crate::parse::{Candidate, Parser, parse_counted, parse_counted_mut, storage};
 use crate::path::RelPath;
 use crate::tree::{EntryKind, FileId, Opened, Tree};
 use crate::workspace::SourceFile;
@@ -90,16 +92,44 @@ pub(crate) struct Parsed {
 }
 
 /// Where the children of a module live.
-#[derive(Debug, Clone)]
-struct DirCtx {
+struct DirCtx<'a> {
     /// The directory of the file, extended by inline modules.
     dir: RelPath,
     /// The stem of a non-`mod.rs` file, whose children live in `dir/stem`;
     /// folded into `dir` as soon as an inline module is entered.
     relative: Option<String>,
+    // The original subgrant is refunded only after the owned string dies.
+    _admission: Option<OwnedAdmission<FrameAdmission<'a>>>,
 }
 
-impl DirCtx {
+impl<'a> DirCtx<'a> {
+    fn new(
+        dir: RelPath,
+        relative: Option<&str>,
+        parser: Option<&'a dyn Parser>,
+    ) -> Result<Self, LoadError> {
+        let mut admission =
+            parser.map(|parser| OwnedAdmission::new(FrameAdmission { parser, bytes: 0 }));
+        let relative = match (relative, admission.as_mut()) {
+            (Some(text), Some(admission)) => Some(
+                Memory::new(admission)
+                    .string(text)
+                    .map_err(frontier_storage)?,
+            ),
+            (Some(text), None) => Some(text.to_owned()),
+            (None, _) => None,
+        };
+        Ok(Self {
+            dir,
+            relative,
+            _admission: admission,
+        })
+    }
+
+    fn copy(&self, parser: Option<&'a dyn Parser>) -> Result<Self, LoadError> {
+        Self::new(self.dir.clone(), self.relative.as_deref(), parser)
+    }
+
     fn module_dir(
         &self,
         origin: &Origin,
@@ -171,13 +201,14 @@ pub(crate) struct Visit {
 
 /// A module body of a parsed file: the file's own body, or an inline module
 /// inside it, found by the positions of the inline modules on the way.
-#[derive(Clone)]
-struct BodyAt {
+struct BodyAt<'a> {
     parsed: Rc<Parsed>,
     inline: Vec<usize>,
+    // This owner follows the vector even while a popped body remains active.
+    _admission: Option<OwnedAdmission<FrameAdmission<'a>>>,
 }
 
-impl BodyAt {
+impl<'a> BodyAt<'a> {
     fn body(&self, file: &RelPath) -> Result<&ModBody, LoadError> {
         let mut body = &self.parsed.facts.body;
         for &position in &self.inline {
@@ -198,26 +229,49 @@ impl BodyAt {
         Ok(body)
     }
 
-    fn child(&self, position: usize) -> Self {
-        let mut inline = self.inline.clone();
-        inline.push(position);
-        Self {
+    fn copy(
+        &self,
+        position: Option<usize>,
+        parser: Option<&'a dyn Parser>,
+    ) -> Result<Self, LoadError> {
+        let mut admission =
+            parser.map(|parser| OwnedAdmission::new(FrameAdmission { parser, bytes: 0 }));
+        let mut inline = if let Some(admission) = admission.as_mut() {
+            let mut inline = Vec::new();
+            let required = self
+                .inline
+                .len()
+                .checked_add(usize::from(position.is_some()))
+                .ok_or_else(|| frontier_storage(StorageError::SizeOverflow))?;
+            Memory::new(admission)
+                .reserve(&mut inline, required)
+                .map_err(frontier_storage)?;
+            inline.extend_from_slice(&self.inline);
+            inline
+        } else {
+            self.inline.clone()
+        };
+        if let Some(position) = position {
+            inline.push(position);
+        }
+        Ok(Self {
             parsed: Rc::clone(&self.parsed),
             inline,
-        }
+            _admission: admission,
+        })
     }
 }
 
 /// The module declaration at `position` of a body, with the place the walk
 /// reached it from.
-struct Declared {
-    at: BodyAt,
+struct Declared<'a> {
+    at: BodyAt<'a>,
     position: usize,
     file: RelPath,
-    ctx: DirCtx,
+    ctx: DirCtx<'a>,
 }
 
-impl Declared {
+impl Declared<'_> {
     fn module(&self) -> Result<&ModFact, LoadError> {
         self.at
             .body(&self.file)?
@@ -236,25 +290,107 @@ impl Declared {
 }
 
 /// What is left to do, on the walk's own stack.
-enum Frame {
+enum Frame<'a> {
     /// Follow the module declarations of a body, from position `next` on.
     Decls {
-        at: BodyAt,
+        at: BodyAt<'a>,
         file: RelPath,
-        ctx: DirCtx,
+        ctx: DirCtx<'a>,
         scope: Scope,
         next: usize,
+        frontier: (usize, usize),
     },
     /// Follow the `cfg_attr` path alternatives of a declaration, from
     /// alternative `next` on. `scope` is the scope inside the module.
     Alternatives {
-        declared: Declared,
+        declared: Declared<'a>,
         scope: Scope,
         next: usize,
+        frontier: usize,
     },
     /// The declarations of a file are done; it leaves the stack of files
     /// being followed.
     Leave,
+}
+
+/// A native subview that forwards every resize to the original scheduler grant.
+struct FrameAdmission<'a> {
+    parser: &'a dyn Parser,
+    bytes: usize,
+}
+
+fn frontier_storage(cause: StorageError) -> LoadError {
+    storage(&RelPath::root(), cause)
+}
+
+impl Admission for FrameAdmission<'_> {
+    fn resize(&mut self, bytes: usize) -> Result<(), StorageError> {
+        self.parser.resize_frontier(self.bytes, bytes)?;
+        self.bytes = bytes;
+        Ok(())
+    }
+}
+
+struct Frames<'a> {
+    values: Vec<Frame<'a>>,
+    parser: Option<&'a dyn Parser>,
+}
+
+impl<'a> Frames<'a> {
+    fn reserve(&mut self) -> Result<(), LoadError> {
+        let Some(parser) = self.parser else {
+            return Ok(());
+        };
+        let operation = (|| {
+            let bytes = Layout::array::<Frame<'a>>(self.values.capacity())
+                .map_err(|_| StorageError::SizeOverflow)?
+                .size();
+            let required = self
+                .values
+                .len()
+                .checked_add(1)
+                .ok_or(StorageError::SizeOverflow)?;
+            let capacity = growth_capacity::<Frame<'a>>(self.values.capacity(), required)?;
+            let mut admission = FrameAdmission { parser, bytes };
+            Memory::resume(&mut admission, bytes).reserve(&mut self.values, capacity)
+        })();
+        operation.map_err(frontier_storage)
+    }
+
+    fn push(&mut self, frame: Frame<'a>) -> Result<(), LoadError> {
+        self.reserve()?;
+        self.values.push(frame);
+        Ok(())
+    }
+
+    fn insert(&mut self, index: usize, frame: Frame<'a>) -> Result<(), LoadError> {
+        self.reserve()?;
+        self.values.insert(index, frame);
+        Ok(())
+    }
+
+    fn pop(&mut self) -> Option<Frame<'a>> {
+        self.values.pop()
+    }
+
+    fn len(&self) -> usize {
+        self.values.len()
+    }
+}
+
+impl Drop for Frames<'_> {
+    fn drop(&mut self) {
+        if let Some(parser) = self.parser {
+            let values = std::mem::take(&mut self.values);
+            let bytes = Layout::array::<Frame<'_>>(values.capacity())
+                .expect("retained frontier capacity has a representable layout")
+                .size();
+            let mut admission = FrameAdmission { parser, bytes };
+            Memory::resume(&mut admission, bytes)
+                .release_vec(values)
+                .expect("destroyed frontier retains its original scheduler grant");
+        }
+    }
 }
 
 /// One file the walk read, with every way it was reached.
@@ -320,7 +456,8 @@ pub(crate) struct Walker<'a> {
     arrivals: usize,
     /// One copy of each module path.
     paths: Interner,
-    stack: Vec<Frame>,
+    stack: Frames<'a>,
+    parser: Option<&'a dyn Parser>,
 }
 
 impl<'a> Walker<'a> {
@@ -336,14 +473,139 @@ impl<'a> Walker<'a> {
             active: Vec::new(),
             arrivals: 0,
             paths: Interner::default(),
-            stack: Vec::new(),
+            stack: Frames {
+                values: Vec::new(),
+                parser: None,
+            },
+            parser: None,
         }
+    }
+    pub(crate) fn with_parser(
+        tree: &'a dyn Tree,
+        meter: &'a Meter,
+        parser: Option<&'a dyn Parser>,
+    ) -> Self {
+        let mut walker = Self::new(tree, meter);
+        walker.parser = parser;
+        walker.stack.parser = parser;
+        walker
     }
     pub(crate) fn configure(
         &mut self,
         configuration: Option<(PackageId, &'a ActiveConfiguration)>,
     ) {
         self.configuration = configuration;
+    }
+
+    /// Advance a target frontier once; committed physical files are not reread.
+    pub(crate) fn speculate(&self, path: &RelPath) -> bool {
+        self.speculate_candidate(Candidate::Existing(path))
+    }
+
+    fn speculate_candidate(&self, candidate: Candidate<'_>) -> bool {
+        self.parser.is_none_or(|parser| {
+            parser.speculate(self.tree, candidate, self.meter.options(), &|id| {
+                self.by_id.contains_key(id)
+            })
+        })
+    }
+
+    fn speculative_capacity(&self) -> bool {
+        self.parser.is_some_and(Parser::has_capacity)
+    }
+
+    /// Each frame keeps its own monotonically advancing candidate cursor.
+    fn prefetch_body(
+        &self,
+        at: &BodyAt<'a>,
+        file: &RelPath,
+        ctx: &DirCtx<'a>,
+        next: usize,
+        mut frontier: (usize, usize),
+    ) -> Result<(usize, usize), LoadError> {
+        if frontier.0 <= next {
+            frontier = (next + 1, 0);
+        }
+        let modules = &at.body(file)?.mods;
+        while self.speculative_capacity() && frontier.0 < modules.len() {
+            #[cfg(all(test, target_os = "linux"))]
+            let _preparation = crate::parse::parallel::tests::preparing();
+            let module = &modules[frontier.0];
+            if module.inline.is_some() {
+                frontier = (frontier.0 + 1, 0);
+                continue;
+            }
+            let defaults = if module.paths.unconditional.is_empty() {
+                2
+            } else {
+                1
+            };
+            let candidate = if frontier.1 < defaults {
+                if let Some(path) = module.paths.unconditional.first() {
+                    Some(Candidate::Joined {
+                        base: &ctx.dir,
+                        stem: None,
+                        input: path,
+                        suffix: "",
+                    })
+                } else {
+                    Some(Candidate::Joined {
+                        base: &ctx.dir,
+                        stem: ctx.relative.as_deref(),
+                        input: &module.name,
+                        suffix: if frontier.1 == 0 { ".rs" } else { "/mod.rs" },
+                    })
+                }
+            } else {
+                module
+                    .paths
+                    .conditional
+                    .get(frontier.1 - defaults)
+                    .map(|alternative| Candidate::Joined {
+                        base: &ctx.dir,
+                        stem: None,
+                        input: &alternative.path,
+                        suffix: "",
+                    })
+            };
+            if let Some(candidate) = candidate
+                && !self.speculate_candidate(candidate)
+            {
+                break;
+            }
+            frontier.1 += 1;
+            if frontier.1 >= defaults + module.paths.conditional.len() {
+                frontier = (frontier.0 + 1, 0);
+            }
+        }
+        Ok(frontier)
+    }
+
+    fn prefetch_alternatives(
+        &self,
+        declared: &Declared<'a>,
+        mut frontier: usize,
+    ) -> Result<usize, LoadError> {
+        let module = declared.module()?;
+        // Inline alternatives name directories. Their own Decls frames provide
+        // file candidates once the corresponding directory context is reached.
+        if module.inline.is_some() {
+            return Ok(module.paths.conditional.len());
+        }
+        while self.speculative_capacity() && frontier < module.paths.conditional.len() {
+            #[cfg(all(test, target_os = "linux"))]
+            let _preparation = crate::parse::parallel::tests::preparing();
+            if !self.speculate_candidate(Candidate::Joined {
+                base: &declared.ctx.dir,
+                stem: None,
+                input: &module.paths.conditional[frontier].path,
+                suffix: "",
+            }) {
+                break;
+            }
+            frontier += 1;
+        }
+        Ok(frontier)
     }
 
     /// The parsed files, keyed by the spelling each keeps (the one that sorts
@@ -390,10 +652,7 @@ impl<'a> Walker<'a> {
         module_path: &str,
         origin: &Origin,
     ) -> Result<(), LoadError> {
-        let ctx = DirCtx {
-            dir: parent_dir(root)?,
-            relative: None,
-        };
+        let ctx = DirCtx::new(parent_dir(root)?, None, self.parser)?;
         let (module_path, cost) = self.paths.intern(module_path);
         self.meter.items(cost, root, None)?;
         let scope = Scope {
@@ -428,15 +687,18 @@ impl<'a> Walker<'a> {
                     ctx,
                     scope,
                     next,
+                    frontier,
                 } => {
                     if next < at.body(&file)?.mods.len() {
+                        let frontier = self.prefetch_body(&at, &file, &ctx, next, frontier)?;
                         self.stack.push(Frame::Decls {
-                            at: at.clone(),
+                            at: at.copy(None, self.parser)?,
                             file: file.clone(),
-                            ctx: ctx.clone(),
+                            ctx: ctx.copy(self.parser)?,
                             scope: scope.clone(),
                             next: next + 1,
-                        });
+                            frontier,
+                        })?;
                         let declared = Declared {
                             at,
                             position: next,
@@ -450,7 +712,8 @@ impl<'a> Walker<'a> {
                     declared,
                     scope,
                     next,
-                } => self.alternative(declared, scope, next)?,
+                    frontier,
+                } => self.alternative(declared, scope, next, frontier)?,
             }
         }
         Ok(())
@@ -469,6 +732,8 @@ impl<'a> Walker<'a> {
         }
         let by_id = &self.by_id;
         let max_bytes = self.meter.options().max_file_bytes;
+        // Speculation observed another seen predicate. Only this canonical
+        // observation can decide whether an alias still needs to be read.
         let opened = self
             .tree
             .read_unseen(path, max_bytes, &|id| by_id.contains_key(id));
@@ -534,7 +799,8 @@ impl<'a> Walker<'a> {
             .read(path, &text)
             .map_err(|error| error.reached_by(origin))?;
         let allowance = self.meter.fact_allowance();
-        let ((facts, fact_bytes), scan) = if let Some((_, configuration)) = self.configuration {
+        let (text, (facts, fact_bytes), scan) = if let Some((_, configuration)) = self.configuration
+        {
             let before = self.meter.usage();
             let options = self.meter.options().clone();
             let ((result, after), scan) =
@@ -549,7 +815,15 @@ impl<'a> Walker<'a> {
                 })
                 .map_err(|error| error.reached_by(origin))?;
             self.meter.configuration_spent(before, after, path)?;
-            (result?, scan)
+            (text, result?, scan)
+        } else if let Some(parser) = self.parser {
+            let extracted = parser
+                .parse(path, &id, text, self.meter.options(), allowance)
+                .map_err(|error| error.reached_by(origin))?;
+            let facts = extracted
+                .facts
+                .map_err(|problem| extract_error(path, origin, problem))?;
+            (extracted.text, facts, extracted.scan)
         } else {
             let (extracted, scan) =
                 parse_counted(path, &text, self.meter.options().max_file_tokens, |tree| {
@@ -557,11 +831,12 @@ impl<'a> Walker<'a> {
                 })
                 .map_err(|error| error.reached_by(origin))?;
             (
+                text,
                 extracted.map_err(|problem| extract_error(path, origin, problem))?,
                 scan,
             )
         };
-        self.meter.facts(fact_bytes);
+        self.meter.facts(fact_bytes, path)?;
         self.meter.scanned(scan);
         self.meter
             .items(file_bytes(&id), path, None)
@@ -607,7 +882,7 @@ impl<'a> Walker<'a> {
         origin: &Origin,
         scope: Scope,
         predicate: Option<&str>,
-        ctx: DirCtx,
+        ctx: DirCtx<'a>,
     ) -> Result<(), LoadError> {
         let opened = self.identify(path, site, origin)?;
         let id = opened.0.clone();
@@ -638,17 +913,19 @@ impl<'a> Walker<'a> {
             .map_err(|error| error.reached_by(origin))?;
         let parsed = self.load(path, opened, origin, reach)?;
         self.active.push(id);
-        self.stack.push(Frame::Leave);
+        self.stack.push(Frame::Leave)?;
         self.stack.push(Frame::Decls {
             at: BodyAt {
                 parsed,
                 inline: Vec::new(),
+                _admission: None,
             },
             file: path.clone(),
             ctx,
             scope,
             next: 0,
-        });
+            frontier: (0, 0),
+        })?;
         Ok(())
     }
 
@@ -669,7 +946,7 @@ impl<'a> Walker<'a> {
 
     /// Follow one module declaration: its default part now, its alternatives
     /// once that is done.
-    fn module(&mut self, declared: Declared, scope: &Scope) -> Result<(), LoadError> {
+    fn module(&mut self, declared: Declared<'a>, scope: &Scope) -> Result<(), LoadError> {
         let module = declared.module()?;
         let file = &declared.file;
         Self::deeper(module, file, scope)?;
@@ -708,6 +985,11 @@ impl<'a> Walker<'a> {
             module: &module.name,
         };
         let has_alternatives = !module.paths.conditional.is_empty();
+        let frontier = if has_alternatives {
+            self.prefetch_alternatives(&declared, 0)?
+        } else {
+            0
+        };
         let before = self.stack.len();
         if module.inline.is_some() {
             self.inline_default(module, site, &declared, &inner)?;
@@ -723,8 +1005,9 @@ impl<'a> Walker<'a> {
                     declared,
                     scope: inner,
                     next: 0,
+                    frontier,
                 },
-            );
+            )?;
         }
         Ok(())
     }
@@ -735,7 +1018,7 @@ impl<'a> Walker<'a> {
         &mut self,
         module: &ModFact,
         site: Site<'_>,
-        declared: &Declared,
+        declared: &Declared<'a>,
         scope: &Scope,
     ) -> Result<(), LoadError> {
         let ctx = &declared.ctx;
@@ -753,15 +1036,13 @@ impl<'a> Walker<'a> {
             join(&base, &module.name, site.file, site.line, &by_name)?
         };
         self.stack.push(Frame::Decls {
-            at: declared.at.child(declared.position),
+            at: declared.at.copy(Some(declared.position), self.parser)?,
             file: site.file.clone(),
-            ctx: DirCtx {
-                dir,
-                relative: None,
-            },
+            ctx: DirCtx::new(dir, None, self.parser)?,
             scope: scope.clone(),
             next: 0,
-        });
+            frontier: (0, 0),
+        })?;
         Ok(())
     }
 
@@ -771,7 +1052,7 @@ impl<'a> Walker<'a> {
         &mut self,
         module: &ModFact,
         site: Site<'_>,
-        ctx: &DirCtx,
+        ctx: &DirCtx<'a>,
         scope: &Scope,
         has_alternatives: bool,
     ) -> Result<(), LoadError> {
@@ -793,10 +1074,12 @@ impl<'a> Walker<'a> {
     /// stack.
     fn alternative(
         &mut self,
-        declared: Declared,
+        declared: Declared<'a>,
         scope: Scope,
         next: usize,
+        frontier: usize,
     ) -> Result<(), LoadError> {
+        let frontier = self.prefetch_alternatives(&declared, frontier.max(next + 1))?;
         let module = declared.module()?;
         let Some(alternative) = module.paths.conditional.get(next) else {
             return Ok(());
@@ -822,22 +1105,21 @@ impl<'a> Walker<'a> {
         let dir = join(&declared.ctx.dir, &alternative.path, &file, line, &origin)?;
         if inline {
             self.count(Some((&file, line)), &file, &origin)?;
-            let at = declared.at.child(declared.position);
+            let at = declared.at.copy(Some(declared.position), self.parser)?;
             self.stack.push(Frame::Alternatives {
                 declared,
                 scope,
                 next: next + 1,
-            });
+                frontier,
+            })?;
             self.stack.push(Frame::Decls {
                 at,
                 file: file.clone(),
-                ctx: DirCtx {
-                    dir,
-                    relative: None,
-                },
+                ctx: DirCtx::new(dir, None, self.parser)?,
                 scope: alternative_scope,
                 next: 0,
-            });
+                frontier: (0, 0),
+            })?;
         } else {
             let target = self.tidy(&dir, site, &origin)?;
             let after = self.stack.len();
@@ -854,8 +1136,9 @@ impl<'a> Walker<'a> {
                     declared,
                     scope,
                     next: next + 1,
+                    frontier,
                 },
-            );
+            )?;
         }
         Ok(())
     }
@@ -888,10 +1171,7 @@ impl<'a> Walker<'a> {
         scope: Scope,
         predicate: Option<&str>,
     ) -> Result<(), LoadError> {
-        let ctx = DirCtx {
-            dir: parent_dir(file)?,
-            relative: None,
-        };
+        let ctx = DirCtx::new(parent_dir(file)?, None, self.parser)?;
         self.enter(file, Some(site), origin, scope, predicate, ctx)
     }
 
@@ -900,7 +1180,7 @@ impl<'a> Walker<'a> {
         &mut self,
         module: &ModFact,
         site: Site<'_>,
-        ctx: &DirCtx,
+        ctx: &DirCtx<'a>,
         scope: &Scope,
         has_alternatives: bool,
     ) -> Result<(), LoadError> {
@@ -937,17 +1217,11 @@ impl<'a> Walker<'a> {
             )
             .reached_by(&origin)),
             (true, false) => {
-                let children = DirCtx {
-                    dir: base,
-                    relative: Some(module.name.clone()),
-                };
+                let children = DirCtx::new(base, Some(&module.name), self.parser)?;
                 self.enter(&flat, Some(site), &origin, scope.clone(), None, children)
             }
             (false, true) => {
-                let children = DirCtx {
-                    dir: parent_dir(&nested)?,
-                    relative: None,
-                };
+                let children = DirCtx::new(parent_dir(&nested)?, None, self.parser)?;
                 self.enter(&nested, Some(site), &origin, scope.clone(), None, children)
             }
             // Every `cfg_attr` alternative names a file; none of them need the

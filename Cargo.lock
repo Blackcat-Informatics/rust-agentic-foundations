@@ -1771,6 +1771,7 @@ dependencies = [
  "gix",
  "libc",
  "proc-macro2",
+ "purrdf-alloc-probe",
  "purrdf-core",
  "purrdf-hash",
  "purrdf-iri",

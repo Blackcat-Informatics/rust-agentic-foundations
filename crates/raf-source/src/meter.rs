@@ -740,9 +740,23 @@ impl Meter {
     }
 
     /// Record the facts of a file, charged on its parse thread.
-    pub(crate) fn facts(&self, bytes: usize) {
-        self.fact_bytes
-            .set(self.fact_bytes.get().saturating_add(bytes));
+    pub(crate) fn facts(&self, bytes: usize, file: &RelPath) -> Result<(), LoadError> {
+        let total = self
+            .fact_bytes
+            .get()
+            .checked_add(bytes)
+            .filter(|total| *total <= self.options.max_fact_bytes)
+            .ok_or_else(|| {
+                LoadError::new(
+                    file,
+                    None,
+                    LoadErrorKind::Internal {
+                        what: "parser fact accounting exceeded its original allowance".to_owned(),
+                    },
+                )
+            })?;
+        self.fact_bytes.set(total);
+        Ok(())
     }
 
     /// Record what the pre-scan of a parsed file counted.
