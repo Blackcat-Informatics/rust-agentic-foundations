@@ -348,6 +348,8 @@ fn matches_of<'a>(
         }
         let mut refused = None;
         let mut found = false;
+        let mut foreign = None;
+        let before = matched.len();
         for id in owner_row.dependencies() {
             let Some(row) = catalog.package(*id) else {
                 continue;
@@ -364,7 +366,9 @@ fn matches_of<'a>(
                 continue;
             }
             let named = spec.registry.is_some() || spec.registry_index.is_some();
-            if !named && !is_default_registry(&index_source(source.kind(), source.repository())) {
+            let identity = index_source(source.kind(), source.repository());
+            if !named && !is_default_registry(&identity) {
+                foreign = Some(identity);
                 continue;
             }
             found = true;
@@ -398,6 +402,17 @@ fn matches_of<'a>(
                 Ok(_) => {}
                 Err(error) => refused = Some(error),
             }
+        }
+        if let (false, false, Some(identity)) = (matched.len() != before, found, foreign) {
+            let selector = selectors
+                .iter()
+                .find(|selector| selects(selector, name))
+                .copied()
+                .unwrap_or(name);
+            return Err(refusal(format!(
+                "package {name}: selector {selector:?} selects declaration {}, but its only lock rows come from the non-default registry {identity}; add `registry = ...` to the declaration or depend on the default registry",
+                dependency.key
+            )));
         }
         if let (true, Some(error)) = (found, refused) {
             let selector = selectors

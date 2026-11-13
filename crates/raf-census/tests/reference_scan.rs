@@ -2065,3 +2065,47 @@ fn an_unnamed_declaration_is_bound_to_the_default_registry_only() {
         .unwrap();
     assert!(report.is_clean(), "{:?}", report.findings());
 }
+
+/// An unnamed declaration whose only same-name lock row comes from a custom
+/// registry is refused by package, selector, declaration and registry, never
+/// dropped; the same lock with a default-registry row seals clean.
+#[test]
+fn an_unnamed_declaration_with_only_a_custom_registry_row_is_refused() {
+    let archive = acme_core(PROVIDED);
+    let ledger = unhomed_ledger(&[]);
+    let check = |source: &str| {
+        let lock = format!(
+            "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{source}'\nchecksum='{}'\n",
+            raf_fixtures::registry::checksum(&archive)
+        );
+        let tree = raf_source::MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\n",
+            ),
+            (
+                "src/lib.rs",
+                "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+            ),
+            ("Cargo.lock", lock.as_str()),
+            ("helpers-ledger.ttl", ledger.as_str()),
+        ]);
+        let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+        raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
+        let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
+            .seal("acme-core");
+        Gate::workspace(".").check_locked_registry(&tree, &registry)
+    };
+    assert!(check(CRATES_IO).unwrap().is_clean());
+    let message = check("registry+https://custom.example/index")
+        .unwrap_err()
+        .to_string();
+    for expected in [
+        "acme-core",
+        "\"acme-core\"",
+        "dependencies.acme-core",
+        "non-default registry registry+https://custom.example/index",
+    ] {
+        assert!(message.contains(expected), "{expected} missing: {message}");
+    }
+}

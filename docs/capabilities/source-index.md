@@ -2927,7 +2927,7 @@ The decoded tar buffer is admitted before the strict inventory runs; RAF-owned
 retained files, inventory, path traversal and source reads consume their grants.
 This supplies no universal native peak-memory or CPU guarantee.
 
-`library_target_name` reads only a tree's root manifest to name its library target: the `[lib]` name, otherwise the package name when a `[lib]` table or `src/lib.rs` makes a library, so a locked configuration can select the library of a registry archive without loading its other targets, which an archive may omit.
+`library_target_name` reads only a tree's root manifest to name its library target: the `[lib]` name, otherwise the package name when a `[lib]` table or `src/lib.rs` makes a library, except that `autolib = false` leaves no library unless an explicit `[lib]` names one, so a locked configuration can select the library of a registry archive without loading its other targets, which an archive may omit.
 <!-- raf:tested-by raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries,raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive,raf_source::test_crate::registry_tree::non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path,raf_source::test_crate::registry_tree::registry_reads_honor_the_configured_file_limit,raf_source::test_crate::registry_tree::a_first_party_archive_cannot_bind_to_a_different_catalogs_row,raf_source::test_crate::registry_tree::the_library_target_name_comes_from_the_root_manifest_alone -->
 
 `Workspace::load_locked_sources` joins explicit local manifest locators and opaque
