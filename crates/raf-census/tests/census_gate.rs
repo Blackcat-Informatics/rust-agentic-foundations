@@ -417,6 +417,13 @@ fn ledger_vocabulary_settings() -> Builder {
     for (key, value) in [("root", "src"), ("reference", "reference")] {
         put(&mut graph, "", key, Term::simple_literal(value));
     }
+    for (key, value) in [
+        ("vectorPath", "vectors/add.json"),
+        ("benchTarget", "demo:speed"),
+        ("specRef", "RFC 0000"),
+    ] {
+        put(&mut graph, "#job", key, Term::simple_literal(value));
+    }
     for (key, value) in [("entryPoint", "demo::entry"), ("forbiddenName", "^copy$")] {
         put(&mut graph, "#job", key, Term::simple_literal(value));
     }

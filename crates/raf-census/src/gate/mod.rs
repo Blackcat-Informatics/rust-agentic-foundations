@@ -480,7 +480,7 @@ impl Gate {
         references.attach(&mut census, &mut limits)?;
         evaluate::evaluate(
             &ledger,
-            &workspace,
+            (&workspace, tree),
             census,
             rules::Selected {
                 registered: &self.rules,
@@ -588,7 +588,7 @@ impl Gate {
         references.attach(&mut census, &mut limits)?;
         evaluate::evaluate(
             &ledger,
-            workspace,
+            (workspace, tree),
             census,
             rules::Selected {
                 registered: &self.rules,

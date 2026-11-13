@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use purrdf_jsonschema::ecma::{self, CompiledPattern};
 use raf_rdf::{Builder, Format, Graph, Node, TermValue, Triple};
+use raf_source::RelPath;
 
 use super::{ReportError as E, shape};
 use crate::{
@@ -66,6 +67,21 @@ pub struct LedgerVariant {
     pub reason: String,
 }
 
+/// A bench target named by a job: the package and the Cargo bench target.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BenchLink {
+    /// The Cargo package name that owns the target.
+    pub package: String,
+    /// The Cargo name of the bench target.
+    pub target: String,
+}
+
+impl std::fmt::Display for BenchLink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.package, self.target)
+    }
+}
+
 /// One ledger job and the additional matches and justifications it declares.
 #[derive(Clone, Debug)]
 pub struct LedgerJob {
@@ -85,6 +101,12 @@ pub struct LedgerJob {
     pub extension: Option<String>,
     /// Declared preferred provider; execution requires grounded source policy.
     pub preferred_provider: Option<PreferredProvider>,
+    /// Workspace-relative test-vector files that pin the home's behaviour.
+    pub vectors: Vec<String>,
+    /// Bench targets that measure the home, each a package and a target name.
+    pub benches: Vec<BenchLink>,
+    /// The specification the home implements; stored, never resolved.
+    pub specification: Option<String>,
 }
 
 /// One exact sanctioned member set and its documentation.
@@ -422,6 +444,9 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
     if summary.contains(['\r', '\n']) {
         return Err(E::Value(format!("job {:?}: summary must be one line", job.id)).into());
     }
+    let vectors = read_vectors(&node, &job.id)?;
+    let benches = read_benches(&node, &job.id)?;
+    let specification = read_specification(&node)?;
     Ok(LedgerJob {
         job,
         summary,
@@ -431,7 +456,47 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
         variants,
         extension: extension.into_iter().next(),
         preferred_provider,
+        vectors,
+        benches,
+        specification,
     })
+}
+
+fn read_vectors(node: &Node<'_>, job_id: &str) -> Result<Vec<String>, E> {
+    strings(node, "vectorPath")?
+        .into_iter()
+        .map(|text| {
+            RelPath::new(&text)
+                .map(|path| path.to_string())
+                .map_err(|error| E::Value(format!("job {job_id:?} vectorPath {text:?}: {error}")))
+        })
+        .collect()
+}
+
+fn read_benches(node: &Node<'_>, job_id: &str) -> Result<Vec<BenchLink>, E> {
+    strings(node, "benchTarget")?
+        .into_iter()
+        .map(|text| match text.split_once(':') {
+            Some((package, target))
+                if !package.is_empty() && !target.is_empty() && !target.contains(':') =>
+            {
+                Ok(BenchLink {
+                    package: package.to_owned(),
+                    target: target.to_owned(),
+                })
+            }
+            _ => Err(E::Value(format!(
+                "job {job_id:?} benchTarget {text:?}: use package:target"
+            ))),
+        })
+        .collect()
+}
+
+fn read_specification(node: &Node<'_>) -> Result<Option<String>, E> {
+    if node.values(&shape::property("specRef")).next().is_none() {
+        return Ok(None);
+    }
+    required_text(node, "specRef").map(Some)
 }
 
 fn read_names(node: &Node<'_>, job_id: &str) -> Result<Vec<NamePattern>, E> {

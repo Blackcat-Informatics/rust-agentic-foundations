@@ -34,7 +34,7 @@ inputs:
     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_locked
-    digest: 3f2769c23ea8c93c261126fb8d990fb2bafd3fab2a508fbb30bb90a7977972ab
+    digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
   - kind: symbol
     name: raf_census::gate::Gate::write_debt_with
     digest: a68f678e95cb06a373b066db37f1b49c9dcc5f146b711949502b60a9db13c06d
