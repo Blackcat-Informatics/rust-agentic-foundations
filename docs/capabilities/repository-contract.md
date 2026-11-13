@@ -16,7 +16,7 @@ bindings:
     - rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies
     - rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms
     - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
-    - rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling
+    - rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget
     - rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory
     - rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back
     - raf_workplan::test_crate::history::a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor
@@ -156,7 +156,7 @@ outside `[dev-dependencies]` unless it declares `publish = false`.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority,rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths,rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies,rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms -->
 
 **Bounded CI.** Every workflow job declares an integer `timeout-minutes` from
-one through nine, reserving execution headroom below a ten-minute job ceiling.
+one through fifteen. Ordinary jobs declare nine minutes; the hosted test-release job declares fifteen.
 Missing, dynamic, zero and excessive values refuse the native
 YAML policy gate. The package matrix comes from Cargo's complete workspace
 inventory. Source, fixture, capability-document, change-record and build inputs
@@ -165,7 +165,7 @@ gates. Compiler, release, MSRV and harness lint checks apply to source and
 asset changes. File licensing and dependency policy run for every change, with
 both the root and independent fuzz dependency graphs checked. Aggregate test
 and harness-policy results require their applicable jobs to succeed.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget -->
 
 **Binding validation.** The self-workplan gate validates source bindings and the complete static document model. Consumer tests, examples and doctests are never executed by RAF. Verification prints declarations and static findings; completion uses a prospective document overlay and owned data writes. Maintainer-controlled RAF checks use explicitly controlled fixtures and never grant inspected source execution authority.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed,cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
@@ -280,7 +280,7 @@ property, spelling it as an expression, or giving ten refuses and names the
 job. Adding a workspace member automatically adds it to the source-change test
 matrix. A documented example shared by several capabilities has one successful
 execution for its package, while every binding still receives native planning.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling,rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget,rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
 
 A clean self-Census accepts the currently adopted groups. Adding another
 normal-form-equivalent implementation creates growth and makes the same gate
@@ -300,7 +300,7 @@ An empty `tools/check.py` or an extensionless script beginning with
 
 Workflow execution budgets must be literal integers from one through nine; an absent,
 dynamic, zero or excessive value refuses the repository gate.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget -->
 
 - Self-Census applies the ordinary native Census normal form and exact debt
   ratchet. It does not claim preferred-provider execution or external consumer
@@ -319,7 +319,7 @@ dynamic, zero or excessive value refuses the repository gate.
 
 ## Explanation
 
-CI jobs reserve a minute below their ten-minute ceiling for setup and completion.
+CI jobs reserve a minute below their declared budget for setup and completion.
 These maintainer-controlled jobs qualify RAF itself; they do not grant RAF
 authority to execute an inspected consumer. Capability documents are test inputs,
 so their changes select the full repository package matrix.
@@ -399,7 +399,7 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_markdown_outside_the_document_directories` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_the_documents_through_the_model` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_accepts_matching_versions` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_manifest_bump_without_a_matching_citation` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_missing_version` | test | [Verification](#verification) |

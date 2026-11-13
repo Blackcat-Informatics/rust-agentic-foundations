@@ -28,7 +28,7 @@ fn excessive_jobs(text: &str) -> Result<Vec<String>, String> {
 }
 
 #[test]
-fn every_workflow_job_has_an_explicit_ten_minute_ceiling() {
+fn every_workflow_job_has_an_explicit_execution_budget() {
     assert_eq!(
         excessive_jobs("jobs: {fast: {timeout-minutes: 15}}"),
         Ok(vec![])
