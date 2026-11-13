@@ -93,7 +93,18 @@ fn source(root: &Path, copies: usize) {
     fs::write(root.join("src/lib.rs"), text).unwrap();
 }
 
+/// Every child of this binary is started and awaited under this lock. A child
+/// forked by one test thread holds a copy of every descriptor the other test
+/// threads have open until it execs; a copy of the descriptor of a directory
+/// lock that a test holds, or has just released, keeps the lock busy for the
+/// command another test starts next. With one child alive at a time, a command
+/// only ever sees the locks of its own test.
+static CHILD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn run(root: &Path, words: &[&str]) -> Output {
+    let _alone = CHILD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     Command::new(env!("CARGO_BIN_EXE_cargo-census"))
         .current_dir(root)
         .args(words)
@@ -259,8 +270,11 @@ fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate()
     assert_eq!(fs::read_to_string(&path).unwrap(), before);
     source(root, 3);
     let growth = run(root, &["debt", "--write"]);
-    assert_eq!(growth.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&growth.stderr).contains("growth cannot be recorded"));
+    assert_eq!(growth.status.code(), Some(1), "{growth:?}");
+    assert!(
+        String::from_utf8_lossy(&growth.stderr).contains("growth cannot be recorded"),
+        "{growth:?}"
+    );
     assert_eq!(fs::read_to_string(&path).unwrap(), before);
     source(root, 1);
     let shrink = run(root, &["debt", "--write"]);
@@ -1269,12 +1283,17 @@ fn registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_se
     let home = scratch.path().join("home");
     fs::create_dir_all(home.join("registry")).unwrap();
     fs::rename(&cache, home.join("registry/cache")).unwrap();
-    let from_home = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-        .current_dir(&root)
-        .env("CARGO_HOME", &home)
-        .args(["check", "--registry-features", "acme-core="])
-        .output()
-        .unwrap();
+    let from_home = {
+        let _alone = CHILD
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(&root)
+            .env("CARGO_HOME", &home)
+            .args(["check", "--registry-features", "acme-core="])
+            .output()
+            .unwrap()
+    };
     assert_eq!(from_home.status.code(), Some(1), "{from_home:?}");
     assert_eq!(from_home.stdout, stdout.as_bytes());
     fs::rename(home.join("registry/cache"), &cache).unwrap();

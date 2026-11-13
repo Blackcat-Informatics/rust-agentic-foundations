@@ -54,6 +54,7 @@ bindings:
     - cargo_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set
     - cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict
     - cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry
+    - raf_census::test_crate::reference_scan::seal_alone_is_not_a_reference_beside_seal_reference
     - raf_census::test_crate::reference_scan::an_unnamed_declaration_is_bound_to_the_default_registry_only
     - raf_census::test_crate::reference_scan::an_unnamed_declaration_with_only_a_custom_registry_row_is_refused
     - raf_census::test_crate::reference_scan::a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one
@@ -126,7 +127,7 @@ A selected name with two reachable locked versions refuses as ambiguous, whether
 an exact name selected it or a family selected two non-first-party versions.
 
 ### Registry dependencies sealed by the lock file
-<!-- raf:tested-by raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour,raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse,raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows,raf_census::test_crate::reference_scan::a_transitive_row_of_the_same_name_is_not_sealed,raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded,raf_census::test_crate::reference_scan::a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one,raf_census::test_crate::reference_scan::an_unnamed_declaration_is_bound_to_the_default_registry_only,raf_census::test_crate::reference_scan::an_unnamed_declaration_with_only_a_custom_registry_row_is_refused,cargo_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour,raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse,raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows,raf_census::test_crate::reference_scan::a_transitive_row_of_the_same_name_is_not_sealed,raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded,raf_census::test_crate::reference_scan::a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one,raf_census::test_crate::reference_scan::an_unnamed_declaration_is_bound_to_the_default_registry_only,raf_census::test_crate::reference_scan::an_unnamed_declaration_with_only_a_custom_registry_row_is_refused,cargo_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry,raf_census::test_crate::reference_scan::seal_alone_is_not_a_reference_beside_seal_reference -->
 
 A consumer whose dependency comes from a registry needs no sibling checkout, no
 pinned commit and no installed command. `Gate::check_locked_registry` (and
@@ -134,9 +135,12 @@ pinned commit and no installed command. `Gate::check_locked_registry` (and
 for the explicit debt write) builds the locked catalog from the workspace's
 `Cargo.lock`, loads each first-party package with its declared configuration for
 the primary Linux target, seals each selected registry package from its original
-`.crate` archive, and runs the locked check. A copied body of a sealed package is
+`.crate` archive, and runs the locked check. A copied body of a package that is a reference is
 then the same non-debt `REFERENCE-COPY` finding as for a path dependency, and a
-changed body stays clean.
+changed body stays clean. A package is a reference when a ledger `reference`
+selector names it or when it was added with `LockedRegistry::seal_reference`,
+which `--seal-registry` calls; `LockedRegistry::seal` alone seals it for
+provider proofs and is not a reference, so a copy of it is not a finding.
 
 The sealed set is every registry row of the lock file that a first-party
 package depends on directly and that a selector names. Each declaration, whether
@@ -144,9 +148,10 @@ inherited from the workspace table, renamed, written with a named registry or an
 explicit registry index, is matched to its own outgoing row, an unnamed declaration only to the default registry (one whose only row is from another registry refuses), so a transitive row
 of the same name at another version is not sealed. A declaration that a selector names and whose candidate rows the lock file
 cannot satisfy refuses, naming the package, the selector and the declaration. A selector is: the ledger's `reference`
-values (an exact name or a `prefix-*` family) and any selector added with
-`LockedRegistry::seal`, which names providers that the ledger declares by
-another property. A `reference` that names a path package keeps the contained
+values (an exact name or a `prefix-*` family), any selector added with
+`LockedRegistry::seal_reference`, which is a reference exactly as a ledger value
+is, and any selector added with `LockedRegistry::seal`, which names providers
+that the ledger declares by another property and is not a reference. A `reference` that names a path package keeps the contained
 acquisition, which works only for a package inside the workspace; neither that
 nor a Git package is read from the archive cache. A `reference` that names a Git
 package is refused by this helper as having no admitted local source: a Git
@@ -527,6 +532,7 @@ refusal with a valid commit or pin key.
 | `raf_census::test_crate::reference_scan::reference_shim_matches_keep_every_witness_without_duplicate_copy_counts` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::seal_alone_is_not_a_reference_beside_seal_reference` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding` | test | [Contract](#contract) |

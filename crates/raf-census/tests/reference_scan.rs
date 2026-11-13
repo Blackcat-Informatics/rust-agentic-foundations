@@ -2109,3 +2109,39 @@ fn an_unnamed_declaration_with_only_a_custom_registry_row_is_refused() {
         assert!(message.contains(expected), "{expected} missing: {message}");
     }
 }
+
+/// A package added with `seal` is read for provider proofs and is not a
+/// reference: a ledger that names no reference sees no finding for a copied
+/// body, while the same package added with `seal_reference` is one finding.
+#[test]
+fn seal_alone_is_not_a_reference_beside_seal_reference() {
+    let archive = acme_core(PROVIDED);
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n",
+        raf_fixtures::registry::checksum(&archive)
+    );
+    let ledger = unhomed_ledger(&[]);
+    let plain = raf_source::MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\n",
+        ),
+        ("src/lib.rs", COPIED),
+        ("Cargo.lock", lock.as_str()),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let cache_at = || raf_census::ArchiveCache::at(cache.path());
+    let sealed = raf_census::LockedRegistry::new(cache_at()).seal("acme-core");
+    let report = Gate::workspace(".")
+        .check_locked_registry(&plain, &sealed)
+        .unwrap();
+    assert!(report.is_clean(), "{:?}", report.findings());
+    let referenced = raf_census::LockedRegistry::new(cache_at()).seal_reference("acme-core");
+    let report = Gate::workspace(".")
+        .check_locked_registry(&plain, &referenced)
+        .unwrap();
+    assert_eq!(report.findings().len(), 1, "{:?}", report.findings());
+    assert!(report.findings()[0].starts_with("REFERENCE-COPY "));
+}
