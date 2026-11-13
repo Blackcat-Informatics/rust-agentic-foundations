@@ -258,3 +258,107 @@ fn a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panic
         assert_eq!(serial.usage(), parallel.usage());
     }
 }
+
+fn broken_tree(entries: &[(&str, &str)]) -> MemoryTree {
+    let mut all = vec![("Cargo.toml", MANIFEST)];
+    all.extend_from_slice(entries);
+    MemoryTree::from_iter(all)
+}
+
+fn assert_same_error(tree: &MemoryTree, expected_file: &str) {
+    let load = LoadOptions::default();
+    let serial = Workspace::load_with(tree, &["."], &load).expect_err("serial refuses");
+    assert_eq!(serial.file.as_str(), expected_file);
+    for workers in [1, 2, 4] {
+        let parallel = Workspace::par_load(tree, &["."], &load, &options(workers))
+            .expect_err("parallel refuses");
+        assert_eq!(
+            serial.to_string(),
+            parallel.to_string(),
+            "workers {workers}"
+        );
+        assert_eq!(serial.file, parallel.file, "workers {workers}");
+        assert_eq!(serial.line, parallel.line, "workers {workers}");
+        assert!(matches!(parallel.kind, LoadErrorKind::Syntax { .. }));
+    }
+}
+
+#[test]
+fn a_later_speculative_syntax_error_does_not_mask_an_earlier_canonical_error() {
+    let both = broken_tree(&[
+        ("src/lib.rs", "mod a;\nmod b;\n"),
+        ("src/a.rs", "mod c;\n"),
+        ("src/a/c.rs", "fn broken( {\n"),
+        ("src/b.rs", "fn also_broken( {\n"),
+    ]);
+    assert_same_error(&both, "src/a/c.rs");
+    let neighbour = broken_tree(&[
+        ("src/lib.rs", "mod a;\nmod b;\n"),
+        ("src/a.rs", "mod c;\n"),
+        ("src/a/c.rs", "pub fn fine() {}\n"),
+        ("src/b.rs", "fn also_broken( {\n"),
+    ]);
+    assert_same_error(&neighbour, "src/b.rs");
+}
+
+#[test]
+fn a_reached_speculative_syntax_error_equals_the_serial_error() {
+    let broken = broken_tree(&[
+        ("src/lib.rs", "mod a;\nmod b;\nmod c;\n"),
+        ("src/a.rs", "pub fn a() {}\n"),
+        ("src/b.rs", "pub fn b() {}\n\nstruct {\n"),
+        ("src/c.rs", "pub fn c() {}\n"),
+    ]);
+    assert_same_error(&broken, "src/b.rs");
+    let valid = broken_tree(&[
+        ("src/lib.rs", "mod a;\nmod b;\nmod c;\n"),
+        ("src/a.rs", "pub fn a() {}\n"),
+        ("src/b.rs", "pub fn b() {}\n"),
+        ("src/c.rs", "pub fn c() {}\n"),
+    ]);
+    let serial = Workspace::load(&valid, &["."]).expect("serial loads");
+    let parallel = Workspace::par_load(&valid, &["."], &LoadOptions::default(), &options(2))
+        .expect("parallel loads");
+    assert_eq!(serial, parallel);
+}
+
+#[test]
+fn a_canonical_reach_names_the_file_in_a_diagnostic_found_through_another_spelling() {
+    let broken = broken_tree(&[
+        (
+            "src/lib.rs",
+            "mod a;\n#[path = \"a.rs\"]\nmod alias;\nmod z;\n",
+        ),
+        ("src/a.rs", "fn broken( {\n"),
+        ("src/z.rs", "pub fn z() {}\n"),
+    ]);
+    assert_same_error(&broken, "src/a.rs");
+    let valid = broken_tree(&[
+        (
+            "src/lib.rs",
+            "mod a;\n#[path = \"a.rs\"]\nmod alias;\nmod z;\n",
+        ),
+        ("src/a.rs", "pub fn a() {}\n"),
+        ("src/z.rs", "pub fn z() {}\n"),
+    ]);
+    let serial = Workspace::load(&valid, &["."]).expect("serial loads");
+    let parallel = Workspace::par_load(&valid, &["."], &LoadOptions::default(), &options(2))
+        .expect("parallel loads");
+    assert_eq!(serial, parallel);
+}
+
+#[test]
+fn scheduler_refusals_are_typed_beside_a_valid_grant() {
+    let one = NonZeroUsize::new(1).expect("nonzero");
+    assert!(ParallelOptions::new(one, GRANT).is_ok());
+    let overflow = ParallelOptions::new(NonZeroUsize::new(usize::MAX).expect("nonzero"), GRANT);
+    assert_eq!(
+        overflow,
+        Err(raf_source::ParallelOptionsError::SizeOverflow)
+    );
+    let short = ParallelOptions::new(one, 0);
+    assert!(matches!(
+        short,
+        Err(raf_source::ParallelOptionsError::SchedulerStorage { maximum: 0, required }) if required > 0
+    ));
+}

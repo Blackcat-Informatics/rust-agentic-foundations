@@ -187,6 +187,10 @@ bindings:
     - raf_source::test_crate::parallel_loading::reached_backend_failures_keep_original_typed_causes_and_panic_payloads
     - raf_source::test_crate::parallel_loading::canonical_fact_allowances_refuse_the_exact_serial_position_beside_the_valid_limit
     - raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics
+    - raf_source::test_crate::parallel_loading::scheduler_refusals_are_typed_beside_a_valid_grant
+    - raf_source::test_crate::parallel_loading::a_later_speculative_syntax_error_does_not_mask_an_earlier_canonical_error
+    - raf_source::test_crate::parallel_loading::a_reached_speculative_syntax_error_equals_the_serial_error
+    - raf_source::test_crate::parallel_loading::a_canonical_reach_names_the_file_in_a_diagnostic_found_through_another_spelling
     - raf_source::test_crate::rustc_oracle::serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data
     - raf_source::test_crate::registry_tree::authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries
     - raf_source::test_crate::registry_tree::wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive
@@ -1169,7 +1173,7 @@ causes. Selection stops admission and cancels parked workers, then explicitly
 joins every owned worker into admitted fixed outcome slots before disposing any
 unselected result, error or panic payload. For eligible backends and normally
 completing cleanup, the selected outcome survives return or panic resumption.
-<!-- raf:tested-by raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed,raf_source::test_crate::parallel_loading::an_earlier_canonical_descendant_error_wins_over_a_speculative_backend_panic,raf_source::test_crate::parallel_loading::reached_backend_failures_keep_original_typed_causes_and_panic_payloads -->
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::a_later_speculative_syntax_error_does_not_mask_an_earlier_canonical_error,raf_source::test_crate::parallel_loading::a_reached_speculative_syntax_error_equals_the_serial_error,raf_source::test_crate::parallel_loading::a_canonical_reach_names_the_file_in_a_diagnostic_found_through_another_spelling,raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed,raf_source::test_crate::parallel_loading::an_earlier_canonical_descendant_error_wins_over_a_speculative_backend_panic,raf_source::test_crate::parallel_loading::reached_backend_failures_keep_original_typed_causes_and_panic_payloads -->
 
 Every canonical Tree read uses its current committed-identity predicate. A
 provisional read failure cannot replace that observation: an earlier physical
@@ -3328,7 +3332,7 @@ workers are joined and speculative outcomes are destroyed; serial loads return
 `None`. Its peaks cover live admitted jobs, admitted scheduler ownership and
 requested stack bytes for started, unjoined workers. These operational
 counts are separate from semantic `Usage` and structural equality.
-<!-- raf:tested-by raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage -->
+<!-- raf:tested-by raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage,raf_source::test_crate::parallel_loading::scheduler_refusals_are_typed_beside_a_valid_grant -->
 
 Select the native external-export boundary inventory with
 `cargo test -p raf-source --test rustc_oracle external_carried_exports_and_carry_limits_have_named_compiler_boundaries`.
@@ -5695,11 +5699,15 @@ one-byte-short refusal.
 | `raf_source::test_crate::overflow_harness::the_classifier_accepts_only_a_signal_a_stack_overflow_status_or_the_runtime_message_as_an_abort` | test | [Verification](#verification) |
 | `raf_source::test_crate::overflow_harness::the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::overflow_harness::the_parse_thread_is_named_after_the_file_and_has_the_stated_stack` | test | [Contract](#contract) |
+| `raf_source::test_crate::parallel_loading::a_canonical_reach_names_the_file_in_a_diagnostic_found_through_another_spelling` | test | [Contract](#contract) |
 | `raf_source::test_crate::parallel_loading::a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics` | test | [Contract](#contract), [Examples](#examples), [Explanation](#explanation) |
+| `raf_source::test_crate::parallel_loading::a_later_speculative_syntax_error_does_not_mask_an_earlier_canonical_error` | test | [Contract](#contract) |
+| `raf_source::test_crate::parallel_loading::a_reached_speculative_syntax_error_equals_the_serial_error` | test | [Contract](#contract) |
 | `raf_source::test_crate::parallel_loading::an_earlier_canonical_descendant_error_wins_over_a_speculative_backend_panic` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_source::test_crate::parallel_loading::canonical_fact_allowances_refuse_the_exact_serial_position_beside_the_valid_limit` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::parallel_loading::nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_source::test_crate::parallel_loading::reached_backend_failures_keep_original_typed_causes_and_panic_payloads` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::parallel_loading::scheduler_refusals_are_typed_beside_a_valid_grant` | test | [Usage](#usage) |
 | `raf_source::test_crate::prescan_budgets::a_block_as_the_condition_of_each_else_if_still_counts_the_chain` | test | [Contract](#contract) |
 | `raf_source::test_crate::prescan_budgets::a_comment_or_string_that_looks_like_the_end_of_another_does_not_hide_real_tokens` | test | [Contract](#contract) |
 | `raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count` | test | [Contract](#contract) |
