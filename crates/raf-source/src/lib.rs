@@ -211,8 +211,8 @@ pub use meter::Usage;
 pub use modtree::{Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
 pub use parse::{
-    PARSE_STACK_BYTES, ParsedSource, PreparedSource, parse_source, parse_source_with_tokens,
-    parse_sources, prepare_source,
+    LexedSource, PARSE_STACK_BYTES, ParsedSource, PreparedSource, parse_source,
+    parse_source_with_tokens, parse_sources, prepare_source,
 };
 pub use path::{PathError, RelPath, SourceAuthorityId};
 pub use platform::{CompilerPlatform, CompilerPlatformError, TestPlatformGuard};

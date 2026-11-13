@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 1ed321259a0fbd6f841793c136eef0d0d5d739f7753f5a094d3335c6d68ecf92
+    digest: 7c82bdcb0fbe409ecf9868ae1c635d535ef5eb216750bd11be359df8311c94d8
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -111,6 +111,18 @@ inputs:
     name: raf_source::ItemId
     digest: c7363b0db6dad427e6ff92d82c184cd5f7a8f1ac58f53c2b09632f914db20edd
   - kind: symbol
+    name: raf_source::LexedSource
+    digest: 0e754b23a30f7255ba5a60f5382153da7be4b9a38821d058f821c24279e71fdf
+  - kind: symbol
+    name: raf_source::LexedSource::parse
+    digest: 1e5a82e0c95cadeb15d84875e40b68b9de010c025f20cc56ca797669a0e8198c
+  - kind: symbol
+    name: raf_source::LexedSource::parse_with_tokens
+    digest: ccf97024d5bf46dc411c97b392bb4a0b518528ac1f9e5d6098434c74022bbbb7
+  - kind: symbol
+    name: raf_source::LexedSource::tokens
+    digest: e43246d8e21e0abc13f79de2df761d2104f157ef45f9085f3053f4aa73c9a2c2
+  - kind: symbol
     name: raf_source::LoadError
     digest: 0385f2e238aa06dc8b8bf67e52f5dcdf0f0385091c8ba8d0f9162620190ce379
   - kind: symbol
@@ -187,16 +199,19 @@ inputs:
     digest: 5dd6e6f88296253208e0d9bce6072af43f432dac69db0e6c1450c19254bcab7b
   - kind: symbol
     name: raf_source::PreparedSource::parse
-    digest: cae35d4df2b3ef7c80b8171a8457444818d2bf162e4d327d8ac744f7a663f79e
+    digest: 7d30a5b94cdf7798c27324dc230440b89b01af5a9f47fbbd99417409bb838a21
   - kind: symbol
     name: raf_source::PreparedSource::parse_with_tokens
-    digest: 577dc76b02cb77c0d713064b0ca7ff725b7888be76c0c7b5b793a48ee4ad161f
+    digest: 5f0571fffafa13fcab8de6c93d731f622a550e00268bbe2d3b75e0e74ad186ce
   - kind: symbol
     name: raf_source::PreparedSource::recursion
     digest: 45e3cbdfaa0d864629e45d4ff8538b625b192f5914dc8d5d91f263fa55fc75a7
   - kind: symbol
     name: raf_source::PreparedSource::token_count
     digest: 5603b54033981c0f7594822540066ae9fc6b7bfcfc58cc50a080777210db28e0
+  - kind: symbol
+    name: raf_source::PreparedSource::with_lexed
+    digest: 7fabb19c14c1f74d43fa63307c1cbf9eaa0684c18bdaa45da014668b1d2ac642
   - kind: symbol
     name: raf_source::RECURSION_UNIT_BYTES
     digest: d2f07f9016d388594443ebf1de4544e8a14de4f449f39fc69f813b94a3cf1a08

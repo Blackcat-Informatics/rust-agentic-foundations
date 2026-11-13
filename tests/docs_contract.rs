@@ -78,9 +78,10 @@ struct Inventory {
 
 const INVENTORY: Inventory = Inventory {
     capabilities: &[
-        ("census-cli", "delivered"),
-        ("census-debt-ratchet", "delivered"),
+        ("census-cli", "implementing"),
+        ("census-debt-ratchet", "implementing"),
         ("census-detectors", "delivered"),
+        ("census-embedded-clones", "implementing"),
         ("census-ledger", "delivered"),
         ("census-migration", "delivered"),
         ("census-normal-form", "delivered"),
@@ -88,10 +89,10 @@ const INVENTORY: Inventory = Inventory {
         ("census-reference-scan", "delivered"),
         ("census-rule-api", "delivered"),
         ("okf-profile", "delivered"),
-        ("rdf-report-profile", "delivered"),
+        ("rdf-report-profile", "implementing"),
         ("repository-contract", "delivered"),
         ("source-configured-target", "delivered"),
-        ("source-index", "delivered"),
+        ("source-index", "implementing"),
         ("source-reference-namespace", "delivered"),
         ("workplan-cargo-documentation", "delivered"),
         ("workplan-cli", "delivered"),
@@ -110,7 +111,19 @@ const INVENTORY: Inventory = Inventory {
         ("workplan-strict", "delivered"),
         ("workplan-two-way-coverage", "delivered"),
     ],
-    changes: &[("rustdoc-assembly", &["workplan-rustdoc"])],
+    changes: &[
+        (
+            "embedded-clones",
+            &[
+                "census-cli",
+                "census-debt-ratchet",
+                "census-embedded-clones",
+                "rdf-report-profile",
+                "source-index",
+            ],
+        ),
+        ("rustdoc-assembly", &["workplan-rustdoc"]),
+    ],
     architecture: &["debt-ratchet", "normal-form", "okf-profile"],
     records: &[
         "assessment:census-cli-constraints",

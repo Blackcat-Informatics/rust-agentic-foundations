@@ -5,7 +5,7 @@ type: Capability
 id: cap:census-cli
 title: Census command line
 description: Native static Census reports, ledger inspection, migration and explicit debt publication.
-state: delivered
+state: implementing
 bindings:
   code:
     - cargo_census::bin_crate::cargo_census::main
@@ -24,6 +24,8 @@ bindings:
     - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
     - cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration
     - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
+    - cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target
+    - cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records
     - cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
     - raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors
@@ -58,6 +60,11 @@ The documented data path is illustrated by `raf_census::example_crate::registere
 
 Select a workspace with `--workspace DIRECTORY`. Use `cargo census check`, `cargo census index`, `cargo census baseline`, `cargo census job ID`, `cargo census count ID` or `cargo census fingerprint SYMBOL`. Use `--max-index-bytes` for an explicit bounded index allowance. Help describes native migration and explicit debt options.
 
+`cargo census embedded report|check` uses the separate source-region analysis.
+`cargo census embedded debt create|shrink` explicitly publishes its independent
+allowance record. See [embedded structural clones](census-embedded-clones.md)
+for its syntax profile, resource-admission limits and shrink-only contract.
+
 ## Examples
 
 A repository may contain a build script, example and test whose bodies write a marker and panic. `index` reads their source and returns the same native index as the direct library call. None of those bodies executes and no target directory is created. Exporting to src/lib.rs refuses beside successful creation of report.ttl.
@@ -66,6 +73,12 @@ A repository may contain a build script, example and test whose bodies write a m
 
 - Missing native registrations or unavailable implemented capabilities refuse rather than invoking a repository program. Imported protocol data is not an observed execution verdict. A report write failure may leave the newly created owned data file incomplete; it never truncates an existing destination.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
+
+Debt publication requires the native Linux retained-directory capability and
+filesystem support for its locking and durability operations. No lock file is
+created before loading inspected source. Unsupported publication fails without
+a pathname-based writer or another locking protocol.
+<!-- raf:tested-by cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records -->
 
 ## Explanation
 
@@ -80,6 +93,8 @@ Controlled fixtures protect native CLI parity, the absence of consumer execution
 | --- | --- | --- |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target` | test | [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records` | test | [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Verification](#verification) |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration` | test | [Contract](#contract) |
@@ -99,4 +114,5 @@ Controlled fixtures protect native CLI parity, the absence of consumer execution
 | Depends on | [census-ledger](./census-ledger.md) |
 | Depends on | [census-migration](./census-migration.md) |
 | Depends on | [census-rule-api](./census-rule-api.md) |
+| Changed by | [embedded-clones](../../work/changes/embedded-clones.md) |
 <!-- raf:generated:end -->

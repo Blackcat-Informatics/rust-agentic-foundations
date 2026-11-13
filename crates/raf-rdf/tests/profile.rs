@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! Native storage, exact canonical identity and closed-profile neighbors.
+use purrdf_lex::allocation::{Admission, StorageError};
 use raf_rdf::{Builder, Error, Format, Graph, TermBox, TermValue as Term, Triple, vocab};
+use std::cell::Cell;
 
 fn triple(subject: &str, object: Term) -> Triple {
     Triple {
@@ -43,6 +45,261 @@ fn example() -> Graph {
     build(assertions()).unwrap()
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ConstructionRefusal {
+    Work,
+    ChangedByCallback,
+}
+struct ConstructionAccount<'a> {
+    live: &'a Cell<usize>,
+    held: usize,
+    refuse: &'a Cell<bool>,
+    work: &'a Cell<u64>,
+    limit: &'a Cell<Option<u64>>,
+    capture: &'a Cell<Option<ConstructionRefusal>>,
+}
+impl Admission for ConstructionAccount<'_> {
+    fn resize(&mut self, live: usize) -> Result<(), StorageError> {
+        let total = self
+            .live
+            .get()
+            .checked_sub(self.held)
+            .and_then(|remaining| remaining.checked_add(live))
+            .ok_or(StorageError::SizeOverflow)?;
+        self.live.set(total);
+        self.held = live;
+        Ok(())
+    }
+    fn progress_enabled(&self) -> bool {
+        true
+    }
+    fn checkpoint(&mut self, units: u64) -> Result<(), StorageError> {
+        let next = self
+            .work
+            .get()
+            .checked_add(units)
+            .ok_or(StorageError::SizeOverflow)?;
+        if self.refuse.get() || self.limit.get().is_some_and(|limit| next > limit) {
+            self.capture.set(Some(ConstructionRefusal::Work));
+            Err(StorageError::AdmissionFailed)
+        } else {
+            self.work.set(next);
+            Ok(())
+        }
+    }
+}
+
+fn assert_copy_refund<A: Admission>(
+    value: raf_rdf::AdmittedValue<'_>,
+    memory: &mut purrdf_lex::allocation::Memory<'_, A>,
+    work: &Cell<u64>,
+    limit: &Cell<Option<u64>>,
+) {
+    let before = work.get();
+    let copied = value.to_owned_with_memory(memory).unwrap();
+    let cost = work.get() - before;
+    copied.release_with_memory(memory).unwrap();
+    let retained = memory.admitted_bytes();
+    limit.set(Some(work.get() + cost.checked_sub(1).unwrap()));
+    assert!(matches!(
+        value.to_owned_with_memory(memory),
+        Err(Error::Storage(StorageError::AdmissionFailed))
+    ));
+    assert_eq!(memory.admitted_bytes(), retained);
+    limit.set(None);
+    value
+        .to_owned_with_memory(memory)
+        .unwrap()
+        .release_with_memory(memory)
+        .unwrap();
+    assert_eq!(memory.admitted_bytes(), retained);
+}
+
+fn assert_admitted_roundtrip(text: &str, format: Format, expected: &Graph) {
+    use purrdf_lex::allocation::{Memory, OwnedAdmission, Resident};
+    use raf_rdf::AdmittedGraph;
+
+    let (live, refuse, capture) = (Cell::new(0), Cell::new(false), Cell::new(None));
+    let (work, limit) = (Cell::new(0), Cell::new(None));
+    let account = || ConstructionAccount {
+        live: &live,
+        held: 0,
+        refuse: &refuse,
+        work: &work,
+        limit: &limit,
+        capture: &capture,
+    };
+    let graph = AdmittedGraph::import_captured(
+        text,
+        format,
+        account,
+        |units| account().checkpoint(units),
+        &capture,
+        |outcome| match outcome {
+            Ok(graph) => graph,
+            Err(cause) => panic!("canonical report must import: {cause}"),
+        },
+    );
+    assert!(live.get() > 0);
+    {
+        let mut query = OwnedAdmission::new(account());
+        let mut memory = Memory::new(&mut query);
+        let absolute = expected.snapshot().unwrap();
+        let proof_absolute = format!("{absolute}#proof");
+        for subject in ["", absolute.as_str(), "#proof", proof_absolute.as_str()] {
+            assert!(expected.get(subject).is_some());
+            assert!(
+                graph
+                    .get_with_memory(subject, &mut memory)
+                    .unwrap()
+                    .is_some()
+            );
+        }
+        assert!(
+            graph
+                .get_with_memory("urn:predicate", &mut memory)
+                .unwrap()
+                .is_none()
+        );
+        let proof = graph
+            .get_with_memory("#proof", &mut memory)
+            .unwrap()
+            .unwrap();
+        assert_eq!(proof.subject_with_memory(&mut memory).unwrap(), "#proof");
+        assert_eq!(
+            proof
+                .properties_with_memory(&mut memory)
+                .map(|row| row.unwrap().0)
+                .collect::<Vec<_>>(),
+            [vocab::REIFIES],
+        );
+        let values = proof
+            .values_with_memory(vocab::REIFIES, &mut memory)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(values.len(), 1);
+        assert!(values[0].quoted().is_some());
+        assert_copy_refund(values[0], &mut memory, &work, &limit);
+        assert_eq!(
+            graph
+                .records_with_memory(&mut memory)
+                .map(Result::unwrap)
+                .count(),
+            expected.assertions().count(),
+        );
+        refuse.set(true);
+        let mut records = graph.records_with_memory(&mut memory);
+        assert!(matches!(
+            records.next(),
+            Some(Err(Error::Storage(StorageError::AdmissionFailed)))
+        ));
+        refuse.set(false);
+        assert!(records.next().is_none(), "a refused iterator stays stopped");
+    }
+    let (mut scratch, mut output) = (Resident, Resident);
+    assert_eq!(
+        graph
+            .to_text_with_memory(
+                format,
+                &mut Memory::new(&mut scratch),
+                &mut Memory::new(&mut output)
+            )
+            .unwrap(),
+        text,
+    );
+    drop(graph);
+    assert_eq!(live.get(), 0);
+}
+
+fn assert_admitted_refusal(text: &str, format: Format, expected: Option<ConstructionRefusal>) {
+    use raf_rdf::{AdmittedGraph, ImportFailure};
+
+    let (live, refuse, capture) = (Cell::new(0), Cell::new(expected.is_some()), Cell::new(None));
+    let (work, limit) = (Cell::new(0), Cell::new(None));
+    let account = || ConstructionAccount {
+        live: &live,
+        held: 0,
+        refuse: &refuse,
+        work: &work,
+        limit: &limit,
+        capture: &capture,
+    };
+    AdmittedGraph::import_captured(
+        text,
+        format,
+        account,
+        |units| account().checkpoint(units),
+        &capture,
+        |outcome| {
+            let Err(failure) = outcome else {
+                panic!("invalid or unadmitted report must refuse")
+            };
+            if expected.is_some() {
+                assert!(matches!(&failure, ImportFailure::Parse { .. }));
+            }
+            assert_eq!(failure.captured(), expected);
+            capture.set(Some(ConstructionRefusal::ChangedByCallback));
+            assert_eq!(failure.captured(), expected);
+        },
+    );
+    assert_eq!(live.get(), 0);
+}
+
+fn assert_caller_precedence<A: Admission>(
+    account: impl Fn() -> A,
+    capture: &Cell<Option<ConstructionRefusal>>,
+    live: &Cell<usize>,
+) {
+    use purrdf_core::RecordKind;
+    use raf_rdf::{AdmittedGraph, BuildCause, ConstructionExit, ConstructionFailure};
+
+    for native_first in [false, true] {
+        let Err(failure) = AdmittedGraph::build_observed(
+            account(),
+            capture,
+            |construction| {
+                construction.insert_literal(
+                    RecordKind::Ordinary,
+                    "",
+                    "urn:predicate",
+                    "value",
+                    vocab::STRING,
+                )?;
+                if native_first {
+                    assert!(
+                        construction
+                            .insert_literal(
+                                RecordKind::Ordinary,
+                                "",
+                                "urn:predicate",
+                                "value",
+                                vocab::STRING
+                            )
+                            .is_err()
+                    );
+                }
+                Err(ConstructionExit::Caller("original caller failure"))
+            },
+            |outcome| outcome,
+        ) else {
+            panic!("construction must preserve its original failure")
+        };
+        assert!(live.get() > 0);
+        match (&failure, native_first) {
+            (ConstructionFailure::Native(failure), true) => assert!(matches!(
+                failure.cause(),
+                BuildCause::Profile(Error::Repeated)
+            )),
+            (ConstructionFailure::Caller(failure), false) => {
+                assert_eq!(*failure.cause(), "original caller failure");
+            }
+            _ => panic!("a later caller error cannot replace native poison"),
+        }
+        drop(failure);
+        assert_eq!(live.get(), 0);
+    }
+}
+
 #[test]
 fn absolute_iris_use_component_validation_without_normalizing_identity() {
     let lower = build([triple("", Term::iri("https://example.org/%2f"))]).unwrap();
@@ -59,6 +316,20 @@ fn absolute_iris_use_component_validation_without_normalizing_identity() {
                 text
             );
         }
+    }
+    for (subject, reason) in [
+        ("bad space", "absolute or owned IRI bad space"),
+        ("", "quoted predicate must be an IRI"),
+    ] {
+        let object = Term::Triple {
+            s: TermBox::new(Term::iri(subject)),
+            p: TermBox::new(Term::simple_literal("not a predicate")),
+            o: TermBox::new(Term::integer(1)),
+        };
+        assert_eq!(
+            build([triple("", object)]).unwrap_err(),
+            Error::Value(reason.into())
+        );
     }
 }
 
@@ -92,6 +363,7 @@ fn malformed_escapes_and_predicates_refuse_beside_canonical_neighbors() {
         ] {
             assert_ne!(invalid, text);
             assert!(Graph::from_text(&invalid, format).is_err(), "{invalid}");
+            assert_admitted_refusal(&invalid, format, None);
         }
         assert_eq!(
             Graph::from_text(&text, format)
@@ -114,6 +386,8 @@ fn ingestion_order_does_not_change_either_format_or_snapshot() {
         let parsed = Graph::from_text(&text, format).unwrap();
         assert_eq!(parsed.snapshot().unwrap(), snapshot);
         assert_eq!(parsed.to_text(format).unwrap(), text);
+        assert_admitted_roundtrip(&text, format, &parsed);
+        assert_admitted_refusal(&text, format, Some(ConstructionRefusal::Work));
         assert!(parsed.dataset().reifiers().next().is_some());
         let proof = parsed
             .get("#proof")
@@ -140,6 +414,10 @@ fn ingestion_order_does_not_change_either_format_or_snapshot() {
 
 #[test]
 fn duplicate_native_membership_and_real_subject_queries_have_valid_neighbors() {
+    use purrdf_core::RecordKind;
+    use purrdf_lex::allocation::{Memory, Resident};
+    use raf_rdf::{AdmittedGraph, BuildCause};
+
     let value = triple("", Term::simple_literal("value"));
     let mut builder = Builder::new();
     builder.insert(value.clone()).unwrap();
@@ -158,7 +436,78 @@ fn duplicate_native_membership_and_real_subject_queries_have_valid_neighbors() {
         edited.finish().is_err(),
         "the root has no remaining assertion"
     );
-    assert!(build([value]).is_ok());
+    let expected = build([value.clone()]).unwrap();
+    let (live, refuse, capture) = (Cell::new(0), Cell::new(false), Cell::new(None));
+    let (work, limit) = (Cell::new(0), Cell::new(None));
+    let account = || ConstructionAccount {
+        live: &live,
+        held: 0,
+        refuse: &refuse,
+        work: &work,
+        limit: &limit,
+        capture: &capture,
+    };
+    let Err(failed) = AdmittedGraph::build_captured(account(), &capture, |construction| {
+        construction.insert_record(RecordKind::Ordinary, "", "urn:predicate", &value.object)?;
+        refuse.set(true);
+        assert!(
+            construction
+                .insert_record(
+                    RecordKind::Ordinary,
+                    "#later",
+                    "urn:predicate",
+                    &value.object
+                )
+                .is_err()
+        );
+        capture.set(Some(ConstructionRefusal::ChangedByCallback));
+        assert!(
+            construction
+                .insert_record(
+                    RecordKind::Ordinary,
+                    "#ignored",
+                    "urn:predicate",
+                    &value.object
+                )
+                .is_err()
+        );
+        assert_eq!(capture.get(), Some(ConstructionRefusal::ChangedByCallback));
+        Ok(())
+    }) else {
+        panic!("an ignored insertion failure must poison construction");
+    };
+    assert!(matches!(
+        failed.cause(),
+        BuildCause::Profile(Error::Storage(StorageError::AdmissionFailed))
+    ));
+    assert_eq!(failed.captured(), Some(ConstructionRefusal::Work));
+    assert!(live.get() > 0, "the failed operation retains its account");
+    drop(failed);
+    assert_eq!(live.get(), 0);
+
+    refuse.set(false);
+    capture.set(None);
+    let admitted = AdmittedGraph::build_captured(account(), &capture, |construction| {
+        construction.insert_record(RecordKind::Ordinary, "", "urn:predicate", &value.object)
+    })
+    .unwrap();
+    assert!(live.get() > 0, "native graph storage retains its account");
+    for format in [Format::Turtle, Format::NTriples] {
+        let (mut scratch, mut output) = (Resident, Resident);
+        assert_eq!(
+            admitted
+                .to_text_with_memory(
+                    format,
+                    &mut Memory::new(&mut scratch),
+                    &mut Memory::new(&mut output),
+                )
+                .unwrap(),
+            expected.to_text(format).unwrap(),
+        );
+    }
+    drop(admitted);
+    assert_eq!(live.get(), 0);
+    assert_caller_precedence(account, &capture, &live);
 }
 
 #[test]

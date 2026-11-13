@@ -18,6 +18,9 @@ inputs:
     name: raf_source::Entry
     digest: 643dfd3058b51a0c966bf62bd198068186dda5ddf8a10224bf1d6d6526254e76
   - kind: symbol
+    name: raf_source::LexedSource::parse
+    digest: 1e5a82e0c95cadeb15d84875e40b68b9de010c025f20cc56ca797669a0e8198c
+  - kind: symbol
     name: raf_source::LoadError
     digest: 0385f2e238aa06dc8b8bf67e52f5dcdf0f0385091c8ba8d0f9162620190ce379
   - kind: symbol
@@ -37,7 +40,7 @@ inputs:
     digest: a8d006e0bbc52c46b77ad06d0c7fd4037f6da3938cc26e000f988031dec4efb1
   - kind: symbol
     name: raf_source::PreparedSource::parse
-    digest: cae35d4df2b3ef7c80b8171a8457444818d2bf162e4d327d8ac744f7a663f79e
+    digest: 7d30a5b94cdf7798c27324dc230440b89b01af5a9f47fbbd99417409bb838a21
   - kind: symbol
     name: raf_source::Reach
     digest: 29cde46d34604e6ba2624de8016f124a93e71ad5d123df536ec171ec351e7afa

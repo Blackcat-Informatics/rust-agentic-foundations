@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The closed Linux debt destination shares Source's original directory handle.
+//! Closed Linux debt destinations sharing Source's original directory handle.
 
 use crate::Error;
 use raf_source::DiskTree;
@@ -12,7 +12,26 @@ use std::os::fd::AsRawFd;
 use std::os::unix::fs::MetadataExt as _;
 use std::path::PathBuf;
 
-const TEMPORARY: &str = ".census-debt.ttl.write";
+#[derive(Clone, Copy)]
+pub(crate) enum Kind {
+    WholeBody,
+    Embedded,
+}
+
+impl Kind {
+    pub(crate) const fn target(self) -> &'static str {
+        match self {
+            Self::WholeBody => crate::DEBT_FILE,
+            Self::Embedded => crate::embedded::DEBT_FILE,
+        }
+    }
+    const fn temporary(self) -> &'static str {
+        match self {
+            Self::WholeBody => ".census-debt.ttl.write",
+            Self::Embedded => ".census-embedded-debt.ttl.write",
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 pub(crate) enum PublicationMode {
@@ -23,14 +42,15 @@ pub(crate) enum PublicationMode {
 pub(crate) struct Publication<'tree> {
     tree: &'tree DiskTree,
     directory: File,
+    kind: Kind,
     #[cfg(test)]
-    after_publish: Option<fn(&File)>,
+    after_publish: Option<fn(&File, Kind)>,
     #[cfg(test)]
     synchronization_error: Option<rustix::io::Errno>,
 }
 
 impl<'tree> Publication<'tree> {
-    pub(crate) fn acquire(tree: &'tree DiskTree) -> Result<Self, Error> {
+    pub(crate) fn acquire(tree: &'tree DiskTree, kind: Kind) -> Result<Self, Error> {
         let root = tree.directory_handle().map_err(tree_error)?;
         let directory = openat(
             &root,
@@ -64,6 +84,7 @@ impl<'tree> Publication<'tree> {
         let publication = Self {
             tree,
             directory,
+            kind,
             #[cfg(test)]
             after_publish: None,
             #[cfg(test)]
@@ -73,10 +94,22 @@ impl<'tree> Publication<'tree> {
         Ok(publication)
     }
 
+    pub(crate) fn exists(&self) -> Result<bool, Error> {
+        match statat(
+            &self.directory,
+            self.kind.target(),
+            AtFlags::SYMLINK_NOFOLLOW,
+        ) {
+            Ok(_) => Ok(true),
+            Err(rustix::io::Errno::NOENT) => Ok(false),
+            Err(error) => Err(io(self.kind.target(), error.into())),
+        }
+    }
+
     /// Read exactly the no-follow regular record pinned below this directory.
     /// The byte ceiling is input admission, not a native parser heap guarantee.
     pub(crate) fn read_existing(&self) -> Result<Option<String>, Error> {
-        let name = crate::DEBT_FILE;
+        let name = self.kind.target();
         let Some(reference) = regular_reference(&self.directory, name)? else {
             return Ok(None);
         };
@@ -95,7 +128,7 @@ impl<'tree> Publication<'tree> {
     }
 
     pub(crate) fn publish(&self, text: &str, mode: PublicationMode) -> Result<(), Error> {
-        let temporary = TEMPORARY;
+        let temporary = self.kind.temporary();
         let file = openat(
             &self.directory,
             temporary,
@@ -116,17 +149,17 @@ impl<'tree> Publication<'tree> {
                     &self.directory,
                     temporary,
                     &self.directory,
-                    crate::DEBT_FILE,
+                    self.kind.target(),
                     AtFlags::empty(),
                 ),
                 PublicationMode::Replace => renameat(
                     &self.directory,
                     temporary,
                     &self.directory,
-                    crate::DEBT_FILE,
+                    self.kind.target(),
                 ),
             }
-            .map_err(|error| io(crate::DEBT_FILE, error.into()))
+            .map_err(|error| io(self.kind.target(), error.into()))
         })();
         if let Err(error) = prepare {
             return Err(match self.discard_owned(temporary, &file) {
@@ -136,7 +169,7 @@ impl<'tree> Publication<'tree> {
         }
         #[cfg(test)]
         if let Some(after_publish) = self.after_publish {
-            after_publish(&self.directory);
+            after_publish(&self.directory, self.kind);
         }
         let cleanup = match mode {
             PublicationMode::Create => self.discard_owned(temporary, &file),
@@ -153,7 +186,7 @@ impl<'tree> Publication<'tree> {
             ),
         };
         Err(Error::Published {
-            file: crate::DEBT_FILE.into(),
+            file: self.kind.target().into(),
             stage,
             source: Box::new(error),
         })
@@ -254,19 +287,19 @@ fn compound(error: Error, cleanup: Error) -> Error {
 
 #[cfg(test)]
 mod tests {
-    use super::{Publication, PublicationMode, TEMPORARY};
+    use super::{Kind, Publication, PublicationMode};
     use crate::Error;
     use raf_source::DiskTree;
     use rustix::fs::{AtFlags, Mode, OFlags, openat, unlinkat};
     use std::fs::{self, File};
     use std::io::Write as _;
 
-    fn replace_temporary(directory: &File) {
-        unlinkat(directory, TEMPORARY, AtFlags::empty()).unwrap();
+    fn replace_temporary(directory: &File, kind: Kind) {
+        unlinkat(directory, kind.temporary(), AtFlags::empty()).unwrap();
         let replacement = File::from(
             openat(
                 directory,
-                TEMPORARY,
+                kind.temporary(),
                 OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
                 Mode::from_raw_mode(0o600),
             )
@@ -280,16 +313,21 @@ mod tests {
         for create in [true, false] {
             let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
             let tree = DiskTree::new(scratch.path()).unwrap();
+            let kind = if create {
+                Kind::Embedded
+            } else {
+                Kind::WholeBody
+            };
             let mode = if create {
                 PublicationMode::Create
             } else {
                 PublicationMode::Replace
             };
-            let target = scratch.path().join(crate::DEBT_FILE);
+            let target = scratch.path().join(kind.target());
             if !create {
                 fs::write(&target, "previous complete record").unwrap();
             }
-            let mut publication = Publication::acquire(&tree).unwrap();
+            let mut publication = Publication::acquire(&tree, kind).unwrap();
             publication.synchronization_error = Some(rustix::io::Errno::IO);
             if create {
                 publication.after_publish = Some(replace_temporary);
@@ -313,14 +351,14 @@ mod tests {
                     matches!(*secondary, Error::Io { source, .. } if source.raw_os_error() == Some(rustix::io::Errno::IO.raw_os_error()))
                 );
                 assert_eq!(
-                    fs::read(scratch.path().join(TEMPORARY)).unwrap(),
+                    fs::read(scratch.path().join(kind.temporary())).unwrap(),
                     b"unowned replacement"
                 );
             } else {
                 assert!(
                     matches!(*source, Error::Io { source, .. } if source.raw_os_error() == Some(rustix::io::Errno::IO.raw_os_error()))
                 );
-                assert!(!scratch.path().join(TEMPORARY).exists());
+                assert!(!scratch.path().join(kind.temporary()).exists());
             }
         }
     }

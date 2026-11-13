@@ -11,9 +11,16 @@ use raf_census::{
 use raf_source::{DiskTree, RelPath, Tree as _};
 use std::{io::Write, path::Path};
 
-pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
+pub(crate) fn run(
+    args: &Args,
+    output: &mut dyn Write,
+    diagnostics: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
     let gate = Gate::workspace(&args.workspace);
     match &args.command {
+        Command::Embedded { command } => {
+            crate::embedded::run(&gate.root()?, command, output, diagnostics)
+        }
         Command::DumpLedger { format, out } => {
             dump_ledger(&gate.root()?, *format, out.as_deref(), output)?;
             Ok(0)
@@ -204,7 +211,7 @@ fn baseline(
     write_report(root, &text, out, output)
 }
 
-fn write_report(
+pub(crate) fn write_report(
     root: &Path,
     text: &str,
     out: Option<&Path>,

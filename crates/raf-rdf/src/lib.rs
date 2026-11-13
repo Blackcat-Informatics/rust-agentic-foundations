@@ -9,17 +9,27 @@
 //! Domain-specific classes, cardinalities and semantic invariants belong to
 //! the consumer. This is not a general RDF parser.
 
+mod admitted;
 mod error;
 mod graph;
+mod import;
+mod query;
 mod read;
 mod term;
+mod view;
 /// Shared report vocabulary and snapshot identity namespaces.
 pub mod vocab;
 mod write;
 
+pub use admitted::{
+    AdmittedGraph, BuildCause, BuildFailure, CallerFailure, Construction, ConstructionExit,
+    ConstructionFailure, ConstructionStopped,
+};
 pub use error::Error;
 pub use graph::{Builder, Graph, Node, Value};
+pub use import::ImportFailure;
 pub use purrdf_rdf::{TermBox, TermValue};
+pub use query::{AdmittedNode, AdmittedValue};
 pub use term::Triple;
 
 /// The two canonical machine spellings of the same report graph.

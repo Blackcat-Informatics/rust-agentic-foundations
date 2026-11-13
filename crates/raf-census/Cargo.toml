@@ -18,6 +18,8 @@ targets = []
 [dependencies]
 # Shared native BLAKE3 identities; goldens pin the complete portable bytes.
 purrdf-hash.workspace = true
+# Native absolute-IRI laws for persisted source-qualified debt descriptors.
+purrdf-iri.workspace = true
 # The lexer for function bodies and macro arguments; `span-locations` gives
 # string literals their absolute lines.
 proc-macro2 = { workspace = true, features = ["span-locations"] }

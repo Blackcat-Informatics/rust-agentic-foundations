@@ -123,6 +123,66 @@ fn starts_with_drive_letter(segment: &str) -> bool {
     chars.next().is_some_and(|c| c.is_ascii_alphabetic()) && chars.next() == Some(':')
 }
 
+#[derive(Clone, Copy)]
+enum PathIssue {
+    Absolute,
+    AboveRoot,
+    Backslash,
+    Nul,
+    DriveLetter,
+}
+
+impl PathIssue {
+    fn with_input(self, input: &str) -> PathError {
+        let input = input.to_owned();
+        match self {
+            Self::Absolute => PathError::Absolute { input },
+            Self::AboveRoot => PathError::AboveRoot { input },
+            Self::Backslash => PathError::Backslash { input },
+            Self::Nul => PathError::Nul { input },
+            Self::DriveLetter => PathError::DriveLetter { input },
+        }
+    }
+}
+
+fn validate_input(input: &str) -> Result<(), PathIssue> {
+    if input.starts_with('/') {
+        return Err(PathIssue::Absolute);
+    }
+    if input.contains('\\') {
+        return Err(PathIssue::Backslash);
+    }
+    if input.contains('\0') {
+        return Err(PathIssue::Nul);
+    }
+    Ok(())
+}
+
+fn scan_segments<'a>(
+    input: &'a str,
+    mut depth: usize,
+    mut retain: impl FnMut(&'a str),
+) -> Result<bool, PathIssue> {
+    let mut canonical = true;
+    for segment in input.split('/') {
+        match segment {
+            "" | "." => canonical &= input.is_empty(),
+            ".." => {
+                depth = depth.checked_sub(1).ok_or(PathIssue::AboveRoot)?;
+                retain(segment);
+            }
+            _ => {
+                if starts_with_drive_letter(segment) {
+                    return Err(PathIssue::DriveLetter);
+                }
+                depth += 1;
+                retain(segment);
+            }
+        }
+    }
+    Ok(canonical)
+}
+
 impl RelPath {
     /// The root itself.
     #[must_use]
@@ -143,6 +203,18 @@ impl RelPath {
         Self::root().join(input)
     }
 
+    /// Whether `input` is already a valid, normalized relative spelling.
+    ///
+    /// Uses the same path checks as [`Self::new`] without allocating text,
+    /// component storage or diagnostics. The empty spelling is the root;
+    /// otherwise empty and `.` components are noncanonical. A `..` component
+    /// remains literal and may only spend depth supplied by preceding components.
+    /// This query does not inspect the filesystem or select a source authority.
+    #[must_use]
+    pub fn is_canonical(input: &str) -> bool {
+        validate_input(input).is_ok() && matches!(scan_segments(input, 0, |_| {}), Ok(true))
+    }
+
     /// Append `input`, which is read as a relative path.
     ///
     /// `.` and empty segments are dropped; `..` segments are kept so that the
@@ -153,16 +225,7 @@ impl RelPath {
     /// Returns a [`PathError`] when the input is absolute, climbs above this
     /// path's root, or holds a backslash, a NUL or a drive-letter segment.
     pub fn join(&self, input: &str) -> Result<Self, PathError> {
-        let owned = || input.to_owned();
-        if input.starts_with('/') {
-            return Err(PathError::Absolute { input: owned() });
-        }
-        if input.contains('\\') {
-            return Err(PathError::Backslash { input: owned() });
-        }
-        if input.contains('\0') {
-            return Err(PathError::Nul { input: owned() });
-        }
+        validate_input(input).map_err(|issue| issue.with_input(input))?;
         let mut segments = WorkList::<&str, 16>::new();
         let mut depth = 0_usize;
         for segment in self.segments() {
@@ -174,24 +237,8 @@ impl RelPath {
             }
             segments.push(segment);
         }
-        for segment in input.split('/') {
-            match segment {
-                "" | "." => {}
-                ".." => {
-                    depth = depth
-                        .checked_sub(1)
-                        .ok_or_else(|| PathError::AboveRoot { input: owned() })?;
-                    segments.push(segment);
-                }
-                _ => {
-                    if starts_with_drive_letter(segment) {
-                        return Err(PathError::DriveLetter { input: owned() });
-                    }
-                    depth += 1;
-                    segments.push(segment);
-                }
-            }
-        }
+        scan_segments(input, depth, |segment| segments.push(segment))
+            .map_err(|issue| issue.with_input(input))?;
         let mut text = String::new();
         for segment in segments.iter() {
             if !text.is_empty() {
