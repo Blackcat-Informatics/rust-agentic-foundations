@@ -1767,6 +1767,9 @@ dependencies = [
 name = "raf-fixtures"
 version = "0.2.0"
 dependencies = [
+ "purrdf-core",
+ "purrdf-deflate",
+ "purrdf-gts",
  "raf-census",
  "raf-okf",
  "raf-rdf",

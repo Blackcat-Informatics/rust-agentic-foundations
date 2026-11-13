@@ -21,5 +21,6 @@ pub mod files;
 pub mod fixture_signing;
 pub mod git_repo;
 pub mod layout;
+pub mod registry;
 pub mod strict;
 pub mod workspace_input;

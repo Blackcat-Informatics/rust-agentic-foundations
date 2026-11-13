@@ -1597,3 +1597,515 @@ fn external_references_report_cross_boundary_constants_like_a_lock_selected_one(
         1
     );
 }
+
+const PROVIDED: &str = "pub fn provided(input:u32)->u32 { let result=input*2; result+7 }";
+
+/// A consumer `app` whose registry dependency `acme-core` was stored in a cache
+/// directory below the test target area. Returns the consumer tree and the
+/// cache; `archive` is what the cache holds, and the lock names the checksum of
+/// `locked`, the archive that Cargo would have stored.
+fn registry_consumer(
+    selector: &str,
+    source: &str,
+    locked: &[u8],
+    archive: Option<&[u8]>,
+) -> (raf_source::MemoryTree, purrdf_testkit::TempDir) {
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    if let Some(archive) = archive {
+        raf_fixtures::registry::place(
+            cache.path(),
+            "index.crates.io-0000000000000000",
+            "acme-core",
+            "1.0.0",
+            archive,
+        );
+    }
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='registry+https://github.com/rust-lang/crates.io-index'\nchecksum='{}'\n",
+        raf_fixtures::registry::checksum(locked)
+    );
+    let ledger = unhomed_ledger(&[selector]);
+    let tree = raf_source::MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\n",
+        ),
+        ("src/lib.rs", source),
+        ("Cargo.lock", lock.as_str()),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    (tree, cache)
+}
+
+fn acme_core(body: &str) -> Vec<u8> {
+    raf_fixtures::registry::crate_archive(
+        "acme-core",
+        "1.0.0",
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='acme-core'\nversion='1.0.0'\nedition='2024'\n[lib]\nname='acme_core'\npath='src/lib.rs'\n",
+            ),
+            ("src/lib.rs", body),
+        ],
+    )
+}
+
+fn registry_check(
+    tree: &raf_source::MemoryTree,
+    cache: &purrdf_testkit::TempDir,
+) -> Result<raf_census::GateReport, raf_census::Error> {
+    let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()));
+    Gate::workspace(".").check_locked_registry(tree, &registry)
+}
+
+/// A copied body of a registry dependency, sealed from the lock file's checksum
+/// and the cache, is a hard non-debt finding for an exact and a family selector,
+/// and a changed body stays clean.
+#[test]
+fn registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour() {
+    let archive = acme_core(PROVIDED);
+    for selector in ["acme-core", "acme-*"] {
+        let (tree, cache) = registry_consumer(
+            selector,
+            "pub fn copy(input:u32)->u32 { let result=input*2; result+7 }",
+            &archive,
+            Some(&archive),
+        );
+        let report = registry_check(&tree, &cache).unwrap();
+        assert_eq!(report.findings().len(), 1, "{:?}", report.findings());
+        assert!(
+            report.findings()[0]
+                .starts_with("REFERENCE-COPY src/lib.rs:1 app::copy matches acme_core::provided "),
+            "{:?}",
+            report.findings()
+        );
+        assert!(report.debt().groups().is_empty() && report.debt().job_copies().is_empty());
+        let (neighbor, cache) = registry_consumer(
+            selector,
+            "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+            &archive,
+            Some(&archive),
+        );
+        let clean = registry_check(&neighbor, &cache).unwrap();
+        assert!(clean.is_clean(), "{:?}", clean.findings());
+    }
+}
+
+/// An archive absent from the cache, a cached archive that is not the locked
+/// bytes and an oversized one each refuse by name and never pass silently.
+#[test]
+fn absent_mismatching_and_oversized_registry_archives_refuse() {
+    let archive = acme_core(PROVIDED);
+    let consumer = "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }";
+    let (tree, cache) = registry_consumer("acme-core", consumer, &archive, None);
+    let message = registry_check(&tree, &cache).unwrap_err().to_string();
+    for expected in [
+        "acme-core 1.0.0",
+        "acme-core-1.0.0.crate",
+        &cache.path().display().to_string(),
+        "cargo fetch --locked",
+    ] {
+        assert!(message.contains(expected), "{expected} missing: {message}");
+    }
+    let other = acme_core("pub fn provided() {}");
+    let (tree, cache) = registry_consumer("acme-core", consumer, &archive, Some(&other));
+    let message = registry_check(&tree, &cache).unwrap_err().to_string();
+    assert!(
+        message.contains("acme-core 1.0.0") && message.contains("checksum"),
+        "{message}"
+    );
+    let (tree, cache) = registry_consumer("acme-core", consumer, &archive, None);
+    let index = cache.path().join("index.crates.io-0000000000000000");
+    std::fs::create_dir(&index).unwrap();
+    // A sparse file one byte over the 256 MiB budget: no large allocation is made.
+    std::fs::File::create(index.join("acme-core-1.0.0.crate"))
+        .unwrap()
+        .set_len((256 << 20) + 1)
+        .unwrap();
+    let message = registry_check(&tree, &cache).unwrap_err().to_string();
+    assert!(message.contains("byte archive budget"), "{message}");
+    let (tree, cache) = registry_consumer("acme-core", consumer, &archive, Some(&archive));
+    assert!(registry_check(&tree, &cache).unwrap().is_clean());
+}
+
+const CRATES_IO: &str = "registry+https://github.com/rust-lang/crates.io-index";
+const COPIED: &str = "pub fn copy(input:u32)->u32 { let result=input*2; result+7 }";
+
+/// The check of a consumer made of `files`, whose lock lists `acme-core` from
+/// `source` with the checksum of `archive`, with `archive` stored in a cache
+/// directory below the test target area. `extra` is more lock rows.
+fn registry_scenario(
+    files: &[(&str, &str)],
+    source: &str,
+    archive: &[u8],
+    extra: &str,
+) -> Result<raf_census::GateReport, raf_census::Error> {
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", archive);
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{source}'\nchecksum='{}'\n{extra}",
+        raf_fixtures::registry::checksum(archive)
+    );
+    let ledger = unhomed_ledger(&["acme-core"]);
+    let tree: raf_source::MemoryTree = files
+        .iter()
+        .chain(&[
+            ("Cargo.lock", lock.as_str()),
+            ("helpers-ledger.ttl", ledger.as_str()),
+        ])
+        .map(|(path, text)| ((*path).to_owned(), (*text).to_owned()))
+        .collect();
+    registry_check(&tree, &cache)
+}
+
+/// Each way a workspace declares a registry dependency selects its own lock row
+/// and is sealed: an inherited renamed entry, a named custom registry, an
+/// explicit registry index, beside a package with a build script and a library
+/// whose name the archive's manifest states.
+#[test]
+fn registry_declarations_are_matched_to_their_own_lock_rows() {
+    const APP: &str = "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n";
+    let custom = "registry+https://custom.example/index";
+    let archive = acme_core(PROVIDED);
+    let renamed = raf_fixtures::registry::crate_archive(
+        "acme-core",
+        "1.0.0",
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='acme-core'\nversion='1.0.0'\nedition='2024'\n[lib]\nname='api'\npath='src/lib.rs'\n",
+            ),
+            ("src/lib.rs", PROVIDED),
+        ],
+    );
+    let manifest = |dependency: &str| format!("{APP}[dependencies]\n{dependency}\n");
+    let cases = [
+        (
+            "inherited renamed entry",
+            vec![
+                (
+                    "Cargo.toml",
+                    "[workspace]\nmembers=['app']\n[workspace.dependencies]\nalias={package='acme-core',version='1'}\n",
+                ),
+                (
+                    "app/Cargo.toml",
+                    "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nalias.workspace=true\n",
+                ),
+                ("app/src/lib.rs", COPIED),
+            ],
+            CRATES_IO,
+            &archive,
+            "app/src/lib.rs:1 app::copy matches acme_core::provided ",
+        ),
+        (
+            "named custom registry",
+            vec![
+                (
+                    "Cargo.toml",
+                    "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core={version='1',registry='custom'}\n",
+                ),
+                ("src/lib.rs", COPIED),
+            ],
+            custom,
+            &archive,
+            "src/lib.rs:1 app::copy matches acme_core::provided ",
+        ),
+        (
+            "explicit registry index",
+            vec![
+                (
+                    "Cargo.toml",
+                    "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core={version='1',registry-index='https://custom.example/index'}\n",
+                ),
+                ("src/lib.rs", COPIED),
+            ],
+            custom,
+            &archive,
+            "src/lib.rs:1 app::copy matches acme_core::provided ",
+        ),
+        (
+            "a build script beside the dependency",
+            vec![
+                ("Cargo.toml", ""),
+                ("build.rs", "fn main() {}"),
+                ("src/lib.rs", COPIED),
+            ],
+            CRATES_IO,
+            &archive,
+            "src/lib.rs:1 app::copy matches acme_core::provided ",
+        ),
+        (
+            "a library named by the archive's manifest",
+            vec![("Cargo.toml", ""), ("src/lib.rs", COPIED)],
+            CRATES_IO,
+            &renamed,
+            "src/lib.rs:1 app::copy matches api::provided ",
+        ),
+    ];
+    for (label, mut files, source, archive, expected) in cases {
+        let plain = manifest("acme-core='1'");
+        if files[0].1.is_empty() {
+            files[0].1 = plain.as_str();
+        }
+        let report = registry_scenario(&files, source, archive, "").unwrap();
+        assert_eq!(
+            report.findings().len(),
+            1,
+            "{label}: {:?}",
+            report.findings()
+        );
+        assert!(
+            report.findings()[0].contains(expected),
+            "{label}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+/// Only the row a workspace package depends on directly is sealed: a transitive
+/// package of the same name at another version needs no archive, and the
+/// directly depended-on version still refuses by name when its archive is
+/// missing.
+#[test]
+fn a_transitive_row_of_the_same_name_is_not_sealed() {
+    let archive = acme_core(PROVIDED);
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core 1.0.0','other']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n[[package]]\nname='acme-core'\nversion='2.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n[[package]]\nname='other'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\ndependencies=['acme-core 2.0.0']\n",
+        raf_fixtures::registry::checksum(&archive),
+        raf_fixtures::registry::checksum(b"never cached"),
+        raf_fixtures::registry::checksum(b"unused"),
+    );
+    let ledger = unhomed_ledger(&[]);
+    let tree = raf_source::MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='=1.0.0'\n",
+        ),
+        (
+            "src/lib.rs",
+            "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+        ),
+        ("Cargo.lock", lock.as_str()),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let check = |cache: &purrdf_testkit::TempDir| {
+        let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
+            .seal("acme-core");
+        Gate::workspace(".").check_locked_registry(&tree, &registry)
+    };
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
+    let report = check(&cache).unwrap();
+    assert!(report.is_clean(), "{:?}", report.findings());
+    let empty = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let message = check(&empty).unwrap_err().to_string();
+    assert!(message.contains("acme-core 1.0.0"), "{message}");
+    assert!(!message.contains("2.0.0"), "{message}");
+}
+
+/// A cache holding the archive in two index directories uses the one whose
+/// digest is the locked checksum, however the directories sort; with no match
+/// it refuses naming each candidate. A lock file over the file-size bound is
+/// refused before it is read.
+#[test]
+fn the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded() {
+    let archive = acme_core(PROVIDED);
+    let stale = acme_core("pub fn provided() {}");
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(cache.path(), "a-first", "acme-core", "1.0.0", &stale);
+    raf_fixtures::registry::place(cache.path(), "b-second", "acme-core", "1.0.0", &archive);
+    let (tree, _) = registry_consumer("acme-core", COPIED, &archive, None);
+    let found = registry_check(&tree, &cache).unwrap();
+    assert_eq!(found.findings().len(), 1, "{:?}", found.findings());
+    let other = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(other.path(), "a-first", "acme-core", "1.0.0", &stale);
+    let message = registry_check(&tree, &other).unwrap_err().to_string();
+    assert!(
+        message.contains("a-first") && message.contains("does not match the lock checksum"),
+        "{message}"
+    );
+    let root = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    files::write(
+        root.path(),
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[workspace]\n",
+            ),
+            ("src/lib.rs", "pub fn a() {}"),
+            ("helpers-ledger.ttl", unhomed_ledger(&[]).as_str()),
+        ],
+    );
+    // A sparse lock file one byte over the 8 MiB bound: nothing is allocated.
+    std::fs::File::create(root.path().join("Cargo.lock"))
+        .unwrap()
+        .set_len((8 << 20) + 1)
+        .unwrap();
+    let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()));
+    let refused = Gate::workspace(root.path())
+        .check_registry(&registry)
+        .unwrap_err()
+        .to_string();
+    assert!(refused.contains("Cargo.lock"), "{refused}");
+}
+
+/// A selector added with `seal` whose package the manifest and the lock file
+/// disagree about is refused by package, selector and declaration, never left
+/// unsealed; the agreeing declaration seals. An oversized cached candidate is
+/// skipped while a later one matches, and when it is the only candidate the
+/// refusal names it.
+#[test]
+fn a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one() {
+    let archive = acme_core(PROVIDED);
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n",
+        raf_fixtures::registry::checksum(&archive)
+    );
+    let ledger = unhomed_ledger(&[]);
+    let tree = |requirement: &str| {
+        let manifest = format!(
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='{requirement}'\n"
+        );
+        raf_source::MemoryTree::from([
+            ("Cargo.toml", manifest.as_str()),
+            (
+                "src/lib.rs",
+                "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+            ),
+            ("Cargo.lock", lock.as_str()),
+            ("helpers-ledger.ttl", ledger.as_str()),
+        ])
+    };
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
+    let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
+        .seal("acme-core");
+    let agreeing = Gate::workspace(".")
+        .check_locked_registry(&tree("1"), &registry)
+        .unwrap();
+    assert!(agreeing.is_clean(), "{:?}", agreeing.findings());
+    let message = Gate::workspace(".")
+        .check_locked_registry(&tree("2"), &registry)
+        .unwrap_err()
+        .to_string();
+    for expected in [
+        "acme-core",
+        "\"acme-core\"",
+        "disagree",
+        "dependencies.acme-core",
+    ] {
+        assert!(message.contains(expected), "{expected} missing: {message}");
+    }
+
+    let oversize = |directory: &std::path::Path| {
+        let index = directory.join("a-first");
+        std::fs::create_dir_all(&index).unwrap();
+        // A sparse file one byte over the 256 MiB budget: nothing is allocated.
+        std::fs::File::create(index.join("acme-core-1.0.0.crate"))
+            .unwrap()
+            .set_len((256 << 20) + 1)
+            .unwrap();
+    };
+    let skipped = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    oversize(skipped.path());
+    raf_fixtures::registry::place(skipped.path(), "b-second", "acme-core", "1.0.0", &archive);
+    let later = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(skipped.path()))
+        .seal("acme-core");
+    assert!(
+        Gate::workspace(".")
+            .check_locked_registry(&tree("1"), &later)
+            .unwrap()
+            .is_clean()
+    );
+    let only = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    oversize(only.path());
+    let alone = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(only.path()))
+        .seal("acme-core");
+    let message = Gate::workspace(".")
+        .check_locked_registry(&tree("1"), &alone)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        message.contains("a-first") && message.contains("byte archive budget"),
+        "{message}"
+    );
+}
+
+/// A declaration naming no registry depends on the default registry: a
+/// same-name row of a custom registry that also satisfies its requirement is
+/// neither sealed nor needs an archive.
+#[test]
+fn an_unnamed_declaration_is_bound_to_the_default_registry_only() {
+    let archive = acme_core(PROVIDED);
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core 1.5.0 (registry+https://custom.example/index)','acme-core 1.0.0 ({CRATES_IO})']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n[[package]]\nname='acme-core'\nversion='1.5.0'\nsource='registry+https://custom.example/index'\nchecksum='{}'\n",
+        raf_fixtures::registry::checksum(&archive),
+        raf_fixtures::registry::checksum(b"custom never cached"),
+    );
+    let ledger = unhomed_ledger(&[]);
+    let tree = raf_source::MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\n",
+        ),
+        (
+            "src/lib.rs",
+            "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+        ),
+        ("Cargo.lock", lock.as_str()),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
+    let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
+        .seal("acme-core");
+    let report = Gate::workspace(".")
+        .check_locked_registry(&tree, &registry)
+        .unwrap();
+    assert!(report.is_clean(), "{:?}", report.findings());
+}
+
+/// An unnamed declaration whose only same-name lock row comes from a custom
+/// registry is refused by package, selector, declaration and registry, never
+/// dropped; the same lock with a default-registry row seals clean.
+#[test]
+fn an_unnamed_declaration_with_only_a_custom_registry_row_is_refused() {
+    let archive = acme_core(PROVIDED);
+    let ledger = unhomed_ledger(&[]);
+    let check = |source: &str| {
+        let lock = format!(
+            "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{source}'\nchecksum='{}'\n",
+            raf_fixtures::registry::checksum(&archive)
+        );
+        let tree = raf_source::MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\n",
+            ),
+            (
+                "src/lib.rs",
+                "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+            ),
+            ("Cargo.lock", lock.as_str()),
+            ("helpers-ledger.ttl", ledger.as_str()),
+        ]);
+        let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+        raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
+        let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
+            .seal("acme-core");
+        Gate::workspace(".").check_locked_registry(&tree, &registry)
+    };
+    assert!(check(CRATES_IO).unwrap().is_clean());
+    let message = check("registry+https://custom.example/index")
+        .unwrap_err()
+        .to_string();
+    for expected in [
+        "acme-core",
+        "\"acme-core\"",
+        "dependencies.acme-core",
+        "non-default registry registry+https://custom.example/index",
+    ] {
+        assert!(message.contains(expected), "{expected} missing: {message}");
+    }
+}

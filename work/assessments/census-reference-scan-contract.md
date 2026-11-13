@@ -7,13 +7,22 @@ subject: cap:census-reference-scan#contract
 inputs:
   - kind: section
     name: cap:census-reference-scan#contract
-    digest: 0e61e1a729e6ad3576d2ee3eac7f97630fa9145a17dcc24c3e6bf11d4df8f959
+    digest: 9b2367ec3a60ed454de045d4eb04f60c24298c58783b0b469b24b57d486196d5
   - kind: symbol
     name: raf_census::ExternalReference
     digest: dff9ba21af812a6448881bf2fda85215d82d533591e85489c9f8e454bc9ba7ce
   - kind: symbol
+    name: raf_census::Gate::check_locked_registry
+    digest: 469c0bc06984a4ee08ef751e6e3e72694d7741048688ae7a7630792f5f1c7532
+  - kind: symbol
+    name: raf_census::Gate::check_registry
+    digest: 5f3e0ceda37af2c3585c5571c0ca39e1e57f4e7b28fb1bf83fc47ab2f1f9330f
+  - kind: symbol
     name: raf_census::Gate::external_references
     digest: 203e097a440d87e226a19737629540596262176ef6dba84291ce2bcd060f3adb
+  - kind: symbol
+    name: raf_census::Gate::write_debt_registry
+    digest: cd64507978316827035e756255a3349f17f3a20e754f52add06695d8198ca1c5
   - kind: symbol
     name: raf_census::gate::reference
     digest: 48313bbcadf36e610cacfd128c68e0d065b3040b7e8878f5df9ce26ad623804f

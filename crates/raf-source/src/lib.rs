@@ -206,7 +206,9 @@ pub use locked::{
     LockedCatalog, LockedGitReference, LockedPackage, LockedPackageId, LockedSource,
     LockedSourceKind, RegistryIndex,
 };
-pub use manifest::{DependencyDeclaration, DependencyKind, DependencySpec, InheritedDependency};
+pub use manifest::{
+    DependencyDeclaration, DependencyKind, DependencySpec, InheritedDependency, library_target_name,
+};
 pub use meter::Usage;
 pub use modtree::{PathSite, Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};

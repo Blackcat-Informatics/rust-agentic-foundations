@@ -129,7 +129,7 @@ bindings:
     - rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused
     - rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate
     - rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation
-    - rust_agentic_foundations::test_crate::self_census::an_oversized_cached_archive_is_refused_before_it_is_held_beside_a_valid_one
+    - raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse
   examples:
     - rust_agentic_foundations::example_crate::repository_gate
 depends: [cap:workplan-document-model, cap:workplan-strict, cap:source-index, cap:census-debt-ratchet]
@@ -177,7 +177,7 @@ the BLAKE3 digest and its hexadecimal text, with no exclusion and no debt. The
 locked evaluation takes the lock catalog from `Cargo.lock` (the fuzz harness
 row from `fuzz/Cargo.lock`), every first-party manifest with its discovered targets
 under a declared Linux configuration, and the direct `purrdf-*` registry sources
-sealed from their original `.crate` archives. The archives are found in the Cargo
+sealed from their original `.crate` archives through `LockedRegistry` of `raf-census`. The archives are found in the Cargo
 registry cache named by `CARGO_HOME`, or `$HOME/.cargo`, which must hold the complete
 locked set of archives of both lock files (`cargo fetch --locked`, and the same with
 `--manifest-path fuzz/Cargo.toml`; the hosted root-package jobs run both first); only their bytes come
@@ -202,7 +202,7 @@ one package: the fixtures that several packages use live in the unpublished
 and its modules and items are excluded in `work/coverage/default.md` with a reason.
 Checks, Linux CI and the staged commit and merge
 snapshots execute the same test.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused,rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate,rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation,rust_agentic_foundations::test_crate::self_census::an_oversized_cached_archive_is_refused_before_it_is_held_beside_a_valid_one -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused,rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate,rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation,raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse -->
 
 **Shared read root.** The gates and repository-gate example use `gate_root`:
 `RAF_GATE_ROOT` selects an explicit checkout snapshot, and its absence selects
@@ -367,6 +367,7 @@ no separate interpretation of the documents or source index.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::history::a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor` | test | [Verification](#verification) |
 | `rust_agentic_foundations::example_crate::repository_gate` | example target | [Usage](#usage) |
 | `rust_agentic_foundations::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported` | test | [Contract](#contract) |
@@ -481,7 +482,6 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::self_census::an_oversized_cached_archive_is_refused_before_it_is_held_beside_a_valid_one` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
 | `rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back` | test | [Contract](#contract) |

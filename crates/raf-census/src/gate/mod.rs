@@ -11,6 +11,7 @@ mod owners;
 mod patterns;
 mod providers;
 mod reference;
+mod registry;
 mod rules;
 mod subjects;
 
@@ -19,6 +20,7 @@ pub use migrate::{
     migrate_index, migrate_legacy, migrate_legacy_with_extensions,
 };
 pub use reference::{ExternalReference, ReferenceRoot};
+pub use registry::{ArchiveCache, LockedRegistry};
 
 use std::path::{Component, Path, PathBuf};
 
