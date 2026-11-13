@@ -181,6 +181,9 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
             "variant",
             "extension",
             "preferredProvider",
+            "vectorPath",
+            "benchTarget",
+            "specRef",
         ],
     ),
     (

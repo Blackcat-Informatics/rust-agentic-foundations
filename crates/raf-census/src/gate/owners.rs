@@ -301,7 +301,7 @@ mod tests {
                 Census::from_packages(&workspace, &CensusOptions::default(), &packages).unwrap();
             let report = super::super::evaluate::evaluate(
                 &ledger,
-                &workspace,
+                (&workspace, &first),
                 census,
                 super::super::rules::Selected {
                     registered: &[],

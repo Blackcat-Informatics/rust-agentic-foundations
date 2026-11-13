@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use purrdf_jsonschema::ecma::MatchLimits;
-use raf_source::{RelPath, Workspace};
+use raf_source::{RelPath, Tree, TreeError, Workspace};
 
 use super::{GateReport, LedgerExtension, SYMBOL_ANCHOR_PREFIX, owners, rules};
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
 
 pub(super) fn evaluate(
     ledger: &Ledger,
-    workspace: &Workspace,
+    (workspace, tree): (&Workspace, &dyn Tree),
     census: Census,
     selected: rules::Selected<'_>,
     extensions: &[Box<dyn LedgerExtension>],
@@ -43,6 +43,7 @@ pub(super) fn evaluate(
     for row in ledger.jobs() {
         validate_dependencies(row, hits)?;
         extension(ledger, row, extensions)?;
+        evidence_links(tree, workspace, references, row, &mut findings)?;
         stale_matchers(&census, row, hits, &mut findings);
         let Some(resolved) = resolve_job(
             (workspace, &code),
@@ -685,4 +686,70 @@ pub(super) fn policy(reason: &str) -> Error {
         line: 1,
         reason: reason.into(),
     }
+}
+
+/// Check a job's declared test vectors and bench targets against the workspace.
+///
+/// A missing vector or bench target is a finding naming the job and the link.
+/// A vector the tree refuses to open from inside the root, and any link on a
+/// job homed in a reference dependency, refuse. Files are only identified,
+/// never read or run.
+fn evidence_links(
+    tree: &dyn Tree,
+    workspace: &Workspace,
+    references: &super::reference::References<'_>,
+    row: &LedgerJob,
+    findings: &mut Vec<String>,
+) -> Result<(), Error> {
+    if row.vectors.is_empty() && row.benches.is_empty() {
+        return Ok(());
+    }
+    let job = &row.job.id;
+    if references.home(&row.job.home)?.is_some() {
+        return Err(policy(&format!(
+            "job {job:?}: home {:?} is in a reference dependency, which cannot declare local test vectors or bench targets",
+            row.job.home
+        )));
+    }
+    for vector in &row.vectors {
+        let path = RelPath::new(vector)
+            .map_err(|error| policy(&format!("job {job:?} vectorPath {vector:?}: {error}")))?;
+        match tree.identity(&path) {
+            Ok(_) => {}
+            Err(TreeError::NotFound { .. }) => findings.push(format!(
+                "job {job:?}: test vector {vector:?} does not exist in the workspace"
+            )),
+            Err(TreeError::NotRegular { .. }) => findings.push(format!(
+                "job {job:?}: test vector {vector:?} is not a regular file"
+            )),
+            Err(TreeError::OutsideRoot { .. }) => {
+                return Err(policy(&format!(
+                    "job {job:?}: test vector {vector:?} leads out of the workspace root"
+                )));
+            }
+            Err(source) => {
+                return Err(Error::Tree {
+                    file: vector.clone(),
+                    source,
+                });
+            }
+        }
+    }
+    for bench in &row.benches {
+        let found = workspace.targets().any(|target| {
+            target.kind == raf_source::TargetKind::Bench
+                && target.package == bench.package
+                && target.name == bench.target
+                && references.consumers.contains(&target.package_id)
+                && workspace.package(target.package_id).is_some_and(|package| {
+                    package.manifest.authority() == raf_source::SourceAuthorityId::FIRST_PARTY
+                })
+        });
+        if !found {
+            findings.push(format!(
+                "job {job:?}: bench target {bench} is not a bench target of a first-party package"
+            ));
+        }
+    }
+    Ok(())
 }

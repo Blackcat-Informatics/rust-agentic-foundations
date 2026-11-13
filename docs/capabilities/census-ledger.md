@@ -28,6 +28,7 @@ bindings:
     - raf_census::LedgerExtensionGraph
     - raf_census::Ledger
     - raf_census::LedgerJob
+    - raf_census::BenchLink
     - raf_census::LedgerVariant
     - raf_census::LedgerDistinct
     - raf_census::LedgerPattern
@@ -67,6 +68,12 @@ bindings:
     - raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once
     - raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours
     - raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy
+    - raf_census::test_crate::ledger_evidence::a_job_naming_an_existing_vector_and_bench_is_clean
+    - raf_census::test_crate::ledger_evidence::a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link
+    - raf_census::test_crate::ledger_evidence::a_link_that_escapes_the_workspace_root_is_refused
+    - raf_census::test_crate::ledger_evidence::a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link
+    - raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links
+    - raf_census::test_crate::ledger_evidence::a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one
     - raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor
     - raf_census::test_crate::census_gate::a_home_reached_through_two_modules_uses_one_physical_owner
     - raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package
@@ -197,6 +204,13 @@ constants compare by value. The Source index resolves aliases; module homes
 include descendant implementation units. Each physical selected item counts
 once as HOME, VARIANT or COPY, even if several selectors match it.
 
+A job may declare its supporting evidence with core properties: repeated
+vectorPath (a workspace-relative file path), repeated benchTarget (`package:target`,
+the Cargo package name and bench target name) and one optional specRef text that
+is stored and never resolved. The ledger refuses a vectorPath that is absolute,
+uses a backslash, or climbs above the workspace root, and a benchTarget that is
+not exactly a nonempty package and target joined by one colon.
+
 A Variant requires symbol, file, detector, criterion, anchor and reason. It
 sanctions only matching sites in its declared file. A Distinct requires
 memberSymbol, kind (body or shim), criterion, anchor and reason. Its counted
@@ -206,10 +220,18 @@ increase the count. Documentation anchors are absolute urn:raf:code: IRIs
 followed by a percent-encoded Source path that resolves to documented items.
 
 ### Staleness and registered code
-<!-- raf:tested-by raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy,raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
+<!-- raf:tested-by raf_census::test_crate::ledger_evidence::a_job_naming_an_existing_vector_and_bench_is_clean,raf_census::test_crate::ledger_evidence::a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link,raf_census::test_crate::ledger_evidence::a_link_that_escapes_the_workspace_root_is_refused,raf_census::test_crate::ledger_evidence::a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link,raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links,raf_census::test_crate::ledger_evidence::a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one,raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy,raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
 
 Missing homes, entries, members or variants, unmatched body/shim fingerprints,
-obsolete sanctions and unenforced jobs with zero copies are findings. Enforced
+obsolete sanctions and unenforced jobs with zero copies are findings. A declared
+vectorPath that names no file in the workspace tree, or a path that is not a
+regular file, and a benchTarget that is not a bench target of a first-party
+package, are findings naming the job and the link. Evaluation identifies each
+vector through the Tree and reads no contents; no vector is interpreted and no
+bench is built or run. A vector path whose resolution leads out of the workspace
+root refuses, and so does any vectorPath or benchTarget on a job whose home is
+in a reference dependency. These checks are core ledger behaviour, available to
+every consumer; a registered LedgerExtension still sees only the job's graph. Enforced
 copies fail the gate. A job may own one Extension. Exactly one registered
 LedgerExtension must claim and validate nonempty content; zero or multiple
 claims refuse. Missing custom rules require repository registration. Rule
@@ -507,6 +529,12 @@ the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise de
 | `raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::rules_and_variants_share_physical_ownership_without_widening_file_sanctions` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_job_naming_an_existing_vector_and_bench_is_clean` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_link_that_escapes_the_workspace_root_is_refused` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link` | test | [Contract](#contract) |
 | `raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension` | test | [Usage](#usage), [Examples](#examples) |
 | `raf_census::test_crate::reference_scan::family_selector_matching_nothing_refuses_naming_the_selector` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours` | test | [Contract](#contract) |
