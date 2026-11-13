@@ -1,0 +1,19 @@
+ghprsq source head backlink metadata
+
+parent_hashes: 960d93ee55eea4a4c0a0b8928dd02314557ecfe9
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash-head-backlink
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 244
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/244
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: cac6fb2bdc5175a4bf3bff3719144fbce56a268a
+GhpRsq-Head-Ref: paudley/201-census-ledger-validate-a-job-s-test
+GhpRsq-Head-OID: 960d93ee55eea4a4c0a0b8928dd02314557ecfe9
+GhpRsq-Result-Tree: 961a4ac75eb196628a5567ce00c21f9af9d689f0
+GhpRsq-Result-Commit: 24c383e0a18b9f9e1df2549aeeea63533a3143a3
+GhpRsq-Parent-Hashes: 960d93ee55eea4a4c0a0b8928dd02314557ecfe9
+GhpRsq-Squash-Notes-SHA256: ce01e467ab6d1ba48a2da40aca5e9b8c8a90f5e2412db49f312150cd8a1f4181
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Evidence: none
