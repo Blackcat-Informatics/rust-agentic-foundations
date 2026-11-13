@@ -7,7 +7,7 @@ subject: cap:census-patterns#contract
 inputs:
   - kind: section
     name: cap:census-patterns#contract
-    digest: 5e08566a509781f0b2e7f9cfe85572bc4909d89dcec98e745076c9abc203265e
+    digest: bb83a62e321978a65d09676b1ee1abd2e258f0493498a20c017d8b61a2c2aad0
   - kind: symbol
     name: raf_census::Gate::matching_limits
     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc

@@ -195,7 +195,7 @@ unchanged to the consumer's validator, so they carry no engine vocabulary.
 | `Variant` | `symbol`, `file`, `detector`, `criterion`, `reason` strings; `anchor` documentation IRI |
 | `Distinct` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members; `kind` string body or shim; `criterion`, `reason` strings; `anchor` documentation IRI |
 | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
-| `Pattern` | `patternId`, `summary` strings; exactly one matcher string: `call`, `path`, `macro`, `typePath`, `literalRegex` or `tokens` |
+| `Pattern` | `patternId`, `summary` strings; exactly one matcher string: `call`, `path`, `macro`, `typePath`, `literalRegex` or `tokens`; optional scope: repeated `targetKind`, `excludeTargetKind` strings (lib, bin, test, bench, example or buildScript), repeated `includePath`, `excludePath` workspace-relative path strings, and `shippingOnly` stated only as boolean true |
 | `PreferredProvider` | `package` string; repeated nonempty `entryPoint`, `consumer` strings |
 | `Extension` | Consumer-owned content; no additional engine-owned properties |
 

@@ -247,6 +247,9 @@ fn collect_patterns(
         references,
         limits,
     )? {
+        if !in_scope(found.pattern, found.file, found.byte, workspace, census) {
+            continue;
+        }
         rules::record_hit(
             workspace,
             found.file,
@@ -752,4 +755,33 @@ fn evidence_links(
         }
     }
     Ok(())
+}
+
+/// True when the pattern's declared scope admits the hit. An unscoped pattern
+/// admits every hit. A file outside the selected packages has no context and
+/// is never scoped in.
+fn in_scope(
+    pattern: &crate::LedgerPattern,
+    file: &RelPath,
+    byte: usize,
+    workspace: &Workspace,
+    census: &Census,
+) -> bool {
+    let scope = &pattern.scope;
+    if scope.is_unscoped() {
+        return true;
+    }
+    let Some(context) = census.source_context(file) else {
+        return false;
+    };
+    if !scope.admits_file(context, file) {
+        return false;
+    }
+    let items = workspace.item_at(file, byte);
+    items.is_empty()
+        || items.iter().any(|item| {
+            workspace
+                .target(item.target)
+                .is_some_and(|target| scope.admits_item(target.kind, workspace.is_shipping(item)))
+        })
 }

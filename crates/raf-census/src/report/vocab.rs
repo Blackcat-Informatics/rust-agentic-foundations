@@ -221,6 +221,11 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
             "typePath",
             "literalRegex",
             "tokens",
+            "targetKind",
+            "excludeTargetKind",
+            "shippingOnly",
+            "includePath",
+            "excludePath",
         ],
     ),
 ];

@@ -3,8 +3,9 @@
 
 //! Closed declarations; executable policy is supplied by the gate.
 
+use super::PatternScope;
 use super::{
-    E, Error, LedgerJob, NamePattern, ecma, fields, node_at, required_text, strings, targets,
+    E, Error, LedgerJob, NamePattern, ecma, fields, node_at, required_text, scope, strings, targets,
 };
 use raf_rdf::{Graph, Node};
 use std::collections::BTreeSet;
@@ -35,6 +36,8 @@ pub struct LedgerPattern {
     pub summary: String,
     /// The declared matcher.
     pub matcher: PatternMatcher,
+    /// Where the pattern applies; the default applies everywhere.
+    pub scope: PatternScope,
 }
 
 /// A functionality's preferred dependency and APIs, resolved by executable policy.
@@ -108,10 +111,12 @@ pub(super) fn patterns(
         if summary.contains(['\r', '\n']) {
             return Err(E::Value(format!("pattern {id:?}: summary must be one line")).into());
         }
+        let pattern_scope = scope::read(&node, &id)?;
         result.push(LedgerPattern {
             id,
             summary,
             matcher: matcher(&node)?,
+            scope: pattern_scope,
         });
     }
     let used: BTreeSet<_> = jobs.iter().flat_map(|job| job.patterns.iter()).collect();

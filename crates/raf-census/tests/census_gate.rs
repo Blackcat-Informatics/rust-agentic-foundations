@@ -363,6 +363,16 @@ fn ledger_vocabulary_matches_validated_graphs() {
         provider_policy("native-alias", "native_alias::encode"),
         ledger_vocabulary_settings(),
     ];
+    builders.push(scoped_pattern(
+        &[
+            ("targetKind", "lib"),
+            ("targetKind", "bin"),
+            ("excludeTargetKind", "test"),
+            ("includePath", "src"),
+            ("excludePath", "src/generated"),
+        ],
+        true,
+    ));
     builders.extend(
         [
             "call",
@@ -4635,4 +4645,170 @@ fn module_paths_outside_their_package_are_required_findings_beside_contained_one
         .collect();
     let locked = required.check_locked(&tree, &catalog, &local, &[]).unwrap();
     assert_eq!(locked.findings(), report.findings());
+}
+
+fn scoped_pattern(scope: &[(&str, &str)], shipping_only: bool) -> Builder {
+    let mut graph = lexical_pattern_graph("call", "std::mem::drop");
+    for (key, value) in scope {
+        put(&mut graph, "#pattern", key, Term::simple_literal(*value));
+    }
+    if shipping_only {
+        put(&mut graph, "#pattern", "shippingOnly", Term::boolean(true));
+    }
+    graph
+}
+
+/// One drop call placed at `site`, beside the approved home, in a package with
+/// a library, an integration test, a build script and a legacy module.
+fn scoped_tree(site: &str, graph: Builder) -> MemoryTree {
+    let call = "std::mem::drop(2);";
+    let mut lib = String::from(
+        "pub mod legacy;\npub fn home(){std::mem::drop(1);}\npub use home as alias;\n",
+    );
+    let mut files = vec![
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n".to_owned(),
+        ),
+        ("src/legacy/mod.rs", "pub fn old(){}\n".to_owned()),
+        ("tests/it.rs", "#[test]\nfn clean(){}\n".to_owned()),
+        ("build.rs", "fn main(){}\n".to_owned()),
+    ];
+    match site {
+        "lib" => lib = format!("{lib}pub fn alternate(){{{call}}}\n"),
+        "cfg-test" => {
+            lib = format!("{lib}#[cfg(test)]\nmod checks {{ fn alternate(){{{call}}} }}\n");
+        }
+        "legacy" => files[1].1 = format!("pub fn old(){{{call}}}\n"),
+        "test" => files[2].1 = format!("#[test]\nfn it(){{{call}}}\n"),
+        "build" => files[3].1 = format!("fn main(){{{call}}}\n"),
+        _ => unreachable!("closed fixture sites"),
+    }
+    files.push(("src/lib.rs", lib));
+    files.push((
+        "helpers-ledger.ttl",
+        graph.finish().unwrap().to_text(Format::Turtle).unwrap(),
+    ));
+    files.into_iter().collect()
+}
+
+fn scoped_copies(site: &str, scope: &[(&str, &str)], shipping_only: bool) -> usize {
+    let tree = scoped_tree(site, scoped_pattern(scope, shipping_only));
+    Gate::workspace(".").check_tree(&tree).unwrap().jobs()[0].copies
+}
+
+#[test]
+fn shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts() {
+    for (site, scoped) in [("lib", 1), ("test", 0), ("cfg-test", 0), ("build", 0)] {
+        assert_eq!(scoped_copies(site, &[], true), scoped, "scoped: {site}");
+        assert_eq!(scoped_copies(site, &[], false), 1, "unscoped: {site}");
+    }
+}
+
+#[test]
+fn target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits() {
+    for (site, scope, copies) in [
+        ("test", &[("targetKind", "test")][..], 1),
+        ("lib", &[("targetKind", "test")][..], 0),
+        ("build", &[("excludeTargetKind", "buildScript")][..], 0),
+        ("lib", &[("excludeTargetKind", "buildScript")][..], 1),
+        ("test", &[("excludeTargetKind", "test")][..], 0),
+    ] {
+        assert_eq!(
+            scoped_copies(site, scope, false),
+            copies,
+            "{site}: {scope:?}"
+        );
+    }
+}
+
+#[test]
+fn path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it() {
+    let exclude = &[("excludePath", "src/legacy")][..];
+    assert_eq!(scoped_copies("legacy", exclude, false), 0);
+    assert_eq!(scoped_copies("lib", exclude, false), 1);
+    assert_eq!(scoped_copies("test", exclude, false), 1);
+    let include = &[("includePath", "src/legacy")][..];
+    assert_eq!(scoped_copies("legacy", include, false), 1);
+    assert_eq!(scoped_copies("lib", include, false), 0);
+    assert_eq!(scoped_copies("legacy", &[], false), 1);
+}
+
+#[test]
+fn contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour() {
+    let load = |scope: &[(&str, &str)], shipping: bool| {
+        let graph = scoped_pattern(scope, shipping).finish().unwrap();
+        Ledger::from_turtle(&graph.to_text(Format::Turtle).unwrap())
+    };
+    load(
+        &[
+            ("targetKind", "lib"),
+            ("excludeTargetKind", "test"),
+            ("includePath", "src"),
+            ("excludePath", "src/legacy"),
+        ],
+        true,
+    )
+    .unwrap();
+    load(
+        &[
+            ("includePath", "src/legacy/deep"),
+            ("excludePath", "src/legacy2"),
+        ],
+        false,
+    )
+    .unwrap();
+    for (scope, shipping, fix) in [
+        (&[("targetKind", "library")][..], false, "not a target kind"),
+        (
+            &[("excludeTargetKind", "Lib")][..],
+            false,
+            "not a target kind",
+        ),
+        (
+            &[("targetKind", "lib"), ("excludeTargetKind", "lib")][..],
+            false,
+            "both included and excluded",
+        ),
+        (
+            &[("excludeTargetKind", "lib"), ("excludeTargetKind", "bin")][..],
+            true,
+            "admit no target kind",
+        ),
+        (&[("targetKind", "test")][..], true, "admit no target kind"),
+        (
+            &[("includePath", "src/legacy"), ("excludePath", "src")][..],
+            false,
+            "lies inside excludePath",
+        ),
+        (
+            &[("includePath", "src"), ("excludePath", "src")][..],
+            false,
+            "lies inside excludePath",
+        ),
+        (
+            &[("excludePath", "/etc")][..],
+            false,
+            "relative to the workspace root",
+        ),
+        (
+            &[("includePath", "../out")][..],
+            false,
+            "relative to the workspace root",
+        ),
+        (
+            &[("excludePath", ".")][..],
+            false,
+            "names the workspace root",
+        ),
+    ] {
+        let error = load(scope, shipping).unwrap_err().to_string();
+        assert!(error.contains(fix), "{scope:?}: {error}");
+    }
+    let mut graph = scoped_pattern(&[], false);
+    put(&mut graph, "#pattern", "shippingOnly", Term::boolean(false));
+    let error = Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("stated only as true"), "{error}");
 }
