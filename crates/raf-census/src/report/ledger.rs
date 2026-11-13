@@ -151,6 +151,17 @@ impl Ledger {
         &self.reference
     }
 
+    /// This ledger with `selectors` also declared as reference selectors, in
+    /// lexical order without repeats: the caller's sealed packages are
+    /// references for the ban exactly as the ledger's own are.
+    #[must_use]
+    pub(crate) fn with_reference_selectors(mut self, selectors: &[String]) -> Self {
+        self.reference.extend(selectors.iter().cloned());
+        self.reference.sort();
+        self.reference.dedup();
+        self
+    }
+
     /// Jobs, ordered by id.
     #[must_use]
     pub fn jobs(&self) -> &[LedgerJob] {

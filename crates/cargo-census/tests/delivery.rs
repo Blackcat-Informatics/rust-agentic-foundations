@@ -967,6 +967,12 @@ fn scaled(factor: u32, offset: u32) -> String {
 /// Write the ledger of a consumer that declares `selector` as a reference and
 /// homes it with no job.
 fn write_reference_ledger(root: &Path, selector: &str) {
+    write_ledger(root, &[selector]);
+}
+
+/// Write the ledger of a consumer that declares each of `selectors` as a
+/// reference, none when the list is empty.
+fn write_ledger(root: &Path, selectors: &[&str]) {
     let mut graph = Builder::new();
     put(
         &mut graph,
@@ -987,7 +993,9 @@ fn write_reference_ledger(root: &Path, selector: &str) {
         );
     }
     put(&mut graph, "", "root", Term::simple_literal("."));
-    put(&mut graph, "", "reference", Term::simple_literal(selector));
+    for selector in selectors {
+        put(&mut graph, "", "reference", Term::simple_literal(*selector));
+    }
     fs::write(
         root.join("helpers-ledger.ttl"),
         graph.finish().unwrap().to_text(Format::Turtle).unwrap(),
@@ -1367,5 +1375,52 @@ fn registry_options_refuse_by_name_without_a_partial_verdict() {
             Some(i32::from(command == "check")),
             "{accepted:?}"
         );
+    }
+}
+
+/// A sealed package is a reference for the ban exactly as a ledger `reference`
+/// is: a consumer whose ledger names no reference fails `check` on a copied
+/// body with one `REFERENCE-COPY` line when `--seal-registry` names the
+/// provider, by exact name or by `prefix-*` family, and is clean on a changed
+/// body; the same copy passes without the flag, since nothing is implied.
+#[test]
+fn a_sealed_registry_selector_is_a_reference_without_a_ledger_entry() {
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let archive = acme_core_archive(ACME_CORE);
+    let (root, cache) = registry_workspace(scratch.path(), &archive);
+    raf_fixtures::registry::place(&cache, "index.crates.io-0", "acme-core", "1.0.0", &archive);
+    write_ledger(&root, &[]);
+    let cache_text = cache.to_str().unwrap();
+    let sealed = |selector: &'static str| {
+        vec![
+            "check",
+            "--registry-cache",
+            cache_text,
+            "--registry-features",
+            "acme-core=",
+            "--seal-registry",
+            selector,
+        ]
+    };
+    write_consumer(&root, &scaled(2, 7), "");
+    let unflagged = run(&root, &["check"]);
+    assert!(unflagged.status.success(), "{unflagged:?}");
+    assert_eq!(unflagged.stdout, Vec::<u8>::new());
+    for selector in ["acme-core", "acme-*"] {
+        let copied = run(&root, &sealed(selector));
+        let stdout = String::from_utf8(copied.stdout).unwrap();
+        assert_eq!(copied.status.code(), Some(1), "{selector}: {stdout}");
+        assert!(
+            stdout
+                .starts_with("REFERENCE-COPY src/lib.rs:1 app::copy matches acme_core::provided "),
+            "{selector}: {stdout}"
+        );
+        assert_eq!(stdout.lines().count(), 1, "{selector}: {stdout}");
+    }
+    write_consumer(&root, &scaled(2, 8), "");
+    for selector in ["acme-core", "acme-*"] {
+        let changed = run(&root, &sealed(selector));
+        assert!(changed.status.success(), "{selector}: {changed:?}");
+        assert_eq!(changed.stdout, Vec::<u8>::new(), "{selector}");
     }
 }

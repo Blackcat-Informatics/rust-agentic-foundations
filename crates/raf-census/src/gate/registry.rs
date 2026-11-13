@@ -181,6 +181,7 @@ fn read_candidate(path: &Path, limit: usize) -> Result<Vec<u8>, String> {
 pub struct LockedRegistry {
     cache: ArchiveCache,
     sealed: Vec<String>,
+    referenced: Vec<String>,
     features: BTreeMap<String, Vec<String>>,
     require_features: bool,
     lock: Option<String>,
@@ -193,6 +194,7 @@ impl LockedRegistry {
         Self {
             cache,
             sealed: Vec::new(),
+            referenced: Vec::new(),
             features: BTreeMap::new(),
             require_features: false,
             lock: None,
@@ -201,9 +203,24 @@ impl LockedRegistry {
 
     /// Also seal the registry packages that `selector` names, such as a
     /// preferred provider's family, which the ledger names by another property.
+    /// The package is read for provider proofs but is not a reference for the
+    /// copy ban; [`Self::seal_reference`] makes it both.
     #[must_use]
     pub fn seal(mut self, selector: impl Into<String>) -> Self {
         self.sealed.push(selector.into());
+        self
+    }
+
+    /// Seal the registry packages that `selector` names and also make them
+    /// references for the copy ban, exactly as a ledger `reference` selector
+    /// does: both feed one reference selection, so a copy of a body of such a
+    /// package is a hard `REFERENCE-COPY` finding although the ledger does not
+    /// name it.
+    #[must_use]
+    pub fn seal_reference(mut self, selector: impl Into<String>) -> Self {
+        let selector = selector.into();
+        self.referenced.push(selector.clone());
+        self.sealed.push(selector);
         self
     }
 
@@ -273,7 +290,10 @@ impl Gate {
         registry: &LockedRegistry,
     ) -> Result<GateReport, Error> {
         with_registry(tree, registry, |catalog, local, sources| {
-            self.check_locked(tree, catalog, local, sources)
+            super::check_debt(
+                tree,
+                self.evaluate_locked(tree, None, &registry.referenced, catalog, local, sources)?,
+            )
         })
     }
 
@@ -290,7 +310,14 @@ impl Gate {
         with_registry(&tree, registry, |catalog, local, sources| {
             super::check_debt(
                 &tree,
-                self.evaluate_locked(&tree, Some(&root), catalog, local, sources)?,
+                self.evaluate_locked(
+                    &tree,
+                    Some(&root),
+                    &registry.referenced,
+                    catalog,
+                    local,
+                    sources,
+                )?,
             )
         })
     }
@@ -309,7 +336,16 @@ impl Gate {
             source,
         })?;
         with_registry(&tree, registry, |catalog, local, sources| {
-            self.write_debt_locked(catalog, local, sources)
+            self.write_debt_with(|tree| {
+                self.evaluate_locked(
+                    tree,
+                    Some(&root),
+                    &registry.referenced,
+                    catalog,
+                    local,
+                    sources,
+                )
+            })
         })
     }
 }

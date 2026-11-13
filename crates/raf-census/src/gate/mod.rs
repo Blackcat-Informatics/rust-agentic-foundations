@@ -294,7 +294,7 @@ impl Gate {
     ) -> Result<GateReport, Error> {
         check_debt(
             tree,
-            self.evaluate_locked(tree, None, catalog, local, sources)?,
+            self.evaluate_locked(tree, None, &[], catalog, local, sources)?,
         )
     }
 
@@ -365,7 +365,7 @@ impl Gate {
     ) -> Result<DebtWrite, Error> {
         let root = self.root()?;
         self.write_debt_with(|tree| {
-            self.evaluate_locked(tree, Some(&root), catalog, local, sources)
+            self.evaluate_locked(tree, Some(&root), &[], catalog, local, sources)
         })
     }
 
@@ -440,11 +440,12 @@ impl Gate {
         &self,
         tree: &impl Tree,
         host: Option<&Path>,
+        sealed: &[String],
         catalog: &LockedCatalog,
         local: &[LockedManifest<'_>],
         sources: &[LockedPackageRoots<'_>],
     ) -> Result<GateReport, Error> {
-        let ledger = read_ledger(tree)?;
+        let ledger = read_ledger(tree)?.with_reference_selectors(sealed);
         let mut options = LoadOptions::default();
         options.max_file_bytes = ledger.options().max_file_bytes;
         let roots = ledger

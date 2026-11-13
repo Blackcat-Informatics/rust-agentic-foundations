@@ -164,7 +164,7 @@ fn registry(args: &RegistryArgs) -> Result<Option<LockedRegistry>, Error> {
     };
     let mut registry = LockedRegistry::new(cache).require_declared_features();
     for selector in &args.seal {
-        registry = registry.seal(selector);
+        registry = registry.seal_reference(selector);
     }
     let mut declared = std::collections::BTreeSet::new();
     for declaration in &args.features {
