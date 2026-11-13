@@ -1931,7 +1931,7 @@ fn the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded() {
         &[
             (
                 "Cargo.toml",
-                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n",
+                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[workspace]\n",
             ),
             ("src/lib.rs", "pub fn a() {}"),
             ("helpers-ledger.ttl", unhomed_ledger(&[]).as_str()),
@@ -1948,4 +1948,86 @@ fn the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded() {
         .unwrap_err()
         .to_string();
     assert!(refused.contains("Cargo.lock"), "{refused}");
+}
+
+/// A selector added with `seal` whose package the manifest and the lock file
+/// disagree about is refused by package, selector and declaration, never left
+/// unsealed; the agreeing declaration seals. An oversized cached candidate is
+/// skipped while a later one matches, and when it is the only candidate the
+/// refusal names it.
+#[test]
+fn a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one() {
+    let archive = acme_core(PROVIDED);
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n",
+        raf_fixtures::registry::checksum(&archive)
+    );
+    let ledger = unhomed_ledger(&[]);
+    let tree = |requirement: &str| {
+        let manifest = format!(
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='{requirement}'\n"
+        );
+        raf_source::MemoryTree::from([
+            ("Cargo.toml", manifest.as_str()),
+            (
+                "src/lib.rs",
+                "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+            ),
+            ("Cargo.lock", lock.as_str()),
+            ("helpers-ledger.ttl", ledger.as_str()),
+        ])
+    };
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
+    let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
+        .seal("acme-core");
+    let agreeing = Gate::workspace(".")
+        .check_locked_registry(&tree("1"), &registry)
+        .unwrap();
+    assert!(agreeing.is_clean(), "{:?}", agreeing.findings());
+    let message = Gate::workspace(".")
+        .check_locked_registry(&tree("2"), &registry)
+        .unwrap_err()
+        .to_string();
+    for expected in [
+        "acme-core",
+        "\"acme-core\"",
+        "disagree",
+        "dependencies.acme-core",
+    ] {
+        assert!(message.contains(expected), "{expected} missing: {message}");
+    }
+
+    let oversize = |directory: &std::path::Path| {
+        let index = directory.join("a-first");
+        std::fs::create_dir_all(&index).unwrap();
+        // A sparse file one byte over the 256 MiB budget: nothing is allocated.
+        std::fs::File::create(index.join("acme-core-1.0.0.crate"))
+            .unwrap()
+            .set_len((256 << 20) + 1)
+            .unwrap();
+    };
+    let skipped = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    oversize(skipped.path());
+    raf_fixtures::registry::place(skipped.path(), "b-second", "acme-core", "1.0.0", &archive);
+    let later = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(skipped.path()))
+        .seal("acme-core");
+    assert!(
+        Gate::workspace(".")
+            .check_locked_registry(&tree("1"), &later)
+            .unwrap()
+            .is_clean()
+    );
+    let only = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    oversize(only.path());
+    let alone = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(only.path()))
+        .seal("acme-core");
+    let message = Gate::workspace(".")
+        .check_locked_registry(&tree("1"), &alone)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        message.contains("a-first") && message.contains("byte archive budget"),
+        "{message}"
+    );
 }

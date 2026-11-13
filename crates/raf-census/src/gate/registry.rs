@@ -319,7 +319,9 @@ fn effective(dependency: &DependencyDeclaration) -> &DependencySpec {
 /// Match each registry declaration of one package, whose effective package name
 /// a selector names, to its own outgoing row of `owner`: the row that the
 /// locked selector picks for that declaration's version requirement and
-/// registry. Declarations that select no row stay unmatched and unsealed.
+/// registry. A declaration that no outgoing row of the owner carries stays unmatched
+/// and unsealed; one whose candidate rows the locked selector all refuses is a
+/// disagreement between manifest and lock, which refuses.
 fn matches_of<'a>(
     catalog: &LockedCatalog,
     workspace: &'a Workspace,
@@ -327,9 +329,9 @@ fn matches_of<'a>(
     owner: LockedPackageId,
     selectors: &[&str],
     options: &LoadOptions,
-) -> Vec<Matched<'a>> {
+) -> Result<Vec<Matched<'a>>, Error> {
     let Some(owner_row) = catalog.package(owner) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let mut matched = Vec::new();
     for dependency in workspace
@@ -344,6 +346,8 @@ fn matches_of<'a>(
         {
             continue;
         }
+        let mut refused = None;
+        let mut found = false;
         for id in owner_row.dependencies() {
             let Some(row) = catalog.package(*id) else {
                 continue;
@@ -359,6 +363,7 @@ fn matches_of<'a>(
             if row.name() != name {
                 continue;
             }
+            found = true;
             let index = if spec.registry_index.is_some() {
                 None
             } else {
@@ -375,17 +380,34 @@ fn matches_of<'a>(
                     .map(|(name, source)| RegistryIndex::new(*name, source)),
                 options,
             );
-            if chosen.is_ok_and(|chosen| chosen == *id) {
-                matched.push(Matched {
-                    key: &dependency.key,
-                    row: *id,
-                    index,
-                });
-                break;
+            match chosen {
+                Ok(chosen) if chosen == *id => {
+                    matched.push(Matched {
+                        key: &dependency.key,
+                        row: *id,
+                        index,
+                    });
+                    refused = None;
+                    found = false;
+                    break;
+                }
+                Ok(_) => {}
+                Err(error) => refused = Some(error),
             }
         }
+        if let (true, Some(error)) = (found, refused) {
+            let selector = selectors
+                .iter()
+                .find(|selector| selects(selector, name))
+                .copied()
+                .unwrap_or(name);
+            return Err(refusal(format!(
+                "package {name}: selector {selector:?} selects declaration {}, but the lock file and the manifest disagree: {error}; update Cargo.lock or the declaration",
+                dependency.key
+            )));
+        }
     }
-    matched
+    Ok(matched)
 }
 
 /// The outgoing edges whose rows have a checked source: contained path packages
@@ -491,7 +513,7 @@ fn with_registry<T>(
         .package_ids()
         .zip(&owners)
         .map(|(id, owner)| matches_of(&catalog, &workspace, id, *owner, &selectors, &options))
-        .collect();
+        .collect::<Result<_, _>>()?;
     let sealed: BTreeSet<LockedPackageId> =
         matched.iter().flatten().map(|entry| entry.row).collect();
     let natives: Vec<_> = sealed
