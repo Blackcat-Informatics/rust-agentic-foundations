@@ -73,6 +73,7 @@ bindings:
     - raf_census::test_crate::ledger_evidence::a_link_that_escapes_the_workspace_root_is_refused
     - raf_census::test_crate::ledger_evidence::a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link
     - raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links
+    - raf_census::test_crate::ledger_evidence::a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one
     - raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor
     - raf_census::test_crate::census_gate::a_home_reached_through_two_modules_uses_one_physical_owner
     - raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package
@@ -219,7 +220,7 @@ increase the count. Documentation anchors are absolute urn:raf:code: IRIs
 followed by a percent-encoded Source path that resolves to documented items.
 
 ### Staleness and registered code
-<!-- raf:tested-by raf_census::test_crate::ledger_evidence::a_job_naming_an_existing_vector_and_bench_is_clean,raf_census::test_crate::ledger_evidence::a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link,raf_census::test_crate::ledger_evidence::a_link_that_escapes_the_workspace_root_is_refused,raf_census::test_crate::ledger_evidence::a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link,raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links,raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy,raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
+<!-- raf:tested-by raf_census::test_crate::ledger_evidence::a_job_naming_an_existing_vector_and_bench_is_clean,raf_census::test_crate::ledger_evidence::a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link,raf_census::test_crate::ledger_evidence::a_link_that_escapes_the_workspace_root_is_refused,raf_census::test_crate::ledger_evidence::a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link,raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links,raf_census::test_crate::ledger_evidence::a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one,raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy,raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
 
 Missing homes, entries, members or variants, unmatched body/shim fingerprints,
 obsolete sanctions and unenforced jobs with zero copies are findings. A declared
@@ -528,6 +529,7 @@ the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise de
 | `raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::rules_and_variants_share_physical_ownership_without_widening_file_sanctions` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy` | test | [Contract](#contract) |
+| `raf_census::test_crate::ledger_evidence::a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one` | test | [Contract](#contract) |
 | `raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links` | test | [Contract](#contract) |
 | `raf_census::test_crate::ledger_evidence::a_job_naming_an_existing_vector_and_bench_is_clean` | test | [Contract](#contract) |
 | `raf_census::test_crate::ledger_evidence::a_link_that_escapes_the_workspace_root_is_refused` | test | [Contract](#contract) |

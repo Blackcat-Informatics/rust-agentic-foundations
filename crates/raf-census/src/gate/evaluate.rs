@@ -741,6 +741,9 @@ fn evidence_links(
                 && target.package == bench.package
                 && target.name == bench.target
                 && references.consumers.contains(&target.package_id)
+                && workspace.package(target.package_id).is_some_and(|package| {
+                    package.manifest.authority() == raf_source::SourceAuthorityId::FIRST_PARTY
+                })
         });
         if !found {
             findings.push(format!(

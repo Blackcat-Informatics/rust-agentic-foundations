@@ -262,3 +262,84 @@ fn a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links() {
         "{error}"
     );
 }
+
+#[test]
+fn a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one() {
+    use raf_source::{
+        CommittedGitTree, LoadOptions, LockedCatalog, LockedEdge, LockedManifest,
+        LockedPackageRoots, LockedTree, RelPath,
+    };
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let repository = scratch.path().join("kit");
+    raf_fixtures::git_repo::init(&repository);
+    raf_fixtures::files::write(
+        &repository,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='kit'\nversion='1.0.0'\nedition='2024'\n[[bench]]\nname='speed'\nharness=false\n[workspace]\n",
+            ),
+            ("src/lib.rs", "pub fn provided() -> u32 { 3 }"),
+            ("benches/speed.rs", "fn main() {}"),
+        ],
+    );
+    let commit = raf_fixtures::git_repo::commit_all(&repository);
+    let source = format!("git+https://example.test/kit?rev={commit}#{commit}");
+    let lock = format!(
+        "version=4\n[[package]]\nname='kit'\nversion='1.0.0'\nsource={source:?}\n[[package]]\nname='demo'\nversion='1.0.0'\ndependencies=[{:?}]\n",
+        format!("kit 1.0.0 ({source})")
+    );
+    let options = LoadOptions::default();
+    let catalog = LockedCatalog::load(
+        &MemoryTree::from([("Cargo.lock", lock.as_str())]),
+        &RelPath::new("Cargo.lock").unwrap(),
+        &options,
+    )
+    .unwrap();
+    let row = |name: &str| {
+        catalog
+            .packages()
+            .find(|row| row.name() == name)
+            .unwrap()
+            .id()
+    };
+    let git = CommittedGitTree::open(&catalog, row("kit"), &repository, &options).unwrap();
+    let manifest = format!(
+        "{}[dependencies]\nkit={{git='https://example.test/kit',rev='{commit}'}}\n",
+        MANIFEST.replace("0.1.0", "1.0.0")
+    );
+    let check = |bench: &str| {
+        let policy = text(ledger(&[], &[bench]));
+        let tree = MemoryTree::from([
+            ("Cargo.toml", manifest.as_str()),
+            ("src/lib.rs", SOURCE),
+            ("benches/speed.rs", "fn main() {}"),
+            ("Cargo.lock", lock.as_str()),
+            ("helpers-ledger.ttl", policy.as_str()),
+        ]);
+        let edges = [LockedEdge::new("dependencies.kit", None)];
+        let local = [LockedManifest::new(
+            row("demo"),
+            RelPath::new("Cargo.toml").unwrap(),
+            &edges,
+        )];
+        let kit = [LockedManifest::new(
+            row("kit"),
+            RelPath::new("Cargo.toml").unwrap(),
+            &[],
+        )];
+        let sources = [LockedPackageRoots::new(LockedTree::Git(&git), &kit)];
+        Gate::workspace(".")
+            .check_locked(&tree, &catalog, &local, &sources)
+            .unwrap()
+    };
+    let local = check("demo:speed");
+    assert!(local.is_clean(), "{:?}", local.findings());
+    let sealed = check("kit:speed");
+    assert_eq!(sealed.findings().len(), 1, "{:?}", sealed.findings());
+    assert!(
+        sealed.findings()[0].contains("\"number\"") && sealed.findings()[0].contains("kit:speed"),
+        "{:?}",
+        sealed.findings()
+    );
+}
