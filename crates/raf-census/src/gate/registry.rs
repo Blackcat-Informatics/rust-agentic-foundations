@@ -182,6 +182,7 @@ pub struct LockedRegistry {
     cache: ArchiveCache,
     sealed: Vec<String>,
     features: BTreeMap<String, Vec<String>>,
+    require_features: bool,
     lock: Option<String>,
 }
 
@@ -193,6 +194,7 @@ impl LockedRegistry {
             cache,
             sealed: Vec::new(),
             features: BTreeMap::new(),
+            require_features: false,
             lock: None,
         }
     }
@@ -219,6 +221,15 @@ impl LockedRegistry {
             package.into(),
             features.into_iter().map(Into::into).collect(),
         );
+        self
+    }
+
+    /// Refuse a sealed package whose feature set was not declared with
+    /// [`Self::features`], instead of judging it with no feature enabled.
+    /// An empty declaration states that the workspace enables none.
+    #[must_use]
+    pub const fn require_declared_features(mut self) -> Self {
+        self.require_features = true;
         self
     }
 
@@ -276,7 +287,12 @@ impl Gate {
             file: root.display().to_string(),
             source,
         })?;
-        self.check_locked_registry(&tree, registry)
+        with_registry(&tree, registry, |catalog, local, sources| {
+            super::check_debt(
+                &tree,
+                self.evaluate_locked(&tree, Some(&root), catalog, local, sources)?,
+            )
+        })
     }
 
     /// Record the present debt through the same registry-sealed evaluation as
@@ -539,6 +555,7 @@ fn with_registry<T>(
         .iter()
         .filter_map(|id| catalog.package(*id))
         .collect();
+    check_declared_features(registry, &natives)?;
 
     let cfg = DeclaredCfg::complete(TARGET, ORDINARY);
     let testing = DeclaredCfg::complete(TARGET, TESTING);
@@ -605,6 +622,38 @@ fn with_registry<T>(
         .map(|(tree, manifest)| LockedPackageRoots::new(LockedTree::Registry(tree), manifest))
         .collect();
     action(&catalog, &local, &sources)
+}
+
+/// A feature declaration for a package that is not sealed is a misspelt
+/// package, and a sealed package without one is refused when the registry
+/// requires declarations.
+fn check_declared_features(
+    registry: &LockedRegistry,
+    natives: &[&raf_source::LockedPackage],
+) -> Result<(), Error> {
+    if let Some(package) = registry
+        .features
+        .keys()
+        .find(|package| !natives.iter().any(|row| row.name() == package.as_str()))
+    {
+        return Err(refusal(format!(
+            "features declared for {package}, which is not a sealed registry package of this workspace; check the package name against the selectors"
+        )));
+    }
+    if registry.require_features
+        && let Some(row) = natives
+            .iter()
+            .find(|row| !registry.features.contains_key(row.name()))
+    {
+        return Err(refusal(format!(
+            "{} {}: the sealed package has no declared feature set; declare the complete set the workspace enables (`--registry-features {}=FEATURE,...`, or `{}=` for none)",
+            row.name(),
+            row.version(),
+            row.name(),
+            row.name()
+        )));
+    }
+    Ok(())
 }
 
 /// The library target name that the authenticated manifest of a sealed package

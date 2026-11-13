@@ -3,17 +3,21 @@
 
 //! Host input adapter; Census policy lives in the repository target and library.
 
-use crate::cli::{Args, Command, MigrationArgs, QueryTarget, RdfFormat, ReferenceArgs};
+use crate::cli::{
+    Args, Command, MigrationArgs, QueryTarget, RdfFormat, ReferenceArgs, RegistryArgs,
+};
 use raf_census::{
-    Census, CensusOptions, Error, ExternalReference, Gate, LEDGER_FILE, Ledger, MAX_INDEX_BYTES,
-    MAX_LEDGER_BYTES, MigrationInput, ReportError, migrate_index, migrate_legacy,
+    ArchiveCache, Census, CensusOptions, Error, ExternalReference, Gate, GateReport, LEDGER_FILE,
+    Ledger, LockedRegistry, MAX_INDEX_BYTES, MAX_LEDGER_BYTES, MigrationInput, ReportError,
+    migrate_index, migrate_legacy,
 };
 use raf_source::{DiskTree, RelPath, Tree as _};
 use std::{io::Write, path::Path};
 
 pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
     let external = external(&args.reference)?;
-    if external.is_some()
+    let registry = registry(&args.registry)?;
+    if (external.is_some() || registry.is_some())
         && matches!(
             args.command,
             Command::SelfTest
@@ -23,7 +27,7 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
         )
     {
         return Err(Error::Options(
-            "reference options apply only to check, index, job, count, fingerprint and debt".into(),
+            "reference options apply only to check, index, job, count, fingerprint and debt, and so do the registry options".into(),
         )
         .into());
     }
@@ -50,7 +54,7 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
             Ok(0)
         }
         Command::Check => {
-            let report = gate.check()?;
+            let report = evaluate(&gate, registry.as_ref())?;
             for finding in report.findings() {
                 writeln!(output, "{finding}").map_err(stdout)?;
             }
@@ -58,7 +62,7 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
         }
 
         Command::Index(target) => {
-            let index = native_index(&gate, target.max_index_bytes)?;
+            let index = native_index(&gate, registry.as_ref(), target.max_index_bytes)?;
             let text = match target.format {
                 RdfFormat::Ntriples => index.to_ntriples()?,
                 RdfFormat::Turtle => index.to_turtle()?,
@@ -66,16 +70,32 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
             write_report(&gate.root()?, &text, target.out.as_deref(), output)?;
             Ok(0)
         }
-        Command::Job { id, target } => query(&gate, target, raf_census::Query::Job(id), output),
-        Command::Count { id, target } => query(&gate, target, raf_census::Query::Count(id), output),
+        Command::Job { id, target } => query(
+            &gate,
+            registry.as_ref(),
+            target,
+            raf_census::Query::Job(id),
+            output,
+        ),
+        Command::Count { id, target } => query(
+            &gate,
+            registry.as_ref(),
+            target,
+            raf_census::Query::Count(id),
+            output,
+        ),
         Command::Fingerprint { symbol, target } => query(
             &gate,
+            registry.as_ref(),
             target,
             raf_census::Query::Fingerprint(symbol),
             output,
         ),
         Command::Debt { write: _ } => {
-            let receipt = gate.write_debt()?;
+            let receipt = match registry.as_ref() {
+                Some(registry) => gate.write_debt_registry(registry)?,
+                None => gate.write_debt()?,
+            };
             writeln!(output, "{receipt}").map_err(stdout)?;
             Ok(0)
         }
@@ -83,8 +103,12 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
     }
 }
 
-fn native_index(gate: &Gate, limit: usize) -> Result<raf_census::Index, crate::error::Error> {
-    let report = gate.check()?;
+fn native_index(
+    gate: &Gate,
+    registry: Option<&LockedRegistry>,
+    limit: usize,
+) -> Result<raf_census::Index, crate::error::Error> {
+    let report = evaluate(gate, registry)?;
     let index = report.census().index(report.jobs())?;
     let serialized = index.to_ntriples()?;
     if serialized.len() > limit {
@@ -99,12 +123,13 @@ fn native_index(gate: &Gate, limit: usize) -> Result<raf_census::Index, crate::e
 
 fn query(
     gate: &Gate,
+    registry: Option<&LockedRegistry>,
     target: &QueryTarget,
     selector: raf_census::Query<'_>,
     output: &mut dyn Write,
 ) -> Result<u8, crate::error::Error> {
     let root = gate.root()?;
-    let index = native_index(gate, target.max_index_bytes)?;
+    let index = native_index(gate, registry, target.max_index_bytes)?;
     let result = index.query(selector)?;
     let text = match target.format {
         RdfFormat::Ntriples => result.to_ntriples()?,
@@ -112,6 +137,53 @@ fn query(
     };
     write_report(&root, &text, target.out.as_deref(), output)?;
     Ok(0)
+}
+
+/// The one evaluation that `check`, `index`, `job`, `count` and `fingerprint`
+/// share: the locked check with the sealed registry dependencies when the
+/// options name any, otherwise the ordinary check.
+fn evaluate(
+    gate: &Gate,
+    registry: Option<&LockedRegistry>,
+) -> Result<GateReport, crate::error::Error> {
+    Ok(match registry {
+        Some(registry) => gate.check_registry(registry)?,
+        None => gate.check()?,
+    })
+}
+
+/// The sealed registry dependencies the options declare, or `None` when they
+/// declare none. Every sealed package needs its complete feature set declared.
+fn registry(args: &RegistryArgs) -> Result<Option<LockedRegistry>, Error> {
+    if args.cache.is_none() && args.seal.is_empty() && args.features.is_empty() {
+        return Ok(None);
+    }
+    let cache = match &args.cache {
+        Some(directory) => ArchiveCache::at(directory),
+        None => ArchiveCache::cargo_home()?,
+    };
+    let mut registry = LockedRegistry::new(cache).require_declared_features();
+    for selector in &args.seal {
+        registry = registry.seal(selector);
+    }
+    let mut declared = std::collections::BTreeSet::new();
+    for declaration in &args.features {
+        let (package, features) = declaration.split_once('=').ok_or_else(|| {
+            Error::Options(format!(
+                "--registry-features {declaration:?}: expected PACKAGE=FEATURE,FEATURE (PACKAGE= for none)"
+            ))
+        })?;
+        if package.is_empty() || !declared.insert(package) {
+            return Err(Error::Options(format!(
+                "--registry-features {declaration:?}: name each package once, and name it"
+            )));
+        }
+        registry = registry.features(
+            package,
+            features.split(',').filter(|feature| !feature.is_empty()),
+        );
+    }
+    Ok(Some(registry))
 }
 
 /// The one caller-declared reference tree, when the options name one.

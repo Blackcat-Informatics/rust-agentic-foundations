@@ -19,7 +19,7 @@ inputs:
     digest: 469c0bc06984a4ee08ef751e6e3e72694d7741048688ae7a7630792f5f1c7532
   - kind: symbol
     name: raf_census::Gate::check_registry
-    digest: 5f3e0ceda37af2c3585c5571c0ca39e1e57f4e7b28fb1bf83fc47ab2f1f9330f
+    digest: 1c1a37f53db239e0be6f3436ace2ed25b59e6027988f470371c11e4b626bd8a6
   - kind: symbol
     name: raf_census::Gate::check_tree_with_references
     digest: c5087ae773dfc4b1246c1a9498aa45fbe698686a15afef9ecc6786beb2ff8ec8
@@ -34,7 +34,10 @@ inputs:
     digest: cd64507978316827035e756255a3349f17f3a20e754f52add06695d8198ca1c5
   - kind: symbol
     name: raf_census::LockedRegistry
-    digest: 12a731b7ba9c1e48a544fe8c29a7552921e25d6f017bbb2dbb92d0ecad01120e
+    digest: f509748b4d8a963817c7c30c1567acb43145aba79046fa435ff2b7cff85223ef
+  - kind: symbol
+    name: raf_census::LockedRegistry::require_declared_features
+    digest: 5f7974115fb85b850224d4e87f81b0dfe79f0cf17b74625a84ec8aa135bda51e
   - kind: symbol
     name: raf_census::ReferenceConstantRow
     digest: 553be507c6f6454a9bd7b7746d27c6f9f79e9461e1c2db7fc0c4c57582e02767
