@@ -8,6 +8,31 @@ This file is the behavioral contract for agents and humans working in the RAF
 
 ---
 
+## Guiding principles
+
+When requests conflict, these four principles decide. They do not replace the
+standing rules of this repository.
+
+- **GREENFIELD**: we always correct the mistakes of the past. Others' mistakes
+  are our lessons, not our limits.
+- **SOTA**: always choose the state of the art over the bones of the past.
+- **OPTIMAL**: choose the Pareto frontier of the quality, speed, efficiency and
+  other axes.
+- **MAXIMAL**: support the broadest functionality possible after the other
+  choices are made.
+
+## Agent working conduct
+
+- One shell call does one thing. Do not chain unrelated steps into one call.
+- A deletion is its own call and names one exact path inside the repository,
+  listed first. Remove worktrees with `stagectl cleanup` or `git worktree remove`.
+  Never delete by glob or by variable.
+- Do not issue a command that could raise a permission prompt: no path outside
+  the repository, no long compound command, and never resend a refused call in
+  another form.
+
+---
+
 ## Runtime authority
 
 RAF inspects repository contents as data. Its analysis libraries never launch
