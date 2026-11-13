@@ -276,7 +276,7 @@ checks, including the Python refusal. Install the commit and merge hooks with
 ## Examples
 
 A workflow job with `timeout-minutes: 9` passes the budget rule. Omitting the
-property, spelling it as an expression, or giving ten refuses and names the
+property, spelling it as an expression, or giving sixteen refuses and names the
 job. Adding a workspace member automatically adds it to the source-change test
 matrix. A documented example shared by several capabilities has one successful
 execution for its package, while every binding still receives native planning.
@@ -298,7 +298,7 @@ An empty `tools/check.py` or an extensionless script beginning with
 
 ## Constraints
 
-Workflow execution budgets must be literal integers from one through nine; an absent,
+Workflow execution budgets must be literal integers from one through fifteen; an absent,
 dynamic, zero or excessive value refuses the repository gate.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget -->
 
