@@ -144,6 +144,21 @@ fn a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link() {
         finding.contains("\"number\"") && finding.contains("demo:speed"),
         "{finding}"
     );
+    let directory = Gate::workspace(".")
+        .check_tree(&tree(
+            MANIFEST,
+            &LINKED,
+            ledger(&["vectors"], &["demo:speed"]),
+        ))
+        .unwrap();
+    assert_eq!(directory.findings().len(), 1, "{:?}", directory.findings());
+    let finding = &directory.findings()[0];
+    assert!(
+        finding.contains("\"number\"")
+            && finding.contains("\"vectors\"")
+            && finding.contains("not a regular file"),
+        "{finding}"
+    );
     let other_package = Gate::workspace(".")
         .check_tree(&tree(
             MANIFEST,
@@ -160,15 +175,17 @@ fn a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link() {
 
 #[test]
 fn a_link_that_escapes_the_workspace_root_is_refused() {
-    for escaping in [
-        "../outside.json",
-        "/etc/passwd",
-        "vectors/../../outside.json",
+    for (escaping, cause) in [
+        ("../outside.json", "climbs above the root"),
+        ("/etc/passwd", "is absolute"),
+        ("vectors/../../outside.json", "climbs above the root"),
+        ("vectors\\add.json", "holds a backslash"),
     ] {
         let error = Ledger::from_turtle(&text(ledger(&[escaping], &[])))
             .unwrap_err()
             .to_string();
         assert!(error.contains("vectorPath"), "{escaping}: {error}");
+        assert!(error.contains(cause), "{escaping}: {error}");
     }
     Ledger::from_turtle(&text(ledger(&["vectors/add.json"], &["demo:speed"]))).unwrap();
     for malformed in ["speed", "demo:", ":speed", "a:b:c"] {
@@ -205,7 +222,10 @@ fn a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link() {
     assert!(check("vectors/inside.json").unwrap().is_clean());
     std::os::unix::fs::symlink("../../outside.json", root.join("vectors/out.json")).unwrap();
     let error = check("vectors/out.json").unwrap_err().to_string();
-    assert!(error.contains("vectors/out.json"), "{error}");
+    assert!(
+        error.contains("vectors/out.json") && error.contains("leads outside the root"),
+        "{error}"
+    );
 }
 
 #[test]
