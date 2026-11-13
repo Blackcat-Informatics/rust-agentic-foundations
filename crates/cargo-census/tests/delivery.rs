@@ -101,15 +101,21 @@ fn source(root: &Path, copies: usize) {
 /// only ever sees the locks of its own test.
 static CHILD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-fn run(root: &Path, words: &[&str]) -> Output {
+/// Start a command and wait for it under [`CHILD`]; every command of this
+/// binary goes through it.
+fn alone(command: &mut Command) -> Output {
     let _alone = CHILD
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-        .current_dir(root)
-        .args(words)
-        .output()
-        .unwrap()
+    command.output().unwrap()
+}
+
+fn run(root: &Path, words: &[&str]) -> Output {
+    alone(
+        Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(root)
+            .args(words),
+    )
 }
 
 #[test]
@@ -173,13 +179,13 @@ fn report_exports_refuse_source_existing_files_and_git_administration() {
     )
     .unwrap();
     let destination = administration.join("report.ttl");
-    let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-        .current_dir(root)
-        .arg("baseline")
-        .arg("--out")
-        .arg(&destination)
-        .output()
-        .unwrap();
+    let result = alone(
+        Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(root)
+            .arg("baseline")
+            .arg("--out")
+            .arg(&destination),
+    );
     assert_eq!(result.status.code(), Some(1), "{result:?}");
     assert!(!destination.exists());
     let result = run(root, &["baseline", "--out", "report.ttl"]);
@@ -536,13 +542,13 @@ fn ledger_inspection() {
         "{error}"
     );
     let caller = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-        .current_dir(caller.path())
-        .args(["--workspace"])
-        .arg(root)
-        .args(["dump-ledger", "--format", "turtle", "--out", "policy.ttl"])
-        .output()
-        .unwrap();
+    let result = alone(
+        Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(caller.path())
+            .args(["--workspace"])
+            .arg(root)
+            .args(["dump-ledger", "--format", "turtle", "--out", "policy.ttl"]),
+    );
     assert!(result.status.success(), "{result:?}");
     assert_eq!(result.stdout, [] as [u8; 0]);
     let text = fs::read_to_string(caller.path().join("policy.ttl")).unwrap();
@@ -580,12 +586,12 @@ fn ledger_inspection_refusals(root: &Path, caller: &Path, original: &str) {
             } else {
                 fs::remove_file(&destination).unwrap();
             }
-            let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-                .current_dir(root)
-                .args(["dump-ledger", "--out"])
-                .arg(&destination)
-                .output()
-                .unwrap();
+            let result = alone(
+                Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+                    .current_dir(root)
+                    .args(["dump-ledger", "--out"])
+                    .arg(&destination),
+            );
             assert_eq!(result.status.code(), Some(1), "{result:?}");
             assert_eq!(result.stdout, [] as [u8; 0]);
             assert!(String::from_utf8_lossy(&result.stderr).contains("helpers-ledger.ttl"));
@@ -653,13 +659,13 @@ fn baseline_discovery() {
         native
     );
     let caller = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
-    let turtle = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-        .current_dir(caller.path())
-        .args(["--workspace"])
-        .arg(root)
-        .args(["baseline", "--format", "turtle", "--out", "report.ttl"])
-        .output()
-        .unwrap();
+    let turtle = alone(
+        Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(caller.path())
+            .args(["--workspace"])
+            .arg(root)
+            .args(["baseline", "--format", "turtle", "--out", "report.ttl"]),
+    );
     assert!(turtle.status.success(), "{turtle:?}");
     assert_eq!(turtle.stdout, [] as [u8; 0]);
     let text = fs::read_to_string(caller.path().join("report.ttl")).unwrap();
@@ -680,13 +686,13 @@ fn baseline_refusals(root: &Path, caller: &Path) {
         } else {
             fs::remove_file(&destination).unwrap();
         }
-        let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
-            .current_dir(root)
-            .arg("baseline")
-            .arg("--out")
-            .arg(&destination)
-            .output()
-            .unwrap();
+        let result = alone(
+            Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+                .current_dir(root)
+                .arg("baseline")
+                .arg("--out")
+                .arg(&destination),
+        );
         assert_eq!(result.status.code(), Some(1), "{result:?}");
         assert_eq!(result.stdout, [] as [u8; 0]);
         assert!(String::from_utf8_lossy(&result.stderr).contains("Cargo.toml"));
@@ -1283,17 +1289,12 @@ fn registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_se
     let home = scratch.path().join("home");
     fs::create_dir_all(home.join("registry")).unwrap();
     fs::rename(&cache, home.join("registry/cache")).unwrap();
-    let from_home = {
-        let _alone = CHILD
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let from_home = alone(
         Command::new(env!("CARGO_BIN_EXE_cargo-census"))
             .current_dir(&root)
             .env("CARGO_HOME", &home)
-            .args(["check", "--registry-features", "acme-core="])
-            .output()
-            .unwrap()
-    };
+            .args(["check", "--registry-features", "acme-core="]),
+    );
     assert_eq!(from_home.status.code(), Some(1), "{from_home:?}");
     assert_eq!(from_home.stdout, stdout.as_bytes());
     fs::rename(home.join("registry/cache"), &cache).unwrap();
