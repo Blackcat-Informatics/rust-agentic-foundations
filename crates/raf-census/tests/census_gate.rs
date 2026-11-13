@@ -4812,3 +4812,69 @@ fn contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour() {
         .to_string();
     assert!(error.contains("stated only as true"), "{error}");
 }
+
+fn macro_scope_tree(lib_tail: &str, extra: &[(&str, &str)], graph: Builder) -> MemoryTree {
+    let mut files = vec![
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n".to_owned(),
+        ),
+        (
+            "src/lib.rs",
+            format!("pub fn home(){{blocked!();}}\npub use home as alias;\n{lib_tail}"),
+        ),
+        (
+            "helpers-ledger.ttl",
+            graph.finish().unwrap().to_text(Format::Turtle).unwrap(),
+        ),
+    ];
+    files.extend(extra.iter().map(|(path, text)| (*path, (*text).to_owned())));
+    files.into_iter().collect()
+}
+
+#[test]
+fn shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation() {
+    for (tail, copies) in [("blocked!();\n", 1), ("#[cfg(test)]\nblocked!();\n", 0)] {
+        let mut graph = lexical_pattern_graph("macro", "blocked");
+        put(&mut graph, "#pattern", "shippingOnly", Term::boolean(true));
+        let report = Gate::workspace(".")
+            .check_tree(&macro_scope_tree(tail, &[], graph))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{tail}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched() {
+    let shared = [
+        ("src/shared.rs", "pub fn used(){ super::blocked(); }\n"),
+        (
+            "tests/it.rs",
+            "#[path = \"../src/shared.rs\"]\nmod shared;\nfn blocked(){}\n#[test]\nfn it(){}\n",
+        ),
+    ];
+    for (kind, copies) in [("lib", 1), ("test", 0)] {
+        let mut graph = lexical_pattern_graph("call", "demo::blocked");
+        put(
+            &mut graph,
+            "#pattern",
+            "targetKind",
+            Term::simple_literal(kind),
+        );
+        let tail = "pub mod shared;\npub fn blocked(){}\n";
+        let report = Gate::workspace(".")
+            .check_tree(&macro_scope_tree(tail, &shared, graph))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{kind}: {:?}",
+            report.findings()
+        );
+    }
+}

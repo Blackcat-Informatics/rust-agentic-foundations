@@ -32,6 +32,8 @@ bindings:
     - raf_census::test_crate::census_gate::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits
     - raf_census::test_crate::census_gate::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it
     - raf_census::test_crate::census_gate::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour
+    - raf_census::test_crate::census_gate::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation
+    - raf_census::test_crate::census_gate::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched
     - raf_census::test_crate::census_gate::lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run
     - raf_census::test_crate::census_gate::lexical_patterns_reuse_local_normalization_and_keep_parameter_context
     - raf_census::test_crate::census_gate::lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes
@@ -100,13 +102,13 @@ segment, so src/legacy covers src/legacy/mod.rs but not src/legacy.rs), and raf:
 is declared) and under no exclude prefix, and the target that owns the item at the hit admits the
 kind: it is in targetKind (or none is declared) and not in excludeTargetKind. raf:shippingOnly
 admits only non-test code of a library or binary, so a #[cfg(test)] module, an integration test, a
-bench, an example and a build script are silent. A hit outside every item is judged by its file. An
+bench, an example and a build script are silent. A module-level macro invocation is judged by its own test role and target, so a #[cfg(test)] invocation at a crate root is silent under raf:shippingOnly. A path or call hit in a file that several targets reach is judged by the targets whose own resolution of the written path matched the declared definition, so a scope on the library does not admit a hit that only an integration test resolves. A hit outside every item is judged by its file. An
 unscoped pattern reports exactly as before. Unknown kind names, a kind both included and excluded,
 a scope that admits no target kind, an include prefix inside an exclude prefix, a path that is
 absolute, above the root or the root itself, and raf:shippingOnly stated as false refuse at ledger
 load with the property to change. A referenced pattern whose every occurrence is out of scope is
 stale for an enforced job.
-<!-- raf:tested-by raf_census::test_crate::census_gate::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts,raf_census::test_crate::census_gate::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits,raf_census::test_crate::census_gate::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it,raf_census::test_crate::census_gate::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts,raf_census::test_crate::census_gate::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits,raf_census::test_crate::census_gate::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it,raf_census::test_crate::census_gate::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour,raf_census::test_crate::census_gate::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation,raf_census::test_crate::census_gate::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched -->
 
 Documentation comments are prose, not written string literals; literal matching
 excludes their desugared leaves. Explicit `#[doc = "..."]` attributes remain
@@ -308,6 +310,7 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::gate::patterns::paths::cache::tests::index_growth_retains_the_original_grant_and_old_storage_on_refusal` | test | [Constraints](#constraints) |
 | `raf_census::gate::patterns::paths::cache::tests::native_storage_failures_keep_their_typed_cause` | test | [Constraints](#constraints) |
 | `raf_census::gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::anonymous_qualified_receivers_refuse_beside_supported_named_receivers` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures` | test | [Contract](#contract) |
@@ -338,6 +341,7 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::token_patterns_include_file_level_macro_arguments_without_renaming_item_names` | test | [Contract](#contract) |
