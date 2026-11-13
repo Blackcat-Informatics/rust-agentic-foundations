@@ -7,7 +7,7 @@ subject: cap:source-index#verification
 inputs:
   - kind: section
     name: cap:source-index#verification
-    digest: ba541c2c902eb909e5220b5dbf0ca42ea9479ec5ceb8d05b463e4dd0484e62d0
+    digest: f191a70b14949082a8344009b186cdac4244eaed8341939c61e06418d8bf2129
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -69,8 +69,11 @@ inputs:
     name: raf_source::TreeError
     digest: 1870f1f59aec46e41cf5240d1029068a8038cb77307e2221a53bee581121fc48
   - kind: symbol
+    name: raf_source::Usage
+    digest: c86ad8e58151210ec1ffd4f0de601b6f82dd60eeccde1eb0b5d815a28ceec492
+  - kind: symbol
     name: raf_source::Workspace
-    digest: eec438cf1fc54b7039eca2425308aefbb2b42e3a9b9f15dc14fce977e520db58
+    digest: 997d15987a66c6a472bd95c915b0a6e9de276de11b4f19ad6b2b01562a690b59
   - kind: symbol
     name: raf_source::Workspace::exported_items
     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9

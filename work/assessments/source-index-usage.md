@@ -7,7 +7,7 @@ subject: cap:source-index#usage
 inputs:
   - kind: section
     name: cap:source-index#usage
-    digest: dfb300c8a937be6d741b2f294bdfcd425c0cd601f92ba1c044e749cde43191b5
+    digest: 95f50101e64285923d6d4a59a81451d5ea73eed8770c73ff91ccf12b4c74e0bf
   - kind: symbol
     name: raf_source::CfgAtom
     digest: d36cd070e76abf89aa638ebe1dc5acff34ddaae19f6d22e8410100a04eaa0ea6
@@ -87,6 +87,18 @@ inputs:
     name: raf_source::OpenedBytes
     digest: e5dbd54979c652d9bca1350d264eafce9303293b9beec65d854adf9e0c5c6137
   - kind: symbol
+    name: raf_source::ParallelOptions
+    digest: 3f2fbcbbb97d89f7aea7caec1851f3a6bbb48df41031d9997d97081373d9e413
+  - kind: symbol
+    name: raf_source::ParallelOptionsError
+    digest: 627fc9c9e400752bd01c2208b448f7947552fd7f9a08af8325bdf55fb0e48d06
+  - kind: symbol
+    name: raf_source::ParallelTree
+    digest: 6ccc1b1da048b16d1c431aea9089bb84960632497c18e1d49932d61aeea5b25d
+  - kind: symbol
+    name: raf_source::ParallelUsage
+    digest: 3453a5860bc6be2c275cd43c893ccccd72e9298cff4def35128e0187d218b41c
+  - kind: symbol
     name: raf_source::ParsedSource
     digest: 6ca54f6d5936a9b8b9a76a10bd47d3bbc1287b3240d51839b6d1b29389f4a2b2
   - kind: symbol
@@ -117,6 +129,9 @@ inputs:
     name: raf_source::Tree
     digest: 4a6473970d811355ae6d37d1f11fc1c2075fcbe506ef1606ddb4d1133911639c
   - kind: symbol
+    name: raf_source::Usage
+    digest: c86ad8e58151210ec1ffd4f0de601b6f82dd60eeccde1eb0b5d815a28ceec492
+  - kind: symbol
     name: raf_source::Workspace::code_resolver
     digest: e1b516fb173d981ee22520060699be7f1d8fb140f51a2802c835e50eafa9d88c
   - kind: symbol
@@ -131,6 +146,12 @@ inputs:
   - kind: symbol
     name: raf_source::Workspace::load_locked_sources_under
     digest: 23b90c23a21aa3fa023403708d4759ebed2eb8384af0b94dc0d8d40a62c22a92
+  - kind: symbol
+    name: raf_source::Workspace::par_load
+    digest: 712a1eed4eb212f40ca664dbf0cad603e2d9ba1a2f17042d606f3bde528b1859
+  - kind: symbol
+    name: raf_source::Workspace::parallel_usage
+    digest: d82fed6c5996903beb472bcb1d8ede03f3a671c91b4433cb3a5ab84ad9b0d7b1
   - kind: symbol
     name: raf_source::Workspace::resolve_active_from_package_id_in
     digest: 9258657ec9665352149292a1b6a130e91276c2be684bc7b8c021a43e131391e0

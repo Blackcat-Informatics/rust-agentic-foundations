@@ -249,6 +249,18 @@ inputs:
     name: raf_source::PackageId
     digest: 074faf46dd258b3f6c550568b4013c17b0d8dd52381f8e6194c4647e4285c61d
   - kind: symbol
+    name: raf_source::ParallelOptions
+    digest: 3f2fbcbbb97d89f7aea7caec1851f3a6bbb48df41031d9997d97081373d9e413
+  - kind: symbol
+    name: raf_source::ParallelOptionsError
+    digest: 627fc9c9e400752bd01c2208b448f7947552fd7f9a08af8325bdf55fb0e48d06
+  - kind: symbol
+    name: raf_source::ParallelTree
+    digest: 6ccc1b1da048b16d1c431aea9089bb84960632497c18e1d49932d61aeea5b25d
+  - kind: symbol
+    name: raf_source::ParallelUsage
+    digest: 3453a5860bc6be2c275cd43c893ccccd72e9298cff4def35128e0187d218b41c
+  - kind: symbol
     name: raf_source::ParsedSource
     digest: 6ca54f6d5936a9b8b9a76a10bd47d3bbc1287b3240d51839b6d1b29389f4a2b2
   - kind: symbol
@@ -376,7 +388,7 @@ inputs:
     digest: 8942fde727fab96a3c0dad2ae30198f9adb717868189f69716dac5314bf4fedc
   - kind: symbol
     name: raf_source::Workspace
-    digest: eec438cf1fc54b7039eca2425308aefbb2b42e3a9b9f15dc14fce977e520db58
+    digest: 997d15987a66c6a472bd95c915b0a6e9de276de11b4f19ad6b2b01562a690b59
   - kind: symbol
     name: raf_source::Workspace::code_resolver
     digest: e1b516fb173d981ee22520060699be7f1d8fb140f51a2802c835e50eafa9d88c
@@ -410,6 +422,12 @@ inputs:
   - kind: symbol
     name: raf_source::Workspace::locked_binding
     digest: f84151b4e181d69f1c3ca5b7798c7f22042fe8e3b96979b6f27873c31a5ce093
+  - kind: symbol
+    name: raf_source::Workspace::par_load
+    digest: 712a1eed4eb212f40ca664dbf0cad603e2d9ba1a2f17042d606f3bde528b1859
+  - kind: symbol
+    name: raf_source::Workspace::parallel_usage
+    digest: d82fed6c5996903beb472bcb1d8ede03f3a671c91b4433cb3a5ab84ad9b0d7b1
   - kind: symbol
     name: raf_source::Workspace::reachable
     digest: 3051902c7f4936bdad513b7d19838cd8e9368d013d83f73c91c8ae41090e74ac

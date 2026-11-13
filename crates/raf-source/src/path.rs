@@ -5,9 +5,10 @@
 
 use std::error::Error;
 use std::fmt;
+use std::fmt::Write as _;
 use std::sync::Arc;
 
-use purrdf_lex::walk::WorkList;
+use purrdf_lex::allocation::{Admission, Memory, StorageError};
 
 /// A source authority within one load; this handle is not durable source proof.
 ///
@@ -123,6 +124,46 @@ fn starts_with_drive_letter(segment: &str) -> bool {
     chars.next().is_some_and(|c| c.is_ascii_alphabetic()) && chars.next() == Some(':')
 }
 
+/// A borrowed refusal needs no diagnostic allocation during speculation.
+enum JoinRefusal {
+    Absolute,
+    AboveRoot,
+    Backslash,
+    Nul,
+    DriveLetter,
+}
+
+impl JoinRefusal {
+    fn owned(self, input: &str) -> PathError {
+        let input = input.to_owned();
+        match self {
+            Self::Absolute => PathError::Absolute { input },
+            Self::AboveRoot => PathError::AboveRoot { input },
+            Self::Backslash => PathError::Backslash { input },
+            Self::Nul => PathError::Nul { input },
+            Self::DriveLetter => PathError::DriveLetter { input },
+        }
+    }
+}
+
+/// One allocation-free rendering of the validated join's unchanged segments.
+struct JoinedText<'a> {
+    base: &'a RelPath,
+    input: &'a str,
+}
+
+impl fmt::Display for JoinedText<'_> {
+    fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (index, segment) in self.base.joined_segments(self.input).enumerate() {
+            if index != 0 {
+                out.write_str("/")?;
+            }
+            out.write_str(segment)?;
+        }
+        Ok(())
+    }
+}
+
 impl RelPath {
     /// The root itself.
     #[must_use]
@@ -153,17 +194,80 @@ impl RelPath {
     /// Returns a [`PathError`] when the input is absolute, climbs above this
     /// path's root, or holds a backslash, a NUL or a drive-letter segment.
     pub fn join(&self, input: &str) -> Result<Self, PathError> {
-        let owned = || input.to_owned();
+        self.validate_join(input)
+            .map_err(|refusal| refusal.owned(input))?;
+        Ok(Self {
+            text: Arc::from(format!("{}", JoinedText { base: self, input })),
+            authority: self.authority,
+        })
+    }
+
+    /// Materialize a candidate under its original admission account.
+    /// Invalid spelling remains the canonical caller's diagnostic responsibility.
+    pub(crate) fn join_admitted<S: Admission + ?Sized>(
+        &self,
+        input: &str,
+        memory: &mut Memory<'_, S>,
+    ) -> Result<Option<Self>, StorageError> {
+        if self.validate_join(input).is_err() {
+            return Ok(None);
+        }
+        let bytes = self.joined_segments(input).enumerate().try_fold(
+            0_usize,
+            |bytes, (index, segment)| {
+                bytes
+                    .checked_add(usize::from(index != 0))
+                    .and_then(|bytes| bytes.checked_add(segment.len()))
+                    .ok_or(StorageError::SizeOverflow)
+            },
+        )?;
+        let shared = Self::shared_layout(bytes)?;
+        memory.scope(|memory| {
+            // Both original UTF-8 scratch and its shared destination coexist.
+            // Reserve the destination before any materialization can start.
+            memory.add_bytes(shared)?;
+            let mut text = String::new();
+            memory.reserve_string(&mut text, bytes)?;
+            write!(&mut text, "{}", JoinedText { base: self, input })
+                .expect("writing validated borrowed segments to String cannot fail");
+            let path = Self {
+                text: Arc::from(text.as_str()),
+                authority: self.authority,
+            };
+            memory.release_string(text)?;
+            Ok(Some(path))
+        })
+    }
+
+    pub(crate) fn owned_layout(&self) -> Result<usize, StorageError> {
+        Self::shared_layout(self.as_str().len())
+    }
+
+    fn shared_layout(bytes: usize) -> Result<usize, StorageError> {
+        bytes
+            .checked_add(2 * size_of::<usize>())
+            .and_then(|bytes| bytes.checked_next_multiple_of(align_of::<usize>()))
+            .ok_or(StorageError::SizeOverflow)
+    }
+
+    fn joined_segments<'a>(&'a self, input: &'a str) -> impl Iterator<Item = &'a str> {
+        self.segments().chain(
+            input
+                .split('/')
+                .filter(|segment| !matches!(*segment, "" | ".")),
+        )
+    }
+
+    fn validate_join(&self, input: &str) -> Result<(), JoinRefusal> {
         if input.starts_with('/') {
-            return Err(PathError::Absolute { input: owned() });
+            return Err(JoinRefusal::Absolute);
         }
         if input.contains('\\') {
-            return Err(PathError::Backslash { input: owned() });
+            return Err(JoinRefusal::Backslash);
         }
         if input.contains('\0') {
-            return Err(PathError::Nul { input: owned() });
+            return Err(JoinRefusal::Nul);
         }
-        let mut segments = WorkList::<&str, 16>::new();
         let mut depth = 0_usize;
         for segment in self.segments() {
             // Every prefix of this already validated path stays inside its root.
@@ -172,37 +276,22 @@ impl RelPath {
             } else {
                 depth += 1;
             }
-            segments.push(segment);
         }
         for segment in input.split('/') {
             match segment {
                 "" | "." => {}
                 ".." => {
-                    depth = depth
-                        .checked_sub(1)
-                        .ok_or_else(|| PathError::AboveRoot { input: owned() })?;
-                    segments.push(segment);
+                    depth = depth.checked_sub(1).ok_or(JoinRefusal::AboveRoot)?;
                 }
                 _ => {
                     if starts_with_drive_letter(segment) {
-                        return Err(PathError::DriveLetter { input: owned() });
+                        return Err(JoinRefusal::DriveLetter);
                     }
                     depth += 1;
-                    segments.push(segment);
                 }
             }
         }
-        let mut text = String::new();
-        for segment in segments.iter() {
-            if !text.is_empty() {
-                text.push('/');
-            }
-            text.push_str(segment);
-        }
-        Ok(Self {
-            text: Arc::from(text),
-            authority: self.authority,
-        })
+        Ok(())
     }
 
     /// The independently rooted source of this path.

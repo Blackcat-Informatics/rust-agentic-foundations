@@ -104,6 +104,8 @@ pub struct Workspace {
     files: BTreeMap<RelPath, SourceFile>,
     index: Index,
     usage: Usage,
+    #[cfg(target_os = "linux")]
+    parallel_usage: Option<crate::ParallelUsage>,
     /// The options of the load, whose item-bytes budget also bounds what a
     /// query such as [`Workspace::exported_items`] holds.
     options: LoadOptions,
@@ -197,6 +199,52 @@ impl Workspace {
         Self::load_from(tree, &root_paths, options)
     }
 
+    /// Load a stable native Linux Tree with bounded parallel parsing.
+    ///
+    /// The coordinator retains Tree access and canonical fact/index admission.
+    /// Source observations and failures must be independent of read order.
+    /// Native ASTs and spans stay on fresh 64 MiB parser threads; the additional
+    /// scheduler ownership grant is not a complete native parser heap bound.
+    ///
+    /// # Errors
+    /// Returns the canonical input errors of [`Self::load_with`], or actionable
+    /// scheduler-storage and worker-start failures. All workers are joined.
+    ///
+    /// # Panics
+    /// Resumes the first canonically reached parser panic after worker cleanup.
+    #[cfg(target_os = "linux")]
+    pub fn par_load(
+        tree: &dyn crate::ParallelTree,
+        roots: &[&str],
+        options: &LoadOptions,
+        parallel: &crate::ParallelOptions,
+    ) -> Result<Self, LoadError> {
+        let mut root_paths = Vec::new();
+        for root in roots {
+            root_paths.push(RelPath::new(root).map_err(|error| {
+                LoadError::tree(&RelPath::root(), None, &Origin::Discovery, error.into())
+            })?);
+        }
+        let resources = crate::parse::parallel::Resources::new(parallel)?;
+        std::thread::scope(|scope| {
+            let parser = crate::parse::parallel::Executor::new(scope, &resources, parallel)?;
+            let meter = Meter::new(options);
+            let result = Self::load_meter_with_parser(
+                tree,
+                &root_paths,
+                options,
+                &meter,
+                None,
+                Some(&parser),
+            );
+            let usage = parser.finish();
+            result.map(|mut workspace| {
+                workspace.parallel_usage = Some(usage);
+                workspace
+            })
+        })
+    }
+
     /// Load explicit roots, retaining each path's selected source authority.
     ///
     /// [`crate::SourceTrees`] dispatches independently rooted sources. This is
@@ -223,13 +271,24 @@ impl Workspace {
         meter: &Meter,
         binding: Option<&locked::BindingLoad<'_>>,
     ) -> Result<Self, LoadError> {
+        Self::load_meter_with_parser(tree, roots, options, meter, binding, None)
+    }
+
+    fn load_meter_with_parser(
+        tree: &dyn Tree,
+        roots: &[RelPath],
+        options: &LoadOptions,
+        meter: &Meter,
+        binding: Option<&locked::BindingLoad<'_>>,
+        parser: Option<&dyn crate::parse::Parser>,
+    ) -> Result<Self, LoadError> {
         let root = RelPath::root();
         if roots.is_empty() {
             return Err(LoadError::new(&root, None, LoadErrorKind::NoRoots));
         }
         meter.items(LOAD_BASE_BYTES, &root, None)?;
         let discovered = discover(tree, roots, meter)?;
-        Self::build_discovered(tree, options, meter, binding, &discovered, None)
+        Self::build_discovered_with_parser(tree, options, meter, binding, &discovered, None, parser)
     }
 
     fn build_discovered(
@@ -239,6 +298,20 @@ impl Workspace {
         binding: Option<&locked::BindingLoad<'_>>,
         discovered: &crate::discovery::Discovered,
         selected: Option<crate::DeclaredConfiguration<'_>>,
+    ) -> Result<Self, LoadError> {
+        Self::build_discovered_with_parser(
+            tree, options, meter, binding, discovered, selected, None,
+        )
+    }
+
+    fn build_discovered_with_parser(
+        tree: &dyn Tree,
+        options: &LoadOptions,
+        meter: &Meter,
+        binding: Option<&locked::BindingLoad<'_>>,
+        discovered: &crate::discovery::Discovered,
+        selected: Option<crate::DeclaredConfiguration<'_>>,
+        parser: Option<&dyn crate::parse::Parser>,
     ) -> Result<Self, LoadError> {
         let root = RelPath::root();
         let found = &discovered.packages;
@@ -255,18 +328,16 @@ impl Workspace {
             dirs: &dirs,
             found,
         };
-        let mut locked = if let Some(binding) = binding {
-            locked::bind_found(binding, &reader, &mut caches)?
-        } else {
-            Vec::new()
-        };
-        let mut packages = Vec::new();
+        let mut locked = binding.map_or_else(
+            || Ok(Vec::new()),
+            |binding| locked::bind_found(binding, &reader, &mut caches),
+        )?;
+        let (mut packages, mut derived) = (Vec::new(), Vec::new());
         let mut dependencies = Vec::new();
         let mut dependency_admission = ItemAdmission::new(meter, &root);
         Memory::new(&mut dependency_admission)
             .reserve(&mut dependencies, found.len())
             .map_err(|error| dependency_admission.error(error))?;
-        let mut derived = Vec::new();
         for (package_index, entry) in found.iter().enumerate() {
             let context = Context {
                 package_id: PackageId(package_index),
@@ -306,7 +377,15 @@ impl Workspace {
         let versions = declared_versions(&reader, found, &mut caches)?;
         let package_names = package_name_index(&packages, meter)?;
         let (targets, origins) = selected_targets(derived)?;
-        let walked = walk_sources(tree, &targets, &origins, &locked, selected.as_ref(), meter)?;
+        let walked = walk_sources(
+            tree,
+            &targets,
+            &origins,
+            &locked,
+            selected.as_ref(),
+            meter,
+            parser,
+        )?;
         let files = source_files(walked.files, &targets)?;
         reader.install_edges(binding, &dependencies, &locked, &targets, &mut infos)?;
         let index = Index::build(
@@ -317,11 +396,7 @@ impl Workspace {
             walked.paths,
             meter,
         )?;
-        let (locked, references) = if binding.is_some_and(locked::BindingLoad::structural) {
-            (Vec::new(), locked)
-        } else {
-            (locked, Vec::new())
-        };
+        let (locked, references) = binding_sets(binding, locked);
         Ok(Self {
             packages,
             dependencies,
@@ -334,6 +409,8 @@ impl Workspace {
             files,
             index,
             usage: meter.usage(),
+            #[cfg(target_os = "linux")]
+            parallel_usage: None,
             options: options.clone(),
         })
     }
@@ -350,6 +427,16 @@ impl Workspace {
     #[must_use]
     pub fn usage(&self) -> Usage {
         self.usage
+    }
+
+    /// Scheduler high-water counts after all parallel workers have joined.
+    ///
+    /// Serial loads return `None`. These counts are separate from semantic
+    /// [`Usage`] and are excluded from workspace structural equality.
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn parallel_usage(&self) -> Option<crate::ParallelUsage> {
+        self.parallel_usage
     }
 
     /// The packages, sorted by manifest path.
@@ -1101,6 +1188,18 @@ struct Caches {
     members: BTreeMap<RelPath, BTreeSet<RelPath>>,
 }
 
+/// Separate selected dependency bindings from structural reference observations.
+fn binding_sets(
+    binding: Option<&locked::BindingLoad<'_>>,
+    bindings: Vec<LockedBinding>,
+) -> (Vec<LockedBinding>, Vec<LockedBinding>) {
+    if binding.is_some_and(locked::BindingLoad::structural) {
+        (Vec::new(), bindings)
+    } else {
+        (bindings, Vec::new())
+    }
+}
+
 /// Build the name selector without retaining another copy of package names.
 fn package_name_index(packages: &[Package], meter: &Meter) -> Result<Vec<PackageId>, LoadError> {
     package_index_by(packages.len(), meter, |left, right| {
@@ -1595,9 +1694,20 @@ fn walk_sources(
     bindings: &[LockedBinding],
     selected: Option<&crate::ActiveConfiguration>,
     meter: &Meter,
+    parser: Option<&dyn crate::parse::Parser>,
 ) -> Result<Walked, LoadError> {
-    let mut walker = Walker::new(tree, meter);
+    let mut walker = Walker::with_parser(tree, meter, parser);
+    let mut frontier = 1;
     for (index, (target, origin)) in targets.iter().zip(origins).enumerate() {
+        frontier = frontier.max(index + 1);
+        if let Some(parser) = parser {
+            while parser.has_capacity() && frontier < targets.len() {
+                if !walker.speculate(&targets[frontier].root) {
+                    break;
+                }
+                frontier += 1;
+            }
+        }
         walker.configure(
             selected
                 .or(bindings

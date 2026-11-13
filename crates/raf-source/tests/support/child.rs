@@ -16,7 +16,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use raf_source::{LoadErrorKind, MemoryTree, RelPath, Workspace};
+use raf_source::{LoadError, LoadErrorKind, MemoryTree, RelPath, Workspace};
 
 /// The environment variable that names the work for a child.
 const SELECTOR: &str = "RAF_SOURCE_CHILD";
@@ -75,13 +75,23 @@ pub(crate) fn selector() -> Option<String> {
 /// selector this returns at once, so the test that calls it passes when it
 /// runs as an ordinary test.
 pub(crate) fn run_child_if_requested(text_of: impl FnOnce(&str) -> String) {
+    run_child_if_requested_with(text_of, |_, _| {});
+}
+
+/// Judge the same isolated load before publishing its existing outcome line.
+pub(crate) fn run_child_if_requested_with(
+    text_of: impl FnOnce(&str) -> String,
+    compare: impl FnOnce(&MemoryTree, &Result<Workspace, LoadError>),
+) {
     let Some(selector) = selector() else {
         return;
     };
     let (name, text) = (selector.clone(), text_of(&selector));
     let file = RelPath::new(&format!("{name}.rs")).expect("the selector is a plain name");
     let tree = library(&file, text);
-    let code = match Workspace::load(&tree, &["."]) {
+    let loaded = Workspace::load(&tree, &["."]);
+    compare(&tree, &loaded);
+    let code = match loaded {
         Ok(workspace) => {
             println!("{MARK}index {}", symbols(&workspace).join(","));
             0

@@ -11,6 +11,8 @@
 pub(crate) mod child;
 pub(crate) mod counting;
 pub(crate) mod orders;
+#[cfg(target_os = "linux")]
+pub(crate) mod parallel;
 pub(crate) mod program;
 pub(crate) mod random;
 pub(crate) mod rustc;
