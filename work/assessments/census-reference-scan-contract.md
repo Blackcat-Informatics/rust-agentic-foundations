@@ -7,22 +7,31 @@ subject: cap:census-reference-scan#contract
 inputs:
   - kind: section
     name: cap:census-reference-scan#contract
-    digest: 9b2367ec3a60ed454de045d4eb04f60c24298c58783b0b469b24b57d486196d5
+    digest: 1264db20aa11930cb348e64274c81c2531e1bbd895524a1a848a017dd89a2822
   - kind: symbol
     name: raf_census::ExternalReference
     digest: dff9ba21af812a6448881bf2fda85215d82d533591e85489c9f8e454bc9ba7ce
   - kind: symbol
     name: raf_census::Gate::check_locked_registry
-    digest: 469c0bc06984a4ee08ef751e6e3e72694d7741048688ae7a7630792f5f1c7532
+    digest: fb2fa6b560d7d2425855f40c2e9311b33db35217f36d59b907f047f7a16270f4
   - kind: symbol
     name: raf_census::Gate::check_registry
-    digest: 5f3e0ceda37af2c3585c5571c0ca39e1e57f4e7b28fb1bf83fc47ab2f1f9330f
+    digest: dff736d6d6945e7b4c84e2686bd55bebfd589bcf9e85e7d085adfbf7e0d86f74
   - kind: symbol
     name: raf_census::Gate::external_references
     digest: 203e097a440d87e226a19737629540596262176ef6dba84291ce2bcd060f3adb
   - kind: symbol
     name: raf_census::Gate::write_debt_registry
-    digest: cd64507978316827035e756255a3349f17f3a20e754f52add06695d8198ca1c5
+    digest: a67a600e75b34406abd13d2f301f0ece26184142f81585d446ea7d9996d44671
+  - kind: symbol
+    name: raf_census::LockedRegistry
+    digest: f50014664e55ffdfd954c1ab91db21e18c7ed61f0d875dd7b1e8d0c1327e5b8e
+  - kind: symbol
+    name: raf_census::LockedRegistry::require_declared_features
+    digest: 5f7974115fb85b850224d4e87f81b0dfe79f0cf17b74625a84ec8aa135bda51e
+  - kind: symbol
+    name: raf_census::LockedRegistry::seal_reference
+    digest: 8630d9bb28400275a0144c776f012de16a769e9ccbbefd679b69bbd488654563
   - kind: symbol
     name: raf_census::gate::reference
     digest: 48313bbcadf36e610cacfd128c68e0d065b3040b7e8878f5df9ce26ad623804f

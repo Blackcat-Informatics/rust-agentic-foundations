@@ -10,19 +10,19 @@ inputs:
     digest: 5d25936100295a9f568158c4dbc4d9ac487dfba16d7f5a26df7a338cbee32ffa
   - kind: symbol
     name: raf_census::Gate::check_locked
-    digest: 46d5e36bbf71d6541dc629ebc8f2e0491a3cbafc194a2dc0d54cc09288706c17
+    digest: a4750e277e048278a9b17432a57648744d2600f56e22bea9924017b788206b2d
   - kind: symbol
     name: raf_census::Gate::root
     digest: 33267fbb7491b78a5b2d9c396f48befa48ab7a2eed51b24f687c72a9e55ed19d
   - kind: symbol
     name: raf_census::Gate::write_debt_locked
-    digest: 9d4d516c66d8b2011694153e910a86b8db7ff4a51c604bc8f1e55a959d14a946
+    digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
   - kind: symbol
     name: raf_census::LedgerExtensionGraph
     digest: bb829e6f568456dd6a5be2efc1bbb11079625c5c56c5d24f0dd652f6a424fefe
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_locked
-    digest: fb9c461569fd9a30a60aa135a21e49d3528bf3cc02163bc961d9caa714a390a8
+    digest: 3f2769c23ea8c93c261126fb8d990fb2bafd3fab2a508fbb30bb90a7977972ab
 verdict: accepted
 by: agent
 ---

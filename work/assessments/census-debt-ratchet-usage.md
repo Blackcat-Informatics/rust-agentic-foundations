@@ -28,13 +28,13 @@ inputs:
     digest: f4a32723c385e0b6d8f93300d2ffeed37f60ae31edd4cd6ed9e1c52d9c8aa8ff
   - kind: symbol
     name: raf_census::Gate::write_debt_locked
-    digest: 9d4d516c66d8b2011694153e910a86b8db7ff4a51c604bc8f1e55a959d14a946
+    digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
   - kind: symbol
     name: raf_census::MAX_DEBT_BYTES
     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_locked
-    digest: fb9c461569fd9a30a60aa135a21e49d3528bf3cc02163bc961d9caa714a390a8
+    digest: 3f2769c23ea8c93c261126fb8d990fb2bafd3fab2a508fbb30bb90a7977972ab
   - kind: symbol
     name: raf_census::gate::Gate::write_debt_with
     digest: a68f678e95cb06a373b066db37f1b49c9dcc5f146b711949502b60a9db13c06d

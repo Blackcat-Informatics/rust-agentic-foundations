@@ -21,6 +21,8 @@ pub(crate) struct Args {
     pub(crate) workspace: PathBuf,
     #[command(flatten)]
     pub(crate) reference: ReferenceArgs,
+    #[command(flatten)]
+    pub(crate) registry: RegistryArgs,
     #[command(subcommand)]
     pub(crate) command: Command,
 }
@@ -216,4 +218,37 @@ pub(crate) struct ReferenceArgs {
         value_name = "DIRECTORY"
     )]
     pub(crate) unpinned: Option<PathBuf>,
+}
+
+/// Registry dependencies sealed from the lock file and Cargo's archive cache.
+#[derive(ClapArgs)]
+pub(crate) struct RegistryArgs {
+    /// Directory of Cargo's cached registry archives (`registry/cache`);
+    /// defaults to `$CARGO_HOME/registry/cache`, then `$HOME/.cargo/registry/cache`.
+    #[arg(
+        id = "registry_cache",
+        long = "registry-cache",
+        global = true,
+        value_name = "DIRECTORY"
+    )]
+    pub(crate) cache: Option<PathBuf>,
+    /// Registry package to compare against, sealed from the lock file: an
+    /// exact name or a `prefix-*` family. Repeatable; the ledger's reference
+    /// selectors are sealed as well.
+    #[arg(
+        id = "seal_registry",
+        long = "seal-registry",
+        global = true,
+        value_name = "SELECTOR"
+    )]
+    pub(crate) seal: Vec<String>,
+    /// Complete feature set the workspace enables on a sealed package,
+    /// `PACKAGE=feature,feature` (`PACKAGE=` for none). One flag per package.
+    #[arg(
+        id = "registry_features",
+        long = "registry-features",
+        global = true,
+        value_name = "PACKAGE=FEATURES"
+    )]
+    pub(crate) features: Vec<String>,
 }
