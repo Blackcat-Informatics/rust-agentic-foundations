@@ -49,6 +49,7 @@ bindings:
     - raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse
     - raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows
     - raf_census::test_crate::reference_scan::a_transitive_row_of_the_same_name_is_not_sealed
+    - raf_census::test_crate::reference_scan::an_unnamed_declaration_is_bound_to_the_default_registry_only
     - raf_census::test_crate::reference_scan::a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one
     - raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded
     - raf_census::test_crate::reference_scan::first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_rows
@@ -119,7 +120,7 @@ A selected name with two reachable locked versions refuses as ambiguous, whether
 an exact name selected it or a family selected two non-first-party versions.
 
 ### Registry dependencies sealed by the lock file
-<!-- raf:tested-by raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour,raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse,raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows,raf_census::test_crate::reference_scan::a_transitive_row_of_the_same_name_is_not_sealed,raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded,raf_census::test_crate::reference_scan::a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour,raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse,raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows,raf_census::test_crate::reference_scan::a_transitive_row_of_the_same_name_is_not_sealed,raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded,raf_census::test_crate::reference_scan::a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one,raf_census::test_crate::reference_scan::an_unnamed_declaration_is_bound_to_the_default_registry_only -->
 
 A consumer whose dependency comes from a registry needs no sibling checkout, no
 pinned commit and no installed command. `Gate::check_locked_registry` (and
@@ -134,7 +135,7 @@ changed body stays clean.
 The sealed set is every registry row of the lock file that a first-party
 package depends on directly and that a selector names. Each declaration, whether
 inherited from the workspace table, renamed, written with a named registry or an
-explicit registry index, is matched to its own outgoing row, so a transitive row
+explicit registry index, is matched to its own outgoing row, an unnamed declaration only to the default registry, so a transitive row
 of the same name at another version is not sealed. A declaration that a selector names and whose candidate rows the lock file
 cannot satisfy refuses, naming the package, the selector and the declaration. A selector is: the ledger's `reference`
 values (an exact name or a `prefix-*` family) and any selector added with
@@ -492,6 +493,7 @@ refusal with a valid commit or pin key.
 | `raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::an_existing_debt_record_does_not_hold_a_reference_copy` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::an_unnamed_declaration_is_bound_to_the_default_registry_only` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
 | `raf_census::test_crate::reference_scan::external_references_report_cross_boundary_constants_like_a_lock_selected_one` | test | [Contract](#contract) |

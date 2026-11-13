@@ -238,7 +238,7 @@ pub(crate) struct PackageDecl {
     pub(crate) name: String,
     pub(crate) version: VersionDecl,
     /// The tables (`bin`, `test`, `bench`, `example`) whose automatic
-    /// discovery `autobins = false` and its siblings turned off.
+    /// discovery `autobins = false` and its siblings, `autolib` included, turned off.
     pub(crate) auto_off: Vec<&'static str>,
     pub(crate) build: Build,
     pub(crate) edition: EditionDecl,
@@ -689,6 +689,7 @@ fn package(document: &Document<'_>, root: &Node) -> Result<Option<PackageDecl>, 
         ("autotests", "test"),
         ("autobenches", "bench"),
         ("autoexamples", "example"),
+        ("autolib", "lib"),
     ] {
         if !flag(document, table, "package", key)? {
             auto_off.push(group);
@@ -929,6 +930,9 @@ pub fn library_target_name(
     };
     if let Some(lib) = parsed.lib {
         return Ok(Some(lib.name.unwrap_or(package.name)));
+    }
+    if !package.auto("lib") {
+        return Ok(None);
     }
     let default = crate::RelPath::new("src/lib.rs")
         .map_err(|error| crate::LoadError::tree(&path, None, &origin, error.into()))?;

@@ -2031,3 +2031,37 @@ fn a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_
         "{message}"
     );
 }
+
+/// A declaration naming no registry depends on the default registry: a
+/// same-name row of a custom registry that also satisfies its requirement is
+/// neither sealed nor needs an archive.
+#[test]
+fn an_unnamed_declaration_is_bound_to_the_default_registry_only() {
+    let archive = acme_core(PROVIDED);
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core 1.5.0 (registry+https://custom.example/index)','acme-core 1.0.0 ({CRATES_IO})']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n[[package]]\nname='acme-core'\nversion='1.5.0'\nsource='registry+https://custom.example/index'\nchecksum='{}'\n",
+        raf_fixtures::registry::checksum(&archive),
+        raf_fixtures::registry::checksum(b"custom never cached"),
+    );
+    let ledger = unhomed_ledger(&[]);
+    let tree = raf_source::MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\n",
+        ),
+        (
+            "src/lib.rs",
+            "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+        ),
+        ("Cargo.lock", lock.as_str()),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
+    let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
+        .seal("acme-core");
+    let report = Gate::workspace(".")
+        .check_locked_registry(&tree, &registry)
+        .unwrap();
+    assert!(report.is_clean(), "{:?}", report.findings());
+}

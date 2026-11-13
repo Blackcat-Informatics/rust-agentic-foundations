@@ -363,6 +363,10 @@ fn matches_of<'a>(
             if row.name() != name {
                 continue;
             }
+            let named = spec.registry.is_some() || spec.registry_index.is_some();
+            if !named && !is_default_registry(&index_source(source.kind(), source.repository())) {
+                continue;
+            }
             found = true;
             let index = if spec.registry_index.is_some() {
                 None
@@ -685,4 +689,13 @@ fn owner_rows(
                 })
         })
         .collect()
+}
+
+/// Whether `source` is the default registry, crates.io, which a declaration
+/// naming neither a registry nor an index depends on.
+fn is_default_registry(source: &str) -> bool {
+    matches!(
+        source,
+        "registry+https://github.com/rust-lang/crates.io-index" | "sparse+https://index.crates.io/"
+    )
 }

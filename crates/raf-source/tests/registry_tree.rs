@@ -298,7 +298,7 @@ fn a_first_party_archive_cannot_bind_to_a_different_catalogs_row() {
 
 /// A locked configuration names the library target of the root manifest alone:
 /// a `[lib]` name, the package name for a default or unnamed library, nothing
-/// without a library, and no other target is read.
+/// without a library or with `autolib = false`, and no other target is read.
 #[test]
 fn the_library_target_name_comes_from_the_root_manifest_alone() {
     let named = MemoryTree::from([(
@@ -329,6 +329,28 @@ fn the_library_target_name_comes_from_the_root_manifest_alone() {
     assert_eq!(
         raf_source::library_target_name(&binary, &options).unwrap(),
         None
+    );
+    let off = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='acme-core'\nversion='1.0.0'\nautolib=false\n",
+        ),
+        ("src/lib.rs", ""),
+    ]);
+    assert_eq!(
+        raf_source::library_target_name(&off, &options).unwrap(),
+        None
+    );
+    let declared = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='acme-core'\nversion='1.0.0'\nautolib=false\n[lib]\nname='api'\n",
+        ),
+        ("src/lib.rs", ""),
+    ]);
+    assert_eq!(
+        raf_source::library_target_name(&declared, &options).unwrap(),
+        Some("api".to_owned())
     );
     let workspace = MemoryTree::from([("Cargo.toml", "[workspace]\nmembers=[]\n")]);
     assert!(raf_source::library_target_name(&workspace, &options).is_err());
