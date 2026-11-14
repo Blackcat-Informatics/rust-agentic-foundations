@@ -20,6 +20,12 @@ pub(super) enum Refusal {
     Memory {
         limit: usize,
     },
+    SyntaxExcess {
+        nodes: usize,
+        prepaid: usize,
+        held: usize,
+        kind: &'static str,
+    },
     Storage(StorageError),
     Invariant(&'static str),
     Unsupported(&'static str),

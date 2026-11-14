@@ -18,6 +18,11 @@ bindings:
     - raf_census::embedded::publication::write_debt
     - cargo_census::bin_crate::cargo_census::embedded
     - raf_census::embedded::analysis::Analysis
+    - raf_census::embedded::run::Run::syntax_excesses
+    - raf_census::embedded::analysis::SyntaxExcess
+    - raf_source::syntax_storage::SyntaxBound
+    - raf_source::syntax_storage::syntax_held
+    - raf_source::syntax_storage::SYNTAX_NODE_SIZES
     - raf_census::embedded::collect::function
     - raf_census::embedded::context::for_file
     - raf_census::embedded::coordinates::Coordinates
@@ -45,6 +50,17 @@ bindings:
     - raf_census::embedded::discovery::tests::discovery_refuses_exhaustion_and_preserves_the_first_input_cause
     - raf_census::embedded::analysis::tests::retained_functions_share_the_original_grant_across_parser_workers
     - raf_census::embedded::analysis::tests::source_preparation_grants_precede_parsing_and_survive_until_each_worker_joins
+    - raf_census::embedded::analysis::tests::syntax_tree_grant_is_prepaid_before_the_parser_runs
+    - raf_census::embedded::analysis::tests::a_syntax_excess_record_refused_by_the_work_grant_reports_the_excess
+    - raf_census::embedded::analysis::tests::embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported
+    - raf_census::embedded::analysis::tests::embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message
+    - raf_census::embedded::analysis::tests::a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none
+    - raf_source::test_crate::syntax_storage::syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound
+    - raf_source::test_crate::syntax_storage::syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum
+    - raf_source::test_crate::syntax_storage::syntax_tree_storage_bound_covers_every_source_of_this_repository
+    - raf_source::test_crate::syntax_storage::syntax_held_names_the_dominant_kind_of_a_statement_dense_body
+    - raf_source::test_crate::syntax_storage::a_byte_dense_shape_just_above_the_floor_holds_its_bound
+    - raf_source::test_crate::syntax_storage::the_byte_ratio_rounds_up_and_an_overflow_refuses
     - raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers
     - raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first
     - raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed
@@ -409,7 +425,8 @@ and endpoint queries spend the same original analysis grants. The table models
 Source's retained BOM and byte-padded shebang without copying normalized source.
 Requested endpoints must be valid original UTF-8 boundaries; invalid coordinates
 refuse rather than clamp or fall back to the native byte-offset cache. Native
-span construction, lexer and TLS storage remain incompletely admitted.
+span construction, lexer, TLS and syntax-tree storage charge the same grants;
+the bound of the tree is stated with the resource contract below.
 Block bounds use the original stored brace span without printing statements
 into a temporary token stream to recover their endpoints.
 Function and module ownership joins select their original first outer token
@@ -735,7 +752,8 @@ the directory lock. Advisory locking provides neither an immutable source
 snapshot nor authentication of arbitrary concurrent directory mutation.
 Imported text has a sixteen MiB input limit and RDF work and storage admission
 under the original account. This does not establish a total native resource
-guarantee: Source lexing, parsing and span storage remain incompletely admitted.
+guarantee: native parser work and the heap behind the syntax types that the
+reconciliation does not list remain outside it.
 Source collection refuses
 const closures, yield expressions, unmodeled syntax and simultaneous async and
 const function signatures. Declared prelude profiles require
@@ -766,15 +784,58 @@ Indexed tokens, retained postings, candidate pairs, verification work and
 resident storage have explicit bounds, including repetitive inputs. Exhaustion
 is actionable failure, never truncation, sampling or an ordinary nonmatch for
 the stages that charge the original account: discovery, proof, reporting and
-adoption. Source lexing, parser input and span storage charge the original
-account under the worker-entry registry boundary above: every parser worker
-refuses an occupied registry before it registers source. The syntax tree that a
-native parse returns, the value `syn::parse2` builds in the parse step of
-`raf-source`, is not charged to the original resource account. Bounded storage
-through the whole pipeline is therefore not delivered; the admission change
-record `embedded-clones-admission` owns that residual until its second item
-holds.
-<!-- raf:tested-by raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed,raf_source::parse::parallel::tests::a_parallel_worker_whose_registry_a_host_callback_populated_is_refused_before_it_parses,raf_source::parse::parallel::tests::a_parallel_worker_with_a_fresh_registry_parses -->
+adoption. Source lexing, parser input, span storage and the parsed syntax tree charge the
+original account under the worker-entry registry boundary above: every parser
+worker refuses an occupied registry before it registers source.
+
+The syntax tree that a native parse returns, the value `syn::parse2` builds in
+the parse step of `raf-source`, is charged by a bound computed before the
+parser runs:
+`nodes * SYNTAX_BYTES_PER_NODE + ceil(text_bytes * SYNTAX_BYTES_PER_BYTE_NUM /
+SYNTAX_BYTES_PER_BYTE_DEN)`, in checked integer arithmetic that refuses an
+overflow (978, and the ratio 417/100). `nodes` is the exact native token-tree node count that the literal
+measurement already counts, and `text_bytes` is the source length. The bound is
+added to the one prepaid receipt, so exhaustion refuses before the tree exists
+with a located memory refusal and the remedy to reduce input or increase the
+selected resource limit, and the joined worker refunds it. The two constants are
+measured, not proven: they are the peak of the parse alone over a closed reference table of shapes (statement
+runs that double their vector, items, members, arms, tuples, generic
+comparisons, attributes, macros, numeric fields, documentation items and
+megabyte literals, identifiers and comments) and over every Rust source under the crates and tests directories of this
+repository, and a structural check holds the per-node term to at least two
+elements of each counted node enum. The measured maximum per node is 939.98 bytes, in a run of 2^k + 1 empty
+statements at k = 17 (939.8 at k = 14, 937.5 at k = 10), taken beyond the
+measured per-byte rate of 4.000389; the per-node constant 978 is 38.02 bytes,
+4.04 percent, above it. The measured maximum per source byte is 4.000389, in
+one megabyte of documentation comment, and the per-byte ratio 4.17 is 0.1696
+bytes, 4.24 percent, above it, so a text-heavy source holds its bound by the
+byte term alone. That worst byte shape, with a peak of 4,194,764 bytes over 9
+nodes and 1,048,589 source bytes, reaches 95.93 percent of the byte term alone
+and 95.74 percent of the full bound. A shape outside the table can cost more per
+node. The peak was measured with a counting allocator that counts a
+reallocation as growth in place: the statement list at its doubling peaks at
+twice its final capacity, and the replaced block is not counted beside the
+new one. An allocator that moves the block holds both during the copy, which
+the constants do not cover.
+
+Right after the parse and before any analysis, one walk of the tree sums the
+size of each `Expr`, `Stmt`, `Item`, `Pat`, `Type`, `ImplItem`, `TraitItem`,
+`ForeignItem` and `Arm` it visits plus the spelling bytes of identifiers and of
+string, byte-string, integer and float literals, and compares the sum with the
+prepaid bound. An excess is charged to the same account and recorded with the
+file, node count, prepaid and held bytes and the most numerous node kind. The
+run reports each record by name through `Run::syntax_excesses`, and the command
+line writes it to its diagnostics stream; the evidence report is unchanged, so
+no report byte moves. When
+the memory or the work grant refuses the excess or its record, the run refuses
+with that shape, the same remedy and no partial result; a storage failure of
+the allocator or a size overflow is reported as the storage failure it is. The walk misses vector capacity and
+growth slack, transient parse storage and the heap behind types it does not
+list; it counts a node held inline in another twice, which errs toward
+detection. The excess is reported after its allocation happened, so only the
+bound computed before the parse refuses in advance. Native parser work remains
+unmetered.
+<!-- raf:tested-by raf_source::test_crate::syntax_storage::syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound,raf_source::test_crate::syntax_storage::syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum,raf_source::test_crate::syntax_storage::syntax_tree_storage_bound_covers_every_source_of_this_repository,raf_source::test_crate::syntax_storage::a_byte_dense_shape_just_above_the_floor_holds_its_bound,raf_source::test_crate::syntax_storage::the_byte_ratio_rounds_up_and_an_overflow_refuses,raf_census::embedded::analysis::tests::syntax_tree_grant_is_prepaid_before_the_parser_runs,raf_census::embedded::analysis::tests::a_syntax_excess_record_refused_by_the_work_grant_reports_the_excess,raf_census::embedded::analysis::tests::embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported,raf_census::embedded::analysis::tests::embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message,raf_census::embedded::analysis::tests::a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none,raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed,raf_source::parse::parallel::tests::a_parallel_worker_whose_registry_a_host_callback_populated_is_refused_before_it_parses,raf_source::parse::parallel::tests::a_parallel_worker_with_a_fresh_registry_parses -->
 Similarity never authorizes a preferred provider, validates delegation or
 exempts debt. Embedded findings have explicit versioned adoption and exact
 shrink-only debt handling. Discovery cannot create an allowance or rewrite an
@@ -1541,6 +1602,18 @@ Parameter-pattern fixtures retain their binders without emitting body markers
 for signature-owned const arguments, const blocks or range endpoints. Actual
 workspace provenance fixtures retain root and inline-module prelude policy
 through free functions, inherent methods and trait-default bodies.
+Syntax-tree fixtures count the peak storage of the parse alone over a closed
+table of node-dense and byte-dense shapes, and over every Rust source under the crates and tests directories of this
+repository, against the per-node and per-byte bound; the worst shape of
+each kind reaches at least 90 percent of it, a mixed byte-dense input, fifteen sixteenths documentation comment and one
+sixteenth string literal, sits just
+above that floor, at 91.2 percent, and below its bound, and each byte-dense shape holds by the
+byte term alone. A statement-dense workspace refuses one
+byte under its exact peak before the visitor runs and succeeds at that peak.
+Deliberately low terms record, charge and refuse an excess with its shape,
+beside within-bound neighbours, one node-dense and two byte-dense, that record
+nothing. A recorded excess
+reaches the run result by name, and a clean run reports none.
 Pairing fixtures protect the embedded helper beneath an invalid surrounding
 map, different operators and variable uses, three distinct repeated occurrences,
 crossing maximal alignments, short or empty input and repetitive boilerplate.

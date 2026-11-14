@@ -8,9 +8,10 @@
 /// Load the Workspace with its own Source options before analysis. Report,
 /// evidence, debt RDF operations, source registrations, root text and lines,
 /// Source header preparation, original lexer buffers through cleanup and Syn
-/// parser-input storage share these original grants. Native parsing, span
-/// storage and work remain incompletely admitted; these limits do not establish
-/// a total native heap or work guarantee.
+/// parser-input storage and the parsed syntax tree share these original grants.
+/// The tree is charged by a bound measured over a reference table and checked
+/// against the built tree; native parser work remains unmetered, and these
+/// limits do not establish a total native heap or work guarantee.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub struct Options {

@@ -124,8 +124,42 @@ const BUDGETS: [(Budget, usize); 15] = [
 /// This reference adds about 4% to that measurement. It is not a hard bound
 /// for arbitrary accepted Rust: identifier, literal and documentation payloads,
 /// native source maps and other transient storage also depend on source bytes.
-/// Token count alone does not bound native parsing work, either.
+/// Token count alone does not bound native parsing work, either. The figure
+/// spans the whole parse step, lexing included; the syntax tree alone is
+/// bounded per node and per byte by [`SYNTAX_BYTES_PER_NODE`].
 pub const PARSE_BYTES_PER_TOKEN: usize = 1664;
+
+/// Measured peak bytes of syntax-tree storage per native token-tree node.
+///
+/// The syntax parse of a function body of 2^k + 1 empty statements, the worst
+/// shape of the reference table, peaks at a measured maximum of 939.98 bytes per
+/// node, at k = 17 (131,077 nodes); k = 14 gives 939.8 and k = 10 gives 937.5.
+/// The residual is taken beyond the measured per-byte rate of 4.000389 bytes per
+/// source byte, that is `(peak - 4.000389 * text_bytes) / nodes`, with the
+/// counting allocator, which counts a reallocation as growth in place, so the
+/// peak is twice the final capacity of the statement list and the replaced block
+/// is not counted beside the new one. The constant is 978: a margin of 38.02
+/// bytes per node, 4.04% above the maximum. It is measured over a closed table
+/// of shapes, not proven for arbitrary accepted Rust. A tree whose retained-tree
+/// estimate ([`syntax_held`](crate::syntax_held)) exceeds the bound is detected
+/// after the fact and charged; the estimate misses vector capacity, transient
+/// parse storage and the heap behind unlisted types. See
+/// [`SyntaxBound`](crate::SyntaxBound).
+pub const SYNTAX_BYTES_PER_NODE: usize = 978;
+
+/// Numerator of the bytes of syntax-tree storage charged per source byte.
+///
+/// The per-byte charge is the ratio `SYNTAX_BYTES_PER_BYTE_NUM /
+/// SYNTAX_BYTES_PER_BYTE_DEN`, 417/100 = 4.17, taken as `ceil(text_bytes * num /
+/// den)` in checked integer arithmetic. A single 1 MiB documentation comment
+/// peaks at a measured maximum of 4.000389 bytes per source byte (4,194,764 bytes
+/// over 1,048,589), the most of the byte-dense shapes (string literals 3, an
+/// identifier 2). The ratio 4.17 is 0.1696 bytes per byte, 4.24%, above that
+/// maximum, the same order as the margin of [`SYNTAX_BYTES_PER_NODE`].
+pub const SYNTAX_BYTES_PER_BYTE_NUM: usize = 417;
+
+/// Denominator of the per-byte charge; see [`SYNTAX_BYTES_PER_BYTE_NUM`].
+pub const SYNTAX_BYTES_PER_BYTE_DEN: usize = 100;
 
 /// The most stack of the parse thread that one unit of [`Budget::Recursion`]
 /// takes in a debug build, rounded up: parsing, reading the facts and dropping

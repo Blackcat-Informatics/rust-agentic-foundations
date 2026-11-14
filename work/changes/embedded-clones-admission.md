@@ -14,14 +14,17 @@ contract_effect: changes
 items:
   - claim: "Native parser worker entry establishes an owned source-registry boundary before registration; host spawn callbacks cannot silently invalidate registry occupancy, capacity or lifetime admission."
     outcome: implemented
-  - claim: "Source lexing, parsing and span storage are admitted under the original resource account for the complete pipeline, with exhaustion refusing actionably rather than returning partial success."
+  - claim: "The syntax tree that a native parse returns is charged to the original resource account by a bound computed before the parse and reconciled against the built tree, with exhaustion refusing actionably rather than returning partial success."
+    outcome: implemented
+  - claim: "Native parser work is metered under the original resource account, with exhaustion refusing actionably rather than returning partial success."
 ---
 
 ## Summary
 
-Discovery, proof, reporting and adoption already charge the original resource
-account. Every parser worker now establishes its source-registry boundary at
-entry. Native Source storage is still only partially admitted: the syntax tree
-that a native parse returns, the value `syn::parse2` builds in `raf-source`'s
-parse step, is not charged to the original resource account. This record owns
-that residual until the second claim holds.
+Discovery, proof, reporting and adoption charge the original resource account.
+Every parser worker establishes its source-registry boundary at entry, and the
+syntax tree that a native parse returns, the value `syn::parse2` builds in
+`raf-source`'s parse step, is charged to that account by a bound computed before
+the parse and reconciled against the built tree. The capability states the
+bound, its measured basis and what it misses. Native parser work remains
+unmetered; its item stays open in this record.

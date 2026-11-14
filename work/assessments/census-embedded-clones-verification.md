@@ -7,16 +7,19 @@ subject: cap:census-embedded-clones#verification
 inputs:
   - kind: section
     name: cap:census-embedded-clones#verification
-    digest: 7989a585144b34eef65c7b9eccb9f844325cdbd1edcb9eb3fffa3ca4194d53b0
+    digest: a680efd58f3c8dc1f6d3fcdf527b8ff4cd7af33049969cd0f09b803fec0c90d3
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::embedded
-    digest: bc0612b046cc862d428cd9a59648f6b0383926b6ab45b775a10cb659a1e0faa3
+    digest: a6a1dccbf353dc8e973e5eb26480a7cf11eaadc6596af48334949fb8ce546c21
   - kind: symbol
     name: raf_census::embedded
-    digest: 37e0cc1092695a69e2faa5ace8f253ca5813a0f929de216b8972e793c3b8a91a
+    digest: dea7c5672b1471c367798996d4393a06d83908f059550111f39aad1bfc5d27cc
   - kind: symbol
     name: raf_census::embedded::analysis::Analysis
-    digest: fc776d42dd2a6e1de79d14d35436a8c4b78eabe6716047d71960e694811a8f88
+    digest: f4b3a6e4a11df3a07c9ea5dadafa8b9032c098efcdd6716be695a8a190a93cb7
+  - kind: symbol
+    name: raf_census::embedded::analysis::SyntaxExcess
+    digest: bce9c0e2d4e524fb5e67d32dbd6cbe947931e515a794e81495fdb1fbe20f43b6
   - kind: symbol
     name: raf_census::embedded::collect::function
     digest: c7a86a48b6e2acc66b1263beb64f6131d78721b2006c3accc5e83c4be8697b4a
@@ -46,7 +49,7 @@ inputs:
     digest: 462182a9f68b0ae3eb8fd86beb3887f803322bed2275ad8286f1420dc34a9c70
   - kind: symbol
     name: raf_census::embedded::options::Options
-    digest: a99d1020d592b7dddf04828056808711df46d4b699b7c70d3fe1f383740d0016
+    digest: 5bbaf9b42eb28a92c2e73164da2b2ac3eaea95df65cf884bf14ff71793a5b86c
   - kind: symbol
     name: raf_census::embedded::pairing::find
     digest: 7bbd39ca20494ac105268e8ee1a0214615be0a9430ff8b65b6155446b3a32140
@@ -67,7 +70,10 @@ inputs:
     digest: b8fa125be777fffa2002c7ef6034cb77d5649967dd35b427eb005223b21982de
   - kind: symbol
     name: raf_census::embedded::run::Run
-    digest: e56082030b6b84e6fd0de152c3c527a7d47f180888cfe8fb950dd563a286be29
+    digest: 799f87351cfeca93db59ce835b4d702d66c3aba02b67bc26819ff800c98c1434
+  - kind: symbol
+    name: raf_census::embedded::run::Run::syntax_excesses
+    digest: 7b489a70918f21fca4385811096cb54a4e4ce1811d533e8d2324e7325e6445ca
   - kind: symbol
     name: raf_census::embedded::tokens::inventory
     digest: b441f9135859ca2b5c806e22f005f7b6d02fbc50ccea5c227b86adcbc2058b9f
@@ -80,6 +86,15 @@ inputs:
   - kind: symbol
     name: raf_census::embedded::workspace::collect
     digest: 85f4e384b2eab5e4ff4905891cf47846d46a54ff71d34ba446a9110d2c448e30
+  - kind: symbol
+    name: raf_source::syntax_storage::SYNTAX_NODE_SIZES
+    digest: 4f326d0dfb8ddc8dce53e9844012db5e53527c89378f2641fe1511f0205942e8
+  - kind: symbol
+    name: raf_source::syntax_storage::SyntaxBound
+    digest: cb22bdd68d556de9e8bf4358d6be413602544bf94589ed6dbc6aac8e4e5e52e6
+  - kind: symbol
+    name: raf_source::syntax_storage::syntax_held
+    digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
 verdict: accepted
 by: agent
 ---
