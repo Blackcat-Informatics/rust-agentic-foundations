@@ -97,6 +97,8 @@ bindings:
     - raf_census::embedded::scopes::tests::unmodeled_preludes_refuse_while_explicit_const_parameters_remain_fixed
     - raf_census::embedded::collect::tests::a_lone_semicolon_is_a_statement_without_an_expression_beside_a_refused_neighbour
     - raf_census::embedded::report::tests::a_rendered_report_over_the_importer_limit_refuses_beside_one_at_the_limit
+    - raf_census::test_crate::embedded::copied_helper_pairs_with_larger_at_its_verified_spans
+    - raf_census::test_crate::embedded::a_neighbouring_operator_change_yields_no_witness
   examples:
     - raf_census::example_crate::embedded
 depends: [cap:census-normal-form, cap:source-index, cap:rdf-report-profile, cap:census-debt-ratchet]
