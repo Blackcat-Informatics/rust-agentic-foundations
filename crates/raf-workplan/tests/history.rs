@@ -298,7 +298,12 @@ fn a_capability_history_holds_its_document_through_a_move_and_its_bound_code() {
             .expect("an entry")
     };
     assert_eq!(paths(&story.moved), ["docs/capabilities/alpha.md"]);
-    assert!(paths(&story.added).contains(&"docs/drafts/alpha.md".to_string()));
+    let added_paths = paths(&story.added);
+    assert!(
+        added_paths
+            .iter()
+            .any(|p| p.as_str() == "docs/drafts/alpha.md")
+    );
     assert_eq!(paths(&story.edited), ["docs/capabilities/alpha.md"]);
 
     // `second` changed in one of the four commits that touched its file: the
@@ -321,7 +326,7 @@ fn a_capability_history_holds_its_document_through_a_move_and_its_bound_code() {
         [&story.added]
     );
     for path in ["-rf.rs", "--output=x.rs"] {
-        assert!(paths(&story.added).contains(&path.to_string()), "{path}");
+        assert!(added_paths.iter().any(|p| p.as_str() == path), "{path}");
     }
     assert!(!story.repo.root.join("x.rs").exists());
     assert!(
@@ -1004,10 +1009,11 @@ fn a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling() {
     assert_eq!(paths(&own), ["outer.rs"]);
     assert_eq!(paths(&child), ["outer/inner.rs"]);
     // The commit that wrote the declaration and the files lists all three.
+    let added_paths = paths(&added);
     for path in ["lib.rs", "outer.rs", "outer/inner.rs"] {
-        assert!(paths(&added).contains(&path.to_string()), "{path}");
+        assert!(added_paths.iter().any(|p| p.as_str() == path), "{path}");
     }
-    assert!(!paths(&added).contains(&"sibling.rs".to_string()));
+    assert!(!added_paths.iter().any(|p| p.as_str() == "sibling.rs"));
 
     // An inline module has no file of its own: its span is its history.
     assert_eq!(
