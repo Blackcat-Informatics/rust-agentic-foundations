@@ -201,7 +201,8 @@ fn a_contract_is_cut_into_clauses_at_bold_leads_and_headings_and_the_text_before
         .map(raf_workplan::strict::ClaimCoverage::key)
         .collect();
     assert!(
-        keys.contains(&"cap:demo#contract/a-heading-clause".to_string()),
+        keys.iter()
+            .any(|key| key.as_str() == "cap:demo#contract/a-heading-clause"),
         "{keys:?}"
     );
 }

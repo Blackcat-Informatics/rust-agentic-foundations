@@ -64,7 +64,8 @@ pub(crate) fn assert_inventory(header: &str, reports: impl IntoIterator<Item = S
     assert!(
         difference(&emitted, &unused)
             .1
-            .contains(&"NeverEmitted".to_owned())
+            .iter()
+            .any(|term| term.as_str() == "NeverEmitted")
     );
     assert_eq!(
         difference(&emitted, &emitted),
