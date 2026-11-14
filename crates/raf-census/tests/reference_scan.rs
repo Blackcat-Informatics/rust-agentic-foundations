@@ -2146,6 +2146,45 @@ fn seal_alone_is_not_a_reference_beside_seal_reference() {
     assert!(report.findings()[0].starts_with("REFERENCE-COPY "));
 }
 
+/// A `reference` that names a path package outside the workspace root is read
+/// through the host's disk, and an in-memory Tree of the same files, which has
+/// no host to read it from, refuses naming the Tree.
+#[test]
+fn an_outside_path_reference_is_refused_in_memory_beside_the_disk_tree_that_reads_it() {
+    let fixture = family_fixture(
+        &["acme-a"],
+        &["acme-a"],
+        "pub fn local(value:u32)->u32 { value }",
+    );
+    assert_eq!(scanned(&fixture), ["acme-a"]);
+    let ws = fixture.path().join("ws");
+    let tree: raf_source::MemoryTree = [
+        "Cargo.toml",
+        "Cargo.lock",
+        "helpers-ledger.ttl",
+        "app/Cargo.toml",
+        "app/src/lib.rs",
+        "acme-member/Cargo.toml",
+        "acme-member/src/lib.rs",
+    ]
+    .into_iter()
+    .map(|path| {
+        (
+            path.to_owned(),
+            std::fs::read_to_string(ws.join(path)).unwrap(),
+        )
+    })
+    .collect();
+    let message = Gate::workspace(".")
+        .check_tree(&tree)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        message.contains("path dependency leaves the supplied Tree"),
+        "{message}"
+    );
+}
+
 /// A `reference` naming a Git dependency is refused by the registry route,
 /// because the route seals registry archives only and holds no committed
 /// repository for the row. A registry neighbour with a changed body is clean.
@@ -2220,5 +2259,75 @@ fn an_outside_path_reference_is_refused_by_the_registry_route_beside_a_clean_reg
         Some(&archive),
     );
     let clean = registry_check(&neighbor, &cache).unwrap();
+    assert!(clean.is_clean(), "{:?}", clean.findings());
+}
+
+/// The registry route refuses a `reference` naming a path package outside the
+/// workspace root over a disk tree as it does over an in-memory one, naming the
+/// missing checked source; a registry consumer on disk with a changed body is
+/// clean.
+#[test]
+fn an_outside_path_reference_is_refused_by_the_registry_route_on_disk_beside_a_clean_registry_neighbour()
+ {
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()));
+    let ledger = unhomed_ledger(&["kit"]);
+    let lock = "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['kit']\n[[package]]\nname='kit'\nversion='1.0.0'\n";
+    files::write(
+        scratch.path(),
+        &[
+            (
+                "ws/Cargo.toml",
+                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nkit={path='../kit'}\n[workspace]\n",
+            ),
+            (
+                "ws/src/lib.rs",
+                "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+            ),
+            ("ws/Cargo.lock", lock),
+            ("ws/helpers-ledger.ttl", ledger.as_str()),
+            (
+                "kit/Cargo.toml",
+                "[package]\nname='kit'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            ("kit/src/lib.rs", PROVIDED),
+        ],
+    );
+    let message = Gate::workspace(scratch.path().join("ws"))
+        .check_registry(&registry)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        message.contains("selected outgoing row has no checked source/manifest package"),
+        "{message}"
+    );
+
+    let archive = acme_core(PROVIDED);
+    let neighbour = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n",
+        raf_fixtures::registry::checksum(&archive)
+    );
+    let ledger = unhomed_ledger(&["acme-core"]);
+    files::write(
+        neighbour.path(),
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\n[workspace]\n",
+            ),
+            (
+                "src/lib.rs",
+                "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+            ),
+            ("Cargo.lock", lock.as_str()),
+            ("helpers-ledger.ttl", ledger.as_str()),
+        ],
+    );
+    let clean = Gate::workspace(neighbour.path())
+        .check_registry(&registry)
+        .unwrap();
     assert!(clean.is_clean(), "{:?}", clean.findings());
 }
