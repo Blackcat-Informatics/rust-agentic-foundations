@@ -179,8 +179,10 @@ impl<'source> Reconciliation<'_, 'source> {
             kind,
         };
         let fail = |cause| Failure { byte: 0, cause };
+        // An excess that the memory or the work grant cannot admit or record
+        // refuses as the excess, with its shape.
         let exhausted = |cause| match cause {
-            Refusal::Memory { .. } => refusal,
+            Refusal::Memory { .. } | Refusal::Work { .. } => refusal,
             other => other,
         };
         let combined = self.reserved.checked_add(excess).ok_or(Refusal::Storage(
@@ -1223,6 +1225,43 @@ mod tests {
             .expect("half the statements fit the limit of the whole");
         assert!(neighbour.meter().usage().1 < peak);
         assert_eq!(neighbour.excesses.len(), 0);
+    }
+
+    /// INVARIANT: an excess that memory admits but the work grant cannot record
+    /// refuses as the excess, with its shape, not as a bare work refusal; the
+    /// exact work grant succeeds.
+    #[test]
+    fn a_syntax_excess_record_refused_by_the_work_grant_reports_the_excess() {
+        let workspace = statements_workspace(4096);
+        let file = library(&workspace);
+        let low = SyntaxBound {
+            per_node: 1,
+            byte_num: 1,
+            byte_den: 1,
+        };
+        let (charged, ()) = Analysis::new(AMPLE_WORK, AMPLE_BYTES)
+            .inspect_source_bounded(file, low, |_, _| Ok(()))
+            .expect("an ample limit charges the excess");
+        let (work, peak) = charged.meter().usage();
+        let refused = Analysis::new(work - 1, peak).inspect_source_bounded(
+            file,
+            low,
+            |_, _| -> Result<(), Failure> { panic!("the record refusal must precede the visitor") },
+        );
+        assert!(matches!(
+            refused,
+            Err(SourceFailure::Located {
+                cause: Failure {
+                    cause: Refusal::SyntaxExcess { kind: "Stmt", .. },
+                    byte: 0,
+                },
+                ..
+            })
+        ));
+        let (exact, ()) = Analysis::new(work, peak)
+            .inspect_source_bounded(file, low, |_, _| Ok(()))
+            .expect("the exact work grant records the excess");
+        assert_eq!(exact.excesses.len(), 1);
     }
 
     /// INVARIANT: a parsed tree larger than its prepaid bound is never silent.

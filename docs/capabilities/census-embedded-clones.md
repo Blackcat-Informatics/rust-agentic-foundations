@@ -51,6 +51,7 @@ bindings:
     - raf_census::embedded::analysis::tests::retained_functions_share_the_original_grant_across_parser_workers
     - raf_census::embedded::analysis::tests::source_preparation_grants_precede_parsing_and_survive_until_each_worker_joins
     - raf_census::embedded::analysis::tests::syntax_tree_grant_is_prepaid_before_the_parser_runs
+    - raf_census::embedded::analysis::tests::a_syntax_excess_record_refused_by_the_work_grant_reports_the_excess
     - raf_census::embedded::analysis::tests::embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported
     - raf_census::embedded::analysis::tests::embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message
     - raf_census::embedded::analysis::tests::a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none
@@ -806,9 +807,11 @@ bytes, 4.24 percent, above it, so a text-heavy source holds its bound by the
 byte term alone. That worst byte shape, with a peak of 4,194,764 bytes over 9
 nodes and 1,048,589 source bytes, reaches 95.93 percent of the byte term alone
 and 95.74 percent of the full bound. A shape outside the table can cost more per
-node. A counting allocator that grows a block in place measured the peak; an
-allocator that moves the block would also hold the old block during the copy,
-which the constants do not cover.
+node. The peak was measured with a counting allocator that counts a
+reallocation as growth in place: the statement list at its doubling peaks at
+twice its final capacity, and the replaced block is not counted beside the
+new one. An allocator that moves the block holds both during the copy, which
+the constants do not cover.
 
 Right after the parse and before any analysis, one walk of the tree sums the
 size of each `Expr`, `Stmt`, `Item`, `Pat`, `Type`, `ImplItem`, `TraitItem`,

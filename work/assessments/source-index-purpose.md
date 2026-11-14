@@ -346,7 +346,7 @@ inputs:
     digest: 90acdc0af811e1b93f6c34441ac194978ab9a8ec14a568c620bdd22795860e87
   - kind: symbol
     name: raf_source::SYNTAX_BYTES_PER_NODE
-    digest: 3c0b8ad2e84202f27909bee851e44fdec93b440593cc090f694fe56d649b370f
+    digest: 4392defcfc298e2ac4d61166c03417ca2e12596904e52f7a35e4d63349f50580
   - kind: symbol
     name: raf_source::SelfType
     digest: 3b36a393fc86b3b53b750186daa3fb72a3ea9a5465eca1712d0fb064c6533fa5

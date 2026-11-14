@@ -136,10 +136,14 @@ pub const PARSE_BYTES_PER_TOKEN: usize = 1664;
 /// node, at k = 17 (131,077 nodes); k = 14 gives 939.8 and k = 10 gives 937.5.
 /// The residual is taken beyond the measured per-byte rate of 4.000389 bytes per
 /// source byte, that is `(peak - 4.000389 * text_bytes) / nodes`, with the
-/// counting allocator growing a block in place. The constant is 978: a margin of
-/// 38.02 bytes per node, 4.04% above the maximum. It is measured over a closed
-/// table of shapes, not proven for arbitrary accepted Rust; a parse that holds
-/// more is detected after the fact and charged. See
+/// counting allocator, which counts a reallocation as growth in place, so the
+/// peak is twice the final capacity of the statement list and the replaced block
+/// is not counted beside the new one. The constant is 978: a margin of 38.02
+/// bytes per node, 4.04% above the maximum. It is measured over a closed table
+/// of shapes, not proven for arbitrary accepted Rust. A tree whose retained-tree
+/// estimate ([`syntax_held`](crate::syntax_held)) exceeds the bound is detected
+/// after the fact and charged; the estimate misses vector capacity, transient
+/// parse storage and the heap behind unlisted types. See
 /// [`SyntaxBound`](crate::SyntaxBound).
 pub const SYNTAX_BYTES_PER_NODE: usize = 978;
 
