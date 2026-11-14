@@ -993,6 +993,12 @@ fn write_reference_ledger(root: &Path, selector: &str) {
 /// Write the ledger of a consumer that declares each of `selectors` as a
 /// reference, none when the list is empty.
 fn write_ledger(root: &Path, selectors: &[&str]) {
+    write_ledger_with(root, selectors, false);
+}
+
+/// [`write_ledger`], and when `job` is set also the job `number`, homed at
+/// `app::home`, so that `job` and `count` have a selector to answer.
+fn write_ledger_with(root: &Path, selectors: &[&str], job: bool) {
     let mut graph = Builder::new();
     put(
         &mut graph,
@@ -1015,6 +1021,29 @@ fn write_ledger(root: &Path, selectors: &[&str]) {
     put(&mut graph, "", "root", Term::simple_literal("."));
     for selector in selectors {
         put(&mut graph, "", "reference", Term::simple_literal(*selector));
+    }
+    if job {
+        put(&mut graph, "", "job", Term::iri("#job"));
+        put(
+            &mut graph,
+            "#job",
+            "type",
+            Term::iri(format!("{}LedgerJob", vocab::REPORT)),
+        );
+        for (key, value) in [
+            ("jobId", "number"),
+            ("summary", "The approved constant"),
+            ("homeSymbol", "app::home"),
+        ] {
+            put(&mut graph, "#job", key, Term::simple_literal(value));
+        }
+        put(&mut graph, "#job", "enforced", Term::boolean(false));
+        put(
+            &mut graph,
+            "#job",
+            "forbiddenConstant",
+            Term::typed_literal("7", vocab::INTEGER),
+        );
     }
     fs::write(
         root.join("helpers-ledger.ttl"),
@@ -1442,5 +1471,80 @@ fn a_sealed_registry_selector_is_a_reference_without_a_ledger_entry() {
         let changed = run(&root, &sealed(selector));
         assert!(changed.status.success(), "{selector}: {changed:?}");
         assert_eq!(changed.stdout, Vec::<u8>::new(), "{selector}");
+    }
+}
+
+/// A consumer `app` of the registry package `acme-core` and of the Git package
+/// `kit`, both locked, with the registry archive in the cache and a job `number`
+/// homed at `app::home`. The consumer copy has a body no provider holds, so the
+/// only refusal a command can meet is the one the ledger's `reference` values
+/// cause. Returns the consumer root and the cache directory.
+fn git_and_registry_workspace(scratch: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
+    const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
+    let archive = acme_core_archive(ACME_CORE);
+    let (root, cache) = registry_workspace(scratch, &archive);
+    raf_fixtures::registry::place(&cache, "index.crates.io-0", "acme-core", "1.0.0", &archive);
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core','kit']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n[[package]]\nname='kit'\nversion='1.0.0'\nsource='git+https://example.test/kit?rev={COMMIT}#{COMMIT}'\n",
+        raf_fixtures::registry::checksum(&archive)
+    );
+    files::write(
+        &root,
+        &[
+            (
+                "Cargo.toml",
+                format!(
+                    "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\nkit={{git='https://example.test/kit',rev='{COMMIT}'}}\n[workspace]\n"
+                )
+                .as_str(),
+            ),
+            ("Cargo.lock", lock.as_str()),
+        ],
+    );
+    write_consumer(&root, &scaled(2, 8), "pub fn home()->u32{7}\n");
+    (root, cache)
+}
+
+/// The six commands, each with the selector it needs.
+const REGISTRY_COMMANDS: [&[&str]; 6] = [
+    &["check"],
+    &["index"],
+    &["job", "number"],
+    &["count", "number"],
+    &["fingerprint", "app::copy"],
+    &["debt", "--write"],
+];
+
+/// A ledger `reference` that names a Git package makes `check`, `index`,
+/// `job`, `count`, `fingerprint` and `debt --write` refuse on the registry
+/// route, with exit 1, the refusal on stderr, an empty stdout and no debt
+/// record, because a Git reference is read only from a caller-supplied
+/// committed tree. The same commands over the same lock file succeed when the
+/// ledger's references name only the sealed registry package.
+#[test]
+fn a_git_reference_is_refused_by_every_registry_command_beside_a_clean_registry_neighbour() {
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let (root, cache) = git_and_registry_workspace(scratch.path());
+
+    write_ledger_with(&root, &["acme-core", "kit"], true);
+    for command in REGISTRY_COMMANDS {
+        let refused = run(&root, &sealed_words(command, &cache));
+        assert_eq!(refused.status.code(), Some(1), "{command:?}: {refused:?}");
+        assert_eq!(refused.stdout, Vec::<u8>::new(), "{command:?}");
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        assert!(
+            stderr.contains("package \"kit\" has no admitted local reference source"),
+            "{command:?}: {stderr}"
+        );
+    }
+    assert!(!root.join(raf_census::DEBT_FILE).exists());
+
+    // An unenforced job with no copies fails the gate itself, so only the two
+    // commands that select a job read a ledger that declares one.
+    for command in REGISTRY_COMMANDS {
+        write_ledger_with(&root, &["acme-core"], matches!(command[0], "job" | "count"));
+        let accepted = run(&root, &sealed_words(command, &cache));
+        assert!(accepted.status.success(), "{command:?}: {accepted:?}");
+        assert_eq!(accepted.stderr, Vec::<u8>::new(), "{command:?}");
     }
 }

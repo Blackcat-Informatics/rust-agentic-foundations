@@ -55,6 +55,8 @@ bindings:
     - cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict
     - cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry
     - raf_census::test_crate::reference_scan::seal_alone_is_not_a_reference_beside_seal_reference
+    - raf_census::test_crate::reference_scan::an_outside_path_reference_is_refused_in_memory_beside_the_disk_tree_that_reads_it
+    - cargo_census::test_crate::delivery::a_git_reference_is_refused_by_every_registry_command_beside_a_clean_registry_neighbour
     - raf_census::test_crate::reference_scan::an_unnamed_declaration_is_bound_to_the_default_registry_only
     - raf_census::test_crate::reference_scan::an_unnamed_declaration_with_only_a_custom_registry_row_is_refused
     - raf_census::test_crate::reference_scan::a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one
@@ -127,7 +129,7 @@ A selected name with two reachable locked versions refuses as ambiguous, whether
 an exact name selected it or a family selected two non-first-party versions.
 
 ### Registry dependencies sealed by the lock file
-<!-- raf:tested-by raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour,raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse,raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows,raf_census::test_crate::reference_scan::a_transitive_row_of_the_same_name_is_not_sealed,raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded,raf_census::test_crate::reference_scan::a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one,raf_census::test_crate::reference_scan::an_unnamed_declaration_is_bound_to_the_default_registry_only,raf_census::test_crate::reference_scan::an_unnamed_declaration_with_only_a_custom_registry_row_is_refused,cargo_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry,raf_census::test_crate::reference_scan::seal_alone_is_not_a_reference_beside_seal_reference -->
+<!-- raf:tested-by raf_census::test_crate::reference_scan::registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour,raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse,raf_census::test_crate::reference_scan::registry_declarations_are_matched_to_their_own_lock_rows,raf_census::test_crate::reference_scan::a_transitive_row_of_the_same_name_is_not_sealed,raf_census::test_crate::reference_scan::the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded,raf_census::test_crate::reference_scan::a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one,raf_census::test_crate::reference_scan::an_unnamed_declaration_is_bound_to_the_default_registry_only,raf_census::test_crate::reference_scan::an_unnamed_declaration_with_only_a_custom_registry_row_is_refused,cargo_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry,raf_census::test_crate::reference_scan::seal_alone_is_not_a_reference_beside_seal_reference,raf_census::test_crate::reference_scan::an_outside_path_reference_is_refused_in_memory_beside_the_disk_tree_that_reads_it -->
 
 A consumer whose dependency comes from a registry needs no sibling checkout, no
 pinned commit and no installed command. `Gate::check_locked_registry` (and
@@ -152,9 +154,10 @@ values (an exact name or a `prefix-*` family), any selector added with
 `LockedRegistry::seal_reference`, which is a reference exactly as a ledger value
 is, and any selector added with `LockedRegistry::seal`, which names providers
 that the ledger declares by another property and is not a reference. A `reference` that names a path package keeps the contained
-acquisition, which works only for a package inside the workspace; neither that
-nor a Git package is read from the archive cache. A `reference` that names a Git
-package is refused by this helper as having no admitted local source: a Git
+acquisition: a package outside the workspace root is read from disk by the
+Gate over a discovered root, and an in-memory Tree, which has no host, refuses
+it; neither that nor a Git package is read from the archive cache. A `reference` that names a Git
+package is refused by this helper, in `check`, `index`, `job`, `count`, `fingerprint` and `debt --write` alike, as having no admitted local source: a Git
 reference is checked only by `Gate::check_locked` with a caller-supplied
 committed tree. A selected registry package that no
 first-party package depends on directly is not sealed, and its reference
@@ -175,7 +178,7 @@ oversized archive refuses. The library target compared is the one that the
 authenticated archive manifest declares, and a package without one refuses.
 
 ### The command-line route
-<!-- raf:tested-by cargo_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry -->
+<!-- raf:tested-by cargo_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry,cargo_census::test_crate::delivery::a_git_reference_is_refused_by_every_registry_command_beside_a_clean_registry_neighbour -->
 
 `cargo census check`, `index`, `job`, `count`, `fingerprint` and `debt --write` take `--seal-registry`, `--registry-cache` and `--registry-features` and call `Gate::check_registry` and `Gate::write_debt_registry` with a `LockedRegistry` built from them, so the command and the library route are one path. `--seal-registry` calls `LockedRegistry::seal_reference`: the selectors it names and the ledger's `reference` selectors feed one reference selection, so a sealed package is a reference for the ban as well as sealed. `LockedRegistry::seal` alone seals a package for provider proofs without making it a reference. The command line declares `LockedRegistry::require_declared_features`: the caller states the complete feature set of every sealed package, with `PACKAGE=` for none, and a sealed package without a declaration refuses by name. A feature declaration for a package that is not sealed refuses in the library route too. The host runs a checkout of this repository or an installed `cargo-census` binary built from a pinned commit; see [census-cli](census-cli.md) for the options.
 
@@ -499,6 +502,7 @@ refusal with a valid commit or pin key.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_every_registry_command_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
@@ -512,6 +516,7 @@ refusal with a valid commit or pin key.
 | `raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::an_existing_debt_record_does_not_hold_a_reference_copy` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::an_outside_path_reference_is_refused_in_memory_beside_the_disk_tree_that_reads_it` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::an_unnamed_declaration_is_bound_to_the_default_registry_only` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::an_unnamed_declaration_with_only_a_custom_registry_row_is_refused` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::exact_and_family_selectors_scan_a_package_once` | test | [Contract](#contract) |

@@ -2145,3 +2145,42 @@ fn seal_alone_is_not_a_reference_beside_seal_reference() {
     assert_eq!(report.findings().len(), 1, "{:?}", report.findings());
     assert!(report.findings()[0].starts_with("REFERENCE-COPY "));
 }
+
+/// A `reference` that names a path package outside the workspace root is read
+/// through the host's disk, and an in-memory Tree of the same files, which has
+/// no host to read it from, refuses naming the Tree.
+#[test]
+fn an_outside_path_reference_is_refused_in_memory_beside_the_disk_tree_that_reads_it() {
+    let fixture = family_fixture(
+        &["acme-a"],
+        &["acme-a"],
+        "pub fn local(value:u32)->u32 { value }",
+    );
+    assert_eq!(scanned(&fixture), ["acme-a"]);
+    let ws = fixture.path().join("ws");
+    let tree: raf_source::MemoryTree = [
+        "Cargo.toml",
+        "Cargo.lock",
+        "helpers-ledger.ttl",
+        "app/Cargo.toml",
+        "app/src/lib.rs",
+        "acme-member/Cargo.toml",
+        "acme-member/src/lib.rs",
+    ]
+    .into_iter()
+    .map(|path| {
+        (
+            path.to_owned(),
+            std::fs::read_to_string(ws.join(path)).unwrap(),
+        )
+    })
+    .collect();
+    let message = Gate::workspace(".")
+        .check_tree(&tree)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        message.contains("path dependency leaves the supplied Tree"),
+        "{message}"
+    );
+}
