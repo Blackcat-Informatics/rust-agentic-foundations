@@ -465,10 +465,11 @@ fn tests_for_a_binding_named_only_in_prose_substantiates_verification() {
     with_plan(&repo(), |plan, _| {
         let verification = tests_in(plan, "cap:alpha", S::Verification);
         assert!(
-            verification.contains(&OTHER.to_string()),
+            verification.iter().any(|t| t.as_str() == OTHER),
             "{verification:?}"
         );
-        assert!(!tests_in(plan, "cap:alpha", S::Contract).contains(&OTHER.to_string()));
+        let contract = tests_in(plan, "cap:alpha", S::Contract);
+        assert!(!contract.iter().any(|t| t.as_str() == OTHER));
     });
 }
 
@@ -477,15 +478,17 @@ fn tests_for_ignores_a_name_inside_a_proposed_block_or_a_fence() {
     with_plan(&repo(), |plan, _| {
         let verification = tests_in(plan, "cap:alpha", S::Verification);
         assert!(
-            verification.contains(&THIRD.to_string()),
+            verification.iter().any(|t| t.as_str() == THIRD),
             "{verification:?}"
         );
         assert!(
-            verification.contains(&FOURTH.to_string()),
+            verification.iter().any(|t| t.as_str() == FOURTH),
             "{verification:?}"
         );
-        assert!(!tests_in(plan, "cap:alpha", S::Contract).contains(&THIRD.to_string()));
-        assert!(!tests_in(plan, "cap:alpha", S::Usage).contains(&FOURTH.to_string()));
+        let contract = tests_in(plan, "cap:alpha", S::Contract);
+        assert!(!contract.iter().any(|t| t.as_str() == THIRD));
+        let usage = tests_in(plan, "cap:alpha", S::Usage);
+        assert!(!usage.iter().any(|t| t.as_str() == FOURTH));
         // Sorted by path.
         assert_eq!(verification, [FOURTH, OTHER, THIRD]);
     });
@@ -494,7 +497,8 @@ fn tests_for_ignores_a_name_inside_a_proposed_block_or_a_fence() {
 #[test]
 fn tests_for_a_path_that_does_not_resolve_is_still_a_binding_of_its_sections() {
     with_plan(&repo(), |plan, _| {
-        assert!(tests_in(plan, "cap:alpha", S::Constraints).contains(&ABSENT.to_string()));
+        let constraints = tests_in(plan, "cap:alpha", S::Constraints);
+        assert!(constraints.iter().any(|t| t.as_str() == ABSENT));
         assert_none(tests_in(plan, "cap:alpha", S::Examples));
     });
 }
@@ -557,7 +561,8 @@ fn a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiat
     with_plan(&repo(), |plan, _| {
         // The Examples section names `<CASE>::inner`, `<CASE>_extra` and
         // `other::<CASE>`, and none of them is the bound path.
-        assert!(!tests_in(plan, "cap:alpha", S::Examples).contains(&CASE.to_string()));
+        let examples = tests_in(plan, "cap:alpha", S::Examples);
+        assert!(!examples.iter().any(|t| t.as_str() == CASE));
         let case = plan
             .graph()
             .bindings()
