@@ -2184,3 +2184,150 @@ fn an_outside_path_reference_is_refused_in_memory_beside_the_disk_tree_that_read
         "{message}"
     );
 }
+
+/// A `reference` naming a Git dependency is refused by the registry route,
+/// because the route seals registry archives only and holds no committed
+/// repository for the row. A registry neighbour with a changed body is clean.
+#[test]
+fn a_git_reference_is_refused_by_the_registry_route_beside_a_clean_registry_neighbour() {
+    let commit = "0123456789abcdef0123456789abcdef01234567";
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['kit']\n[[package]]\nname='kit'\nversion='1.0.0'\nsource='git+https://example.test/kit?rev={commit}#{commit}'\n"
+    );
+    let ledger = unhomed_ledger(&["kit"]);
+    let tree = raf_source::MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nkit={git='https://example.test/kit'}\n",
+        ),
+        (
+            "src/lib.rs",
+            "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+        ),
+        ("Cargo.lock", lock.as_str()),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let message = registry_check(&tree, &cache).unwrap_err().to_string();
+    assert!(
+        message.contains("package \"kit\" has no admitted local reference source"),
+        "{message}"
+    );
+
+    let archive = acme_core(PROVIDED);
+    let (neighbor, cache) = registry_consumer(
+        "acme-core",
+        "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+        &archive,
+        Some(&archive),
+    );
+    let clean = registry_check(&neighbor, &cache).unwrap();
+    assert!(clean.is_clean(), "{:?}", clean.findings());
+}
+
+/// A path dependency outside the workspace is refused by the registry route: the
+/// locked load finds no checked source for its declaration, so the workspace
+/// does not load. A registry neighbour with a changed body is clean.
+#[test]
+fn an_outside_path_reference_is_refused_by_the_registry_route_beside_a_clean_registry_neighbour() {
+    let lock = "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['kit']\n[[package]]\nname='kit'\nversion='1.0.0'\n";
+    let ledger = unhomed_ledger(&["kit"]);
+    let tree = raf_source::MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nkit={path='../kit'}\n",
+        ),
+        (
+            "src/lib.rs",
+            "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+        ),
+        ("Cargo.lock", lock),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let message = registry_check(&tree, &cache).unwrap_err().to_string();
+    assert!(
+        message.contains("selected outgoing row has no checked source/manifest package"),
+        "{message}"
+    );
+
+    let archive = acme_core(PROVIDED);
+    let (neighbor, cache) = registry_consumer(
+        "acme-core",
+        "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+        &archive,
+        Some(&archive),
+    );
+    let clean = registry_check(&neighbor, &cache).unwrap();
+    assert!(clean.is_clean(), "{:?}", clean.findings());
+}
+
+/// The registry route refuses a `reference` naming a path package outside the
+/// workspace root over a disk tree as it does over an in-memory one, naming the
+/// missing checked source; a registry consumer on disk with a changed body is
+/// clean.
+#[test]
+fn an_outside_path_reference_is_refused_by_the_registry_route_on_disk_beside_a_clean_registry_neighbour()
+ {
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()));
+    let ledger = unhomed_ledger(&["kit"]);
+    let lock = "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['kit']\n[[package]]\nname='kit'\nversion='1.0.0'\n";
+    files::write(
+        scratch.path(),
+        &[
+            (
+                "ws/Cargo.toml",
+                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nkit={path='../kit'}\n[workspace]\n",
+            ),
+            (
+                "ws/src/lib.rs",
+                "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+            ),
+            ("ws/Cargo.lock", lock),
+            ("ws/helpers-ledger.ttl", ledger.as_str()),
+            (
+                "kit/Cargo.toml",
+                "[package]\nname='kit'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            ("kit/src/lib.rs", PROVIDED),
+        ],
+    );
+    let message = Gate::workspace(scratch.path().join("ws"))
+        .check_registry(&registry)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        message.contains("selected outgoing row has no checked source/manifest package"),
+        "{message}"
+    );
+
+    let archive = acme_core(PROVIDED);
+    let neighbour = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['acme-core']\n[[package]]\nname='acme-core'\nversion='1.0.0'\nsource='{CRATES_IO}'\nchecksum='{}'\n",
+        raf_fixtures::registry::checksum(&archive)
+    );
+    let ledger = unhomed_ledger(&["acme-core"]);
+    files::write(
+        neighbour.path(),
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nacme-core='1'\n[workspace]\n",
+            ),
+            (
+                "src/lib.rs",
+                "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
+            ),
+            ("Cargo.lock", lock.as_str()),
+            ("helpers-ledger.ttl", ledger.as_str()),
+        ],
+    );
+    let clean = Gate::workspace(neighbour.path())
+        .check_registry(&registry)
+        .unwrap();
+    assert!(clean.is_clean(), "{:?}", clean.findings());
+}

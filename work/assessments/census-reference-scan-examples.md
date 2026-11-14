@@ -7,7 +7,7 @@ subject: cap:census-reference-scan#examples
 inputs:
   - kind: section
     name: cap:census-reference-scan#examples
-    digest: 54d8285303f15a28f86869aba69e8190b143c18621fa0357b7d8079422c17ff2
+    digest: af4bfd0bf54d8a7afb40233d887685ef8eb9d03dbdefa4dd3497622d37f797a9
   - kind: symbol
     name: raf_census::ArchiveCache
     digest: e5c3e45db9221f00ace57803096fe0f3a9ecc8a8489cb60eec94c90a2319b937

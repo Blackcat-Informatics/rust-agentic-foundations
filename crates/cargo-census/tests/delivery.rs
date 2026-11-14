@@ -1505,24 +1505,23 @@ fn git_and_registry_workspace(scratch: &Path) -> (std::path::PathBuf, std::path:
     (root, cache)
 }
 
-/// The six commands, each with the selector it needs.
-const REGISTRY_COMMANDS: [&[&str]; 6] = [
-    &["check"],
-    &["index"],
+/// The commands that share the registry evaluation with `check` and `index`
+/// and the registry debt writer, each with the selector it needs.
+const REGISTRY_COMMANDS: [&[&str]; 4] = [
     &["job", "number"],
     &["count", "number"],
     &["fingerprint", "app::copy"],
     &["debt", "--write"],
 ];
 
-/// A ledger `reference` that names a Git package makes `check`, `index`,
-/// `job`, `count`, `fingerprint` and `debt --write` refuse on the registry
-/// route, with exit 1, the refusal on stderr, an empty stdout and no debt
-/// record, because a Git reference is read only from a caller-supplied
-/// committed tree. The same commands over the same lock file succeed when the
+/// A ledger `reference` that names a Git package makes `job`, `count`,
+/// `fingerprint` and `debt --write` refuse on the registry route as `check`
+/// and `index` do, with exit 1, the refusal on stderr, an empty stdout and no
+/// debt record. The same commands over the same lock file succeed when the
 /// ledger's references name only the sealed registry package.
 #[test]
-fn a_git_reference_is_refused_by_every_registry_command_beside_a_clean_registry_neighbour() {
+fn a_git_reference_is_refused_by_job_count_fingerprint_and_debt_beside_a_clean_registry_neighbour()
+{
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let (root, cache) = git_and_registry_workspace(scratch.path());
 
@@ -1547,4 +1546,51 @@ fn a_git_reference_is_refused_by_every_registry_command_beside_a_clean_registry_
         assert!(accepted.status.success(), "{command:?}: {accepted:?}");
         assert_eq!(accepted.stderr, Vec::<u8>::new(), "{command:?}");
     }
+}
+
+/// A `reference` naming a Git dependency is refused by the registry options for
+/// `check` and `index`: exit 1, the named refusal on stderr and an empty stdout.
+/// The same options over a registry consumer with a changed body pass.
+#[test]
+fn a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour() {
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let archive = acme_core_archive(ACME_CORE);
+    let (root, cache) = registry_workspace(scratch.path(), &archive);
+    let commit = "0123456789abcdef0123456789abcdef01234567";
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['kit']\n[[package]]\nname='kit'\nversion='1.0.0'\nsource='git+https://example.test/kit?rev={commit}#{commit}'\n"
+    );
+    let git = scratch.path().join("git");
+    files::write(
+        &git,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nkit={git='https://example.test/kit'}\n[workspace]\n",
+            ),
+            ("Cargo.lock", lock.as_str()),
+            (
+                "src/lib.rs",
+                "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }\n",
+            ),
+        ],
+    );
+    write_reference_ledger(&git, "kit");
+    let cache_text = cache.to_str().unwrap();
+    for command in ["check", "index"] {
+        let refused = run(&git, &[command, "--registry-cache", cache_text]);
+        assert_eq!(refused.status.code(), Some(1), "{command}: {refused:?}");
+        assert_eq!(refused.stdout, Vec::<u8>::new(), "{command}");
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        assert!(
+            stderr.contains("package \"kit\" has no admitted local reference source"),
+            "{command}: {stderr}"
+        );
+    }
+
+    raf_fixtures::registry::place(&cache, "index.crates.io-0", "acme-core", "1.0.0", &archive);
+    write_consumer(&root, &scaled(2, 8), "");
+    let clean = run(&root, &sealed_words(&["check"], &cache));
+    assert!(clean.status.success(), "{clean:?}");
+    assert_eq!(clean.stdout, Vec::<u8>::new());
 }
