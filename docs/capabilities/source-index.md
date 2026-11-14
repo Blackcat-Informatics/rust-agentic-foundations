@@ -604,6 +604,7 @@ bindings:
     - raf_source::tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names
     - raf_source::test_crate::workspace_containment::a_tree_with_windows_device_names_loads_off_windows
     - raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause
+    - raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers
     - raf_source::error::tests::control_characters_in_a_path_are_escaped
     - raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped
     - raf_source::test_crate::error_text::a_path_attribute_with_terminal_escapes_is_shown_escaped
@@ -1682,7 +1683,10 @@ A file that exceeds a budget is
 refused with a `LoadError` of kind `Budget`, which names the file, the budget, its
 limit and the line where the count went over. A file that `syn` rejects is a `Syntax`
 error with the line and column of the parser's error, read on the parse thread, and a
-thread that cannot start is a `Spawn` error.
+thread that cannot start is a `Spawn` error. A parse thread whose native span
+registry already holds a registration at entry, left by a host thread-spawn
+callback, is refused with a `Registry` error before it registers its source.
+<!-- raf:tested-by raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers -->
 
 ### Prescan counter definitions
 
@@ -5341,6 +5345,7 @@ one-byte-short refusal.
 | `raf_source::meter::tests::transient_reservations_refuse_atomically_and_release_on_every_exit` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused` | test | [Verification](#verification) |
+| `raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers` | test | [Contract](#contract) |
 | `raf_source::parse::parallel::tests::candidate_preparation_is_bounded_before_materializing_a_long_borrowed_path` | test | [Constraints](#constraints) |
 | `raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed` | test | [Contract](#contract), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_source::parse::parallel::tests::native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling` | test | [Contract](#contract), [Explanation](#explanation) |

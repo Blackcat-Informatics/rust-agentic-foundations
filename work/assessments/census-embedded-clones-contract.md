@@ -7,7 +7,7 @@ subject: cap:census-embedded-clones#contract
 inputs:
   - kind: section
     name: cap:census-embedded-clones#contract
-    digest: 65288558a99bf5ef5b4c1b1387f308534a58af48b91668cb02e3ea328d24115b
+    digest: 588e561bca6e4c1b82a498f529341879489553a816d6d7d18f4ad96ad4e4915e
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::embedded
     digest: bc0612b046cc862d428cd9a59648f6b0383926b6ab45b775a10cb659a1e0faa3
