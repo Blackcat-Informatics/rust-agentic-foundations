@@ -12,6 +12,14 @@ fn component(bytes: &[u8]) -> Option<usize> {
 pub(crate) fn part(text: &str) -> String {
     percent::encode(text, component).into_owned()
 }
+
+pub(crate) fn part_with_memory<'a, S: purrdf_lex::allocation::Admission + ?Sized>(
+    text: &'a str,
+    memory: &mut purrdf_lex::allocation::Memory<'_, S>,
+) -> Result<std::borrow::Cow<'a, str>, purrdf_lex::allocation::StorageError> {
+    memory.admission_mut().checkpoint(text.len() as u64)?;
+    percent::encode_with_memory(text, component, memory)
+}
 pub(super) fn unit(symbol: &str, file: &str, line: usize, start: usize) -> String {
     format!(
         "#unit/{}@{}:{line}:{start}",

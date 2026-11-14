@@ -17,6 +17,18 @@ bindings:
     - raf_rdf::Error
     - raf_rdf::Format
     - raf_rdf::Graph
+    - raf_rdf::AdmittedGraph
+    - raf_rdf::AdmittedNode
+    - raf_rdf::AdmittedValue
+    - raf_rdf::BuildCause
+    - raf_rdf::BuildFailure
+    - raf_rdf::CallerFailure
+    - raf_rdf::Construction
+    - raf_rdf::ConstructionExit
+    - raf_rdf::ConstructionFailure
+    - raf_rdf::ConstructionStopped
+    - raf_rdf::ImportFailure
+    - raf_rdf::Graph::to_text_with_memory
     - raf_rdf::Builder
     - raf_rdf::Node
     - raf_rdf::Value
@@ -32,6 +44,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::result
     - cargo_workplan::bin_crate::cargo_workplan::result_graph
   tests:
+    - raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage
     - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
@@ -248,6 +261,20 @@ The snapshot BASE is `https://blackcatinformatics.ca/.well-known/genid/raf-repor
 followed by the full lowercase BLAKE3 digest of those normalized bytes. No BASE
 line participates in the preimage. This is an unkeyed integrity check, not an
 authentication claim, and relies on the cryptographic collision assumption.
+
+### Admitted canonical rendering
+
+`Graph::to_text_with_memory` renders an existing validated immutable graph
+through separate caller-owned scratch and output accounts. Selection rows,
+distinct native object copies, comparison and digest work, traversal scratch
+and destination growth use those accounts. Failure returns typed storage,
+lookup or invariant errors without exposing partial text. The caller retains
+the output's surviving capacity grant until the returned string is destroyed.
+Embedded Census text owners enforce that lifetime against their original run
+account. Graph construction, parsing and profile validation remain outside
+these renderer accounts. Ordinary serialization uses the same implementation
+with resident allocation and identical canonical bytes.
+<!-- raf:tested-by raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage,raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip -->
 
 ### Equivalent formats and owned names
 <!-- raf:tested-by raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_rdf::read::tests::ownership_normalization_checks_the_selected_root_boundary,raf_rdf::test_crate::profile::an_external_iri_sharing_a_snapshot_prefix_is_not_local -->
@@ -473,7 +500,23 @@ content-addressed BASE. `dataset` borrows the authoritative native store;
 `raf_workplan::report` projects actual typed findings and
 item/test coverage. The bound `report` example builds typed values and provenance.
 
+Use `Graph::to_text_with_memory` when the caller owns storage/work accounts.
+Keep scratch separate from the output grant so both may charge one shared
+aggregate while native term traversal writes the result. Keep the returned
+string with its original output grant; release the grant after destroying the
+string. This operation starts from an already validated graph and does not
+admit the graph's original construction or parsing.
+<!-- raf:tested-by raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage -->
+
 ## Examples
+
+The embedded debt fixture keeps a descriptor table live while rendering three
+literals with shared prefixes and escaped characters. A separate render-only
+case keeps one result alive during a second operation. A budget that admits
+one render refuses that overlap; dropping the held text permits
+another render. Turtle and N-Triples preserve the same lifetime rule, while
+the canonical report fixture retains the established bytes and identities.
+<!-- raf:tested-by raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage,raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip -->
 
 The consuming review fixture parses all three machine carriers and compares their full statement sets. Both accepted review identity spellings yield the same semantic selection. After source edits, typed report rows preserve the exact changed, added and removed paths.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
@@ -553,11 +596,13 @@ Census's baseline and index expose `to_turtle`, `from_turtle`, `to_ntriples` and
 - Typed domain consumers must validate closed shapes, ranges and cross-field
   invariants; a caller-built generic graph has only ground-profile validation.
   <!-- raf:tested-by raf_rdf::test_crate::profile::ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces -->
-- The public read/write API takes no resource-budget argument: it admits a
+- The ordinary read/write conveniences use resident allocation: they admit a
   64 KiB literal through native parsing and ground validation. Parsing precedes
   exact-profile rejection. Native parsing and resident output impose no RAF
-  allocation or stack ceiling; consumers must admit their input before calling
-  this layer. The semantic triple-term depth restriction is not a parser budget.
+  allocation or stack ceiling. The explicit rendering API accounts for its
+  working storage and output; consumers retain responsibility for admitting
+  graph construction and parsing. The semantic triple-term depth restriction
+  is not a parser budget.
   <!-- raf:tested-by raf_rdf::test_crate::profile::caller_supplied_large_literals_are_validated_without_a_profile_byte_budget -->
 
 ## Explanation
@@ -566,9 +611,10 @@ Census's baseline and index expose `to_turtle`, `from_turtle`, `to_ntriples` and
 
 PurRDF parses the input before closed profile validation; the profile does not
 impose a parser allocation or stack budget. Native indexes and canonical sorting
-also contribute to reader cost. Rendering retains normalized text for its hash
-and uses native traversal with resident allocation, which does not impose an
-allocation ceiling. This layer does not load files or admit a filesystem load
+also contribute to reader cost. Rendering retains normalized text for its hash.
+Its explicit accounts cover working storage, native traversal and output;
+resident conveniences impose no allocation ceiling. This layer does not load
+files or admit a filesystem load
 budget; consumers enforce source/report input admission limits before supplying
 text. The accepted depth of ground graphs is a semantic profile restriction,
 not a bound on the parser or its temporary allocation.
@@ -583,6 +629,14 @@ provenance, and revisits the ordered representation only with counted evidence
 that its storage or comparison cost exceeds admitted workloads.
 
 ## Verification
+
+The original-account fixture retains descriptor storage during rendering,
+refuses work and storage exhaustion beside valid neighbors, and recovers
+after failed construction. Its render-only cases keep an output live during
+another operation and release that grant before retrying, in both canonical
+formats. Existing profile and Census report cases retain exact canonical
+bytes, identities and physical statement meaning.
+<!-- raf:tested-by raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage,raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip -->
 
 The command completion cases retain the removed record path and static refusal
 conditions in both native RDF carriers.
@@ -659,9 +713,10 @@ retains its separate semantic and normal-form golden checks.
 | `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
-| `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
 | `raf_rdf::example_crate::report` | example target | [Usage](#usage) |

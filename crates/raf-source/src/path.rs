@@ -184,6 +184,20 @@ impl RelPath {
         Self::root().join(input)
     }
 
+    /// Whether `input` is already a valid, normalized relative spelling.
+    ///
+    /// Uses the same path checks as [`Self::new`] without allocating text,
+    /// component storage or diagnostics. The empty spelling is the root;
+    /// otherwise empty and `.` components are noncanonical. A `..` component
+    /// remains literal and may only spend depth supplied by preceding components.
+    /// This query does not inspect the filesystem or select a source authority.
+    #[must_use]
+    pub fn is_canonical(input: &str) -> bool {
+        input.is_empty()
+            || (Self::validate_from_depth(input, 0).is_ok()
+                && input.split('/').all(|segment| !matches!(segment, "" | ".")))
+    }
+
     /// Append `input`, which is read as a relative path.
     ///
     /// `.` and empty segments are dropped; `..` segments are kept so that the
@@ -259,15 +273,6 @@ impl RelPath {
     }
 
     fn validate_join(&self, input: &str) -> Result<(), JoinRefusal> {
-        if input.starts_with('/') {
-            return Err(JoinRefusal::Absolute);
-        }
-        if input.contains('\\') {
-            return Err(JoinRefusal::Backslash);
-        }
-        if input.contains('\0') {
-            return Err(JoinRefusal::Nul);
-        }
         let mut depth = 0_usize;
         for segment in self.segments() {
             // Every prefix of this already validated path stays inside its root.
@@ -276,6 +281,19 @@ impl RelPath {
             } else {
                 depth += 1;
             }
+        }
+        Self::validate_from_depth(input, depth)
+    }
+
+    fn validate_from_depth(input: &str, mut depth: usize) -> Result<(), JoinRefusal> {
+        if input.starts_with('/') {
+            return Err(JoinRefusal::Absolute);
+        }
+        if input.contains('\\') {
+            return Err(JoinRefusal::Backslash);
+        }
+        if input.contains('\0') {
+            return Err(JoinRefusal::Nul);
         }
         for segment in input.split('/') {
             match segment {

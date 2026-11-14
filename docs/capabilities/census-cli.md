@@ -28,6 +28,8 @@ bindings:
     - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
     - cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration
     - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
+    - cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target
+    - cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records
     - cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
     - raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors
@@ -96,6 +98,11 @@ The documented data path is illustrated by `raf_census::example_crate::registere
 
 Select a workspace with `--workspace DIRECTORY`. Use `cargo census check`, `cargo census index`, `cargo census baseline`, `cargo census job ID`, `cargo census count ID` or `cargo census fingerprint SYMBOL`. Use `--max-index-bytes` for an explicit bounded index allowance. Seal registry dependencies with `cargo census check --seal-registry acme-core --registry-features acme-core=default,std` after `cargo fetch --locked`. Compare with a sibling repository at a reviewed commit with `cargo census check --reference-repo ../upstream --reference-commit COMMIT`, or name the commit in a pin file with `--reference-pin-file pins.toml --reference-pin-key upstream.rev`. Run `cargo census self-test` in a consumer gate before `check` to prove the installed census still detects seeded copies; it needs no workspace. A library caller uses `Gate::self_test` and reads `SelfTest::passed`, `SelfTest::cases` and its `Display` text. Help describes native migration and explicit debt options.
 
+`cargo census embedded report|check` uses the separate source-region analysis.
+`cargo census embedded debt create|shrink` explicitly publishes its independent
+allowance record. See [embedded structural clones](census-embedded-clones.md)
+for its syntax profile, resource-admission limits and shrink-only contract.
+
 ## Examples
 
 A repository may contain a build script, example and test whose bodies write a marker and panic. `index` reads their source and returns the same native index as the direct library call. None of those bodies executes and no target directory is created. Exporting to src/lib.rs refuses beside successful creation of report.ttl. `self-test` run in an empty directory prints `pass` lines for every case and `54 cases, 0 failed`, exits 0 and leaves the directory empty; a library report for a Gate with a registered rule whose positive fixture produces no hit fails and prints a `fail rule/ID/fixtures` line naming the refused fixture; the command itself never includes registered rules, and exits 1 when any of its own cases fail.
@@ -104,6 +111,12 @@ A repository may contain a build script, example and test whose bodies write a m
 
 - Missing native registrations or unavailable implemented capabilities refuse rather than invoking a repository program. Imported protocol data is not an observed execution verdict. A report write failure may leave the newly created owned data file incomplete; it never truncates an existing destination.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
+
+Debt publication requires the native Linux retained-directory capability and
+filesystem support for its locking and durability operations. No lock file is
+created before loading inspected source. Unsupported publication fails without
+a pathname-based writer or another locking protocol.
+<!-- raf:tested-by cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records -->
 
 ## Explanation
 
@@ -121,6 +134,8 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target` | test | [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records` | test | [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Verification](#verification) |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Contract](#contract), [Constraints](#constraints) |

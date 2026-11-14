@@ -27,7 +27,7 @@ pub(crate) fn integer(value: u128) -> Term {
 pub(crate) fn iri(local: &str) -> Term {
     Term::iri(format!("{}{local}", vocab::CENSUS))
 }
-pub(super) fn integer_value(value: Value<'_>) -> Option<u128> {
+pub(crate) fn integer_value(value: Value<'_>) -> Option<u128> {
     let (lexical, datatype) = value.literal()?;
     if datatype != raf_rdf::vocab::INTEGER || lexical.len() > 39 {
         return None;
@@ -38,7 +38,7 @@ pub(super) fn integer_value(value: Value<'_>) -> Option<u128> {
     }
     integer.into_bigint().unsigned_abs_u128()
 }
-pub(super) fn boolean_value(value: Value<'_>) -> Option<bool> {
+pub(crate) fn boolean_value(value: Value<'_>) -> Option<bool> {
     let (lexical, datatype) = value.literal()?;
     if datatype != raf_rdf::vocab::BOOLEAN {
         return None;

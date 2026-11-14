@@ -29,6 +29,11 @@ pub(crate) struct Args {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    /// Inspect verified embedded source regions without running consumer code.
+    Embedded {
+        #[command(subcommand)]
+        command: EmbeddedCommand,
+    },
     /// Inspect declared native ledger policy without executing it.
     DumpLedger {
         /// Native RDF 1.2 report carrier.
@@ -82,6 +87,34 @@ pub(crate) enum Command {
         #[arg(long, required = true)]
         write: bool,
     },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum EmbeddedCommand {
+    /// Explicit initial adoption or shrink-only owned debt publication.
+    Debt {
+        #[command(subcommand)]
+        action: EmbeddedDebtAction,
+    },
+    /// Export candidate evidence and freshly verified source-region pairs.
+    Report {
+        /// Native RDF 1.2 report carrier.
+        #[arg(long, value_enum, default_value = "ntriples")]
+        format: RdfFormat,
+        /// Create a new report here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Compare fresh verified counts against existing embedded debt.
+    Check,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum EmbeddedDebtAction {
+    /// Adopt fresh allowances only when the embedded debt destination is absent.
+    Create,
+    /// Require existing embedded debt and publish only shrinkage, never growth.
+    Shrink,
 }
 
 #[derive(ClapArgs)]

@@ -389,7 +389,10 @@ impl Gate {
                 file: root.display().to_string(),
                 source,
             })?;
-            let publication = crate::publication::Publication::acquire(&tree)?;
+            let publication = crate::publication::Publication::acquire(
+                &tree,
+                crate::publication::Kind::WholeBody,
+            )?;
             let report = evaluate(&tree)?;
             if !report.findings.is_empty() {
                 return Err(Error::Findings(report.findings));

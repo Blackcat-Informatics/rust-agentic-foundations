@@ -33,6 +33,46 @@ fn the_reexported_syn_types_are_the_types_received_by_the_parse_visitor() {
     owned_corpus_keeps_admission_and_worker_failures_atomic();
     shared_tokens_keep_original_prefix_positions();
     prepared_source_keeps_counts_bound_to_its_input();
+    lexed_source_keeps_admission_before_syntax();
+}
+
+fn lexed_source_keeps_admission_before_syntax() {
+    use raf_source::{LoadErrorKind, RelPath, prepare_source};
+    let path = RelPath::new("lexed.rs").expect("fixture path");
+    let refused = prepare_source(&path, "fn ;")
+        .expect("guard-admitted syntax data")
+        .with_lexed(|lexed| {
+            assert!(!lexed.tokens().is_empty());
+            Err::<(), _>("parser admission refused")
+        })
+        .expect("lexing does not run the syntax parser");
+    assert_eq!(refused, Err("parser admission refused"));
+
+    let parsed = prepare_source(&path, "\u{feff}#!data\n/// doc\nfn café<'a>() {}")
+        .expect("guard-admitted valid neighbour")
+        .with_lexed(|lexed| {
+            let expected = native_nodes(lexed.tokens().clone());
+            lexed.parse_with_tokens(|syntax, original| {
+                assert_eq!(syntax.shebang.as_deref(), Some("#!data"));
+                let syn::Item::Fn(function) = &syntax.items[0] else {
+                    panic!("the valid neighbour is a function")
+                };
+                assert_eq!(function.sig.fn_token.span.start().line, 3);
+                assert_eq!(native_nodes(original), expected);
+                syntax.items.len()
+            })
+        })
+        .expect("lexical ticket")
+        .expect("the admitted ticket parses");
+    assert_eq!(parsed, 1);
+
+    let error = prepare_source(&path, "fn ;")
+        .expect("guard-admitted invalid syntax")
+        .with_lexed(|lexed| lexed.parse(|_| panic!("invalid syntax cannot reach the visitor")))
+        .expect("lexically valid ticket")
+        .expect_err("syntax failure belongs to consuming parse");
+    assert!(matches!(error.kind, LoadErrorKind::Syntax { .. }));
+    assert_eq!(error.file, path);
 }
 
 fn native_nodes(tokens: proc_macro2::TokenStream) -> usize {

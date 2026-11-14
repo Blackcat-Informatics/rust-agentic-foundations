@@ -5,6 +5,7 @@
 
 mod cli;
 mod command;
+mod embedded;
 mod error;
 
 use std::io::{self, Write as _};
@@ -22,7 +23,7 @@ fn main() -> ExitCode {
             };
         }
     };
-    match command::run(&args, &mut io::stdout().lock()) {
+    match command::run(&args, &mut io::stdout().lock(), &mut io::stderr().lock()) {
         Ok(code) => ExitCode::from(code),
         Err(error) => {
             let code = error.exit_code();

@@ -9,6 +9,12 @@ use std::fmt;
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Error {
+    /// Native allocation, layout or original admission refusal.
+    Storage(purrdf_lex::allocation::StorageError),
+    /// A native term could not be resolved in its original dataset.
+    Lookup(purrdf_core::TermLookupError),
+    /// An immutable validated graph violated a required rendering invariant.
+    Invariant(&'static str),
     /// Invalid term or graph, retaining the raw reason as data.
     Value(String),
     /// A repeated statement is not a canonical graph encoding.
@@ -39,6 +45,12 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Storage(error) => write!(f, "report storage: {error}"),
+            Self::Lookup(error) => write!(f, "report term lookup: {error}"),
+            Self::Invariant(reason) => write!(
+                f,
+                "report invariant: {reason}; regenerate the graph from validated input"
+            ),
             Self::Value(value) => write!(f, "invalid report value: {}", value.escape_debug()),
             Self::Repeated => f.write_str("a report triple is repeated"),
             Self::Syntax {
@@ -64,4 +76,18 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Storage(error) => Some(error),
+            Self::Lookup(error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+impl From<purrdf_lex::allocation::StorageError> for Error {
+    fn from(error: purrdf_lex::allocation::StorageError) -> Self {
+        Self::Storage(error)
+    }
+}

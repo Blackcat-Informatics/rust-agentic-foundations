@@ -37,6 +37,12 @@
 | [workplan-strict](./workplan-strict.md) | The complete default policy for examples, claims, explained public items and lines, full sections, outcome reasons and a shrinking debt record. |  |
 | [workplan-two-way-coverage](./workplan-two-way-coverage.md) | Checks from code to documentation and from tests to claims, complementing the documentation-to-code and documentation-to-tests checks. |  |
 
+## Implementing
+
+| Capability | Description | Gaps |
+| --- | --- | --- |
+| [census-embedded-clones](./census-embedded-clones.md) | Bounded candidate discovery and lexical correspondence for checked source regions under an independent matching policy. |  |
+
 ## Designed
 
 | Capability | Description | Gaps |

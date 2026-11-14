@@ -87,6 +87,79 @@ pub struct PreparedSource<'source> {
     native_bound: usize,
 }
 
+/// Guarded source lexed on its existing scoped worker, before syntax parsing.
+///
+/// Private fields bind the path, ignored header and original native tokens.
+/// The ticket is available only inside [`PreparedSource::with_lexed`]. Its
+/// consuming parse methods use that same stream on the current worker; they
+/// perform no additional guard scan, lex or worker startup.
+#[derive(Debug)]
+pub struct LexedSource<'source> {
+    file: &'source RelPath,
+    original: proc_macro2::TokenStream,
+    header: Option<String>,
+}
+
+impl<'source> LexedSource<'source> {
+    fn new(file: &'source RelPath, text: &str) -> Result<Self, LoadError> {
+        let (original, header) = lex_source(file, text)?;
+        Ok(Self {
+            file,
+            original,
+            header,
+        })
+    }
+
+    /// Borrow the original tokens before the native syntax parser starts.
+    ///
+    /// Cloning or iterating native tokens can allocate. Callers must admit
+    /// measurement itself before using this view to admit later parser work.
+    #[must_use]
+    pub const fn tokens(&self) -> &proc_macro2::TokenStream {
+        &self.original
+    }
+
+    /// Parse the ticket's stream and lend the syntax on the current worker.
+    ///
+    /// # Errors
+    /// Returns located native syntax errors before the visitor runs.
+    ///
+    /// # Panics
+    /// Parser and visitor panics unwind this worker; the enclosing prepared
+    /// operation resumes their original payload on its caller after joining.
+    pub fn parse<R>(self, visit: impl FnOnce(&syn::File) -> R) -> Result<R, LoadError> {
+        self.parse_mut(|tree| visit(tree))
+    }
+
+    /// Parse once and lend the syntax with its original native tokens.
+    ///
+    /// # Errors
+    /// Returns located native syntax errors before the visitor runs.
+    ///
+    /// # Panics
+    /// Parser and visitor panics follow the enclosing worker's joined path.
+    pub fn parse_with_tokens<R>(
+        self,
+        visit: impl FnOnce(&syn::File, proc_macro2::TokenStream) -> R,
+    ) -> Result<R, LoadError> {
+        let Self {
+            file,
+            original,
+            header,
+        } = self;
+        let tree = syntax(file, original.clone(), header)?;
+        Ok(visit(&tree, original))
+    }
+
+    fn into_syntax(self) -> Result<syn::File, LoadError> {
+        syntax(self.file, self.original, self.header)
+    }
+
+    fn parse_mut<R>(self, visit: impl FnOnce(&mut syn::File) -> R) -> Result<R, LoadError> {
+        self.into_syntax().map(|mut tree| visit(&mut tree))
+    }
+}
+
 /// Check the default file-token and recursion guards without starting a worker.
 ///
 /// The returned handle binds the counts and subsequent parsing to immutable
@@ -152,6 +225,28 @@ impl<'source> PreparedSource<'source> {
         self.native_bound
     }
 
+    /// Lex on one scoped worker and lend a ticket before syntax parsing starts.
+    ///
+    /// The callback may admit parser resources from the actual token stream,
+    /// then consume the ticket. Measurement needs its own prior admission.
+    /// Lexing alone does not claim valid syntax or compiler acceptance. The
+    /// callback's typed result is retained unchanged; only its `Send` value
+    /// leaves the joined worker. No source code or Git state is changed.
+    ///
+    /// # Errors
+    /// Returns located native lexing, storage or worker-start errors. Syntax
+    /// errors are returned by the ticket's consuming parse methods.
+    ///
+    /// # Panics
+    /// Resumes parser or callback panics after joining, with the original payload.
+    pub fn with_lexed<R: Send>(
+        self,
+        visit: impl FnOnce(LexedSource<'source>) -> R + Send,
+    ) -> Result<R, LoadError> {
+        let Self { file, text, .. } = self;
+        on_worker(file, move || LexedSource::new(file, text).map(visit))
+    }
+
     /// Parse the admitted text on its scoped worker, then join it.
     ///
     /// # Errors
@@ -163,7 +258,7 @@ impl<'source> PreparedSource<'source> {
         self,
         visit: impl FnOnce(&syn::File) -> R + Send,
     ) -> Result<R, LoadError> {
-        self.parse_mut(|tree| visit(tree))
+        self.with_lexed(|lexed| lexed.parse(visit))?
     }
 
     /// Parse once and lend the original native tokens to the worker visitor.
@@ -177,22 +272,14 @@ impl<'source> PreparedSource<'source> {
         self,
         visit: impl FnOnce(&syn::File, proc_macro2::TokenStream) -> R + Send,
     ) -> Result<R, LoadError> {
-        let Self { file, text, .. } = self;
-        on_worker(file, move || {
-            let (original, header) = lex_source(file, text)?;
-            let tree = syntax(file, original.clone(), header)?;
-            Ok(visit(&tree, original))
-        })
+        self.with_lexed(|lexed| lexed.parse_with_tokens(visit))?
     }
 
     fn parse_mut<R: Send>(
         self,
         visit: impl FnOnce(&mut syn::File) -> R + Send,
     ) -> Result<R, LoadError> {
-        let Self { file, text, .. } = self;
-        on_worker(file, || {
-            parse_syntax(file, text).map(|mut tree| visit(&mut tree))
-        })
+        self.with_lexed(|lexed| lexed.parse_mut(visit))?
     }
 }
 
@@ -372,8 +459,7 @@ fn on_worker<R: Send>(
 }
 
 fn parse_syntax(file: &RelPath, text: &str) -> Result<syn::File, LoadError> {
-    let (original, header) = lex_source(file, text)?;
-    syntax(file, original, header)
+    LexedSource::new(file, text)?.into_syntax()
 }
 
 fn lex_source(

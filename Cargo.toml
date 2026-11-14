@@ -34,6 +34,8 @@ members = ["crates/cargo-census", "crates/cargo-workplan", "crates/raf-census", 
 exclude = ["fuzz"]
 
 [workspace.dependencies]
+# Native parser resource audits depend on these exact implementations.
+# Keep feature selection at each caller; pins do not freeze unified features.
 syn = { version = "=3.0.8", default-features = false }
 proc-macro2 = { version = "=1.0.107", default-features = false }
 quote = { version = "=1.0.47", default-features = false }

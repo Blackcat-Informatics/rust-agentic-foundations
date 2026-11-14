@@ -7,13 +7,16 @@ subject: cap:rdf-report-profile#usage
 inputs:
   - kind: section
     name: cap:rdf-report-profile#usage
-    digest: c518451d20f00282f2c1335f400c46507f6992d5aab3ff17c5ae469121bf8a04
+    digest: 63a6aaa8bbf96843bfa07e9c520969b1e211ade9b0cd03d2f504ef2c3865ae91
   - kind: symbol
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
   - kind: symbol
     name: raf_rdf::Graph
     digest: a5e40c5962425730cc176f11958de153c97e544c7c38b1ab4565e99fde7febf7
+  - kind: symbol
+    name: raf_rdf::Graph::to_text_with_memory
+    digest: b169470b187387132eaa53e56672ef0ab4e9e413d4a8940590ba9bc3f7c0b90b
   - kind: symbol
     name: raf_rdf::Triple
     digest: 4a33a6a5c975e5edc368f1ec4382d705fdde086b303d3017c52568b971775cb7

@@ -10,16 +10,16 @@ inputs:
     digest: 1370910dbff16919b21eb72fe8b728580a55778ca081896e95e74bdc00ae273d
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: 782348c0694a58fa27f412cde5ed4b9f9536edefa0f5c8e4b527cfde7a81c99b
+    digest: 3d709ad957aea9381996b393d87d0b78c527ead3761e6e053927ccdb9599a2c1
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: b76ed9cdc1e20a5d1046ceceebd2678e44f777339b89b604e06fd129772b1ec0
+    digest: 021868d700fa17be31751cd1bd99bef7c9bc47bb4c2c912d7d9f2f3626324346
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::error
-    digest: 5c18f105079fccd0601e8d1b0eb0620c3361511e1c07d81945bd54f062974ae2
+    digest: 331d8131efcf1a764775555b05c2124f98ed36e33df07eae42edb8cc197e4f56
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
-    digest: 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1
+    digest: a4871ea9cc74cb72b33d4d5a7e1651dae91ecbc96733d0f326a2f80bdefd4de2
   - kind: symbol
     name: raf_census::CHECK_PROTOCOL_VERSION
     digest: f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f

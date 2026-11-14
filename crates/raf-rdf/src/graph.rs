@@ -144,13 +144,12 @@ impl Builder {
 }
 
 impl Graph {
-    pub(crate) fn rows(&self) -> impl Iterator<Item = QuadIds> + '_ {
-        self.dataset
-            .quads()
-            .chain(self.dataset.reifier_quads())
-            .chain(self.dataset.annotation_quads())
+    pub(crate) fn view(&self) -> crate::view::GraphView<'_> {
+        crate::view::GraphView {
+            dataset: self.dataset.as_ref(),
+            owner: &self.owner,
+        }
     }
-
     fn subject_rows(&self, s: TermId) -> impl Iterator<Item = QuadIds> + '_ {
         self.dataset
             .quads_for_pattern_with_plan(
@@ -190,13 +189,7 @@ impl Graph {
 
     /// Present this exact owned absolute IRI as a local root/fragment.
     pub fn local<'a>(&self, iri: &'a str) -> &'a str {
-        if iri == self.owner {
-            ""
-        } else {
-            iri.strip_prefix(&self.owner)
-                .filter(|tail| tail.starts_with('#'))
-                .unwrap_or(iri)
-        }
+        term::owned_local(iri, &self.owner)
     }
 
     fn id(&self, local: &str) -> Option<TermId> {
@@ -218,7 +211,7 @@ impl Graph {
 
     /// Enumerate actual subject views without copying assertion values.
     pub fn nodes(&self) -> impl Iterator<Item = (String, Node<'_>)> {
-        let subjects: BTreeSet<_> = self.rows().map(|row| row.s).collect();
+        let subjects: BTreeSet<_> = self.view().rows().map(|row| row.s).collect();
         subjects.into_iter().map(|id| {
             let TermRef::Iri(iri) = self.dataset.resolve(id) else {
                 unreachable!("validated subject")
@@ -234,6 +227,31 @@ impl Graph {
     pub fn to_text(&self, format: Format) -> Result<String, Error> {
         self.validate()?;
         write::render(self, format).map(|(_, text)| text)
+    }
+
+    /// Render canonical bytes through the caller's original scratch and output accounts.
+    ///
+    /// Native graph storage and graph construction are not admitted by this operation.
+    /// All rendering scratch is destroyed before its grant is released. The caller
+    /// must retain `output`'s surviving grant with the returned string until that
+    /// string is destroyed. No resident output is adopted after construction.
+    /// For a combined limit, both accounts must charge the same original authority.
+    ///
+    /// # Errors
+    /// Returns the first typed lookup, rendering invariant or native storage refusal.
+    pub fn to_text_with_memory<
+        S: purrdf_lex::allocation::Admission + ?Sized,
+        O: purrdf_lex::allocation::Admission + ?Sized,
+    >(
+        &self,
+        format: Format,
+        scratch: &mut purrdf_lex::allocation::Memory<'_, S>,
+        output: &mut purrdf_lex::allocation::Memory<'_, O>,
+    ) -> Result<String, Error> {
+        // Both production constructors validate before publication. Graph is
+        // immutable and exposes no owned native store, so rendering cannot
+        // invalidate that established profile or require a resident revalidation.
+        write::text_with_memory(self, format, scratch, output)
     }
 
     /// Retain the native parser result after exact closed-profile acceptance.
@@ -258,50 +276,9 @@ impl Graph {
     }
 
     pub(crate) fn validate(&self) -> Result<(), Error> {
-        if self.dataset.named_graphs().next().is_some() {
-            return Err(Error::Value(
-                "named graphs are outside the report profile".into(),
-            ));
-        }
-        if self.get("").is_none() {
-            return Err(Error::Value("the report root is absent".into()));
-        }
-        let subjects: BTreeSet<_> = self.rows().map(|row| row.s).collect();
-        // A native dataset can intentionally retain equal assertions in distinct
-        // physical tables. This profile refuses that flat overlap. IDs are
-        // compared only inside this one dictionary, never across datasets.
-        let mut assertions = purrdf_core::FastSet::default();
-        for row in self.rows() {
-            if !assertions.insert(row) {
-                return Err(Error::Repeated);
-            }
-            let subject = self
-                .value(row.s)
-                .iri()
-                .ok_or_else(|| Error::Value("subject must be an IRI".into()))?;
-            let TermRef::Iri(predicate) = self.dataset.resolve(row.p) else {
-                return Err(Error::Value("predicate must be an IRI".into()));
-            };
-            let object = self.value(row.o).to_owned();
-            term::validate(subject, predicate, &object)?;
-            let check = |value: Value<'_>| -> Result<(), Error> {
-                if value.iri().is_some_and(term::local) && !subjects.contains(&value.id) {
-                    return Err(Error::Value(format!(
-                        "dangling owned node {}",
-                        value.iri().expect("IRI")
-                    )));
-                }
-                Ok(())
-            };
-            let value = self.value(row.o);
-            if let Some((s, _, o)) = value.quoted() {
-                check(s)?;
-                check(o)?;
-            } else {
-                check(value)?;
-            }
-        }
-        Ok(())
+        let mut resident = purrdf_lex::allocation::Resident;
+        self.view()
+            .validate(&mut purrdf_lex::allocation::Memory::new(&mut resident))
     }
 }
 

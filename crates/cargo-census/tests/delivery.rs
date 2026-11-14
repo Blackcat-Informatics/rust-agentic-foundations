@@ -155,6 +155,177 @@ fn native_index_never_builds_or_executes_consumer_targets() {
     assert_eq!(refused.status.code(), Some(2));
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn embedded_report_uses_static_source_and_requires_existing_exact_debt() {
+    let scratch = fixture();
+    let root = scratch.path();
+    embedded_source(root, 2);
+    let dangerous = "fn main() { std::fs::write(\"consumer-executed\", b\"bad\").unwrap(); }\n";
+    fs::create_dir(root.join("examples")).unwrap();
+    fs::create_dir(root.join("tests")).unwrap();
+    for path in [
+        "build.rs",
+        "examples/destructive.rs",
+        "tests/destructive.rs",
+    ] {
+        fs::write(root.join(path), dangerous).unwrap();
+    }
+    let tree = DiskTree::new(root).unwrap();
+    let source = raf_source::Workspace::load(&tree, &["."]).unwrap();
+    let analysis =
+        raf_census::embedded::Run::analyze(&source, &raf_census::embedded::Options::default())
+            .unwrap();
+    assert!(analysis.witnesses().len() > 0);
+    let expected = analysis.report(|outcome| {
+        outcome
+            .unwrap()
+            .to_text(Format::NTriples, |text| text.unwrap().as_str().to_owned())
+    });
+    let report = run(root, &["embedded", "report"]);
+    assert!(report.status.success(), "{report:?}");
+    assert_eq!(report.stdout, expected.as_bytes());
+    let missing = run(root, &["embedded", "check"]);
+    assert_eq!(missing.status.code(), Some(1), "{missing:?}");
+    assert_eq!(missing.stdout, [] as [u8; 0]);
+    let debt = analysis
+        .adopt_debt(|outcome| outcome.unwrap())
+        .to_text(Format::Turtle, |outcome| outcome.unwrap());
+    let debt_path = root.join(raf_census::embedded::DEBT_FILE);
+    let created = run(root, &["embedded", "debt", "create"]);
+    assert!(created.status.success(), "{created:?}");
+    assert_eq!(fs::read_to_string(&debt_path).unwrap(), debt.as_str());
+    let refused = run(root, &["embedded", "debt", "create"]);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert_eq!(fs::read_to_string(&debt_path).unwrap(), debt.as_str());
+    let checked = run(root, &["embedded", "check"]);
+    assert!(checked.status.success(), "{checked:?}");
+    embedded_source(root, 1);
+    let stale = run(root, &["embedded", "check"]);
+    assert_eq!(stale.status.code(), Some(1), "{stale:?}");
+    let shrunk = run(root, &["embedded", "debt", "shrink"]);
+    assert!(shrunk.status.success(), "{shrunk:?}");
+    let exact = run(root, &["embedded", "check"]);
+    assert!(exact.status.success(), "{exact:?}");
+    let retained = fs::read(&debt_path).unwrap();
+    embedded_source(root, 3);
+    for command in [
+        vec!["embedded", "check"],
+        vec!["embedded", "debt", "shrink"],
+    ] {
+        let growth = run(root, &command);
+        assert_eq!(growth.status.code(), Some(1), "{growth:?}");
+        assert_eq!(fs::read(&debt_path).unwrap(), retained);
+    }
+    assert!(!root.join("consumer-executed").exists());
+    assert!(!root.join("target").exists());
+    for path in [
+        "build.rs",
+        "examples/destructive.rs",
+        "tests/destructive.rs",
+    ] {
+        assert_eq!(fs::read_to_string(root.join(path)).unwrap(), dangerous);
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn embedded_debt_publication_never_creates_a_declared_missing_rust_target() {
+    for (name, arguments) in [
+        (
+            ".census-embedded-debt.ttl.lock",
+            vec!["embedded", "debt", "create"],
+        ),
+        (
+            ".census-embedded-debt.ttl.write",
+            vec!["embedded", "debt", "create"],
+        ),
+        (
+            "census-embedded-debt.ttl",
+            vec!["embedded", "debt", "create"],
+        ),
+    ] {
+        let scratch = fixture();
+        let root = scratch.path();
+        fs::write(
+            root.join("Cargo.toml"),
+            format!("[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n[lib]\npath='{name}'\n[workspace]\n"),
+        ).unwrap();
+        let result = run(root, &arguments);
+        assert!(
+            !root.join(name).exists(),
+            "publication created a declared Rust target: {result:?}"
+        );
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn embedded_debt_publication_preserves_unowned_entries_and_busy_records() {
+    use std::os::unix::fs::symlink;
+
+    for name in [
+        ".census-embedded-debt.ttl.write",
+        "census-embedded-debt.ttl",
+    ] {
+        let scratch = fixture();
+        let root = scratch.path();
+        let entry = root.join(name);
+        let protected = root.join("protected-data");
+        let source = fs::read(root.join("src/lib.rs")).unwrap();
+        fs::write(&protected, b"preserve").unwrap();
+        symlink(&protected, &entry).unwrap();
+        let refused = run(root, &["embedded", "debt", "create"]);
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert_eq!(fs::read_link(&entry).unwrap(), protected);
+        assert_eq!(fs::read(&protected).unwrap(), b"preserve");
+        fs::remove_file(&entry).unwrap();
+        fs::create_dir(&entry).unwrap();
+        let refused = run(root, &["embedded", "debt", "create"]);
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert!(entry.is_dir());
+        fs::remove_dir(&entry).unwrap();
+        fs::write(&entry, b"pre-existing metadata").unwrap();
+        let refused = run(root, &["embedded", "debt", "create"]);
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert_eq!(fs::read(&entry).unwrap(), b"pre-existing metadata");
+        fs::remove_file(&entry).unwrap();
+        let lock = fs::File::open(root).unwrap();
+        lock.try_lock().unwrap();
+        for command in [vec!["embedded", "debt", "create"], vec!["debt", "--write"]] {
+            let busy = run(root, &command);
+            assert_eq!(busy.status.code(), Some(1), "{busy:?}");
+            assert!(
+                String::from_utf8(busy.stderr)
+                    .unwrap()
+                    .contains("publication is busy")
+            );
+        }
+        drop(lock);
+        assert!(!root.join(raf_census::embedded::DEBT_FILE).exists());
+        let valid = run(root, &["embedded", "debt", "create"]);
+        assert!(valid.status.success(), "{valid:?}");
+        assert_eq!(fs::read(root.join("src/lib.rs")).unwrap(), source);
+        assert!(!root.join(".census-embedded-debt.ttl.lock").exists());
+        assert!(!root.join(".census-debt.ttl.lock").exists());
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn embedded_source(root: &Path, copies: usize) {
+    let helpers = [
+        "fn one(input:i32) { let a=input+1; let b=a*3; let c=b+a; consume(c,b,input,7); }\n",
+        "fn two(other:i32) { let x=other+1; let y=x*3; let z=y+x; consume(z,y,other,7); }\n",
+        "fn three(value:i32) { let p=value+1; let q=p*3; let r=q+p; consume(r,q,value,7); }\n",
+    ];
+    fs::write(
+        root.join("src/lib.rs"),
+        format!("#![no_implicit_prelude]\n{}", helpers[..copies].concat()),
+    )
+    .unwrap();
+}
+
 #[test]
 fn report_exports_refuse_source_existing_files_and_git_administration() {
     let scratch = fixture();

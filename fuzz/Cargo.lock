@@ -1689,6 +1689,7 @@ dependencies = [
  "proc-macro2",
  "purrdf-core",
  "purrdf-hash",
+ "purrdf-iri",
  "purrdf-jsonschema",
  "purrdf-lex",
  "purrdf-toml",

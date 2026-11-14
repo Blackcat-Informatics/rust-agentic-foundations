@@ -7,67 +7,25 @@ subject: cap:rdf-report-profile#contract
 inputs:
   - kind: section
     name: cap:rdf-report-profile#contract
-    digest: 99a6a4db1a2de82dff42e30b0f0d5b5ecc95cfe10c60c6198180c24f0bce1f19
+    digest: f38978fda71db07cbccfddffa466347883d82e38ba536af73594a42e8f73fd50
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
     digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
   - kind: symbol
-    name: cargo_workplan::bin_crate::cargo_workplan::result_graph
-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
-  - kind: symbol
-    name: raf_census::Baseline::to_ntriples
-    digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
-  - kind: symbol
-    name: raf_census::DebtRecord::to_ntriples
-    digest: 5a6610212c5db286a5f4b761c9aaf429f99894945fdee50e534161a608f04b44
-  - kind: symbol
-    name: raf_census::Index::to_ntriples
-    digest: 125bb5af1f05b3a5e79788d13c636f9420d03a7dc1dd31f6676704b6da5bbd4e
-  - kind: symbol
-    name: raf_census::Ledger::graph
-    digest: 4a7292d6ff6e55eab57b060b145c29a95b64f084d955bd9fb918d4c2c8dc5c58
-  - kind: symbol
-    name: raf_census::RegisteredCheck::to_ntriples
-    digest: 37d277ed92837e1feb152f4518f66cc30aba2e975a29856e155e092d9fd188c7
-  - kind: symbol
-    name: raf_census::RegisteredDebtWrite::to_ntriples
-    digest: 23d7db79d4c61927c044dfd5969a347ace2d38a390ce2ab14738b599c89aa592
-  - kind: symbol
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
-  - kind: symbol
-    name: raf_rdf::Error
-    digest: 3f8e0109ca20c794c58882f6a5263de7f81ee4015f17eb51dcd87d8d3498a6e1
-  - kind: symbol
-    name: raf_rdf::Format
-    digest: f4ca082f4915706ebfbce27f90041b4f67ee70385565087ab7d611843192b455
   - kind: symbol
     name: raf_rdf::Graph
     digest: a5e40c5962425730cc176f11958de153c97e544c7c38b1ab4565e99fde7febf7
   - kind: symbol
+    name: raf_rdf::Graph::to_text_with_memory
+    digest: b169470b187387132eaa53e56672ef0ab4e9e413d4a8940590ba9bc3f7c0b90b
+  - kind: symbol
     name: raf_rdf::Node
     digest: a8c0fa29b45d9b75956a24534e65260c6ad8914ad9f2e18531446ada5cf65b76
   - kind: symbol
-    name: raf_rdf::Triple
-    digest: 4a33a6a5c975e5edc368f1ec4382d705fdde086b303d3017c52568b971775cb7
-  - kind: symbol
     name: raf_rdf::Value
     digest: 8a1c21bf5d2b16ed72893ae09283a01ddb0af1e798bb379084b5736d49e0b9ae
-  - kind: symbol
-    name: raf_rdf::graph
-    digest: 585e4faaf35a86f90983cc10be3334fc5f623a190bb1332e06b36d3e01ed759b
-  - kind: symbol
-    name: raf_rdf::read
-    digest: a01d8ece0f7c0107063e704249b4ebd4fa41c5b3b4c0f4535b337a187c60cdbb
-  - kind: symbol
-    name: raf_rdf::term
-    digest: f6b2182fad237060323acc35d2c4034f92cd213637261f197c97bbb347cacc74
-  - kind: symbol
-    name: raf_rdf::vocab
-    digest: 0026d4964ba3d687594782f98f05a89b1cd7e9d29bd10a8a66c51a017a119ab3
-  - kind: symbol
-    name: raf_rdf::write
-    digest: e5f72039a050bf7ade2e92927d1b486c49e6a8d1506da677ce2a1bb653e46c49
   - kind: symbol
     name: raf_workplan::report
     digest: 64974fbb2ad89048871716738854ab862b79160d4390d9ec45beb1bcfcdabb27

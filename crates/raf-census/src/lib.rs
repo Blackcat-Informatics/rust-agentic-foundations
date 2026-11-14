@@ -46,6 +46,7 @@
 
 mod census;
 mod detectors;
+pub mod embedded;
 #[cfg(test)]
 extern crate self as raf_census;
 

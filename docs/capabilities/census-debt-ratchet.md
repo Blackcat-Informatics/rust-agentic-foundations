@@ -25,6 +25,8 @@ bindings:
     - raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures
     - cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target
     - cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records
+    - cargo_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target
+    - cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records
 
     - raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth
     - raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group
@@ -101,7 +103,7 @@ group; a write records the present scope. An absent record takes the present
 scope, so a scope alone never requires a record.
 
 ### Exclusive writer coordination
-<!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records -->
+<!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records,cargo_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records -->
 
 On native Linux, both writers acquire an exclusive nonblocking kernel lock on
 the retained workspace directory before evaluating policy or reading prior
@@ -309,6 +311,8 @@ or execution of an external native implementation.
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target` | test | [Contract](#contract), [Examples](#examples) |
 | `cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records` | test | [Contract](#contract), [Examples](#examples) |
+| `cargo_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
@@ -334,6 +338,7 @@ or execution of an external native implementation.
 | Depends on | [census-normal-form](./census-normal-form.md) |
 | Depends on | [rdf-report-profile](./rdf-report-profile.md) |
 | Depended on by | [census-cli](./census-cli.md) |
+| Depended on by | [census-embedded-clones](./census-embedded-clones.md) |
 | Depended on by | [census-rule-api](./census-rule-api.md) |
 | Depended on by | [repository-contract](./repository-contract.md) |
 <!-- raf:generated:end -->

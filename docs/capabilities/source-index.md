@@ -64,6 +64,11 @@ bindings:
     - raf_source::PreparedSource::native_token_bound
     - raf_source::PreparedSource::parse
     - raf_source::PreparedSource::parse_with_tokens
+    - raf_source::PreparedSource::with_lexed
+    - raf_source::LexedSource
+    - raf_source::LexedSource::tokens
+    - raf_source::LexedSource::parse
+    - raf_source::LexedSource::parse_with_tokens
     - raf_source::parse_sources
     - raf_source::ParsedSource
     - raf_source::Resolution
@@ -1425,6 +1430,9 @@ and refuses an absolute input, a backslash, a NUL, a drive-letter segment and a 
 that climbs above the root with a typed `PathError`. A `..` below the root is kept,
 because on a Unix disk it means the parent of the directory the earlier segments
 really reach (Windows joins it by text; see Path containment).
+`RelPath::is_canonical` checks the same validation and spelling rules without
+allocating or constructing a path. It preserves literal parent segments and
+accepts the empty root spelling; it does not resolve filesystem contents.
 
 ### Tree operations
 <!-- raf:tested-by raf_source::test_crate::memory_tree::a_file_reads_back_and_a_missing_file_is_not_found,raf_source::test_crate::memory_tree::a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable,raf_source::test_crate::memory_tree::directories_are_inferred_and_listings_are_sorted_with_their_kinds,raf_source::test_crate::memory_tree::entry_reports_file_dir_and_absence_without_an_error,raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen -->
@@ -1962,6 +1970,22 @@ visitor. Worker join, panic propagation, prefix coordinates and callback
 ownership match the corresponding single-source convenience functions, which
 delegate through this prepared path. Preparation alone does not claim valid
 syntax or compiler acceptance.
+<!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
+
+`PreparedSource::with_lexed` starts the same scoped worker and lends an immutable
+`LexedSource` ticket after guarded native lexing but before syntax parsing.
+Private fields bind its path, ignored header and original native stream.
+`tokens` borrows that stream for inspection. Cloning or iterating native tokens
+can allocate, so measurement itself requires prior admission; the view does
+not provide an allocation-free inspection claim.
+
+Consuming `LexedSource::parse` or `parse_with_tokens` parses that exact stream
+on the current worker without another guard scan, lexer or worker. A caller
+may instead return a typed refusal before syntax parsing. Lexing alone is not
+syntax validation. Only the outer callback's `Send` result leaves the joined
+worker; inner visitors remain on that worker. Existing single-source and
+counted parsing delegate through this ticket, and corpus parsing retains its
+one worker, corpus guards and owned-syntax behavior through the shared core.
 <!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
 
 `parse_source_with_tokens` gives its visitor the syntax and the one original
@@ -3369,6 +3393,11 @@ counts before native parsing. Inspect the immutable handle's
 `native_token_bound`, then consume it with `parse` or `parse_with_tokens`.
 The handle cannot be constructed from caller-supplied counts or rebound to
 different source text.
+
+Use `with_lexed` when parser admission needs actual native token measurements.
+Fund lexing and measurement before starting it, inspect the ticket's borrowed
+tokens, release measurement scratch, then consume that ticket on its current
+worker. Return a typed refusal from the callback when admission fails.
 
 Set `LoadOptions::max_work` and `max_glob_bytes` before loading to bound import
 operations and live import storage. Retained reads, pending queues, subscriptions

@@ -21,6 +21,9 @@ inputs:
     name: raf_source::ForeignModulePath
     digest: 41dfdd9d116c07e64aad2370fc6a167c9472c5bb2b378e90b040e2c92c53c2c9
   - kind: symbol
+    name: raf_source::LexedSource::parse
+    digest: 1e5a82e0c95cadeb15d84875e40b68b9de010c025f20cc56ca797669a0e8198c
+  - kind: symbol
     name: raf_source::LoadError
     digest: 0385f2e238aa06dc8b8bf67e52f5dcdf0f0385091c8ba8d0f9162620190ce379
   - kind: symbol
@@ -43,7 +46,7 @@ inputs:
     digest: 393d1eeee67698d71c513c3d6590c508d76fb0a495133e94e555eccb8bbb1d16
   - kind: symbol
     name: raf_source::PreparedSource::parse
-    digest: cae35d4df2b3ef7c80b8171a8457444818d2bf162e4d327d8ac744f7a663f79e
+    digest: 7d30a5b94cdf7798c27324dc230440b89b01af5a9f47fbbd99417409bb838a21
   - kind: symbol
     name: raf_source::Reach
     digest: 0e20285426d60116d397c17add6c629f1d96ef51fe7b86825b1fa6392bf60d99

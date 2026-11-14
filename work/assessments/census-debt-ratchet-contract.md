@@ -7,7 +7,7 @@ subject: cap:census-debt-ratchet#contract
 inputs:
   - kind: section
     name: cap:census-debt-ratchet#contract
-    digest: a4dd5d7baaa17acae0b0fd421f9f06c3f1cf7251922cffa077803d3ed8a36e9c
+    digest: f96e66556d7f7af64c0cfec934e2abbaac62e77a38396ff487c6727a9df8edc4
   - kind: symbol
     name: raf_census::DEBT_FILE
     digest: 12ca19be3fbb9901282949df239635101deb59bd25e6d5092aa5492478c3ccbb
@@ -37,13 +37,13 @@ inputs:
     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
   - kind: symbol
     name: raf_census::gate::Gate::write_debt_with
-    digest: a68f678e95cb06a373b066db37f1b49c9dcc5f146b711949502b60a9db13c06d
+    digest: 2b80c37c81a7ce9c054293b66f6867d2fb61e1d5c50166474b98a113f10eb743
   - kind: symbol
     name: raf_census::gate::read_debt
     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
   - kind: symbol
     name: raf_census::publication
-    digest: 4499c8a8fa5113f559b29dcb8b6ee5664996115a2409962b17f1ec77b9d0a44c
+    digest: 559709229d7bd1f7d03508be644c5b4d3b09b5eed011ab53129d17f34da24683
   - kind: symbol
     name: raf_census::report::debt
     digest: 85048764f37539ad3878cc51c6ec0eb1bb872ae1e90815a5b7e5722ab6ef8bdf

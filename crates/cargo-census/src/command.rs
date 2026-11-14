@@ -14,7 +14,11 @@ use raf_census::{
 use raf_source::{DiskTree, RelPath, Tree as _};
 use std::{io::Write, path::Path};
 
-pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
+pub(crate) fn run(
+    args: &Args,
+    output: &mut dyn Write,
+    diagnostics: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
     let external = external(&args.reference)?;
     let registry = registry(&args.registry)?;
     if (external.is_some() || registry.is_some())
@@ -24,6 +28,7 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
                 | Command::DumpLedger { .. }
                 | Command::Baseline { .. }
                 | Command::Migrate(_)
+                | Command::Embedded { .. }
         )
     {
         return Err(Error::Options(
@@ -33,7 +38,7 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
     }
     if let Some(directory) = &args.reference.unpinned {
         writeln!(
-            std::io::stderr().lock(),
+            diagnostics,
             "cargo-census: unpinned reference: the comparison reads the current files of {}, not a pinned commit",
             directory.display()
         )
@@ -44,6 +49,9 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
     }
     let gate = Gate::workspace(&args.workspace).external_references(external);
     match &args.command {
+        Command::Embedded { command } => {
+            crate::embedded::run(&gate.root()?, command, output, diagnostics)
+        }
         Command::SelfTest => self_test(&gate, output),
         Command::DumpLedger { format, out } => {
             dump_ledger(&gate.root()?, *format, out.as_deref(), output)?;
@@ -331,7 +339,7 @@ fn baseline(
     write_report(root, &text, out, output)
 }
 
-fn write_report(
+pub(crate) fn write_report(
     root: &Path,
     text: &str,
     out: Option<&Path>,

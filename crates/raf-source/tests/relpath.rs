@@ -11,10 +11,12 @@ fn text(input: &str) -> String {
 
 #[test]
 fn dot_and_empty_segments_are_dropped() {
-    assert_eq!(text("a/./b"), "a/b");
-    assert_eq!(text("./a"), "a");
-    assert_eq!(text("a//b/"), "a/b");
-    assert_eq!(text(""), "");
+    for (input, normalized) in [("a/./b", "a/b"), ("./a", "a"), ("a//b/", "a/b"), ("", "")] {
+        assert_eq!(text(input), normalized);
+        assert_eq!(RelPath::is_canonical(input), input == normalized);
+        assert!(RelPath::is_canonical(normalized));
+    }
+    assert!(!RelPath::is_canonical("."));
     assert!(RelPath::new("").expect("root").is_root());
     assert!(RelPath::new(".").expect("root").is_root());
 }
@@ -24,6 +26,9 @@ fn a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve() {
     assert_eq!(text("a/../b"), "a/../b");
     assert_eq!(text("a/b/../.."), "a/b/../..");
     assert!(!RelPath::new("a/..").expect("accepted").is_root());
+    for input in ["a/../b", "a/b/../..", "a/.."] {
+        assert!(RelPath::is_canonical(input));
+    }
 }
 
 #[test]
@@ -41,6 +46,9 @@ fn a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside()
         Err(PathError::AboveRoot { .. })
     ));
     assert!(RelPath::new("a/../b").is_ok());
+    for input in ["../a", "a/../..", "a/../../b"] {
+        assert!(!RelPath::is_canonical(input));
+    }
 }
 
 #[test]
@@ -49,6 +57,8 @@ fn an_absolute_input_is_refused_beside_its_relative_form() {
     assert!(matches!(refused, PathError::Absolute { .. }));
     assert_eq!(refused.input(), "/a");
     assert_eq!(text("a"), "a");
+    assert!(!RelPath::is_canonical("/a"));
+    assert!(RelPath::is_canonical("a"));
 }
 
 #[test]
@@ -67,6 +77,10 @@ fn backslash_nul_and_drive_letter_inputs_are_refused_beside_plain_names() {
         Err(PathError::DriveLetter { .. })
     ));
     assert_eq!(text("cc/xy:z"), "cc/xy:z");
+    for input in ["a\\b", "a\0b", "C:x", "a/c:x"] {
+        assert!(!RelPath::is_canonical(input));
+    }
+    assert!(RelPath::is_canonical("cc/xy:z"));
 }
 
 #[test]
