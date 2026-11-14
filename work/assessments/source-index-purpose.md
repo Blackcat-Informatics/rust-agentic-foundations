@@ -340,10 +340,10 @@ inputs:
     digest: d34d8f56750217db463245e918fcf11e1dfba256d4a196ddd24e1007e2c6aa64
   - kind: symbol
     name: raf_source::SYNTAX_BYTES_PER_BYTE
-    digest: 4dd4a6e8642b4dbca6788381882845f5350f7124fd0cd4fe8a091568999b00a4
+    digest: d84110acc234249241be252f16d1dcd5fa89cd220b16300c652dc0071d29e5f3
   - kind: symbol
     name: raf_source::SYNTAX_BYTES_PER_NODE
-    digest: a51344406853131c4b7fce9c36e361457983a0977acded2bae398ed75777f607
+    digest: e899c47e9f79a11a00315b04c1390cee3f58fa88c1aa6a6918292ae7ba8df486
   - kind: symbol
     name: raf_source::SelfType
     digest: 3b36a393fc86b3b53b750186daa3fb72a3ea9a5465eca1712d0fb064c6533fa5

@@ -1139,19 +1139,24 @@ mod tests {
     /// A crate whose one function body is `count` empty statements, so that
     /// the syntax tree term dominates its storage.
     fn statements_workspace(count: usize) -> raf_source::Workspace {
-        let body = format!("fn body() {{ {} }}\n", ";".repeat(count));
+        text_workspace(&format!("fn body() {{ {} }}\n", ";".repeat(count)))
+    }
+
+    /// A crate whose library is exactly `body`.
+    fn text_workspace(body: &str) -> raf_source::Workspace {
         let tree = raf_source::MemoryTree::from([
             (
                 "Cargo.toml",
                 "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
             ),
-            ("src/lib.rs", body.as_str()),
+            ("src/lib.rs", body),
         ]);
         raf_source::Workspace::load(&tree, &["."]).expect("controlled source-only workspace")
     }
 
     const AMPLE_WORK: usize = 1 << 31;
     const AMPLE_BYTES: usize = 1 << 30;
+    const DENSE_BYTES: usize = 1 << 36;
 
     fn library(workspace: &raf_source::Workspace) -> &raf_source::SourceFile {
         let path = raf_source::RelPath::new("src/lib.rs").expect("fixture path");
@@ -1312,6 +1317,34 @@ mod tests {
         assert_eq!(within.excesses.len(), 0);
         assert!(half_held <= half_tree);
         assert!(within.meter().usage().1 < reference.meter().usage().1);
+
+        // Neighbour over the byte-dense reference input, a megabyte of
+        // documentation comment: the production terms hold it, nothing is
+        // recorded, and the account holds exactly the prepaid bound, so a
+        // per-byte term one higher raises the peak by exactly the text length.
+        // Native preparation of a megabyte of text is funded far above the
+        // limit of the other fixtures.
+        let dense = text_workspace(&format!("///{}\nfn body() {{}}\n", "d".repeat(1 << 20)));
+        let dense_file = library(&dense);
+        let (_, dense_tree) = prepaid_for(dense_file, SyntaxBound::MEASURED);
+        let (clean, dense_held) = Analysis::new(AMPLE_WORK, DENSE_BYTES)
+            .inspect_source(dense_file, |_, syntax| {
+                Ok(raf_source::syntax_held(syntax).bytes())
+            })
+            .expect("the production terms hold the byte-dense tree");
+        assert_eq!(clean.excesses.len(), 0);
+        assert!(dense_held <= dense_tree);
+        let higher = SyntaxBound {
+            per_byte: SyntaxBound::MEASURED.per_byte + 1,
+            ..SyntaxBound::MEASURED
+        };
+        let (raised, ()) = Analysis::new(AMPLE_WORK, DENSE_BYTES)
+            .inspect_source_bounded(dense_file, higher, |_, _| Ok(()))
+            .expect("a higher byte term is also admitted");
+        assert_eq!(
+            raised.meter().usage().1 - clean.meter().usage().1,
+            dense_file.text.len()
+        );
     }
 
     /// INVARIANT: an embedded run refuses a syntax tree over the memory limit

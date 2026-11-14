@@ -1803,11 +1803,12 @@ The budgets are one table in the source
   table).
   The syntax tree alone is bounded before the parse by
   `SyntaxBound::MEASURED`: `nodes * SYNTAX_BYTES_PER_NODE + text_bytes *
-  SYNTAX_BYTES_PER_BYTE`, 978 and 4, for the exact native node count and the
+  SYNTAX_BYTES_PER_BYTE`, 978 and 5, for the exact native node count and the
   source length. The constants are the parse-alone peaks of a closed reference
-  table of shapes with about 4% added, 940 bytes per node for the worst, a run
-  of 2^k + 1 empty statements (measured at k = 10, 14 and 17), and 4.0003 bytes per byte for a megabyte
-  documentation comment. They are measured, not proven for arbitrary accepted
+  table of shapes: 939.9 bytes per node at most, for a run of 2^k + 1 empty
+  statements (measured at k = 10, 14 and 17), with 978 chosen, a margin of 4.05%;
+  and 4.0003 bytes per byte at most, for a megabyte of documentation comment,
+  with 5 chosen, a margin of 24.99%. They are measured, not proven for arbitrary accepted
   Rust. `syntax_held` walks a parsed tree and sums the size of the counted node
   enums and the spelling bytes of identifiers and string, byte-string, integer
   and float literals, so a caller can compare it with the bound; it misses

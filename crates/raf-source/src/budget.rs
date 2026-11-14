@@ -132,20 +132,22 @@ pub const PARSE_BYTES_PER_TOKEN: usize = 1664;
 /// Measured peak bytes of syntax-tree storage per native token-tree node.
 ///
 /// The syntax parse of a function body of 2^k + 1 empty statements, the worst
-/// shape of the reference table, peaks at 940 bytes per node beyond the
-/// per-byte term at k = 10, 14 and 17, counting the grown block of the
-/// statement list as held beside the block it replaces. The constant adds about
-/// 4% to it. It is measured over a closed table of shapes, not proven for
+/// shape of the reference table, peaks at a measured maximum of 939.9 bytes per
+/// node (940) beyond the per-byte term at k = 10, 14 and 17, with the counting
+/// allocator growing a block in place. The constant is 978: a margin of 38.1
+/// bytes per node, 4.05% above the maximum. It is measured over a closed table of shapes, not proven for
 /// arbitrary accepted Rust; a parse that holds more is detected after the fact
 /// and charged. See [`SyntaxBound`](crate::SyntaxBound).
 pub const SYNTAX_BYTES_PER_NODE: usize = 978;
 
 /// Measured peak bytes of syntax-tree storage per source byte.
 ///
-/// A single 1 MiB documentation comment peaks at 4.0003 bytes per source byte,
-/// the most of the byte-dense shapes (string literals 3, an identifier 2); the
-/// few nodes of such a shape cover the remainder through the per-node term.
-pub const SYNTAX_BYTES_PER_BYTE: usize = 4;
+/// A single 1 MiB documentation comment peaks at a measured maximum of 4.0003
+/// bytes per source byte, the most of the byte-dense shapes (string literals 3,
+/// an identifier 2). The constant is 5: a margin of 0.9997 bytes per byte,
+/// 24.99% above the maximum, so a byte-dense source holds its bound by the byte
+/// term alone and not through the per-node term.
+pub const SYNTAX_BYTES_PER_BYTE: usize = 5;
 
 /// The most stack of the parse thread that one unit of [`Budget::Recursion`]
 /// takes in a debug build, rounded up: parsing, reading the facts and dropping

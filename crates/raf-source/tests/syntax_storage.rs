@@ -208,8 +208,9 @@ fn measured() -> Vec<Row> {
 
 /// INVARIANT: for every shape of the reference table, the peak storage of the
 /// syntax parse is at most `nodes * per_node + bytes * per_byte`, and the
-/// worst shape of each class reaches at least 90 percent of the bound, so the
-/// constants are tight and not vacuous.
+/// worst node shape reaches at least 90 percent of the bound and the worst byte
+/// shape at least 75 percent, and each byte-dense shape holds by the byte term
+/// alone, so the constants carry a real margin and are not vacuous.
 #[test]
 fn syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound() {
     let rows = measured();
@@ -226,12 +227,23 @@ fn syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound() {
                 row.peak,
                 table(&rows)
             );
+            if class == Class::Byte {
+                assert!(
+                    row.peak <= row.bytes * bound.per_byte,
+                    "{} needs more than the byte term alone\n{}",
+                    row.name,
+                    table(&rows)
+                );
+            }
             #[allow(clippy::cast_precision_loss, reason = "a ratio of two small counts")]
             let ratio = row.peak as f64 / limit as f64;
             highest = highest.max(ratio);
         }
+        // The node term is tight to its 4% margin; the byte term carries a 25%
+        // margin above the measured maximum, so its floor is lower.
+        let floor = if class == Class::Node { 0.90 } else { 0.75 };
         assert!(
-            highest >= 0.90,
+            highest >= floor,
             "the worst {class:?} shape reaches {highest:.3} of the bound\n{}",
             table(&rows)
         );

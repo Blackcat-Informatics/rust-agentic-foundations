@@ -7,13 +7,13 @@ subject: cap:census-embedded-clones#verification
 inputs:
   - kind: section
     name: cap:census-embedded-clones#verification
-    digest: bd89c8b82f7002e3b725da34a9dc5c509563f820a729d5d63ec7fb5b8b74040c
+    digest: e442165d3a35164593c66dae698d4095266abce3ec9c1f98be8136c808e2cfe3
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::embedded
     digest: a6a1dccbf353dc8e973e5eb26480a7cf11eaadc6596af48334949fb8ce546c21
   - kind: symbol
     name: raf_census::embedded
-    digest: db8f6aa39baca893312fd26ef6a747516c72186100677103dcd65011b72a9db4
+    digest: bf3f708828eed557db6aee3a8e7d6294ed364111d763a50eb28a366c1ebab380
   - kind: symbol
     name: raf_census::embedded::analysis::Analysis
     digest: f4b3a6e4a11df3a07c9ea5dadafa8b9032c098efcdd6716be695a8a190a93cb7
