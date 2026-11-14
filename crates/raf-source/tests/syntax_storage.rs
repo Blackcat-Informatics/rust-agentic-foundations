@@ -19,6 +19,10 @@ enum Class {
     Byte,
 }
 
+/// Fifteen sixteenths documentation comment and one sixteenth string literal: a byte-dense
+/// input whose peak sits just above the tightness floor of its bound.
+const MIXED: &str = "15/16 MiB doc comment and 1/16 MiB string literal";
+
 struct Shape {
     name: String,
     class: Class,
@@ -152,6 +156,13 @@ fn shapes() -> Vec<Shape> {
         n,
         "/// x\nstruct S;\n".repeat(n),
     ));
+    all.extend(byte_shapes());
+    all
+}
+
+/// The byte-dense shapes: few nodes over megabytes of text.
+fn byte_shapes() -> Vec<Shape> {
+    let mut all = Vec::new();
     let mib = 1 << 20;
     all.push(Shape {
         name: "one 1 MiB string literal".to_owned(),
@@ -177,6 +188,15 @@ fn shapes() -> Vec<Shape> {
         name: "one 1 MiB byte string literal".to_owned(),
         class: Class::Byte,
         text: format!("const S: &[u8] = b\"{}\";", "b".repeat(mib)),
+    });
+    all.push(Shape {
+        name: MIXED.to_owned(),
+        class: Class::Byte,
+        text: format!(
+            "///{}\nconst S: &str = \"{}\";",
+            "d".repeat(mib * 15 / 16),
+            "x".repeat(mib / 16)
+        ),
     });
     all
 }
@@ -207,10 +227,10 @@ fn measured() -> Vec<Row> {
 }
 
 /// INVARIANT: for every shape of the reference table, the peak storage of the
-/// syntax parse is at most `nodes * per_node + bytes * per_byte`, and the
-/// worst node shape reaches at least 90 percent of the bound and the worst byte
-/// shape at least 75 percent, and each byte-dense shape holds by the byte term
-/// alone, so the constants carry a real margin and are not vacuous.
+/// syntax parse is at most `nodes * per_node + ceil(bytes * num / den)`, the
+/// worst shape of each class reaches at least 90 percent of the bound, and each
+/// byte-dense shape holds by the byte term alone, so the constants carry a real
+/// margin and are not vacuous.
 #[test]
 fn syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound() {
     let rows = measured();
@@ -229,7 +249,7 @@ fn syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound() {
             );
             if class == Class::Byte {
                 assert!(
-                    row.peak <= row.bytes * bound.per_byte,
+                    row.peak <= bound.bytes(0, row.bytes).expect("the byte term fits"),
                     "{} needs more than the byte term alone\n{}",
                     row.name,
                     table(&rows)
@@ -239,15 +259,33 @@ fn syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound() {
             let ratio = row.peak as f64 / limit as f64;
             highest = highest.max(ratio);
         }
-        // The node term is tight to its 4% margin; the byte term carries a 25%
-        // margin above the measured maximum, so its floor is lower.
-        let floor = if class == Class::Node { 0.90 } else { 0.75 };
         assert!(
-            highest >= floor,
+            highest >= 0.90,
             "the worst {class:?} shape reaches {highest:.3} of the bound\n{}",
             table(&rows)
         );
     }
+}
+
+/// INVARIANT: a byte-dense input mixing documentation comment and string literal
+/// sits just above the 90 percent floor and below its bound, so the floor binds:
+/// the bound is not loose for byte-dense text that is cheaper than the worst.
+#[test]
+fn a_byte_dense_shape_just_above_the_floor_holds_its_bound() {
+    let shape = shapes()
+        .into_iter()
+        .find(|shape| shape.name == MIXED)
+        .expect("the mixed shape is in the table");
+    let row = measure(&shape.name, shape.class, &shape.text);
+    let limit = SyntaxBound::MEASURED
+        .bytes(row.nodes, row.bytes)
+        .expect("the bound fits");
+    #[allow(clippy::cast_precision_loss, reason = "a ratio of two small counts")]
+    let ratio = row.peak as f64 / limit as f64;
+    eprintln!("{} reaches {ratio:.4} of its bound", row.name);
+    assert!(row.peak < limit, "within the bound: {ratio:.4}");
+    assert!(ratio >= 0.90, "above the floor: {ratio:.4}");
+    assert!(ratio < 0.93, "the floor binds: {ratio:.4}");
 }
 
 /// INVARIANT: the per-node term is at least two elements of every counted node
@@ -311,4 +349,21 @@ fn syntax_held_names_the_dominant_kind_of_a_statement_dense_body() {
     let (kind, count) =
         raf_source::parse_source(&path, &text, |tree| syntax_held(tree).dominant()).expect("valid");
     assert_eq!((kind, count), ("Stmt", 64));
+}
+
+/// INVARIANT: the per-byte ratio rounds up and an overflow or a zero
+/// denominator refuses; it never wraps or saturates into a smaller bound.
+#[test]
+fn the_byte_ratio_rounds_up_and_an_overflow_refuses() {
+    let bound = SyntaxBound::MEASURED;
+    assert_eq!(bound.bytes(0, 100), Some(417));
+    assert_eq!(bound.bytes(0, 1), Some(5));
+    assert_eq!(bound.bytes(0, 0), Some(0));
+    assert_eq!(bound.bytes(0, usize::MAX), None);
+    assert_eq!(bound.bytes(usize::MAX, 0), None);
+    let broken = SyntaxBound {
+        byte_den: 0,
+        ..bound
+    };
+    assert_eq!(broken.bytes(0, 1), None);
 }

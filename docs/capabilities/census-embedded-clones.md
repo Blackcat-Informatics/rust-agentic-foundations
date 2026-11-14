@@ -58,6 +58,8 @@ bindings:
     - raf_source::test_crate::syntax_storage::syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum
     - raf_source::test_crate::syntax_storage::syntax_tree_storage_bound_covers_every_source_of_this_repository
     - raf_source::test_crate::syntax_storage::syntax_held_names_the_dominant_kind_of_a_statement_dense_body
+    - raf_source::test_crate::syntax_storage::a_byte_dense_shape_just_above_the_floor_holds_its_bound
+    - raf_source::test_crate::syntax_storage::the_byte_ratio_rounds_up_and_an_overflow_refuses
     - raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers
     - raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first
     - raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed
@@ -782,8 +784,10 @@ worker refuses an occupied registry before it registers source.
 
 The syntax tree that a native parse returns, the value `syn::parse2` builds in
 the parse step of `raf-source`, is charged by a bound computed before the
-parser runs: `nodes * SYNTAX_BYTES_PER_NODE + text_bytes * SYNTAX_BYTES_PER_BYTE`
-(978 and 5). `nodes` is the exact native token-tree node count that the literal
+parser runs:
+`nodes * SYNTAX_BYTES_PER_NODE + ceil(text_bytes * SYNTAX_BYTES_PER_BYTE_NUM /
+SYNTAX_BYTES_PER_BYTE_DEN)`, in checked integer arithmetic that refuses an
+overflow (978, and the ratio 417/100). `nodes` is the exact native token-tree node count that the literal
 measurement already counts, and `text_bytes` is the source length. The bound is
 added to the one prepaid receipt, so exhaustion refuses before the tree exists
 with a located memory refusal and the remedy to reduce input or increase the
@@ -793,12 +797,13 @@ runs that double their vector, items, members, arms, tuples, generic
 comparisons, attributes, macros, numeric fields, documentation items and
 megabyte literals, identifiers and comments) and over every Rust source under the crates and tests directories of this
 repository, and a structural check holds the per-node term to at least two
-elements of each counted node enum. The measured maximum per node is 939.9 bytes, in a run of 2^k + 1 empty
-statements measured at k = 10, 14 and 17, and the per-node constant 978 is 38.1
-bytes, 4.05 percent, above it. The measured maximum per source byte is 4.0003,
-in one megabyte of documentation comment, and the per-byte constant 5 is
-0.9997 bytes, 24.99 percent, above it, so a text-heavy source holds its bound
-by the byte term alone. A shape outside the table can cost more per
+elements of each counted node enum. The measured maximum per node is 939.98 bytes, in a run of 2^k + 1 empty
+statements at k = 17 (939.9 at k = 14, 937.5 at k = 10), taken beyond the
+measured per-byte rate of 4.000389; the per-node constant 978 is 38.02 bytes,
+4.04 percent, above it. The measured maximum per source byte is 4.000389, in
+one megabyte of documentation comment, and the per-byte ratio 4.17 is 0.1696
+bytes, 4.24 percent, above it, so a text-heavy source holds its bound by the
+byte term alone. A shape outside the table can cost more per
 node. A counting allocator that grows a block in place measured the peak; an
 allocator that moves the block would also hold the old block during the copy,
 which the constants do not cover.
@@ -819,7 +824,7 @@ list; it counts a node held inline in another twice, which errs toward
 detection. The excess is reported after its allocation happened, so only the
 bound computed before the parse refuses in advance. Native parser work remains
 unmetered.
-<!-- raf:tested-by raf_source::test_crate::syntax_storage::syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound,raf_source::test_crate::syntax_storage::syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum,raf_source::test_crate::syntax_storage::syntax_tree_storage_bound_covers_every_source_of_this_repository,raf_census::embedded::analysis::tests::embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported,raf_census::embedded::analysis::tests::embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message,raf_census::embedded::analysis::tests::a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none,raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed -->
+<!-- raf:tested-by raf_source::test_crate::syntax_storage::syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound,raf_source::test_crate::syntax_storage::syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum,raf_source::test_crate::syntax_storage::syntax_tree_storage_bound_covers_every_source_of_this_repository,raf_source::test_crate::syntax_storage::a_byte_dense_shape_just_above_the_floor_holds_its_bound,raf_source::test_crate::syntax_storage::the_byte_ratio_rounds_up_and_an_overflow_refuses,raf_census::embedded::analysis::tests::embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported,raf_census::embedded::analysis::tests::embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message,raf_census::embedded::analysis::tests::a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none,raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed -->
 Similarity never authorizes a preferred provider, validates delegation or
 exempts debt. Embedded findings have explicit versioned adoption and exact
 shrink-only debt handling. Discovery cannot create an allowance or rewrite an
@@ -1588,12 +1593,14 @@ workspace provenance fixtures retain root and inline-module prelude policy
 through free functions, inherent methods and trait-default bodies.
 Syntax-tree fixtures count the peak storage of the parse alone over a closed
 table of node-dense and byte-dense shapes, and over every Rust source under the crates and tests directories of this
-repository, against the per-node and per-byte bound; the worst node shape
-reaches at least 90 percent of it, the worst byte-dense shape at least 75
-percent, and each byte-dense shape holds by the byte term alone. A statement-dense workspace refuses one
+repository, against the per-node and per-byte bound; the worst shape of
+each kind reaches at least 90 percent of it, a mixed byte-dense input, fifteen sixteenths documentation comment and one
+sixteenth string literal, sits just
+above that floor, at 91.2 percent, and below its bound, and each byte-dense shape holds by the
+byte term alone. A statement-dense workspace refuses one
 byte under its exact peak before the visitor runs and succeeds at that peak.
 Deliberately low terms record, charge and refuse an excess with its shape,
-beside within-bound neighbours, one node-dense and one byte-dense, that record
+beside within-bound neighbours, one node-dense and two byte-dense, that record
 nothing. A recorded excess
 reaches the run result by name, and a clean run reports none.
 Pairing fixtures protect the embedded helper beneath an invalid surrounding

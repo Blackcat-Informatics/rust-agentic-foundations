@@ -194,8 +194,8 @@ mod work;
 mod workspace;
 
 pub use budget::{
-    Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES, SYNTAX_BYTES_PER_BYTE,
-    SYNTAX_BYTES_PER_NODE,
+    Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES, SYNTAX_BYTES_PER_BYTE_DEN,
+    SYNTAX_BYTES_PER_BYTE_NUM, SYNTAX_BYTES_PER_NODE,
 };
 pub use code::{CodeResolveError, CodeResolver, ExternLibrary, ExternRouteKind};
 pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};

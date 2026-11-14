@@ -339,11 +339,14 @@ inputs:
     name: raf_source::ResolveError
     digest: d34d8f56750217db463245e918fcf11e1dfba256d4a196ddd24e1007e2c6aa64
   - kind: symbol
-    name: raf_source::SYNTAX_BYTES_PER_BYTE
-    digest: d84110acc234249241be252f16d1dcd5fa89cd220b16300c652dc0071d29e5f3
+    name: raf_source::SYNTAX_BYTES_PER_BYTE_DEN
+    digest: 742af4286f24597578bd119e3af98fea584adf591be1dd4ed324eba1e886b30d
+  - kind: symbol
+    name: raf_source::SYNTAX_BYTES_PER_BYTE_NUM
+    digest: 90acdc0af811e1b93f6c34441ac194978ab9a8ec14a568c620bdd22795860e87
   - kind: symbol
     name: raf_source::SYNTAX_BYTES_PER_NODE
-    digest: e899c47e9f79a11a00315b04c1390cee3f58fa88c1aa6a6918292ae7ba8df486
+    digest: d3b06fb7ec54a5e4674f56176d1609db4b00b3f480c1ffe85759fc1d6af45f4b
   - kind: symbol
     name: raf_source::SelfType
     digest: 3b36a393fc86b3b53b750186daa3fb72a3ea9a5465eca1712d0fb064c6533fa5
@@ -523,7 +526,7 @@ inputs:
     digest: ea58202fe55d35139111d5203eb4d561953c0b118cacd4e3bbe55c5a4f98febd
   - kind: symbol
     name: raf_source::syntax_storage::SyntaxBound
-    digest: 5c2c4c8d61b3d0ba4d848db1a92012abe10efd0b681f1a10fb905e5ee87380f5
+    digest: cb22bdd68d556de9e8bf4358d6be413602544bf94589ed6dbc6aac8e4e5e52e6
   - kind: symbol
     name: raf_source::syntax_storage::SyntaxHeld
     digest: cfdff1e085e86ca1ccd6c47e26ae62844ebe1ac34f56ad1f256b4def3d23a996

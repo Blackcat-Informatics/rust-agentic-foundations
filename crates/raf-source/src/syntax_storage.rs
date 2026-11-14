@@ -8,11 +8,11 @@ use std::fmt::{self, Write as _};
 
 use syn::visit::{self, Visit};
 
-use crate::budget::{SYNTAX_BYTES_PER_BYTE, SYNTAX_BYTES_PER_NODE};
+use crate::budget::{SYNTAX_BYTES_PER_BYTE_DEN, SYNTAX_BYTES_PER_BYTE_NUM, SYNTAX_BYTES_PER_NODE};
 
 /// The per-node and per-byte terms of a syntax-tree storage bound.
 ///
-/// The bound is `nodes * per_node + text_bytes * per_byte`, where `nodes` is the
+/// The bound is `nodes * per_node + ceil(text_bytes * byte_num / byte_den)`, where `nodes` is the
 /// exact native token-tree node count of the lexed stream and `text_bytes` is
 /// the source length. It is computed before the parser runs, so a caller can
 /// admit it first. The production terms are measured, not proven; see
@@ -21,25 +21,34 @@ use crate::budget::{SYNTAX_BYTES_PER_BYTE, SYNTAX_BYTES_PER_NODE};
 pub struct SyntaxBound {
     /// Bytes of peak parse storage per native token-tree node.
     pub per_node: usize,
-    /// Bytes of peak parse storage per source byte.
-    pub per_byte: usize,
+    /// Numerator of the bytes of peak parse storage per source byte.
+    pub byte_num: usize,
+    /// Denominator of the bytes of peak parse storage per source byte.
+    pub byte_den: usize,
 }
 
 impl SyntaxBound {
     /// The measured production terms.
     pub const MEASURED: Self = Self {
         per_node: SYNTAX_BYTES_PER_NODE,
-        per_byte: SYNTAX_BYTES_PER_BYTE,
+        byte_num: SYNTAX_BYTES_PER_BYTE_NUM,
+        byte_den: SYNTAX_BYTES_PER_BYTE_DEN,
     };
 
     /// The bound for `nodes` native nodes over `text_bytes` source bytes, or
-    /// `None` when it does not fit `usize`.
+    /// `None` when any step overflows `usize` or the denominator is zero.
     #[must_use]
     pub const fn bytes(self, nodes: usize, text_bytes: usize) -> Option<usize> {
         let Some(by_node) = nodes.checked_mul(self.per_node) else {
             return None;
         };
-        let Some(by_byte) = text_bytes.checked_mul(self.per_byte) else {
+        let Some(scaled) = text_bytes.checked_mul(self.byte_num) else {
+            return None;
+        };
+        let Some(rounded) = scaled.checked_add(self.byte_den.saturating_sub(1)) else {
+            return None;
+        };
+        let Some(by_byte) = rounded.checked_div(self.byte_den) else {
             return None;
         };
         by_node.checked_add(by_byte)

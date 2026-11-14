@@ -1235,7 +1235,8 @@ mod tests {
         let file = library(&workspace);
         let low = SyntaxBound {
             per_node: 1,
-            per_byte: 1,
+            byte_num: 1,
+            byte_den: 1,
         };
         let (nodes, prepaid) = prepaid_for(file, low);
         let (_, production) = prepaid_for(file, SyntaxBound::MEASURED);
@@ -1318,33 +1319,49 @@ mod tests {
         assert!(half_held <= half_tree);
         assert!(within.meter().usage().1 < reference.meter().usage().1);
 
-        // Neighbour over the byte-dense reference input, a megabyte of
-        // documentation comment: the production terms hold it, nothing is
-        // recorded, and the account holds exactly the prepaid bound, so a
-        // per-byte term one higher raises the peak by exactly the text length.
-        // Native preparation of a megabyte of text is funded far above the
-        // limit of the other fixtures.
-        let dense = text_workspace(&format!("///{}\nfn body() {{}}\n", "d".repeat(1 << 20)));
-        let dense_file = library(&dense);
-        let (_, dense_tree) = prepaid_for(dense_file, SyntaxBound::MEASURED);
-        let (clean, dense_held) = Analysis::new(AMPLE_WORK, DENSE_BYTES)
-            .inspect_source(dense_file, |_, syntax| {
-                Ok(raf_source::syntax_held(syntax).bytes())
-            })
-            .expect("the production terms hold the byte-dense tree");
-        assert_eq!(clean.excesses.len(), 0);
-        assert!(dense_held <= dense_tree);
-        let higher = SyntaxBound {
-            per_byte: SyntaxBound::MEASURED.per_byte + 1,
-            ..SyntaxBound::MEASURED
-        };
-        let (raised, ()) = Analysis::new(AMPLE_WORK, DENSE_BYTES)
-            .inspect_source_bounded(dense_file, higher, |_, _| Ok(()))
-            .expect("a higher byte term is also admitted");
-        assert_eq!(
-            raised.meter().usage().1 - clean.meter().usage().1,
-            dense_file.text.len()
-        );
+        assert_byte_dense_neighbours_within_the_bound();
+    }
+
+    fn assert_byte_dense_neighbours_within_the_bound() {
+        // Neighbours over two byte-dense reference inputs, a megabyte of
+        // documentation comment and fifteen sixteenths of one beside a sixteenth of string
+        // literal: the production terms hold each, nothing is recorded, and the
+        // account holds exactly the prepaid bound, so a higher byte ratio raises
+        // the peak by exactly the difference of the two bounds. Native
+        // preparation of a megabyte of text is funded far above the limit of the
+        // other fixtures.
+        let mib = 1_usize << 20;
+        for text in [
+            format!("///{}\nfn body() {{}}\n", "d".repeat(mib)),
+            format!(
+                "///{}\nconst S: &str = \"{}\";\n",
+                "d".repeat(mib * 15 / 16),
+                "x".repeat(mib / 16)
+            ),
+        ] {
+            let dense = text_workspace(&text);
+            let dense_file = library(&dense);
+            let (_, dense_tree) = prepaid_for(dense_file, SyntaxBound::MEASURED);
+            let (clean, dense_held) = Analysis::new(AMPLE_WORK, DENSE_BYTES)
+                .inspect_source(dense_file, |_, syntax| {
+                    Ok(raf_source::syntax_held(syntax).bytes())
+                })
+                .expect("the production terms hold the byte-dense tree");
+            assert_eq!(clean.excesses.len(), 0);
+            assert!(dense_held <= dense_tree);
+            let higher = SyntaxBound {
+                byte_num: SyntaxBound::MEASURED.byte_num + 1,
+                ..SyntaxBound::MEASURED
+            };
+            let (raised, ()) = Analysis::new(AMPLE_WORK, DENSE_BYTES)
+                .inspect_source_bounded(dense_file, higher, |_, _| Ok(()))
+                .expect("a higher byte ratio is also admitted");
+            let (_, higher_tree) = prepaid_for(dense_file, higher);
+            assert_eq!(
+                raised.meter().usage().1 - clean.meter().usage().1,
+                higher_tree - dense_tree
+            );
+        }
     }
 
     /// INVARIANT: an embedded run refuses a syntax tree over the memory limit
@@ -1394,7 +1411,8 @@ mod tests {
         let file = library(&workspace);
         let low = SyntaxBound {
             per_node: 1,
-            per_byte: 1,
+            byte_num: 1,
+            byte_den: 1,
         };
         let (nodes, prepaid) = prepaid_for(file, low);
         let (analysis, ()) = Analysis::new(AMPLE_WORK, AMPLE_BYTES)

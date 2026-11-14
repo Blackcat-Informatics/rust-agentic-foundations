@@ -84,7 +84,8 @@ bindings:
     - raf_source::Opened
     - raf_source::PARSE_BYTES_PER_TOKEN
     - raf_source::SYNTAX_BYTES_PER_NODE
-    - raf_source::SYNTAX_BYTES_PER_BYTE
+    - raf_source::SYNTAX_BYTES_PER_BYTE_NUM
+    - raf_source::SYNTAX_BYTES_PER_BYTE_DEN
     - raf_source::syntax_storage::SyntaxBound
     - raf_source::syntax_storage::SyntaxHeld
     - raf_source::syntax_storage::syntax_held
@@ -1802,13 +1803,14 @@ The budgets are one table in the source
   the registry scan below the most tokens of one file was 1505567 (a time-zone
   table).
   The syntax tree alone is bounded before the parse by
-  `SyntaxBound::MEASURED`: `nodes * SYNTAX_BYTES_PER_NODE + text_bytes *
-  SYNTAX_BYTES_PER_BYTE`, 978 and 5, for the exact native node count and the
-  source length. The constants are the parse-alone peaks of a closed reference
-  table of shapes: 939.9 bytes per node at most, for a run of 2^k + 1 empty
-  statements (measured at k = 10, 14 and 17), with 978 chosen, a margin of 4.05%;
-  and 4.0003 bytes per byte at most, for a megabyte of documentation comment,
-  with 5 chosen, a margin of 24.99%. They are measured, not proven for arbitrary accepted
+  `SyntaxBound::MEASURED`: `nodes * SYNTAX_BYTES_PER_NODE + ceil(text_bytes *
+  SYNTAX_BYTES_PER_BYTE_NUM / SYNTAX_BYTES_PER_BYTE_DEN)`, 978 and the ratio
+  417/100, for the exact native node count and the source length. The constants are the parse-alone peaks of a closed reference
+  table of shapes: 939.98 bytes per node at most, for a run of 2^k + 1 empty
+  statements at k = 17 (939.9 at k = 14, 937.5 at k = 10) taken beyond the
+  measured per-byte rate of 4.000389, with 978 chosen, a margin of 38.02 bytes,
+  4.04%; and 4.000389 bytes per byte at most, for a megabyte of documentation
+  comment, with the ratio 4.17 chosen, a margin of 0.1696 bytes, 4.24%. They are measured, not proven for arbitrary accepted
   Rust. `syntax_held` walks a parsed tree and sums the size of the counted node
   enums and the spelling bytes of identifiers and string, byte-string, integer
   and float literals, so a caller can compare it with the bound; it misses
