@@ -5,8 +5,10 @@
 //!
 //! Static source inspection never executes consumer programs or changes source.
 //! Report, evidence and debt RDF operations charge the original run account.
-//! Source lexing, parsing and span storage remain incompletely admitted; public
-//! limits do not establish a total native resource guarantee.
+//! Source lexing, parser input, span storage and the parsed syntax tree charge
+//! the original run account; the tree's bound is measured over a reference
+//! table, not proven. Public limits do not establish a total native heap or
+//! work guarantee.
 
 mod analysis;
 mod attributes;
@@ -38,6 +40,7 @@ mod tokens;
 mod views;
 mod workspace;
 
+pub use analysis::SyntaxExcess;
 pub use error::{Error, InspectionError, RefusalKind};
 pub use options::Options;
 pub use output::{DebtRefusal, OutputFailure, OutputFailureKind};

@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 1633b106f2ca03de1a0e22f63ffe25c499c2eccffea95357fd55c91ad9090953
+    digest: 4762314bf51b9da9e08d4e1bb348e9bd8e0a4181d140821959f7ecd003a7f446
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -181,7 +181,7 @@ inputs:
     digest: e5dbd54979c652d9bca1350d264eafce9303293b9beec65d854adf9e0c5c6137
   - kind: symbol
     name: raf_source::PARSE_BYTES_PER_TOKEN
-    digest: 359c183c452c541a04391455ae031adc48df3a1b7a5f48a7d491f9fb2e5cdbd0
+    digest: d18e265c37a4fa319fcf81aa0d9f67c067dd292683ec650041ee7a69917d607d
   - kind: symbol
     name: raf_source::PARSE_STACK_BYTES
     digest: 2d0708cc0aca355f30cc0d34d147d0b2faa2194a3c4540e9ab2b5def4a13b4c0
@@ -254,6 +254,15 @@ inputs:
   - kind: symbol
     name: raf_source::Resolution
     digest: 22c93607cd8530401f137cb20d8dc0bc5936c190e1f4ff8b09c59872788f9b84
+  - kind: symbol
+    name: raf_source::SYNTAX_BYTES_PER_BYTE_DEN
+    digest: 742af4286f24597578bd119e3af98fea584adf591be1dd4ed324eba1e886b30d
+  - kind: symbol
+    name: raf_source::SYNTAX_BYTES_PER_BYTE_NUM
+    digest: 90acdc0af811e1b93f6c34441ac194978ab9a8ec14a568c620bdd22795860e87
+  - kind: symbol
+    name: raf_source::SYNTAX_BYTES_PER_NODE
+    digest: 4392defcfc298e2ac4d61166c03417ca2e12596904e52f7a35e4d63349f50580
   - kind: symbol
     name: raf_source::SourceAuthorityId
     digest: 42c88a2c3d2189620e09ee269f87aca8219e76256ca74290fad23f34a8b573f8
@@ -386,6 +395,9 @@ inputs:
   - kind: symbol
     name: raf_source::resolve
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3
+  - kind: symbol
+    name: raf_source::syntax_storage::syntax_held
+    digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
   - kind: symbol
     name: raf_source::tree
     digest: 078796918c101347df949cb2d69a03d131f88b87ae18c88fd9aa6bb387d40a67

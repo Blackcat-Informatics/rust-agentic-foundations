@@ -31,6 +31,18 @@ pub enum RefusalKind {
         /// Selected ceiling.
         limit: usize,
     },
+    /// The parsed syntax tree held more than its prepaid bound, and the excess
+    /// could not be granted or recorded.
+    SyntaxExcess {
+        /// Native token-tree nodes of the lexed source.
+        nodes: usize,
+        /// Bytes prepaid for the tree before the parse.
+        prepaid: usize,
+        /// Bytes the parsed tree was found to hold.
+        held: usize,
+        /// The most numerous node kind of the tree.
+        kind: &'static str,
+    },
     /// Native allocation or layout refusal.
     Storage(StorageError),
     /// Required source context violates an invariant.
@@ -45,10 +57,37 @@ impl From<Refusal> for RefusalKind {
             Refusal::Count { resource, limit } => Self::Count { resource, limit },
             Refusal::Work { limit } => Self::Work { limit },
             Refusal::Memory { limit } => Self::Memory { limit },
+            Refusal::SyntaxExcess {
+                nodes,
+                prepaid,
+                held,
+                kind,
+            } => Self::SyntaxExcess {
+                nodes,
+                prepaid,
+                held,
+                kind,
+            },
             Refusal::Storage(error) => Self::Storage(error),
             Refusal::Invariant(reason) => Self::Invariant(reason),
             Refusal::Unsupported(reason) => Self::Unsupported(reason),
         }
+    }
+}
+
+impl RefusalKind {
+    /// Resource exhaustion names its remedy; the other refusals have none.
+    fn hint(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if matches!(
+            self,
+            Self::Count { .. }
+                | Self::Work { .. }
+                | Self::Memory { .. }
+                | Self::SyntaxExcess { .. }
+        ) {
+            f.write_str("; reduce input or increase the selected resource limit")?;
+        }
+        Ok(())
     }
 }
 
@@ -144,19 +183,12 @@ impl fmt::Display for Error {
                     f,
                     "{}: byte {byte}: {cause:?}",
                     file.as_str().escape_debug()
-                )
+                )?;
+                cause.hint(f)
             }
             Self::Refused(cause) => {
                 write!(f, "embedded analysis refused: {cause:?}")?;
-                if matches!(
-                    cause,
-                    RefusalKind::Count { .. }
-                        | RefusalKind::Work { .. }
-                        | RefusalKind::Memory { .. }
-                ) {
-                    f.write_str("; reduce input or increase the selected resource limit")?;
-                }
-                Ok(())
+                cause.hint(f)
             }
             Self::Publication(error) => error.fmt(f),
         }

@@ -177,6 +177,7 @@ fn resource_kind(cause: RefusalKind) -> Option<RefusalKind> {
         RefusalKind::Count { .. }
         | RefusalKind::Work { .. }
         | RefusalKind::Memory { .. }
+        | RefusalKind::SyntaxExcess { .. }
         | RefusalKind::Storage(_) => Some(cause),
         RefusalKind::Invariant(_) | RefusalKind::Unsupported(_) => None,
     }

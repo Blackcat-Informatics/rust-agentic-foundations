@@ -38,6 +38,16 @@ pub(crate) fn run(
     };
     let source = Workspace::load_with(&tree, &["."], &LoadOptions::default())?;
     let analysis = Run::analyze(&source, &Options::default())?;
+    // A tree over its prepaid bound is evidence of a wrong constant. It is
+    // named on the diagnostics stream; the report bytes are unchanged.
+    for excess in analysis.syntax_excesses() {
+        writeln!(diagnostics, "cargo-census: {excess}").map_err(|source| {
+            raf_census::Error::Io {
+                file: "stderr".into(),
+                source,
+            }
+        })?;
+    }
     match command {
         EmbeddedCommand::Report { format, out } => {
             analysis.report(|result| match result {

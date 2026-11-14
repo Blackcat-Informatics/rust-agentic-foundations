@@ -118,6 +118,11 @@ impl Literals {
         Ok(())
     }
 
+    /// The exact native token-tree node count of the measured stream.
+    pub(super) const fn nodes(&self) -> usize {
+        self.nodes
+    }
+
     pub(super) fn storage(&self) -> Result<usize, Refusal> {
         if self.count == 0 {
             return Ok(0);

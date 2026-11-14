@@ -4,15 +4,16 @@
 //! One explicit Workspace and the original account for its embedded analysis.
 
 use super::{
-    Candidate, Error, Options, OutputFailure, Witness, debt, pairing, report, resource, workspace,
+    Candidate, Error, Options, OutputFailure, SyntaxExcess, Witness, debt, pairing, report,
+    resource, workspace,
 };
 
 /// A successful static source-region analysis, independent of whole-body Census.
 ///
 /// Report/debt RDF construction, parsing, validation and rendering charge the
-/// original run account. Source lexing, parsing and span storage still have
-/// incomplete native admission; selected analysis limits do not establish a
-/// total native resource guarantee.
+/// original run account, as do Source lexing, parser input, span storage and the
+/// parsed syntax tree; selected analysis limits do not establish a total native
+/// heap or work guarantee.
 pub struct Run<'source> {
     matches: pairing::Matches<'source>,
 }
@@ -48,9 +49,16 @@ impl<'source> Run<'source> {
             .iter()
             .map(|value| Witness::new(&self.matches, value))
     }
+    /// Syntax trees that held more than their prepaid bound, by file. Each excess
+    /// was charged to the run account; an entry means the bound's measured terms
+    /// were too low for that input. Empty for every tree within its bound.
+    #[must_use]
+    pub fn syntax_excesses(&self) -> &[SyntaxExcess<'source>] {
+        &self.matches.analysis.excesses
+    }
     /// Cumulative metered work and peak admitted run bytes.
     /// Includes admitted report, debt and imported-evidence operations. Source
-    /// native lexing, parsing and span storage remain incompletely admitted.
+    /// native lexing, parser input, span storage and syntax trees are charged to it.
     #[must_use]
     pub fn usage(&self) -> (usize, usize) {
         self.matches.analysis.meter().usage()
@@ -202,5 +210,13 @@ impl Serialized<'_> {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.text
+    }
+}
+
+#[cfg(test)]
+impl<'source> Run<'source> {
+    /// A run over an analysis that a test produced under explicit bound terms.
+    pub(super) const fn from_matches(matches: pairing::Matches<'source>) -> Self {
+        Self { matches }
     }
 }

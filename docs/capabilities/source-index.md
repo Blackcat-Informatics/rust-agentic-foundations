@@ -83,6 +83,12 @@ bindings:
     - raf_source::Budget
     - raf_source::Opened
     - raf_source::PARSE_BYTES_PER_TOKEN
+    - raf_source::SYNTAX_BYTES_PER_NODE
+    - raf_source::SYNTAX_BYTES_PER_BYTE_NUM
+    - raf_source::SYNTAX_BYTES_PER_BYTE_DEN
+    - raf_source::syntax_storage::SyntaxBound
+    - raf_source::syntax_storage::SyntaxHeld
+    - raf_source::syntax_storage::syntax_held
     - raf_source::RECURSION_UNIT_BYTES
     - raf_source::SelfType
     - raf_source::UnresolvedImpl
@@ -1796,6 +1802,21 @@ The budgets are one table in the source
   attributes. The default admits the largest generated files of real crates: over
   the registry scan below the most tokens of one file was 1505567 (a time-zone
   table).
+  The syntax tree alone is bounded before the parse by
+  `SyntaxBound::MEASURED`: `nodes * SYNTAX_BYTES_PER_NODE + ceil(text_bytes *
+  SYNTAX_BYTES_PER_BYTE_NUM / SYNTAX_BYTES_PER_BYTE_DEN)`, 978 and the ratio
+  417/100, for the exact native node count and the source length. The constants are the parse-alone peaks of a closed reference
+  table of shapes: 939.98 bytes per node at most, for a run of 2^k + 1 empty
+  statements at k = 17 (939.8 at k = 14, 937.5 at k = 10) taken beyond the
+  measured per-byte rate of 4.000389, with 978 chosen, a margin of 38.02 bytes,
+  4.04%; and 4.000389 bytes per byte at most, for a megabyte of documentation
+  comment, with the ratio 4.17 chosen, a margin of 0.1696 bytes, 4.24%. They are measured, not proven for arbitrary accepted
+  Rust. `syntax_held` walks a parsed tree and sums the size of the counted node
+  enums and the spelling bytes of identifiers and string, byte-string, integer
+  and float literals, so a caller can compare it with the bound; it misses
+  vector capacity, transient storage and the heap behind unlisted types.
+  `parse_source` and the other parse entry points do not meter either value; a
+  metered caller prepays the bound itself.
 
 Two more budgets are counted by the module walk and not by the pre-scan. Module
 nesting is bounded at 128 levels along one path, files and inline modules together.
