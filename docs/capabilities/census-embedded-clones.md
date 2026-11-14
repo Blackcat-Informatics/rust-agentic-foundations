@@ -45,6 +45,9 @@ bindings:
     - raf_census::embedded::discovery::tests::discovery_refuses_exhaustion_and_preserves_the_first_input_cause
     - raf_census::embedded::analysis::tests::retained_functions_share_the_original_grant_across_parser_workers
     - raf_census::embedded::analysis::tests::source_preparation_grants_precede_parsing_and_survive_until_each_worker_joins
+    - raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers
+    - raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first
+    - raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed
     - raf_census::embedded::tokens::tests::original_tokens_verify_an_embedded_renamed_region_and_reject_variable_operator_and_spacing_changes
     - raf_census::embedded::tokens::tests::syntax_admission_excludes_opaque_interiors_cross_block_sequences_and_partial_utf8
     - raf_census::embedded::tokens::tests::control_markers_keep_their_original_anchors_beside_adjacent_closure_and_return_regions
@@ -159,20 +162,29 @@ The registry ceilings below require ownership of an initially fresh native
 registry. Current standard thread creation does not establish that invariant:
 configured host spawn hooks can run child callbacks before RAF's worker body
 and initialize the parser's thread-local state. Those callbacks originate in
-host code, not inspected source, but their prior registrations and retained
-capacity invalidate an unconditional dummy-plus-root premise. Worker-entry
-ownership remains required for complete resource admission.
+host code, not inspected source, but their prior registrations would
+invalidate an unconditional dummy-plus-root premise. Every Source parser
+worker therefore enters through one boundary step before it registers any
+source of its own: the scoped worker of both inspection paths, the corpus
+worker and each worker of the parallel workspace loader.
 
-The pinned parser exposes no read-only registry ownership or occupancy query.
-Its invalidation API destroys foreign registrations, invalidates existing spans
-and retains vector capacity. Registering a sentinel first would already mutate
-possibly foreign state. Neither operation establishes the required ownership
-boundary. Both named toolchains expose hook suppression only through an unstable
-API, while RAF uses stable language features and libraries. The current
-implementation has not established or enforced the required entry invariant;
-these component formulas do not discharge that remaining requirement.
+The pinned parser exposes no read-only registry ownership or occupancy query,
+and both named toolchains expose hook suppression only through an unstable
+API, while RAF uses stable language features and libraries. The boundary step
+therefore observes occupancy through the one public fact the registry gives:
+it lexes a fixed one-byte probe and reads the file ordinal assigned to it. A
+registry holding only its dummy entry numbers the probe first. Any other
+ordinal refuses the worker with a located registry error that names the
+ordinal, before the worker's own source is registered, and leaves the foreign
+registrations untouched; the worker body never runs and no partial result
+exists. A fresh registry is invalidated again after the probe, so the
+worker's root source is the first registration and the dummy-plus-root premise
+holds. Capacity that a host callback retained after releasing its own
+registrations is host-owned memory and cannot be observed; it can only avoid
+the growth requests below, never enlarge them, because a growth request occurs
+only when the length reaches the capacity and then at most doubles it.
 
-Under that required entry invariant, the inspection registry includes the dummy,
+Under that entry invariant, the inspection registry includes the dummy,
 root and numeric parser-created registrations. Here `F` bounds the pinned private
 `FileInfo` from its actual field types:
 `size_of::<String>() + size_of::<Vec<usize>>() +
@@ -749,11 +761,12 @@ Indexed tokens, retained postings, candidate pairs, verification work and
 resident storage have explicit bounds, including repetitive inputs. Exhaustion
 is actionable failure, never truncation, sampling or an ordinary nonmatch for
 the stages that charge the original account: discovery, proof, reporting and
-adoption. Source lexing, parsing and span storage are not part of that
-guarantee. The parser worker is started without a registry-ownership step, so
-the worker-entry invariant is not enforced and bounded storage through the
-whole pipeline is not delivered. That residual is a separate tracked change.
-
+adoption. Source lexing, parser input and span storage charge the original
+account under the worker-entry registry boundary above: every parser worker
+refuses an occupied registry before it registers source. The storage of the
+syntax tree itself is not admitted, so bounded storage through the whole
+pipeline is not delivered. That residual is the open admission change.
+<!-- raf:tested-by raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed -->
 Similarity never authorizes a preferred provider, validates delegation or
 exempts debt. Embedded findings have explicit versioned adoption and exact
 shrink-only debt handling. Discovery cannot create an allowance or rewrite an

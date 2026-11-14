@@ -178,6 +178,7 @@ impl WorkerInput<'_> {
     fn run(self) -> Result<Option<Parsed>, LoadError> {
         #[cfg(test)]
         let _probe = tests::install(self.probe.clone());
+        super::entry::claim_registry(&self.file)?;
         let syntax = parse_syntax(&self.file, &self.text);
         #[cfg(test)]
         tests::parsed(&self.file);

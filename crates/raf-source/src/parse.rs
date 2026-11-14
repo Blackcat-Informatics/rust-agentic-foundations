@@ -13,6 +13,7 @@ use crate::path::RelPath;
 use crate::prescan::{Scan, prescan_file, shebang};
 use crate::{LoadOptions, TreeError};
 
+mod entry;
 #[cfg(target_os = "linux")]
 pub(crate) mod parallel;
 
@@ -449,7 +450,10 @@ fn on_worker<R: Send>(
         let worker = thread::Builder::new()
             .name(file.to_string())
             .stack_size(PARSE_STACK_BYTES)
-            .spawn_scoped(scope, work)
+            .spawn_scoped(scope, move || {
+                entry::claim_registry(file)?;
+                work()
+            })
             .map_err(|source| LoadError::new(file, None, LoadErrorKind::Spawn(source)))?;
         match worker.join() {
             Ok(result) => result,

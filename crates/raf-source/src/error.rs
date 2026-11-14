@@ -331,6 +331,12 @@ pub enum LoadErrorKind {
     /// The thread that parses could not be started (the operating system
     /// refused the stack or the thread).
     Spawn(io::Error),
+    /// The parse worker's native source registry was not fresh at entry, so its
+    /// admitted storage bounds do not hold.
+    Registry {
+        /// The file name the registry gave the entry probe instead of the first.
+        first: String,
+    },
     /// A `Cargo.toml` could not be read as a manifest.
     Manifest {
         /// What is wrong with it.
@@ -512,6 +518,13 @@ impl fmt::Display for LoadErrorKind {
                 write!(f, "syntax error at column {column}: {}", Esc(message))
             }
             Self::Spawn(error) => write!(f, "cannot start the parse thread: {error}"),
+            Self::Registry { first } => write!(
+                f,
+                "the parse thread's native source registry was not empty at entry (its probe \
+                 was numbered `{}`): a thread spawn callback lexed Rust source before the \
+                 worker ran; remove that callback or keep it from lexing source",
+                Esc(first)
+            ),
             Self::Manifest { message, .. } => write!(f, "invalid manifest: {}", Esc(message)),
             Self::Target(problem) => write!(f, "{problem}"),
             Self::DirSymlink => f.write_str("a symlinked directory is not followed"),

@@ -28,7 +28,7 @@ inputs:
     digest: 0385f2e238aa06dc8b8bf67e52f5dcdf0f0385091c8ba8d0f9162620190ce379
   - kind: symbol
     name: raf_source::LoadErrorKind
-    digest: 647a29e54a4f101b644a1cd0135ad9f0a7c3c763f47659826525be36073538e7
+    digest: 63fe323a5899a65b861162f16ecece97a9bd511c1cd2206f04890af30f19f01a
   - kind: symbol
     name: raf_source::MemoryTree
     digest: 07a127a9ed66d9c1e464b41940094eecd18bdd384ea6765f43aad698fab6df49
