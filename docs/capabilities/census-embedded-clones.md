@@ -763,9 +763,12 @@ is actionable failure, never truncation, sampling or an ordinary nonmatch for
 the stages that charge the original account: discovery, proof, reporting and
 adoption. Source lexing, parser input and span storage charge the original
 account under the worker-entry registry boundary above: every parser worker
-refuses an occupied registry before it registers source. The storage of the
-syntax tree itself is not admitted, so bounded storage through the whole
-pipeline is not delivered. That residual is the open admission change.
+refuses an occupied registry before it registers source. The syntax tree that a
+native parse returns, the value `syn::parse2` builds in the parse step of
+`raf-source`, is not charged to the original resource account. Bounded storage
+through the whole pipeline is therefore not delivered; the admission change
+record `embedded-clones-admission` owns that residual until its second item
+holds.
 <!-- raf:tested-by raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed -->
 Similarity never authorizes a preferred provider, validates delegation or
 exempts debt. Embedded findings have explicit versioned adoption and exact
