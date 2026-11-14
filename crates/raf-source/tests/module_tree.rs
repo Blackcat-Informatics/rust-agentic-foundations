@@ -534,7 +534,11 @@ fn a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_re
         .collect::<MemoryTree>(),
     );
     Workspace::load(&tree, &["."]).expect("inside path loads");
-    assert!(tree.read_log().contains(&"inside.rs".to_owned()));
+    assert!(
+        tree.read_log()
+            .iter()
+            .any(|read| read.as_str() == "inside.rs")
+    );
 }
 
 #[test]
