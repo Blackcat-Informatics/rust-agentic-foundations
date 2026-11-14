@@ -99,7 +99,7 @@ bindings:
     - raf_census::embedded::report::tests::the_limit_helper_refuses_one_byte_over_beside_a_length_at_the_limit
     - raf_census::embedded::report::tests::rendering_a_report_refuses_one_byte_over_the_limit_beside_the_same_report_at_it
   examples:
-    - raf_census::example_crate::debt
+    - raf_census::example_crate::embedded
 depends: [cap:census-normal-form, cap:source-index, cap:rdf-report-profile, cap:census-debt-ratchet]
 ---
 
