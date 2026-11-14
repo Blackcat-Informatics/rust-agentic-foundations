@@ -7,7 +7,7 @@ subject: cap:census-cli#contract
 inputs:
   - kind: section
     name: cap:census-cli#contract
-    digest: 991b48ee19ac8f29481f386a7750f018efc6d857e0b835e95a5c2c682b18e64d
+    digest: 5aea72dd0dd6aed5a2b3c39bf8c464991c0f4113b37763993e36836cda09d985
   - kind: symbol
     name: raf_census::Gate::self_test
     digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86
