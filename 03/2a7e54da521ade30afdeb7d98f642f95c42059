@@ -1,0 +1,19 @@
+ghprsq source head backlink metadata
+
+parent_hashes: 032a7e54da521ade30afdeb7d98f642f95c42059
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash-head-backlink
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 263
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/263
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 1f45c0b4a1e5a12609e59e3b45dc56724938df22
+GhpRsq-Head-Ref: paudley/259-embedded-clones-test-the-parallel
+GhpRsq-Head-OID: 032a7e54da521ade30afdeb7d98f642f95c42059
+GhpRsq-Result-Tree: bc1efcc1184d2e2bfac011b24e8162cf7ca528bb
+GhpRsq-Result-Commit: 987fc7ecf5c1c1bbd0c162896dc114e0659c038a
+GhpRsq-Parent-Hashes: 032a7e54da521ade30afdeb7d98f642f95c42059
+GhpRsq-Squash-Notes-SHA256: fd7310d4d5c2d50c0c74573044c57e62584d5e0aadf607b78827c9ff28422012
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Evidence: none
