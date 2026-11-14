@@ -64,6 +64,8 @@ bindings:
     - raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers
     - raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first
     - raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed
+    - raf_source::parse::parallel::tests::a_parallel_worker_whose_registry_a_host_callback_populated_is_refused_before_it_parses
+    - raf_source::parse::parallel::tests::a_parallel_worker_with_a_fresh_registry_parses
     - raf_census::embedded::tokens::tests::original_tokens_verify_an_embedded_renamed_region_and_reject_variable_operator_and_spacing_changes
     - raf_census::embedded::tokens::tests::syntax_admission_excludes_opaque_interiors_cross_block_sequences_and_partial_utf8
     - raf_census::embedded::tokens::tests::control_markers_keep_their_original_anchors_beside_adjacent_closure_and_return_regions
@@ -110,7 +112,8 @@ bindings:
     - raf_census::embedded::scopes::tests::local_activation_and_scope_exit_preserve_shadow_identity_and_raw_names
     - raf_census::embedded::scopes::tests::unmodeled_preludes_refuse_while_explicit_const_parameters_remain_fixed
     - raf_census::embedded::collect::tests::a_lone_semicolon_is_a_statement_without_an_expression_beside_a_refused_neighbour
-    - raf_census::embedded::report::tests::a_rendered_report_over_the_importer_limit_refuses_beside_one_at_the_limit
+    - raf_census::embedded::report::tests::the_limit_helper_refuses_one_byte_over_beside_a_length_at_the_limit
+    - raf_census::embedded::report::tests::rendering_a_report_refuses_one_byte_over_the_limit_beside_the_same_report_at_it
   examples:
     - raf_census::example_crate::debt
 depends: [cap:census-normal-form, cap:source-index, cap:rdf-report-profile, cap:census-debt-ratchet]
@@ -191,9 +194,11 @@ therefore observes occupancy through the one public fact the registry gives:
 it lexes a fixed one-byte probe and reads the file ordinal assigned to it. A
 registry holding only its dummy entry numbers the probe first. Any other
 ordinal refuses the worker with a located registry error that names the
-ordinal, before the worker's own source is registered, and leaves the foreign
-registrations untouched; the worker body never runs and no partial result
-exists. A fresh registry is invalidated again after the probe, so the
+ordinal, before the worker's own source is registered. The refusal clears and
+reuses none of the foreign registrations, and it leaves the probe's own
+registration beside them, because the probe has lexed before occupancy is
+known; the refused thread ends without lexing again. The worker body never
+runs and no partial result exists. A fresh registry is invalidated again after the probe, so the
 worker's root source is the first registration and the dummy-plus-root premise
 holds. Capacity that a host callback retained after releasing its own
 registrations is host-owned memory and cannot be observed; it can only avoid
@@ -830,7 +835,7 @@ list; it counts a node held inline in another twice, which errs toward
 detection. The excess is reported after its allocation happened, so only the
 bound computed before the parse refuses in advance. Native parser work remains
 unmetered.
-<!-- raf:tested-by raf_source::test_crate::syntax_storage::syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound,raf_source::test_crate::syntax_storage::syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum,raf_source::test_crate::syntax_storage::syntax_tree_storage_bound_covers_every_source_of_this_repository,raf_source::test_crate::syntax_storage::a_byte_dense_shape_just_above_the_floor_holds_its_bound,raf_source::test_crate::syntax_storage::the_byte_ratio_rounds_up_and_an_overflow_refuses,raf_census::embedded::analysis::tests::syntax_tree_grant_is_prepaid_before_the_parser_runs,raf_census::embedded::analysis::tests::a_syntax_excess_record_refused_by_the_work_grant_reports_the_excess,raf_census::embedded::analysis::tests::embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported,raf_census::embedded::analysis::tests::embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message,raf_census::embedded::analysis::tests::a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none,raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed -->
+<!-- raf:tested-by raf_source::test_crate::syntax_storage::syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound,raf_source::test_crate::syntax_storage::syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum,raf_source::test_crate::syntax_storage::syntax_tree_storage_bound_covers_every_source_of_this_repository,raf_source::test_crate::syntax_storage::a_byte_dense_shape_just_above_the_floor_holds_its_bound,raf_source::test_crate::syntax_storage::the_byte_ratio_rounds_up_and_an_overflow_refuses,raf_census::embedded::analysis::tests::syntax_tree_grant_is_prepaid_before_the_parser_runs,raf_census::embedded::analysis::tests::a_syntax_excess_record_refused_by_the_work_grant_reports_the_excess,raf_census::embedded::analysis::tests::embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported,raf_census::embedded::analysis::tests::embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message,raf_census::embedded::analysis::tests::a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none,raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed,raf_source::parse::parallel::tests::a_parallel_worker_whose_registry_a_host_callback_populated_is_refused_before_it_parses,raf_source::parse::parallel::tests::a_parallel_worker_with_a_fresh_registry_parses -->
 Similarity never authorizes a preferred provider, validates delegation or
 exempts debt. Embedded findings have explicit versioned adoption and exact
 shrink-only debt handling. Discovery cannot create an allowance or rewrite an

@@ -7,7 +7,7 @@ subject: cap:census-embedded-clones#constraints
 inputs:
   - kind: section
     name: cap:census-embedded-clones#constraints
-    digest: 8654ed25f688397dfbb2073fab96e54c6f6cbf6deb62903fc2cd9b19452dd723
+    digest: 4296aff8ab9ce0b95d5e3b369869ef4ae4fa79bb68fd025fd9e9dfa463791a28
   - kind: symbol
     name: raf_census::embedded::run::Run::syntax_excesses
     digest: 7b489a70918f21fca4385811096cb54a4e4ce1811d533e8d2324e7325e6445ca

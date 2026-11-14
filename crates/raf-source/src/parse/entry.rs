@@ -9,7 +9,8 @@
 //! read-only occupancy query, so the boundary lexes one fixed probe and reads
 //! the file ordinal the registry assigns it: a registry that holds only its
 //! dummy entry numbers the probe first. Any other ordinal refuses the worker
-//! before it registers its own source. A clean registry is returned to its
+//! before it registers its own source; the probe's own registration remains in
+//! the refused thread's registry. A clean registry is returned to its
 //! dummy-only state, so the worker's source is registered first.
 
 use proc_macro2::TokenStream;
@@ -24,7 +25,10 @@ const FIRST_FILE: &str = "<parsed string 1>";
 ///
 /// # Errors
 /// Returns [`LoadErrorKind::Registry`] when a registration exists before the
-/// worker's own. The refusal never clears or reuses foreign registrations.
+/// worker's own. The refusal never clears or reuses foreign registrations. It
+/// does leave the probe's own registration beside them, because the probe has
+/// lexed before the occupancy is known; the refused thread ends without lexing
+/// again.
 pub(super) fn claim_registry(file: &RelPath) -> Result<(), LoadError> {
     #[cfg(test)]
     tests::host_callback(file);
@@ -73,7 +77,11 @@ pub(super) mod tests {
         }
     }
 
-    fn with_host<R>(file: &RelPath, callback: fn(), run: impl FnOnce() -> R) -> R {
+    pub(in crate::parse) fn with_host<R>(
+        file: &RelPath,
+        callback: fn(),
+        run: impl FnOnce() -> R,
+    ) -> R {
         let name = file.to_string();
         HOST.lock()
             .expect("the host stand-in lock is never poisoned")
@@ -85,7 +93,7 @@ pub(super) mod tests {
         result
     }
 
-    fn lex_foreign() {
+    pub(in crate::parse) fn lex_foreign() {
         drop("fn host() {}".parse::<TokenStream>().expect("lexes"));
     }
 

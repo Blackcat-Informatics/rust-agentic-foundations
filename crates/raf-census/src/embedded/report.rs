@@ -74,8 +74,17 @@ impl<'m> Claims<'m> {
         meter: &'m Meter,
         observe: impl for<'f> FnOnce(Result<Text<'m>, OutputFailure<'f>>) -> R,
     ) -> R {
+        self.to_text_within(format, MAX_INPUT_BYTES, meter, observe)
+    }
+    fn to_text_within<R>(
+        &self,
+        format: raf_rdf::Format,
+        limit: usize,
+        meter: &'m Meter,
+        observe: impl for<'f> FnOnce(Result<Text<'m>, OutputFailure<'f>>) -> R,
+    ) -> R {
         Text::render_admitted(meter, &self.graph, format, |outcome| match outcome {
-            Ok(text) => match within_limit(text.len(), meter) {
+            Ok(text) => match within_limit(text.len(), limit, meter) {
                 Ok(()) => observe(Ok(text)),
                 Err(cause) => observe(Err(OutputFailure::failure(&cause))),
             },
@@ -85,8 +94,8 @@ impl<'m> Claims<'m> {
 }
 
 /// A rendered report must stay within the limit its importer enforces.
-fn within_limit(len: usize, meter: &Meter) -> Result<(), Failure<'_>> {
-    if len > MAX_INPUT_BYTES {
+fn within_limit(len: usize, limit: usize, meter: &Meter) -> Result<(), Failure<'_>> {
+    if len > limit {
         return Err(Failure::report(
             meter,
             E::Value,
