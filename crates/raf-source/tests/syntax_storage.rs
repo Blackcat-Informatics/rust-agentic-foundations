@@ -255,7 +255,7 @@ fn syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum() {
     }
 }
 
-/// INVARIANT: the bound also covers every Rust source this repository tracks.
+/// INVARIANT: the bound also covers every Rust source under the crates and tests directories of this repository.
 #[test]
 fn syntax_tree_storage_bound_covers_every_source_of_this_repository() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

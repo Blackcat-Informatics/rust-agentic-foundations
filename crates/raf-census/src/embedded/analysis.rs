@@ -89,9 +89,10 @@ pub(super) struct Analysis<'source> {
 /// A parsed syntax tree that held more than the bytes prepaid for it.
 ///
 /// The excess was charged to the same account. A record is evidence that the
-/// per-node or per-byte term of the bound is too low for this input.
+/// per-node or per-byte term of the bound is too low for this input, and the
+/// run reports it by name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct SyntaxExcess<'source> {
+pub struct SyntaxExcess<'source> {
     pub(super) file: &'source raf_source::RelPath,
     /// Native token-tree nodes of the lexed source.
     pub(super) nodes: usize,
@@ -101,6 +102,50 @@ pub(super) struct SyntaxExcess<'source> {
     /// The most numerous node kind of the tree and its count.
     pub(super) kind: &'static str,
     pub(super) kind_nodes: usize,
+}
+
+impl<'source> SyntaxExcess<'source> {
+    /// The source file whose tree exceeded its prepaid bound.
+    #[must_use]
+    pub const fn file(&self) -> &'source raf_source::RelPath {
+        self.file
+    }
+    /// Native token-tree nodes of the lexed source.
+    #[must_use]
+    pub const fn nodes(&self) -> usize {
+        self.nodes
+    }
+    /// Bytes prepaid for the tree before the parse.
+    #[must_use]
+    pub const fn prepaid(&self) -> usize {
+        self.prepaid
+    }
+    /// Bytes the parsed tree was found to hold.
+    #[must_use]
+    pub const fn held(&self) -> usize {
+        self.held
+    }
+    /// The most numerous node kind of the tree.
+    #[must_use]
+    pub const fn dominant_kind(&self) -> &'static str {
+        self.kind
+    }
+}
+
+impl std::fmt::Display for SyntaxExcess<'_> {
+    fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            output,
+            "{}: syntax tree held {} bytes over {} prepaid for {} nodes of {} source bytes; dominant kind {} ({} nodes); the excess was charged to the resource account",
+            self.file.as_str().escape_debug(),
+            self.held,
+            self.prepaid,
+            self.nodes,
+            self.text_bytes,
+            self.kind,
+            self.kind_nodes,
+        )
+    }
 }
 
 /// The prepaid syntax bound of one source, carried to the point just after the
@@ -1304,6 +1349,46 @@ mod tests {
             ..Options::default()
         };
         assert!(Run::analyze(&workspace, &options).is_ok());
+    }
+
+    /// INVARIANT: an excess over the prepaid bound reaches the run result by
+    /// name, with its file, node count, prepaid and held bytes and dominant kind;
+    /// a run whose trees stay within their bound reports none.
+    #[test]
+    fn a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none() {
+        use super::super::{Options, Run, pairing};
+        let workspace = statements_workspace(4096);
+        let file = library(&workspace);
+        let low = SyntaxBound {
+            per_node: 1,
+            per_byte: 1,
+        };
+        let (nodes, prepaid) = prepaid_for(file, low);
+        let (analysis, ()) = Analysis::new(AMPLE_WORK, AMPLE_BYTES)
+            .inspect_source_bounded(file, low, |_, _| Ok(()))
+            .expect("an ample limit charges the excess");
+        let matches = pairing::find(analysis, Options::default().limits()).expect("empty matches");
+        let run = Run::from_matches(matches);
+        let [excess] = run.syntax_excesses() else {
+            panic!("exactly one excess reaches the run")
+        };
+        assert_eq!(excess.file().as_str(), "src/lib.rs");
+        assert_eq!((excess.nodes(), excess.prepaid()), (nodes, prepaid));
+        assert!(excess.held() > prepaid);
+        assert_eq!(excess.dominant_kind(), "Stmt");
+        let text = excess.to_string();
+        for part in [
+            "src/lib.rs",
+            &nodes.to_string(),
+            &prepaid.to_string(),
+            &excess.held().to_string(),
+            "Stmt",
+        ] {
+            assert!(text.contains(part), "{part:?} missing from {text}");
+        }
+        // Neighbour: the production terms hold the same tree.
+        let clean = Run::analyze(&workspace, &Options::default()).expect("the default run");
+        assert_eq!(clean.syntax_excesses().len(), 0);
     }
 
     fn assert_owned_source_diagnostic() {

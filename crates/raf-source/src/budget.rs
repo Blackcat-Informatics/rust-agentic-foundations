@@ -133,7 +133,7 @@ pub const PARSE_BYTES_PER_TOKEN: usize = 1664;
 ///
 /// The syntax parse of a function body of 2^k + 1 empty statements, the worst
 /// shape of the reference table, peaks at 940 bytes per node beyond the
-/// per-byte term at every k from 10 to 17, counting the grown block of the
+/// per-byte term at k = 10, 14 and 17, counting the grown block of the
 /// statement list as held beside the block it replaces. The constant adds about
 /// 4% to it. It is measured over a closed table of shapes, not proven for
 /// arbitrary accepted Rust; a parse that holds more is detected after the fact

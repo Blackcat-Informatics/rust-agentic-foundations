@@ -10,13 +10,16 @@ inputs:
     digest: 0e50bae57201f4cbeea4604ab35da07641ed6ef278cf6a47683aa576c0c1336e
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::embedded
-    digest: bc0612b046cc862d428cd9a59648f6b0383926b6ab45b775a10cb659a1e0faa3
+    digest: a6a1dccbf353dc8e973e5eb26480a7cf11eaadc6596af48334949fb8ce546c21
   - kind: symbol
     name: raf_census::embedded
-    digest: 914b9eec4794568b4ad0591651cdae9aa7d79a018324f7b90e5d8605eae3f462
+    digest: db8f6aa39baca893312fd26ef6a747516c72186100677103dcd65011b72a9db4
   - kind: symbol
     name: raf_census::embedded::analysis::Analysis
     digest: f4b3a6e4a11df3a07c9ea5dadafa8b9032c098efcdd6716be695a8a190a93cb7
+  - kind: symbol
+    name: raf_census::embedded::analysis::SyntaxExcess
+    digest: bce9c0e2d4e524fb5e67d32dbd6cbe947931e515a794e81495fdb1fbe20f43b6
   - kind: symbol
     name: raf_census::embedded::collect::function
     digest: c7a86a48b6e2acc66b1263beb64f6131d78721b2006c3accc5e83c4be8697b4a
@@ -68,6 +71,9 @@ inputs:
   - kind: symbol
     name: raf_census::embedded::run::Run
     digest: 799f87351cfeca93db59ce835b4d702d66c3aba02b67bc26819ff800c98c1434
+  - kind: symbol
+    name: raf_census::embedded::run::Run::syntax_excesses
+    digest: 7b489a70918f21fca4385811096cb54a4e4ce1811d533e8d2324e7325e6445ca
   - kind: symbol
     name: raf_census::embedded::tokens::inventory
     digest: b441f9135859ca2b5c806e22f005f7b6d02fbc50ccea5c227b86adcbc2058b9f

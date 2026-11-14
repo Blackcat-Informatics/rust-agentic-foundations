@@ -1798,12 +1798,15 @@ The budgets are one table in the source
   depends on literal length. The same
   measurement gives about 430 bytes per token for `a<b; ` repeated, 290 for
   statements that name a type nested 64 generic arguments deep and 230 for a run of
+  attributes. The default admits the largest generated files of real crates: over
+  the registry scan below the most tokens of one file was 1505567 (a time-zone
+  table).
   The syntax tree alone is bounded before the parse by
   `SyntaxBound::MEASURED`: `nodes * SYNTAX_BYTES_PER_NODE + text_bytes *
   SYNTAX_BYTES_PER_BYTE`, 978 and 4, for the exact native node count and the
   source length. The constants are the parse-alone peaks of a closed reference
   table of shapes with about 4% added, 940 bytes per node for the worst, a run
-  of 2^k + 1 empty statements, and 4.0003 bytes per byte for a megabyte
+  of 2^k + 1 empty statements (measured at k = 10, 14 and 17), and 4.0003 bytes per byte for a megabyte
   documentation comment. They are measured, not proven for arbitrary accepted
   Rust. `syntax_held` walks a parsed tree and sums the size of the counted node
   enums and the spelling bytes of identifiers and string, byte-string, integer
@@ -1811,9 +1814,6 @@ The budgets are one table in the source
   vector capacity, transient storage and the heap behind unlisted types.
   `parse_source` and the other parse entry points do not meter either value; a
   metered caller prepays the bound itself.
-  attributes. The default admits the largest generated files of real crates: over
-  the registry scan below the most tokens of one file was 1505567 (a time-zone
-  table).
 
 Two more budgets are counted by the module walk and not by the pre-scan. Module
 nesting is bounded at 128 levels along one path, files and inline modules together.

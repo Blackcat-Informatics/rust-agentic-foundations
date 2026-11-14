@@ -18,6 +18,8 @@ bindings:
     - raf_census::embedded::publication::write_debt
     - cargo_census::bin_crate::cargo_census::embedded
     - raf_census::embedded::analysis::Analysis
+    - raf_census::embedded::run::Run::syntax_excesses
+    - raf_census::embedded::analysis::SyntaxExcess
     - raf_source::syntax_storage::SyntaxBound
     - raf_source::syntax_storage::syntax_held
     - raf_source::syntax_storage::SYNTAX_NODE_SIZES
@@ -51,6 +53,7 @@ bindings:
     - raf_census::embedded::analysis::tests::syntax_tree_grant_is_prepaid_before_the_parser_runs
     - raf_census::embedded::analysis::tests::embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported
     - raf_census::embedded::analysis::tests::embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message
+    - raf_census::embedded::analysis::tests::a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none
     - raf_source::test_crate::syntax_storage::syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound
     - raf_source::test_crate::syntax_storage::syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum
     - raf_source::test_crate::syntax_storage::syntax_tree_storage_bound_covers_every_source_of_this_repository
@@ -789,7 +792,7 @@ measured, not proven: they are the peak of the parse alone, with an added
 margin of about 4 percent, over a closed reference table of shapes (statement
 runs that double their vector, items, members, arms, tuples, generic
 comparisons, attributes, macros, numeric fields, documentation items and
-megabyte literals, identifiers and comments) and over every Rust source of this
+megabyte literals, identifiers and comments) and over every Rust source under the crates and tests directories of this
 repository, and a structural check holds the per-node term to at least two
 elements of each counted node enum. A shape outside the table can cost more per
 node. A counting allocator that grows a block in place measured the peak; an
@@ -801,7 +804,10 @@ size of each `Expr`, `Stmt`, `Item`, `Pat`, `Type`, `ImplItem`, `TraitItem`,
 `ForeignItem` and `Arm` it visits plus the spelling bytes of identifiers and of
 string, byte-string, integer and float literals, and compares the sum with the
 prepaid bound. An excess is charged to the same account and recorded with the
-file, node count, prepaid and held bytes and the most numerous node kind; when
+file, node count, prepaid and held bytes and the most numerous node kind. The
+run reports each record by name through `Run::syntax_excesses`, and the command
+line writes it to its diagnostics stream; the evidence report is unchanged, so
+no report byte moves. When
 the grant or the record cannot be admitted the run refuses with that shape and
 the same remedy and no partial result. The walk misses vector capacity and
 growth slack, transient parse storage and the heap behind types it does not
@@ -809,7 +815,7 @@ list; it counts a node held inline in another twice, which errs toward
 detection. The excess is reported after its allocation happened, so only the
 bound computed before the parse refuses in advance. Native parser work remains
 unmetered.
-<!-- raf:tested-by raf_source::test_crate::syntax_storage::syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound,raf_source::test_crate::syntax_storage::syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum,raf_source::test_crate::syntax_storage::syntax_tree_storage_bound_covers_every_source_of_this_repository,raf_census::embedded::analysis::tests::embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported,raf_census::embedded::analysis::tests::embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message,raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed -->
+<!-- raf:tested-by raf_source::test_crate::syntax_storage::syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound,raf_source::test_crate::syntax_storage::syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum,raf_source::test_crate::syntax_storage::syntax_tree_storage_bound_covers_every_source_of_this_repository,raf_census::embedded::analysis::tests::embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported,raf_census::embedded::analysis::tests::embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message,raf_census::embedded::analysis::tests::a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none,raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed -->
 Similarity never authorizes a preferred provider, validates delegation or
 exempts debt. Embedded findings have explicit versioned adoption and exact
 shrink-only debt handling. Discovery cannot create an allowance or rewrite an
@@ -1577,12 +1583,13 @@ for signature-owned const arguments, const blocks or range endpoints. Actual
 workspace provenance fixtures retain root and inline-module prelude policy
 through free functions, inherent methods and trait-default bodies.
 Syntax-tree fixtures count the peak storage of the parse alone over a closed
-table of node-dense and byte-dense shapes, and over every Rust source of this
+table of node-dense and byte-dense shapes, and over every Rust source under the crates and tests directories of this
 repository, against the per-node and per-byte bound; the worst shape of each
 kind reaches at least 90 percent of it. A statement-dense workspace refuses one
 byte under its exact peak before the visitor runs and succeeds at that peak.
 Deliberately low terms record, charge and refuse an excess with its shape,
-beside a within-bound neighbour that records nothing.
+beside a within-bound neighbour that records nothing. A recorded excess
+reaches the run result by name, and a clean run reports none.
 Pairing fixtures protect the embedded helper beneath an invalid surrounding
 map, different operators and variable uses, three distinct repeated occurrences,
 crossing maximal alignments, short or empty input and repetitive boilerplate.

@@ -40,6 +40,7 @@ mod tokens;
 mod views;
 mod workspace;
 
+pub use analysis::SyntaxExcess;
 pub use error::{Error, InspectionError, RefusalKind};
 pub use options::Options;
 pub use output::{DebtRefusal, OutputFailure, OutputFailureKind};
