@@ -22,5 +22,6 @@ items:
 Discovery, proof, reporting and adoption already charge the original resource
 account. Every parser worker now establishes its source-registry boundary at
 entry. Native Source storage is still only partially admitted: the syntax tree
-itself is not charged. This record owns that residual until the second claim
-holds.
+that a native parse returns, the value `syn::parse2` builds in `raf-source`'s
+parse step, is not charged to the original resource account. This record owns
+that residual until the second claim holds.
