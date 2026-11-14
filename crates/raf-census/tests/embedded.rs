@@ -10,6 +10,8 @@
 #[path = "../examples/embedded.rs"]
 mod embedded;
 
+use std::path::Path;
+
 use embedded::{COPY_SOURCE, NEIGHBOUR_SOURCE, Pair, Side};
 
 /// Start of the copied statements in the source; they begin the verified region.
@@ -30,7 +32,8 @@ fn helper_and_larger(pair: &Pair) -> (&Side, &Side) {
 
 #[test]
 fn copied_helper_pairs_with_larger_at_its_verified_spans() {
-    let pairs = embedded::witnesses(COPY_SOURCE).expect("the production run analyzes the copy");
+    let pairs = embedded::witnesses(Path::new(env!("CARGO_TARGET_TMPDIR")), COPY_SOURCE)
+        .expect("the production run analyzes the copy");
     let pair = pairs
         .iter()
         .find(|pair| {
@@ -58,10 +61,14 @@ fn copied_helper_pairs_with_larger_at_its_verified_spans() {
     assert_eq!(larger.bytes.start, copied_start(COPY_SOURCE, "let amount"));
 }
 
+/// INVARIANT: a single changed operator in a copied statement breaks the
+/// structural correspondence, so the production run reports no verified pair for
+/// the helper and `larger`. A false pair here would mean the matcher accepts
+/// different arithmetic.
 #[test]
 fn a_neighbouring_operator_change_yields_no_witness() {
-    let pairs =
-        embedded::witnesses(NEIGHBOUR_SOURCE).expect("the production run analyzes the neighbour");
+    let pairs = embedded::witnesses(Path::new(env!("CARGO_TARGET_TMPDIR")), NEIGHBOUR_SOURCE)
+        .expect("the production run analyzes the neighbour");
     assert!(
         pairs.is_empty(),
         "a changed operator refuses the correspondence, found {} pair(s)",

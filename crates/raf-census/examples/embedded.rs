@@ -11,7 +11,12 @@
 //! test that includes this file asserts those spans. Consumer code is inspected
 //! as data and never executed.
 
-use std::{error::Error, fs, ops::Range, path::Path};
+use std::{
+    error::Error,
+    fs,
+    ops::{Range, RangeInclusive},
+    path::Path,
+};
 
 use purrdf_testkit::TempDir;
 use raf_census::embedded::{Options, Run};
@@ -69,7 +74,7 @@ pub(crate) struct Side {
     /// The original, half-open byte range of the verified region.
     pub(crate) bytes: Range<usize>,
     /// The inclusive line range of the verified region.
-    pub(crate) lines: std::ops::RangeInclusive<usize>,
+    pub(crate) lines: RangeInclusive<usize>,
     /// The original text of the verified region.
     pub(crate) text: String,
 }
@@ -81,12 +86,17 @@ pub(crate) struct Pair {
     pub(crate) right: Side,
 }
 
-/// Write `source` into a scratch crate under the repository target area, run the
-/// production embedded analysis over it and return every verified pair.
-pub(crate) fn witnesses(source: &str) -> Result<Vec<Pair>, Box<dyn Error>> {
-    let parent = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/embedded-examples");
-    fs::create_dir_all(&parent)?;
-    let scratch = TempDir::new_in(&parent)?;
+/// Write `source` into a scratch crate created under `parent`, run the production
+/// embedded analysis over it and return every verified pair. The scratch crate is
+/// removed when this returns. Its own `[workspace]` table keeps it out of any
+/// enclosing workspace.
+///
+/// The caller chooses `parent`: an integration test passes
+/// `CARGO_TARGET_TMPDIR`, and the example's `main` passes a directory under the
+/// repository's `target/`.
+pub(crate) fn witnesses(parent: &Path, source: &str) -> Result<Vec<Pair>, Box<dyn Error>> {
+    fs::create_dir_all(parent)?;
+    let scratch = TempDir::new_in(parent)?;
     let root = scratch.path();
     fs::create_dir(root.join("src"))?;
     fs::write(
@@ -117,8 +127,9 @@ pub(crate) fn witnesses(source: &str) -> Result<Vec<Pair>, Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let parent = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/embedded-examples");
     for (label, source) in [("copy", COPY_SOURCE), ("neighbour", NEIGHBOUR_SOURCE)] {
-        let pairs = witnesses(source)?;
+        let pairs = witnesses(&parent, source)?;
         println!("{label}: {} verified pair(s)", pairs.len());
         for pair in &pairs {
             for side in [&pair.left, &pair.right] {
