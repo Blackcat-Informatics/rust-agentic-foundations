@@ -6,10 +6,10 @@
 Through the 0.9 release, RAF supports and qualifies the primary native Linux
 target used by its standard repository gates.
 
-WebAssembly and WASI, other operating systems, secondary Linux architectures
-and ABIs, foreign execution runtimes and cross-compilation are outside this
-release scope. Additional targets will be reassessed after the 0.9 release.
-That reassessment determines any additional support.
+Other operating systems, secondary Linux architectures and ABIs, foreign
+execution runtimes and cross-compilation are outside this release scope.
+Additional targets will be reassessed after the 0.9 release. That reassessment
+determines any additional support.
 
 Native libraries, binaries, tests, benchmarks, examples and build scripts remain
 covered. The stable minimum supported Rust version and the development nightly

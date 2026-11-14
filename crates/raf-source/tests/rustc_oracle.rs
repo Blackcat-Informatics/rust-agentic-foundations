@@ -56,6 +56,9 @@ mod support;
 #[path = "support/oracle.rs"]
 mod oracle;
 
+#[path = "support/export_boundaries.rs"]
+mod export_boundaries;
+
 use oracle::{
     Answer, Class, KNOWN, Kind, LIST_VARIABLE, MOST_REDUCED, ORDERS_TRIED, PROGRAMS_VARIABLE,
     SEED_BASE_VARIABLE, assert_corpus_writer, corpus, describe, describe_unstable, evaluate,
@@ -70,6 +73,31 @@ use support::rustc;
 /// Programs written out, for the comparator tests.
 fn fixture(text: &str) -> Program {
     Program::parse(text).expect("a fixture parses")
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data() {
+    let programs: Vec<_> = corpus().into_iter().chain(generated()).collect();
+    let manifest = format!(
+        "[package]\nname='demo'\nversion='0.1.0'\nedition='{}'\n",
+        rustc::EDITION
+    );
+    for (label, program) in &programs {
+        let all: Vec<_> = (0..program.probes.len()).collect();
+        let source = program.render(&all, &BTreeMap::new()).source;
+        let tree = raf_source::MemoryTree::from([
+            ("Cargo.toml", manifest.as_str()),
+            ("src/lib.rs", source.as_str()),
+        ]);
+        let serial = raf_source::Workspace::load(&tree, &["."]);
+        assert!(serial.is_ok(), "{label}: {serial:?}");
+        support::parallel::compare(&tree, &serial);
+    }
+    println!(
+        "compared {} existing oracle source programs",
+        programs.len()
+    );
 }
 
 #[test]
@@ -135,6 +163,11 @@ fn compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invent
     )
     .expect("unexpanded invalid invocation still has readable syntax");
     assert_eq!(source.unexpanded().len(), 4);
+}
+
+#[test]
+fn external_carried_exports_and_carry_limits_have_named_compiler_boundaries() {
+    export_boundaries::assert_inventory();
 }
 
 const TWO_STRUCTS: &str = "\

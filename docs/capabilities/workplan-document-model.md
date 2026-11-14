@@ -349,7 +349,7 @@ bindings:
     - raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding
     - raf_workplan::test_crate::debt::an_empty_debt_record_is_judged_without_a_policy_switch
     - raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication
-    - raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication
+    - raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication
   examples:
     - raf_workplan::Gate
     - raf_workplan::LinkContext
@@ -717,10 +717,12 @@ temporary file and a rename. Each writer judges the way to
 the record before anything is written, as every write of a record does: `work` and
 the directory of the record type must each be a directory (`create` makes one that
 is missing), and a symbolic link there, whether it leads inside the root or out of
-it, a file or anything else is refused, naming that directory. This is a path
-preflight, without held directory handles; a local directory swap after it is
-outside the [evidence publication trust boundary](./workplan-evidence-claims.md#constraints).
-<!-- raf:tested-by raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication,raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication -->
+it, a file or anything else is refused, naming that directory. The native disk
+store retains the root, admitted parent directories and original destination
+snapshot through staging and publication. A changed binding refuses. Checks and
+renames are separate operations, with no isolation from adversarial concurrent
+publishers; see the [evidence publication trust boundary](./workplan-evidence-claims.md#constraints).
+<!-- raf:tested-by raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication,raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication -->
 
 ### Record validation and SPDX headers
 <!-- raf:tested-by raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value,raf_workplan::test_crate::records::a_record_that_would_not_load_clean_is_not_written,raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given -->
@@ -731,6 +733,10 @@ before anything is written, one of the two lines given without the other and a
 record whose text would not read back as a record with no finding.
 
 ## Usage
+
+Use the typed record creation and replacement APIs for owned metadata. Their
+native disk store opens lazily after model validation and retains one root and
+the admitted destinations throughout publication.
 
 Report native Markdown construction findings with their file and line or key.
 Follow their repair text to inspect the input and native admission failure;
@@ -783,6 +789,11 @@ A command line is specified separately ([command line](./workplan-cli.md)) and i
 not part of this capability.
 
 ## Examples
+
+Replacing an admitted record directory with another real directory refuses the
+replacement and leaves both directories' record bytes unchanged. Restoring the
+original directory permits an ordinary replacement through a fresh store.
+<!-- raf:tested-by raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication -->
 
 An exhausted native Markdown work grant while reading a body produces
 `okf-parse-markdown` at that body's source line. The corresponding refusal while
@@ -911,6 +922,11 @@ touches, and the obligations those sections receive are defined by
 
 ## Verification
 
+Native disk fixtures refuse changed real-directory bindings, retain the requested
+record path and original Source cause when opening fails, and permit ordinary
+replacement after restoring the original directory.
+<!-- raf:tested-by raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication,raf_workplan::test_crate::records::the_record_directory_is_created_below_the_root_only -->
+
 The native conversion fixture obtains a real work-admission refusal, then checks
 both reader and decoded-scalar findings for their exact kinds, locations, native
 diagnostic and repair text. The OKF fixtures retain the typed causes beside valid
@@ -1020,7 +1036,7 @@ document writes and unchanged source and Git state beside successful completion.
 | `raf_workplan::graph::tests::the_claims_of_many_capabilities_are_judged_against_sets_built_once` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::the_paths_of_the_code_spans_are_the_paths_names_in_code_span_accepts` | test | [Verification](#verification) |
 | `raf_workplan::plain::check` | doctest | [Contract](#contract) |
-| `raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication` | test | [Contract](#contract) |
+| `raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_workplan::test_crate::bindings::a_binding_through_a_re_export_resolves_to_its_definition` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::bindings::a_binding_to_a_macro_generated_function_is_not_found` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::bindings::a_binding_to_a_missing_path_is_reported_with_its_capability` | test | [Contract](#contract) |

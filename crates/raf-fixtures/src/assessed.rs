@@ -25,7 +25,7 @@ use raf_workplan::{Gate, Workplan};
 
 /// The path and text of an assessment by `by` with `verdict` of each authored
 /// section in the `affects` of `change`, for the documents of `plan`.
-pub(crate) fn records_of(
+pub fn records_of(
     plan: &Workplan<'_>,
     change: &str,
     verdict: AssessmentVerdict,
@@ -50,12 +50,12 @@ pub(crate) fn records_of(
 /// Record a current accepted assessment by an agent of each authored section
 /// `change` affects in the repository at `root`, through
 /// [`Workplan::record_assessment`], and return the paths written.
-pub(crate) fn assess_on_disk(root: &Path, change: &str) -> Vec<String> {
+pub fn assess_on_disk(root: &Path, change: &str) -> Vec<String> {
     assess_on_disk_as(root, change, AssessmentVerdict::Accepted, Actor::Agent)
 }
 
 /// As [`assess_on_disk`], with the verdict `verdict` by `by`.
-pub(crate) fn assess_on_disk_as(
+pub fn assess_on_disk_as(
     root: &Path,
     change: &str,
     verdict: AssessmentVerdict,

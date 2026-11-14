@@ -52,8 +52,8 @@ and pull requests are welcome.
 
 The [supported-target policy](docs/TARGETS.md) limits implementation and
 qualification through the 0.9 release to the primary native Linux target.
-WebAssembly, other operating systems and secondary compilation targets are
-subject to reassessment after that release. Native Cargo target kinds and the
+Other operating systems and secondary compilation targets are subject to
+reassessment after that release. Native Cargo target kinds and the
 stable MSRV and nightly toolchains remain covered.
 
 ```bash
@@ -100,8 +100,9 @@ allowance is 16 MiB. This does not bound native graph allocation.
   the mandatory gates below. Private documentation compilation requires explicit
   --trust-docs on each invocation, accepting arbitrary build-script and
   procedural-macro effects without a sandbox guarantee.
-- **CI budget.** Every job has a nine-minute execution budget, reserving headroom
-  below the ten-minute job ceiling. Source, fixture,
+- **CI budget.** Every job has a nine-minute execution budget, and the hosted
+  `test-release` job has fifteen minutes; the workflow gate refuses any job
+  budget above fifteen minutes. Source, fixture,
   capability-document and build changes select every workspace package; unrelated
   text changes retain root repository gates. Compiler and harness lint jobs apply
   to source and asset changes. Licensing and both dependency-policy graphs are

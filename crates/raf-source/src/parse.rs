@@ -13,6 +13,60 @@ use crate::path::RelPath;
 use crate::prescan::{Scan, prescan_file, shebang};
 use crate::{LoadOptions, TreeError};
 
+#[cfg(target_os = "linux")]
+pub(crate) mod parallel;
+
+/// The only worker output retained by the canonical walk.
+pub(crate) struct Extracted {
+    pub(crate) text: String,
+    pub(crate) facts: Result<(crate::facts::FileFacts, usize), crate::facts::ExtractError>,
+    pub(crate) scan: Scan,
+}
+
+/// A native storage refusal located at `file`.
+pub(crate) fn storage(file: &RelPath, source: purrdf_lex::allocation::StorageError) -> LoadError {
+    LoadError::new(file, None, LoadErrorKind::Storage(source))
+}
+
+/// Borrowed candidate spelling; materialization belongs to the admitted executor.
+#[derive(Clone, Copy)]
+pub(crate) enum Candidate<'a> {
+    Existing(&'a RelPath),
+    Joined {
+        base: &'a RelPath,
+        stem: Option<&'a str>,
+        input: &'a str,
+        suffix: &'a str,
+    },
+}
+
+/// A coordinator-only parse executor, with no shared Tree or meter.
+pub(crate) trait Parser {
+    /// Whether another speculative candidate can be inspected now.
+    fn has_capacity(&self) -> bool;
+    fn resize_frontier(
+        &self,
+        previous: usize,
+        next: usize,
+    ) -> Result<(), purrdf_lex::allocation::StorageError>;
+    /// False leaves this candidate for a future frontier advance.
+    fn speculate(
+        &self,
+        tree: &dyn crate::Tree,
+        candidate: Candidate<'_>,
+        options: &LoadOptions,
+        seen: &dyn Fn(&crate::FileId) -> bool,
+    ) -> bool;
+    fn parse(
+        &self,
+        path: &RelPath,
+        id: &crate::FileId,
+        text: String,
+        options: &LoadOptions,
+        allowance: crate::meter::FactAllowance,
+    ) -> Result<Extracted, LoadError>;
+}
+
 /// The stack of the thread that parses, in bytes: 64 MiB.
 ///
 /// The caller's stack is not used, so a deep file costs this thread and not
@@ -446,6 +500,8 @@ fn syntax(
     original: proc_macro2::TokenStream,
     header: Option<String>,
 ) -> Result<syn::File, LoadError> {
+    #[cfg(all(test, target_os = "linux"))]
+    let _parsing = parallel::tests::parsing(file);
     let mut tree: syn::File = syn::parse2(original)
         .map_err(|error| located_syntax(file, error.span(), error.to_string()))?;
     tree.shebang = header;

@@ -12,8 +12,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
 use raf_workplan::lifecycle::{Lifecycle, LifecycleError};
 
-#[path = "../../../../tests/support/fixture_signing.rs"]
-mod fixture_signing;
+use raf_fixtures::fixture_signing;
 
 use super::Repo;
 use super::disk::{Scratch, put, write_repo};

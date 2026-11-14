@@ -89,6 +89,17 @@ fn group(
     }
     Ok(())
 }
+/// State a grouping scope on the root. The complete scope states nothing, so a
+/// report or record computed without exclusions keeps its earlier bytes.
+pub(super) fn scope(graph: &mut Builder, scope: &crate::GroupingScope) -> Result<(), E> {
+    if scope.excludes_test_items() {
+        put(graph, "", "excludeTestItems", Term::boolean(true))?;
+    }
+    for dir in scope.excluded_dirs() {
+        text(graph, "", "excludeDir", dir)?;
+    }
+    Ok(())
+}
 pub(super) fn root(graph: &mut Builder, name: &str, nf: u32) -> Result<(), E> {
     class(graph, "", name)?;
     num(graph, "", "normalForm", nf as usize)?;
@@ -99,6 +110,7 @@ pub(super) fn baseline_graph(report: &Baseline) -> Result<Graph, E> {
     root(&mut graph, "Baseline", report.normal_form)?;
     num(&mut graph, "", "unitCount", report.units)?;
     num(&mut graph, "", "minTokens", report.min_tokens)?;
+    scope(&mut graph, &report.scope)?;
     for (groups, body) in [(&report.body_groups, true), (&report.shim_groups, false)] {
         for g in groups {
             if !matches!(
@@ -148,6 +160,7 @@ pub(super) fn baseline_graph(report: &Baseline) -> Result<Graph, E> {
 pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
     let mut graph = Builder::new();
     root(&mut graph, "Index", report.normal_form)?;
+    scope(&mut graph, &report.scope)?;
     for u in &report.units {
         index_unit(&mut graph, u, report.normal_form)?;
     }
@@ -162,6 +175,15 @@ pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
     }
     for witness in &report.reference_witnesses {
         super::reference::witness(&mut graph, witness, report.normal_form)?;
+    }
+    for row in &report.reference_constants {
+        for member in row.first_party.iter().chain(&row.reference) {
+            let id = mint::unit(&member.symbol, &member.file, member.line, member.start_byte);
+            if !has_unit(&graph, &id)? {
+                return Err(E::Dangling(id));
+            }
+        }
+        super::reference::constant(&mut graph, row)?;
     }
     for g in &report.groups {
         if !matches!(

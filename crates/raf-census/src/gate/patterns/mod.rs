@@ -19,6 +19,8 @@ pub(super) struct Found<'p, 'w> {
     pub(super) file: &'w RelPath,
     pub(super) byte: usize,
     pub(super) line: usize,
+    /// The items whose resolution matched the hit, when the matcher resolves through owners.
+    pub(super) owners: Option<Vec<raf_source::ItemId>>,
 }
 
 pub(super) fn collect<'p, 'w>(
@@ -77,7 +79,7 @@ fn run<'p, 'w>(
             let normalized = source::normalized(workspace, file, owners, limits)?;
             for (pattern, form) in &compiled {
                 for (byte, line) in tokens::find(&pattern.id, form, &normalized, limits)? {
-                    retain(&mut found, pattern, &file.path, byte, line, limits)?;
+                    retain(&mut found, pattern, &file.path, byte, line, None, limits)?;
                 }
             }
         }
@@ -131,6 +133,7 @@ fn run<'p, 'w>(
                                         &file.path,
                                         leaf.place.at.start,
                                         leaf.place.line,
+                                        None,
                                         limits,
                                     )?;
                                 }
@@ -171,6 +174,7 @@ fn retain<'p, 'w>(
     file: &'w RelPath,
     byte: usize,
     line: usize,
+    owners: Option<Vec<raf_source::ItemId>>,
     limits: &MatchLimits,
 ) -> Result<(), Error> {
     if found.len() >= limits.states {
@@ -181,6 +185,7 @@ fn retain<'p, 'w>(
         file,
         byte,
         line,
+        owners,
     });
     Ok(())
 }

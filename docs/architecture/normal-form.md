@@ -263,8 +263,7 @@ an empty rule id is refused.
 
 The native Rust BLAKE3 implementation comes from `purrdf-hash`, which has no
 runtime dependencies and needs no external C or assembly build. Its portable
-hash implementation supports `wasm32`;
-complete census loads also require the source dependency to support the target.
+hash implementation needs no platform-specific code.
 The core accesses source only through its supplied `Tree`; normalization, hashing,
 grouping and report conversion use owned values and invoke no filesystem or
 process APIs. Host reference discovery owns `cargo metadata`.
@@ -375,6 +374,12 @@ The closed shape is stated below. Every class also requires exactly one rdf:type
 no other subject, predicate, class, individual or datatype is admitted. Baseline
 units must be referenced by a group, shared constant or holds property. Every
 reference must resolve, and minted node names must agree with their properties.
+A Baseline, Index or DebtRecord states its grouping scope with excludeTestItems,
+written only as true, and one excludeDir for each excluded directory name. A
+complete scope writes neither, so a report or record computed without an
+exclusion holds no scope assertion. An excluded item stays a unit and leaves
+only body and shim grouping and the group debt it produces; jobs, sanctions and
+detectors still see it, and a job copy inside an excluded file still counts.
 
 | Report | Class | Property | Count | Object |
 |---|---|---|---|---|
@@ -382,9 +387,13 @@ reference must resolve, and minted node names must agree with their properties.
 | baseline | `census:Baseline` | `census:normalForm` | 1..1 | u32 |
 | baseline | `census:Baseline` | `census:reportForm` | 1..1 | report version |
 | baseline | `census:Baseline` | `census:unitCount` | 1..1 | integer |
+| baseline | `census:Baseline` | `census:excludeTestItems` | 0..1 | boolean |
+| baseline | `census:Baseline` | `census:excludeDir` | 0..unbounded | string |
 | index | `census:Index` | `census:normalForm` | 1..1 | u32 |
 | index | `census:Index` | `census:reportForm` | 1..1 | report version |
 | index | `census:Index` | `census:referenceSource` | 0..unbounded | reference source |
+| index | `census:Index` | `census:excludeTestItems` | 0..1 | boolean |
+| index | `census:Index` | `census:excludeDir` | 0..unbounded | string |
 | job-query | `census:JobQuery` | `census:normalForm` | 1..1 | u32 |
 | job-query | `census:JobQuery` | `census:reportForm` | 1..1 | report version |
 | job-query | `census:JobQuery` | `census:jobId` | 1..1 | string |
@@ -429,6 +438,9 @@ reference must resolve, and minted node names must agree with their properties.
 | index | `census:ReferenceWitness` | `census:consumer` | 1..1 | unit |
 | index | `census:ReferenceWitness` | `census:reference` | 1..1 | unit |
 | index | `census:ReferenceWitness` | `census:fingerprint` | 1..1 | reference fingerprint |
+| index | `census:ReferenceConstant` | `census:value` | 1..1 | large integer |
+| index | `census:ReferenceConstant` | `census:firstPartyMember` | 1..unbounded | unit |
+| index | `census:ReferenceConstant` | `census:referenceMember` | 1..unbounded | unit |
 | index | `census:Job` | `census:jobId` | 1..1 | string |
 | index | `census:Job` | `census:homeSymbol` | 1..1 | string |
 | index | `census:Job` | `census:copies` | 1..1 | integer |
@@ -437,6 +449,8 @@ reference must resolve, and minted node names must agree with their properties.
 | index | `census:Match` | `census:matchClass` | 1..1 | match class |
 | debt | `census:DebtRecord` | `census:normalForm` | 1..1 | u32 |
 | debt | `census:DebtRecord` | `census:reportForm` | 1..1 | report version |
+| debt | `census:DebtRecord` | `census:excludeTestItems` | 0..1 | boolean |
+| debt | `census:DebtRecord` | `census:excludeDir` | 0..unbounded | string |
 | debt | `census:BodyDebt` | `census:memberSymbol` | 1..unbounded | string |
 | debt | `census:ShimDebt` | `census:memberSymbol` | 1..unbounded | string |
 | debt | `census:BodyDebt` | `census:multiplicity` | 0..unbounded | multiplicity |
@@ -457,6 +471,12 @@ receipt node. Witnesses link a first-party consumer and reference unit with thei
 equal complete body or shim fingerprint. Selected queries retain each incident
 witness and its endpoint/source closure.
 
+A reference constant is a large integer constant that at least one first-party unit
+and at least one reference unit hold, compared by value. It is an additive row of
+the Index: an index without a reference scan, or without such a constant, writes no
+such node and keeps its earlier bytes, so it stays within report form 5. Older
+readers refuse the class by name.
+
 A debt group contains at least two physical members. Distinct sites sharing one
 canonical symbol use an owned `MemberMultiplicity` with at least two copies;
 ordinary symbols imply one. Every multiplicity belongs to exactly one group,
@@ -472,12 +492,33 @@ and returns the original graph, validates the selected current shape and
 preserves every normalized assertion except reportForm. Owned snapshot IRIs
 rebase; external IRIs, literal pins and historical normalForm values do not
 change. Opaque Ledger extension assertions remain intact. Historical Index
-carriers cannot contain reference observations or witnesses; conversion never
+carriers cannot contain reference observations, witnesses or constants; conversion never
 invents them. Ordinary readers require form 5. Layout conversion never authorizes
 policy execution or debt growth.
 
 A change to report vocabulary, shape or canonical layout bumps `census:reportForm`,
-not `normal_form`.
+not `normal_form`, under one rule. An additive optional property that is omitted
+at its default does not bump the report form. A change that alters existing bytes,
+or removes or renames something, does. A change alters existing bytes when it
+changes any byte that an existing ledger, baseline, index or debt record produces
+today, whether through a changed value, a new always-written property, a
+reordered or renamed term, or a changed default.
+
+The rule is sound only because every reader refuses what it does not know. The
+Ledger, Baseline, Index, DebtRecord and query readers refuse a property outside
+their vocabulary by name and never ignore it. The nodes a ledger job's
+`extension` reaches are not engine vocabulary: they belong to the consumer and
+pass unchanged to the consumer's validator. An added engine property therefore
+never lands on a node that a reader passes through unread. A record that omits an added
+property keeps the bytes an earlier reader of the same form accepts. A record
+that states it is refused by that earlier reader as an unknown predicate naming
+the property, not with the report-form message. The grouping-scope properties
+`excludeTestItems` and `excludeDir`, and the job evidence properties `vectorPath`,
+`benchTarget` and `specRef`, are such additions within report form 5.
+A value newly accepted in an existing closed set, emitted only in a new mode and
+never for an existing input, is likewise within form 5: the `unpinned-tree`
+observation of a reference receipt. An earlier reader refuses it as an
+invalid observation kind.
 
 A normal form version is fixed by the content of its first merge to the default
 branch. After that, any change that can alter a fingerprint of any input is a new
@@ -506,7 +547,10 @@ without a fixture.
 The report reader returns its declared `census:normalForm` without gating it; callers
 apply `check_normal_form`, so migration can read another normal form. Its body and
 shim namespaces must agree with that version. `census:reportForm` gates the layout
-and must equal the implemented `REPORT_FORM` (5).
+and must equal the implemented `REPORT_FORM` (5). Within one report form the
+vocabulary can grow only by additive optional properties omitted at their
+default, as the version-bump rule states; a reader without such a property
+refuses a record that states it, by name.
 
 A ledger names the version it was written for with `normal_form`. If the value differs
 from the version the census implements, the census fails hard before reading any job.

@@ -540,10 +540,10 @@ type Refusal = fn(&ParseFingerprintError) -> bool;
 #[test]
 fn a_fingerprint_refuses_every_malformed_spelling() {
     let refused: [(&str, Refusal); 11] = [
-        ("source:0123456789abcdef", |e| {
+        ("source:fedcba9876543210", |e| {
             matches!(e, ParseFingerprintError::Kind(_))
         }),
-        ("0123456789abcdef", |e| {
+        ("fedcba9876543210", |e| {
             matches!(e, ParseFingerprintError::NoKind(_))
         }),
         ("body:0123456789abcde", |e| {

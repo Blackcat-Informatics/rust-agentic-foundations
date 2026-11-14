@@ -10,8 +10,7 @@ use std::path::Path;
 
 use raf_source::Workspace;
 
-#[path = "../../../fuzz/fuzz_targets/workspace_input.rs"]
-mod workspace_input;
+use raf_fixtures::workspace_input;
 
 #[test]
 fn every_load_workspace_seed_loads_with_items_through_the_fuzz_input_code() {

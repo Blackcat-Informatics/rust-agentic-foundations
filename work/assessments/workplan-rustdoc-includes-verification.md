@@ -7,7 +7,7 @@ subject: cap:workplan-rustdoc-includes#verification
 inputs:
   - kind: section
     name: cap:workplan-rustdoc-includes#verification
-    digest: 529f21c8a5212bf557cfa4ef152aa40e342f2a0a94f22dc7d088c582655ce326
+    digest: 526767d2807e1da6d9883cc35b80f1ba5c31af437c0613ddc93e177e19c1c7ea
   - kind: symbol
     name: raf_workplan::diagram::rustdoc::Context
     digest: c84e5e189026d105b7f9e054d576b4a1662bd202d4450b1094328d4307b1b991

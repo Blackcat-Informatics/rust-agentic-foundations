@@ -24,11 +24,12 @@
 
 #[path = "support/report.rs"]
 mod reporting;
-
-use std::fmt::Write as _;
+#[path = "support/workspace_report.rs"]
+mod workspace_report;
 use std::process::ExitCode;
+use workspace_report::report;
 
-use raf_source::{DiskTree, MemoryTree, TargetKind, Workspace};
+use raf_source::{DiskTree, MemoryTree, Workspace};
 
 fn run(args: &[String]) -> Result<String, String> {
     let [root] = args else {
@@ -38,49 +39,6 @@ fn run(args: &[String]) -> Result<String, String> {
     let ws = Workspace::load(&tree, &["."])
         .map_err(|error| format!("the load of {root} is refused: {error}"))?;
     Ok(report(&ws))
-}
-
-fn report(ws: &Workspace) -> String {
-    let mut out = String::new();
-    let mut libraries = 0;
-    let ids: Vec<_> = ws.target_ids().collect();
-    for id in ids {
-        if ws
-            .target(id)
-            .is_none_or(|target| target.kind != TargetKind::Lib)
-        {
-            continue;
-        }
-        libraries += 1;
-        match ws.exported_items(id) {
-            Ok(exports) => {
-                let mut items: Vec<(String, String)> = exports
-                    .items
-                    .iter()
-                    .map(|exported| {
-                        let defined = ws
-                            .item(exported.item)
-                            .map_or_else(String::new, |item| item.path.to_string());
-                        (
-                            exported.path.clone(),
-                            format!("{} = {defined} ({:?})", exported.path, exported.kind),
-                        )
-                    })
-                    .collect();
-                items.sort();
-                for (path, line) in &items {
-                    let answer = ws.resolve(path).map(|found| (found.path, found.via_glob));
-                    writeln!(out, "{line}\n  -> {answer:?}").expect("write");
-                }
-            }
-            Err(error) => writeln!(out, "refused {error}").expect("write"),
-        }
-    }
-    format!(
-        "libraries={libraries} lines={} digest={:016x}",
-        out.lines().count(),
-        purrdf_hash::fnv::fnv1a64(out.as_bytes())
-    )
 }
 
 fn sample() -> Result<String, String> {

@@ -7,13 +7,13 @@ subject: cap:census-ledger#usage
 inputs:
   - kind: section
     name: cap:census-ledger#usage
-    digest: 927d21710872618dbe73e73848258d31b4be6274445542a1eedc5606227d6483
+    digest: 0c9012d1f609c307a06540440581598db27404dceb607135b2133844f3abe281
   - kind: symbol
     name: raf_census::Gate::check
     digest: 7135af913fcf26db9027c4b5f7f35d30abdab5af67b884abe0e2a82e08f49536
   - kind: symbol
     name: raf_census::Gate::check_locked
-    digest: 2cb2ad081afa7034b3a8956b78b2fe67939b2e9ae71d0949365630d2de396e64
+    digest: a4750e277e048278a9b17432a57648744d2600f56e22bea9924017b788206b2d
   - kind: symbol
     name: raf_census::Gate::check_tree
     digest: eb42ff3aeb65568bc7c5e604b672291c0a2ea78b8812a460e16600941feb9080
@@ -22,7 +22,7 @@ inputs:
     digest: f4325ff16655a45eb8216b2658b9c48879346d2934b729c2f1d4922854c1acf1
   - kind: symbol
     name: raf_census::Gate::write_debt_locked
-    digest: 6eccf15bc7d5bd59ce33ee9c72c49239bad6c662887a6f3a46a835f41bee7e73
+    digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
   - kind: symbol
     name: raf_census::LedgerExtension
     digest: 3cf51559c3301b4f81086b1935d12e26605ab2750fb46631aa68aab70a340652

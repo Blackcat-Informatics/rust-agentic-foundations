@@ -149,6 +149,18 @@ inventory.
 
 ## Document types and keys
 
+The generated navigation Index is separate from these eight Document types.
+Its native authoring carrier has a caller-owned absolute IRI, preserved exactly
+and outside the Document and structural-node identity namespaces. Exactly one
+subject asserts `okf:NavigationIndex` and an `okf:body` string containing the
+complete Index bytes. The inverse calls `Index::parse`; it refuses other shapes
+and RDF layers, preserving native causes and body locations. Combined identity
+and body text may not exceed 1 MiB before carrier copies or native construction;
+this is not a total allocator bound. Document identities and carriers remain
+unchanged. Repository semantic projection and inverse, binding, dependency and
+digest relations, canonical native authoring validation and the complete profile
+revision are separate contracts.
+
 | Type | Directory | Keys, in writing order |
 | --- | --- | --- |
 | Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `review_required`, optional `diagrams`, optional `model` |
@@ -511,6 +523,17 @@ Capability document. Which statements a marker covers, and which paths it may na
 are rules of [strict mode](../capabilities/workplan-strict.md).
 
 ## Files and repository rules
+
+Standalone repository navigation is explicit and uses the exact opened workspace
+authority. The existing contained output-directory binding is retained before
+native presentation generation; publication shares that authority and writes only
+the output prefix's versioned subtree. Existing authored source and capability
+links use native encoded relative references from the actual flat directory,
+without changing semantic identities or adding raw-file line anchors. Contextual
+bundles remain ephemeral rather than entering the owner/view cache. Default
+publication keeps its existing placement contract. Binding verification and
+publication are separate observations, with no immutable snapshot or atomic
+directory transaction.
 
 - SPDX lines in an OKF document are YAML comments inside the frontmatter. In all
   other Markdown they are HTML comments.

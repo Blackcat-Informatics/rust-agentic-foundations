@@ -905,6 +905,7 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
             "cargo-census",
             "cargo-workplan",
             "raf-census",
+            "raf-fixtures",
             "raf-okf",
             "raf-rdf",
             "raf-source",

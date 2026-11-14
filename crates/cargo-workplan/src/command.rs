@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The commands call `raf-workplan` and return a [`Report`] or the documented
-//! mdBook transport response; semantic decisions remain in the library.
+//! The commands call `raf-workplan` and return a [`Report`], static Markdown
+//! fragment or mdBook transport response; semantic decisions remain in the library.
 
 use std::path::{Path, PathBuf};
 
@@ -19,10 +19,11 @@ use crate::exit::Failure;
 use crate::render::{Format, Record, Report};
 use crate::{assess, change, coverage, debt, evidence, history, mdbook};
 
-/// A normal report or the documented mdBook transport response.
+/// A normal report, complete static Markdown or mdBook transport response.
 pub(crate) enum Output {
     Report(Report),
     Mdbook(mdbook::Response),
+    Fragment(String),
 }
 
 /// Run the command of `args` and return what it produced.
@@ -42,6 +43,9 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
     }
     let root = || workspace_root(args.root.as_deref());
     let report = match &args.command {
+        Command::Docs(Docs::Fragment(request)) => {
+            return crate::docs::fragment(&root()?, request).map(Output::Fragment);
+        }
         Command::Docs(Docs::Artifacts(request)) => crate::docs::artifacts(&root()?, request),
         Command::Docs(Docs::Build(DocsBuild::Rustdoc(request))) => {
             crate::docs::build(&root()?, request)
@@ -72,7 +76,7 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
                     "docs export requires --format turtle or --format ntriples and refuses --quiet",
                 ));
             }
-            export(&root()?, &export_args.path)
+            export(&root()?, &export_args.path, export_args.iri.as_deref())
         }
         Command::Change(Change::New(new_args)) => change::new(&root()?, new_args),
         Command::Change(Change::Impact(slug)) => change::impact(&root()?, &slug.slug),
@@ -106,6 +110,7 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
 
 fn command_name(command: &Command) -> &'static str {
     match command {
+        Command::Docs(Docs::Fragment(_)) => "docs fragment",
         Command::Docs(Docs::Artifacts(_)) => "docs artifacts",
         Command::Docs(Docs::Build(DocsBuild::Rustdoc(_))) => "docs build rustdoc",
         Command::Check => "check",
@@ -144,6 +149,13 @@ fn command_name(command: &Command) -> &'static str {
 
 /// Admit carriers before opening a root, retaining mdBook's own protocol refusal.
 fn check_format(args: &Args) -> Result<(), Failure> {
+    if matches!(&args.command, Command::Docs(Docs::Fragment(_)))
+        && (args.quiet || args.format != Format::Text)
+    {
+        return Err(Failure::new(
+            "docs fragment emits complete Markdown and refuses --quiet and non-text --format",
+        ));
+    }
     if args.format == Format::Json
         && !matches!(
             &args.command,
@@ -167,17 +179,30 @@ fn check_format(args: &Args) -> Result<(), Failure> {
 
 /// The publication library owns the bundle, version identity and file admission.
 fn standalone(root: &Path, args: &StandaloneArgs) -> Result<Report, Failure> {
-    let output = std::fs::canonicalize(&args.output_dir)?;
+    let output = if args.repository_links {
+        std::path::absolute(&args.output_dir)?
+    } else {
+        std::fs::canonicalize(&args.output_dir)?
+    };
     if output.to_str().is_none() {
         return Err(Failure::new(
             "documentation output root must be representable as UTF-8",
         ));
     }
     let opened = Gate::workspace(root).open()?;
-    let plan = opened.workplan();
-    let bundle = plan.named_diagram(&args.view)?;
-    let directory = raf_workplan::diagram::publication::publish(&bundle, &output)?;
-    let entry = directory.join(format!("{}.html", bundle.view().name()));
+    let directory = if args.repository_links {
+        raf_workplan::diagram::publication::publish_repository(&opened, &args.view, &output)?
+    } else {
+        let plan = opened.workplan();
+        let bundle = plan.named_diagram(&args.view)?;
+        raf_workplan::diagram::publication::publish(&bundle, &output)?
+    };
+    let name = args
+        .view
+        .split_once('#')
+        .map(|(_, name)| name)
+        .ok_or_else(|| Failure::new("named view requires an owner and fragment"))?;
+    let entry = directory.join(format!("{name}.html"));
     let directory = directory
         .into_os_string()
         .into_string()
@@ -198,19 +223,35 @@ fn standalone(root: &Path, args: &StandaloneArgs) -> Result<Report, Failure> {
 }
 
 /// The public authoring codec owns the profile and native dataset shape.
-fn export(root: &Path, path: &str) -> Result<Report, Failure> {
+fn export(root: &Path, path: &str, iri: Option<&str>) -> Result<Report, Failure> {
     use raf_source::{DiskTree, RelPath, Tree};
     let path = RelPath::new(path)?;
-    if raf_okf::is_capability_index(path.as_str()) {
-        return Err(raf_okf::DatasetError::NavigationIndex.into());
+    let index = raf_okf::is_capability_index(path.as_str());
+    match (index, iri) {
+        (true, None) => {
+            return Err(Failure::new(format!(
+                "{path}: navigation Index requires --iri ABSOLUTE_IRI"
+            )));
+        }
+        (false, Some(_)) => {
+            return Err(Failure::new(format!(
+                "{path}: --iri is only supported for the navigation Index"
+            )));
+        }
+        _ => {}
     }
     let tree = DiskTree::new(root)?;
     let text = tree.read(&path, raf_okf::MAX_TEXT_BYTES as u64 + 1)?;
-    let document = raf_okf::Document::parse(&text)
-        .map_err(|error| Failure::new(format!("{path}: {error}")))?;
-    let dataset = document
-        .to_dataset(path.as_str())
-        .map_err(|error| Failure::new(format!("{path}: {error}")))?;
+    let dataset = if let Some(iri) = iri {
+        raf_okf::Index::parse(&text)
+            .map_err(|error| Failure::new(format!("{path}: {error}")))?
+            .to_dataset(iri)
+    } else {
+        raf_okf::Document::parse(&text)
+            .map_err(|error| Failure::new(format!("{path}: {error}")))?
+            .to_dataset(path.as_str())
+    }
+    .map_err(|error| Failure::new(format!("{path}: {error}")))?;
     Ok(Report::document(dataset))
 }
 

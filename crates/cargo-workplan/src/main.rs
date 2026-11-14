@@ -59,10 +59,18 @@ fn main() -> ExitCode {
     ExitCode::from(run(&args, &mut io::stdout().lock(), &mut io::stderr().lock()).code())
 }
 
-/// Run the command of `args`, print its report and return how it ended.
+/// Run the command, write its complete output carrier and return how it ended.
 fn run(args: &cli::Args, out: &mut dyn Write, diagnostics: &mut dyn Write) -> Exit {
     let report = match command::run(args) {
         Ok(command::Output::Report(report)) => report,
+        Ok(command::Output::Fragment(fragment)) => {
+            return match out.write_all(fragment.as_bytes()).and_then(|()| out.flush()).and_then(|()| {
+                writeln!(diagnostics, "cargo-workplan: static source index and imported Cargo metadata; compiler configuration, link resolution and package membership are not verified")
+            }) {
+                Ok(()) => Exit::Clean,
+                Err(error) => fail(&Failure::new(format!("cannot write the documentation fragment: {error}")), diagnostics),
+            };
+        }
         Ok(command::Output::Mdbook(response)) => {
             return match response.write(out) {
                 Ok(()) => response.exit(),

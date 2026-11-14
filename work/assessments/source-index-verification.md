@@ -7,7 +7,7 @@ subject: cap:source-index#verification
 inputs:
   - kind: section
     name: cap:source-index#verification
-    digest: 2f2036d8d93480cafb5f3ef5192bf2b76c66cf3996cc59d1783f7868baa01c55
+    digest: f191a70b14949082a8344009b186cdac4244eaed8341939c61e06418d8bf2129
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -17,6 +17,9 @@ inputs:
   - kind: symbol
     name: raf_source::Entry
     digest: 643dfd3058b51a0c966bf62bd198068186dda5ddf8a10224bf1d6d6526254e76
+  - kind: symbol
+    name: raf_source::ForeignModulePath
+    digest: 41dfdd9d116c07e64aad2370fc6a167c9472c5bb2b378e90b040e2c92c53c2c9
   - kind: symbol
     name: raf_source::LexedSource::parse
     digest: 1e5a82e0c95cadeb15d84875e40b68b9de010c025f20cc56ca797669a0e8198c
@@ -39,11 +42,14 @@ inputs:
     name: raf_source::PathError
     digest: a8d006e0bbc52c46b77ad06d0c7fd4037f6da3938cc26e000f988031dec4efb1
   - kind: symbol
+    name: raf_source::PathSite
+    digest: 393d1eeee67698d71c513c3d6590c508d76fb0a495133e94e555eccb8bbb1d16
+  - kind: symbol
     name: raf_source::PreparedSource::parse
     digest: 7d30a5b94cdf7798c27324dc230440b89b01af5a9f47fbbd99417409bb838a21
   - kind: symbol
     name: raf_source::Reach
-    digest: 29cde46d34604e6ba2624de8016f124a93e71ad5d123df536ec171ec351e7afa
+    digest: 0e20285426d60116d397c17add6c629f1d96ef51fe7b86825b1fa6392bf60d99
   - kind: symbol
     name: raf_source::Reexport
     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
@@ -64,10 +70,13 @@ inputs:
     digest: bccafe717043607d1dec748d50554efd7ac3a34a030d084046a8e5eaf3b9c180
   - kind: symbol
     name: raf_source::TreeError
-    digest: 8135b0612ef9b904eb592193661a1f447eb1c82277f06ad42d7ee2622aa6e144
+    digest: 1870f1f59aec46e41cf5240d1029068a8038cb77307e2221a53bee581121fc48
+  - kind: symbol
+    name: raf_source::Usage
+    digest: c86ad8e58151210ec1ffd4f0de601b6f82dd60eeccde1eb0b5d815a28ceec492
   - kind: symbol
     name: raf_source::Workspace
-    digest: 8ea5019a18360e0db3123e26c9fc768f80df20595fbdbbb1f56c436d1158662f
+    digest: 997d15987a66c6a472bd95c915b0a6e9de276de11b4f19ad6b2b01562a690b59
   - kind: symbol
     name: raf_source::Workspace::exported_items
     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
@@ -103,7 +112,7 @@ inputs:
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3
   - kind: symbol
     name: raf_source::tree
-    digest: a0d4844573e7fedfa60c8b43c6962c0e42ac88c47a12ae111933218773d4f5e3
+    digest: 078796918c101347df949cb2d69a03d131f88b87ae18c88fd9aa6bb387d40a67
 verdict: accepted
 by: agent
 ---

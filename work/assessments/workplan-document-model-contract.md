@@ -7,7 +7,7 @@ subject: cap:workplan-document-model#contract
 inputs:
   - kind: section
     name: cap:workplan-document-model#contract
-    digest: 13c2e70aa09141fe6c60d71ff7466adb0f84c292d30268260d9a357b321b1d10
+    digest: 1468bdc5f597eb2dadb2b144ddc5d4983d6396b965ab8bc9dc11edc15f4c15d0
   - kind: symbol
     name: raf_workplan::Finding
     digest: f43e8c8938a1469f1d0eba8c24854adde16b9f835df2e448ce98a6c83d581555
@@ -46,7 +46,7 @@ inputs:
     digest: d923ec7e0eb27f6a33e86d9baaaaf47685bbf470f9c605371db7cec641ab2172
   - kind: symbol
     name: raf_workplan::Opened::tree
-    digest: 5813d911c1ed805c663eeadb3136fb46d1741160cc34504b8737c14f33d15602
+    digest: b1c5f1570de134e95046df1f1573f9c8dc969326e424911a039c81a61dcee1f2
   - kind: symbol
     name: raf_workplan::Roadmap
     digest: fdb27927871fea87b270dc45eff982f221444db1bcb3b5034221d64c6d51c7f0
@@ -94,7 +94,7 @@ inputs:
     digest: ca174b83e9a7a962d3264d1ab6102abeddfd5da57d9a5f94fd11a035ac32fcaf
   - kind: symbol
     name: raf_workplan::record
-    digest: 45f4875db255fcfe828925a9a3f00e344a22d5b85500fdc0577b0a0e4dc2f6cb
+    digest: e0af591739db479a091b718df1b215a15578d48a56ab73bae3db222026927436
   - kind: symbol
     name: raf_workplan::record::Record
     digest: 66651d1b990c023d6764b0f345ca2567d6e2859b1f7830e1cb2307fa6d83ac85

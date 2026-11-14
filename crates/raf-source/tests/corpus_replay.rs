@@ -18,8 +18,10 @@ mod corpus_writer;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(all(test, not(target_os = "linux")))]
+use support::child::run_child_if_requested;
 #[cfg(test)]
-use support::child::{Outcome, problem, run_child, run_child_if_requested};
+use support::child::{Outcome, problem, run_child};
 use support::shapes;
 #[cfg(test)]
 use support::shapes::EXPECTED_NAMES;
@@ -45,6 +47,9 @@ fn text_of(selector: &str) -> String {
 /// Selected by the parent process; an ordinary run of it does nothing.
 #[test]
 fn child_main() {
+    #[cfg(target_os = "linux")]
+    support::child::run_child_if_requested_with(text_of, support::parallel::compare);
+    #[cfg(not(target_os = "linux"))]
     run_child_if_requested(text_of);
 }
 
@@ -105,7 +110,9 @@ fn corpus_files_hold_exactly_the_text_of_their_shapes() {
 
 #[test]
 fn every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts() {
-    for shape in shapes::all() {
+    let shapes = shapes::all();
+    let count = shapes.len();
+    for shape in shapes {
         let outcome = run_child("child_main", &format!("{PREFIX}{}", shape.name));
         let named = format!("{PREFIX}{}.rs", shape.name);
         assert_eq!(
@@ -115,6 +122,7 @@ fn every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_ab
             shape.name
         );
     }
+    println!("replayed {count} committed parser source cases");
 }
 
 #[test]

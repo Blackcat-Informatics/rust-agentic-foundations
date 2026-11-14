@@ -4,11 +4,13 @@
 //! The loaded workspace: packages, targets and the files of every module tree.
 
 mod locked;
+mod module_paths;
 mod selected;
 pub use locked::{
-    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceBinding,
+    LockedBinding, LockedEdge, LockedManifest, LockedPackageRoots, LockedTree, ReferenceBinding,
     ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree,
 };
+pub use module_paths::ForeignModulePath;
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,7 +28,7 @@ use crate::index::{DependencyInfo, Index, LOAD_BASE_BYTES, PackageInfo};
 use crate::item::{ImplBlock, ImplId, Item, ItemId, Namespace, UnresolvedImpl};
 use crate::manifest::{
     self, Dependency, DependencyDeclaration, EditionDecl, InheritedDependency, Manifest,
-    PackageDecl, PathSource, WorkspaceDependency,
+    PackageDecl, PathSource, VersionDecl, WorkspaceDependency,
 };
 use crate::members::members;
 use crate::meter::{ItemAdmission, Meter, Usage};
@@ -91,6 +93,8 @@ impl SourceFile {
 pub struct Workspace {
     packages: Vec<Package>,
     dependencies: Vec<Vec<DependencyDeclaration>>,
+    /// The version each package declares, retained from the load's own read.
+    versions: Vec<DeclaredVersion>,
     locked: Vec<LockedBinding>,
     references: Vec<LockedBinding>,
     selected_configuration: Option<crate::ActiveConfiguration>,
@@ -100,6 +104,8 @@ pub struct Workspace {
     files: BTreeMap<RelPath, SourceFile>,
     index: Index,
     usage: Usage,
+    #[cfg(target_os = "linux")]
+    parallel_usage: Option<crate::ParallelUsage>,
     /// The options of the load, whose item-bytes budget also bounds what a
     /// query such as [`Workspace::exported_items`] holds.
     options: LoadOptions,
@@ -109,6 +115,7 @@ impl PartialEq for Workspace {
     fn eq(&self, other: &Self) -> bool {
         self.packages == other.packages
             && self.dependencies == other.dependencies
+            && self.versions == other.versions
             && self.locked == other.locked
             && self.references == other.references
             && self.selected_configuration == other.selected_configuration
@@ -192,6 +199,52 @@ impl Workspace {
         Self::load_from(tree, &root_paths, options)
     }
 
+    /// Load a stable native Linux Tree with bounded parallel parsing.
+    ///
+    /// The coordinator retains Tree access and canonical fact/index admission.
+    /// Source observations and failures must be independent of read order.
+    /// Native ASTs and spans stay on fresh 64 MiB parser threads; the additional
+    /// scheduler ownership grant is not a complete native parser heap bound.
+    ///
+    /// # Errors
+    /// Returns the canonical input errors of [`Self::load_with`], or actionable
+    /// scheduler-storage and worker-start failures. All workers are joined.
+    ///
+    /// # Panics
+    /// Resumes the first canonically reached parser panic after worker cleanup.
+    #[cfg(target_os = "linux")]
+    pub fn par_load(
+        tree: &dyn crate::ParallelTree,
+        roots: &[&str],
+        options: &LoadOptions,
+        parallel: &crate::ParallelOptions,
+    ) -> Result<Self, LoadError> {
+        let mut root_paths = Vec::new();
+        for root in roots {
+            root_paths.push(RelPath::new(root).map_err(|error| {
+                LoadError::tree(&RelPath::root(), None, &Origin::Discovery, error.into())
+            })?);
+        }
+        let resources = crate::parse::parallel::Resources::new(parallel)?;
+        std::thread::scope(|scope| {
+            let parser = crate::parse::parallel::Executor::new(scope, &resources, parallel)?;
+            let meter = Meter::new(options);
+            let result = Self::load_meter_with_parser(
+                tree,
+                &root_paths,
+                options,
+                &meter,
+                None,
+                Some(&parser),
+            );
+            let usage = parser.finish();
+            result.map(|mut workspace| {
+                workspace.parallel_usage = Some(usage);
+                workspace
+            })
+        })
+    }
+
     /// Load explicit roots, retaining each path's selected source authority.
     ///
     /// [`crate::SourceTrees`] dispatches independently rooted sources. This is
@@ -218,13 +271,24 @@ impl Workspace {
         meter: &Meter,
         binding: Option<&locked::BindingLoad<'_>>,
     ) -> Result<Self, LoadError> {
+        Self::load_meter_with_parser(tree, roots, options, meter, binding, None)
+    }
+
+    fn load_meter_with_parser(
+        tree: &dyn Tree,
+        roots: &[RelPath],
+        options: &LoadOptions,
+        meter: &Meter,
+        binding: Option<&locked::BindingLoad<'_>>,
+        parser: Option<&dyn crate::parse::Parser>,
+    ) -> Result<Self, LoadError> {
         let root = RelPath::root();
         if roots.is_empty() {
             return Err(LoadError::new(&root, None, LoadErrorKind::NoRoots));
         }
         meter.items(LOAD_BASE_BYTES, &root, None)?;
         let discovered = discover(tree, roots, meter)?;
-        Self::build_discovered(tree, options, meter, binding, &discovered, None)
+        Self::build_discovered_with_parser(tree, options, meter, binding, &discovered, None, parser)
     }
 
     fn build_discovered(
@@ -234,6 +298,20 @@ impl Workspace {
         binding: Option<&locked::BindingLoad<'_>>,
         discovered: &crate::discovery::Discovered,
         selected: Option<crate::DeclaredConfiguration<'_>>,
+    ) -> Result<Self, LoadError> {
+        Self::build_discovered_with_parser(
+            tree, options, meter, binding, discovered, selected, None,
+        )
+    }
+
+    fn build_discovered_with_parser(
+        tree: &dyn Tree,
+        options: &LoadOptions,
+        meter: &Meter,
+        binding: Option<&locked::BindingLoad<'_>>,
+        discovered: &crate::discovery::Discovered,
+        selected: Option<crate::DeclaredConfiguration<'_>>,
+        parser: Option<&dyn crate::parse::Parser>,
     ) -> Result<Self, LoadError> {
         let root = RelPath::root();
         let found = &discovered.packages;
@@ -250,18 +328,16 @@ impl Workspace {
             dirs: &dirs,
             found,
         };
-        let mut locked = if let Some(binding) = binding {
-            locked::bind_found(binding, &reader, &mut caches)?
-        } else {
-            Vec::new()
-        };
-        let mut packages = Vec::new();
+        let mut locked = binding.map_or_else(
+            || Ok(Vec::new()),
+            |binding| locked::bind_found(binding, &reader, &mut caches),
+        )?;
+        let (mut packages, mut derived) = (Vec::new(), Vec::new());
         let mut dependencies = Vec::new();
         let mut dependency_admission = ItemAdmission::new(meter, &root);
         Memory::new(&mut dependency_admission)
             .reserve(&mut dependencies, found.len())
             .map_err(|error| dependency_admission.error(error))?;
-        let mut derived = Vec::new();
         for (package_index, entry) in found.iter().enumerate() {
             let context = Context {
                 package_id: PackageId(package_index),
@@ -298,9 +374,18 @@ impl Workspace {
             &mut derived,
             selected,
         )?;
+        let versions = declared_versions(&reader, found, &mut caches)?;
         let package_names = package_name_index(&packages, meter)?;
         let (targets, origins) = selected_targets(derived)?;
-        let walked = walk_sources(tree, &targets, &origins, &locked, selected.as_ref(), meter)?;
+        let walked = walk_sources(
+            tree,
+            &targets,
+            &origins,
+            &locked,
+            selected.as_ref(),
+            meter,
+            parser,
+        )?;
         let files = source_files(walked.files, &targets)?;
         reader.install_edges(binding, &dependencies, &locked, &targets, &mut infos)?;
         let index = Index::build(
@@ -311,14 +396,11 @@ impl Workspace {
             walked.paths,
             meter,
         )?;
-        let (locked, references) = if binding.is_some_and(locked::BindingLoad::structural) {
-            (Vec::new(), locked)
-        } else {
-            (locked, Vec::new())
-        };
+        let (locked, references) = binding_sets(binding, locked);
         Ok(Self {
             packages,
             dependencies,
+            versions,
             locked,
             references,
             selected_configuration: selected,
@@ -327,6 +409,8 @@ impl Workspace {
             files,
             index,
             usage: meter.usage(),
+            #[cfg(target_os = "linux")]
+            parallel_usage: None,
             options: options.clone(),
         })
     }
@@ -343,6 +427,16 @@ impl Workspace {
     #[must_use]
     pub fn usage(&self) -> Usage {
         self.usage
+    }
+
+    /// Scheduler high-water counts after all parallel workers have joined.
+    ///
+    /// Serial loads return `None`. These counts are separate from semantic
+    /// [`Usage`] and are excluded from workspace structural equality.
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn parallel_usage(&self) -> Option<crate::ParallelUsage> {
+        self.parallel_usage
     }
 
     /// The packages, sorted by manifest path.
@@ -373,6 +467,31 @@ impl Workspace {
     #[must_use]
     pub fn package(&self, id: PackageId) -> Option<&Package> {
         self.packages.get(id.index())
+    }
+
+    /// The version that package `id` declares, explicit or inherited from its
+    /// workspace, read once by the load that built this workspace. `None` is a
+    /// manifest that sets no version, which Cargo reads as `0.0.0`.
+    ///
+    /// # Errors
+    /// Refuses a package whose inherited version the nearest workspace manifest
+    /// does not supply, and an identity this workspace does not hold.
+    pub fn package_version(&self, id: PackageId) -> Result<Option<&str>, LoadError> {
+        match self.versions.get(id.index()) {
+            Some(DeclaredVersion::Value(version)) => Ok(Some(version)),
+            Some(DeclaredVersion::Unset) => Ok(None),
+            Some(DeclaredVersion::Unresolved) | None => {
+                let manifest = self
+                    .packages
+                    .get(id.index())
+                    .map_or_else(RelPath::root, |package| package.manifest.clone());
+                Err(manifest_error(
+                    &manifest,
+                    "package.version",
+                    "the package inherits its version and the nearest workspace manifest supplies none".to_owned(),
+                ))
+            }
+        }
     }
 
     /// Package identities in the manifest order of [`Workspace::packages`].
@@ -1069,6 +1188,18 @@ struct Caches {
     members: BTreeMap<RelPath, BTreeSet<RelPath>>,
 }
 
+/// Separate selected dependency bindings from structural reference observations.
+fn binding_sets(
+    binding: Option<&locked::BindingLoad<'_>>,
+    bindings: Vec<LockedBinding>,
+) -> (Vec<LockedBinding>, Vec<LockedBinding>) {
+    if binding.is_some_and(locked::BindingLoad::structural) {
+        (Vec::new(), bindings)
+    } else {
+        (bindings, Vec::new())
+    }
+}
+
 /// Build the name selector without retaining another copy of package names.
 fn package_name_index(packages: &[Package], meter: &Meter) -> Result<Vec<PackageId>, LoadError> {
     package_index_by(packages.len(), meter, |left, right| {
@@ -1133,6 +1264,63 @@ impl Reader<'_> {
         }
         Ok(())
     }
+}
+
+/// The version one package declares, as its load read it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DeclaredVersion {
+    Value(String),
+    Unset,
+    Unresolved,
+}
+
+/// The declared version of every discovered package, in discovery order.
+fn declared_versions(
+    reader: &Reader<'_>,
+    found: &[Found],
+    caches: &mut Caches,
+) -> Result<Vec<DeclaredVersion>, LoadError> {
+    let mut versions = Vec::new();
+    let root = RelPath::root();
+    let mut admission = ItemAdmission::new(reader.meter, &root);
+    Memory::new(&mut admission)
+        .reserve(&mut versions, found.len())
+        .map_err(|error| admission.error(error))?;
+    for entry in found {
+        versions.push(declared_version(
+            reader,
+            &entry.package,
+            &entry.declared,
+            caches,
+        )?);
+    }
+    Ok(versions)
+}
+
+/// Read a package's declared version under the load's item allowance.
+fn declared_version(
+    reader: &Reader<'_>,
+    package: &Package,
+    declared: &PackageDecl,
+    caches: &mut Caches,
+) -> Result<DeclaredVersion, LoadError> {
+    let version = match &declared.version {
+        VersionDecl::Explicit(version) => version.clone(),
+        VersionDecl::Unset => return Ok(DeclaredVersion::Unset),
+        VersionDecl::Inherited => match workspace_of(reader, &package.dir, caches)? {
+            WorkspaceOf::Member {
+                version: Some(version),
+                ..
+            } => version.as_str().to_owned(),
+            _ => return Ok(DeclaredVersion::Unresolved),
+        },
+    };
+    reader.meter.items(
+        version.len().saturating_add(size_of::<DeclaredVersion>()),
+        &package.manifest,
+        None,
+    )?;
+    Ok(DeclaredVersion::Value(version))
 }
 
 /// The nearest workspace manifest above a package, as far as the package can
@@ -1506,9 +1694,20 @@ fn walk_sources(
     bindings: &[LockedBinding],
     selected: Option<&crate::ActiveConfiguration>,
     meter: &Meter,
+    parser: Option<&dyn crate::parse::Parser>,
 ) -> Result<Walked, LoadError> {
-    let mut walker = Walker::new(tree, meter);
+    let mut walker = Walker::with_parser(tree, meter, parser);
+    let mut frontier = 1;
     for (index, (target, origin)) in targets.iter().zip(origins).enumerate() {
+        frontier = frontier.max(index + 1);
+        if let Some(parser) = parser {
+            while parser.has_capacity() && frontier < targets.len() {
+                if !walker.speculate(&targets[frontier].root) {
+                    break;
+                }
+                frontier += 1;
+            }
+        }
         walker.configure(
             selected
                 .or(bindings

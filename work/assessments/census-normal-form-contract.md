@@ -7,7 +7,7 @@ subject: cap:census-normal-form#contract
 inputs:
   - kind: section
     name: cap:census-normal-form#contract
-    digest: 0729da381dd68f31830191decf9b18f1304d2f5904d29ef7f747a703bbb05ffd
+    digest: 46ae1557240435d9a7150ecc1050bc1a0d2b11009c4d706a52c22bbb51fb10f2
   - kind: symbol
     name: raf_census::Census::match_jobs
     digest: 148ce4fe5b8e66d5ff60705612b691c9782b9359c0e64b33d4fd2baa78c8c100
@@ -22,7 +22,7 @@ inputs:
     digest: 6615191edd46f454f95fb0fb4fb922c7c66c0db3f3934b25bc5ae6b836fe6e6d
   - kind: symbol
     name: raf_census::CensusOptions
-    digest: 3374a4ce9c59f9ee5a5444a70a1803f5a560846fb99259baa6bad8ebf721ed2c
+    digest: bcb8ab378e8f8736c6253067c68fe1e4e5102c3a4df9f6ee0c89736e8da6713e
   - kind: symbol
     name: raf_census::CensusOptions::max_file_bytes
     digest: f2b8608bc6fa2a63b793880707e3d72480ef2702447f4d0a317c85d090ed0922
@@ -54,6 +54,15 @@ inputs:
     name: raf_census::Form::tokens
     digest: b5bbce341eab299f132c8b5f16a9c374850834f0e6718da1e0043d8b9113c05d
   - kind: symbol
+    name: raf_census::GroupingScope
+    digest: 3f0a4776aa14f902c7d5d135417df08aea5f478ba09b893959fbb32f79c5f9b5
+  - kind: symbol
+    name: raf_census::GroupingScope::exclude_dir
+    digest: f5c1a8e4b24c05c4b773f1a551bec2ce067e69c9ebfdec7da1c5518b8ac2dc53
+  - kind: symbol
+    name: raf_census::GroupingScope::exclude_test_items
+    digest: ebb48692a1d4dae47a5b735b3c8cb50b9d6a1b57aad81f4359dd68df0241b805
+  - kind: symbol
     name: raf_census::Job
     digest: 3f9d93038d32676c236ad951441859c4141dbbc4a7ae6315e6fcdb6de9611496
   - kind: symbol
@@ -71,6 +80,9 @@ inputs:
   - kind: symbol
     name: raf_census::SHIM_MAX_TOKENS
     digest: b799e30dd83cb15dc8196c1cea5c1d1cf90a18cef86e69d1e249b750266a6e5e
+  - kind: symbol
+    name: raf_census::TableKind::name
+    digest: e23ab966f3da93acd1628ba8b346fc5cf39a7f5b13c76ab1c1276f00cf6fad58
   - kind: symbol
     name: raf_census::VALUE_ADAPTERS
     digest: 9100a960c0cf4235ad4942ca485b675927ad21a4643cb69e08f7e7f91baf1391

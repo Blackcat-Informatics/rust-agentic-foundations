@@ -206,10 +206,14 @@ pub use locked::{
     LockedCatalog, LockedGitReference, LockedPackage, LockedPackageId, LockedSource,
     LockedSourceKind, RegistryIndex,
 };
-pub use manifest::{DependencyDeclaration, DependencyKind, DependencySpec, InheritedDependency};
+pub use manifest::{
+    DependencyDeclaration, DependencyKind, DependencySpec, InheritedDependency, library_target_name,
+};
 pub use meter::Usage;
-pub use modtree::{Reach, TargetId};
+pub use modtree::{PathSite, Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
+#[cfg(target_os = "linux")]
+pub use parse::parallel::{ParallelOptions, ParallelOptionsError, ParallelTree, ParallelUsage};
 pub use parse::{
     LexedSource, PARSE_STACK_BYTES, ParsedSource, PreparedSource, parse_source,
     parse_source_with_tokens, parse_sources, prepare_source,
@@ -225,12 +229,12 @@ pub use syn;
 pub use target::{Package, PackageId, Target, TargetKind};
 pub use tree::{
     CapturedDirectory, CapturedFile, CapturedLink, CommittedGitTree, DiskTree, Entry, EntryKind,
-    FileId, MemoryTree, Opened, OpenedBytes, SourceTrees, Tree,
+    FileId, MemoryTree, Opened, OpenedBytes, PinnedGitTree, RegistryArchiveTree, SourceTrees, Tree,
 };
 pub use workspace::{
-    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceBinding,
-    ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree, SourceFile,
-    TestFn, Workspace,
+    ForeignModulePath, LockedBinding, LockedEdge, LockedManifest, LockedPackageRoots, LockedTree,
+    ReferenceBinding, ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree,
+    SourceFile, TestFn, Workspace,
 };
 /// Native read-only repository and object access, without executable helpers.
 pub mod git;

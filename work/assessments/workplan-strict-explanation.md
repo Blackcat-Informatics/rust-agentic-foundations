@@ -46,10 +46,10 @@ inputs:
     digest: ae57f2bd96ea153dc8b2936b97d47898ab8e26bd5cb8cd730d2823f4a3bf860d
   - kind: symbol
     name: raf_workplan::record
-    digest: 45f4875db255fcfe828925a9a3f00e344a22d5b85500fdc0577b0a0e4dc2f6cb
+    digest: e0af591739db479a091b718df1b215a15578d48a56ab73bae3db222026927436
   - kind: symbol
     name: raf_workplan::strict
-    digest: 8b5d27b3ea4aac1392ae71219ac51f78cb61df001e7de6fab0c086768f36c0d6
+    digest: 17ca6de18ee5cd04d54da6d3962caa7edcbfad8e2b8c22287429b0b151807f5b
   - kind: symbol
     name: raf_workplan::work
     digest: a12641f798ca2966e2032b3fa7a3b7871f038d89d808d5e89658b2b25e79b472

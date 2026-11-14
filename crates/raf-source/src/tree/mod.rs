@@ -5,17 +5,36 @@
 
 mod disk;
 mod git;
+mod inventory;
 mod memory;
+mod registry;
 mod sources;
 
 pub use disk::{CapturedDirectory, CapturedFile, CapturedLink, DiskTree};
-pub use git::CommittedGitTree;
+pub use git::{CommittedGitTree, PinnedGitTree};
 pub use memory::MemoryTree;
+pub use registry::RegistryArchiveTree;
 pub use sources::SourceTrees;
 
 use crate::error::TreeError;
+use crate::meter::Meter;
 use crate::path::{RelPath, SourceAuthorityId};
 use std::sync::Arc;
+
+/// The meter of a sealed source: its own, or the one of the load that borrows it.
+pub(super) enum SealedMeter<'a> {
+    Owned(Meter),
+    Borrowed(&'a Meter),
+}
+impl std::ops::Deref for SealedMeter<'_> {
+    type Target = Meter;
+    fn deref(&self) -> &Meter {
+        match self {
+            Self::Owned(meter) => meter,
+            Self::Borrowed(meter) => meter,
+        }
+    }
+}
 
 /// Standalone backends cannot silently interpret another source's spelling.
 fn require_first_party(path: &RelPath) -> Result<(), TreeError> {

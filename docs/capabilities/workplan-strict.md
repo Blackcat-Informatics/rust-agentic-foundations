@@ -24,6 +24,7 @@ bindings:
     - raf_workplan::Opened::write_debt
     - raf_workplan::work
   tests:
+    - raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication
     - raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item
     - raf_workplan::lifecycle::touched::tests::static_surface_comparison_classifies_changes_without_executing_source
     - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
@@ -414,7 +415,7 @@ section, and its fix says that a generated block does not count as prose.
 <!-- raf:tested-by raf_workplan::test_crate::strict::a_section_of_nineteen_words_is_thin_and_one_of_twenty_is_not,raf_workplan::test_crate::strict::code_spans_fenced_code_comments_and_the_heading_are_not_prose,raf_workplan::test_crate::strict::the_words_of_a_generated_block_are_not_prose_of_its_section,raf_workplan::test_crate::strict::a_capability_that_is_not_delivered_has_no_finding_of_the_content_rules -->
 
 **Usage examples.** The Usage section names a path of `bindings.examples` in a code span or in a tested-by marker,
-so the verification matrix lists Usage for an example that `verify` runs; otherwise
+so the verification matrix lists Usage for an example that `verify` validates statically; otherwise
 it is `strict-usage-unbound` at Usage. A code span inside an HTML comment names
 nothing.
 <!-- raf:tested-by raf_workplan::test_crate::strict::usage_that_names_no_bound_example_is_refused_and_a_code_span_of_it_is_not,raf_workplan::test_crate::strict::a_code_span_inside_a_comment_names_no_example_in_usage,raf_workplan::test_crate::claim_coverage::a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does -->
@@ -687,6 +688,9 @@ contract effects remain obligations of the completion lifecycle.
 
 ## Usage
 
+Use verification to validate declared source bindings. Referenced examples remain
+source data throughout checks and completion; their bodies are never invoked.
+
 Read macro rows in `Workplan::lines_report` as observations of the source index's
 selected syntax. Their existing module-opening and generated-name coverage rules
 apply only to the recorded target and module reaches. Bind a trait or owning type
@@ -696,12 +700,12 @@ foreign invocation. An unresolved same-named path supplies no owner evidence.
 Inspect required review obligations through the ordinary check and reconciliation APIs. Correct the source selection or supply the required current review; writing prose debt does not discharge this requirement.
 <!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
 
-Call `write_debt_in` with a mutable `MemoryTree` or `DiskRecordStore` and the
-record options to publish the loaded model's debt. Reload from that store before
+Call `write_debt_in` with a mutable `MemoryTree` or an explicit `RecordStore`
+implementation and the record options to publish the loaded model's debt. Reload from that store before
 the next judgment; the method does not mutate its loaded snapshot. The ordinary
 `Gate` and `Opened` disk methods and `debt --write` delegate to the same policy.
 
-Call the runnable example on `raf_workplan::Workplan::check` to see the same
+Inspect the source example bound to `raf_workplan::Workplan::check` to see the same
 complete policy used by repository gates. Its valid record produces no finding,
 while a record containing the removed policy selector is refused with its key
 location. Repository commands require no policy flag:
@@ -715,6 +719,9 @@ cargo workplan --format turtle coverage lines --crate raf-okf
 ~~~
 
 ## Examples
+
+An example body that would panic or remove data remains inert during verification.
+Its declared binding can be structurally valid without any runtime-success claim.
 
 Two impls may invoke the same macro with the same `generated` argument. Binding
 one impl's type covers only that owner's invocation; a call naming the argument
@@ -752,8 +759,10 @@ from a repository with zero uncovered items, claims and lines.
 
 - The injected record path preserves the existing debt ratchet and writes only
   the debt record. It does not inject lifecycle writes or make the core host-free.
-  The disk store retains the existing path-based preflight limitation.
-  <!-- raf:tested-by raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched,raf_workplan::test_crate::debt::a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing -->
+  The native disk store retains admitted directory bindings and destination
+  snapshots. Checks and renames remain separate operations, without isolation
+  from adversarial concurrent writers.
+  <!-- raf:tested-by raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication,raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched,raf_workplan::test_crate::debt::a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing -->
 
 - Allocator registration roots recognize the direct bare `#[global_allocator]`
   attribute, without expanding macros or `cfg_attr`. A registration with arguments,
@@ -932,6 +941,7 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it` | test | [Contract](#contract) |
 | `raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability` | test | [Contract](#contract) |
+| `raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication` | test | [Constraints](#constraints) |
 | `raf_workplan::strict::claims::tests::a_key_is_the_kebab_slug_of_its_lead_and_a_lead_is_sixty_characters` | test | [Contract](#contract) |
 | `raf_workplan::strict::claims::tests::a_list_item_opens_at_its_marker_and_its_content_starts_after_the_space` | test | [Verification](#verification) |
 | `raf_workplan::strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit` | test | [Verification](#verification) |

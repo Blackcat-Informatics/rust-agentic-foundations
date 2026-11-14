@@ -16,7 +16,7 @@ inputs:
     digest: d3005c95d0d43ac4f39764ebba865cb80a9800bbffc827b7f3f5bc985c45432b
   - kind: symbol
     name: raf_source::ReferenceTree
-    digest: b2006e66fa6f3af379e9f43560a952226fec5cd96d7afbf4461ac0a9d2a56a09
+    digest: a0c3d9ff22fcba3a9e0f4f5ec842131d66a80ef525420309c948c94ec047570a
   - kind: symbol
     name: raf_source::ResolutionAttempt
     digest: f76cce55e915c8e375bf62e637aa8da216f8aadfb40455bce0cbc7169fd9b848

@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "raf-fixtures"
+description = "Test fixtures shared by more than one RAF package, so that no source file is shared across packages."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+raf-census = { path = "../raf-census", version = "0.2.0" }
+raf-okf = { path = "../raf-okf", version = "0.2.0" }
+raf-rdf = { path = "../raf-rdf", version = "0.2.0" }
+raf-source = { path = "../raf-source", version = "0.2.0" }
+raf-workplan = { path = "../raf-workplan", version = "0.2.0" }
+purrdf-core.workspace = true
+purrdf-deflate.workspace = true
+purrdf-gts.workspace = true
+
+[lints]
+workspace = true

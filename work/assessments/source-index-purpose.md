@@ -7,7 +7,7 @@ subject: cap:source-index#purpose
 inputs:
   - kind: section
     name: cap:source-index#purpose
-    digest: '0b2a2145565609809bc79016a0949448411ff14632fd63376ad9ebdd6a628de6'
+    digest: 562a2a0dcf59d68915e2a4460f44d845d86549b17c675502e3fb6ea95e068be1
   - kind: symbol
     name: raf_source::ActiveConfiguration
     digest: de1a2be4c9a91c0dc861b4fcf86aef1cdf56b98660cf88d2eafcc928cc3e4f24
@@ -46,10 +46,10 @@ inputs:
     digest: 35c9a85662ee7b6c80838931cd9c4c57e8dc7da7146eefbd67d8ab6858226258
   - kind: symbol
     name: raf_source::CommittedGitTree
-    digest: ab73a428c090acee6535b550e2a819aece98e3c26938da45eae5e7a1cb884e9d
+    digest: 40e6b2bddf2aacf10c939f6a220fb3720d99b0184571558243fa69efe8f61ba8
   - kind: symbol
     name: raf_source::CommittedGitTree::open
-    digest: e6602240802149c6bdc31273d2463a4ce709e4ce3a4d42b2e733f276b14c976c
+    digest: c2e20e1a2065c09a58d17529e246c45b10364bc83ad798bc14bd56b9867dbcaf
   - kind: symbol
     name: raf_source::CompilerPlatform
     digest: 9a8575b066df5d0e7bc0170baa4b6429308d03660eedd17b4ddadb65c2eb2399
@@ -135,8 +135,8 @@ inputs:
     name: raf_source::FileId
     digest: 995eb930816ac913d5ad535e9e02eb2ec6d4160413731a4db0b5b303f6bfa659
   - kind: symbol
-    name: raf_source::GitPackageRoots
-    digest: fbe5285ef649c1d4eb6c63d5c74f70be9c1447919a8dcee96b9d4c432bbb259f
+    name: raf_source::ForeignModulePath
+    digest: 41dfdd9d116c07e64aad2370fc6a167c9472c5bb2b378e90b040e2c92c53c2c9
   - kind: symbol
     name: raf_source::ImplBlock
     digest: 48954ff05f940d102f47c72ae220d5f516eaf52504c963e2c0759e0f0679ec12
@@ -219,11 +219,17 @@ inputs:
     name: raf_source::LockedPackageId
     digest: aa32afa42e2d644e93113a6853dd8f26dbdf6087e2df3a4c2db01df335551fa3
   - kind: symbol
+    name: raf_source::LockedPackageRoots
+    digest: 5ac79cda2e62f715afafe05d9b2459108a904a95e755b8cd0536b49e6c248358
+  - kind: symbol
     name: raf_source::LockedSource
     digest: 20621757ab2b98e7734ff326160f6a57ef77740f9d52459cfa803dccac5cf0ac
   - kind: symbol
     name: raf_source::LockedSourceKind
     digest: 9adb0eec8905278652691276e1dd9ae7494a9cbe155b03ce1f4acbd100eee1bb
+  - kind: symbol
+    name: raf_source::LockedTree
+    digest: 159bf0fe6e332923e9a3d814c93469131863a0ad46d8204fd14652e0b150aecf
   - kind: symbol
     name: raf_source::MemoryTree
     digest: 07a127a9ed66d9c1e464b41940094eecd18bdd384ea6765f43aad698fab6df49
@@ -255,11 +261,26 @@ inputs:
     name: raf_source::PackageId
     digest: 074faf46dd258b3f6c550568b4013c17b0d8dd52381f8e6194c4647e4285c61d
   - kind: symbol
+    name: raf_source::ParallelOptions
+    digest: 3f2fbcbbb97d89f7aea7caec1851f3a6bbb48df41031d9997d97081373d9e413
+  - kind: symbol
+    name: raf_source::ParallelOptionsError
+    digest: 627fc9c9e400752bd01c2208b448f7947552fd7f9a08af8325bdf55fb0e48d06
+  - kind: symbol
+    name: raf_source::ParallelTree
+    digest: 6ccc1b1da048b16d1c431aea9089bb84960632497c18e1d49932d61aeea5b25d
+  - kind: symbol
+    name: raf_source::ParallelUsage
+    digest: 3453a5860bc6be2c275cd43c893ccccd72e9298cff4def35128e0187d218b41c
+  - kind: symbol
     name: raf_source::ParsedSource
     digest: 6ca54f6d5936a9b8b9a76a10bd47d3bbc1287b3240d51839b6d1b29389f4a2b2
   - kind: symbol
     name: raf_source::PathError
     digest: a8d006e0bbc52c46b77ad06d0c7fd4037f6da3938cc26e000f988031dec4efb1
+  - kind: symbol
+    name: raf_source::PathSite
+    digest: 393d1eeee67698d71c513c3d6590c508d76fb0a495133e94e555eccb8bbb1d16
   - kind: symbol
     name: raf_source::PreparedSource
     digest: 034b6338b92bab2acb4c5dcf5d1cc605859add5733cc90e0ed051ca837d64745
@@ -286,7 +307,7 @@ inputs:
     digest: d2f07f9016d388594443ebf1de4544e8a14de4f449f39fc69f813b94a3cf1a08
   - kind: symbol
     name: raf_source::Reach
-    digest: 29cde46d34604e6ba2624de8016f124a93e71ad5d123df536ec171ec351e7afa
+    digest: 0e20285426d60116d397c17add6c629f1d96ef51fe7b86825b1fa6392bf60d99
   - kind: symbol
     name: raf_source::ReachError
     digest: 2b8b58b33f59a92b9972a8fb50110017f752b9af65a9ce4d1363d02d260d40e1
@@ -299,6 +320,12 @@ inputs:
   - kind: symbol
     name: raf_source::Reexport
     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+  - kind: symbol
+    name: raf_source::RegistryArchiveTree
+    digest: 9896488c9653e2b60b3f3b3b18b2a0648536939751ab7eedeef67e7ed5f050c6
+  - kind: symbol
+    name: raf_source::RegistryArchiveTree::from_bytes
+    digest: 57abba1275233d858eeb09d2970c682821a59e87d8a4950d3d45b019f092d855
   - kind: symbol
     name: raf_source::RegistryIndex
     digest: 2907c4226ce8e2dcf3ea106df1dabe0916c702ecfe397942cae5b2dce3c81aba
@@ -361,7 +388,7 @@ inputs:
     digest: 4a6473970d811355ae6d37d1f11fc1c2075fcbe506ef1606ddb4d1133911639c
   - kind: symbol
     name: raf_source::TreeError
-    digest: 8135b0612ef9b904eb592193661a1f447eb1c82277f06ad42d7ee2622aa6e144
+    digest: 1870f1f59aec46e41cf5240d1029068a8038cb77307e2221a53bee581121fc48
   - kind: symbol
     name: raf_source::Unexpanded
     digest: 36f0ee4f2dc764bc82ca5889055b9815c8cdd4fd51904f6d6f3c130f75c09151
@@ -376,7 +403,7 @@ inputs:
     digest: 8942fde727fab96a3c0dad2ae30198f9adb717868189f69716dac5314bf4fedc
   - kind: symbol
     name: raf_source::Workspace
-    digest: 8ea5019a18360e0db3123e26c9fc768f80df20595fbdbbb1f56c436d1158662f
+    digest: 997d15987a66c6a472bd95c915b0a6e9de276de11b4f19ad6b2b01562a690b59
   - kind: symbol
     name: raf_source::Workspace::code_resolver
     digest: e1b516fb173d981ee22520060699be7f1d8fb140f51a2802c835e50eafa9d88c
@@ -390,6 +417,9 @@ inputs:
     name: raf_source::Workspace::exported_items_with
     digest: 891632117c7ea376a68691c23ca1ae03e6f88c002d95a80507482e496d40b3b5
   - kind: symbol
+    name: raf_source::Workspace::foreign_module_paths
+    digest: 1c6db4b84719eb8a22cf0e58a3b33fb5848f91a548ebca5598068af24790acc4
+  - kind: symbol
     name: raf_source::Workspace::impl_block
     digest: fb2b7a91c6018c4ba02bc6a2ac0aa2053e3a41ec045247b03c254ab70047cbdf
   - kind: symbol
@@ -400,13 +430,19 @@ inputs:
     digest: c3b031e1117a74f2062b94f7a8178bdb4798c238a0600edd642b5b18fa9e2448
   - kind: symbol
     name: raf_source::Workspace::load_locked_sources
-    digest: c932a1fac0fb6a5a06a5884e2ce5643885df723a743b85136e0bad2258a38566
+    digest: 094356c718f381b591affbaa10058f9d8942ee971e7ad1e4d0d85e18e2f7d276
   - kind: symbol
     name: raf_source::Workspace::load_locked_sources_under
-    digest: 97afb0601f9e952e8d7256c57caf05ae34647e18dc0b9dcd3d585cea981c0625
+    digest: 23b90c23a21aa3fa023403708d4759ebed2eb8384af0b94dc0d8d40a62c22a92
   - kind: symbol
     name: raf_source::Workspace::locked_binding
     digest: f84151b4e181d69f1c3ca5b7798c7f22042fe8e3b96979b6f27873c31a5ce093
+  - kind: symbol
+    name: raf_source::Workspace::par_load
+    digest: 712a1eed4eb212f40ca664dbf0cad603e2d9ba1a2f17042d606f3bde528b1859
+  - kind: symbol
+    name: raf_source::Workspace::parallel_usage
+    digest: d82fed6c5996903beb472bcb1d8ede03f3a671c91b4433cb3a5ab84ad9b0d7b1
   - kind: symbol
     name: raf_source::Workspace::reachable
     digest: 3051902c7f4936bdad513b7d19838cd8e9368d013d83f73c91c8ae41090e74ac
@@ -454,10 +490,13 @@ inputs:
     digest: decf25b8720addc5994dca976c46ea7f846dbd6c1321f82887c7990c29ab9c7f
   - kind: symbol
     name: raf_source::git
-    digest: 8dde371d890a2bd414d328f61909a6f6d468e9212d0b7283adbb25f6c8b440fa
+    digest: 4c604e45e3e78c4721ba4f923ca58ad579fd3e384fb3db424369fe1747775ed3
   - kind: symbol
     name: raf_source::item
     digest: ad09f5dc9cc8bbcf01296985c4d4bda792ebe123255366e365c623c2e1117d1b
+  - kind: symbol
+    name: raf_source::library_target_name
+    digest: e2573ec72c0e8ae40a9c8eae5609e3397bf0df6cfbf286e2a64b8f3404b27794
   - kind: symbol
     name: raf_source::parse_source
     digest: 56820f7a2c8dfe74a54889085db72458faf088b2c522d0292f8e6b1f5940e95a
@@ -478,7 +517,7 @@ inputs:
     digest: ea58202fe55d35139111d5203eb4d561953c0b118cacd4e3bbe55c5a4f98febd
   - kind: symbol
     name: raf_source::tree
-    digest: a0d4844573e7fedfa60c8b43c6962c0e42ac88c47a12ae111933218773d4f5e3
+    digest: 078796918c101347df949cb2d69a03d131f88b87ae18c88fd9aa6bb387d40a67
   - kind: symbol
     name: raf_source::tree::disk
     digest: 7b505520fb8fc0e8c4e7049d8db1e12c5da00800fc5417cd3066fdbffa1fd80b

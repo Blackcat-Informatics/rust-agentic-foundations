@@ -18,19 +18,20 @@ pub(crate) mod write;
 
 pub use debt::{DebtChange, DebtGroup, DebtRecord, MAX_DEBT_BYTES};
 pub use error::ReportError;
+pub(crate) use ledger::reference_family;
 pub use ledger::{
-    Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern, LedgerVariant,
-    MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
+    BenchLink, Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern,
+    LedgerVariant, MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PatternScope, PreferredProvider,
 };
 pub use query::{Query, QueryReport};
-pub use reference::{ReferenceSource, ReferenceWitness};
+pub use reference::{ReferenceConstantRow, ReferenceSource, ReferenceWitness};
 pub use upgrade::{ReportKind, upgrade_report_form};
 pub use vocab::REPORT_FORM;
 
 use crate::census::Census;
 use crate::group::{Group, GroupKind, Member};
 use crate::job::{JobReport, MatchClass};
-use crate::{Error, NORMAL_FORM};
+use crate::{Error, GroupingScope, NORMAL_FORM};
 
 /// Where a unit is, as a report row.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -100,6 +101,8 @@ pub struct Baseline {
     pub normal_form: u32,
     /// The value-token floor of a body fingerprint.
     pub min_tokens: usize,
+    /// What the groups leave out; stated only when it leaves out something.
+    pub scope: GroupingScope,
     /// The number of units.
     pub units: usize,
     /// The body groups.
@@ -185,10 +188,15 @@ pub struct JobRow {
 pub struct Index {
     /// The normal form the fingerprints belong to.
     pub normal_form: u32,
+    /// What the groups leave out; stated only when it leaves out something.
+    pub scope: GroupingScope,
     /// Exact dependency identity and observation kind for reference units.
     pub reference_sources: Vec<ReferenceSource>,
     /// Every full-fingerprint cross-boundary match, independently of job counts.
     pub reference_witnesses: Vec<ReferenceWitness>,
+    /// Every large integer constant held by a first-party unit and a reference
+    /// unit, by value; empty when no reference package was scanned.
+    pub reference_constants: Vec<ReferenceConstantRow>,
     /// Every unit, ordered by symbol, then file, then line.
     pub units: Vec<IndexUnit>,
     /// Every group, in the order of [`Census::groups`].
@@ -277,6 +285,7 @@ impl Census {
         Baseline {
             normal_form: NORMAL_FORM,
             min_tokens: self.options().min_tokens,
+            scope: self.options().scope.clone(),
             units: self.units().len(),
             body_groups: self.body_groups().map(baseline_group).collect(),
             shim_groups: self.shim_groups().map(baseline_group).collect(),
@@ -333,8 +342,18 @@ impl Census {
         units.sort_by(|a, b| (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line)));
         let mut report = Index {
             normal_form: NORMAL_FORM,
+            scope: self.options().scope.clone(),
             reference_sources: self.reference_sources.clone(),
             reference_witnesses: self.reference_witnesses.clone(),
+            reference_constants: self
+                .reference_constants
+                .iter()
+                .map(|c| ReferenceConstantRow {
+                    value: c.value,
+                    first_party: rows(&c.first_party),
+                    reference: rows(&c.reference),
+                })
+                .collect(),
             units,
             groups: self
                 .groups()

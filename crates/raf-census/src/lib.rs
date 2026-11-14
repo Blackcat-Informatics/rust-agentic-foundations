@@ -61,6 +61,7 @@ mod publication;
 mod registered;
 pub mod report;
 mod rule;
+mod selftest;
 mod syntax;
 mod units;
 mod version;
@@ -68,10 +69,10 @@ mod version;
 pub use census::{Census, FileCtx};
 pub use error::Error;
 pub use gate::{
-    DEBT_FILE, DebtWrite, ForeignField, ForeignLedgerAdapter, Gate, GateReport, LEDGER_FILE,
-    LedgerExtension, MAX_INDEX_BYTES, Migration, MigrationInput, ReferenceRoot,
-    SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index, migrate_legacy,
-    migrate_legacy_with_extensions,
+    ArchiveCache, DEBT_FILE, DebtWrite, ExternalReference, ForeignField, ForeignLedgerAdapter,
+    Gate, GateReport, LEDGER_FILE, LedgerExtension, LockedRegistry, MAX_INDEX_BYTES, Migration,
+    MigrationInput, ReferenceRoot, SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index,
+    migrate_legacy, migrate_legacy_with_extensions,
 };
 pub use group::{Group, GroupKind, HexTable, Member, SharedConstant};
 pub use job::{Job, JobForbidden, JobMatch, JobReport, MatchClass};
@@ -80,7 +81,7 @@ pub use normalize::{
     Normalizer, PASSES, ParseFingerprintError, Print, RuleId, SHIM_MAX_TOKENS, Slice, TableKind,
     Token, TokenDiff, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
 };
-pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS};
+pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS, GroupingScope};
 pub use registered::{
     CHECK_PROTOCOL_VERSION, DEBT_WRITE_PROTOCOL_VERSION, MAX_CHECK_RESPONSE_BYTES, RegisteredCheck,
     RegisteredDebtWrite, RegisteredOperation,
@@ -88,12 +89,17 @@ pub use registered::{
 pub use report::{
     Baseline, BaselineGroup, ConstantRow, DebtChange, DebtGroup, DebtRecord, Index, IndexGroup,
     IndexUnit, JobRow, MAX_DEBT_BYTES, MatchRow, MemberRow, Query, QueryReport, REPORT_FORM,
-    ReferenceSource, ReferenceWitness, ReportError, ReportKind, TableRow, upgrade_report_form,
+    ReferenceConstantRow, ReferenceSource, ReferenceWitness, ReportError, ReportKind, TableRow,
+    upgrade_report_form,
 };
 pub use report::{
-    Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern, LedgerVariant,
-    MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
+    BenchLink, Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern,
+    LedgerVariant, MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PatternScope, PreferredProvider,
 };
 pub use rule::{Rule, RuleFixtures, RuleHit};
+/// The inputs of the built-in detector self-test, shared with this crate's detector tests.
+#[doc(hidden)]
+pub use selftest::fixtures as detector_fixtures;
+pub use selftest::{SelfTest, SelfTestCase};
 pub use units::{StringKind, StringLiteral, Unit, UnitKind};
 pub use version::{NORMAL_FORM, check_normal_form};

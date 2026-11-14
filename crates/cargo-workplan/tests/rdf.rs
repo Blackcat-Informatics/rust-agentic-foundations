@@ -175,6 +175,87 @@ fn preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites() {
     );
     assert_eq!(Rdf::of(&repo.both(&args).expect(0)).result_count(), 0);
     exported_authoring_documents(&repo);
+    exported_navigation_index(&repo);
+}
+
+fn exported_navigation_index(repo: &Repo) {
+    use purrdf_rdf::{ParseOptions, parse_dataset_with};
+    use raf_okf::Index;
+    let path = "docs/capabilities/index.md";
+    let iri = "https://EXAMPLE.org/索引/%7e#navigation";
+    let generated = repo.read(path);
+    let decorated = format!(
+        "{generated}\r\n<!-- raf:generated:unicode -->\r\n  café 索引  \r\n<!-- raf:generated:end -->\r\n"
+    );
+    for text in [&generated, &decorated] {
+        repo.put(path, text);
+        let expected = Index::parse(text).unwrap();
+        for (format, media) in [
+            ("turtle", "text/turtle"),
+            ("ntriples", "application/n-triples"),
+        ] {
+            let args = ["--format", format, "docs", "export", path, "--iri", iri];
+            let before = repo.snapshot();
+            let run = repo.both(&args).expect(0);
+            assert_eq!(run.stderr, "");
+            let parsed =
+                parse_dataset_with(run.stdout.as_bytes(), media, None, &ParseOptions::default())
+                    .unwrap();
+            let restored = Index::from_dataset(&parsed.dataset, iri).unwrap();
+            assert_eq!(restored, expected);
+            assert_eq!(restored.render(), *text);
+            assert_eq!(repo.both(&args).expect(0).stdout, run.stdout);
+            assert_eq!(repo.snapshot(), before);
+        }
+    }
+    for identity in [
+        "relative",
+        "https://example.org/a b",
+        "https://blackcatinformatics.ca/raf/okf/document/index",
+    ] {
+        let before = repo.snapshot();
+        let run = repo
+            .both(&[
+                "--format", "turtle", "docs", "export", path, "--iri", identity,
+            ])
+            .expect(2);
+        assert_eq!(run.stdout, "");
+        assert!(run.stderr.contains(path), "{run:#?}");
+        assert_eq!(repo.snapshot(), before);
+    }
+    let before = repo.snapshot();
+    let missing = repo
+        .both(&["--format", "turtle", "docs", "export", path])
+        .expect(2);
+    assert_eq!(missing.stdout, "");
+    assert!(missing.stderr.contains("requires --iri"));
+    let document = repo
+        .both(&[
+            "--format",
+            "turtle",
+            "docs",
+            "export",
+            DOCUMENTS[0].0,
+            "--iri",
+            iri,
+        ])
+        .expect(2);
+    assert_eq!(document.stdout, "");
+    assert!(
+        document
+            .stderr
+            .contains("only supported for the navigation Index")
+    );
+    assert_eq!(repo.snapshot(), before);
+    repo.put(path, &format!("{generated}\nprose\n"));
+    let before = repo.snapshot();
+    let invalid = repo
+        .both(&["--format", "ntriples", "docs", "export", path, "--iri", iri])
+        .expect(2);
+    assert_eq!(invalid.stdout, "");
+    assert!(invalid.stderr.contains(path));
+    assert_eq!(repo.snapshot(), before);
+    repo.put(path, &generated);
 }
 
 const DOCUMENTS: [(&str, &str); raf_okf::DocType::ALL.len()] = [
@@ -375,7 +456,202 @@ fn diagram_repo(tag: &str) -> Repo {
 }
 
 #[test]
+fn static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority() {
+    let repo = diagram_repo("static-rustdoc-fragment");
+    repo.put(
+        "src/lib.rs",
+        "//! Crate documentation.\n\
+         mod internal { /// API.\n pub fn api() {} }\n\
+         #[doc = \"Exported API.\"] pub use internal::api as exported;\n\
+         #[doc = \"Second public alias.\"] pub use internal::api as alternative;\n\
+         /// Another API.\n pub fn extra() {}\n\
+         /// Existing capability API.\n pub fn real() {}\n\
+         /// Private API.\n fn private() {}\n\
+         /// Hidden API.\n #[doc(hidden)] pub fn hidden() {}\n\
+         /// Public nested module.\n pub mod nested {}\n",
+    );
+    let capability = "docs/capabilities/alpha.md";
+    repo.edit(capability, "[demo::real]", "[demo::exported, demo::extra]");
+    repo.put("artifact-root/keep.txt", "unrelated documentation");
+    let target = repo.root().join("artifact-root");
+    let metadata = fragment_metadata(&repo, &target);
+    repo.put("metadata.json", &metadata);
+    let target_text = target.to_str().unwrap();
+    let args = [
+        "docs",
+        "fragment",
+        "--package",
+        "demo",
+        "--metadata",
+        "metadata.json",
+        "--target-directory",
+        target_text,
+        "--view",
+        "cap:alpha#dependencies",
+        "--module",
+        "demo",
+        "--capability",
+        "cap:alpha",
+    ];
+    let before = repo.snapshot();
+    let accepted = repo.both(&args).expect(0);
+    assert!(
+        accepted
+            .stdout
+            .starts_with("<figure><img src=\"data:image/svg+xml;base64,")
+    );
+    assert!(
+        accepted.stdout.contains("fn@crate::exported"),
+        "{}",
+        accepted.stdout
+    );
+    assert!(accepted.stdout.contains("fn@crate::extra"));
+    assert!(
+        accepted
+            .stdout
+            .contains("imported Cargo package <code>demo</code>, version <code>0.1.0</code>")
+    );
+    assert!(
+        accepted
+            .stdout
+            .contains("Crate root <code>demo</code>, file <code>src/lib.rs</code>")
+    );
+    let options =
+        raf_workplan::diagram::cargo::CargoDocOptions::new(&["demo"], &[], false, Some(&target))
+            .unwrap();
+    let selection = raf_workplan::diagram::cargo::read_metadata(
+        repo.root(),
+        &target,
+        &options,
+        metadata.as_bytes(),
+    )
+    .unwrap();
+    assert!(
+        accepted
+            .stdout
+            .contains(&selection.metadata_sha256().to_string())
+    );
+    assert!(
+        accepted
+            .stderr
+            .contains("static source index and imported Cargo metadata")
+    );
+    assert!(accepted.stderr.contains("not verified"));
+    assert!(!accepted.stdout.contains("cargo-workplan:"));
+    let mut nested = args;
+    nested[11] = "demo::nested";
+    let nested_fragment = repo.both(&nested).expect(0);
+    assert!(
+        nested_fragment
+            .stdout
+            .contains("Source module <code>demo::nested</code>")
+    );
+    // A successful static operation needs none of the compiler executables.
+    for shape in [support::Shape::Direct, support::Shape::Cargo] {
+        let output = support::command(repo.root(), shape, &args)
+            .env("PATH", repo.root().join("absent-tools"))
+            .env("CARGO", repo.root().join("absent-cargo"))
+            .env("RUSTC", repo.root().join("absent-rustc"))
+            .env("RUSTDOC", repo.root().join("absent-rustdoc"))
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, accepted.stdout.as_bytes());
+    }
+    fragment_binding_and_metadata_refusals(&repo, &args, &accepted, &metadata);
+    assert_eq!(repo.snapshot(), before);
+    assert_eq!(repo.both(&args).expect(0), accepted);
+    fragment_carriers_refuse_before_inputs(&repo, &args);
+}
+
+fn fragment_binding_and_metadata_refusals(
+    repo: &Repo,
+    args: &[&str],
+    accepted: &support::Run,
+    metadata: &str,
+) {
+    let capability = "docs/capabilities/alpha.md";
+    for binding in [
+        "demo::private",
+        "demo::hidden",
+        "demo::missing",
+        "demo::internal::api",
+    ] {
+        repo.edit(
+            capability,
+            "[demo::exported, demo::extra]",
+            &format!("[demo::exported, {binding}]"),
+        );
+        let refused = repo.both(args).expect(2);
+        assert!(refused.stdout.is_empty(), "{refused:#?}");
+        assert!(refused.stderr.starts_with("cargo-workplan:"));
+        repo.edit(
+            capability,
+            &format!("[demo::exported, {binding}]"),
+            "[demo::exported, demo::extra]",
+        );
+        assert_eq!(&repo.both(args).expect(0), accepted);
+    }
+    repo.put("other.rs", "//! Different root.\n");
+    let source = purrdf_lex::json::write_compact(&purrdf_lex::json::Value::from(
+        repo.root().join("src/lib.rs").to_str().unwrap(),
+    ));
+    let other = purrdf_lex::json::write_compact(&purrdf_lex::json::Value::from(
+        repo.root().join("other.rs").to_str().unwrap(),
+    ));
+    repo.put("metadata.json", &metadata.replace(&source, &other));
+    let refused = repo.both(args).expect(2);
+    assert_eq!(refused.stdout, "");
+    assert!(
+        refused.stderr.contains("imported Cargo identity disagrees"),
+        "{refused:#?}"
+    );
+    repo.put("metadata.json", "{malformed");
+    let malformed = repo.both(args).expect(2);
+    assert_eq!(malformed.stdout, "");
+    assert!(malformed.stderr.starts_with("cargo-workplan:"));
+    repo.put("metadata.json", metadata);
+    std::fs::remove_file(repo.root().join("other.rs")).unwrap();
+    assert_eq!(&repo.both(args).expect(0), accepted);
+}
+
+fn fragment_metadata(repo: &Repo, target: &std::path::Path) -> String {
+    use purrdf_lex::json::{Value, write_compact};
+    let path = |path: &std::path::Path| write_compact(&Value::from(path.to_str().unwrap()));
+    format!(
+        "{{\"version\":1,\"workspace_root\":{},\"target_directory\":{},\"workspace_members\":[\"opaque-demo\"],\"packages\":[{{\"id\":\"opaque-demo\",\"name\":\"demo\",\"version\":\"0.1.0\",\"manifest_path\":{},\"source\":null,\"targets\":[{{\"name\":\"demo\",\"kind\":[\"lib\"],\"crate_types\":[\"lib\"],\"src_path\":{},\"doc\":true}}]}}],\"resolve\":{{\"nodes\":[{{\"id\":\"opaque-demo\",\"features\":[]}}]}}}}",
+        path(repo.root()),
+        path(target),
+        path(&repo.root().join("Cargo.toml")),
+        path(&repo.root().join("src/lib.rs")),
+    )
+}
+
+fn fragment_carriers_refuse_before_inputs(repo: &Repo, args: &[&str]) {
+    for options in [
+        vec!["--quiet"],
+        vec!["--format", "turtle"],
+        vec!["--format", "ntriples"],
+        vec!["--format", "svg"],
+        vec!["--format", "json"],
+    ] {
+        let mut request = vec!["--root", "absent-fragment-root"];
+        request.extend(options);
+        request.extend_from_slice(args);
+        let refused = repo.both(&request).expect(2);
+        assert_eq!(refused.stdout, "");
+        assert!(
+            refused
+                .stderr
+                .contains("docs fragment emits complete Markdown"),
+            "{refused:#?}"
+        );
+    }
+}
+
+#[test]
 fn standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes() {
+    repository_navigation_publication();
     let repo = diagram_repo("standalone-publication");
     repo.put("published-docs/demo/index.html", "unrelated Rustdoc output");
     let args = [
@@ -456,6 +732,86 @@ fn standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes()
         repo.read("published-docs/demo/index.html"),
         "unrelated Rustdoc output"
     );
+}
+
+fn repository_navigation_publication() {
+    use raf_workplan::diagram::publication;
+    let repo = diagram_repo("repository-linked-cli");
+    let path = "docs/capabilities/alpha.md";
+    repo.edit(path, "kind: capability-dependencies", "kind: components");
+    repo.edit(path, "scope: workspace", "scope: cap:alpha");
+    let model = "model:\n  components:\n    - id: source\n      label: Source\n      kind: component\n      responsibility: Expose the source identity\n      bindings:\n        code: [demo::real]\n    - id: contract\n      label: Contract\n      kind: component\n      responsibility: Expose a capability contract\n      bindings:\n        capabilities: [cap:gamma]\n";
+    repo.edit(path, "bindings:", &format!("{model}bindings:"));
+    repo.put("src/escaped # café.rs", "pub fn real() {}\n");
+    repo.put(
+        "src/lib.rs",
+        "#[path = \"escaped # café.rs\"] mod implementation;\npub use implementation::real;\n",
+    );
+    for output in ["site # café", "published/nested output"] {
+        repo.put(&format!("{output}/host.html"), "unrelated host bytes");
+        let args = [
+            "--format",
+            "ntriples",
+            "docs",
+            "build",
+            "standalone",
+            "--view",
+            "cap:alpha#dependencies",
+            "--output-dir",
+            output,
+            "--repository-links",
+        ];
+        let result = repo.both(&args).expect(0);
+        let rdf = Rdf::of(&result);
+        let rows = rdf.rows("DocumentationBuilt");
+        let directory = std::path::Path::new(rows[0].required("directory"));
+        let opened = Gate::workspace(repo.root()).open().unwrap();
+        assert_eq!(
+            publication::publish_repository(
+                &opened,
+                "cap:alpha#dependencies",
+                &repo.root().join(output)
+            )
+            .unwrap(),
+            directory
+        );
+        let prefix = if output.contains('/') {
+            "../../../../"
+        } else {
+            "../../../"
+        };
+        let svg = std::fs::read_to_string(directory.join("dependencies.svg")).unwrap();
+        assert!(
+            svg.contains(&format!("{prefix}src/escaped%20%23%20caf%C3%A9.rs")),
+            "{svg}"
+        );
+        assert!(svg.contains(&format!("{prefix}docs/capabilities/gamma.md")));
+        assert!(!svg.contains("#L"));
+        let before = repo.snapshot();
+        assert_eq!(repo.both(&args).expect(0).stdout, result.stdout);
+        assert_eq!(repo.snapshot(), before);
+        assert_eq!(
+            repo.read(&format!("{output}/host.html")),
+            "unrelated host bytes"
+        );
+    }
+    for output in ["missing", "../outside"] {
+        let before = repo.snapshot();
+        let run = repo
+            .both(&[
+                "docs",
+                "build",
+                "standalone",
+                "--view",
+                "cap:alpha#dependencies",
+                "--output-dir",
+                output,
+                "--repository-links",
+            ])
+            .expect(2);
+        assert_eq!(run.stdout, "");
+        assert_eq!(repo.snapshot(), before);
+    }
 }
 
 fn mdbook_preserves_the_book_and_uses_the_shared_view() {

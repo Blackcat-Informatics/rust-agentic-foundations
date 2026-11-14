@@ -7,7 +7,7 @@ subject: cap:workplan-generated-docs#contract
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#contract
-    digest: 7291247d98c73047e4da3131fe1da04e95edc11773ffef035839fd7d427ebdf9
+    digest: 70d01ccf098da7b5f62b1d5eca3a564b1288ea767f23c3b94a8ae3c48cb78d6e
   - kind: symbol
     name: raf_workplan::SyncOptions
     digest: 63de6cced3b105868c1a9fbdf579fc889c530b0a18d5679990d1fcab5dc0ecab
@@ -25,7 +25,13 @@ inputs:
     digest: 9ba560131a4fedddffd7453172f167de21c0f3559a1cd0417572f82d00b2ded4
   - kind: symbol
     name: raf_workplan::diagram
-    digest: 59932073ad03b65a0bc5cce2203ba2fa6fa13b8925ea4b9a49d6af3de2ffabe6
+    digest: ffe747e9021d17890b41f9d09f68de919d988b193def0c7cb0de2e0d539718dd
+  - kind: symbol
+    name: raf_workplan::diagram::publication::publish_repository
+    digest: 0942902b5d134460b2f4e0be0fbbe2574a5e82e6a8f7ab6ef6d36cc2390cfec6
+  - kind: symbol
+    name: raf_workplan::publication_io
+    digest: f07d563fc59e9733830970e47347f2e604b5671c5dacba98c6d83e0b799230af
 verdict: accepted
 by: agent
 ---

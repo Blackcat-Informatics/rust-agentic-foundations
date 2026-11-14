@@ -25,6 +25,8 @@ bindings:
     - raf_okf::DocType::document_iri
     - raf_okf::Document::to_dataset
     - raf_okf::Document::from_dataset
+    - raf_okf::Index::to_dataset
+    - raf_okf::Index::from_dataset
     - raf_okf::Body
     - raf_okf::Profile
     - raf_okf::Index
@@ -165,6 +167,9 @@ bindings:
     - raf_okf::test_crate::splice::overlapping_spans_are_refused_and_the_body_is_unchanged
     - raf_okf::test_crate::splice::a_malformed_result_is_refused_and_the_body_is_unchanged
     - raf_okf::test_crate::index::a_generated_only_index_is_accepted_with_either_header_form
+    - raf_okf::test_crate::index::navigation_dataset_preserves_generated_bytes_through_native_formats
+    - raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations
+    - raf_okf::test_crate::index::navigation_identity_and_aggregate_text_admission_have_exact_boundaries
     - raf_okf::test_crate::index::prose_outside_the_blocks_is_refused_with_its_line
     - raf_okf::test_crate::index::document_parse_of_index_text_fails_at_line_one
     - raf_okf::test_crate::index::only_the_capability_index_path_is_the_index
@@ -849,6 +854,17 @@ and equal attached comments, and their bodies hold the same bytes.
 ### Native authoring dataset
 <!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates,raf_okf::test_crate::render::every_tracked_document_renders_to_its_own_bytes -->
 
+`Index::to_dataset(iri)` and `Index::from_dataset(dataset, expected_iri)` use a
+separate closed carrier. A caller supplies an absolute IRI validated by PurRDF;
+its exact spelling must match on decoding. Document and structural-node identity
+namespaces are reserved. No filename or content hash creates this identity.
+One subject has exactly two asserted statements: `rdf:type` is
+`https://blackcatinformatics.ca/raf/okf/1#NavigationIndex`, and `okf:body` is one
+`xsd:string` containing the complete original Index source. SPDX comments,
+generated-block content, order and spans, whitespace, Unicode and line endings
+survive. Reconstruction uses `Index::parse`, preserving its body locations.
+<!-- raf:tested-by raf_okf::test_crate::index::navigation_dataset_preserves_generated_bytes_through_native_formats,raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations -->
+
 `Document::to_dataset(path)` validates one of the eight RAF types and returns a
 native PurRDF dataset. `Document::from_dataset(dataset, path)` recovers its model
 through the existing constructors, Markdown writer, parser and profile validator.
@@ -872,7 +888,7 @@ references, cycles, shared children, gaps, unrelated nodes, identity disagreemen
 named graphs, blank nodes and statement layers. Both directions admit at most
 131072 structural nodes, 1048576 asserted triples and 1 MiB of aggregate authoring
 text, checked before cloning values. Native failures retain their error source.
-The generated navigation `Index` is a separate model and is refused explicitly.
+The generated navigation `Index` is a separate model and Document codecs refuse it explicitly.
 The snapshot report profile remains unchanged. Repository semantic relations,
 whole-repository claim relations, native authoring-shape validation and review
 records remain distinct from this library authoring carrier.
@@ -926,6 +942,10 @@ Thus an incomplete date is malformed even when its month is invalid, while
 an invalid month in a complete date and clock precedes a missing timezone.
 
 ## Usage
+
+Parse navigation bytes with `Index::parse`, then call `to_dataset` with the
+caller's absolute IRI. Supply that exact IRI to `Index::from_dataset`; use the
+Document codec separately for the eight profile Document types.
 
 Read syntax through `Body::parse` or `Document::parse`; both use the native
 Markdown authoring model. The returned RAF model owns its observations, so callers
@@ -988,6 +1008,11 @@ a span of the body reads the span from the body model, for example
 
 ## Examples
 
+`Index::parse(text)?.to_dataset("https://example.org/navigation")` carries an
+Index without inventing an identity. Decode that dataset with
+`Index::from_dataset(&dataset, "https://example.org/navigation")` and compare
+`render()` with the original bytes.
+
 A multiline HTML destination is reported on the physical line containing its
 value. A Markdown link split across physical lines remains a split-link finding.
 In decoded frontmatter prose, matched backtick runs spare their contents even
@@ -1038,6 +1063,16 @@ Between `---` fences, with the seven sections as its body, at the path
 `Capability`.
 
 ## Constraints
+
+The Index codec refuses unknown predicates, extra subjects, wrong types,
+cardinality errors, retained duplicate assertions, blank nodes, named graphs
+including empty declarations, reifiers and annotations. Both directions check
+combined IRI/body bytes against 1 MiB before carrier value copies or native
+construction. This text policy does not bound total allocator consumption.
+Native failures retain their original causes. The carrier does not supply
+repository semantic projection, binding/dependency/digest relationships, a
+canonical authoring-validation transition or a complete profile revision.
+<!-- raf:tested-by raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations,raf_okf::test_crate::index::navigation_identity_and_aggregate_text_admission_have_exact_boundaries -->
 
 Native Markdown admission retains the whole-document 1 MiB ceiling, 64 open
 quote/list containers and 4096 bytes per link destination or title. The existing
@@ -1119,6 +1154,12 @@ people also edit. If rendering could reorder keys or alter whitespace, every syn
 would produce noise in the diff, and a clean check could not be told from a stale one.
 
 ## Verification
+
+Native Turtle and N-Triples round trips preserve the actual generated Index
+and decorated mixed-line-ending Unicode bytes with deterministic output.
+Closed-carrier refusals, original body locations and exact aggregate text-limit
+neighbors accompany valid cases.
+<!-- raf:tested-by raf_okf::test_crate::index::navigation_dataset_preserves_generated_bytes_through_native_formats,raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations,raf_okf::test_crate::index::navigation_identity_and_aggregate_text_admission_have_exact_boundaries -->
 
 Native refusal fixtures call the reader with finite grants beside valid input.
 Body refusals retain the original cause and project byte, line and column through
@@ -1308,6 +1349,9 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::index::an_index_with_no_block_or_an_unclosed_block_is_refused` | test | [Contract](#contract) |
 | `raf_okf::test_crate::index::document_parse_of_index_text_fails_at_line_one` | test | [Contract](#contract) |
 | `raf_okf::test_crate::index::indented_and_mid_line_markers_are_refused` | test | [Contract](#contract) |
+| `raf_okf::test_crate::index::navigation_dataset_preserves_generated_bytes_through_native_formats` | test | [Contract](#contract) |
+| `raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_okf::test_crate::index::navigation_identity_and_aggregate_text_admission_have_exact_boundaries` | test | [Constraints](#constraints) |
 | `raf_okf::test_crate::index::only_the_capability_index_path_is_the_index` | test | [Contract](#contract) |
 | `raf_okf::test_crate::index::prose_outside_the_blocks_is_refused_with_its_line` | test | [Contract](#contract) |
 | `raf_okf::test_crate::links::a_destination_or_title_of_exactly_4096_bytes_is_read_and_one_more_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |

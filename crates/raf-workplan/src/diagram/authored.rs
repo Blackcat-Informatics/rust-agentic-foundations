@@ -428,6 +428,7 @@ pub(super) fn scene(
     model: AuthoredModel<'_>,
     selected: Option<&str>,
     spec: &VizSpec,
+    navigation: Option<&super::publication::RepositoryNavigation>,
 ) -> Result<ModelScene, DiagramError> {
     let dataset = dataset(plan, model, spec.max_statements)?;
     let projection = viz::project_dataset(&dataset, spec)?;
@@ -498,7 +499,7 @@ pub(super) fn scene(
             navigation: None,
         });
     }
-    source_displays(plan, model, &projection, &mut presentation)?;
+    source_displays(plan, model, &projection, &mut presentation, navigation)?;
     if let Some(id) = selected {
         let row = model
             .declarations
@@ -522,6 +523,7 @@ fn source_displays(
     model: AuthoredModel<'_>,
     projection: &VizProjection,
     presentation: &mut VizPresentation,
+    navigation: Option<&super::publication::RepositoryNavigation>,
 ) -> Result<(), DiagramError> {
     let mut paths = BTreeSet::new();
     for bindings in model.declarations.bindings() {
@@ -546,14 +548,18 @@ fn source_displays(
                 item.file, item.name_line
             )),
             role: Some("source binding".into()),
-            navigation: Some(VizNavigation::parse(&format!(
-                "../../../../{}#L{}",
-                purrdf_lex::percent::encode(
-                    &item.file.to_string(),
-                    purrdf_lex::percent::UNRESERVED_SLASH
-                ),
-                item.name_line
-            ))?),
+            navigation: Some(if let Some(navigation) = navigation {
+                navigation.source(plan, &item.file)?
+            } else {
+                VizNavigation::parse(&format!(
+                    "../../../../{}#L{}",
+                    purrdf_lex::percent::encode(
+                        &item.file.to_string(),
+                        purrdf_lex::percent::UNRESERVED_SLASH
+                    ),
+                    item.name_line
+                ))?
+            }),
         });
     }
     Ok(())
@@ -572,7 +578,7 @@ pub(crate) fn validate(
         ..VizSpec::default()
     };
     let overview =
-        scene(plan, model, None, &spec).map_err(|error| ("model".into(), Box::new(error)))?;
+        scene(plan, model, None, &spec, None).map_err(|error| ("model".into(), Box::new(error)))?;
     viz::build_presented_scene(&overview.projection, &spec, &overview.presentation)
         .map_err(|error| (location(model, None, &error), Box::new(error.into())))?;
     for (index, row) in model.declarations.scenarios.iter().enumerate() {
@@ -594,18 +600,22 @@ fn location(model: AuthoredModel<'_>, scenario: Option<usize>, error: &viz::VizE
             if let Some(position) = row
                 .regions
                 .iter()
-                .position(|row| row.id == error.instruction)
+                .position(|row| row.id == error.instruction())
             {
                 return format!("model.scenarios[{index}].regions[{position}]");
             }
-            if let Some(position) = row.steps.iter().position(|row| row.id == error.instruction) {
+            if let Some(position) = row
+                .steps
+                .iter()
+                .position(|row| row.id == error.instruction())
+            {
                 return format!("model.scenarios[{index}].steps[{position}]");
             }
         } else if let Some(position) = model
             .declarations
             .components
             .iter()
-            .position(|row| row.id == error.instruction)
+            .position(|row| row.id == error.instruction())
         {
             return format!("model.components[{position}]");
         }
@@ -620,6 +630,7 @@ pub(super) fn bundle(
     plan: &Workplan<'_>,
     view: &super::NamedDiagramView,
     scope: &str,
+    navigation: Option<&super::publication::RepositoryNavigation>,
 ) -> Result<super::DiagramBundle, DiagramError> {
     let (owner, scenario_id) = if view.kind() == super::DiagramKind::Scenario {
         let (owner, scenario) = scope.split_once('#').ok_or_else(|| {
@@ -656,7 +667,7 @@ pub(super) fn bundle(
             "document model views retain their complete declared containment and provenance; select a scenario detail through document#scenario with grouping none and empty focus/relations",
         ));
     }
-    build_bundle(plan, model, view, scenario_id, scope)
+    build_bundle(plan, model, view, scenario_id, scope, navigation)
 }
 
 fn build_bundle(
@@ -665,10 +676,11 @@ fn build_bundle(
     view: &super::NamedDiagramView,
     selected: Option<&str>,
     scope: &str,
+    navigation: Option<&super::publication::RepositoryNavigation>,
 ) -> Result<super::DiagramBundle, DiagramError> {
     use domain::Layer;
     use purrdf_lex::json::{self, record::ToJson as _};
-    let full = scene(plan, model, None, &view.spec)?;
+    let full = scene(plan, model, None, &view.spec, navigation)?;
     let full_hash = viz::stable_hash_hex(&json::write_compact(&full.projection.to_json()));
     // Audit detail retains every RDF fact and native source display. Compound
     // architectural frames belong to the domain views, not the RDF audit canvas.
@@ -709,8 +721,14 @@ fn build_bundle(
         &primary.spec,
         &full.presentation,
         layer,
-        &full_hash,
+        navigation,
     )?;
+    if let Some(display) = presentation.displays.first_mut() {
+        use std::fmt::Write as _;
+        let description = display.description.get_or_insert_with(String::new);
+        write!(description, "\nFull RDF provenance model hash: {full_hash}")
+            .expect("writing to String cannot fail");
+    }
     let mut details = vec![provenance];
     if let Some(id) = selected {
         let declaration = model
@@ -819,6 +837,7 @@ fn binding_navigation(
     plan: &Workplan<'_>,
     bindings: &ModelBindings,
     full: &VizPresentation,
+    navigation: Option<&super::publication::RepositoryNavigation>,
 ) -> Result<Option<VizNavigation>, DiagramError> {
     if let Some(path) = binding_paths(plan, bindings)?.first() {
         let display = full
@@ -843,10 +862,14 @@ fn binding_navigation(
             .iter()
             .find(|target| target.value().header.id == *id)
             .ok_or_else(|| DiagramError::refused(format!("capability `{id}` did not load")))?;
-        return Ok(Some(VizNavigation::parse(&format!(
-            "../../../../{}",
-            purrdf_lex::percent::encode(target.path(), purrdf_lex::percent::UNRESERVED_SLASH)
-        ))?));
+        return Ok(Some(if let Some(navigation) = navigation {
+            navigation.capability(target)?
+        } else {
+            VizNavigation::parse(&format!(
+                "../../../../{}",
+                purrdf_lex::percent::encode(target.path(), purrdf_lex::percent::UNRESERVED_SLASH)
+            ))?
+        }));
     }
     Ok(None)
 }

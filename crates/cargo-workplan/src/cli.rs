@@ -439,6 +439,8 @@ pub(crate) enum Change {
 /// The commands under `docs`.
 #[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
 pub(crate) enum Docs {
+    /// Print checked static Markdown for a caller-owned Rustdoc include.
+    Fragment(FragmentArgs),
     /// Inspect existing metadata, messages and HTML without building or publishing.
     Artifacts(ArtifactArgs),
     /// Explicit publication of shared documentation bundles.
@@ -455,6 +457,29 @@ pub(crate) enum Docs {
     /// Print the capabilities of a change as they read once it is
     /// reconciled. Writes nothing.
     Preview(PreviewArgs),
+}
+
+/// Explicit static source, diagram and imported Cargo identity selection.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct FragmentArgs {
+    /// Exact workspace package name; selects one library.
+    #[arg(long)]
+    pub(crate) package: String,
+    /// Existing bounded Cargo format-v1 metadata file; imported data only.
+    #[arg(long)]
+    pub(crate) metadata: PathBuf,
+    /// Explicit existing target directory reported by the imported metadata.
+    #[arg(long)]
+    pub(crate) target_directory: PathBuf,
+    /// Existing named diagram, written as its owner id followed by #name.
+    #[arg(long)]
+    pub(crate) view: String,
+    /// Full public receiving module path, or the crate root.
+    #[arg(long)]
+    pub(crate) module: String,
+    /// Capability supplying every required code binding.
+    #[arg(long)]
+    pub(crate) capability: String,
 }
 
 /// The selected documentation publication host.
@@ -518,6 +543,9 @@ pub(crate) struct StandaloneArgs {
     /// Existing host output root; unrelated files and other versions are preserved.
     #[arg(long, value_name = "directory")]
     pub(crate) output_dir: PathBuf,
+    /// Rebase existing authored links beneath the opened canonical workspace.
+    #[arg(long)]
+    pub(crate) repository_links: bool,
 }
 
 /// The documented mdBook preprocessor invocation and support probe.
@@ -541,9 +569,12 @@ pub(crate) enum MdbookCommand {
 /// The selected authoring document, relative to the workspace root.
 #[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
 pub(crate) struct ExportArgs {
-    /// The repository-relative path of one of the seven RAF document types.
+    /// The repository-relative path of a RAF Document or the navigation Index.
     #[arg(value_name = "path")]
     pub(crate) path: String,
+    /// The caller-owned absolute IRI, required only for the navigation Index.
+    #[arg(long, value_name = "ABSOLUTE_IRI")]
+    pub(crate) iri: Option<String>,
 }
 
 /// The arguments of `docs sync`.

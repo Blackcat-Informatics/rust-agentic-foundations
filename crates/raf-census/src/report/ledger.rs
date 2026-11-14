@@ -5,13 +5,16 @@
 
 mod declarations;
 mod extensions;
+mod scope;
 pub use declarations::{LedgerPattern, PatternMatcher, PreferredProvider};
 pub use extensions::LedgerExtensionGraph;
+pub use scope::PatternScope;
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use purrdf_jsonschema::ecma::{self, CompiledPattern};
 use raf_rdf::{Builder, Format, Graph, Node, TermValue, Triple};
+use raf_source::RelPath;
 
 use super::{ReportError as E, shape};
 use crate::{
@@ -66,6 +69,21 @@ pub struct LedgerVariant {
     pub reason: String,
 }
 
+/// A bench target named by a job: the package and the Cargo bench target.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BenchLink {
+    /// The Cargo package name that owns the target.
+    pub package: String,
+    /// The Cargo name of the bench target.
+    pub target: String,
+}
+
+impl std::fmt::Display for BenchLink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.package, self.target)
+    }
+}
+
 /// One ledger job and the additional matches and justifications it declares.
 #[derive(Clone, Debug)]
 pub struct LedgerJob {
@@ -85,6 +103,12 @@ pub struct LedgerJob {
     pub extension: Option<String>,
     /// Declared preferred provider; execution requires grounded source policy.
     pub preferred_provider: Option<PreferredProvider>,
+    /// Workspace-relative test-vector files that pin the home's behaviour.
+    pub vectors: Vec<String>,
+    /// Bench targets that measure the home, each a package and a target name.
+    pub benches: Vec<BenchLink>,
+    /// The specification the home implements; stored, never resolved.
+    pub specification: Option<String>,
 }
 
 /// One exact sanctioned member set and its documentation.
@@ -144,10 +168,22 @@ impl Ledger {
         &self.roots
     }
 
-    /// Reference packages, in lexical order.
+    /// Reference selectors, in lexical order: exact package names and
+    /// name families such as `acme-*`.
     #[must_use]
     pub fn reference(&self) -> &[String] {
         &self.reference
+    }
+
+    /// This ledger with `selectors` also declared as reference selectors, in
+    /// lexical order without repeats: the caller's sealed packages are
+    /// references for the ban exactly as the ledger's own are.
+    #[must_use]
+    pub(crate) fn with_reference_selectors(mut self, selectors: &[String]) -> Self {
+        self.reference.extend(selectors.iter().cloned());
+        self.reference.sort();
+        self.reference.dedup();
+        self
     }
 
     /// Jobs, ordered by id.
@@ -237,20 +273,7 @@ impl Ledger {
 
     pub(super) fn from_graph(graph: Graph) -> Result<Self, Error> {
         let root = graph.get("").expect("validated root");
-        fields(
-            &root,
-            &[
-                "normalForm",
-                "reportForm",
-                "minTokens",
-                "maxFileBytes",
-                "root",
-                "reference",
-                "job",
-                "distinct",
-                "pattern",
-            ],
-        )?;
+        fields(&root, "Ledger")?;
         let mut options = CensusOptions::default();
         if let Some(value) = optional_count(&root, "minTokens")? {
             options = options.min_tokens(value)?;
@@ -263,11 +286,21 @@ impl Ledger {
             options.max_file_bytes = u64::try_from(shape::number(&root, "maxFileBytes")?)
                 .map_err(|_| E::Value("ledger maxFileBytes exceeds u64".into()))?;
         }
+        options.scope = shape::scope(&root)?;
         let mut roots = strings(&root, "root")?;
         if roots.is_empty() {
             roots.push(".".into());
         }
         let reference = strings(&root, "reference")?;
+        if let Some(value) = reference
+            .iter()
+            .find(|value| value.contains('*') && reference_family(value).is_none())
+        {
+            return Err(E::Value(format!(
+                "ledger reference {value:?}: a family selector is a package-name prefix followed by `-*`"
+            ))
+            .into());
+        }
         let mut reached = BTreeSet::from([String::new()]);
         let mut jobs = Vec::new();
         let mut job_ids = BTreeSet::new();
@@ -286,17 +319,7 @@ impl Ledger {
         for id in targets(&root, "distinct")? {
             reached.insert(id.clone());
             let node = node_at(&graph, &id, "Distinct")?;
-            fields(
-                &node,
-                &[
-                    "memberSymbol",
-                    "multiplicity",
-                    "kind",
-                    "criterion",
-                    "anchor",
-                    "reason",
-                ],
-            )?;
+            fields(&node, "Distinct")?;
             let kind = match required_text(&node, "kind")?.as_str() {
                 "body" => GroupKind::Body,
                 "shim" => GroupKind::Shim,
@@ -342,7 +365,7 @@ fn read_distinct_members(
             return Err(E::Repeated(format!("distinct multiplicity {id}")).into());
         }
         let row = node_at(graph, &id, "MemberMultiplicity")?;
-        fields(&row, &["symbol", "copies"])?;
+        fields(&row, "MemberMultiplicity")?;
         let symbol = required_text(&row, "symbol")?;
         let count = shape::count(&row, "copies")?;
         let member = counts
@@ -361,23 +384,7 @@ fn read_distinct_members(
 
 fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<LedgerJob, Error> {
     let node = node_at(graph, id, "LedgerJob")?;
-    fields(
-        &node,
-        &[
-            "jobId",
-            "summary",
-            "homeSymbol",
-            "entryPoint",
-            "enforced",
-            "forbiddenName",
-            "forbiddenConstant",
-            "forbiddenFingerprint",
-            "forbiddenPattern",
-            "variant",
-            "extension",
-            "preferredProvider",
-        ],
-    )?;
+    fields(&node, "LedgerJob")?;
     let job_id = required_text(&node, "jobId")?;
     let names = read_names(&node, &job_id)?;
     let preferred_provider = declarations::provider(graph, &node, reached)?;
@@ -404,17 +411,7 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
             return Err(E::Repeated(format!("ledger variant {variant}")).into());
         }
         let row = node_at(graph, &variant, "Variant")?;
-        fields(
-            &row,
-            &[
-                "symbol",
-                "file",
-                "detector",
-                "criterion",
-                "anchor",
-                "reason",
-            ],
-        )?;
+        fields(&row, "Variant")?;
         variants.push(LedgerVariant {
             symbol: required_text(&row, "symbol")?,
             file: required_text(&row, "file")?,
@@ -449,6 +446,9 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
     if summary.contains(['\r', '\n']) {
         return Err(E::Value(format!("job {:?}: summary must be one line", job.id)).into());
     }
+    let vectors = read_vectors(&node, &job.id)?;
+    let benches = read_benches(&node, &job.id)?;
+    let specification = read_specification(&node)?;
     Ok(LedgerJob {
         job,
         summary,
@@ -458,7 +458,47 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
         variants,
         extension: extension.into_iter().next(),
         preferred_provider,
+        vectors,
+        benches,
+        specification,
     })
+}
+
+fn read_vectors(node: &Node<'_>, job_id: &str) -> Result<Vec<String>, E> {
+    strings(node, "vectorPath")?
+        .into_iter()
+        .map(|text| {
+            RelPath::new(&text)
+                .map(|path| path.to_string())
+                .map_err(|error| E::Value(format!("job {job_id:?} vectorPath {text:?}: {error}")))
+        })
+        .collect()
+}
+
+fn read_benches(node: &Node<'_>, job_id: &str) -> Result<Vec<BenchLink>, E> {
+    strings(node, "benchTarget")?
+        .into_iter()
+        .map(|text| match text.split_once(':') {
+            Some((package, target))
+                if !package.is_empty() && !target.is_empty() && !target.contains(':') =>
+            {
+                Ok(BenchLink {
+                    package: package.to_owned(),
+                    target: target.to_owned(),
+                })
+            }
+            _ => Err(E::Value(format!(
+                "job {job_id:?} benchTarget {text:?}: use package:target"
+            ))),
+        })
+        .collect()
+}
+
+fn read_specification(node: &Node<'_>) -> Result<Option<String>, E> {
+    if node.values(&shape::property("specRef")).next().is_none() {
+        return Ok(None);
+    }
+    required_text(node, "specRef").map(Some)
 }
 
 fn read_names(node: &Node<'_>, job_id: &str) -> Result<Vec<NamePattern>, E> {
@@ -481,7 +521,16 @@ fn node_at<'a>(graph: &'a Graph, id: &str, class: &str) -> Result<Node<'a>, E> {
     Ok(node)
 }
 
-fn fields(node: &Node<'_>, allowed: &[&str]) -> Result<(), E> {
+/// Refuse a property of `node` outside the closed shape of its Ledger `class`.
+fn fields(node: &Node<'_>, class: &str) -> Result<(), E> {
+    let Some((_, allowed)) = super::vocab::LEDGER_FIELDS
+        .iter()
+        .find(|(name, _)| *name == class)
+    else {
+        return Err(E::Class(format!(
+            "ledger census:{class} has no closed shape"
+        )));
+    };
     for property in node.properties() {
         if property != raf_rdf::vocab::TYPE
             && !allowed.iter().any(|key| property == shape::property(key))
@@ -490,6 +539,17 @@ fn fields(node: &Node<'_>, allowed: &[&str]) -> Result<(), E> {
         }
     }
     Ok(())
+}
+
+/// The hyphen-terminated prefix of a `reference` family selector.
+///
+/// A family is a nonempty package-name prefix followed by `-*`, such as
+/// `acme-*`. Package names cannot contain `*`, so an exact name is never a
+/// family.
+pub(crate) fn reference_family(value: &str) -> Option<&str> {
+    value
+        .strip_suffix('*')
+        .filter(|prefix| prefix.len() > 1 && prefix.ends_with('-') && !prefix.contains('*'))
 }
 
 fn required_text(node: &Node<'_>, key: &str) -> Result<String, E> {
