@@ -13,7 +13,7 @@ inputs:
     digest: bc0612b046cc862d428cd9a59648f6b0383926b6ab45b775a10cb659a1e0faa3
   - kind: symbol
     name: raf_census::embedded
-    digest: 26bc3b11e595be7220e65ee8053be6997fb6a7c8fe248b2159e17eb2afc75c1b
+    digest: 37e0cc1092695a69e2faa5ace8f253ca5813a0f929de216b8972e793c3b8a91a
   - kind: symbol
     name: raf_census::embedded::analysis::Analysis
     digest: fc776d42dd2a6e1de79d14d35436a8c4b78eabe6716047d71960e694811a8f88
@@ -64,7 +64,7 @@ inputs:
     digest: 3e8b55d0dff6f0bf24d9ba2fcf65909dee50bc78e10e56ca87345ccf5d7652d5
   - kind: symbol
     name: raf_census::embedded::report
-    digest: 27d60895469bf0c8499fb196e6d818a23e91d514a029dba956040b700e81804c
+    digest: b8fa125be777fffa2002c7ef6034cb77d5649967dd35b427eb005223b21982de
   - kind: symbol
     name: raf_census::embedded::run::Run
     digest: e56082030b6b84e6fd0de152c3c527a7d47f180888cfe8fb950dd563a286be29

@@ -96,7 +96,8 @@ bindings:
     - raf_census::embedded::scopes::tests::local_activation_and_scope_exit_preserve_shadow_identity_and_raw_names
     - raf_census::embedded::scopes::tests::unmodeled_preludes_refuse_while_explicit_const_parameters_remain_fixed
     - raf_census::embedded::collect::tests::a_lone_semicolon_is_a_statement_without_an_expression_beside_a_refused_neighbour
-    - raf_census::embedded::report::tests::a_rendered_report_over_the_importer_limit_refuses_beside_one_at_the_limit
+    - raf_census::embedded::report::tests::the_limit_helper_refuses_one_byte_over_beside_a_length_at_the_limit
+    - raf_census::embedded::report::tests::rendering_a_report_refuses_one_byte_over_the_limit_beside_the_same_report_at_it
   examples:
     - raf_census::example_crate::debt
 depends: [cap:census-normal-form, cap:source-index, cap:rdf-report-profile, cap:census-debt-ratchet]
