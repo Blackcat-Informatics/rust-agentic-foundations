@@ -133,7 +133,7 @@ pub const PARSE_BYTES_PER_TOKEN: usize = 1664;
 ///
 /// The syntax parse of a function body of 2^k + 1 empty statements, the worst
 /// shape of the reference table, peaks at a measured maximum of 939.98 bytes per
-/// node, at k = 17 (131,077 nodes); k = 14 gives 939.9 and k = 10 gives 937.5.
+/// node, at k = 17 (131,077 nodes); k = 14 gives 939.8 and k = 10 gives 937.5.
 /// The residual is taken beyond the measured per-byte rate of 4.000389 bytes per
 /// source byte, that is `(peak - 4.000389 * text_bytes) / nodes`, with the
 /// counting allocator growing a block in place. The constant is 978: a margin of

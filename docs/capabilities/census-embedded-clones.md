@@ -798,12 +798,14 @@ comparisons, attributes, macros, numeric fields, documentation items and
 megabyte literals, identifiers and comments) and over every Rust source under the crates and tests directories of this
 repository, and a structural check holds the per-node term to at least two
 elements of each counted node enum. The measured maximum per node is 939.98 bytes, in a run of 2^k + 1 empty
-statements at k = 17 (939.9 at k = 14, 937.5 at k = 10), taken beyond the
+statements at k = 17 (939.8 at k = 14, 937.5 at k = 10), taken beyond the
 measured per-byte rate of 4.000389; the per-node constant 978 is 38.02 bytes,
 4.04 percent, above it. The measured maximum per source byte is 4.000389, in
 one megabyte of documentation comment, and the per-byte ratio 4.17 is 0.1696
 bytes, 4.24 percent, above it, so a text-heavy source holds its bound by the
-byte term alone. A shape outside the table can cost more per
+byte term alone. That worst byte shape, with a peak of 4,194,764 bytes over 9
+nodes and 1,048,589 source bytes, reaches 95.93 percent of the byte term alone
+and 95.74 percent of the full bound. A shape outside the table can cost more per
 node. A counting allocator that grows a block in place measured the peak; an
 allocator that moves the block would also hold the old block during the copy,
 which the constants do not cover.

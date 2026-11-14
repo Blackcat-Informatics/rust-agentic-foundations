@@ -1807,7 +1807,7 @@ The budgets are one table in the source
   SYNTAX_BYTES_PER_BYTE_NUM / SYNTAX_BYTES_PER_BYTE_DEN)`, 978 and the ratio
   417/100, for the exact native node count and the source length. The constants are the parse-alone peaks of a closed reference
   table of shapes: 939.98 bytes per node at most, for a run of 2^k + 1 empty
-  statements at k = 17 (939.9 at k = 14, 937.5 at k = 10) taken beyond the
+  statements at k = 17 (939.8 at k = 14, 937.5 at k = 10) taken beyond the
   measured per-byte rate of 4.000389, with 978 chosen, a margin of 38.02 bytes,
   4.04%; and 4.000389 bytes per byte at most, for a megabyte of documentation
   comment, with the ratio 4.17 chosen, a margin of 0.1696 bytes, 4.24%. They are measured, not proven for arbitrary accepted
