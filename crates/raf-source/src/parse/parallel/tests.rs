@@ -214,6 +214,51 @@ fn native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling
     assert_eq!(state.started, state.joined);
 }
 
+/// Run one parallel worker body on a fresh thread. The released control makes a
+/// parsed file end its body without extraction, so `Ok(None)` is a parse.
+fn run_worker(file: &RelPath) -> Result<bool, crate::LoadError> {
+    let text = "pub fn f() {}\n".to_owned();
+    let scan = crate::prescan::prescan_file(file, &text, usize::MAX).expect("prescan");
+    let control = super::Control::default();
+    control.set(super::Grant::Cancel);
+    let input = super::WorkerInput {
+        file: file.clone(),
+        text,
+        scan,
+        control: &control,
+        probe: None,
+    };
+    std::thread::scope(|scope| {
+        scope
+            .spawn(move || input.run().map(|parsed| parsed.is_none()))
+            .join()
+            .expect("joined")
+    })
+}
+
+#[test]
+fn a_parallel_worker_whose_registry_a_host_callback_populated_is_refused_before_it_parses() {
+    let file = RelPath::new("src/parallel_occupied.rs").expect("path");
+    let error = crate::parse::entry::tests::with_host(
+        &file,
+        crate::parse::entry::tests::lex_foreign,
+        || run_worker(&file),
+    )
+    .expect_err("an occupied registry refuses the parallel worker");
+    assert!(
+        matches!(&error.kind, crate::LoadErrorKind::Registry { first } if first != "<parsed string 1>"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_parallel_worker_with_a_fresh_registry_parses() {
+    let file = RelPath::new("src/parallel_fresh.rs").expect("path");
+    let parsed = crate::parse::entry::tests::with_host(&file, || {}, || run_worker(&file))
+        .expect("a fresh registry parses");
+    assert!(parsed, "the released control ends before extraction");
+}
+
 #[derive(Debug)]
 struct SelectedPanic;
 
