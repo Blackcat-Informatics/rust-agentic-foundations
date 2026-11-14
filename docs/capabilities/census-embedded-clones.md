@@ -98,7 +98,7 @@ bindings:
     - raf_census::embedded::collect::tests::a_lone_semicolon_is_a_statement_without_an_expression_beside_a_refused_neighbour
     - raf_census::embedded::report::tests::a_rendered_report_over_the_importer_limit_refuses_beside_one_at_the_limit
   examples:
-    - raf_census::example_crate::debt
+    - raf_census::example_crate::embedded
 depends: [cap:census-normal-form, cap:source-index, cap:rdf-report-profile, cap:census-debt-ratchet]
 ---
 
