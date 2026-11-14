@@ -203,3 +203,40 @@ fn shorthand_fields_keep_fixed_names_and_unadmitted_attributes_or_boundaries_ref
         },
     );
 }
+
+/// INVARIANT: a lone semicolon is a retained statement with its own span and no
+/// expression, and it does not refuse a function; a neighbouring unmodeled
+/// expression statement still refuses.
+#[test]
+fn a_lone_semicolon_is_a_statement_without_an_expression_beside_a_refused_neighbour() {
+    let source = "#![no_implicit_prelude]\nfn helper(input: i32) { ; sink(input); }";
+    inspect(source, |result| {
+        let facts = result.unwrap();
+        let semicolon = source.find(';').unwrap();
+        assert!(
+            facts
+                .statements
+                .iter()
+                .any(|statement| statement.span.start == semicolon
+                    && statement.span.end == semicolon + 1)
+        );
+        assert!(
+            facts
+                .expressions
+                .iter()
+                .all(|expression| expression.start != semicolon)
+        );
+    });
+    inspect(
+        "#![no_implicit_prelude]\nfn helper(input: i32) { async { input }; }",
+        |result| {
+            assert!(matches!(
+                result,
+                Err(Failure {
+                    cause: Refusal::Unsupported(_),
+                    ..
+                })
+            ));
+        },
+    );
+}

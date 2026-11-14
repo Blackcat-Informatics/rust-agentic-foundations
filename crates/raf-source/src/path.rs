@@ -194,7 +194,7 @@ impl RelPath {
     #[must_use]
     pub fn is_canonical(input: &str) -> bool {
         input.is_empty()
-            || (Self::root().validate_join(input).is_ok()
+            || (Self::validate_from_depth(input, 0).is_ok()
                 && input.split('/').all(|segment| !matches!(segment, "" | ".")))
     }
 
@@ -273,15 +273,6 @@ impl RelPath {
     }
 
     fn validate_join(&self, input: &str) -> Result<(), JoinRefusal> {
-        if input.starts_with('/') {
-            return Err(JoinRefusal::Absolute);
-        }
-        if input.contains('\\') {
-            return Err(JoinRefusal::Backslash);
-        }
-        if input.contains('\0') {
-            return Err(JoinRefusal::Nul);
-        }
         let mut depth = 0_usize;
         for segment in self.segments() {
             // Every prefix of this already validated path stays inside its root.
@@ -290,6 +281,19 @@ impl RelPath {
             } else {
                 depth += 1;
             }
+        }
+        Self::validate_from_depth(input, depth)
+    }
+
+    fn validate_from_depth(input: &str, mut depth: usize) -> Result<(), JoinRefusal> {
+        if input.starts_with('/') {
+            return Err(JoinRefusal::Absolute);
+        }
+        if input.contains('\\') {
+            return Err(JoinRefusal::Backslash);
+        }
+        if input.contains('\0') {
+            return Err(JoinRefusal::Nul);
         }
         for segment in input.split('/') {
             match segment {

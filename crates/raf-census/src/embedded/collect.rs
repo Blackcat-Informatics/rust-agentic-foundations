@@ -1252,7 +1252,14 @@ impl<'ast> Visit<'ast> for Collector<'_, '_, '_> {
                 }
                 self.meter
                     .push_retained(&mut self.facts.statements, Statement { block: id, span })?;
-                self.visit_stmt(statement);
+                // A lone semicolon is a complete statement whose expression is
+                // empty verbatim syntax; it has no content to classify.
+                if !matches!(
+                    statement,
+                    syn::Stmt::Expr(syn::Expr::Verbatim(tokens), Some(_)) if tokens.is_empty()
+                ) {
+                    self.visit_stmt(statement);
+                }
                 self.check_failure()?;
             }
             self.scopes.leave()

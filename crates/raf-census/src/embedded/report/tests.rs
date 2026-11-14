@@ -338,3 +338,15 @@ fn reminted_claims_cannot_alias_native_paths_exceed_the_source_or_bypass_the_mat
         "impossible claims were accepted: {accepted:?}"
     );
 }
+
+/// INVARIANT: a rendered report never exceeds the byte limit its importer
+/// enforces, and a report exactly at that limit is accepted.
+#[test]
+fn a_rendered_report_over_the_importer_limit_refuses_beside_one_at_the_limit() {
+    let meter = Meter::new(1_000, 1_000);
+    assert!(within_limit(MAX_INPUT_BYTES, &meter).is_ok());
+    let Err(cause) = within_limit(MAX_INPUT_BYTES + 1, &meter) else {
+        panic!("an oversized rendering must refuse")
+    };
+    assert!(cause.to_string().contains("output byte limit"));
+}

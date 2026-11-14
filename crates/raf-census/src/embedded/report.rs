@@ -74,8 +74,26 @@ impl<'m> Claims<'m> {
         meter: &'m Meter,
         observe: impl for<'f> FnOnce(Result<Text<'m>, OutputFailure<'f>>) -> R,
     ) -> R {
-        Text::render_admitted(meter, &self.graph, format, observe)
+        Text::render_admitted(meter, &self.graph, format, |outcome| match outcome {
+            Ok(text) => match within_limit(text.len(), meter) {
+                Ok(()) => observe(Ok(text)),
+                Err(cause) => observe(Err(OutputFailure::failure(&cause))),
+            },
+            Err(cause) => observe(Err(cause)),
+        })
     }
+}
+
+/// A rendered report must stay within the limit its importer enforces.
+fn within_limit(len: usize, meter: &Meter) -> Result<(), Failure<'_>> {
+    if len > MAX_INPUT_BYTES {
+        return Err(Failure::report(
+            meter,
+            E::Value,
+            &"embedded report exceeds its output byte limit",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn key_with_memory<'a, S: purrdf_lex::allocation::Admission + ?Sized>(
