@@ -5,7 +5,7 @@ type: Capability
 id: cap:census-debt-ratchet
 title: "Census debt ratchet"
 description: "An exact RDF record of duplication that can only shrink."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_census::report::debt
@@ -341,5 +341,4 @@ or execution of an external native implementation.
 | Depended on by | [census-embedded-clones](./census-embedded-clones.md) |
 | Depended on by | [census-rule-api](./census-rule-api.md) |
 | Depended on by | [repository-contract](./repository-contract.md) |
-| Changed by | [embedded-clones](../../work/changes/embedded-clones.md) |
 <!-- raf:generated:end -->

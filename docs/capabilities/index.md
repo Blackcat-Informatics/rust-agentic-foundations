@@ -6,6 +6,8 @@
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
+| [census-cli](./census-cli.md) | Native static Census reports, ledger inspection, migration and explicit debt publication. |  |
+| [census-debt-ratchet](./census-debt-ratchet.md) | An exact RDF record of duplication that can only shrink. |  |
 | [census-detectors](./census-detectors.md) | Seventeen built-in detectors for recurring helpers and RDF representation, each with positive and negative fixtures. |  |
 | [census-ledger](./census-ledger.md) | Closed RDF policy declarations, exact sanctions, source classification and staleness. |  |
 | [census-migration](./census-migration.md) | Read-only fingerprint migration and foreign dialect import to one native RDF ledger. |  |
@@ -14,8 +16,10 @@
 | [census-reference-scan](./census-reference-scan.md) | Compare first-party code with exact dependency identities selected through lock files and manifest declarations, with registry archives sealed by their lock checksums, or with caller-declared pinned commits and unpinned directories. |  |
 | [census-rule-api](./census-rule-api.md) | The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test. |  |
 | [okf-profile](./okf-profile.md) | The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically. |  |
+| [rdf-report-profile](./rdf-report-profile.md) | The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections. |  |
 | [repository-contract](./repository-contract.md) | The tracked document inventory, repository policy gates and accepted assessment check of the unpublished root package. |  |
 | [source-configured-target](./source-configured-target.md) | Index one selected package target under declared configuration without admitting other targets or provider authority. |  |
+| [source-index](./source-index.md) | The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #\[path\], and a symbol and use-alias index. |  |
 | [source-reference-namespace](./source-reference-namespace.md) | One source index across exact first-party and reference contexts without configured provider authority. |  |
 | [workplan-cargo-documentation](./workplan-cargo-documentation.md) | Bounded imported metadata and invocation-scoped trusted library documentation. |  |
 | [workplan-cli](./workplan-cli.md) | Static repository commands and explicit owned data publication with separate documentation trust. |  |
@@ -37,11 +41,7 @@
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
-| [census-cli](./census-cli.md) | Native static Census reports, ledger inspection, migration and explicit debt publication. |  |
-| [census-debt-ratchet](./census-debt-ratchet.md) | An exact RDF record of duplication that can only shrink. |  |
-| [census-embedded-clones](./census-embedded-clones.md) | Bounded candidate discovery and lexical correspondence for checked source regions under an independent matching policy. | bindings.examples is empty |
-| [rdf-report-profile](./rdf-report-profile.md) | The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections. |  |
-| [source-index](./source-index.md) | The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #\[path\], and a symbol and use-alias index. |  |
+| [census-embedded-clones](./census-embedded-clones.md) | Bounded candidate discovery and lexical correspondence for checked source regions under an independent matching policy. |  |
 
 ## Designed
 

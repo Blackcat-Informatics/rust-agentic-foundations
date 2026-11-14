@@ -5,7 +5,7 @@ type: Capability
 id: cap:census-cli
 title: Census command line
 description: Native static Census reports, ledger inspection, migration and explicit debt publication.
-state: implementing
+state: delivered
 bindings:
   code:
     - cargo_census::bin_crate::cargo_census::main
@@ -163,5 +163,4 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | Depends on | [census-ledger](./census-ledger.md) |
 | Depends on | [census-migration](./census-migration.md) |
 | Depends on | [census-rule-api](./census-rule-api.md) |
-| Changed by | [embedded-clones](../../work/changes/embedded-clones.md) |
 <!-- raf:generated:end -->

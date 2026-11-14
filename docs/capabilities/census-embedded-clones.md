@@ -90,7 +90,8 @@ bindings:
     - raf_census::embedded::scopes::tests::imports_conditionals_and_unexpanded_attributes_never_prove_binding_absence
     - raf_census::embedded::scopes::tests::local_activation_and_scope_exit_preserve_shadow_identity_and_raw_names
     - raf_census::embedded::scopes::tests::unmodeled_preludes_refuse_while_explicit_const_parameters_remain_fixed
-  examples: []
+  examples:
+    - raf_census::example_crate::debt
 depends: [cap:census-normal-form, cap:source-index, cap:rdf-report-profile, cap:census-debt-ratchet]
 ---
 
@@ -99,10 +100,9 @@ depends: [cap:census-normal-form, cap:source-index, cap:rdf-report-profile, cap:
 The fragment core separates coarse candidate discovery from ordered
 lexical correspondence. It does not change the Census whole-body normal form.
 
-> [!PROPOSED change:embedded-clones]
-> Census identifies a meaningful helper embedded in a larger function, including
-> renamed locals and surrounding statements, and explains the exact source
-> regions whose structure corresponds.
+Census identifies a meaningful helper embedded in a larger function, including
+renamed locals and surrounding statements, and explains the exact source
+regions whose structure corresponds.
 
 ## Contract
 
@@ -620,24 +620,23 @@ The sixteen MiB serialized limit applies before import and before publication;
 it is not a native heap bound. Reading this normative allowance never creates
 source proof. Neither adoption nor comparison writes any file.
 
-> [!PROPOSED change:embedded-clones]
-> The complete source collector establishes lexical declaration identities,
-> activation, captures, shadowing and control destinations before candidate
-> verification. Syntactically ambiguous pattern names require positive binding
-> classification or closed absence of a constant or constructor. Missing
-> resolution alone never proves a new binding. Unsupported required context
-> refuses with its source location.
->
-> Verified regions are complete expressions or contiguous complete statements
-> within one block. Their source authority, owner, half-open byte range and line
-> range resolve to the actual loaded source. UTF-8 boundaries and containment
-> are checked before a witness is exposed. Fixed literal values and structural
-> operators are retained under an independently versioned fragment policy.
->
-> Minimum meaningful size, boilerplate, overlap and multiplicity rules form part
-> of that policy. Empty or short inputs yield no clone, and repeated discovery
-> windows never count as independent occurrences. Candidate collisions cannot
-> produce a verified witness without ordered lexical correspondence.
+The complete source collector establishes lexical declaration identities,
+activation, captures, shadowing and control destinations before candidate
+verification. Syntactically ambiguous pattern names require positive binding
+classification or closed absence of a constant or constructor. Missing
+resolution alone never proves a new binding. Unsupported required context
+refuses with its source location.
+
+Verified regions are complete expressions or contiguous complete statements
+within one block. Their source authority, owner, half-open byte range and line
+range resolve to the actual loaded source. UTF-8 boundaries and containment
+are checked before a witness is exposed. Fixed literal values and structural
+operators are retained under an independently versioned fragment policy.
+
+Minimum meaningful size, boilerplate, overlap and multiplicity rules form part
+of that policy. Empty or short inputs yield no clone, and repeated discovery
+windows never count as independent occurrences. Candidate collisions cannot
+produce a verified witness without ordered lexical correspondence.
 
 ## Usage
 
@@ -678,20 +677,18 @@ Temporary output is exclusive, verified by identity and synchronized before
 publication. The directory is synchronized after publication; failures after
 the atomic operation retain a distinct typed already-published state.
 
-> [!PROPOSED change:embedded-clones]
-> Explicit static library and command-line operations share the production
-> collector, candidate index and verifier. Their report distinguishes candidate
-> evidence from verified source witnesses. A separate matching-policy identity
-> and closed RDF report shape keep existing body and shim fingerprints intact.
+Explicit static library and command-line operations share the production
+collector, candidate index and verifier. Their report distinguishes candidate
+evidence from verified source witnesses. A separate matching-policy identity
+and closed RDF report shape keep existing body and shim fingerprints intact.
 
 ## Examples
 
-> [!PROPOSED change:embedded-clones]
-> A renamed helper inside a larger function retains a verified region despite
-> an unrelated earlier local. A neighbouring operator or variable-use change
-> refuses that correspondence. A closure capture, inner shadow, shorthand field
-> and control destination retain their own lexical roles. Ordinary boilerplate,
-> repetition and short or empty regions obey the stated meaningfulness rules.
+A renamed helper inside a larger function retains a verified region despite
+an unrelated earlier local. A neighbouring operator or variable-use change
+refuses that correspondence. A closure capture, inner shadow, shorthand field
+and control destination retain their own lexical roles. Ordinary boilerplate,
+repetition and short or empty regions obey the stated meaningfulness rules.
 
 ## Constraints
 
@@ -746,20 +743,23 @@ least eleven atoms. It does not cover arbitrary padding, reordered statements,
 different binding relationships or semantic equivalence. Binding erasure makes
 discovery permissive; verification must still reject incompatible relationships.
 
-> [!PROPOSED change:embedded-clones]
-> Indexed tokens, retained postings, candidate pairs, verification work and
-> resident storage have explicit bounds, including repetitive inputs. Exhaustion
-> is actionable failure, never truncation, sampling or an ordinary nonmatch.
-> Source parsing and retained source facts remain within their stated bounds.
->
-> Similarity never authorizes a preferred provider, validates delegation or
-> exempts debt. Embedded findings have explicit versioned adoption and exact
-> shrink-only debt handling. Discovery cannot create an allowance or rewrite an
-> existing debt record. Existing normal form 1 fingerprints and debt meaning
-> remain unchanged; any change to those meanings requires explicit migration.
->
-> Analysis remains static and process-free. It runs no consumer program, test,
-> example, compiler or command, and changes no inspected source or Git state.
+Indexed tokens, retained postings, candidate pairs, verification work and
+resident storage have explicit bounds, including repetitive inputs. Exhaustion
+is actionable failure, never truncation, sampling or an ordinary nonmatch for
+the stages that charge the original account: discovery, proof, reporting and
+adoption. Source lexing, parsing and span storage are not part of that
+guarantee. The parser worker is started without a registry-ownership step, so
+the worker-entry invariant is not enforced and bounded storage through the
+whole pipeline is not delivered. That residual is a separate tracked change.
+
+Similarity never authorizes a preferred provider, validates delegation or
+exempts debt. Embedded findings have explicit versioned adoption and exact
+shrink-only debt handling. Discovery cannot create an allowance or rewrite an
+existing debt record. Existing normal form 1 fingerprints and debt meaning
+remain unchanged; any change to those meanings requires explicit migration.
+
+Analysis remains static and process-free. It runs no consumer program, test,
+example, compiler or command, and changes no inspected source or Git state.
 
 ## Explanation
 
@@ -1474,11 +1474,10 @@ separately, constructor metadata, predicate internals, pattern scratch,
 allocator execution and general scalar/control machinery. Split/subspan/index
 conversion, span joins and the other native obligations remain open.
 
-> [!PROPOSED change:embedded-clones]
-> The production pipeline retains every required distinction through collection,
-> discovery, proof, reporting and adoption. Independent policy and report
-> identities extend the exact Census contract without changing whole-unit
-> grouping or using a similarity score as an enforcement verdict.
+The production pipeline retains every required distinction through collection,
+discovery, proof, reporting and adoption. Independent policy and report
+identities extend the exact Census contract without changing whole-unit
+grouping or using a similarity score as an enforcement verdict.
 
 ## Verification
 
@@ -1559,10 +1558,9 @@ catalog mount order changes; neighbouring unbound roots refuse. Native RDF
 round trips preserve exact counts, while wrong profiles, zero and overflowing
 counts, orphan records and evidence-report roots refuse.
 
-> [!PROPOSED change:embedded-clones]
-> Native Linux source fixtures exercise the actual production library and CLI
-> with checked matching spans and neighbouring invalid inputs. File-order
-> changes produce identical canonical reports. Adversarial repetition refuses
-> actionably beside an admitted neighbour. Existing fingerprint goldens remain
-> unchanged. Explicit adoption and subsequent debt comparison reject growth and
-> retain exact occurrence multiplicity.
+Native Linux source fixtures exercise the actual production library and CLI
+with checked matching spans and neighbouring invalid inputs. File-order
+changes produce identical canonical reports. Adversarial repetition refuses
+actionably beside an admitted neighbour. Existing fingerprint goldens remain
+unchanged. Explicit adoption and subsequent debt comparison reject growth and
+retain exact occurrence multiplicity.

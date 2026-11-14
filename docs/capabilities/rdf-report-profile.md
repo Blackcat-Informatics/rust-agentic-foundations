@@ -5,7 +5,7 @@ type: Capability
 id: cap:rdf-report-profile
 title: "Canonical ground RDF reports"
 description: "The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_rdf::graph
