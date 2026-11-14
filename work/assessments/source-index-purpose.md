@@ -250,7 +250,7 @@ inputs:
     digest: ba875649c947034d1a3930eac25b30e44319a56f143bff4e0f7497d01a23671d
   - kind: symbol
     name: raf_source::PARSE_BYTES_PER_TOKEN
-    digest: 359c183c452c541a04391455ae031adc48df3a1b7a5f48a7d491f9fb2e5cdbd0
+    digest: d18e265c37a4fa319fcf81aa0d9f67c067dd292683ec650041ee7a69917d607d
   - kind: symbol
     name: raf_source::PARSE_STACK_BYTES
     digest: 2d0708cc0aca355f30cc0d34d147d0b2faa2194a3c4540e9ab2b5def4a13b4c0
@@ -338,6 +338,12 @@ inputs:
   - kind: symbol
     name: raf_source::ResolveError
     digest: d34d8f56750217db463245e918fcf11e1dfba256d4a196ddd24e1007e2c6aa64
+  - kind: symbol
+    name: raf_source::SYNTAX_BYTES_PER_BYTE
+    digest: 4dd4a6e8642b4dbca6788381882845f5350f7124fd0cd4fe8a091568999b00a4
+  - kind: symbol
+    name: raf_source::SYNTAX_BYTES_PER_NODE
+    digest: f0ea10c2e63555c11c00152db4fb1e90352dda9d3fb240f9c335d64fde5cede9
   - kind: symbol
     name: raf_source::SelfType
     digest: 3b36a393fc86b3b53b750186daa3fb72a3ea9a5465eca1712d0fb064c6533fa5
@@ -515,6 +521,15 @@ inputs:
   - kind: symbol
     name: raf_source::settle
     digest: ea58202fe55d35139111d5203eb4d561953c0b118cacd4e3bbe55c5a4f98febd
+  - kind: symbol
+    name: raf_source::syntax_storage::SyntaxBound
+    digest: 5c2c4c8d61b3d0ba4d848db1a92012abe10efd0b681f1a10fb905e5ee87380f5
+  - kind: symbol
+    name: raf_source::syntax_storage::SyntaxHeld
+    digest: cfdff1e085e86ca1ccd6c47e26ae62844ebe1ac34f56ad1f256b4def3d23a996
+  - kind: symbol
+    name: raf_source::syntax_storage::syntax_held
+    digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
   - kind: symbol
     name: raf_source::tree
     digest: 078796918c101347df949cb2d69a03d131f88b87ae18c88fd9aa6bb387d40a67

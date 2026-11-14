@@ -83,6 +83,11 @@ bindings:
     - raf_source::Budget
     - raf_source::Opened
     - raf_source::PARSE_BYTES_PER_TOKEN
+    - raf_source::SYNTAX_BYTES_PER_NODE
+    - raf_source::SYNTAX_BYTES_PER_BYTE
+    - raf_source::syntax_storage::SyntaxBound
+    - raf_source::syntax_storage::SyntaxHeld
+    - raf_source::syntax_storage::syntax_held
     - raf_source::RECURSION_UNIT_BYTES
     - raf_source::SelfType
     - raf_source::UnresolvedImpl
@@ -1793,6 +1798,19 @@ The budgets are one table in the source
   depends on literal length. The same
   measurement gives about 430 bytes per token for `a<b; ` repeated, 290 for
   statements that name a type nested 64 generic arguments deep and 230 for a run of
+  The syntax tree alone is bounded before the parse by
+  `SyntaxBound::MEASURED`: `nodes * SYNTAX_BYTES_PER_NODE + text_bytes *
+  SYNTAX_BYTES_PER_BYTE`, 978 and 4, for the exact native node count and the
+  source length. The constants are the parse-alone peaks of a closed reference
+  table of shapes with about 4% added, 940 bytes per node for the worst, a run
+  of 2^k + 1 empty statements, and 4.0003 bytes per byte for a megabyte
+  documentation comment. They are measured, not proven for arbitrary accepted
+  Rust. `syntax_held` walks a parsed tree and sums the size of the counted node
+  enums and the spelling bytes of identifiers and string, byte-string, integer
+  and float literals, so a caller can compare it with the bound; it misses
+  vector capacity, transient storage and the heap behind unlisted types.
+  `parse_source` and the other parse entry points do not meter either value; a
+  metered caller prepays the bound itself.
   attributes. The default admits the largest generated files of real crates: over
   the registry scan below the most tokens of one file was 1505567 (a time-zone
   table).

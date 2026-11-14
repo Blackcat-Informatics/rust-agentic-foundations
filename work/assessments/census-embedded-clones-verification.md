@@ -7,16 +7,16 @@ subject: cap:census-embedded-clones#verification
 inputs:
   - kind: section
     name: cap:census-embedded-clones#verification
-    digest: 7989a585144b34eef65c7b9eccb9f844325cdbd1edcb9eb3fffa3ca4194d53b0
+    digest: c1a8e848d43b52ab4393b763d6672abe65471b0a48e068bb2ff89ff9b35a3a3a
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::embedded
     digest: bc0612b046cc862d428cd9a59648f6b0383926b6ab45b775a10cb659a1e0faa3
   - kind: symbol
     name: raf_census::embedded
-    digest: 26bc3b11e595be7220e65ee8053be6997fb6a7c8fe248b2159e17eb2afc75c1b
+    digest: 914b9eec4794568b4ad0591651cdae9aa7d79a018324f7b90e5d8605eae3f462
   - kind: symbol
     name: raf_census::embedded::analysis::Analysis
-    digest: fc776d42dd2a6e1de79d14d35436a8c4b78eabe6716047d71960e694811a8f88
+    digest: f4b3a6e4a11df3a07c9ea5dadafa8b9032c098efcdd6716be695a8a190a93cb7
   - kind: symbol
     name: raf_census::embedded::collect::function
     digest: c7a86a48b6e2acc66b1263beb64f6131d78721b2006c3accc5e83c4be8697b4a
@@ -46,7 +46,7 @@ inputs:
     digest: 462182a9f68b0ae3eb8fd86beb3887f803322bed2275ad8286f1420dc34a9c70
   - kind: symbol
     name: raf_census::embedded::options::Options
-    digest: a99d1020d592b7dddf04828056808711df46d4b699b7c70d3fe1f383740d0016
+    digest: 5bbaf9b42eb28a92c2e73164da2b2ac3eaea95df65cf884bf14ff71793a5b86c
   - kind: symbol
     name: raf_census::embedded::pairing::find
     digest: 7bbd39ca20494ac105268e8ee1a0214615be0a9430ff8b65b6155446b3a32140
@@ -67,7 +67,7 @@ inputs:
     digest: 27d60895469bf0c8499fb196e6d818a23e91d514a029dba956040b700e81804c
   - kind: symbol
     name: raf_census::embedded::run::Run
-    digest: e56082030b6b84e6fd0de152c3c527a7d47f180888cfe8fb950dd563a286be29
+    digest: 799f87351cfeca93db59ce835b4d702d66c3aba02b67bc26819ff800c98c1434
   - kind: symbol
     name: raf_census::embedded::tokens::inventory
     digest: b441f9135859ca2b5c806e22f005f7b6d02fbc50ccea5c227b86adcbc2058b9f
@@ -80,6 +80,15 @@ inputs:
   - kind: symbol
     name: raf_census::embedded::workspace::collect
     digest: 85f4e384b2eab5e4ff4905891cf47846d46a54ff71d34ba446a9110d2c448e30
+  - kind: symbol
+    name: raf_source::syntax_storage::SYNTAX_NODE_SIZES
+    digest: 4f326d0dfb8ddc8dce53e9844012db5e53527c89378f2641fe1511f0205942e8
+  - kind: symbol
+    name: raf_source::syntax_storage::SyntaxBound
+    digest: 5c2c4c8d61b3d0ba4d848db1a92012abe10efd0b681f1a10fb905e5ee87380f5
+  - kind: symbol
+    name: raf_source::syntax_storage::syntax_held
+    digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
 verdict: accepted
 by: agent
 ---

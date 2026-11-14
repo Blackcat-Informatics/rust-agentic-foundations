@@ -10,9 +10,9 @@ use super::{
 /// A successful static source-region analysis, independent of whole-body Census.
 ///
 /// Report/debt RDF construction, parsing, validation and rendering charge the
-/// original run account. Source lexing, parsing and span storage still have
-/// incomplete native admission; selected analysis limits do not establish a
-/// total native resource guarantee.
+/// original run account, as do Source lexing, parser input, span storage and the
+/// parsed syntax tree; selected analysis limits do not establish a total native
+/// heap or work guarantee.
 pub struct Run<'source> {
     matches: pairing::Matches<'source>,
 }

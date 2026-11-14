@@ -186,13 +186,17 @@ mod reach;
 mod resolve;
 mod root;
 mod settle;
+mod syntax_storage;
 mod target;
 mod tree;
 mod verbatim;
 mod work;
 mod workspace;
 
-pub use budget::{Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES};
+pub use budget::{
+    Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES, SYNTAX_BYTES_PER_BYTE,
+    SYNTAX_BYTES_PER_NODE,
+};
 pub use code::{CodeResolveError, CodeResolver, ExternLibrary, ExternRouteKind};
 pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport};
@@ -226,6 +230,7 @@ pub use root::discover_root;
 /// The `syn` that produced the facts, re-exported so a consumer parses with the
 /// same version; a `syn` major bump is a breaking change of this crate.
 pub use syn;
+pub use syntax_storage::{SYNTAX_NODE_SIZES, SyntaxBound, SyntaxHeld, syntax_held};
 pub use target::{Package, PackageId, Target, TargetKind};
 pub use tree::{
     CapturedDirectory, CapturedFile, CapturedLink, CommittedGitTree, DiskTree, Entry, EntryKind,

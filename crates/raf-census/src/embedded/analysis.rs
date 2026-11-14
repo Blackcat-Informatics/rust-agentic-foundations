@@ -8,6 +8,7 @@ use super::error::InspectionError;
 use super::native_literals::Literals;
 use super::resource::{Meter, Refusal, TerminalAccount, TerminalSlot};
 use super::tokens::Tokens;
+use raf_source::SyntaxBound;
 
 #[cfg(test)]
 use super::{collect, scopes::Scopes, tokens};
@@ -81,7 +82,88 @@ pub(super) struct Function<'source> {
 /// It is not shared across workers, and never borrows its own meter.
 pub(super) struct Analysis<'source> {
     pub(super) functions: Vec<Function<'source>>,
+    pub(super) excesses: Vec<SyntaxExcess<'source>>,
     pub(super) meter: Meter,
+}
+
+/// A parsed syntax tree that held more than the bytes prepaid for it.
+///
+/// The excess was charged to the same account. A record is evidence that the
+/// per-node or per-byte term of the bound is too low for this input.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct SyntaxExcess<'source> {
+    pub(super) file: &'source raf_source::RelPath,
+    /// Native token-tree nodes of the lexed source.
+    pub(super) nodes: usize,
+    pub(super) text_bytes: usize,
+    pub(super) prepaid: usize,
+    pub(super) held: usize,
+    /// The most numerous node kind of the tree and its count.
+    pub(super) kind: &'static str,
+    pub(super) kind_nodes: usize,
+}
+
+/// The prepaid syntax bound of one source, carried to the point just after the
+/// parse. It borrows the receipt that refunds every prepaid envelope at the join.
+pub(super) struct Reconciliation<'receipt, 'source> {
+    file: &'source raf_source::SourceFile,
+    nodes: usize,
+    prepaid: usize,
+    reserved: &'receipt mut usize,
+}
+
+impl<'source> Reconciliation<'_, 'source> {
+    /// Compare the parsed tree with its prepaid bound, before any analysis.
+    /// An excess is charged to the same account and recorded; a grant that
+    /// fails refuses here with no partial result. The allocation that is
+    /// reported has already happened; only the prepaid bound refuses in advance.
+    pub(super) fn check(
+        self,
+        analysis: &mut Analysis<'source>,
+        syntax: &syn::File,
+    ) -> Result<(), Failure> {
+        let held = raf_source::syntax_held(syntax);
+        let Some(excess) = held.bytes().checked_sub(self.prepaid).filter(|n| *n > 0) else {
+            return Ok(());
+        };
+        let (kind, kind_nodes) = held.dominant();
+        let refusal = Refusal::SyntaxExcess {
+            nodes: self.nodes,
+            prepaid: self.prepaid,
+            held: held.bytes(),
+            kind,
+        };
+        let fail = |cause| Failure { byte: 0, cause };
+        let exhausted = |cause| match cause {
+            Refusal::Memory { .. } => refusal,
+            other => other,
+        };
+        let combined = self.reserved.checked_add(excess).ok_or(Refusal::Storage(
+            purrdf_lex::allocation::StorageError::SizeOverflow,
+        ));
+        let combined = combined.map_err(fail)?;
+        analysis
+            .meter
+            .prepay_native(excess)
+            .map_err(|cause| fail(exhausted(cause)))?;
+        // Change the caller-owned receipt immediately after admission.
+        *self.reserved = combined;
+        analysis
+            .meter
+            .push_retained(
+                &mut analysis.excesses,
+                SyntaxExcess {
+                    file: &self.file.path,
+                    nodes: self.nodes,
+                    text_bytes: self.file.text.len(),
+                    prepaid: self.prepaid,
+                    held: held.bytes(),
+                    kind,
+                    kind_nodes,
+                },
+            )
+            .map_err(|cause| fail(exhausted(cause)))
+    }
 }
 
 /// The slot must deallocate before the original account on every unwind path.
@@ -96,6 +178,7 @@ impl<'source> Analysis<'source> {
     pub(super) const fn new(work_limit: usize, memory_limit: usize) -> Self {
         Self {
             functions: Vec::new(),
+            excesses: Vec::new(),
             meter: Meter::new(work_limit, memory_limit),
         }
     }
@@ -165,8 +248,22 @@ impl<'source> Analysis<'source> {
         file: &'source raf_source::SourceFile,
         inspect: impl FnOnce(&mut Self, &syn::File) -> Result<R, Failure> + Send,
     ) -> Result<(Self, R), SourceFailure<'source>> {
-        self.inspect_lexed(file, |analysis, lexed| {
-            lexed.parse(|syntax| inspect(analysis, syntax))
+        self.inspect_source_bounded(file, SyntaxBound::MEASURED, inspect)
+    }
+
+    /// [`Self::inspect_source`] under explicit syntax-bound terms; production
+    /// passes the measured terms.
+    pub(super) fn inspect_source_bounded<R: Send>(
+        self,
+        file: &'source raf_source::SourceFile,
+        bound: SyntaxBound,
+        inspect: impl FnOnce(&mut Self, &syn::File) -> Result<R, Failure> + Send,
+    ) -> Result<(Self, R), SourceFailure<'source>> {
+        self.inspect_lexed(file, bound, |analysis, lexed, reconcile| {
+            lexed.parse(|syntax| {
+                reconcile.check(analysis, syntax)?;
+                inspect(analysis, syntax)
+            })
         })
     }
 
@@ -176,17 +273,22 @@ impl<'source> Analysis<'source> {
         inspect: impl FnOnce(&mut Self, &syn::File, proc_macro2::TokenStream) -> Result<R, Failure>
         + Send,
     ) -> Result<(Self, R), SourceFailure<'source>> {
-        self.inspect_lexed(file, |analysis, lexed| {
-            lexed.parse_with_tokens(|syntax, tokens| inspect(analysis, syntax, tokens))
+        self.inspect_lexed(file, SyntaxBound::MEASURED, |analysis, lexed, reconcile| {
+            lexed.parse_with_tokens(|syntax, tokens| {
+                reconcile.check(analysis, syntax)?;
+                inspect(analysis, syntax, tokens)
+            })
         })
     }
 
     fn inspect_lexed<R: Send>(
         self,
         file: &'source raf_source::SourceFile,
+        bound: SyntaxBound,
         inspect: impl FnOnce(
             &mut Self,
             raf_source::LexedSource<'source>,
+            Reconciliation<'_, 'source>,
         ) -> Result<Result<R, Failure>, raf_source::LoadError>
         + Send,
     ) -> Result<(Self, R), SourceFailure<'source>> {
@@ -195,14 +297,22 @@ impl<'source> Analysis<'source> {
         let result = prepared
             .source
             .with_lexed(|lexed| {
-                if let Err(cause) = prepared.analysis.admit_literals(
+                let (nodes, prepaid) = match prepared.analysis.admit_literals(
                     lexed.tokens(),
                     max_nodes,
+                    (file.text.len(), bound),
                     &mut prepared.reserved,
                 ) {
-                    return Ok(Err(Failure { byte: 0, cause }));
-                }
-                inspect(&mut prepared.analysis, lexed)
+                    Ok(admitted) => admitted,
+                    Err(cause) => return Ok(Err(Failure { byte: 0, cause })),
+                };
+                let reconcile = Reconciliation {
+                    file,
+                    nodes,
+                    prepaid,
+                    reserved: &mut prepared.reserved,
+                };
+                inspect(&mut prepared.analysis, lexed, reconcile)
             })
             .and_then(std::convert::identity);
         prepared
@@ -210,23 +320,26 @@ impl<'source> Analysis<'source> {
             .located(file, result, prepared.reserved, prepared.slot)
     }
 
+    /// Prepay the literal conversion storage and the syntax tree bound before
+    /// the parser starts. Returns the exact node count and the tree bytes.
     fn admit_literals(
         &self,
         tokens: &proc_macro2::TokenStream,
         max_nodes: usize,
+        (text_bytes, bound): (usize, SyntaxBound),
         reserved: &mut usize,
-    ) -> Result<(), Refusal> {
+    ) -> Result<(usize, usize), Refusal> {
+        let overflow = Refusal::Storage(purrdf_lex::allocation::StorageError::SizeOverflow);
         let measured = Literals::measure(tokens, max_nodes)?;
-        let bytes = measured.storage()?;
-        let combined = reserved.checked_add(bytes).ok_or(Refusal::Storage(
-            purrdf_lex::allocation::StorageError::SizeOverflow,
-        ))?;
+        let tree = bound.bytes(measured.nodes(), text_bytes).ok_or(overflow)?;
+        let bytes = measured.storage()?.checked_add(tree).ok_or(overflow)?;
+        let combined = reserved.checked_add(bytes).ok_or(overflow)?;
         self.meter.work(measured.conversion_work()?)?;
         self.meter.prepay_native(bytes)?;
         // Change the caller-owned receipt immediately after admission, before
         // parsing or another fallible operation can begin.
         *reserved = combined;
-        Ok(())
+        Ok((measured.nodes(), tree))
     }
 
     /// Bind tracking and error storage to the exact source before native parsing.
@@ -976,6 +1089,221 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    /// A crate whose one function body is `count` empty statements, so that
+    /// the syntax tree term dominates its storage.
+    fn statements_workspace(count: usize) -> raf_source::Workspace {
+        let body = format!("fn body() {{ {} }}\n", ";".repeat(count));
+        let tree = raf_source::MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+            ),
+            ("src/lib.rs", body.as_str()),
+        ]);
+        raf_source::Workspace::load(&tree, &["."]).expect("controlled source-only workspace")
+    }
+
+    const AMPLE_WORK: usize = 1 << 31;
+    const AMPLE_BYTES: usize = 1 << 30;
+
+    fn library(workspace: &raf_source::Workspace) -> &raf_source::SourceFile {
+        let path = raf_source::RelPath::new("src/lib.rs").expect("fixture path");
+        workspace.file(&path).expect("loaded statement source")
+    }
+
+    /// The exact native node count, the source length and the prepaid bound.
+    fn prepaid_for(file: &raf_source::SourceFile, bound: SyntaxBound) -> (usize, usize) {
+        let nodes = raf_source::prepare_source(&file.path, &file.text)
+            .expect("guard-admitted fixture")
+            .with_lexed(|lexed| {
+                Literals::measure(lexed.tokens(), usize::MAX)
+                    .expect("measured fixture")
+                    .nodes()
+            })
+            .expect("fixture lexes");
+        let bytes = bound.bytes(nodes, file.text.len()).expect("the bound fits");
+        (nodes, bytes)
+    }
+
+    /// INVARIANT: the syntax tree bound is charged before the parser runs, so
+    /// a limit one byte under the peak refuses with a memory refusal and the
+    /// visitor never sees a tree; the exact peak succeeds, and each joined
+    /// worker refunds its envelope so the same account serves another file.
+    #[test]
+    fn syntax_tree_grant_is_prepaid_before_the_parser_runs() {
+        let workspace = statements_workspace(4096);
+        let file = library(&workspace);
+        let (measured, ()) = Analysis::new(AMPLE_WORK, AMPLE_BYTES)
+            .inspect_source(file, |_, _| Ok(()))
+            .expect("ample limits admit the fixture");
+        let (work, peak) = measured.meter().usage();
+        let (_, tree) = prepaid_for(file, SyntaxBound::MEASURED);
+        assert!(
+            peak >= tree,
+            "the peak {peak} holds the prepaid tree bound {tree}"
+        );
+        assert!(measured.excesses.is_empty(), "the measured terms suffice");
+        assert!(matches!(
+            Analysis::new(work, peak - 1).inspect_source(file, |_, _| -> Result<(), Failure> {
+                panic!("the tree refusal must precede the visitor")
+            }),
+            Err(SourceFailure::Located {
+                cause: Failure {
+                    cause: Refusal::Memory { .. },
+                    byte: 0
+                },
+                ..
+            })
+        ));
+        let (first, ()) = Analysis::new(work * 2, peak)
+            .inspect_source(file, |_, _| Ok(()))
+            .expect("the exact peak is admitted");
+        let (second, ()) = first
+            .inspect_source(file, |_, _| Ok(()))
+            .expect("the joined worker refunded its envelope");
+        assert_eq!(second.meter().usage().1, peak);
+
+        // The neighbour with half the statements fits the same limit and
+        // prepays less.
+        let half = statements_workspace(2048);
+        let (neighbour, ()) = Analysis::new(work, peak)
+            .inspect_source(library(&half), |_, _| Ok(()))
+            .expect("half the statements fit the limit of the whole");
+        assert!(neighbour.meter().usage().1 < peak);
+        assert_eq!(neighbour.excesses.len(), 0);
+    }
+
+    /// INVARIANT: a parsed tree larger than its prepaid bound is never silent.
+    /// The excess is charged to the same account and recorded; when it cannot
+    /// be granted the run refuses before any analysis with the shape and the
+    /// remedy; a tree within its bound records nothing and charges nothing more.
+    #[test]
+    fn embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported() {
+        let workspace = statements_workspace(4096);
+        let file = library(&workspace);
+        let low = SyntaxBound {
+            per_node: 1,
+            per_byte: 1,
+        };
+        let (nodes, prepaid) = prepaid_for(file, low);
+        let (_, production) = prepaid_for(file, SyntaxBound::MEASURED);
+        let (reference, held) = Analysis::new(AMPLE_WORK, AMPLE_BYTES)
+            .inspect_source(
+                file,
+                |_, syntax| Ok(raf_source::syntax_held(syntax).bytes()),
+            )
+            .expect("the reference run");
+        assert_eq!(reference.excesses.len(), 0);
+        let base = reference.meter().usage().1 - production;
+        assert!(held > prepaid, "the low terms are far under the tree");
+
+        // Detected and charged.
+        let (charged, ()) = Analysis::new(AMPLE_WORK, AMPLE_BYTES)
+            .inspect_source_bounded(file, low, |_, _| Ok(()))
+            .expect("an ample limit charges the excess");
+        let [record] = charged.excesses.as_slice() else {
+            panic!("exactly one excess record")
+        };
+        assert_eq!(record.file.as_str(), "src/lib.rs");
+        assert_eq!(record.kind, "Stmt");
+        assert_eq!(record.kind_nodes, 4096);
+        assert_eq!(record.nodes, nodes);
+        assert_eq!(record.text_bytes, file.text.len());
+        assert_eq!((record.prepaid, record.held), (prepaid, held));
+        let record_bytes = charged.excesses.capacity() * size_of::<SyntaxExcess<'_>>();
+        let (work, peak) = charged.meter().usage();
+        // The account peaks at everything else, the prepaid bound, the excess
+        // over it, and the admitted record.
+        assert_eq!(peak, base + prepaid + (held - prepaid) + record_bytes);
+
+        // Refused and reported.
+        let refused = Analysis::new(work, peak - 1).inspect_source_bounded(
+            file,
+            low,
+            |_, _| -> Result<(), Failure> { panic!("the excess refusal must precede the visitor") },
+        );
+        let Err(failure) = refused else {
+            panic!("a limit under the peak refuses the excess")
+        };
+        assert!(matches!(
+            &failure,
+            SourceFailure::Located {
+                cause: Failure {
+                    cause: Refusal::SyntaxExcess { kind: "Stmt", nodes: n, prepaid: p, held: h },
+                    byte: 0,
+                },
+                ..
+            } if (*n, *p, *h) == (nodes, prepaid, held)
+        ));
+        let message = super::super::Error::from(failure).to_string();
+        for part in [
+            "src/lib.rs",
+            "SyntaxExcess",
+            "Stmt",
+            &nodes.to_string(),
+            &prepaid.to_string(),
+            &held.to_string(),
+            "reduce input or increase the selected resource limit",
+        ] {
+            assert!(message.contains(part), "{part:?} missing from {message}");
+        }
+        let (exact, ()) = Analysis::new(work, peak)
+            .inspect_source_bounded(file, low, |_, _| Ok(()))
+            .expect("the exact peak admits the excess and its record");
+        assert_eq!(exact.excesses.len(), 1);
+
+        // Neighbour within the bound: nothing recorded, nothing beyond the
+        // prepaid bound charged.
+        let half = statements_workspace(2048);
+        let half_file = library(&half);
+        let (_, half_tree) = prepaid_for(half_file, SyntaxBound::MEASURED);
+        let (within, half_held) = Analysis::new(AMPLE_WORK, AMPLE_BYTES)
+            .inspect_source(half_file, |_, syntax| {
+                Ok(raf_source::syntax_held(syntax).bytes())
+            })
+            .expect("the production terms hold the tree");
+        assert_eq!(within.excesses.len(), 0);
+        assert!(half_held <= half_tree);
+        assert!(within.meter().usage().1 < reference.meter().usage().1);
+    }
+
+    /// INVARIANT: an embedded run refuses a syntax tree over the memory limit
+    /// as a whole, with the remedy and the located shape, and returns no run;
+    /// the neighbour at the limit of the complete run succeeds.
+    #[test]
+    fn embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message() {
+        use super::super::{Error, Options, RefusalKind, Run};
+        let workspace = statements_workspace(4096);
+        let file = library(&workspace);
+        let (_, tree) = prepaid_for(file, SyntaxBound::MEASURED);
+        let run = Run::analyze(&workspace, &Options::default()).expect("the default limits hold");
+        let (_, peak) = run.usage();
+        assert!(peak > tree);
+        let options = Options {
+            max_memory_bytes: tree,
+            ..Options::default()
+        };
+        let Err(error) = Run::analyze(&workspace, &options) else {
+            panic!("a limit under the tree bound refuses")
+        };
+        assert!(matches!(
+            &error,
+            Error::Collection {
+                cause: RefusalKind::Memory { limit },
+                byte: 0,
+                ..
+            } if *limit == tree
+        ));
+        let message = error.to_string();
+        assert!(message.starts_with("src/lib.rs: byte 0: Memory { limit: "));
+        assert!(message.ends_with("; reduce input or increase the selected resource limit"));
+        let options = Options {
+            max_memory_bytes: peak,
+            ..Options::default()
+        };
+        assert!(Run::analyze(&workspace, &options).is_ok());
     }
 
     fn assert_owned_source_diagnostic() {
