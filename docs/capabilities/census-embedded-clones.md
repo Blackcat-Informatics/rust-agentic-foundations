@@ -48,6 +48,8 @@ bindings:
     - raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers
     - raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first
     - raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed
+    - raf_source::parse::parallel::tests::a_parallel_worker_whose_registry_a_host_callback_populated_is_refused_before_it_parses
+    - raf_source::parse::parallel::tests::a_parallel_worker_with_a_fresh_registry_parses
     - raf_census::embedded::tokens::tests::original_tokens_verify_an_embedded_renamed_region_and_reject_variable_operator_and_spacing_changes
     - raf_census::embedded::tokens::tests::syntax_admission_excludes_opaque_interiors_cross_block_sequences_and_partial_utf8
     - raf_census::embedded::tokens::tests::control_markers_keep_their_original_anchors_beside_adjacent_closure_and_return_regions
@@ -175,9 +177,11 @@ therefore observes occupancy through the one public fact the registry gives:
 it lexes a fixed one-byte probe and reads the file ordinal assigned to it. A
 registry holding only its dummy entry numbers the probe first. Any other
 ordinal refuses the worker with a located registry error that names the
-ordinal, before the worker's own source is registered, and leaves the foreign
-registrations untouched; the worker body never runs and no partial result
-exists. A fresh registry is invalidated again after the probe, so the
+ordinal, before the worker's own source is registered. The refusal clears and
+reuses none of the foreign registrations, and it leaves the probe's own
+registration beside them, because the probe has lexed before occupancy is
+known; the refused thread ends without lexing again. The worker body never
+runs and no partial result exists. A fresh registry is invalidated again after the probe, so the
 worker's root source is the first registration and the dummy-plus-root premise
 holds. Capacity that a host callback retained after releasing its own
 registrations is host-owned memory and cannot be observed; it can only avoid
@@ -769,7 +773,7 @@ native parse returns, the value `syn::parse2` builds in the parse step of
 through the whole pipeline is therefore not delivered; the admission change
 record `embedded-clones-admission` owns that residual until its second item
 holds.
-<!-- raf:tested-by raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed -->
+<!-- raf:tested-by raf_source::parse::entry::tests::a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers,raf_source::parse::entry::tests::a_worker_with_a_fresh_registry_parses_and_registers_its_source_first,raf_source::parse::entry::tests::claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed,raf_source::parse::parallel::tests::a_parallel_worker_whose_registry_a_host_callback_populated_is_refused_before_it_parses,raf_source::parse::parallel::tests::a_parallel_worker_with_a_fresh_registry_parses -->
 Similarity never authorizes a preferred provider, validates delegation or
 exempts debt. Embedded findings have explicit versioned adoption and exact
 shrink-only debt handling. Discovery cannot create an allowance or rewrite an

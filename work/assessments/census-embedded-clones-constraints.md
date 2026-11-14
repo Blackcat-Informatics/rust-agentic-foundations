@@ -7,7 +7,7 @@ subject: cap:census-embedded-clones#constraints
 inputs:
   - kind: section
     name: cap:census-embedded-clones#constraints
-    digest: 5c98fde2e5a6ad5b349b8f84d9e3c9c7c708f2bdafb349fee3bc8e6701b60978
+    digest: 772cf10cfdcaa6f228820cb5d753ac4c3353f7dd25f3d1e0440af5415a779d3a
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::embedded
     digest: bc0612b046cc862d428cd9a59648f6b0383926b6ab45b775a10cb659a1e0faa3
