@@ -180,7 +180,7 @@ pub const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 3] = [
             "#[wasm_bindgen(module = \"other\")] extern \"C\" {fn now() -> f64;}",
             "extern \"C\" {fn now() -> f64;}",
             "#[wasm_bindgen(js_namespace = clock)] extern \"C\" {fn now() -> f64;}",
-            "#[wasm_bindgen::prelude::wasm_bindgen(js_namespace = clock)] extern \"C\" {fn now() -> f64;}",
+            "#[shim::cfg_attr(target_arch = \"wasm32\", wasm_bindgen(module = \"clock\"))] extern \"C\" {fn now() -> f64;}",
             "#[wasm_bindgen(raw_module = \"clock\")] extern \"C\" {fn now() -> f64;}",
             "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(getter)] fn now(this: &Clock) -> f64;}",
         ],

@@ -3369,6 +3369,26 @@ fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
         ),
         0
     );
+    // `link` and `cfg_attr` are read by their bare names only: a path-qualified one is
+    // another crate's attribute, neither read as the built-in nor refused.
+    let linked =
+        "/// Home.\npub mod home {#[link(name = \"m\")] extern \"C\" {pub fn now() -> f64;}}";
+    assert_eq!(
+        copies(
+            linked,
+            "#[link(name = \"m\")] extern \"C\" {fn now() -> f64;}",
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(
+            linked,
+            "#[shim::link(name = \"m\")] extern \"C\" {fn now() -> f64;}",
+            &[]
+        ),
+        0
+    );
     // An argument the detector cannot place is refused beside a valid neighbour.
     for refused in [
         "#[wasm_bindgen(module = \"clock\", js_name)] extern \"C\" {fn now() -> f64;}",
