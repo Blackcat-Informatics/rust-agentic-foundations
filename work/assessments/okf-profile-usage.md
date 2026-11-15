@@ -16,7 +16,7 @@ inputs:
     digest: a642645a1054216d52501757c97c04a2d34cfa1b4dd9e771ed19f5ccdaaf28e8
   - kind: symbol
     name: raf_okf::EvidenceRecord::to_document
-    digest: 14ac2c27515a95f662b1848855823b4b76095880725c1484030ea510ab2f691b
+    digest: 2d3bb6d017da493d437f304bc2a482ebe000946ce1d8933b6d36e929b8141081
   - kind: symbol
     name: raf_okf::Index::from_dataset
     digest: 58faa31e23eacf04ff4ae8e7744f557c67625158a14213116f75bece48094e64

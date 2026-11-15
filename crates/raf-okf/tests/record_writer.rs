@@ -15,7 +15,7 @@ use raf_okf::{
     CeilingLimit, ConstructError, CoverageRecord, DebtFinding, DebtLine, DebtRecord, DocType,
     Document, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget,
     Exclusion, ExclusionItem, Input, InputKind, Measure, Number, Profile, RafDocument, Rule,
-    SectionRef,
+    SectionRef, Unit,
 };
 
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -55,6 +55,12 @@ fn evidence() -> EvidenceRecord {
         Measure::new("count", number("0012")),
     ];
     record.limits = vec![Measure::new("peak_mib", number("64"))];
+    record.units = vec![
+        Unit::new("peak_mib", "MiB"),
+        Unit::new("seconds", "s"),
+        Unit::new("count", "files"),
+    ];
+    record.conditions = Some("release build on the reference host".to_string());
     record.header.tags = Some(vec!["bench".to_string(), "memory".to_string()]);
     record.header.timestamp = Some("2026-03-01T12:00:00Z".to_string());
     record
@@ -216,6 +222,8 @@ fn empty_lists_and_absent_keys_are_written_as_the_profile_reads_them() {
         "revision",
         "values",
         "limits",
+        "units",
+        "conditions",
         "tags",
         "timestamp",
     ] {

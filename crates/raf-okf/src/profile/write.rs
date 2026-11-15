@@ -14,7 +14,7 @@ use crate::profile::review::{ReviewDisposition, ReviewLocation, ReviewRecord, Re
 use crate::profile::schema::DocType;
 use crate::profile::typed::{
     AssessmentRecord, CeilingClass, CeilingLimit, CoverageRecord, DebtRecord, EvidenceRecord,
-    ExclusionItem, Input, Measure, Number, RecordHeader,
+    ExclusionItem, Input, Measure, Number, RecordHeader, Unit,
 };
 
 /// A scalar entry.
@@ -101,6 +101,18 @@ fn measures(key: &str, measures: &[Measure]) -> Result<Option<Entry>, ConstructE
         .map(|measure| Entry::new(measure.name.clone(), Value::Scalar(number(&measure.value))))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Some(Entry::new(key, Value::Map(Map::new(entries)?))?))
+}
+
+/// A `units` entry, or nothing when there is no unit.
+fn units(units: &[Unit]) -> Result<Option<Entry>, ConstructError> {
+    if units.is_empty() {
+        return Ok(None);
+    }
+    let entries = units
+        .iter()
+        .map(|unit| text(&unit.name, &unit.unit))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Some(Entry::new("units", Value::Map(Map::new(entries)?))?))
 }
 
 /// `type`, `id`, `tags` and `timestamp`.
@@ -236,6 +248,10 @@ impl EvidenceRecord {
         }
         entries.extend(measures("values", &self.values)?);
         entries.extend(measures("limits", &self.limits)?);
+        entries.extend(units(&self.units)?);
+        if let Some(conditions) = &self.conditions {
+            entries.push(text("conditions", conditions)?);
+        }
         document(entries)
     }
 }

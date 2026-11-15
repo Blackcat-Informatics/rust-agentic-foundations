@@ -10,7 +10,7 @@ inputs:
     digest: c35ab89f9edc6709f7f01046de09862ffe582c599ae6ff5569abe4e4de11bcb0
   - kind: symbol
     name: raf_okf::Capability
-    digest: 42bcec7248c4b87a69ac670277a773a9e6eaf53ddc69af0722359e812a34007f
+    digest: 8851f0d4e912eedb85b8da41afea056b20efed44802f82e30d29ef7a0400a161
   - kind: symbol
     name: raf_okf::Document
     digest: 747b2de85404458db2c2956c717070b6d375ab2201134b5de3cae312fd35bda3

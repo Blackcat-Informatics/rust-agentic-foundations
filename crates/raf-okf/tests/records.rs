@@ -1470,3 +1470,63 @@ fn debt_is_one_record_at_its_one_path() {
     );
     clean(&debt(), DEBT_PATH);
 }
+
+/// The evidence fixture with units for both values and the conditions they
+/// were taken under.
+fn measured() -> String {
+    mutate(
+        &evidence(),
+        "limits:\n  peak_mib: 64\n",
+        "limits:\n  peak_mib: 64\nunits:\n  peak_mib: MiB\n  seconds: s\nconditions: \"release build on the reference host\"\n",
+    )
+}
+
+#[test]
+fn a_record_that_states_units_or_conditions_states_them_for_every_value() {
+    let RafDocument::Evidence(record) = clean(&measured(), EVIDENCE_PATH) else {
+        panic!("an evidence record");
+    };
+    assert!(record.states_measurement());
+    // A record that states neither is unchanged and states no measurement.
+    let RafDocument::Evidence(plain) = clean(&evidence(), EVIDENCE_PATH) else {
+        panic!("an evidence record");
+    };
+    assert!(!plain.states_measurement());
+    // A value without its unit beside the complete record.
+    assert_only(
+        &mutate(&measured(), "  seconds: s\n", ""),
+        EVIDENCE_PATH,
+        &key("values"),
+        &Rule::ValueWithoutUnit {
+            name: "seconds".to_string(),
+        },
+    );
+    // Conditions without any units leave every value without one.
+    assert_only(
+        &mutate(&measured(), "units:\n  peak_mib: MiB\n  seconds: s\n", "")
+            .replace("peak_mib: 41\n  seconds: 0.5\n", "peak_mib: 41\n"),
+        EVIDENCE_PATH,
+        &key("values"),
+        &Rule::ValueWithoutUnit {
+            name: "peak_mib".to_string(),
+        },
+    );
+    // Units without conditions.
+    assert_only(
+        &mutate(
+            &measured(),
+            "conditions: \"release build on the reference host\"\n",
+            "",
+        ),
+        EVIDENCE_PATH,
+        &key("values"),
+        &Rule::ConditionsMissing,
+    );
+    // An empty unit is no unit.
+    assert_only(
+        &mutate(&measured(), "seconds: s\n", "seconds: \"\"\n"),
+        EVIDENCE_PATH,
+        &key("units"),
+        &Rule::EmptyText,
+    );
+}

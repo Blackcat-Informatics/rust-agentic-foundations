@@ -11,7 +11,7 @@ use crate::profile::schema::DocType;
 use crate::profile::typed::{
     Actor, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass, CeilingLimit, DebtFinding,
     DebtLine, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget, Exclusion,
-    ExclusionItem, Input, InputKind, Measure, Number, SectionRef,
+    ExclusionItem, Input, InputKind, Measure, Number, SectionRef, Unit,
 };
 use crate::profile::violation::{Rule, input_kind_allowed};
 use crate::profile::{Check, is_capability_id, is_kebab, scalar_text};
@@ -403,6 +403,32 @@ pub(super) fn check_measures(check: &mut Check<'_>, entry: &Entry) -> Option<Vec
         }
     }
     valid.then_some(measures)
+}
+
+pub(super) fn check_units(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<Unit>> {
+    let Some(map) = entry.value().as_map() else {
+        check.key(
+            "units",
+            Rule::WrongShape {
+                expected: "a map of measure names to unit texts",
+            },
+        );
+        return None;
+    };
+    let mut units = Vec::new();
+    let mut valid = true;
+    for field in map.entries() {
+        match scalar_text(field) {
+            Some(text) if !text.trim().is_empty() => {
+                units.push(Unit::new(field.key(), text));
+            }
+            _ => {
+                check.key("units", Rule::EmptyText);
+                valid = false;
+            }
+        }
+    }
+    valid.then_some(units)
 }
 
 pub(super) fn check_scope(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<String>> {
@@ -979,6 +1005,13 @@ pub(super) struct Keys<'a> {
     pub(super) values: Option<&'a [Measure]>,
     /// `None` when the key is present and invalid.
     pub(super) limits: Option<&'a [Measure]>,
+    /// `None` when the key is present and invalid.
+    pub(super) units: Option<&'a [Unit]>,
+    /// Whether the `units` key is present.
+    pub(super) has_units: bool,
+    /// Whether the `conditions` key is present; `None` when it is present and
+    /// invalid.
+    pub(super) has_conditions: Option<bool>,
 }
 
 /// The rules between the keys of a record. Each runs only when the keys it
@@ -1047,6 +1080,28 @@ pub(super) fn check_between(check: &mut Check<'_>, keys: &Keys<'_>) -> bool {
                 );
                 valid = false;
             }
+        }
+    }
+    if let (Some(values), Some(units), Some(has_conditions)) =
+        (keys.values, keys.units, keys.has_conditions)
+        && (keys.has_units || has_conditions)
+    {
+        // A record that states units or conditions states them for every value.
+        let known: HashSet<&str> = units.iter().map(|unit| unit.name.as_str()).collect();
+        for value in values {
+            if !known.contains(value.name.as_str()) {
+                check.key(
+                    "values",
+                    Rule::ValueWithoutUnit {
+                        name: value.name.clone(),
+                    },
+                );
+                valid = false;
+            }
+        }
+        if !values.is_empty() && keys.has_units && !has_conditions {
+            check.key("values", Rule::ConditionsMissing);
+            valid = false;
         }
     }
     valid

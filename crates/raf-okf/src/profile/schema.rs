@@ -57,6 +57,13 @@ pub enum ValueKind {
     Revision,
     /// A map of measure names to numbers.
     Measures,
+    /// A map of measure names to unit texts.
+    Units,
+    /// The non-empty text saying how and where an evidence record's values
+    /// were taken.
+    Conditions,
+    /// The text `true` or `false`.
+    Flag,
     /// A list of crate package names with no duplicate.
     Scope,
     /// A list of maps with exactly the keys `item` and `reason`.
@@ -107,7 +114,7 @@ const fn optional(key: &'static str, value: ValueKind) -> KeySpec {
     }
 }
 
-const CAPABILITY: [KeySpec; 12] = [
+const CAPABILITY: [KeySpec; 13] = [
     required("type", ValueKind::DocType),
     required("id", ValueKind::Id),
     required("title", ValueKind::Text),
@@ -118,6 +125,7 @@ const CAPABILITY: [KeySpec; 12] = [
     required("bindings", ValueKind::Bindings),
     required("depends", ValueKind::CapabilityIds),
     optional("review_required", ValueKind::ReviewKinds),
+    optional("measured_evidence_required", ValueKind::Flag),
     optional("diagrams", ValueKind::Diagrams),
     optional("model", ValueKind::Model),
 ];
@@ -150,7 +158,7 @@ const ARCHITECTURE: [KeySpec; 8] = [
 /// no `title` or `description`: a record states a result, not prose. Evidence
 /// and an assessment share the trace keys `subject`, `inputs`, `verdict` and
 /// `by`, in that order, before the keys of their own.
-const EVIDENCE: [KeySpec; 13] = [
+const EVIDENCE: [KeySpec; 15] = [
     required("type", ValueKind::DocType),
     required("id", ValueKind::Id),
     optional("tags", ValueKind::Tags),
@@ -164,6 +172,8 @@ const EVIDENCE: [KeySpec; 13] = [
     optional("revision", ValueKind::Revision),
     optional("values", ValueKind::Measures),
     optional("limits", ValueKind::Measures),
+    optional("units", ValueKind::Units),
+    optional("conditions", ValueKind::Conditions),
 ];
 
 const ASSESSMENT: [KeySpec; 8] = [

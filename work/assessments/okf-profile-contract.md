@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
 inputs:
   - kind: section
     name: cap:okf-profile#contract
-    digest: d3a5dc706ccfd026cc6149482cf13a3581dee7572296fc581e2ca71205f3f5fc
+    digest: 1e29bf269471eb2bd0df99c4ef60e401b50c2648c1d827bfb2df27408d82be2d
   - kind: symbol
     name: raf_okf::Actor
     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
@@ -34,7 +34,7 @@ inputs:
     digest: eca1cd8b220240df87081003b07bee925747296bff590af295de041f23289a6f
   - kind: symbol
     name: raf_okf::Capability
-    digest: 42bcec7248c4b87a69ac670277a773a9e6eaf53ddc69af0722359e812a34007f
+    digest: 8851f0d4e912eedb85b8da41afea056b20efed44802f82e30d29ef7a0400a161
   - kind: symbol
     name: raf_okf::Ceiling
     digest: 974b6a1715864178fbc022474858d90c3949990495eecb0f09255e39abdea928
@@ -106,13 +106,13 @@ inputs:
     digest: a642645a1054216d52501757c97c04a2d34cfa1b4dd9e771ed19f5ccdaaf28e8
   - kind: symbol
     name: raf_okf::EvidenceRecord
-    digest: ead5006cba58985026c73484beb92adf522f2c72b6acfd82a2b27605fa2536d9
+    digest: 180952bd287b723cbcbeaaf96c436fe9ba7d3e8fa3e883c0e8ff7e9b9bfea291
   - kind: symbol
     name: raf_okf::EvidenceRecord::new
-    digest: c8336048562554dea5b043881555778f9bf3d31274e5d7e2845dc128f4f9d3ef
+    digest: 8f17665bc4fed45e13b8657234dc5a2ab0adfafbc29c571b026426e625968b0f
   - kind: symbol
     name: raf_okf::EvidenceRecord::to_document
-    digest: 14ac2c27515a95f662b1848855823b4b76095880725c1484030ea510ab2f691b
+    digest: 2d3bb6d017da493d437f304bc2a482ebe000946ce1d8933b6d36e929b8141081
   - kind: symbol
     name: raf_okf::EvidenceSubject
     digest: 30e9253b733ac560dec89860e4d626604754f94a4dac285f96f0c833e7da6fa1
