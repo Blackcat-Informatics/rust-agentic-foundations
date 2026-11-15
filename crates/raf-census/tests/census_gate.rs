@@ -3321,21 +3321,24 @@ fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
     assert_eq!(report.findings().len(), 1);
 }
 
+/// The copies a `foreign-host-import` job finds in a detector workspace.
+fn host_copies(home: &str, consumer: &str, extra: &[(&str, &str)]) -> usize {
+    let tree = detector_fixture_with(
+        detector_ledger("foreign-host-import"),
+        home,
+        consumer,
+        extra,
+    );
+    Gate::workspace(".").check_tree(&tree).unwrap().jobs()[0].copies
+}
+
 #[test]
 fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
     const HOME: &str = "/// Home.\npub mod home {#[wasm_bindgen(module = \"clock\")] extern \"C\" {pub fn now() -> f64;}}";
     const SAME: &str = "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn now() -> f64;}";
     const OTHER: &str = "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn later() -> f64;}";
     const DATE: &str = "/// Home.\npub mod home {#[wasm_bindgen(js_namespace = Date, js_name = now)] extern \"C\" {pub fn read() -> f64;}}";
-    let copies = |home: &str, consumer: &str, extra: &[(&str, &str)]| {
-        let tree = detector_fixture_with(
-            detector_ledger("foreign-host-import"),
-            home,
-            consumer,
-            extra,
-        );
-        Gate::workspace(".").check_tree(&tree).unwrap().jobs()[0].copies
-    };
+    let copies = host_copies;
     // A second package, a second module of the home package and a test target
     // each repeat the home's host function; a different host function does not.
     assert_eq!(
@@ -3368,6 +3371,7 @@ fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
     );
     // An argument the detector cannot place is refused beside a valid neighbour.
     for refused in [
+        "#[wasm_bindgen(module = \"clock\", js_name)] extern \"C\" {fn now() -> f64;}",
         "#[wasm_bindgen(module = 1)] extern \"C\" {fn now() -> f64;}",
         "#[wasm_bindgen(module = \"clock\", unheard_of)] extern \"C\" {fn now() -> f64;}",
     ] {
@@ -3397,6 +3401,46 @@ fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
         ))
         .unwrap_err();
     assert!(error.to_string().contains("requires a home that declares"));
+}
+
+#[test]
+fn foreign_host_import_names_a_property_by_the_property_it_reads() {
+    let copies = host_copies;
+    // A property import is named by its own value, then `js_name`, then the Rust
+    // name: two spellings of one property match, two properties on one Rust name do not.
+    let width = |attributes: &str, function: &str| {
+        format!(
+            "#[wasm_bindgen(module = \"window\")] extern \"C\" {{#[wasm_bindgen({attributes})] fn {function}(this: &Window) -> f64;}}"
+        )
+    };
+    let home_width = format!(
+        "/// Home.\npub mod home {{{}}}",
+        width("method, getter, js_name = innerWidth", "width")
+    );
+    assert_eq!(
+        copies(
+            &home_width,
+            &width("method, getter, js_name = innerWidth", "inner_width"),
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(
+            &home_width,
+            &width("method, getter = innerWidth", "other"),
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(
+            &home_width,
+            &width("method, getter, js_name = innerHeight", "width"),
+            &[]
+        ),
+        0
+    );
 }
 
 #[test]

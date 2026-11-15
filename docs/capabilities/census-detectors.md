@@ -23,6 +23,7 @@ bindings:
     - raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence
     - raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope
     - raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function
+    - raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads
     - raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package
     - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
     - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
@@ -100,7 +101,7 @@ Syntax recognizers describe the detected construction; they do not select a
 different hard-coded library or standard-library alternative.
 
 ### Job-scoped literals and names
-<!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads -->
 
 Job-dependent evidence is isolated to the job that names its detector.
 Home-literal evidence includes empty ordinary strings and requires at least
@@ -187,8 +188,9 @@ it, and by its imported name. The kinds are `module`, `raw_module`, `inline_js`,
 `js_class` and `js_namespace` (also written `static_method_of`) of `wasm_bindgen`,
 the receiver type of a `method` import, `wasm_import_module` and `name` of `link`,
 and `indexing_getter`, `indexing_setter` and `indexing_deleter`. The name is
-`js_name`, `link_name`, a `getter` or `setter` property (a read and a write are
-different imports), else the declared name. The same value under two kinds is two
+`js_name` or `link_name`, else the declared name. For a `getter` or `setter` the
+property is the attribute's own value, then `js_name`, then the declared name (without
+a `set_` prefix for a setter), and a read and a write are different imports. The same value under two kinds is two
 namespaces. Arguments of `wasm_bindgen` that do not select a host function, such as
 `catch` and `variadic`, are ignored. Attributes inside `cfg_attr` are read. An
 argument the detector cannot place is refused with its file and line.
@@ -295,7 +297,7 @@ import of `later`, an import of `now` from another module, from `raw_module` or 
 `#[wasm_bindgen(static_method_of = Date)] fn now()` and not a `method` import of
 `now`. A home without a host import, and an argument such as `module = 1` or an
 unknown name, refuse the job.
-<!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads -->
 
 A preferred-provider adapter can return the result of its admitted native
 encoder while another helper in the same package spells a hex-digit table.
@@ -333,14 +335,16 @@ delegation to a native provider.
 - `foreign-host-import` reads the attributes written on the `extern` block and its
   functions, directly or inside `cfg_attr`. An `extern` block produced by a macro
   expansion is not read.
-  <!-- raf:tested-by raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function -->
+  A `js_class` is its own namespace kind: the same import with and without it, or beside
+  a `method` receiver of the same type, is two host functions.
+  <!-- raf:tested-by raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads -->
 - Detectors work on syntax. They do not resolve types, so `std-default-hasher`
   recognises the std paths and aliases it can see in the file.
   <!-- raf:tested-by raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases -->
 - A detector reports hits; a required-rule selection makes eligible hits hard
   findings, while other hits become findings through the ledger job that forbids
   them.
-  <!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function -->
+  <!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads -->
 
 ## Explanation
 
@@ -404,7 +408,8 @@ required findings with neighbouring clean source.
   function, the same name in another namespace, the home itself and an import with
   no namespace clean, including the same value under another namespace kind. A
   static method matches the namespace form of the same function, and a method
-  receiver does not. A home without an import and an unplaceable argument each
+  receiver does not. Two spellings of one property, by `js_name` and by the attribute's own value, match, and
+  two `js_name` values on one declared name do not. A home without an import and an unplaceable argument, including a `js_name` with no value, each
   refuse the job beside a valid neighbour.
 - `vocabulary-literal` fixtures flag a single-line literal with and without a
   keyword, a multi-line literal without a keyword and one whose keywords appear
@@ -425,6 +430,7 @@ required findings with neighbouring clean source.
 | `raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::fact_detectors_reuse_collected_values_and_keep_their_target_scope` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order` | test | [Contract](#contract) |

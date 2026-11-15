@@ -77,9 +77,12 @@ fn place(
     value: Option<String>,
     span: proc_macro2::Span,
 ) -> Result<(&'static str, String), Refusal> {
-    value
-        .map(|value| (kind, value))
-        .ok_or_else(|| refuse(span, format!("`{kind}` requires a value")))
+    value.map(|value| (kind, value)).ok_or_else(|| {
+        refuse(
+            span,
+            format!("the host binding argument `{kind}` requires a value"),
+        )
+    })
 }
 
 /// The written text of an attribute value: a string, a path or a list of paths.
@@ -203,7 +206,11 @@ impl Identity {
             ("static_method_of", true) => {
                 self.namespaces.insert(namespace("js_namespace", value)?);
             }
-            ("js_name", true) => self.name = value,
+            ("js_name", true) => {
+                self.name = Some(value.ok_or_else(|| {
+                    refuse(span, "the host binding argument `js_name` requires a value")
+                })?);
+            }
             ("getter" | "setter", true) => {
                 let access = if key == "getter" {
                     Access::Read
@@ -267,13 +274,14 @@ impl Identity {
                 .join("::");
             namespaces.insert(("method_of", text));
         }
+        let written = |property: &Option<String>| property.clone().or_else(|| self.name.clone());
         let name = match &self.property {
             Some((Access::Read, property)) => {
-                format!("get {}", property.clone().unwrap_or(declared))
+                format!("get {}", written(property).unwrap_or(declared))
             }
             Some((Access::Write, property)) => format!(
                 "set {}",
-                property.clone().unwrap_or_else(|| declared
+                written(property).unwrap_or_else(|| declared
                     .strip_prefix("set_")
                     .unwrap_or(&declared)
                     .to_owned())
