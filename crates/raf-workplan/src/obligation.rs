@@ -598,11 +598,8 @@ impl Needed {
     #[must_use]
     pub const fn contract_text(&self) -> &'static str {
         match self {
-            Self::CurrentReview { strict: true, .. } => {
-                "a completed current review of the required kind with a clean verdict recorded for the capability"
-            }
             Self::CurrentReview { .. } => {
-                "a completed current review of the required kind recorded for the capability"
+                "a completed current review of the required kind recorded for the capability, with a clean verdict when the capability is strict"
             }
             Self::ProposalResolved => {
                 "the block is replaced by plain contract text, or removed because the claim was dropped"

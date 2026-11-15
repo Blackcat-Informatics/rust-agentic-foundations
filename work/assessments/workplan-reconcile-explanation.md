@@ -76,7 +76,7 @@ inputs:
     digest: c4bcfb2c0638b52dcd66423977bf61207f5fae27cb5ccc2a1acddc416858af40
   - kind: symbol
     name: raf_workplan::obligation
-    digest: 6cf715442cc668ddf7f0e79d17b4c16c0e1ada7b4121f006ad7b48927d59ae72
+    digest: f67e94ab502ded46ef6af924ccc643fdc992dfa88ae0c762599639453299aa50
   - kind: symbol
     name: raf_workplan::obligation::ClaimProblem
     digest: 326c239924ff76836c168c30cfe1286e5f1095150e492064d5c833d6e6afab29

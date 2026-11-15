@@ -147,7 +147,7 @@ fn review_cases(base: &Repo, cases: &mut Vec<Case>) {
     let path = "work/reviews/omega-security.md".to_string();
     let mut current = required.clone();
     current.insert(path.clone(), review.to_document().unwrap().render());
-    let evidence = "a completed current review of the required kind recorded for the capability";
+    let evidence = "a completed current review of the required kind recorded for the capability, with a clean verdict when the capability is strict";
     cases.push(Case {
         name: "review-missing",
         broken: required.clone(),
@@ -219,7 +219,7 @@ fn review_cases(base: &Repo, cases: &mut Vec<Case>) {
             kind: ObligationKind::ReviewStale,
             path: OMEGA,
             line: None,
-            text: "cap:omega  document  review-stale  a completed current review of the required kind with a clean verdict recorded for the capability (security review `review:omega-security` has the verdict findings)".to_string(),
+            text: "cap:omega  document  review-stale  a completed current review of the required kind recorded for the capability, with a clean verdict when the capability is strict (security review `review:omega-security` has the verdict findings)".to_string(),
         }],
     });
 }
