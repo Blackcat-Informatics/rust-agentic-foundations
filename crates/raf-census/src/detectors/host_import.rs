@@ -28,9 +28,8 @@ const NAMESPACES: [&str; 5] = [
 ];
 /// Arguments of `wasm_bindgen(..)` that do not change which host function is
 /// imported.
-const NEUTRAL: [&str; 15] = [
+const NEUTRAL: [&str; 14] = [
     "catch",
-    "constructor",
     "extends",
     "final",
     "param_description",
@@ -61,6 +60,7 @@ struct Identity {
     /// A property access: the access and the written property, when it is written.
     property: Option<(Access, Option<String>)>,
     method: bool,
+    constructor: bool,
 }
 
 fn refuse(span: proc_macro2::Span, message: impl Into<String>) -> Refusal {
@@ -234,6 +234,7 @@ impl Identity {
                 self.property = Some((access, value));
             }
             ("method", true) => self.method = true,
+            ("constructor", true) => self.constructor = true,
             ("indexing_getter" | "indexing_setter" | "indexing_deleter", true) => {
                 self.namespaces.insert(("indexing", key.to_owned()));
             }
@@ -254,7 +255,8 @@ impl Identity {
     fn describe(&self, function: &syn::ForeignItemFn) -> Result<String, Refusal> {
         let declared = function.sig.ident.unraw().to_string();
         let mut namespaces = self.namespaces.clone();
-        if self.method {
+        let has_class = namespaces.iter().any(|(kind, _)| *kind == "js_class");
+        if self.method && !has_class {
             let receiver = match function.sig.inputs.first() {
                 Some(syn::FnArg::Typed(argument)) => match argument.ty.as_ref() {
                     syn::Type::Reference(reference) => reference.elem.as_ref(),
@@ -282,6 +284,9 @@ impl Identity {
                 .join("::");
             namespaces.insert(("method_of", text));
         }
+        if self.constructor && !has_class {
+            namespaces.insert(("constructs", constructed(function)?));
+        }
         let written = |property: &Option<String>| property.clone().or_else(|| self.name.clone());
         let name = match &self.property {
             Some((Access::Read, property)) => {
@@ -307,6 +312,41 @@ impl Identity {
             format!("host function `{name}` ({place}) is imported by an extern block")
         })
     }
+}
+
+/// The class a constructor import builds: its returned type, or the first type of a
+/// returned `Result`.
+fn constructed(function: &syn::ForeignItemFn) -> Result<String, Refusal> {
+    let syn::ReturnType::Type(_, returned) = &function.sig.output else {
+        return Err(refuse(
+            function.sig.ident.span(),
+            "a `constructor` import needs a return type naming its class",
+        ));
+    };
+    let syn::Type::Path(path) = returned.as_ref() else {
+        return Err(refuse(
+            returned.span(),
+            "a `constructor` import's return type must be a named type",
+        ));
+    };
+    let last = path.path.segments.last();
+    let inner = last.and_then(|segment| match &segment.arguments {
+        syn::PathArguments::AngleBracketed(arguments) if segment.ident == "Result" => {
+            arguments.args.iter().find_map(|argument| match argument {
+                syn::GenericArgument::Type(syn::Type::Path(inner)) => Some(inner),
+                _ => None,
+            })
+        }
+        _ => None,
+    });
+    let named = inner.unwrap_or(path);
+    Ok(named
+        .path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.unraw().to_string())
+        .collect::<Vec<_>>()
+        .join("::"))
 }
 
 struct Imports {

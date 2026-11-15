@@ -3491,6 +3491,37 @@ fn foreign_host_import_names_a_property_by_the_property_it_reads() {
 }
 
 #[test]
+fn foreign_host_import_names_a_class_by_its_js_class_or_constructed_type() {
+    let copies = host_copies;
+    let bound = |attributes: &str, signature: &str| {
+        format!(
+            "#[wasm_bindgen(module = \"dates\")] extern \"C\" {{#[wasm_bindgen({attributes})] {signature};}}"
+        )
+    };
+    let in_home = |import: String| format!("/// Home.\npub mod home {{{import}}}");
+    // A constructor is named by the class it builds, not by `new`.
+    let home = in_home(bound("constructor", "pub fn new() -> Date"));
+    assert_eq!(
+        copies(&home, &bound("constructor", "fn new() -> Date"), &[]),
+        1
+    );
+    assert_eq!(
+        copies(&home, &bound("constructor", "fn new() -> Map"), &[]),
+        0
+    );
+    // A stated `js_class` names a method's class, whatever the Rust receiver is called.
+    let method = |class: &str, receiver: &str| {
+        bound(
+            &format!("method, js_class = \"{class}\", js_name = getTime"),
+            &format!("fn get_time(this: &{receiver}) -> f64"),
+        )
+    };
+    let home = in_home(method("Date", "HomeDate"));
+    assert_eq!(copies(&home, &method("Date", "OtherDate"), &[]), 1);
+    assert_eq!(copies(&home, &method("Map", "OtherDate"), &[]), 0);
+}
+
+#[test]
 fn contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope() {
     for home in [
         "/// Home.\npub mod home {pub const NS:&str=concat!(\"urn:\",\"demo:\");}",
