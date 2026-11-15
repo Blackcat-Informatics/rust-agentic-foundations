@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/255-embedded-clones-bind-an-example-that",
+  "branch": "paudley/255-embedded-clones-bind-an-example-that",
+  "base_ref": "refs/remotes/origin/main",
+  "head": "026375c93c3376f5eec7e9962d18ad51a8818139",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/255-embedded-clones-bind-an-example-that/.stage/embedded-clones-bind-an-example-that/sync/20261114T232735-ad7b22de900240549b96ff16cb20890a",
+  "conflicts": [],
+  "status": "completed",
+  "base": "e1e5665749d7b0dcb11b8404e4c2b5ae754f58e9",
+  "merge_bases": [
+    "b00cc17d24e3351097ac5e21c99ad692165157b1"
+  ],
+  "merge_index": "c6688d9a787a880c563ead36406053bff5c976d31031d32252498d342395a117",
+  "candidate_tree": "a8b7c0f47b2b089570a89030ea9441b8f7ab7d6e",
+  "candidate_patch": "candidate-d2096cd59c1a40c5a7cf98d7c8bfd5d8.patch",
+  "validation_records": [],
+  "commit": "111b65f70e087f1d62513dfab85784fc1e9dca11",
+  "tree": "a8b7c0f47b2b089570a89030ea9441b8f7ab7d6e"
+}
