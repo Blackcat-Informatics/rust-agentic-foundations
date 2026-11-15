@@ -9,6 +9,7 @@ state: delivered
 bindings:
   code:
     - raf_census::gate::patterns
+    - raf_census::gate::ratchet
     - raf_census::syntax
     - raf_census::Gate::matching_limits
   tests:
@@ -28,6 +29,7 @@ bindings:
     - raf_census::test_crate::census_gate::anonymous_qualified_receivers_refuse_beside_supported_named_receivers
     - raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches
     - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
+    - raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions
     - raf_census::test_crate::census_gate::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts
     - raf_census::test_crate::census_gate::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits
     - raf_census::test_crate::census_gate::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it
@@ -115,9 +117,12 @@ excludes their desugared leaves. Explicit `#[doc = "..."]` attributes remain
 ordinary string literals.
 <!-- raf:tested-by raf_census::test_crate::census_gate::literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes -->
 
+**Ratcheted patterns.** A pattern may state raf:ratcheted, only as true. Its hits are then not findings: each is recorded in the debt record as a counted site keyed by file, rule and a site key (see the debt ratchet), and the generic copy finding for the matched unit is suppressed. A ratcheted pattern with no hit stays a recorded guard rather than going stale. Every job that references it must be enforced; `ratcheted` stated as false, stated twice or stated for a pattern whose job is unenforced refuses at ledger load, and a pattern that does not state it is forbidden and keeps its hard failure. A literalRegex hit is keyed on its own literal.
+<!-- raf:tested-by raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence -->
+
 **Validated references.** Patterns share the RuleId namespace with built-ins and registered rules. Missing,
 duplicate, unknown and unreferenced declarations refuse. A referenced pattern with
-no occurrence is stale for an enforced job. Jobs select ids with
+no occurrence is stale for an enforced job, unless it is ratcheted. Jobs select ids with
 raf:forbiddenPattern; a declaration alone never makes the Gate clean.
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours -->
 
@@ -340,6 +345,7 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts` | test | [Contract](#contract) |

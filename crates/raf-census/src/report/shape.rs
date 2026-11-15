@@ -210,6 +210,9 @@ fn validate_properties(
                 "large integer" => integer_value(value).is_some_and(|v| v > 0xffff),
                 "package count" => integer_value(value).is_some_and(|v| v >= 2),
                 "boolean" => boolean_value(value).is_some(),
+                "site key" => value.literal().is_some_and(|(text, datatype)| {
+                    datatype == raf_rdf::vocab::STRING && super::SiteKey::from_hex(text).is_some()
+                }),
                 "unit" => {
                     let unit = target(value)?;
                     member(graph, unit)?;

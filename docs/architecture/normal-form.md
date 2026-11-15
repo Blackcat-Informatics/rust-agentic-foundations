@@ -451,6 +451,7 @@ detectors still see it, and a job copy inside an excluded file still counts.
 | debt | `census:DebtRecord` | `census:reportForm` | 1..1 | report version |
 | debt | `census:DebtRecord` | `census:excludeTestItems` | 0..1 | boolean |
 | debt | `census:DebtRecord` | `census:excludeDir` | 0..unbounded | string |
+| debt | `census:DebtRecord` | `census:ratchetedRule` | 0..unbounded | string |
 | debt | `census:BodyDebt` | `census:memberSymbol` | 1..unbounded | string |
 | debt | `census:ShimDebt` | `census:memberSymbol` | 1..unbounded | string |
 | debt | `census:BodyDebt` | `census:multiplicity` | 0..unbounded | multiplicity |
@@ -459,6 +460,10 @@ detectors still see it, and a job copy inside an excluded file still counts.
 | debt | `census:MemberMultiplicity` | `census:copies` | 1..1 | package count |
 | debt | `census:JobDebt` | `census:jobId` | 1..1 | string |
 | debt | `census:JobDebt` | `census:copies` | 1..1 | positive integer |
+| debt | `census:SiteDebt` | `census:file` | 1..1 | string |
+| debt | `census:SiteDebt` | `census:ruleId` | 1..1 | string |
+| debt | `census:SiteDebt` | `census:siteKey` | 1..1 | site key |
+| debt | `census:SiteDebt` | `census:copies` | 1..1 | positive integer |
 
 Job-query units use every index Unit property and the common Unit properties.
 Its selected Job and Match nodes use the index rows above. Fingerprint-query
@@ -484,6 +489,14 @@ and redundant count-one nodes are refused. Report form 5 includes this counted
 shape. Earlier report layouts are refused by the ordinary readers; baseline and
 index reports can be regenerated from source without changing fingerprints.
 
+A ratcheted site is a counted row of the debt record, keyed by its file, its rule
+and a site key. The site key is the lowercase hexadecimal BLAKE3-256 digest of the
+domain bytes `raf-census/debt-site/v1`, the symbol of the enclosing source item as
+a little-endian u32 length and its bytes, one presence byte, and when it is 1 the
+length and bytes of the first ordinary or raw string literal that starts at or
+after the site inside that item. Line numbers and byte offsets are never hashed.
+The node name is `#site/<rule>/<key>@<file>`, and the reader recomputes it. A
+record with no ratcheted rule writes neither a `ratchetedRule` nor a `SiteDebt`.
 ## Version-bump rule
 
 The current Census report form is 5. The explicit native layout conversion
@@ -515,6 +528,10 @@ that states it is refused by that earlier reader as an unknown predicate naming
 the property, not with the report-form message. The grouping-scope properties
 `excludeTestItems` and `excludeDir`, and the job evidence properties `vectorPath`,
 `benchTarget` and `specRef`, are such additions within report form 5.
+So are the ledger pattern property `ratcheted`, the debt root property `ratchetedRule`
+and the `SiteDebt` node class: a node class written only for a ratcheted rule, and
+never for an existing input, adds no byte to a record without one. An earlier reader
+refuses each by name.
 A value newly accepted in an existing closed set, emitted only in a new mode and
 never for an existing input, is likewise within form 5: the `unpinned-tree`
 observation of a reference receipt. An earlier reader refuses it as an

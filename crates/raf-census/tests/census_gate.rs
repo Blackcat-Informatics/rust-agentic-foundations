@@ -385,6 +385,7 @@ fn ledger_vocabulary_matches_validated_graphs() {
         .into_iter()
         .map(|matcher| declared_pattern(Some(matcher), true)),
     );
+    builders.push(ratcheted_declaration());
     let reports = builders.into_iter().flat_map(|builder| {
         let graph = builder.finish().unwrap();
         [Format::Turtle, Format::NTriples].map(|format| {
@@ -496,6 +497,7 @@ fn ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_prese
             .unwrap_err();
         assert!(error.to_string().contains(key), "{error}");
     }
+    ratcheted_declarations_are_true_only_unique_and_held_by_enforced_jobs();
     let mut invalid = declared_pattern(Some("call"), true);
     for (node, key) in [("#pattern", "patternId"), ("#job", "forbiddenPattern")] {
         assert!(
@@ -4647,6 +4649,72 @@ fn module_paths_outside_their_package_are_required_findings_beside_contained_one
     assert_eq!(locked.findings(), report.findings());
 }
 
+fn ratcheted_declaration() -> Builder {
+    let mut graph = declared_pattern(Some("call"), true);
+    put(&mut graph, "#pattern", "ratcheted", Term::boolean(true));
+    graph
+}
+
+/// `ratcheted` is stated only as true, once, and only for a pattern whose jobs
+/// are enforced; a forbidden pattern states nothing and still loads.
+fn ratcheted_declarations_are_true_only_unique_and_held_by_enforced_jobs() {
+    let load = |graph: Builder| {
+        Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())
+    };
+    assert!(load(ratcheted_declaration()).unwrap().patterns()[0].ratcheted);
+    assert!(
+        !load(declared_pattern(Some("call"), true))
+            .unwrap()
+            .patterns()[0]
+            .ratcheted,
+        "a pattern that states nothing is forbidden"
+    );
+    let mut stated_false = declared_pattern(Some("call"), true);
+    put(
+        &mut stated_false,
+        "#pattern",
+        "ratcheted",
+        Term::boolean(false),
+    );
+    let mut not_boolean = declared_pattern(Some("call"), true);
+    put(
+        &mut not_boolean,
+        "#pattern",
+        "ratcheted",
+        Term::simple_literal("true"),
+    );
+    for graph in [stated_false, not_boolean] {
+        let error = load(graph).unwrap_err().to_string();
+        assert!(
+            error.contains("ratcheted is stated only as true"),
+            "{error}"
+        );
+    }
+    let mut twice = ratcheted_declaration();
+    put(&mut twice, "#pattern", "ratcheted", Term::boolean(false));
+    let error = load(twice).unwrap_err().to_string();
+    assert!(error.contains("ratcheted"), "{error}");
+    let unenforced = |graph: &mut Builder| {
+        assert!(
+            graph
+                .remove(Triple {
+                    subject: Term::iri("#job"),
+                    predicate: Term::iri(format!("{}enforced", vocab::REPORT)),
+                    object: Term::boolean(true),
+                })
+                .unwrap()
+        );
+        put(graph, "#job", "enforced", Term::boolean(false));
+    };
+    let mut held = ratcheted_declaration();
+    unenforced(&mut held);
+    let error = load(held).unwrap_err().to_string();
+    assert!(error.contains("not enforced"), "{error}");
+    let mut forbidden = declared_pattern(Some("call"), true);
+    unenforced(&mut forbidden);
+    assert!(load(forbidden).is_ok());
+}
+
 fn scoped_pattern(scope: &[(&str, &str)], shipping_only: bool) -> Builder {
     let mut graph = lexical_pattern_graph("call", "std::mem::drop");
     for (key, value) in scope {
@@ -4695,6 +4763,178 @@ fn scoped_tree(site: &str, graph: Builder) -> MemoryTree {
 fn scoped_copies(site: &str, scope: &[(&str, &str)], shipping_only: bool) -> usize {
     let tree = scoped_tree(site, scoped_pattern(scope, shipping_only));
     Gate::workspace(".").check_tree(&tree).unwrap().jobs()[0].copies
+}
+
+const RATCHET_ONE: &str = "pub fn one(){std::mem::drop(1);let _=\"alpha\";}\npub fn two(){std::mem::drop(2);let _=\"beta\";}\n";
+const RATCHET_THREE: &str = "pub fn three(){std::mem::drop(3);let _=\"gamma\";}\n";
+
+/// Modules `src/<name>.rs` beside the approved home, the ratcheted or forbidden
+/// drop-call pattern, and an optional recorded debt text.
+fn ratchet_tree(modules: &[(&str, &str)], record: Option<&str>, ratcheted: bool) -> MemoryTree {
+    let mut graph = lexical_pattern_graph("call", "std::mem::drop");
+    if ratcheted {
+        put(&mut graph, "#pattern", "ratcheted", Term::boolean(true));
+    }
+    let declared = modules
+        .iter()
+        .map(|(name, _)| format!("pub mod {name};\n"))
+        .collect::<Vec<_>>()
+        .concat();
+    let mut files = vec![
+        (
+            "Cargo.toml".to_owned(),
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n".to_owned(),
+        ),
+        (
+            "src/lib.rs".to_owned(),
+            format!("{declared}pub fn home(){{std::mem::drop(0);}}\npub use home as alias;\n"),
+        ),
+        (
+            "helpers-ledger.ttl".to_owned(),
+            graph.finish().unwrap().to_text(Format::Turtle).unwrap(),
+        ),
+    ];
+    files.extend(
+        modules
+            .iter()
+            .map(|(name, body)| (format!("src/{name}.rs"), (*body).to_owned())),
+    );
+    if let Some(record) = record {
+        files.push(("census-debt.ttl".to_owned(), record.to_owned()));
+    }
+    files.into_iter().collect()
+}
+
+#[test]
+fn ratcheted_patterns_record_counted_sites_and_hold_both_directions() {
+    let check = |modules: &[(&str, &str)], record: Option<&str>| {
+        Gate::workspace(".")
+            .check_tree(&ratchet_tree(modules, record, true))
+            .unwrap()
+    };
+    let both = [("a", RATCHET_ONE), ("b", RATCHET_THREE)];
+    // Adoption: three hits in two files are recorded as exactly three sites,
+    // and the pattern's hits are debt rather than findings.
+    let adopted = check(&both, None);
+    let debt = adopted.debt();
+    assert_eq!(
+        debt.ratcheted().iter().collect::<Vec<_>>(),
+        ["approved-call"]
+    );
+    assert_eq!(debt.sites().len(), 3);
+    assert!(debt.sites().values().all(|copies| *copies == 1));
+    let files: Vec<_> = debt
+        .sites()
+        .keys()
+        .map(|site| site.file().to_string())
+        .collect();
+    assert_eq!(files, ["src/a.rs", "src/a.rs", "src/b.rs"]);
+    assert!(
+        adopted
+            .findings()
+            .iter()
+            .all(|finding| finding.contains("Adopt")),
+        "{:?}",
+        adopted.findings()
+    );
+    let record = debt.to_turtle().unwrap();
+    assert_eq!(
+        DebtRecord::from_turtle(&record)
+            .unwrap()
+            .to_turtle()
+            .unwrap(),
+        record
+    );
+    assert!(check(&both, Some(&record)).is_clean());
+    // Inserting lines above every recorded site leaves the record byte-identical.
+    let shifted = [
+        ("a", format!("// a\n// b\n\n{RATCHET_ONE}")),
+        ("b", format!("\n\n{RATCHET_THREE}")),
+    ];
+    let shifted: Vec<_> = shifted.iter().map(|(n, b)| (*n, b.as_str())).collect();
+    let moved = check(&shifted, Some(&record));
+    assert!(moved.is_clean(), "{:?}", moved.findings());
+    assert_eq!(moved.debt().to_turtle().unwrap(), record);
+    // A fourth hit is growth whether it is a new key or repeats a recorded one.
+    let new_key = format!("{RATCHET_ONE}pub fn four(){{std::mem::drop(4);let _=\"delta\";}}\n");
+    let repeated = "pub fn one(){std::mem::drop(1);std::mem::drop(9);let _=\"alpha\";}\npub fn two(){std::mem::drop(2);let _=\"beta\";}\n";
+    for (a, recorded, present) in [(new_key.as_str(), 0, 1), (repeated, 1, 2)] {
+        let grown = check(&[("a", a), ("b", RATCHET_THREE)], Some(&record));
+        assert_eq!(grown.findings().len(), 1, "{:?}", grown.findings());
+        let finding = &grown.findings()[0];
+        assert!(finding.contains("growth cannot be recorded"), "{finding}");
+        assert!(
+            finding.contains(&format!("recorded: {recorded}, present: {present}")),
+            "{finding}"
+        );
+        assert!(
+            finding.contains("src/a.rs:"),
+            "growth names its hit: {finding}"
+        );
+        assert!(
+            record_may_not_admit(&record, grown.debt()),
+            "a record cannot absorb the growth"
+        );
+    }
+    // A falling count fails check until the record is lowered; the lowered
+    // record then passes.
+    let two_hits = "pub fn one(){std::mem::drop(1);std::mem::drop(9);let _=\"alpha\";}\npub fn two(){std::mem::drop(2);let _=\"beta\";}\n";
+    let wide = check(&[("a", two_hits), ("b", RATCHET_THREE)], None)
+        .debt()
+        .to_turtle()
+        .unwrap();
+    let fallen = check(&both, Some(&wide));
+    assert_eq!(fallen.findings().len(), 1, "{:?}", fallen.findings());
+    assert!(
+        fallen.findings()[0].contains("lower the record"),
+        "{:?}",
+        fallen.findings()
+    );
+    assert!(check(&both, Some(&fallen.debt().to_turtle().unwrap())).is_clean());
+    // A recorded site whose hit is gone, or whose file is deleted, is stale.
+    let unhit = [
+        ("a", RATCHET_ONE),
+        ("b", "pub fn three(){let _=\"gamma\";}\n"),
+    ];
+    for modules in [&unhit[..], &both[..1]] {
+        let stale = check(modules, Some(&record));
+        assert_eq!(stale.findings().len(), 1, "{:?}", stale.findings());
+        assert!(
+            stale.findings()[0].contains("stale site"),
+            "{:?}",
+            stale.findings()
+        );
+        assert!(check(modules, Some(&stale.debt().to_turtle().unwrap())).is_clean());
+    }
+    forbidden_neighbour_keeps_hard_failure_and_records_no_site(&both);
+}
+
+/// The same hits under a pattern that is not ratcheted stay findings.
+fn forbidden_neighbour_keeps_hard_failure_and_records_no_site(modules: &[(&str, &str)]) {
+    let forbidden = Gate::workspace(".")
+        .check_tree(&ratchet_tree(modules, None, false))
+        .unwrap();
+    assert!(forbidden.debt().sites().is_empty() && forbidden.debt().ratcheted().is_empty());
+    assert_eq!(
+        forbidden
+            .findings()
+            .iter()
+            .filter(|finding| finding.contains("rule approved-call"))
+            .count(),
+        3,
+        "{:?}",
+        forbidden.findings()
+    );
+}
+
+/// True when comparing `present` to `record` reports growth, which a write refuses.
+fn record_may_not_admit(record: &str, present: &DebtRecord) -> bool {
+    DebtRecord::from_turtle(record)
+        .unwrap()
+        .compare(present)
+        .unwrap()
+        .iter()
+        .any(raf_census::DebtChange::is_growth)
 }
 
 #[test]

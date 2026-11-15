@@ -12,6 +12,9 @@ use crate::{Census, Error, Fingerprint, Ledger, LedgerJob, Rule, RuleHit};
 
 pub(super) type UnitKey = (String, String, usize);
 pub(super) type Hits = BTreeMap<String, BTreeMap<UnitKey, Vec<RuleHit>>>;
+/// The byte and line of every recorded hit, by rule and owning unit. The public
+/// `RuleHit` states a line only; the ratchet needs the byte.
+pub(super) type Offsets = BTreeMap<String, BTreeMap<UnitKey, Vec<(usize, usize)>>>;
 
 pub(super) struct Hit<'a> {
     pub(super) rule: &'a str,
@@ -33,6 +36,7 @@ pub(super) struct Subject {
 pub(super) struct Collected {
     pub(super) hits: Hits,
     pub(super) subjects: BTreeMap<UnitKey, Subject>,
+    pub(super) offsets: Offsets,
 }
 
 pub(super) struct JobHits<'a> {
@@ -87,17 +91,17 @@ pub(super) fn collect(
         .iter()
         .any(|id| crate::detectors::needs_syntax(id));
     ids.extend(crate::detectors::ids());
-    let mut matches: Hits = ids
-        .into_iter()
-        .map(|id| (id.to_owned(), BTreeMap::new()))
-        .collect();
-    let mut subjects = BTreeMap::new();
-    fact_hits(census, &requested, &mut matches);
+    let mut collected = Collected {
+        hits: ids
+            .into_iter()
+            .map(|id| (id.to_owned(), BTreeMap::new()))
+            .collect(),
+        subjects: BTreeMap::new(),
+        offsets: BTreeMap::new(),
+    };
+    fact_hits(census, &requested, &mut collected.hits);
     if rules.is_empty() && !builtin {
-        return Ok(Collected {
-            hits: matches,
-            subjects,
-        });
+        return Ok(collected);
     }
     for source in workspace.files() {
         let Some(ctx) = census.source_context(&source.path) else {
@@ -119,14 +123,7 @@ pub(super) fn collect(
             };
             (registered, builtins)
         })?;
-        builtin_hits(
-            workspace,
-            &source.path,
-            owners,
-            &mut matches,
-            &mut subjects,
-            builtins,
-        )?;
+        builtin_hits(workspace, &source.path, owners, &mut collected, builtins)?;
         for (id, hits) in found {
             for mut hit in hits {
                 let resolved = workspace.resolve(&hit.symbol).map_err(|error| {
@@ -155,7 +152,8 @@ pub(super) fn collect(
                 }
                 let owner = owners[0];
                 hit.symbol.clone_from(&owner.symbol);
-                matches
+                collected
+                    .hits
                     .get_mut(id)
                     .expect("admitted rule")
                     .entry(owners::key(owner))
@@ -164,10 +162,7 @@ pub(super) fn collect(
             }
         }
     }
-    Ok(Collected {
-        hits: matches,
-        subjects,
-    })
+    Ok(collected)
 }
 
 fn requested<'a>(
@@ -266,8 +261,7 @@ fn builtin_hits(
     workspace: &Workspace,
     file: &raf_source::RelPath,
     owners: &Owners<'_>,
-    matches: &mut Hits,
-    subjects: &mut BTreeMap<UnitKey, Subject>,
+    collected: &mut Collected,
     hits: Vec<crate::detectors::RawHit>,
 ) -> Result<(), Error> {
     for hit in hits {
@@ -275,8 +269,7 @@ fn builtin_hits(
             workspace,
             file,
             owners,
-            matches,
-            subjects,
+            collected,
             Hit {
                 rule: hit.rule,
                 byte: hit.byte,
@@ -292,8 +285,7 @@ pub(super) fn record_hit(
     workspace: &Workspace,
     file: &raf_source::RelPath,
     owners: &Owners<'_>,
-    matches: &mut Hits,
-    subjects: &mut BTreeMap<UnitKey, Subject>,
+    collected: &mut Collected,
     hit: Hit<'_>,
 ) -> Result<(), Error> {
     let physical: BTreeMap<_, _> = workspace
@@ -305,7 +297,7 @@ pub(super) fn record_hit(
         .collect();
     if physical.len() != 1 {
         if physical.is_empty() {
-            source_hit(workspace, file, matches, subjects, hit)?;
+            source_hit(workspace, file, collected, hit)?;
             return Ok(());
         }
         return Err(refused(
@@ -318,7 +310,15 @@ pub(super) fn record_hit(
     }
     let (key, unit) = physical.into_iter().next().expect("one physical owner");
     if unit.shipping || !crate::detectors::shipping_only(hit.rule) {
-        matches
+        collected
+            .offsets
+            .entry(hit.rule.to_owned())
+            .or_default()
+            .entry(key.clone())
+            .or_default()
+            .push((hit.byte, hit.line));
+        collected
+            .hits
             .get_mut(hit.rule)
             .expect("implemented detector")
             .entry(key)
@@ -335,8 +335,7 @@ pub(super) fn record_hit(
 fn source_hit(
     workspace: &Workspace,
     file: &raf_source::RelPath,
-    matches: &mut Hits,
-    subjects: &mut BTreeMap<UnitKey, Subject>,
+    collected: &mut Collected,
     hit: Hit<'_>,
 ) -> Result<(), Error> {
     let mut sites = workspace.item_at(file, hit.byte);
@@ -377,16 +376,27 @@ fn source_hit(
         file.to_string(),
         item.span.start_byte,
     );
-    subjects.entry(key.clone()).or_insert_with(|| Subject {
-        sites: sites.iter().map(|item| item.id).collect(),
-        source_file: file.clone(),
-        symbol: item.path.to_string(),
-        file: file.to_string(),
-        start_byte: item.span.start_byte,
-        line: item.name_line,
-        package: target.package.clone(),
-    });
-    matches
+    collected
+        .subjects
+        .entry(key.clone())
+        .or_insert_with(|| Subject {
+            sites: sites.iter().map(|item| item.id).collect(),
+            source_file: file.clone(),
+            symbol: item.path.to_string(),
+            file: file.to_string(),
+            start_byte: item.span.start_byte,
+            line: item.name_line,
+            package: target.package.clone(),
+        });
+    collected
+        .offsets
+        .entry(hit.rule.to_owned())
+        .or_default()
+        .entry(key.clone())
+        .or_default()
+        .push((hit.byte, hit.line));
+    collected
+        .hits
         .get_mut(hit.rule)
         .expect("implemented detector")
         .entry(key)

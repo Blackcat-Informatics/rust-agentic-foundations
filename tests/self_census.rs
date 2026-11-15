@@ -6,7 +6,9 @@
 #[path = "../examples/support/census.rs"]
 mod policy;
 
-use raf_census::{CensusOptions, LEDGER_FILE, Ledger, MAX_LEDGER_BYTES};
+use raf_census::{
+    CensusOptions, DEBT_FILE, DebtRecord, LEDGER_FILE, Ledger, MAX_DEBT_BYTES, MAX_LEDGER_BYTES,
+};
 use raf_rdf::{Builder, Format, Graph, TermValue, vocab};
 use raf_source::{DiskTree, EntryKind, MemoryTree, RelPath, Tree};
 
@@ -91,10 +93,27 @@ fn repository_census_is_clean_and_duplicate_growth_is_refused() {
     );
     assert!(
         invalid
-            .entry(&RelPath::new(raf_census::DEBT_FILE).unwrap())
+            .entry(&RelPath::new(DEBT_FILE).unwrap())
             .unwrap()
             .is_none()
     );
+}
+
+/// A record that states no ratcheted rule is written back with the bytes it was
+/// read from, so counted sites add nothing to an existing record.
+#[test]
+fn the_repository_debt_record_round_trips_byte_for_byte() {
+    let root = rust_agentic_foundations::gate_root();
+    let tree = DiskTree::new(&root).expect("open the selected gate snapshot");
+    let text = tree
+        .read(
+            &RelPath::new(DEBT_FILE).expect("the native debt path"),
+            u64::try_from(MAX_DEBT_BYTES).expect("the debt limit fits a source read"),
+        )
+        .expect("read the selected snapshot's debt record");
+    let record = DebtRecord::from_turtle(&text).expect("validate the recorded debt");
+    assert!(record.ratcheted().is_empty() && record.sites().is_empty());
+    assert_eq!(record.to_turtle().expect("render the record"), text);
 }
 
 /// The repository policy without its job rows: the roots and limits that a

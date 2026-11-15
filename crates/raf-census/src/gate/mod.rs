@@ -10,6 +10,7 @@ mod module_paths;
 mod owners;
 mod patterns;
 mod providers;
+mod ratchet;
 mod reference;
 mod registry;
 mod rules;
@@ -53,6 +54,8 @@ pub struct DebtWrite {
     pub groups: usize,
     /// The number of unenforced jobs with positive copy counts.
     pub jobs: usize,
+    /// The number of ratcheted pattern hits recorded as counted sites.
+    pub sites: usize,
 }
 
 impl std::fmt::Display for DebtWrite {
@@ -63,7 +66,11 @@ impl std::fmt::Display for DebtWrite {
             self.path.display(),
             self.groups,
             self.jobs
-        )
+        )?;
+        if self.sites > 0 {
+            write!(f, ", {} ratcheted sites", self.sites)?;
+        }
+        Ok(())
     }
 }
 
@@ -86,6 +93,7 @@ pub struct GateReport {
     jobs: Vec<JobReport>,
     findings: Vec<String>,
     debt: DebtRecord,
+    sites: std::collections::BTreeMap<crate::DebtSite, Vec<String>>,
 }
 
 impl GateReport {
@@ -108,6 +116,15 @@ impl GateReport {
     #[must_use]
     pub const fn debt(&self) -> &DebtRecord {
         &self.debt
+    }
+    /// The hits behind a changed site, for a finding that names where to look.
+    fn locations(&self, change: &crate::DebtChange) -> String {
+        let crate::DebtChange::Site { site, .. } = change else {
+            return String::new();
+        };
+        self.sites
+            .get(site)
+            .map_or_else(String::new, |hits| format!("; hits: {}", hits.join(" | ")))
     }
     fn with_findings(mut self, findings: Vec<String>) -> Self {
         self.findings.extend(findings);
@@ -408,7 +425,12 @@ impl Gate {
                     .compare(&report.debt)?
                     .into_iter()
                     .filter(crate::DebtChange::is_growth)
-                    .map(|change| format!("{DEBT_FILE}: growth cannot be recorded: {change:?}"))
+                    .map(|change| {
+                        format!(
+                            "{DEBT_FILE}: growth cannot be recorded: {change:?}{}",
+                            report.locations(&change)
+                        )
+                    })
                     .collect();
                 if !growth.is_empty() {
                     return Err(Error::Findings(growth));
@@ -428,6 +450,7 @@ impl Gate {
                 path,
                 groups: report.debt.groups().len(),
                 jobs: report.debt.job_copies().len(),
+                sites: report.debt.sites().values().sum(),
             })
         }
         #[cfg(not(target_os = "linux"))]
@@ -631,14 +654,17 @@ fn check_debt(tree: &impl Tree, mut report: GateReport) -> Result<GateReport, Er
     for change in previous.compare(&report.debt)? {
         let direction = if change.is_growth() {
             "growth cannot be recorded"
+        } else if matches!(change, crate::DebtChange::Site { present: 0, .. }) {
+            "stale site: run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to lower the record"
         } else if matches!(change, crate::DebtChange::Scope { .. }) {
             "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to record the present grouping scope"
         } else {
             "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to lower the record"
         };
-        report
-            .findings
-            .push(format!("{DEBT_FILE}: {change:?}; {direction}"));
+        report.findings.push(format!(
+            "{DEBT_FILE}: {change:?}; {direction}{}",
+            report.locations(&change)
+        ));
     }
     Ok(report)
 }

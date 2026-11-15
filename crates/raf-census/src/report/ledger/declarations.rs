@@ -38,6 +38,9 @@ pub struct LedgerPattern {
     pub matcher: PatternMatcher,
     /// Where the pattern applies; the default applies everywhere.
     pub scope: PatternScope,
+    /// True when the hits are recorded as counted sites in the debt record and
+    /// held by the two-sided ratchet instead of being findings.
+    pub ratcheted: bool,
 }
 
 /// A functionality's preferred dependency and APIs, resolved by executable policy.
@@ -112,11 +115,18 @@ pub(super) fn patterns(
             return Err(E::Value(format!("pattern {id:?}: summary must be one line")).into());
         }
         let pattern_scope = scope::read(&node, &id)?;
+        let ratcheted = super::flag::true_only(
+            &node,
+            "ratcheted",
+            &format!("pattern {id:?}"),
+            "omit it for a forbidden pattern",
+        )?;
         result.push(LedgerPattern {
             id,
             summary,
             matcher: matcher(&node)?,
             scope: pattern_scope,
+            ratcheted,
         });
     }
     let used: BTreeSet<_> = jobs.iter().flat_map(|job| job.patterns.iter()).collect();
@@ -128,6 +138,18 @@ pub(super) fn patterns(
     for pattern in &result {
         if !used.contains(&pattern.id) {
             return Err(E::Value(format!("unused pattern {:?}", pattern.id)).into());
+        }
+    }
+    for pattern in result.iter().filter(|pattern| pattern.ratcheted) {
+        if let Some(job) = jobs
+            .iter()
+            .find(|job| !job.enforced && job.patterns.contains(&pattern.id))
+        {
+            return Err(E::Value(format!(
+                "pattern {:?} is ratcheted but job {:?} is not enforced; set enforced to true or drop ratcheted",
+                pattern.id, job.job.id
+            ))
+            .into());
         }
     }
     result.sort_by(|a, b| a.id.cmp(&b.id));

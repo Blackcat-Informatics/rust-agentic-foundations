@@ -27,6 +27,13 @@ pub(super) fn unit(symbol: &str, file: &str, line: usize, start: usize) -> Strin
         percent::encode(file, percent::PATH)
     )
 }
+pub(super) fn site(rule: &str, key: &str, file: &str) -> String {
+    format!(
+        "#site/{}/{key}@{}",
+        part(rule),
+        percent::encode(file, percent::PATH)
+    )
+}
 pub(crate) fn job(id: &str) -> String {
     format!("#job/{}", part(id))
 }

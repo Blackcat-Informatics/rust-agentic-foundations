@@ -147,8 +147,9 @@ pub trait Rule: Sync {
   [census-debt-ratchet](./census-debt-ratchet.md)) and refuses, with an `Error` that
   lists them, while any finding that is not debt exists, the same refusal as
   `cargo census debt --write`. `DebtWrite` reports the path written, the number of
-  groups and the number of jobs with copies, and prints as the summary line that
-  `cargo census debt --write` prints. Configured provider policy uses
+  groups, the number of jobs with copies and the number of recorded ratcheted
+  sites, and prints as the summary line that `cargo census debt --write` prints;
+  the line names ratcheted sites only when there are any. Configured provider policy uses
   `write_debt_locked` with complete source associations. The caller supplies
   rules and extensions to that same Gate. The shipped CLI refuses policy
   requiring callbacks it has not installed.

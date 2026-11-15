@@ -5,6 +5,7 @@
 
 mod declarations;
 mod extensions;
+mod flag;
 mod scope;
 pub use declarations::{LedgerPattern, PatternMatcher, PreferredProvider};
 pub use extensions::LedgerExtensionGraph;

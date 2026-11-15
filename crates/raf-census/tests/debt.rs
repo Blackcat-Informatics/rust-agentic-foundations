@@ -5,7 +5,9 @@
 
 use std::collections::BTreeMap;
 
-use raf_census::{DebtChange, DebtGroup, DebtRecord, GroupKind, MAX_DEBT_BYTES, NORMAL_FORM};
+use raf_census::{
+    DebtChange, DebtGroup, DebtRecord, DebtSite, GroupKind, MAX_DEBT_BYTES, NORMAL_FORM, SiteKey,
+};
 use raf_fixtures::layout;
 
 #[test]
@@ -58,6 +60,33 @@ fn record(members: &[&str], copies: usize) -> DebtRecord {
         BTreeMap::from([("encode".into(), copies)])
     };
     DebtRecord::new(NORMAL_FORM, groups, jobs).unwrap()
+}
+
+fn site(file: &str, rule: &str, literal: &str) -> DebtSite {
+    DebtSite::new(
+        file,
+        rule,
+        SiteKey::digest("demo::f", Some(literal)).unwrap(),
+    )
+    .unwrap()
+}
+
+/// A record that ratchets `banned` and counts `(file, literal, copies)` sites.
+fn ratcheted(sites: &[(&str, &str, usize)]) -> DebtRecord {
+    ratcheted_rules(&["banned"], sites)
+}
+
+fn ratcheted_rules(rules: &[&str], sites: &[(&str, &str, usize)]) -> DebtRecord {
+    DebtRecord::new(NORMAL_FORM, [], BTreeMap::new())
+        .unwrap()
+        .with_ratchet(
+            rules.iter().map(|rule| (*rule).to_owned()),
+            sites
+                .iter()
+                .map(|(file, literal, copies)| (site(file, "banned", literal), *copies))
+                .collect(),
+        )
+        .unwrap()
 }
 
 #[test]
@@ -162,6 +191,54 @@ fn counted_nodes_refuse_redundant_counts_and_unowned_assertions() {
     }
     let text = orphan.finish().unwrap().to_text(Format::Turtle).unwrap();
     assert!(DebtRecord::from_turtle(&text).is_err());
+    let sited = ratcheted(&[("src/a.rs", "alpha", 2)]);
+    let sited_text = sited.to_turtle().unwrap();
+    assert_eq!(DebtRecord::from_turtle(&sited_text).unwrap(), sited);
+    let sited_graph = Graph::from_text(&sited_text, Format::Turtle).unwrap();
+    let rule = |value: &str| Triple {
+        subject: TermValue::iri(""),
+        predicate: TermValue::iri(format!("{}ratchetedRule", vocab::REPORT)),
+        object: TermValue::simple_literal(value),
+    };
+    let mut unowned = Builder::from_graph(&sited_graph);
+    assert!(unowned.remove(rule("banned")).unwrap());
+    let text = unowned.finish().unwrap().to_text(Format::Turtle).unwrap();
+    assert!(
+        DebtRecord::from_turtle(&text).is_err(),
+        "a site row requires its rule in ratchetedRule"
+    );
+    let node = format!(
+        "#site/banned/{}@src/a.rs",
+        site("src/a.rs", "banned", "alpha").key().to_hex()
+    );
+    let row = |key: &str, value: TermValue| Triple {
+        subject: TermValue::iri(node.clone()),
+        predicate: TermValue::iri(format!("{}{key}", vocab::REPORT)),
+        object: value,
+    };
+    for (key, old, new) in [
+        (
+            "copies",
+            TermValue::typed_literal("2", vocab::INTEGER),
+            TermValue::typed_literal("0", vocab::INTEGER),
+        ),
+        (
+            "siteKey",
+            TermValue::simple_literal(site("src/a.rs", "banned", "alpha").key().to_hex()),
+            TermValue::simple_literal("ABC"),
+        ),
+        (
+            "file",
+            TermValue::simple_literal("src/a.rs"),
+            TermValue::simple_literal("src/b.rs"),
+        ),
+    ] {
+        let mut edited = Builder::from_graph(&sited_graph);
+        assert!(edited.remove(row(key, old)).unwrap(), "{key}");
+        edited.insert(row(key, new)).unwrap();
+        let text = edited.finish().unwrap().to_text(Format::Turtle).unwrap();
+        assert!(DebtRecord::from_turtle(&text).is_err(), "{key}");
+    }
     assert_eq!(
         DebtRecord::from_turtle(&original.to_turtle().unwrap()).unwrap(),
         original
@@ -196,6 +273,93 @@ fn new_groups_supersets_and_rising_copy_counts_are_growth() {
         superset
             .iter()
             .any(|change| matches!(change, DebtChange::MissingGroup { .. }))
+    );
+}
+
+#[test]
+fn ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows() {
+    let recorded = ratcheted(&[("src/a.rs", "alpha", 1), ("src/b.rs", "beta", 2)]);
+    assert_eq!(recorded.compare(&recorded).unwrap(), []);
+    // A new site, a new file for a recorded literal and a rising count are growth.
+    for present in [
+        ratcheted(&[
+            ("src/a.rs", "alpha", 1),
+            ("src/b.rs", "beta", 2),
+            ("src/a.rs", "gamma", 1),
+        ]),
+        ratcheted(&[
+            ("src/a.rs", "alpha", 1),
+            ("src/b.rs", "beta", 2),
+            ("src/c.rs", "alpha", 1),
+        ]),
+        ratcheted(&[("src/a.rs", "alpha", 2), ("src/b.rs", "beta", 2)]),
+    ] {
+        let changes = recorded.compare(&present).unwrap();
+        assert!(changes.iter().any(DebtChange::is_growth), "{changes:?}");
+    }
+    // A swap is a missing key plus a new key, so a removed hit cannot hide a new one.
+    let swapped = ratcheted(&[("src/a.rs", "alpha", 1), ("src/b.rs", "other", 2)]);
+    let changes = recorded.compare(&swapped).unwrap();
+    assert_eq!(changes.len(), 2, "{changes:?}");
+    assert!(changes.iter().any(DebtChange::is_growth));
+    // A falling count and a gone site (including a deleted file) lower the record.
+    let fallen = ratcheted(&[("src/a.rs", "alpha", 1), ("src/b.rs", "beta", 1)]);
+    let stale = ratcheted(&[("src/a.rs", "alpha", 1)]);
+    let changes = recorded.compare(&fallen).unwrap();
+    assert!(matches!(
+        &changes[..],
+        [DebtChange::Site {
+            recorded: 2,
+            present: 1,
+            ..
+        }]
+    ));
+    let changes = recorded.compare(&stale).unwrap();
+    assert!(matches!(
+        &changes[..],
+        [DebtChange::Site {
+            recorded: 2,
+            present: 0,
+            ..
+        }]
+    ));
+    for present in [&fallen, &stale] {
+        assert!(
+            !recorded
+                .compare(present)
+                .unwrap()
+                .iter()
+                .any(DebtChange::is_growth)
+        );
+        assert_eq!(present.compare(present).unwrap(), []);
+    }
+    // Adopting a rule records it without comparing sites; releasing drops them.
+    let unratcheted = DebtRecord::new(NORMAL_FORM, [], BTreeMap::new()).unwrap();
+    let adopt = unratcheted.compare(&recorded).unwrap();
+    assert_eq!(
+        adopt,
+        [DebtChange::Adopt {
+            rule: "banned".into()
+        }]
+    );
+    assert!(!adopt[0].is_growth());
+    let release = recorded.compare(&unratcheted).unwrap();
+    assert_eq!(
+        release,
+        [DebtChange::Release {
+            rule: "banned".into()
+        }]
+    );
+    assert!(!release[0].is_growth());
+    // A burned-down rule with no site stays recorded, and a hit of it is growth.
+    let guard = ratcheted(&[]);
+    assert_eq!(guard.compare(&guard).unwrap(), []);
+    assert!(
+        guard
+            .compare(&ratcheted(&[("src/a.rs", "alpha", 1)]))
+            .unwrap()
+            .iter()
+            .any(DebtChange::is_growth)
     );
 }
 
@@ -279,6 +443,38 @@ fn both_native_spellings_round_trip_and_input_order_does_not_change_bytes() {
     assert_eq!(DebtRecord::from_turtle(&turtle).unwrap(), original);
     assert_eq!(DebtRecord::from_ntriples(&ntriples).unwrap(), original);
     assert_eq!(record(&["c", "a", "b"], 3).to_turtle().unwrap(), turtle);
+    let counted = ratcheted(&[("src/a.rs", "alpha", 2), ("src/b.rs", "beta", 1)]);
+    let counted_turtle = counted.to_turtle().unwrap();
+    let counted_ntriples = counted.to_ntriples().unwrap();
+    layout::assert_upgrade(
+        raf_census::ReportKind::Debt,
+        &counted_turtle,
+        Format::Turtle,
+    );
+    layout::assert_upgrade(
+        raf_census::ReportKind::Debt,
+        &counted_ntriples,
+        Format::NTriples,
+    );
+    assert_eq!(DebtRecord::from_turtle(&counted_turtle).unwrap(), counted);
+    assert_eq!(
+        DebtRecord::from_ntriples(&counted_ntriples).unwrap(),
+        counted
+    );
+    assert_eq!(
+        ratcheted(&[("src/b.rs", "beta", 1), ("src/a.rs", "alpha", 2)])
+            .to_turtle()
+            .unwrap(),
+        counted_turtle
+    );
+    assert_eq!(
+        ratcheted(&[])
+            .to_turtle()
+            .unwrap()
+            .matches("ratchetedRule")
+            .count(),
+        1
+    );
     assert_eq!(original.to_turtle().unwrap(), turtle);
     assert!(DebtRecord::from_turtle(&turtle.replace("\"a\"", "\"changed\"")).is_err());
 }
@@ -317,6 +513,39 @@ fn invalid_groups_and_zero_copy_rows_are_refused() {
     assert!(DebtRecord::new(NORMAL_FORM, [], BTreeMap::from([("x".into(), 0)])).is_err());
     assert!(DebtRecord::new(NORMAL_FORM, [], BTreeMap::from([(String::new(), 1)])).is_err());
     assert!(DebtRecord::new(0, [], BTreeMap::new()).is_err());
+    let key = SiteKey::digest("demo::f", None).unwrap();
+    assert!(DebtSite::new("src/a.rs", "banned", key).is_ok());
+    assert!(DebtSite::new("", "banned", key).is_err());
+    assert!(DebtSite::new("/abs.rs", "banned", key).is_err());
+    assert!(DebtSite::new("src/a.rs", "bad id", key).is_err());
+    let zero = BTreeMap::from([(site("src/a.rs", "banned", "x"), 0)]);
+    let unlisted = BTreeMap::from([(site("src/a.rs", "banned", "x"), 1)]);
+    let empty = DebtRecord::new(NORMAL_FORM, [], BTreeMap::new()).unwrap();
+    assert!(
+        empty
+            .clone()
+            .with_ratchet(["banned".to_owned()], zero)
+            .is_err()
+    );
+    assert!(
+        empty
+            .clone()
+            .with_ratchet(["other".to_owned()], unlisted.clone())
+            .is_err()
+    );
+    assert!(
+        empty
+            .clone()
+            .with_ratchet([String::new()], BTreeMap::new())
+            .is_err()
+    );
+    assert!(empty.with_ratchet(["banned".to_owned()], unlisted).is_ok());
+    assert_ne!(
+        SiteKey::digest("demo::f", None).unwrap(),
+        SiteKey::digest("demo::f", Some("")).unwrap()
+    );
+    assert_eq!(SiteKey::from_hex(&key.to_hex()), Some(key));
+    assert_eq!(SiteKey::from_hex(&key.to_hex().to_uppercase()), None);
     let duplicate = group(&["a", "b"]);
     assert!(DebtRecord::new(NORMAL_FORM, [duplicate.clone(), duplicate], BTreeMap::new()).is_err());
 }
