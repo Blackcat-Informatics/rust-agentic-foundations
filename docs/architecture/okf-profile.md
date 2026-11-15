@@ -318,9 +318,11 @@ in that type's directory. Each of these directories holds Markdown files only.
 - **`units`** (optional) is a map of measure names to non-empty unit texts, and
   **`conditions`** (optional) is a non-empty text saying how and where the values
   were taken. A record that states either gives every value of `values` its
-  unit, and states `conditions` when it states `units` and holds a value. A
-  record that states neither is unchanged. A record states a measurement when it
-  holds at least one value, a unit for each value and its conditions.
+  unit, and states `conditions` when it states `units` and holds a value. Every
+  unit names a value the record holds; a unit with no value is refused at load,
+  naming the claim and the missing value. A record that states neither is
+  unchanged. A record states a measurement when it holds at least one value, a
+  unit for each value and its conditions.
 - **`scope`** of Coverage is a list of crate package names, each once; the empty list `[]`
   names no crate.
 - **`scope`** of Review is one `crate:<package>`, `module:<path>` or capability

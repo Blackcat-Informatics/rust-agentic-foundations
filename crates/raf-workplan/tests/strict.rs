@@ -750,6 +750,22 @@ fn a_failing_or_stale_measured_record_does_not_satisfy_the_requirement() {
     let stale = requiring(Some(evidence_as("pass", &"0".repeat(64), MEASURED)));
     assert_eq!(kinds(&stale), ["measured-evidence-missing"], "{stale:#?}");
     assert!(stale[0].message.contains("evidence:bench"), "{stale:#?}");
+    assert!(
+        stale[0].message.contains("demo::run changed"),
+        "a changed input is named as changed: {stale:#?}"
+    );
+    // An input that no longer resolves is named with the reason, not reported as a
+    // digest mismatch; the current neighbour above it resolves and is accepted.
+    let (path, text) = evidence_as("pass", &current_digest(), MEASURED);
+    let gone = requiring(Some((
+        path,
+        fixture::replaced(&text, "demo::run", "demo::gone"),
+    )));
+    assert_eq!(kinds(&gone), ["measured-evidence-missing"], "{gone:#?}");
+    assert!(
+        gone[0].message.contains("demo::gone") && !gone[0].message.contains("demo::gone changed"),
+        "an unresolved input names its reason: {gone:#?}"
+    );
     // The passing record at current digests beside them satisfies it, and a
     // failing record of other values beside it does not undo that.
     assert_eq!(requiring(Some(evidence(MEASURED))), []);

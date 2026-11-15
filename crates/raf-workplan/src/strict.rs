@@ -46,7 +46,7 @@
 //! `measured-evidence-missing` is raised at the key
 //! `measured_evidence_required`; when a measured record that covers the
 //! capability has the verdict `fail`, `measured-evidence-failed` is raised
-//! there instead, once for each such record, naming it. The finding is not debt, and a capability
+//! there instead, once for each such record, naming it. The findings are not debt, and a capability
 //! that does not state the key is judged as before.
 //!
 //! # Claims
@@ -116,11 +116,11 @@ pub use claims::{ClaimCoverage, ClaimsReport};
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use raf_okf::{DocType, EvidenceRecord, EvidenceVerdict, InputKind, Location};
+use raf_okf::{DocType, EvidenceRecord, EvidenceVerdict, Location};
 
 use crate::coverage::{self, Computed};
 use crate::debt::{self, Owed};
-use crate::digest::Digest;
+use crate::digest::stale_symbol_inputs;
 use crate::finding::kind;
 use crate::graph::{Binding, ScopeEdge};
 use crate::work::{Work, add};
@@ -188,8 +188,12 @@ fn measured_evidence(
         .filter(|record| record.value().states_measurement() && record.value().covers.contains(id))
         .collect();
     let at = || Location::Key("measured_evidence_required".to_string());
-    if measured.iter().any(|record| {
-        record.value().verdict == EvidenceVerdict::Pass && inputs_current(plan, record.value())
+    let currency: Vec<Currency> = measured
+        .iter()
+        .map(|record| currency(plan, record.value()))
+        .collect();
+    if measured.iter().zip(&currency).any(|(record, now)| {
+        record.value().verdict == EvidenceVerdict::Pass && *now == Currency::Current
     }) {
         return Vec::new();
     }
@@ -212,17 +216,27 @@ fn measured_evidence(
     if !failing.is_empty() {
         return failing;
     }
-    let stale = measured
+    let reasons: Vec<String> = measured
         .iter()
-        .map(|record| format!("`{}`", record.value().header.id))
-        .collect::<Vec<_>>();
-    let detail = if stale.is_empty() {
+        .zip(&currency)
+        .filter(|(record, _)| record.value().verdict == EvidenceVerdict::Pass)
+        .filter_map(|(record, now)| {
+            let record_id = &record.value().header.id;
+            match now {
+                Currency::Current => None,
+                Currency::Stale(changed) => Some(format!(
+                    "`{record_id}` was recorded at digests that no longer match the source: {changed}"
+                )),
+                Currency::Unresolved(refusal) => Some(format!(
+                    "`{record_id}` could not be checked against the source: {refusal}"
+                )),
+            }
+        })
+        .collect();
+    let detail = if reasons.is_empty() {
         "no evidence record that covers it states measured values with a unit for each and the conditions they were taken under".to_string()
     } else {
-        format!(
-            "{} state a measurement with the verdict `pass` at digests that no longer match the source",
-            stale.join(", ")
-        )
+        reasons.join("; ")
     };
     vec![Finding::new(
         kind::MEASURED_EVIDENCE_MISSING,
@@ -233,17 +247,28 @@ fn measured_evidence(
     )]
 }
 
-/// Whether every symbol input of `record` digests now as it was recorded.
-fn inputs_current(plan: &Workplan<'_>, record: &EvidenceRecord) -> bool {
-    record
-        .inputs
-        .iter()
-        .filter(|input| input.kind == InputKind::Symbol)
-        .all(|input| {
-            Digest::symbol(plan.source(), &input.name)
-                .is_ok_and(|digest| digest.to_string() == input.digest)
-        })
+/// Whether the symbol inputs of an evidence record digest now as they were recorded.
+#[derive(Debug, PartialEq, Eq)]
+enum Currency {
+    /// Every symbol input digests as recorded.
+    Current,
+    /// At least one symbol input changed or no longer resolves; the text names them.
+    Stale(String),
+    /// The source index refused a query, so no currency was established; the text is the
+    /// refusal. Reporting it as a mismatch would hide its real cause.
+    Unresolved(String),
 }
+
+/// The currency of `record`'s symbol inputs, a refusal by the source index being
+/// unresolved rather than stale.
+fn currency(plan: &Workplan<'_>, record: &EvidenceRecord) -> Currency {
+    match stale_symbol_inputs(plan.source(), &record.inputs) {
+        Ok(stale) if stale.is_empty() => Currency::Current,
+        Ok(stale) => Currency::Stale(stale.join(", ")),
+        Err(refusal) => Currency::Unresolved(refusal.to_string()),
+    }
+}
+
 /// The gaps of two-way coverage of the packages a binding reaches and `scope`
 /// does not name. Without a coverage record that loads there are none: the
 /// record's absence, or its own findings, fail the check first.
