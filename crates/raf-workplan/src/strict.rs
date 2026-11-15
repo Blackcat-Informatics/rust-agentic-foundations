@@ -39,11 +39,14 @@
 //! # Measured evidence
 //!
 //! A capability that states `measured_evidence_required: true` needs an
-//! evidence record whose `for` lists it and that states a measurement
+//! evidence record whose `for` lists it, that states a measurement
 //! ([`raf_okf::EvidenceRecord::states_measurement`]): measured values, a unit
-//! for each and the conditions they were taken under. Without one,
+//! for each and the conditions they were taken under, whose verdict is `pass`
+//! and whose inputs digest as recorded. Without one,
 //! `measured-evidence-missing` is raised at the key
-//! `measured_evidence_required`. The finding is not debt, and a capability
+//! `measured_evidence_required`; when a measured record that covers the
+//! capability has the verdict `fail`, `measured-evidence-failed` is raised
+//! there instead, once for each such record, naming it. The finding is not debt, and a capability
 //! that does not state the key is judged as before.
 //!
 //! # Claims
@@ -113,10 +116,11 @@ pub use claims::{ClaimCoverage, ClaimsReport};
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use raf_okf::{DocType, Location};
+use raf_okf::{DocType, EvidenceRecord, EvidenceVerdict, InputKind, Location};
 
 use crate::coverage::{self, Computed};
 use crate::debt::{self, Owed};
+use crate::digest::Digest;
 use crate::finding::kind;
 use crate::graph::{Binding, ScopeEdge};
 use crate::work::{Work, add};
@@ -143,17 +147,8 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
     let mut findings = debt::judge(plan).reported;
     // An explicit review requirement is never waived by unrelated prose debt.
     for capability in plan.capabilities() {
-        if capability.value().measured_evidence_required && !states_measurement(plan, capability) {
-            findings.push(Finding::new(
-                kind::MEASURED_EVIDENCE_MISSING,
-                capability.path(),
-                Location::Key("measured_evidence_required".to_string()),
-                format!(
-                    "`{}` requires measured evidence, and no evidence record that covers it states measured values with a unit for each and the conditions they were taken under",
-                    capability.value().header.id
-                ),
-                "record an evidence record whose `for` lists this capability with `values`, a unit for each value under `units`, and `conditions`",
-            ));
+        if capability.value().measured_evidence_required {
+            findings.extend(measured_evidence(plan, capability));
         }
         let result = plan.required_reviews(capability);
         match result {
@@ -175,17 +170,80 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
     findings
 }
 
-/// Whether an evidence record that covers `capability` states a measurement.
-fn states_measurement(plan: &Workplan<'_>, capability: &Loaded<raf_okf::Capability>) -> bool {
-    plan.evidence().iter().any(|record| {
-        record.value().states_measurement()
-            && record
-                .value()
-                .covers
-                .contains(&capability.value().header.id)
-    })
+/// The findings of the measured-evidence requirement of `capability`.
+///
+/// The requirement is satisfied by an evidence record that covers the
+/// capability, states a measurement, has the verdict `pass`, and whose inputs
+/// all digest as they did when it was recorded. Without one, each measured
+/// record that covers the capability and fails is its own finding, naming the
+/// record; with no such record the measurement is missing.
+fn measured_evidence(
+    plan: &Workplan<'_>,
+    capability: &Loaded<raf_okf::Capability>,
+) -> Vec<Finding> {
+    let id = &capability.value().header.id;
+    let measured: Vec<&Loaded<EvidenceRecord>> = plan
+        .evidence()
+        .iter()
+        .filter(|record| record.value().states_measurement() && record.value().covers.contains(id))
+        .collect();
+    let at = || Location::Key("measured_evidence_required".to_string());
+    if measured.iter().any(|record| {
+        record.value().verdict == EvidenceVerdict::Pass && inputs_current(plan, record.value())
+    }) {
+        return Vec::new();
+    }
+    let failing: Vec<Finding> = measured
+        .iter()
+        .filter(|record| record.value().verdict == EvidenceVerdict::Fail)
+        .map(|record| {
+            Finding::new(
+                kind::MEASURED_EVIDENCE_FAILED,
+                capability.path(),
+                at(),
+                format!(
+                    "`{id}` requires measured evidence, and `{}` covers it with the verdict `fail`",
+                    record.value().header.id
+                ),
+                "fix what the record measured and record it again with the verdict `pass`, or record a passing measurement beside it",
+            )
+        })
+        .collect();
+    if !failing.is_empty() {
+        return failing;
+    }
+    let stale = measured
+        .iter()
+        .map(|record| format!("`{}`", record.value().header.id))
+        .collect::<Vec<_>>();
+    let detail = if stale.is_empty() {
+        "no evidence record that covers it states measured values with a unit for each and the conditions they were taken under".to_string()
+    } else {
+        format!(
+            "{} state a measurement with the verdict `pass` at digests that no longer match the source",
+            stale.join(", ")
+        )
+    };
+    vec![Finding::new(
+        kind::MEASURED_EVIDENCE_MISSING,
+        capability.path(),
+        at(),
+        format!("`{id}` requires measured evidence, and {detail}"),
+        "record an evidence record whose `for` lists this capability with the verdict `pass`, current input digests, `values`, a unit for each value under `units`, and `conditions`",
+    )]
 }
 
+/// Whether every symbol input of `record` digests now as it was recorded.
+fn inputs_current(plan: &Workplan<'_>, record: &EvidenceRecord) -> bool {
+    record
+        .inputs
+        .iter()
+        .filter(|input| input.kind == InputKind::Symbol)
+        .all(|input| {
+            Digest::symbol(plan.source(), &input.name)
+                .is_ok_and(|digest| digest.to_string() == input.digest)
+        })
+}
 /// The gaps of two-way coverage of the packages a binding reaches and `scope`
 /// does not name. Without a coverage record that loads there are none: the
 /// record's absence, or its own findings, fail the check first.

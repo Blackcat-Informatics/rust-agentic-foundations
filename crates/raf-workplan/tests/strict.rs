@@ -8,6 +8,7 @@ mod support;
 
 use raf_okf::Location;
 use raf_source::MemoryTree;
+use raf_workplan::digest::Digest;
 use raf_workplan::{Finding, Gate, Workplan};
 use support::cases::strict_cases;
 use support::disk::{Scratch, put};
@@ -612,15 +613,28 @@ fn while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_report
     assert_eq!(strict, check_in(&broken, &source));
 }
 
-/// An evidence record for `cap:demo` with the extra frontmatter lines `extra`.
+/// An evidence record for `cap:demo` with the extra frontmatter lines `extra`,
+/// the verdict `pass` and the input digest of `demo::run` as the source has it.
 fn evidence(extra: &str) -> (String, String) {
+    evidence_as("pass", &current_digest(), extra)
+}
+
+/// The digest `demo::run` has in the fixture source.
+fn current_digest() -> String {
+    Digest::symbol(&workspace_of(&fixture::source_files()), "demo::run")
+        .expect("the fixture source resolves demo::run")
+        .to_string()
+}
+
+/// An evidence record for `cap:demo` with `verdict`, the input digest `digest`
+/// and the extra frontmatter lines `extra`.
+fn evidence_as(verdict: &str, digest: &str, extra: &str) -> (String, String) {
     (
         "work/evidence/bench.md".to_string(),
         format!(
             "---\ntype: Evidence\nid: evidence:bench\nsubject: command\ninputs:\n  \
-             - kind: symbol\n    name: demo::run\n    digest: {}\n\
-             verdict: pass\nby: agent\nfor: [cap:demo]\ncommand: \"cargo bench\"\n{extra}---\n",
-            "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+             - kind: symbol\n    name: demo::run\n    digest: {digest}\n\
+             verdict: {verdict}\nby: agent\nfor: [cap:demo]\ncommand: \"cargo bench\"\n{extra}---\n"
         ),
     )
 }
@@ -708,4 +722,51 @@ fn a_record_that_states_units_or_conditions_states_them_for_every_value() {
     );
     // The complete neighbour loads with no finding of the record.
     assert_eq!(requiring(Some(evidence(MEASURED))), []);
+}
+
+#[test]
+fn a_failing_or_stale_measured_record_does_not_satisfy_the_requirement() {
+    // A measured record that fails is its own finding, naming the record,
+    // distinct from no measurement.
+    let failing = requiring(Some(evidence_as("fail", &current_digest(), MEASURED)));
+    assert_eq!(
+        kinds(&failing),
+        ["measured-evidence-failed"],
+        "{failing:#?}"
+    );
+    assert!(
+        failing[0].message.contains("evidence:bench"),
+        "{failing:#?}"
+    );
+    assert_eq!(
+        (failing[0].file.as_str(), &failing[0].location),
+        (
+            fixture::CAPABILITY,
+            &Location::Key("measured_evidence_required".to_string())
+        )
+    );
+    // A passing record at digests the source no longer has is no measurement
+    // that holds, and not a failure.
+    let stale = requiring(Some(evidence_as("pass", &"0".repeat(64), MEASURED)));
+    assert_eq!(kinds(&stale), ["measured-evidence-missing"], "{stale:#?}");
+    assert!(stale[0].message.contains("evidence:bench"), "{stale:#?}");
+    // The passing record at current digests beside them satisfies it, and a
+    // failing record of other values beside it does not undo that.
+    assert_eq!(requiring(Some(evidence(MEASURED))), []);
+    let mut repo = repo(
+        fixture::replaced(
+            &fixture::capability(),
+            "depends: []",
+            "measured_evidence_required: true\ndepends: []",
+        ),
+        fixture::coverage(""),
+    );
+    repo.extend([evidence(MEASURED)]);
+    let (_, text) = evidence_as("fail", &current_digest(), MEASURED);
+    repo.insert(
+        "work/evidence/bench-failed.md".to_string(),
+        text.replace("evidence:bench", "evidence:bench-failed"),
+    );
+    let beside = check_in(&repo, &workspace_of(&fixture::source_files()));
+    assert_eq!(beside, [], "{beside:#?}");
 }

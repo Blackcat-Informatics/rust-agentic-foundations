@@ -48,6 +48,7 @@ kinds! {
     REVIEW_STALE = "review-stale";
     REVIEW_UNAVAILABLE = "review-unavailable";
     MEASURED_EVIDENCE_MISSING = "measured-evidence-missing";
+    MEASURED_EVIDENCE_FAILED = "measured-evidence-failed";
     COVERAGE_RECORD_MISSING = "coverage-record-missing";
     COVERAGE_ITEM_UNBOUND = "coverage-item-unbound";
     COVERAGE_TEST_UNBOUND = "coverage-test-unbound";
@@ -157,6 +158,7 @@ kinds! {
     OKF_BAD_EXCEPTION = "okf-bad-exception";
     OKF_VALUE_WITHOUT_UNIT = "okf-value-without-unit";
     OKF_CONDITIONS_MISSING = "okf-conditions-missing";
+    OKF_UNIT_WITHOUT_VALUE = "okf-unit-without-value";
     OKF_MARKDOWN = "okf-markdown";
     OKF_PARSE_UNCLOSED_FENCE = "okf-parse-unclosed-fence";
     OKF_PARSE_TOO_LARGE = "okf-parse-too-large";
@@ -663,6 +665,10 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
         RuleTag::ConditionsMissing => (
             kind::OKF_CONDITIONS_MISSING,
             "add `conditions` saying how and where the values were taken",
+        ),
+        RuleTag::UnitWithoutValue => (
+            kind::OKF_UNIT_WITHOUT_VALUE,
+            "remove the unit, or add the measured value it belongs to under `values`",
         ),
         RuleTag::BadException => (
             kind::OKF_BAD_EXCEPTION,

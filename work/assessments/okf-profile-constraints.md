@@ -283,10 +283,10 @@ inputs:
     digest: a4cd7152d67abbc58275e413c07a2a150ffee773a947672ea7a88bad688fe9e9
   - kind: symbol
     name: raf_okf::Rule
-    digest: 633ad4e8e1e10f30f451bb2faad9d18565f528e745dd39a1dd944e400f77eaef
+    digest: 140a63ab869aa78e3c72a61334ed30629e9d766e4d1dd7d054e57bafcc8563bc
   - kind: symbol
     name: raf_okf::RuleTag
-    digest: 6a17b4005ab94cce7bf5a3b55250a843432e160c098d1b7068bc2ffc471fcfd3
+    digest: e80683fab12bc93338fa976c3c99727f4087f0c38ed8fc15534607e60617a019
   - kind: symbol
     name: raf_okf::Scalar
     digest: 4170302e3e314c6dddf0f25495efc20ff874f6e3bd6b845803b3d69da67a4ed0

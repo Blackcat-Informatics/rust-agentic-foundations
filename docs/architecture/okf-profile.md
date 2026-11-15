@@ -221,7 +221,9 @@ in that type's directory. Each of these directories holds Markdown files only.
   satisfy the requirement. It has no effect without `review_required`.
 - **`measured_evidence_required`** (optional) is `true` or `false`; absent means
   `false`. A capability that states `true` requires an evidence record that
-  covers it and states a measurement (see `units` and `conditions` of Evidence).
+  covers it, states a measurement (see `units` and `conditions` of Evidence), has the
+  verdict `pass` and has current input digests; a covering measured record with the
+  verdict `fail` is reported as its own finding.
 - **`changes`** is a non-empty list of capability ids that exist.
 - **`diagrams`** is an optional list of at most 64 named maps on Capability
   and Architecture documents. Each map requires `name`, `kind` and `scope`;

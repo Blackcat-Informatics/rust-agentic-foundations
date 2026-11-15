@@ -1522,6 +1522,15 @@ fn a_record_that_states_units_or_conditions_states_them_for_every_value() {
         &key("values"),
         &Rule::ConditionsMissing,
     );
+    // A unit for a value the record does not hold, beside the complete record.
+    assert_only(
+        &mutate(&measured(), "  seconds: s\n", "  seconds: s\n  speed: m\n"),
+        EVIDENCE_PATH,
+        &key("units"),
+        &Rule::UnitWithoutValue {
+            name: "speed".to_string(),
+        },
+    );
     // An empty unit is no unit.
     assert_only(
         &mutate(&measured(), "seconds: s\n", "seconds: \"\"\n"),

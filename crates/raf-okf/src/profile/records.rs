@@ -1099,6 +1099,18 @@ pub(super) fn check_between(check: &mut Check<'_>, keys: &Keys<'_>) -> bool {
                 valid = false;
             }
         }
+        let held: HashSet<&str> = values.iter().map(|value| value.name.as_str()).collect();
+        for unit in units {
+            if !held.contains(unit.name.as_str()) {
+                check.key(
+                    "units",
+                    Rule::UnitWithoutValue {
+                        name: unit.name.clone(),
+                    },
+                );
+                valid = false;
+            }
+        }
         if !values.is_empty() && keys.has_units && !has_conditions {
             check.key("values", Rule::ConditionsMissing);
             valid = false;

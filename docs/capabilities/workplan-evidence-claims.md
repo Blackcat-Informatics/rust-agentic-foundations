@@ -45,6 +45,7 @@ bindings:
     - raf_workplan::test_crate::strict::a_capability_requiring_measured_evidence_is_refused_without_it_and_accepted_with_it
     - raf_workplan::test_crate::strict::a_capability_that_does_not_require_measured_evidence_is_judged_as_before
     - raf_workplan::test_crate::strict::a_record_that_states_units_or_conditions_states_them_for_every_value
+    - raf_workplan::test_crate::strict::a_failing_or_stale_measured_record_does_not_satisfy_the_requirement
     - raf_workplan::test_crate::complete::completion_waits_for_the_measured_evidence_a_capability_requires
   examples:
     - raf_workplan::Workplan::evidence_claims
@@ -63,8 +64,8 @@ Keep authored evidence relationships inspectable without executing the command t
 Claims refer to evidence by slug and retain capability, section, line and statement text. `evidence_claims` and `evidence_for` report complete static relationships, including explicitly missing evidence. Unloaded capability documents refuse a complete dependency answer. Native RDF projections preserve the same authored claims and support edges.
 <!-- raf:tested-by raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability,raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers -->
 
-**Measured evidence.** An evidence record optionally states `units` and `conditions` beside its `values`, and a record that states either gives every value its unit and states its conditions; the load refuses it otherwise, and a record that states neither is unchanged. A capability optionally states `measured_evidence_required: true`. The complete check then raises `measured-evidence-missing` at that key unless an evidence record whose `for` lists the capability states values, a unit for each value and its conditions, and `change complete` refuses while that finding remains. A capability that does not state the key is judged as before. The finding is not debt, and it does not judge a verdict or a limit.
-<!-- raf:tested-by raf_workplan::test_crate::strict::a_capability_requiring_measured_evidence_is_refused_without_it_and_accepted_with_it,raf_workplan::test_crate::strict::a_capability_that_does_not_require_measured_evidence_is_judged_as_before,raf_workplan::test_crate::strict::a_record_that_states_units_or_conditions_states_them_for_every_value,raf_workplan::test_crate::complete::completion_waits_for_the_measured_evidence_a_capability_requires -->
+**Measured evidence.** An evidence record optionally states `units` and `conditions` beside its `values`, and a record that states either gives every value its unit and states its conditions; the load refuses it otherwise, and a record that states neither is unchanged. A unit that names no value the record holds is refused at load as well, naming the measure and the missing value. A capability optionally states `measured_evidence_required: true`. The complete check then raises `measured-evidence-missing` at that key unless an evidence record whose `for` lists the capability states values, a unit for each value and its conditions, has the verdict `pass`, and has input digests that match the source now, and `change complete` refuses while that finding remains. A measured record that covers the capability with the verdict `fail` is its own finding, `measured-evidence-failed`, raised at the same key and naming the record, once for each such record; a passing record at current digests beside it satisfies the requirement and leaves no finding. A passing record at stale digests satisfies nothing and is reported as `measured-evidence-missing`. A capability that does not state the key is judged as before. The findings are not debt.
+<!-- raf:tested-by raf_workplan::test_crate::strict::a_capability_requiring_measured_evidence_is_refused_without_it_and_accepted_with_it,raf_workplan::test_crate::strict::a_capability_that_does_not_require_measured_evidence_is_judged_as_before,raf_workplan::test_crate::strict::a_record_that_states_units_or_conditions_states_them_for_every_value,raf_workplan::test_crate::strict::a_failing_or_stale_measured_record_does_not_satisfy_the_requirement,raf_workplan::test_crate::complete::completion_waits_for_the_measured_evidence_a_capability_requires -->
 
 ## Usage
 
@@ -143,6 +144,7 @@ Native record round trips, claim lookup refusals and the stored-command fixture 
 | `raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_capability_requiring_measured_evidence_is_refused_without_it_and_accepted_with_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::strict::a_capability_that_does_not_require_measured_evidence_is_judged_as_before` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::strict::a_failing_or_stale_measured_record_does_not_satisfy_the_requirement` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::strict::a_record_that_states_units_or_conditions_states_them_for_every_value` | test | [Contract](#contract) |
 <!-- raf:generated:end -->
 
