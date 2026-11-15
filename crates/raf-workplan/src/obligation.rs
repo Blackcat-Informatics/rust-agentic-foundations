@@ -114,7 +114,9 @@ pub enum ObligationKind {
     AssessmentRejected,
     /// A capability asks for a review kind but has no completed review.
     ReviewMissing,
-    /// A required completed review no longer covers the same source inputs.
+    /// A required completed review does not satisfy the requirement: it no
+    /// longer covers the same source inputs, or, for a strict capability, its
+    /// verdict is not clean.
     ReviewStale,
 }
 
@@ -508,8 +510,11 @@ pub enum Needed {
     CurrentReview {
         /// The explicitly required review kind.
         kind: raf_okf::ReviewKind,
-        /// The latest completed review and its exact input changes.
+        /// The latest completed review, its verdict and its exact input changes.
         status: crate::review::ReviewStatus,
+        /// Whether the capability states `review_strict`, so that only a clean
+        /// verdict satisfies the requirement.
+        strict: bool,
     },
     /// The block is replaced by plain contract text, or removed because the
     /// claim was dropped.
@@ -593,6 +598,9 @@ impl Needed {
     #[must_use]
     pub const fn contract_text(&self) -> &'static str {
         match self {
+            Self::CurrentReview { strict: true, .. } => {
+                "a completed current review with a clean verdict of the required kind recorded for the capability"
+            }
             Self::CurrentReview { .. } => {
                 "a completed current review of the required kind recorded for the capability"
             }
@@ -630,7 +638,11 @@ impl Needed {
     /// The one thing the evidence is about, when there is one.
     fn detail(&self) -> Option<String> {
         match self {
-            Self::CurrentReview { kind, status } => Some(review_detail(*kind, status)),
+            Self::CurrentReview {
+                kind,
+                status,
+                strict,
+            } => Some(review_detail(*kind, status, *strict)),
             Self::ProposalResolved | Self::SectionDiff | Self::Outcome(OutcomeProblem::Missing) => {
                 None
             }
@@ -711,23 +723,36 @@ impl Needed {
     }
 }
 
-fn review_detail(kind: raf_okf::ReviewKind, status: &crate::review::ReviewStatus) -> String {
-    match &status.review {
-        None => format!("no completed {} review", kind.name()),
-        Some(review) => {
-            let mut detail = format!("{} review `{review}` has changed inputs: ", kind.name());
-            for (position, change) in status.changes.iter().enumerate() {
-                if position != 0 {
-                    detail.push_str(", ");
-                }
-                detail.push_str(&change.item);
-                detail.push_str(" (");
-                detail.push_str(change.kind.name());
-                detail.push(')');
-            }
-            detail
-        }
+fn review_detail(
+    kind: raf_okf::ReviewKind,
+    status: &crate::review::ReviewStatus,
+    strict: bool,
+) -> String {
+    let Some(review) = &status.review else {
+        return format!("no completed {} review", kind.name());
+    };
+    let mut detail = format!("{} review `{review}` ", kind.name());
+    let unclean = strict && status.verdict != Some(raf_okf::ReviewVerdict::Clean);
+    if unclean {
+        detail.push_str("has the verdict findings");
     }
+    if !status.changes.is_empty() {
+        detail.push_str(if unclean {
+            " and changed inputs: "
+        } else {
+            "has changed inputs: "
+        });
+    }
+    for (position, change) in status.changes.iter().enumerate() {
+        if position != 0 {
+            detail.push_str(", ");
+        }
+        detail.push_str(&change.item);
+        detail.push_str(" (");
+        detail.push_str(change.kind.name());
+        detail.push(')');
+    }
+    detail
 }
 
 impl fmt::Display for Needed {

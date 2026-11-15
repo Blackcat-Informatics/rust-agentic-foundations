@@ -328,8 +328,10 @@ fn evidence_of(kind: ObligationKind) -> Needed {
             status: crate::review::ReviewStatus {
                 review: None,
                 revision: None,
+                verdict: None,
                 changes: Vec::new(),
             },
+            strict: false,
         },
     }
 }

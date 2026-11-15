@@ -7,7 +7,7 @@ subject: cap:workplan-code-reviews#contract
 inputs:
   - kind: section
     name: cap:workplan-code-reviews#contract
-    digest: d98f2af3b449f3e722468f7b271c372216488f8f120de48bde20b5bcd3b1dac0
+    digest: 31bc1b25257b6e3781e10087fc3117137c227e9b15f5da696374dd485725b4c7
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph::review
     digest: 16667bea9f5a5d3180030167352af2766dd9804e3bb9ace82054d9a2010c5419
@@ -31,7 +31,7 @@ inputs:
     digest: 0ff00815815e49509a7aa20df40f9bd023347a33d6996c63e8f180883721fd32
   - kind: symbol
     name: raf_workplan::review
-    digest: fbe4b8b02c255613d3cf594c413f28dd1772deae6fd23a60fe118a7b5f492887
+    digest: 33e1347afff998bfae368b0c7f0f92881b0b1012b8cf0fe966ba5a9d309496d9
 verdict: accepted
 by: agent
 ---

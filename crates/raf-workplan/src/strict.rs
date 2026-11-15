@@ -164,7 +164,7 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
                 };
                 Finding::new(kind, capability.path(), Location::Key("review_required".to_string()),
                     owed.evidence.to_string(),
-                    "record a completed current review of the required kind for this capability's bound code")
+                    "record a completed current review of the required kind for this capability's bound code; a capability that states `review_strict` needs a clean verdict")
             })),
             Err(error) => findings.push(Finding::new(
                 kind::REVIEW_UNAVAILABLE, capability.path(), Location::Key("review_required".to_string()),

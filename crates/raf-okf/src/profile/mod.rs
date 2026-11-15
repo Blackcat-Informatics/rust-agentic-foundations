@@ -192,6 +192,7 @@ struct Collected {
     units: Slot<Vec<Unit>>,
     conditions: Slot<String>,
     measured_evidence_required: Slot<bool>,
+    review_strict: Slot<bool>,
     scope: Option<Vec<String>>,
     exclusions: Option<Vec<Exclusion>>,
     ceilings: Slot<Vec<Ceiling>>,
@@ -398,13 +399,14 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
 }
 
 /// Check one of the keys of measured evidence: `values`, `limits`, `units`,
-/// `conditions` or `measured_evidence_required`.
+/// `conditions`, `measured_evidence_required` or `review_strict`.
 fn check_measured(check: &mut Check<'_>, entry: &Entry, found: &mut Collected) {
     match entry.key() {
         "values" => found.values = Slot::from_check(records::check_measures(check, entry)),
         "limits" => found.limits = Slot::from_check(records::check_measures(check, entry)),
         "units" => found.units = Slot::from_check(records::check_units(check, entry)),
         "conditions" => found.conditions = Slot::from_check(check_text(check, entry)),
+        "review_strict" => found.review_strict = Slot::from_check(check_flag(check, entry)),
         _ => {
             found.measured_evidence_required = Slot::from_check(check_flag(check, entry));
         }
@@ -948,6 +950,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         bindings,
         depends,
         review_required,
+        review_strict,
         measured_evidence_required,
         changes,
         affects,
@@ -978,6 +981,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             bindings: bindings?,
             depends: depends?,
             review_required: review_required.settle().ok()?.unwrap_or_default(),
+            review_strict: review_strict.settle().ok()?.unwrap_or_default(),
             measured_evidence_required: measured_evidence_required
                 .settle()
                 .ok()?

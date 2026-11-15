@@ -204,6 +204,9 @@ pub struct Capability {
     pub depends: Vec<String>,
     /// Review kinds required for this capability's bound code; empty by default.
     pub review_required: Vec<super::ReviewKind>,
+    /// Whether a required review counts only when its verdict is clean and its
+    /// input digests are current; false by default.
+    pub review_strict: bool,
     /// Whether the capability requires at least one evidence record that states
     /// measured values with their units and conditions; false by default.
     pub measured_evidence_required: bool,

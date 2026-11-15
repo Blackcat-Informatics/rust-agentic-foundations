@@ -230,7 +230,7 @@ The closed obligation vocabulary and the evidence needed to resolve each kind ar
 | `assessment-stale` | An input of the assessment of an authored section in `affects` has another digest now than the one the record keeps, no longer resolves, is no longer an input, or is an input now and was not then | The section assessed again with `assess` |
 | `assessment-rejected` | The assessment of an authored section in `affects` is current and its verdict is `rejected` | The section revised and assessed again with `assess`, with the verdict `accepted` |
 | `review-missing` | A listed capability requires a review kind but has no completed review of its bound-code scope | A completed current review of the required kind recorded for the capability |
-| `review-stale` | A completed required review of a listed capability has changed source inputs | A completed current review of the required kind recorded for the capability |
+| `review-stale` | A completed required review of a listed capability has changed source inputs, or, for a capability that states `review_strict: true`, has the verdict findings | A completed current review of the required kind recorded for the capability, with a clean verdict when the capability is strict |
 
 The typed evidence descriptions agree with this closed obligation table.
 <!-- raf:tested-by raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract -->

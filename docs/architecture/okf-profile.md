@@ -163,7 +163,7 @@ revision are separate contracts.
 
 | Type | Directory | Keys, in writing order |
 | --- | --- | --- |
-| Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `review_required`, optional `measured_evidence_required`, optional `diagrams`, optional `model` |
+| Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `review_required`, optional `review_strict`, optional `measured_evidence_required`, optional `diagrams`, optional `model` |
 | Change | `work/changes` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `changes`, `affects`, `contract_effect`, `items` |
 | Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, optional `diagrams`, optional `model` |
 | Evidence | `work/evidence` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by`, `for`, optional `command`, optional `revision`, optional `values`, optional `limits`, optional `units`, optional `conditions` |
@@ -215,6 +215,10 @@ in that type's directory. Each of these directories holds Markdown files only.
   `security`, `correctness`, `design`, `performance` and `documentation`.
   An absent or empty list imposes no review policy. Each named kind requires a
   current completed review of that capability's exact bound-code scope.
+- **`review_strict`** (optional) is `true` or `false`; absent means `false`. A
+  capability that states `true` accepts a required review only when its verdict
+  is `clean` and its input digests are current; a review with findings does not
+  satisfy the requirement. It has no effect without `review_required`.
 - **`measured_evidence_required`** (optional) is `true` or `false`; absent means
   `false`. A capability that states `true` requires an evidence record that
   covers it and states a measurement (see `units` and `conditions` of Evidence).

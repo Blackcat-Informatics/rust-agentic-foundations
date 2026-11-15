@@ -307,3 +307,154 @@ fn every_finding_names_a_fix_and_a_message() {
         }
     }
 }
+
+type StrictFixture = (
+    support::Repo,
+    support::Repo,
+    raf_source::Workspace,
+    Vec<(String, String)>,
+);
+
+/// The demo repository requiring a security review, without and with
+/// `review_strict`, and the review records a test can add to it: a clean one and
+/// one with findings at the same digests, then an early and a late pair.
+fn strict_fixture(records: &[(&str, &str, raf_okf::ReviewVerdict)]) -> StrictFixture {
+    use raf_okf::{
+        Actor, DocType, RecordHeader, ReviewKind, ReviewRecord, ReviewScope, ReviewVerdict,
+    };
+    use raf_source::MemoryTree;
+    use raf_workplan::Workplan;
+    use support::strict as fixture;
+    let source = support::workspace_of(&fixture::source_files());
+    let mut plain: support::Repo = fixture::documents()
+        .into_iter()
+        .map(|(path, text)| (path.to_string(), text))
+        .collect();
+    let cap = plain.get_mut(fixture::CAPABILITY).unwrap();
+    *cap = cap.replace("depends:", "review_required: [security]\ndepends:");
+    let mut strict = plain.clone();
+    let cap = strict.get_mut(fixture::CAPABILITY).unwrap();
+    *cap = cap.replace("depends:", "review_strict: true\ndepends:");
+    let scope = ReviewScope::Capability("cap:demo".to_string());
+    let tree: MemoryTree = plain.iter().collect();
+    let inputs = Workplan::load(&tree, &source)
+        .review_inputs(&scope)
+        .unwrap();
+    let written = records
+        .iter()
+        .map(|(id, timestamp, verdict)| {
+            let mut header = RecordHeader::new(DocType::Review, *id);
+            header.timestamp = Some((*timestamp).to_string());
+            let mut record = ReviewRecord::new(
+                header,
+                scope.clone(),
+                "a".repeat(40),
+                ReviewKind::Security,
+                *verdict,
+                Actor::Human,
+                inputs.clone(),
+            );
+            if *verdict == ReviewVerdict::Findings {
+                record.findings_ref = Some("https://example.invalid/review".to_string());
+            }
+            (
+                format!("work/reviews/{id}.md"),
+                record.to_document().unwrap().render(),
+            )
+        })
+        .collect();
+    (plain, strict, source, written)
+}
+
+fn with_records(repo: &support::Repo, records: &[(String, String)]) -> support::Repo {
+    let mut repo = repo.clone();
+    repo.extend(records.iter().cloned());
+    repo
+}
+
+fn review_stale_message(repo: &support::Repo, source: &raf_source::Workspace) -> String {
+    support::check_in(repo, source)
+        .into_iter()
+        .find(|finding| finding.kind == "review-stale")
+        .unwrap()
+        .message
+}
+
+/// A strict capability accepts a required review only with a clean verdict at
+/// current digests. Each refusal sits beside the accepted neighbour: a clean
+/// current review satisfies and one with findings does not, the latest review of
+/// the scope and kind decides in both directions, and a capability without the
+/// key accepts the same findings review as before.
+#[test]
+fn a_strict_capability_accepts_only_a_clean_current_review() {
+    use raf_okf::ReviewVerdict::{Clean, Findings};
+    let (plain, strict, source, records) = strict_fixture(&[
+        ("demo-clean", "2026-01-01T00:00:00Z", Clean),
+        ("demo-findings", "2026-01-01T00:00:00Z", Findings),
+        ("demo-early", "2026-01-01T00:00:00Z", Clean),
+        ("demo-late", "2026-02-01T00:00:00Z", Findings),
+    ]);
+    let [clean, findings, early_clean, late_findings] = &records[..] else {
+        unreachable!("four records are written")
+    };
+    let kinds = review_finding_kinds;
+    let none = Vec::<&str>::new();
+
+    assert_eq!(
+        kinds(
+            &with_records(&plain, std::slice::from_ref(findings)),
+            &source
+        ),
+        none
+    );
+    assert_eq!(
+        kinds(&with_records(&strict, std::slice::from_ref(clean)), &source),
+        none
+    );
+    let refused = with_records(&strict, std::slice::from_ref(findings));
+    assert_eq!(kinds(&refused, &source), ["review-stale"]);
+    let message = review_stale_message(&refused, &source);
+    assert!(
+        message.contains("has the verdict findings") && message.contains("clean verdict"),
+        "{message}"
+    );
+
+    // The later review with findings shadows the earlier clean one.
+    let shadowed = with_records(&strict, &[early_clean.clone(), late_findings.clone()]);
+    assert_eq!(kinds(&shadowed, &source), ["review-stale"]);
+    // The later clean review shadows the earlier one with findings.
+    let (_, _, _, reversed) = strict_fixture(&[
+        ("demo-early", "2026-01-01T00:00:00Z", Findings),
+        ("demo-late", "2026-02-01T00:00:00Z", Clean),
+    ]);
+    assert_eq!(kinds(&with_records(&strict, &reversed), &source), none);
+}
+
+/// A clean review of source that has since changed does not satisfy a strict
+/// capability, and its finding names the changed inputs, not a verdict.
+#[test]
+fn a_strict_capability_refuses_a_clean_review_of_changed_source() {
+    use support::strict as fixture;
+    let (_, strict, source, records) = strict_fixture(&[(
+        "demo-clean",
+        "2026-01-01T00:00:00Z",
+        raf_okf::ReviewVerdict::Clean,
+    )]);
+    let reviewed = with_records(&strict, &records);
+    assert_eq!(review_finding_kinds(&reviewed, &source), Vec::<&str>::new());
+    let mut files = fixture::source_files();
+    let lib = files
+        .iter_mut()
+        .find(|(path, _)| *path == fixture::LIB)
+        .unwrap();
+    lib.1 = lib
+        .1
+        .replace("pub fn run() {}", "pub fn run() { let _value = 1; }");
+    let changed = support::workspace_of(&files);
+    assert_eq!(review_finding_kinds(&reviewed, &changed), ["review-stale"]);
+    let message = review_stale_message(&reviewed, &changed);
+    assert!(
+        message.contains("has changed inputs") && !message.contains("verdict findings"),
+        "{message}"
+    );
+}

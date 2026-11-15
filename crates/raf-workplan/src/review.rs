@@ -155,6 +155,9 @@ pub struct ReviewStatus {
     pub review: Option<String>,
     /// The validated provenance commit, which may no longer be reachable.
     pub revision: Option<String>,
+    /// The verdict of that review; absent when this scope has never been
+    /// reviewed. It is never `Blocked`, because a blocked review is not completed.
+    pub verdict: Option<ReviewVerdict>,
     /// Source differences, ordered by canonical item path.
     pub changes: Vec<ReviewChange>,
 }
@@ -180,10 +183,23 @@ impl ReviewStatus {
     pub fn is_current(&self) -> bool {
         self.review.is_some() && self.changes.is_empty()
     }
+
+    /// A completed review that is current and whose verdict is clean: the only
+    /// review a strict capability accepts.
+    #[must_use]
+    pub fn is_clean_current(&self) -> bool {
+        self.is_current() && self.verdict == Some(ReviewVerdict::Clean)
+    }
 }
 
 impl Workplan<'_> {
     /// Judge only the review kinds a capability explicitly requires.
+    ///
+    /// Without `review_strict` a completed review at current digests satisfies a
+    /// kind whatever its verdict. With it, only a clean verdict at current digests
+    /// does. The status is the latest completed review of the scope and kind, so a
+    /// later review with findings shadows an earlier clean one and a later clean
+    /// review shadows an earlier one with findings.
     pub(crate) fn required_reviews(
         &self,
         capability: &Loaded<raf_okf::Capability>,
@@ -195,7 +211,12 @@ impl Workplan<'_> {
                 &ReviewScope::Capability(capability.value().header.id.clone()),
                 *kind,
             )?;
-            if status.is_current() {
+            let strict = capability.value().review_strict;
+            if if strict {
+                status.is_clean_current()
+            } else {
+                status.is_current()
+            } {
                 continue;
             }
             owed.push(Obligation {
@@ -213,6 +234,7 @@ impl Workplan<'_> {
                 evidence: Needed::CurrentReview {
                     kind: *kind,
                     status,
+                    strict,
                 },
             });
         }
@@ -456,6 +478,7 @@ impl Workplan<'_> {
         })?;
         Ok(ReviewStatus {
             review: latest.map(|record| record.header.id.clone()),
+            verdict: latest.map(|record| record.verdict),
             revision: latest.map(|record| record.revision.clone()),
             changes,
         })
