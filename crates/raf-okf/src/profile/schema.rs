@@ -114,7 +114,7 @@ const fn optional(key: &'static str, value: ValueKind) -> KeySpec {
     }
 }
 
-const CAPABILITY: [KeySpec; 13] = [
+const CAPABILITY: [KeySpec; 14] = [
     required("type", ValueKind::DocType),
     required("id", ValueKind::Id),
     required("title", ValueKind::Text),
@@ -125,6 +125,7 @@ const CAPABILITY: [KeySpec; 13] = [
     required("bindings", ValueKind::Bindings),
     required("depends", ValueKind::CapabilityIds),
     optional("review_required", ValueKind::ReviewKinds),
+    optional("review_strict", ValueKind::Flag),
     optional("measured_evidence_required", ValueKind::Flag),
     optional("diagrams", ValueKind::Diagrams),
     optional("model", ValueKind::Model),

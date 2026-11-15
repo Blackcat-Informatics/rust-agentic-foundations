@@ -54,6 +54,8 @@ bindings:
     - raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values
     - raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan
     - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
+    - raf_workplan::test_crate::kinds::a_strict_capability_accepts_only_a_clean_current_review
+    - raf_workplan::test_crate::kinds::a_strict_capability_refuses_a_clean_review_of_changed_source
     - raf_okf::test_crate::records::a_coverage_record_rejects_the_removed_policy_key
     - raf_okf::test_crate::record_writer::a_coverage_record_writes_only_its_closed_policy_independent_keys
     - raf_okf::test_crate::records::a_ceiling_names_a_crate_one_whole_number_of_lines_or_a_percent_and_an_optional_class
@@ -210,8 +212,8 @@ unreported. Completion also checks outcome reasons and token-level contract effe
 
 ## Contract
 
-Explicit required-review kinds participate in complete checks as missing or stale review obligations. A current findings review meets currency without becoming clean. Review failures and unavailable source remain visible and cannot be waived through unrelated prose debt. Capabilities without required kinds retain the existing complete policy.
-<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
+Explicit required-review kinds participate in complete checks as missing or stale review obligations. A current findings review meets currency without becoming clean, except for a capability that states `review_strict: true`, which accepts only a clean review at current digests and reports a findings verdict as a stale-review finding that names the verdict. Review failures and unavailable source remain visible and cannot be waived through unrelated prose debt. Capabilities without required kinds retain the existing complete policy.
+<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind,raf_workplan::test_crate::kinds::a_strict_capability_accepts_only_a_clean_current_review,raf_workplan::test_crate::kinds::a_strict_capability_refuses_a_clean_review_of_changed_source -->
 
 `write_debt_in` judges the loaded `Workplan` and publishes through an injected
 `RecordStore`, including a native `MemoryTree`. The disk `Gate`, `Opened` and
@@ -736,8 +738,8 @@ one macro row under each declared configuration. The row keeps the active
 invocation's original physical line; the inactive invocation contributes no row.
 <!-- raf:tested-by raf_workplan::test_crate::lines::macro_lines_follow_indexed_configuration_instead_of_raw_file_reaches -->
 
-The shared obligation fixtures run valid and invalid required-review neighbors through complete policy. Their outcomes distinguish a current findings review from blocked, missing and stale records.
-<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
+The shared obligation fixtures run valid and invalid required-review neighbors through complete policy. Their outcomes distinguish a current findings review from blocked, missing and stale records, and a strict capability's clean current review from its findings, stale and shadowed neighbours.
+<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind,raf_workplan::test_crate::kinds::a_strict_capability_accepts_only_a_clean_current_review,raf_workplan::test_crate::kinds::a_strict_capability_refuses_a_clean_review_of_changed_source -->
 
 Adopting the same complete-policy findings into disk and memory stores writes
 identical debt bytes. An unchanged second write leaves the store untouched.
@@ -992,6 +994,8 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `raf_workplan::test_crate::debt::without_a_record_every_strict_finding_stands_and_the_write_creates_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::kinds::a_strict_capability_accepts_only_a_clean_current_review` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_workplan::test_crate::kinds::a_strict_capability_refuses_a_clean_review_of_changed_source` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::test_crate::lines::a_bound_test_reaches_its_registered_allocator_and_real_initializer_dependencies` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::lines::a_ceiling_of_lines_passes_at_its_count_and_fails_one_below_for_each_class` | test | [Contract](#contract) |

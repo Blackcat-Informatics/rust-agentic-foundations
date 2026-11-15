@@ -21,6 +21,8 @@ bindings:
     - raf_workplan::digest::tests::review_currency_changes_only_the_edited_definition_and_keeps_container_contracts
     - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
     - raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values
+    - raf_workplan::test_crate::kinds::a_strict_capability_accepts_only_a_clean_current_review
+    - raf_workplan::test_crate::kinds::a_strict_capability_refuses_a_clean_review_of_changed_source
     - raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates
   examples:
     - raf_workplan::Workplan::review_inputs
@@ -85,6 +87,15 @@ Complete checks retain these requirements independently of prose debt. An
 unreadable record or scope produces an unavailable finding or a typed error.
 A current review with findings satisfies the review requirement while retaining
 its findings verdict. An absent or empty list imposes no review policy.
+A capability that also states `review_strict: true` accepts a required kind only
+from a completed review whose verdict is clean and whose input digests are
+current. The review status carries the verdict, so the finding names the failed
+condition: a verdict with findings, changed inputs, or both. The status is
+always the latest completed review of the scope and kind, so a later review with
+findings shadows an earlier clean one and a later clean review shadows an earlier
+one with findings; a blocked review shadows nothing. A capability without the
+key accepts a review of any verdict at current digests.
+<!-- raf:tested-by raf_workplan::test_crate::kinds::a_strict_capability_accepts_only_a_clean_current_review,raf_workplan::test_crate::kinds::a_strict_capability_refuses_a_clean_review_of_changed_source -->
 Semantic queries reuse document identities and the shared native RDF vocabulary:
 a review reifies its verdict about its source set and retains each input and
 finding. Text, RDF and native JSON-LD expose the same typed outcomes; serialized
@@ -198,5 +209,7 @@ repository bytes retained as observable behavior.
 | `raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates` | test | [Contract](#contract) |
 | `raf_workplan::Workplan::review_inputs` | doctest | [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::digest::tests::review_currency_changes_only_the_edited_definition_and_keeps_container_contracts` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::kinds::a_strict_capability_accepts_only_a_clean_current_review` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::kinds::a_strict_capability_refuses_a_clean_review_of_changed_source` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 <!-- raf:generated:end -->

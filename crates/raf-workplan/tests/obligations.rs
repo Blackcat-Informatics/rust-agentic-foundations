@@ -147,7 +147,7 @@ fn review_cases(base: &Repo, cases: &mut Vec<Case>) {
     let path = "work/reviews/omega-security.md".to_string();
     let mut current = required.clone();
     current.insert(path.clone(), review.to_document().unwrap().render());
-    let evidence = "a completed current review of the required kind recorded for the capability";
+    let evidence = "a completed current review of the required kind recorded for the capability, with a clean verdict when the capability is strict";
     cases.push(Case {
         name: "review-missing",
         broken: required.clone(),
@@ -184,7 +184,7 @@ fn review_cases(base: &Repo, cases: &mut Vec<Case>) {
     cases.push(Case {
         name: "review-stale",
         broken: stale,
-        fixed: current,
+        fixed: current.clone(),
         want: vec![Want {
             kind: ObligationKind::ReviewStale,
             path: OMEGA,
@@ -192,6 +192,34 @@ fn review_cases(base: &Repo, cases: &mut Vec<Case>) {
             text: format!(
                 "cap:omega  document  review-stale  {evidence} (security review `review:omega-security` has changed inputs: demo::real (changed))"
             ),
+        }],
+    });
+    // Under strict review the findings review above no longer satisfies the
+    // requirement; a clean review at the same digests does.
+    let strict = replaced(
+        &current,
+        OMEGA,
+        "review_required: [security]\n",
+        "review_required: [security]\nreview_strict: true\n",
+    );
+    let mut clean = review.clone();
+    clean.inputs = with_plan(&strict, |plan| plan.review_inputs(&scope).unwrap());
+    clean.verdict = ReviewVerdict::Clean;
+    clean.findings_ref = None;
+    let mut satisfied = strict.clone();
+    satisfied.insert(
+        "work/reviews/omega-security.md".to_string(),
+        clean.to_document().unwrap().render(),
+    );
+    cases.push(Case {
+        name: "review-strict-findings",
+        broken: strict,
+        fixed: satisfied,
+        want: vec![Want {
+            kind: ObligationKind::ReviewStale,
+            path: OMEGA,
+            line: None,
+            text: "cap:omega  document  review-stale  a completed current review of the required kind recorded for the capability, with a clean verdict when the capability is strict (security review `review:omega-security` has the verdict findings)".to_string(),
         }],
     });
 }

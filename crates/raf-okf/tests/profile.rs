@@ -106,6 +106,40 @@ fn mutate(text: &str, from: &str, to: &str) -> String {
     text.replacen(from, to, 1)
 }
 
+/// The two optional capability flags read `true` or `false`, and a neighbouring
+/// invalid shape is refused at its own key.
+fn capability_flags_read_true_or_false_and_refuse_other_shapes() {
+    for flag in ["measured_evidence_required", "review_strict"] {
+        for (value, expected) in [
+            ("true", Some(true)),
+            ("false", Some(false)),
+            ("yes", None),
+            ("[true]", None),
+        ] {
+            let text = alpha().replace("depends:", &format!("{flag}: {value}\ndepends:"));
+            match expected {
+                Some(expected) => {
+                    let RafDocument::Capability(cap) = clean(&text, ALPHA_PATH) else {
+                        panic!("a capability")
+                    };
+                    let read = if flag == "review_strict" {
+                        cap.review_strict
+                    } else {
+                        cap.measured_evidence_required
+                    };
+                    assert_eq!(read, expected, "{flag}: {value}");
+                }
+                None => assert!(
+                    violations(&text, ALPHA_PATH)
+                        .iter()
+                        .any(|v| v.at() == &key(flag)),
+                    "{flag}: {value}"
+                ),
+            }
+        }
+    }
+}
+
 #[test]
 fn valid_documents_of_each_type_validate_to_typed_values() {
     review_location_neighbors();
@@ -156,30 +190,8 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
     }
 
     assert!(!cap.measured_evidence_required);
-    for (value, expected) in [
-        ("true", Some(true)),
-        ("false", Some(false)),
-        ("yes", None),
-        ("[true]", None),
-    ] {
-        let text = alpha().replace(
-            "depends:",
-            &format!("measured_evidence_required: {value}\ndepends:"),
-        );
-        match expected {
-            Some(expected) => {
-                let RafDocument::Capability(cap) = clean(&text, ALPHA_PATH) else {
-                    panic!("a capability")
-                };
-                assert_eq!(cap.measured_evidence_required, expected);
-            }
-            None => assert!(
-                violations(&text, ALPHA_PATH)
-                    .iter()
-                    .any(|v| v.at() == &key("measured_evidence_required"))
-            ),
-        }
-    }
+    assert!(!cap.review_strict);
+    capability_flags_read_true_or_false_and_refuse_other_shapes();
 
     let RafDocument::Change(change) = clean(CHANGE, CHANGE_PATH) else {
         panic!("a change");
@@ -382,6 +394,7 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ),
             ("depends", "depends: []\n"),
             ("review_required", "review_required: []\n"),
+            ("review_strict", "review_strict: true\n"),
             (
                 "measured_evidence_required",
                 "measured_evidence_required: true\n",
@@ -590,7 +603,7 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
     // The fixed assignment includes optional capability policy and review
     // references. Shared scope, revision and findings keys occur only once;
     // Review rejects the document keys and the remaining record-only keys.
-    assert_eq!(foreign_seen, 21 + 24 + 26 + 19 + 26 + 28 + 28 + 22);
+    assert_eq!(foreign_seen, 21 + 25 + 27 + 20 + 27 + 29 + 29 + 23);
 }
 
 fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
@@ -679,11 +692,12 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
 
 /// The keys of each type beyond the shared ones, in table order.
 const HEADER_KEYS: [&str; 2] = ["title", "description"];
-const CAPABILITY_KEYS: [&str; 5] = [
+const CAPABILITY_KEYS: [&str; 6] = [
     "state",
     "bindings",
     "depends",
     "review_required",
+    "review_strict",
     "measured_evidence_required",
 ];
 const CHANGE_KEYS: [&str; 4] = ["changes", "affects", "contract_effect", "items"];

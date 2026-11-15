@@ -60,7 +60,7 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
     for (doc_type, expected) in [
         (
             DocType::Capability,
-            "type id title description tags timestamp state bindings depends review_required measured_evidence_required diagrams model",
+            "type id title description tags timestamp state bindings depends review_required review_strict measured_evidence_required diagrams model",
         ),
         (
             DocType::Change,
@@ -122,7 +122,10 @@ fn each_type_states_its_required_and_optional_keys() {
             let optional = spec.key == "tags"
                 || (spec.key == "timestamp" && doc_type != DocType::Review)
                 || (doc_type == DocType::Capability
-                    && matches!(spec.key, "review_required" | "measured_evidence_required"))
+                    && matches!(
+                        spec.key,
+                        "review_required" | "review_strict" | "measured_evidence_required"
+                    ))
                 || (doc_type == DocType::Review && spec.key == "findings_ref")
                 || (matches!(doc_type, DocType::Capability | DocType::Architecture)
                     && matches!(spec.key, "diagrams" | "model"))
