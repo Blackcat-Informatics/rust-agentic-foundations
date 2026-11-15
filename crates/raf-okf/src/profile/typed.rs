@@ -204,6 +204,9 @@ pub struct Capability {
     pub depends: Vec<String>,
     /// Review kinds required for this capability's bound code; empty by default.
     pub review_required: Vec<super::ReviewKind>,
+    /// Whether the capability requires at least one evidence record that states
+    /// measured values with their units and conditions; false by default.
+    pub measured_evidence_required: bool,
     /// Named automatic diagram views owned by this document.
     pub diagrams: Vec<super::DiagramDeclaration>,
     /// Authored source-bound architecture; interactions remain declared.
@@ -590,6 +593,27 @@ impl Measure {
     }
 }
 
+/// The unit of one measured value of an evidence record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Unit {
+    /// The name of the measured value the unit belongs to.
+    pub name: String,
+    /// The unit, a non-empty text such as `ms` or `MiB`.
+    pub unit: String,
+}
+
+impl Unit {
+    /// The unit `unit` of the value `name`.
+    #[must_use]
+    pub fn new(name: impl Into<String>, unit: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            unit: unit.into(),
+        }
+    }
+}
+
 /// An evidence record: one execution, the capabilities it covers, its
 /// verdict, and the inputs whose digests it was made against.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -616,6 +640,11 @@ pub struct EvidenceRecord {
     pub values: Vec<Measure>,
     /// The limits, each naming a measured value; empty when the key is absent.
     pub limits: Vec<Measure>,
+    /// The unit of each measured value, in author order; empty when the key is
+    /// absent.
+    pub units: Vec<Unit>,
+    /// How and where the values were taken, when it was given.
+    pub conditions: Option<String>,
 }
 
 impl EvidenceRecord {
@@ -644,7 +673,22 @@ impl EvidenceRecord {
             revision: None,
             values: Vec::new(),
             limits: Vec::new(),
+            units: Vec::new(),
+            conditions: None,
         }
+    }
+
+    /// Whether the record states a measurement: at least one value, a unit for
+    /// every value, and the conditions the values were taken under.
+    #[must_use]
+    pub fn states_measurement(&self) -> bool {
+        !self.values.is_empty()
+            && self.conditions.is_some()
+            && self.values.iter().all(|value| {
+                self.units
+                    .iter()
+                    .any(|unit| unit.name == value.name && !unit.unit.trim().is_empty())
+            })
     }
 }
 

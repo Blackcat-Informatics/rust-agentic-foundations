@@ -176,7 +176,7 @@ pub(crate) fn evidence_record() -> String {
          - kind: symbol\n    name: demo::real\n    digest: {DIGEST}\n\
          verdict: pass\nby: agent\nfor: [cap:alpha]\ncommand: \"cargo bench\"\n\
          revision: b499578a1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f\n\
-         values:\n  peak: 41\nlimits:\n  peak: 64\n---\n"
+         values:\n  peak: 41\nlimits:\n  peak: 64\nunits:\n  peak: MiB\nconditions: \"release build on the reference host\"\n---\n"
     )
 }
 
@@ -464,6 +464,12 @@ fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
         RuleTag::BadMeasure => evidence("  peak: 41", "  peak: fast", key("values")),
         RuleTag::LimitWithoutValue => evidence("  peak: 64", "  other: 64", key("limits")),
         RuleTag::VerdictOverLimit => evidence("  peak: 41", "  peak: 99", key("verdict")),
+        RuleTag::ValueWithoutUnit => evidence("  peak: MiB", "  other: MiB", key("values")),
+        RuleTag::ConditionsMissing => evidence(
+            "conditions: \"release build on the reference host\"\n",
+            "",
+            key("values"),
+        ),
         RuleTag::BadCrateName => coverage("scope: []", "scope: [\"de mo\"]", key("scope")),
         RuleTag::BadExclusionItem => coverage(
             "item: demo::test_crate::it::*",
@@ -1372,6 +1378,25 @@ fn strict_source(path: &str, extra: &str) -> Vec<(&'static str, String)> {
     files
 }
 
+/// The case of a required measurement that no evidence record states.
+fn measured_evidence_cases() -> Vec<Case> {
+    let capability = fixture::replaced(
+        &fixture::capability(),
+        "depends: []",
+        "measured_evidence_required: true\ndepends: []",
+    );
+    vec![
+        Case::new(
+            "measured-evidence-missing",
+            strict_capability(capability),
+            "measured-evidence-missing",
+            fixture::CAPABILITY,
+            key("measured_evidence_required"),
+        )
+        .source(fixture::source_files()),
+    ]
+}
+
 /// The cases of strict mode: the strict-clean repository with one rule broken,
 /// judged under strict. Each reports nothing under `default`.
 pub(crate) fn strict_cases() -> Vec<Case> {
@@ -1460,6 +1485,7 @@ pub(crate) fn strict_cases() -> Vec<Case> {
         ),
     ];
     cases.extend(strict_coverage_cases());
+    cases.extend(measured_evidence_cases());
     // A private helper that nothing reaches: one orphan line, over the
     // ceiling of 0 that strict mode holds a package with no row to.
     cases.push(

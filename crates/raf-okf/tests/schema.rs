@@ -60,7 +60,7 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
     for (doc_type, expected) in [
         (
             DocType::Capability,
-            "type id title description tags timestamp state bindings depends review_required diagrams model",
+            "type id title description tags timestamp state bindings depends review_required measured_evidence_required diagrams model",
         ),
         (
             DocType::Change,
@@ -72,7 +72,7 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
         ),
         (
             DocType::Evidence,
-            "type id tags timestamp subject inputs verdict by for command revision values limits",
+            "type id tags timestamp subject inputs verdict by for command revision values limits units conditions",
         ),
         (
             DocType::Assessment,
@@ -121,12 +121,16 @@ fn each_type_states_its_required_and_optional_keys() {
             // record leaves out its ceilings and exceptions, none without them.
             let optional = spec.key == "tags"
                 || (spec.key == "timestamp" && doc_type != DocType::Review)
-                || (doc_type == DocType::Capability && spec.key == "review_required")
+                || (doc_type == DocType::Capability
+                    && matches!(spec.key, "review_required" | "measured_evidence_required"))
                 || (doc_type == DocType::Review && spec.key == "findings_ref")
                 || (matches!(doc_type, DocType::Capability | DocType::Architecture)
                     && matches!(spec.key, "diagrams" | "model"))
                 || (doc_type == DocType::Evidence
-                    && matches!(spec.key, "command" | "revision" | "values" | "limits"))
+                    && matches!(
+                        spec.key,
+                        "command" | "revision" | "values" | "limits" | "units" | "conditions"
+                    ))
                 || (doc_type == DocType::Coverage && matches!(spec.key, "ceilings" | "exceptions"));
             assert_eq!(spec.required, !optional, "{} {}", doc_type.name(), spec.key);
         }

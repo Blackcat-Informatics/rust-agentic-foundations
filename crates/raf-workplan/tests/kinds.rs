@@ -14,7 +14,7 @@ use raf_workplan::Finding;
 use support::cases::all_cases;
 
 /// The kinds that name a rule of this crate.
-const OWN_KINDS: [&str; 67] = [
+const OWN_KINDS: [&str; 68] = [
     "diagram-invalid",
     "model-invalid",
     "diagram-stale",
@@ -38,6 +38,7 @@ const OWN_KINDS: [&str; 67] = [
     "review-missing",
     "review-stale",
     "review-unavailable",
+    "measured-evidence-missing",
     "coverage-record-missing",
     "coverage-item-unbound",
     "coverage-test-unbound",

@@ -44,6 +44,8 @@ pub(crate) struct Evidence {
     pub(crate) inputs: Vec<(String, String)>,
     pub(crate) values: Vec<(String, String)>,
     pub(crate) limits: Vec<(String, String)>,
+    pub(crate) units: Vec<(String, String)>,
+    pub(crate) conditions: Option<&'static str>,
 }
 
 impl Evidence {
@@ -57,6 +59,8 @@ impl Evidence {
             inputs: vec![("demo::real".to_string(), real_digest())],
             values: Vec::new(),
             limits: Vec::new(),
+            units: Vec::new(),
+            conditions: None,
         }
     }
 
@@ -77,6 +81,16 @@ impl Evidence {
 
     pub(crate) fn limits(mut self, limits: &[(&str, &str)]) -> Self {
         self.limits = owned(limits);
+        self
+    }
+
+    pub(crate) fn units(mut self, units: &[(&str, &str)]) -> Self {
+        self.units = owned(units);
+        self
+    }
+
+    pub(crate) fn conditions(mut self, conditions: &'static str) -> Self {
+        self.conditions = Some(conditions);
         self
     }
 
@@ -112,12 +126,15 @@ impl Evidence {
         };
         format!(
             "---\ntype: Evidence\nid: evidence:{}\nsubject: command\ninputs:\n{inputs}\
-             verdict: {}\nby: agent\nfor: {}\ncommand: \"cargo bench\"\n{}{}---\n",
+             verdict: {}\nby: agent\nfor: {}\ncommand: \"cargo bench\"\n{}{}{}{}---\n",
             self.slug,
             self.verdict,
             self.covers,
             map("values", &self.values),
             map("limits", &self.limits),
+            map("units", &self.units),
+            self.conditions
+                .map_or_else(String::new, |text| format!("conditions: \"{text}\"\n")),
         )
     }
 }

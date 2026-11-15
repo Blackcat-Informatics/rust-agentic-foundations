@@ -155,6 +155,32 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
         }
     }
 
+    assert!(!cap.measured_evidence_required);
+    for (value, expected) in [
+        ("true", Some(true)),
+        ("false", Some(false)),
+        ("yes", None),
+        ("[true]", None),
+    ] {
+        let text = alpha().replace(
+            "depends:",
+            &format!("measured_evidence_required: {value}\ndepends:"),
+        );
+        match expected {
+            Some(expected) => {
+                let RafDocument::Capability(cap) = clean(&text, ALPHA_PATH) else {
+                    panic!("a capability")
+                };
+                assert_eq!(cap.measured_evidence_required, expected);
+            }
+            None => assert!(
+                violations(&text, ALPHA_PATH)
+                    .iter()
+                    .any(|v| v.at() == &key("measured_evidence_required"))
+            ),
+        }
+    }
+
     let RafDocument::Change(change) = clean(CHANGE, CHANGE_PATH) else {
         panic!("a change");
     };
@@ -356,6 +382,10 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ),
             ("depends", "depends: []\n"),
             ("review_required", "review_required: []\n"),
+            (
+                "measured_evidence_required",
+                "measured_evidence_required: true\n",
+            ),
             ("diagrams", "diagrams: []\n"),
             ("model", "model:\n  actors: []\n"),
         ],
@@ -389,6 +419,8 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ("revision", REVISION),
             ("values", "values:\n  peak_mib: 41\n"),
             ("limits", "limits:\n  peak_mib: 64\n"),
+            ("units", "units:\n  peak_mib: MiB\n"),
+            ("conditions", "conditions: \"the reference host\"\n"),
         ],
         DocType::Assessment => vec![
             ("type", "type: Assessment\n"),
@@ -558,7 +590,7 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
     // The fixed assignment includes optional capability policy and review
     // references. Shared scope, revision and findings keys occur only once;
     // Review rejects the document keys and the remaining record-only keys.
-    assert_eq!(foreign_seen, 19 + 21 + 23 + 18 + 23 + 25 + 25 + 19);
+    assert_eq!(foreign_seen, 21 + 24 + 26 + 19 + 26 + 28 + 28 + 22);
 }
 
 fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
@@ -647,10 +679,26 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
 
 /// The keys of each type beyond the shared ones, in table order.
 const HEADER_KEYS: [&str; 2] = ["title", "description"];
-const CAPABILITY_KEYS: [&str; 4] = ["state", "bindings", "depends", "review_required"];
+const CAPABILITY_KEYS: [&str; 5] = [
+    "state",
+    "bindings",
+    "depends",
+    "review_required",
+    "measured_evidence_required",
+];
 const CHANGE_KEYS: [&str; 4] = ["changes", "affects", "contract_effect", "items"];
-const EVIDENCE_KEYS: [&str; 9] = [
-    "subject", "inputs", "verdict", "by", "for", "command", "revision", "values", "limits",
+const EVIDENCE_KEYS: [&str; 11] = [
+    "subject",
+    "inputs",
+    "verdict",
+    "by",
+    "for",
+    "command",
+    "revision",
+    "values",
+    "limits",
+    "units",
+    "conditions",
 ];
 const COVERAGE_KEYS: [&str; 2] = ["scope", "exclusions"];
 const DEBT_KEYS: [&str; 2] = ["findings", "lines"];

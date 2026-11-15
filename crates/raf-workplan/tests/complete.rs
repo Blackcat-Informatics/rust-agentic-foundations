@@ -8,6 +8,7 @@ use raf_workplan::{
     Gate, SyncOptions, Workplan,
     lifecycle::{Completion, Condition, Lifecycle},
 };
+use support::evidence::Evidence;
 use support::{
     changes::{BOUND, DONE, OMEGA, SHAPE, capability, record, repo},
     checkout::{Checkout, serial},
@@ -55,6 +56,59 @@ fn prospective_completion_refuses_an_implementing_capability_and_an_undone_item(
         assert_eq!(snapshot(checkout.root()), before);
         assert!(checkout.root().join(SHAPE).is_file());
     }
+}
+
+/// The completion fixture whose capability requires measured evidence, with
+/// `records` beside it.
+fn requiring(records: &[&Evidence]) -> Checkout {
+    let mut files = vec![
+        (
+            OMEGA.to_string(),
+            capability("omega", "delivered", BOUND, &[]).replacen(
+                "depends:",
+                "measured_evidence_required: true\ndepends:",
+                1,
+            ),
+        ),
+        (
+            SHAPE.to_string(),
+            record("shape", "[cap:omega]", &[], "none", DONE)
+                .replace("affects:\n", "affects: []\n"),
+        ),
+    ];
+    files.extend(records.iter().map(|record| (record.path(), record.text())));
+    let files: Vec<(&str, String)> = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.clone()))
+        .collect();
+    Checkout::new("measured-completion", &repo(&files))
+}
+
+#[test]
+fn completion_waits_for_the_measured_evidence_a_capability_requires() {
+    let _lock = serial();
+    let bare = Evidence::passing("bare", "[cap:omega]").values(&[("peak", "41")]);
+    let measured = Evidence::passing("measured", "[cap:omega]")
+        .values(&[("peak", "41")])
+        .units(&[("peak", "MiB")])
+        .conditions("release build on the reference host");
+    // Neither no record nor a record of values alone states a measurement.
+    for records in [vec![], vec![&bare]] {
+        let checkout = requiring(&records);
+        let completion = complete(&checkout);
+        assert!(!completion.is_completed(), "{completion}");
+        assert!(
+            completion
+                .of_condition(Condition::AfterRemoval)
+                .next()
+                .is_some(),
+            "{completion}"
+        );
+        assert!(checkout.root().join(SHAPE).is_file());
+    }
+    let checkout = requiring(&[&measured]);
+    let completion = complete(&checkout);
+    assert!(completion.is_completed(), "{completion}");
 }
 
 #[test]

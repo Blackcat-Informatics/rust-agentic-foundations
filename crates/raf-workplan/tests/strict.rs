@@ -611,3 +611,101 @@ fn while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_report
     );
     assert_eq!(strict, check_in(&broken, &source));
 }
+
+/// An evidence record for `cap:demo` with the extra frontmatter lines `extra`.
+fn evidence(extra: &str) -> (String, String) {
+    (
+        "work/evidence/bench.md".to_string(),
+        format!(
+            "---\ntype: Evidence\nid: evidence:bench\nsubject: command\ninputs:\n  \
+             - kind: symbol\n    name: demo::run\n    digest: {}\n\
+             verdict: pass\nby: agent\nfor: [cap:demo]\ncommand: \"cargo bench\"\n{extra}---\n",
+            "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        ),
+    )
+}
+
+/// The strict-clean repository whose capability requires measured evidence,
+/// with `record` beside it when given.
+fn requiring(record: Option<(String, String)>) -> Vec<Finding> {
+    let capability = fixture::replaced(
+        &fixture::capability(),
+        "depends: []",
+        "measured_evidence_required: true\ndepends: []",
+    );
+    let mut repo = repo(capability, fixture::coverage(""));
+    repo.extend(record);
+    check_in(&repo, &workspace_of(&fixture::source_files()))
+}
+
+const MEASURED: &str = "values:\n  peak: 41\nunits:\n  peak: MiB\nconditions: \"release build on the reference host\"\n";
+
+#[test]
+fn a_capability_requiring_measured_evidence_is_refused_without_it_and_accepted_with_it() {
+    let found = requiring(None);
+    assert_eq!(kinds(&found), ["measured-evidence-missing"], "{found:#?}");
+    assert_eq!(
+        (found[0].file.as_str(), &found[0].location),
+        (
+            fixture::CAPABILITY,
+            &Location::Key("measured_evidence_required".to_string())
+        )
+    );
+    // Values alone, a record of another subject's values, and units without
+    // conditions state no measurement; the complete record does.
+    let values_only = requiring(Some(evidence("values:\n  peak: 41\n")));
+    assert_eq!(
+        kinds(&values_only),
+        ["measured-evidence-missing"],
+        "{values_only:#?}"
+    );
+    let no_values = requiring(Some(evidence("conditions: \"the reference host\"\n")));
+    assert_eq!(
+        kinds(&no_values),
+        ["measured-evidence-missing"],
+        "{no_values:#?}"
+    );
+    assert_eq!(requiring(Some(evidence(MEASURED))), []);
+}
+
+#[test]
+fn a_capability_that_does_not_require_measured_evidence_is_judged_as_before() {
+    let (path, text) = evidence("values:\n  peak: 41\n");
+    let mut repo = repo(fixture::capability(), fixture::coverage(""));
+    repo.insert(path, text);
+    let source = workspace_of(&fixture::source_files());
+    assert_eq!(check_in(&repo, &source), []);
+    // The key set to false is the same opt-out.
+    let off = fixture::replaced(
+        &fixture::capability(),
+        "depends: []",
+        "measured_evidence_required: false\ndepends: []",
+    );
+    assert_eq!(judged(off), []);
+}
+
+#[test]
+fn a_record_that_states_units_or_conditions_states_them_for_every_value() {
+    let refused = |extra: &str, kind: &str| {
+        let found = requiring(Some(evidence(extra)));
+        let kinds: Vec<_> = found.iter().map(|finding| finding.kind).collect();
+        assert!(kinds.contains(&kind), "{extra}: {found:#?}");
+    };
+    // A value without its unit, beside units for the others.
+    refused(
+        "values:\n  peak: 41\n  mean: 3\nunits:\n  peak: MiB\nconditions: \"the reference host\"\n",
+        "okf-value-without-unit",
+    );
+    // Conditions without any unit.
+    refused(
+        "values:\n  peak: 41\nconditions: \"the reference host\"\n",
+        "okf-value-without-unit",
+    );
+    // Units without conditions.
+    refused(
+        "values:\n  peak: 41\nunits:\n  peak: MiB\n",
+        "okf-conditions-missing",
+    );
+    // The complete neighbour loads with no finding of the record.
+    assert_eq!(requiring(Some(evidence(MEASURED))), []);
+}

@@ -41,7 +41,7 @@ pub use typed::{
     CapabilitySection, Ceiling, CeilingClass, CeilingLimit, Change, ChangeItem, ContractEffect,
     CoverageRecord, DebtFinding, DebtLine, DebtRecord, EvidenceRecord, EvidenceSubject,
     EvidenceVerdict, Exception, ExceptionTarget, Exclusion, ExclusionItem, Header, Input,
-    InputKind, Measure, Number, Outcome, RafDocument, RecordHeader, SectionRef, State,
+    InputKind, Measure, Number, Outcome, RafDocument, RecordHeader, SectionRef, State, Unit,
 };
 pub use violation::{Location, Rule, RuleTag, Violation};
 
@@ -189,6 +189,9 @@ struct Collected {
     revision: Slot<String>,
     values: Slot<Vec<Measure>>,
     limits: Slot<Vec<Measure>>,
+    units: Slot<Vec<Unit>>,
+    conditions: Slot<String>,
+    measured_evidence_required: Slot<bool>,
     scope: Option<Vec<String>>,
     exclusions: Option<Vec<Exclusion>>,
     ceilings: Slot<Vec<Ceiling>>,
@@ -364,13 +367,8 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
             ValueKind::Revision => {
                 found.revision = Slot::from_check(records::check_revision(check, entry));
             }
-            ValueKind::Measures => {
-                let measures = Slot::from_check(records::check_measures(check, entry));
-                if key == "limits" {
-                    found.limits = measures;
-                } else {
-                    found.values = measures;
-                }
+            ValueKind::Measures | ValueKind::Units | ValueKind::Conditions | ValueKind::Flag => {
+                check_measured(check, entry, &mut found);
             }
             ValueKind::Scope => found.scope = records::check_scope(check, entry),
             ValueKind::Exclusions => found.exclusions = records::check_exclusions(check, entry),
@@ -399,6 +397,20 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
     found
 }
 
+/// Check one of the keys of measured evidence: `values`, `limits`, `units`,
+/// `conditions` or `measured_evidence_required`.
+fn check_measured(check: &mut Check<'_>, entry: &Entry, found: &mut Collected) {
+    match entry.key() {
+        "values" => found.values = Slot::from_check(records::check_measures(check, entry)),
+        "limits" => found.limits = Slot::from_check(records::check_measures(check, entry)),
+        "units" => found.units = Slot::from_check(records::check_units(check, entry)),
+        "conditions" => found.conditions = Slot::from_check(check_text(check, entry)),
+        _ => {
+            found.measured_evidence_required = Slot::from_check(check_flag(check, entry));
+        }
+    }
+}
+
 fn check_record_consistency(
     check: &mut Check<'_>,
     map: &Map,
@@ -412,8 +424,15 @@ fn check_record_consistency(
             inputs: found.inputs.as_deref(),
             verdict: found.verdict,
             has_command: map.get("command").is_some(),
-            values: measures(&found.values),
-            limits: measures(&found.limits),
+            values: listed(&found.values),
+            limits: listed(&found.limits),
+            units: listed(&found.units),
+            has_units: map.get("units").is_some(),
+            has_conditions: match &found.conditions {
+                Slot::Absent => Some(false),
+                Slot::Valid(_) => Some(true),
+                Slot::Invalid => None,
+            },
         },
     );
     if doc_type == DocType::Review {
@@ -435,12 +454,12 @@ fn debt_rows(check: &mut Check<'_>, entry: &Entry, found: &mut Collected) {
     }
 }
 
-/// The measures of an optional key: none when it is absent, `None` when it
+/// The entries of an optional list key: none when it is absent, `None` when it
 /// failed its check.
-fn measures(slot: &Slot<Vec<Measure>>) -> Option<&[Measure]> {
+fn listed<T>(slot: &Slot<Vec<T>>) -> Option<&[T]> {
     match slot {
         Slot::Absent => Some(&[]),
-        Slot::Valid(measures) => Some(measures),
+        Slot::Valid(entries) => Some(entries),
         Slot::Invalid => None,
     }
 }
@@ -490,6 +509,23 @@ fn check_id(
         return None;
     }
     Some((id.to_string(), slug.to_string()))
+}
+
+/// A flag: the text `true` or `false`.
+fn check_flag(check: &mut Check<'_>, entry: &Entry) -> Option<bool> {
+    match scalar_text(entry) {
+        Some("true") => Some(true),
+        Some("false") => Some(false),
+        _ => {
+            check.key(
+                entry.key(),
+                Rule::WrongShape {
+                    expected: "true or false",
+                },
+            );
+            None
+        }
+    }
 }
 
 fn check_text(check: &mut Check<'_>, entry: &Entry) -> Option<String> {
@@ -912,6 +948,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         bindings,
         depends,
         review_required,
+        measured_evidence_required,
         changes,
         affects,
         effect,
@@ -941,6 +978,10 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             bindings: bindings?,
             depends: depends?,
             review_required: review_required.settle().ok()?.unwrap_or_default(),
+            measured_evidence_required: measured_evidence_required
+                .settle()
+                .ok()?
+                .unwrap_or_default(),
             diagrams,
             model,
         })),
@@ -978,6 +1019,8 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         command,
         revision,
         values,
+        units,
+        conditions,
         limits,
         scope,
         exclusions,
@@ -998,11 +1041,13 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             Some(records::Subject::Evidence(subject)),
             Some(records::Verdict::Evidence(verdict)),
         ) => {
-            let (Ok(command), Ok(revision), Ok(values), Ok(limits)) = (
+            let (Ok(command), Ok(revision), Ok(values), Ok(limits), Ok(units), Ok(conditions)) = (
                 command.settle(),
                 revision.settle(),
                 values.settle(),
                 limits.settle(),
+                units.settle(),
+                conditions.settle(),
             ) else {
                 return None;
             };
@@ -1017,6 +1062,8 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
                 revision,
                 values: values.unwrap_or_default(),
                 limits: limits.unwrap_or_default(),
+                units: units.unwrap_or_default(),
+                conditions,
             }))
         }
         (

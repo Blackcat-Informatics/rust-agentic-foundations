@@ -104,6 +104,7 @@ bindings:
     - raf_okf::MAX_YAML_DEPTH
     - raf_okf::Map
     - raf_okf::Measure
+    - raf_okf::Unit
     - raf_okf::Number
     - raf_okf::Outcome
     - raf_okf::ParseError
@@ -341,6 +342,7 @@ bindings:
     - raf_okf::test_crate::records::scope_holds_crate_package_names
     - raf_okf::test_crate::records::the_command_key_is_present_exactly_when_the_subject_is_command
     - raf_okf::test_crate::records::the_subject_takes_the_form_of_its_type
+    - raf_okf::test_crate::records::a_record_that_states_units_or_conditions_states_them_for_every_value
     - raf_okf::test_crate::records::values_and_limits_are_numbers_and_each_limit_names_a_value
     - raf_okf::test_crate::refusals::a_colon_space_inside_a_flow_list_is_refused
     - raf_okf::test_crate::refusals::a_duplicate_key_is_refused_at_every_level
@@ -438,7 +440,7 @@ branches and concurrency are admitted; source and verification associations are
 independent identities and records.
 <!-- raf:tested-by raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values -->
 
-The profile has eight types. `Review` is an empty-body record with a required RFC 3339 timestamp, full reviewed revision, source scope, kind, verdict, reviewer category, derived inputs and findings. Its optional findings reference names a readable repository file or an opaque HTTP(S) URL. Finding rows retain severity, source location and open, fixed, accepted or false-positive disposition. Capability headers optionally declare distinct closed `review_required` kinds. The architecture profile states the complete closed key and value sets.
+The profile has eight types. `Review` is an empty-body record with a required RFC 3339 timestamp, full reviewed revision, source scope, kind, verdict, reviewer category, derived inputs and findings. Its optional findings reference names a readable repository file or an opaque HTTP(S) URL. Finding rows retain severity, source location and open, fixed, accepted or false-positive disposition. Capability headers optionally declare distinct closed `review_required` kinds. They optionally state `measured_evidence_required: true`, and an evidence record optionally states `units` and `conditions` for its values. The architecture profile states the complete closed key and value sets.
 <!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
 
 `is_commit_id` shares the profile's full revision spelling with callers: exactly
@@ -713,6 +715,11 @@ and the sign of zero do not alter the value. Number equality and `Number::text`
 retain the authored spelling; `Number::value` is a nearest floating-point display
 value that preserves an authored negative zero. The profile grammar remains
 narrower than the native decimal value space.
+
+### Measured evidence
+<!-- raf:tested-by raf_okf::test_crate::records::a_record_that_states_units_or_conditions_states_them_for_every_value,raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values,raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal -->
+
+An evidence record optionally states `units`, a map of the names of its values to non-empty unit texts, and `conditions`, a non-empty text saying how and where the values were taken. A record that states either gives every value its unit, and a record that states units and holds a value also states its conditions; `Rule::ValueWithoutUnit` and `Rule::ConditionsMissing` refuse the record otherwise, at the key `values`. A record that states neither is unchanged. `EvidenceRecord::states_measurement` is true for a record that holds a value, a unit for each value and its conditions. A capability optionally states `measured_evidence_required` as `true` or `false`, read into `Capability::measured_evidence_required`; the workplan judges it. The writer renders `units` and `conditions` after `limits` in the order of the key table.
 
 ### Body model
 <!-- raf:tested-by raf_okf::test_crate::body_structure::spans_are_in_whole_text_coordinates_when_frontmatter_precedes_the_body,raf_okf::test_crate::body_structure::markdown_without_frontmatter_is_the_whole_body,raf_okf::test_crate::body_structure::sections_carry_heading_slug_and_content_up_to_the_next_second_level_heading,raf_okf::test_crate::body_structure::a_section_that_ends_the_body_without_a_final_newline_reaches_the_end -->
@@ -1445,6 +1452,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::records::a_passing_record_holds_no_value_above_its_limit` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_record_has_no_title_description_or_body` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_record_sits_in_its_directory_and_its_id_matches_its_file` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::a_record_that_states_units_or_conditions_states_them_for_every_value` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::a_record_type_is_named_in_the_unknown_type_message` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_revision_is_a_full_commit_id` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once` | test | [Contract](#contract) |

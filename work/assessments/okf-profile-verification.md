@@ -22,7 +22,7 @@ inputs:
     digest: f793e6f33f6ca7f27dd1d109442cc6ea8b22a861d9acd5b2a5764f3937caaf5e
   - kind: symbol
     name: raf_okf::EvidenceRecord::to_document
-    digest: 14ac2c27515a95f662b1848855823b4b76095880725c1484030ea510ab2f691b
+    digest: 2d3bb6d017da493d437f304bc2a482ebe000946ce1d8933b6d36e929b8141081
   - kind: symbol
     name: raf_okf::TestedBy
     digest: a95d6a117b904aa4780c69a620325c5f2f63513dbf7628641dfb19d13ba9ddd6

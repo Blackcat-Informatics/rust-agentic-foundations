@@ -36,6 +36,16 @@
 //!   section holds no list item with text or a code span after its marker; an
 //!   empty item and a thematic break such as `* * *` are none.
 //!
+//! # Measured evidence
+//!
+//! A capability that states `measured_evidence_required: true` needs an
+//! evidence record whose `for` lists it and that states a measurement
+//! ([`raf_okf::EvidenceRecord::states_measurement`]): measured values, a unit
+//! for each and the conditions they were taken under. Without one,
+//! `measured-evidence-missing` is raised at the key
+//! `measured_evidence_required`. The finding is not debt, and a capability
+//! that does not state the key is judged as before.
+//!
 //! # Claims
 //!
 //! A claim is a unit of the authored prose of the Contract and the
@@ -133,6 +143,18 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
     let mut findings = debt::judge(plan).reported;
     // An explicit review requirement is never waived by unrelated prose debt.
     for capability in plan.capabilities() {
+        if capability.value().measured_evidence_required && !states_measurement(plan, capability) {
+            findings.push(Finding::new(
+                kind::MEASURED_EVIDENCE_MISSING,
+                capability.path(),
+                Location::Key("measured_evidence_required".to_string()),
+                format!(
+                    "`{}` requires measured evidence, and no evidence record that covers it states measured values with a unit for each and the conditions they were taken under",
+                    capability.value().header.id
+                ),
+                "record an evidence record whose `for` lists this capability with `values`, a unit for each value under `units`, and `conditions`",
+            ));
+        }
         let result = plan.required_reviews(capability);
         match result {
             Ok(owed) => findings.extend(owed.into_iter().map(|owed| {
@@ -151,6 +173,17 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
         }
     }
     findings
+}
+
+/// Whether an evidence record that covers `capability` states a measurement.
+fn states_measurement(plan: &Workplan<'_>, capability: &Loaded<raf_okf::Capability>) -> bool {
+    plan.evidence().iter().any(|record| {
+        record.value().states_measurement()
+            && record
+                .value()
+                .covers
+                .contains(&capability.value().header.id)
+    })
 }
 
 /// The gaps of two-way coverage of the packages a binding reaches and `scope`
