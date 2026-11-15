@@ -78,7 +78,7 @@ pub(super) fn append(
     report: &mut JobReport,
 ) {
     for (key, subject) in subjects {
-        let selected = super::rules::referenced(row).any(|id| {
+        let selected = row.referenced().any(|id| {
             (!crate::detectors::home_exempt(id) || !home_packages.contains(&subject.package))
                 && hits
                     .get(id)

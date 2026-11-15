@@ -143,7 +143,7 @@ pub(super) fn patterns(
     for pattern in result.iter().filter(|pattern| pattern.ratcheted) {
         if let Some(job) = jobs
             .iter()
-            .find(|job| !job.enforced && job.patterns.contains(&pattern.id))
+            .find(|job| !job.enforced && job.referenced().any(|id| id == pattern.id))
         {
             return Err(E::Value(format!(
                 "pattern {:?} is ratcheted but job {:?} is not enforced; set enforced to true or drop ratcheted",

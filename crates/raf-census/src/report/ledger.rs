@@ -112,6 +112,22 @@ pub struct LedgerJob {
     pub specification: Option<String>,
 }
 
+impl LedgerJob {
+    /// The ids of every rule or pattern this job references: forbidden rule
+    /// fingerprints, then its declared patterns.
+    pub(crate) fn referenced(&self) -> impl Iterator<Item = &str> {
+        self.job
+            .forbidden
+            .fingerprints
+            .iter()
+            .filter_map(|fingerprint| match fingerprint {
+                Fingerprint::Rule(id) => Some(id.as_str()),
+                _ => None,
+            })
+            .chain(self.patterns.iter().map(String::as_str))
+    }
+}
+
 /// One exact sanctioned member set and its documentation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LedgerDistinct {

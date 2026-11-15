@@ -266,7 +266,7 @@ Each Pattern has a unique RuleId-compatible patternId, one-line summary and exac
 path, macro, typePath, literalRegex or tokens. Literal expressions compile through
 the native bounded matcher. Unknown references, unused declarations and
 collisions with built-in ids refuse. A Pattern may add an optional target-kind and path scope (targetKind, excludeTargetKind,
-shippingOnly, includePath, excludePath), stated in the patterns capability; without one it applies everywhere. A Pattern may also state ratcheted, only as true: its hits are then not findings but counted sites in the debt record, and every job that references it must be enforced; the ledger refuses a ratcheted pattern stated as false, stated twice, or referenced by an unenforced job. One owned PreferredProvider per job requires
+shippingOnly, includePath, excludePath), stated in the patterns capability; without one it applies everywhere. A Pattern may also state ratcheted, only as true: its hits are then not findings but counted sites in the debt record, and every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; the ledger refuses a ratcheted pattern stated as false, stated twice, or referenced by an unenforced job. One owned PreferredProvider per job requires
 package, nonempty entryPoint APIs and nonempty consumer paths. The package is a
 selector; it is not evidence of a locked identity or actual delegation.
 

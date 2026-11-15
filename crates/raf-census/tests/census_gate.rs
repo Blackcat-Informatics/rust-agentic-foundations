@@ -4713,6 +4713,34 @@ fn ratcheted_declarations_are_true_only_unique_and_held_by_enforced_jobs() {
     let mut forbidden = declared_pattern(Some("call"), true);
     unenforced(&mut forbidden);
     assert!(load(forbidden).is_ok());
+    // Another job that reaches the ratcheted pattern through a forbidden rule
+    // fingerprint must be enforced too; the enforced neighbour loads.
+    let second = |enforced: bool| {
+        let mut graph = ratcheted_declaration();
+        put(&mut graph, "", "job", Term::iri("#second"));
+        put(
+            &mut graph,
+            "#second",
+            "type",
+            Term::iri(format!("{}LedgerJob", vocab::REPORT)),
+        );
+        for (key, value) in [
+            ("jobId", "second"),
+            ("summary", "Reaches the pattern by rule"),
+            ("homeSymbol", "demo::home"),
+            ("forbiddenFingerprint", "rule:approved-call"),
+        ] {
+            put(&mut graph, "#second", key, Term::simple_literal(value));
+        }
+        put(&mut graph, "#second", "enforced", Term::boolean(enforced));
+        graph
+    };
+    let error = load(second(false)).unwrap_err().to_string();
+    assert!(
+        error.contains("not enforced") && error.contains("second"),
+        "{error}"
+    );
+    assert!(load(second(true)).is_ok());
 }
 
 fn scoped_pattern(scope: &[(&str, &str)], shipping_only: bool) -> Builder {
@@ -4781,6 +4809,16 @@ fn ratchet_tree(
     if ratcheted {
         put(&mut graph, "#pattern", "ratcheted", Term::boolean(true));
     }
+    ratchet_tree_over(graph, modules, home, record)
+}
+
+/// `ratchet_tree` over an already built ledger graph.
+fn ratchet_tree_over(
+    graph: Builder,
+    modules: &[(&str, &str)],
+    home: &str,
+    record: Option<&str>,
+) -> MemoryTree {
     let declared = modules
         .iter()
         .map(|(name, _)| format!("pub mod {name};\n"))
@@ -4914,6 +4952,41 @@ fn ratcheted_patterns_record_counted_sites_and_hold_both_directions() {
     }
     burned_down_ratchet_stays_a_guard(&record);
     forbidden_neighbour_keeps_hard_failure_and_records_no_site(&both);
+    ratcheted_hit_does_not_hide_a_forbidden_constant(&both, &record);
+}
+
+/// A unit that holds a recorded ratcheted hit and also a forbidden constant of
+/// the same job is still a COPY: only the generic finding reports the constant,
+/// so the ratcheted hit may not suppress it. The ratcheted-only neighbour is clean.
+fn ratcheted_hit_does_not_hide_a_forbidden_constant(modules: &[(&str, &str)], record: &str) {
+    let with_constant = |modules: &[(&str, &str)]| {
+        let mut graph = lexical_pattern_graph("call", "std::mem::drop");
+        put(&mut graph, "#pattern", "ratcheted", Term::boolean(true));
+        put(
+            &mut graph,
+            "#job",
+            "forbiddenConstant",
+            Term::typed_literal("7", vocab::INTEGER),
+        );
+        Gate::workspace(".")
+            .check_tree(&ratchet_tree_over(
+                graph,
+                modules,
+                RATCHET_HOME,
+                Some(record),
+            ))
+            .unwrap()
+    };
+    assert!(with_constant(modules).is_clean());
+    let seven = "pub fn one(){std::mem::drop(1);let _=\"alpha\";let _=7;}\npub fn two(){std::mem::drop(2);let _=\"beta\";}\n";
+    let report = with_constant(&[("a", seven), ("b", RATCHET_THREE)]);
+    assert_eq!(report.findings().len(), 1, "{:?}", report.findings());
+    assert!(
+        report.findings()[0].contains("one is a COPY"),
+        "{:?}",
+        report.findings()
+    );
+    assert_eq!(report.debt().sites().len(), 3);
 }
 
 /// With no hit left anywhere, home included, the recorded sites are stale; the

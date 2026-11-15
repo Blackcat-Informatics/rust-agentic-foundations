@@ -218,7 +218,7 @@ fn matching_units<'a>(
         .filter(|unit| {
             job.matches(unit)
                 || hits.names.contains(&owners::key(unit))
-                || rules::referenced(row).any(|id| {
+                || row.referenced().any(|id| {
                     has_hit(hits, id, unit)
                         && (!crate::detectors::home_exempt(id)
                             || !home_packages.contains(unit.package.as_str()))
@@ -406,15 +406,16 @@ fn report_copies(
     {
         let key = (found.symbol.clone(), found.file.clone(), found.start_byte);
         let mut rule_copy = false;
-        for id in rules::referenced(row) {
+        let mut ratcheted_hit = false;
+        for id in row.referenced() {
             if crate::detectors::home_exempt(id) && exempt.contains(&key) {
                 continue;
             }
             if sink.is_ratcheted(id) {
                 // A ratcheted hit is debt, not a finding; the generic COPY
-                // finding is suppressed because the pattern explains the match.
+                // finding is suppressed because the pattern alone explains the match; any other cause keeps it.
                 if hits.get(id).is_some_and(|units| units.contains_key(&key)) {
-                    rule_copy = true;
+                    ratcheted_hit = true;
                     sink.divert(id, &key);
                 }
                 continue;
@@ -429,7 +430,14 @@ fn report_copies(
                 }
             }
         }
-        if row.enforced && !rule_copy {
+        // A ratcheted hit explains the COPY only when nothing else does: a
+        // forbidden constant or fingerprint, or a context name, is reported
+        // solely by the generic finding.
+        let other_cause = hits.names.contains(&key)
+            || owners
+                .values()
+                .any(|unit| owners::key(unit) == key && job.matches(unit));
+        if row.enforced && !rule_copy && (!ratcheted_hit || other_cause) {
             findings.push(format!(
                 "{}:{}: job {:?}: {} is a COPY; use {}",
                 found.file, found.line, job.id, found.symbol, job.home

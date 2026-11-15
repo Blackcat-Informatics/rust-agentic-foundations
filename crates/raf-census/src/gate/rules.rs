@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use raf_source::{Workspace, parse_source};
 
 use super::owners::{self, Owners};
-use crate::{Census, Error, Fingerprint, Ledger, LedgerJob, Rule, RuleHit};
+use crate::{Census, Error, Ledger, Rule, RuleHit};
 
 pub(super) type UnitKey = (String, String, usize);
 pub(super) type Hits = BTreeMap<String, BTreeMap<UnitKey, Vec<RuleHit>>>;
@@ -174,7 +174,8 @@ fn requested<'a>(
         .jobs()
         .iter()
         .flat_map(|row| {
-            referenced(row).chain(row.variants.iter().map(|variant| variant.detector.as_str()))
+            row.referenced()
+                .chain(row.variants.iter().map(|variant| variant.detector.as_str()))
         })
         .collect();
     let mut required_ids = BTreeSet::new();
@@ -197,18 +198,6 @@ fn requested<'a>(
         requested.insert(id.as_str());
     }
     Ok(requested)
-}
-
-pub(super) fn referenced(row: &LedgerJob) -> impl Iterator<Item = &str> {
-    row.job
-        .forbidden
-        .fingerprints
-        .iter()
-        .filter_map(|fingerprint| match fingerprint {
-            Fingerprint::Rule(id) => Some(id.as_str()),
-            _ => None,
-        })
-        .chain(row.patterns.iter().map(String::as_str))
 }
 
 fn admit(rules: &[Box<dyn Rule>]) -> Result<Vec<(&'static str, &dyn Rule)>, Error> {
