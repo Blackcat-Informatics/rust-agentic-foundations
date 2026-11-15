@@ -92,60 +92,76 @@ fn run<'p, 'w>(
             continue;
         }
         let label = file.path.to_string();
-        let verbatim = Form::lex(&label, 1, &file.text)?;
-        if !regular.is_empty() {
-            let mut pending = WorkList::<_, 16>::new();
-            push(
-                "literalRegex",
-                &mut pending,
-                verbatim.nodes.as_slice(),
-                0,
-                limits,
-            )?;
-            while let Some(nodes) = pending.pop() {
-                for node in nodes {
-                    charge("literalRegex", limits, 1)?;
-                    match node {
-                        Node::Group(group) => {
-                            push(
-                                "literalRegex",
-                                &mut pending,
-                                group.children.as_slice(),
-                                0,
-                                limits,
-                            )?;
-                        }
-                        Node::Leaf(leaf)
-                            if leaf.kind == Kind::Literal && literal_kind(&leaf.text) == "$str" =>
-                        {
-                            if !written_literal(&file.text, leaf.place.at.clone())? {
-                                continue;
-                            }
-                            let value = ordinary_string(&label, leaf.place.line, &leaf.text)?;
-                            for (pattern, regex) in &regular {
-                                charge(&pattern.id, limits, 1)?;
-                                if regex.is_match(&value, limits).map_err(|error| {
-                                    failure(&pattern.id, &format!("native ECMA matcher: {error}"))
-                                })? {
-                                    retain(
-                                        &mut found,
-                                        pattern,
-                                        &file.path,
-                                        leaf.place.at.start,
-                                        leaf.place.line,
-                                        None,
-                                        limits,
-                                    )?;
-                                }
-                            }
-                        }
-                        Node::Leaf(_) => {}
-                    }
+        for literal in string_literals("literalRegex", &label, &file.text, limits)? {
+            for (pattern, regex) in &regular {
+                charge(&pattern.id, limits, 1)?;
+                if regex.is_match(&literal.value, limits).map_err(|error| {
+                    failure(&pattern.id, &format!("native ECMA matcher: {error}"))
+                })? {
+                    retain(
+                        &mut found,
+                        pattern,
+                        &file.path,
+                        literal.start,
+                        literal.line,
+                        None,
+                        limits,
+                    )?;
                 }
             }
         }
     }
     Ok(found)
+}
+
+/// One written ordinary or raw string literal of a source file.
+pub(super) struct Literal {
+    /// The byte offset of the literal's first character.
+    pub(super) start: usize,
+    /// The 1-based line the literal starts on.
+    pub(super) line: usize,
+    /// The decoded value.
+    pub(super) value: String,
+}
+
+/// Every ordinary or raw string literal of `text` that is written in the source
+/// (not a byte string, a C string or a desugared documentation comment), in
+/// document order. The lexing and the walk are charged to `limits`; exceeding
+/// a bound refuses, never truncates. Must run on the lexical worker thread.
+pub(super) fn string_literals(
+    id: &str,
+    label: &str,
+    text: &str,
+    limits: &mut MatchLimits,
+) -> Result<Vec<Literal>, Error> {
+    let verbatim = Form::lex(label, 1, text)?;
+    let mut pending = WorkList::<_, 16>::new();
+    push(id, &mut pending, verbatim.nodes.as_slice(), 0, limits)?;
+    let mut literals = Vec::new();
+    while let Some(nodes) = pending.pop() {
+        for node in nodes {
+            charge(id, limits, 1)?;
+            match node {
+                Node::Group(group) => {
+                    push(id, &mut pending, group.children.as_slice(), 0, limits)?;
+                }
+                Node::Leaf(leaf)
+                    if leaf.kind == Kind::Literal && literal_kind(&leaf.text) == "$str" =>
+                {
+                    if written_literal(text, leaf.place.at.clone())? {
+                        literals.push(Literal {
+                            start: leaf.place.at.start,
+                            line: leaf.place.line,
+                            value: ordinary_string(label, leaf.place.line, &leaf.text)?,
+                        });
+                    }
+                }
+                Node::Leaf(_) => {}
+            }
+        }
+    }
+    literals.sort_by_key(|literal| literal.start);
+    Ok(literals)
 }
 
 fn written_literal(text: &str, span: std::ops::Range<usize>) -> Result<bool, Error> {

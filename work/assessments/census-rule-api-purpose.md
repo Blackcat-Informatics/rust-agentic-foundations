@@ -34,7 +34,7 @@ inputs:
     digest: 555ba10ab2f0f84ce48c296b5d50840bb632b0462be969692e8eef99b25b8fc7
   - kind: symbol
     name: raf_census::gate::rules
-    digest: a6a52f1bfa62d57ed32c290f13b65a4de9c0757f220af998107cd2b969030873
+    digest: 8ca02cbd1ca8338b286f2d442c03842e1ab4b400d164a02b1347424a384027dd
   - kind: symbol
     name: raf_census::rule
     digest: 0583c6cba21264eaed6c3c1a8ba924203ae94cb97098cf26d07bd214527562ce

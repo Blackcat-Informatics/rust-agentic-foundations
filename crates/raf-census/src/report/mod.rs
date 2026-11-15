@@ -11,6 +11,7 @@ mod query;
 mod read;
 pub(crate) mod reference;
 pub(crate) mod shape;
+mod site;
 mod upgrade;
 /// The report vocabulary and closed shapes.
 pub mod vocab;
@@ -25,6 +26,7 @@ pub use ledger::{
 };
 pub use query::{Query, QueryReport};
 pub use reference::{ReferenceConstantRow, ReferenceSource, ReferenceWitness};
+pub use site::{DebtSite, SiteKey};
 pub use upgrade::{ReportKind, upgrade_report_form};
 pub use vocab::REPORT_FORM;
 

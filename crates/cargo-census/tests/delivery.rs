@@ -470,6 +470,105 @@ fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate()
     let stale = run(root, &["debt", "--write"]);
     assert_eq!(stale.status.code(), Some(1));
     assert_eq!(fs::read_to_string(path).unwrap(), lower);
+    // A ratcheted pattern: the write adopts its hits as counted sites, a fourth
+    // hit is refused, and a removed hit fails the check until the record is lowered.
+    let ratcheted = fixture();
+    let root = ratcheted.path();
+    fs::write(root.join("helpers-ledger.ttl"), ratcheted_ledger()).unwrap();
+    ratcheted_source(root, &["one", "two", "three"]);
+    let path = root.join("census-debt.ttl");
+    let unadopted = run(root, &["check"]);
+    assert_eq!(unadopted.status.code(), Some(1), "{unadopted:?}");
+    let adopted = run(root, &["debt", "--write"]);
+    assert!(adopted.status.success(), "{adopted:?}");
+    assert!(
+        String::from_utf8_lossy(&adopted.stdout).contains("3 ratcheted sites"),
+        "{adopted:?}"
+    );
+    let record = fs::read_to_string(&path).unwrap();
+    assert_eq!(DebtRecord::from_turtle(&record).unwrap().sites().len(), 3);
+    let held = run(root, &["check"]);
+    assert!(held.status.success(), "{held:?}");
+    ratcheted_source(root, &["one", "two", "three", "four"]);
+    for words in [&["check"][..], &["debt", "--write"][..]] {
+        let grown = run(root, words);
+        assert_eq!(grown.status.code(), Some(1), "{grown:?}");
+        assert!(
+            [&grown.stdout, &grown.stderr].iter().any(|text| {
+                String::from_utf8_lossy(text).contains("growth cannot be recorded")
+            }),
+            "{grown:?}"
+        );
+    }
+    assert_eq!(fs::read_to_string(&path).unwrap(), record);
+    ratcheted_source(root, &["one", "two"]);
+    let fallen = run(root, &["check"]);
+    assert_eq!(fallen.status.code(), Some(1), "{fallen:?}");
+    let lowered = run(root, &["debt", "--write"]);
+    assert!(lowered.status.success(), "{lowered:?}");
+    assert_eq!(
+        DebtRecord::from_turtle(&fs::read_to_string(&path).unwrap())
+            .unwrap()
+            .sites()
+            .len(),
+        2
+    );
+    let settled = run(root, &["check"]);
+    assert!(settled.status.success(), "{settled:?}");
+}
+
+/// An enforced job whose forbidden pattern is ratcheted: its hits are recorded
+/// as counted sites instead of failing the gate.
+fn ratcheted_ledger() -> String {
+    let mut graph = Builder::from_graph(Ledger::from_turtle(&ledger(1)).unwrap().graph());
+    let enforced = |value| Triple {
+        subject: Term::iri("#job"),
+        predicate: Term::iri(format!("{}enforced", vocab::REPORT)),
+        object: Term::boolean(value),
+    };
+    assert!(graph.remove(enforced(false)).unwrap());
+    graph.insert(enforced(true)).unwrap();
+    let constant = Triple {
+        subject: Term::iri("#job"),
+        predicate: Term::iri(format!("{}forbiddenConstant", vocab::REPORT)),
+        object: Term::typed_literal("7", vocab::INTEGER),
+    };
+    assert!(graph.remove(constant).unwrap());
+    put(&mut graph, "", "pattern", Term::iri("#pattern"));
+    put(
+        &mut graph,
+        "#pattern",
+        "type",
+        Term::iri(format!("{}Pattern", vocab::REPORT)),
+    );
+    for (key, value) in [
+        ("patternId", "banned"),
+        ("summary", "The banned drop call"),
+        ("call", "std::mem::drop"),
+    ] {
+        put(&mut graph, "#pattern", key, Term::simple_literal(value));
+    }
+    put(&mut graph, "#pattern", "ratcheted", Term::boolean(true));
+    put(
+        &mut graph,
+        "#job",
+        "forbiddenPattern",
+        Term::simple_literal("banned"),
+    );
+    graph.finish().unwrap().to_text(Format::Turtle).unwrap()
+}
+
+/// One drop call per name, each followed by a distinct string literal.
+fn ratcheted_source(root: &Path, names: &[&str]) {
+    let mut text = "/// The operation.\npub fn home()->u32{7}\n".to_owned();
+    for name in names {
+        writeln!(
+            text,
+            "pub fn hit_{name}(){{std::mem::drop(0);let _=\"{name}\";}}"
+        )
+        .unwrap();
+    }
+    fs::write(root.join("src/lib.rs"), text).unwrap();
 }
 
 #[test]

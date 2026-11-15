@@ -86,19 +86,12 @@ pub(super) fn read(node: &Node<'_>, id: &str) -> Result<PatternScope, E> {
         exclude_paths: paths(node, "excludePath", id)?,
         ..PatternScope::default()
     };
-    let mut flags = node.values(&super::super::shape::property("shippingOnly"));
-    match (flags.next(), flags.next()) {
-        (None, _) => {}
-        (Some(value), None) if super::super::shape::boolean_value(value) == Some(true) => {
-            scope.shipping_only = true;
-        }
-        (Some(_), None) => {
-            return Err(E::Value(format!(
-                "pattern {id:?}: shippingOnly is stated only as true; omit it to apply to every target kind"
-            )));
-        }
-        _ => return Err(E::Repeated(format!("pattern {id:?} shippingOnly"))),
-    }
+    scope.shipping_only = super::flag::true_only(
+        node,
+        "shippingOnly",
+        &format!("pattern {id:?}"),
+        "omit it to apply to every target kind",
+    )?;
     contradictions(&scope, id)?;
     Ok(scope)
 }

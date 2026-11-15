@@ -74,7 +74,7 @@ fn census_vocabulary_matches_actual_reports() {
 }
 
 fn census_vocabulary_reports() -> Vec<String> {
-    use raf_census::{DebtGroup, DebtRecord, GroupKind, NORMAL_FORM};
+    use raf_census::{DebtGroup, DebtRecord, DebtSite, GroupKind, NORMAL_FORM, SiteKey};
     use std::collections::BTreeMap;
     let (baseline, _) = halves();
     let census = builtin_census();
@@ -98,7 +98,20 @@ fn census_vocabulary_reports() -> Vec<String> {
             .exclude_test_items(true)
             .exclude_dir("generated")
             .unwrap(),
-    );
+    )
+    .with_ratchet(
+        ["banned".to_owned()],
+        BTreeMap::from([(
+            DebtSite::new(
+                "src/lib.rs",
+                "banned",
+                SiteKey::digest("demo::a", Some("alpha")),
+            )
+            .unwrap(),
+            2,
+        )]),
+    )
+    .unwrap();
     vec![
         Baseline::from_turtle(&baseline)
             .unwrap()

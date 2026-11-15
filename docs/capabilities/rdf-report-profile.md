@@ -195,10 +195,11 @@ unchanged to the consumer's validator, so they carry no engine vocabulary.
 | `Match` | `matchClass` match-role IRI; standard RDF reifies links the quoted job-to-unit match |
 | `Home`, `Variant`, `Copy` | Enumerated match-role IRIs, with no owned properties |
 | `SharedConstant` | `value` integer greater than 65535; `packageCount` integer at least two and no greater than the member count; `member` links to units |
-| `DebtRecord` | `normalForm`, `reportForm` integers; optional grouping scope |
+| `DebtRecord` | `normalForm`, `reportForm` integers; optional grouping scope; repeated `ratchetedRule` strings naming the ratcheted patterns, written only when there is one |
 | `BodyDebt`, `ShimDebt` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members |
 | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
 | `JobDebt` | `jobId` string; `copies` positive integer |
+| `SiteDebt` | `file`, `ruleId` strings; `siteKey` string of 64 lowercase hexadecimal digits; `copies` positive integer; one row per counted site of a ratcheted rule, its rule named by `ratchetedRule` |
 | Grouping scope | On a `Baseline`, `Index` or `DebtRecord` root: optional `excludeTestItems` boolean, written only as true; repeated `excludeDir` directory-name strings; both absent for the complete scope. Excluded items stay units and leave only body and shim grouping and its group debt; jobs, sanctions and detectors still see them, and a job copy inside an excluded file still counts |
 
 | Census Ledger class | Properties and object types |
@@ -208,7 +209,7 @@ unchanged to the consumer's validator, so they carry no engine vocabulary.
 | `Variant` | `symbol`, `file`, `detector`, `criterion`, `reason` strings; `anchor` documentation IRI |
 | `Distinct` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members; `kind` string body or shim; `criterion`, `reason` strings; `anchor` documentation IRI |
 | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
-| `Pattern` | `patternId`, `summary` strings; exactly one matcher string: `call`, `path`, `macro`, `typePath`, `literalRegex` or `tokens`; optional scope: repeated `targetKind`, `excludeTargetKind` strings (lib, bin, test, bench, example or buildScript), repeated `includePath`, `excludePath` workspace-relative path strings, and `shippingOnly` stated only as boolean true |
+| `Pattern` | `patternId`, `summary` strings; exactly one matcher string: `call`, `path`, `macro`, `typePath`, `literalRegex` or `tokens`; optional scope: repeated `targetKind`, `excludeTargetKind` strings (lib, bin, test, bench, example or buildScript), repeated `includePath`, `excludePath` workspace-relative path strings, `shippingOnly` stated only as boolean true; and optional `ratcheted`, stated only as boolean true |
 | `PreferredProvider` | `package` string; repeated nonempty `entryPoint`, `consumer` strings |
 | `Extension` | Consumer-owned content; no additional engine-owned properties |
 

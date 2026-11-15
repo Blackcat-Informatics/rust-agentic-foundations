@@ -306,6 +306,7 @@ fn debt_receipt() -> RegisteredDebtWrite {
         path: "census-debt.ttl".into(),
         groups: 2,
         jobs: 3,
+        sites: 0,
     }))
     .unwrap()
 }

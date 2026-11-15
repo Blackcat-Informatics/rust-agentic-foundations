@@ -7,8 +7,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use raf_rdf::{Builder, Format, Graph, TermValue};
 
+use super::{DebtSite, SiteKey};
 use super::{ReportError as E, mint, shape, vocab, write::put};
-use crate::{Error, GroupKind, GroupingScope, check_normal_form};
+use crate::{Error, GroupKind, GroupingScope, RuleId, check_normal_form};
 
 /// Maximum serialized debt record size, shared by readers and writers: 16 MiB.
 pub const MAX_DEBT_BYTES: usize = 16 * 1024 * 1024;
@@ -129,6 +130,8 @@ pub struct DebtRecord {
     scope: GroupingScope,
     groups: BTreeSet<DebtGroup>,
     job_copies: BTreeMap<String, usize>,
+    ratcheted: BTreeSet<String>,
+    sites: BTreeMap<DebtSite, usize>,
 }
 
 impl DebtRecord {
@@ -163,6 +166,8 @@ impl DebtRecord {
             scope: GroupingScope::default(),
             groups: unique,
             job_copies,
+            ratcheted: BTreeSet::new(),
+            sites: BTreeMap::new(),
         })
     }
 
@@ -172,6 +177,52 @@ impl DebtRecord {
     pub fn scoped(mut self, scope: GroupingScope) -> Self {
         self.scope = scope;
         self
+    }
+
+    /// The same record with the ratcheted rule ids and their counted sites.
+    /// A rule with no site stays recorded, so a burned-down rule remains a
+    /// guard and a new hit of it is growth.
+    ///
+    /// # Errors
+    /// Refuses a rule that is not a valid rule id, a site whose rule is not in `rules`, and a
+    /// zero count.
+    pub fn with_ratchet(
+        mut self,
+        rules: impl IntoIterator<Item = String>,
+        sites: BTreeMap<DebtSite, usize>,
+    ) -> Result<Self, Error> {
+        let rules: BTreeSet<String> = rules.into_iter().collect();
+        for rule in &rules {
+            RuleId::new(rule)
+                .map_err(|error| E::Value(format!("debt ratcheted rule {rule:?}: {error}")))?;
+        }
+        for (site, count) in &sites {
+            if *count == 0 {
+                return Err(E::Value("debt sites require positive copies".into()).into());
+            }
+            if !rules.contains(site.rule().as_str()) {
+                return Err(E::Value(format!(
+                    "debt site of rule {:?} requires that rule in ratchetedRule",
+                    site.rule().as_str()
+                ))
+                .into());
+            }
+        }
+        self.ratcheted = rules;
+        self.sites = sites;
+        Ok(self)
+    }
+
+    /// The ratcheted rule ids.
+    #[must_use]
+    pub fn ratcheted(&self) -> &BTreeSet<String> {
+        &self.ratcheted
+    }
+
+    /// Positive copy counts of the ratcheted sites.
+    #[must_use]
+    pub fn sites(&self) -> &BTreeMap<DebtSite, usize> {
+        &self.sites
     }
 
     /// The grouping scope the debt was computed under.
@@ -252,7 +303,39 @@ impl DebtRecord {
                 });
             }
         }
+        self.compare_sites(present, &mut changes);
         Ok(changes)
+    }
+
+    fn compare_sites(&self, present: &Self, changes: &mut Vec<DebtChange>) {
+        for rule in present.ratcheted.difference(&self.ratcheted) {
+            changes.push(DebtChange::Adopt { rule: rule.clone() });
+        }
+        for rule in self.ratcheted.difference(&present.ratcheted) {
+            changes.push(DebtChange::Release { rule: rule.clone() });
+        }
+        let both: BTreeSet<&str> = self
+            .ratcheted
+            .intersection(&present.ratcheted)
+            .map(String::as_str)
+            .collect();
+        let sites: BTreeSet<&DebtSite> = self
+            .sites
+            .keys()
+            .chain(present.sites.keys())
+            .filter(|site| both.contains(site.rule().as_str()))
+            .collect();
+        for site in sites {
+            let recorded = self.sites.get(site).copied().unwrap_or(0);
+            let current = present.sites.get(site).copied().unwrap_or(0);
+            if recorded != current {
+                changes.push(DebtChange::Site {
+                    site: site.clone(),
+                    recorded,
+                    present: current,
+                });
+            }
+        }
     }
 
     /// Render the stored canonical Turtle 1.2 form.
@@ -347,6 +430,38 @@ impl DebtRecord {
             put(&mut graph, &node, "jobId", TermValue::simple_literal(id))?;
             put(&mut graph, &node, "copies", shape::integer(*count as u128))?;
         }
+        for rule in &self.ratcheted {
+            put(
+                &mut graph,
+                "",
+                "ratchetedRule",
+                TermValue::simple_literal(rule),
+            )?;
+        }
+        for (site, count) in &self.sites {
+            let key = site.key().to_hex();
+            let node = mint::site(site.rule().as_str(), &key, &site.file().to_string());
+            put(&mut graph, &node, "type", shape::iri("SiteDebt"))?;
+            put(
+                &mut graph,
+                &node,
+                "file",
+                TermValue::simple_literal(site.file().to_string()),
+            )?;
+            put(
+                &mut graph,
+                &node,
+                "ruleId",
+                TermValue::simple_literal(site.rule().as_str()),
+            )?;
+            put(
+                &mut graph,
+                &node,
+                "siteKey",
+                TermValue::simple_literal(&key),
+            )?;
+            put(&mut graph, &node, "copies", shape::integer(*count as u128))?;
+        }
         let text = graph
             .finish()
             .map_err(E::Ground)?
@@ -368,6 +483,7 @@ impl DebtRecord {
         let scope = shape::scope(&graph.get("").expect("validated debt root"))?;
         let mut groups = Vec::new();
         let mut jobs = BTreeMap::new();
+        let mut sites = BTreeMap::new();
         for (id, node) in graph.nodes() {
             match shape::class(&node)? {
                 "DebtRecord" if id.is_empty() => {}
@@ -415,11 +531,33 @@ impl DebtRecord {
                         return Err(E::DuplicateJob(job).into());
                     }
                 }
+                "SiteDebt" => {
+                    let rule = shape::string(&node, "ruleId")?;
+                    let key = shape::string(&node, "siteKey")?;
+                    let file = shape::string(&node, "file")?;
+                    let parsed = SiteKey::from_hex(&key).ok_or_else(|| E::Name(id.clone()))?;
+                    let site = DebtSite::new(&file, &rule, parsed)?;
+                    if id != mint::site(&rule, &key, &file) {
+                        return Err(E::Name(id).into());
+                    }
+                    let count = shape::count(&node, "copies")?;
+                    if sites.insert(site, count).is_some() {
+                        return Err(E::Repeated(format!("site {id}")).into());
+                    }
+                }
                 "MemberMultiplicity" => {}
                 _ => return Err(E::Name(id).into()),
             }
         }
-        Ok(Self::new(nf, groups, jobs)?.scoped(scope))
+        let ratcheted = graph
+            .get("")
+            .expect("validated debt root")
+            .values(&shape::property("ratchetedRule"))
+            .map(|value| value.literal().expect("validated string").0.to_owned())
+            .collect::<Vec<_>>();
+        Self::new(nf, groups, jobs)?
+            .scoped(scope)
+            .with_ratchet(ratcheted, sites)
     }
 }
 
@@ -445,6 +583,27 @@ pub enum DebtChange {
         /// The scope of the present evaluation.
         present: GroupingScope,
     },
+    /// A rule is ratcheted now but not recorded as ratcheted: recording it
+    /// adopts its present sites. Its sites are not compared.
+    Adopt {
+        /// The rule id.
+        rule: String,
+    },
+    /// A rule is recorded as ratcheted but is no longer ratcheted: recording
+    /// drops its sites.
+    Release {
+        /// The rule id.
+        rule: String,
+    },
+    /// A ratcheted site's count changed, appeared or disappeared.
+    Site {
+        /// The file, rule and site key.
+        site: DebtSite,
+        /// Previously recorded count; zero when the site is new.
+        recorded: usize,
+        /// Current count; zero when the recorded site is gone (stale).
+        present: usize,
+    },
     /// A job's positive copy count changed, appeared or disappeared.
     JobCopies {
         /// The job id.
@@ -462,8 +621,14 @@ impl DebtChange {
     pub const fn is_growth(&self) -> bool {
         match self {
             Self::NewGroup(_) => true,
-            Self::MissingGroup { .. } | Self::Scope { .. } => false,
-            Self::JobCopies {
+            Self::MissingGroup { .. }
+            | Self::Scope { .. }
+            | Self::Adopt { .. }
+            | Self::Release { .. } => false,
+            Self::Site {
+                recorded, present, ..
+            }
+            | Self::JobCopies {
                 recorded, present, ..
             } => *present > *recorded,
         }

@@ -48,6 +48,7 @@ bindings:
     - raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
+    - raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions
     - raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate
     - raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path
     - raf_census::test_crate::census_gate::configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls
@@ -235,8 +236,9 @@ in a reference dependency. These checks are core ledger behaviour, available to
 every consumer; a registered LedgerExtension still sees only the job's graph. Enforced
 copies fail the gate. A job may own one Extension. Exactly one registered
 LedgerExtension must claim and validate nonempty content; zero or multiple
-claims refuse. Missing custom rules require repository registration. Rule
-findings cannot become recorded debt.
+claims refuse. Missing custom rules require repository registration. Forbidden
+rule and pattern findings cannot become recorded debt; a ratcheted pattern's hits
+are recorded as counted sites instead (see the debt ratchet).
 
 An Extension owns its root and every subject reached by local object references,
 including owned subjects and objects of depth-one RDF 1.2 triple terms. All core
@@ -258,13 +260,13 @@ view and validator admission.
 <!-- raf:tested-by raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields -->
 
 ### Declared patterns and preferred providers
-<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate,raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions -->
 
 Each Pattern has a unique RuleId-compatible patternId, one-line summary and exactly one of call,
 path, macro, typePath, literalRegex or tokens. Literal expressions compile through
 the native bounded matcher. Unknown references, unused declarations and
 collisions with built-in ids refuse. A Pattern may add an optional target-kind and path scope (targetKind, excludeTargetKind,
-shippingOnly, includePath, excludePath), stated in the patterns capability; without one it applies everywhere. One owned PreferredProvider per job requires
+shippingOnly, includePath, excludePath), stated in the patterns capability; without one it applies everywhere. A Pattern may also state ratcheted, only as true: its hits are then not findings but counted sites in the debt record, and every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; the ledger refuses a ratcheted pattern stated as false, stated twice, or referenced by an unenforced job. One owned PreferredProvider per job requires
 package, nonempty entryPoint APIs and nonempty consumer paths. The package is a
 selector; it is not evidence of a locked identity or actual delegation.
 
@@ -527,6 +529,7 @@ the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise de
 | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::rules_and_variants_share_physical_ownership_without_widening_file_sanctions` | test | [Verification](#verification) |

@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use purrdf_jsonschema::ecma::MatchLimits;
 use raf_source::{RelPath, TestRole, Tree, TreeError, Workspace};
 
-use super::{GateReport, LedgerExtension, SYMBOL_ANCHOR_PREFIX, owners, rules};
+use super::{GateReport, LedgerExtension, SYMBOL_ANCHOR_PREFIX, owners, ratchet, rules};
 use crate::{
     Census, DebtGroup, DebtRecord, Error, Fingerprint, Job, JobReport, Ledger, LedgerJob,
     MatchClass, NORMAL_FORM, Unit,
@@ -37,6 +37,7 @@ pub(super) fn evaluate(
         &mut limits,
     )?;
     let hits = &collected.hits;
+    let mut sink = ratchet::Sink::new(ledger, &collected.offsets);
     let mut findings = selected.findings(hits);
     let mut reports = Vec::new();
     let mut copies = BTreeMap::new();
@@ -44,7 +45,7 @@ pub(super) fn evaluate(
         validate_dependencies(row, hits)?;
         extension(ledger, row, extensions)?;
         evidence_links(tree, workspace, references, row, &mut findings)?;
-        stale_matchers(&census, row, hits, &mut findings);
+        stale_matchers(&census, row, (hits, &sink), &mut findings);
         let Some(resolved) = resolve_job(
             (workspace, &code),
             &owners,
@@ -102,6 +103,7 @@ pub(super) fn evaluate(
             &hits,
             &owners,
             detector_exempt_packages,
+            &mut sink,
             &mut findings,
         );
         if !row.enforced && report.copies > 0 {
@@ -112,12 +114,18 @@ pub(super) fn evaluate(
     findings.extend(super::reference::References::unclassified(
         &census, &reports,
     )?);
-    let debt = collect_debt(ledger, workspace, &owners, &census, copies, &mut findings)?;
+    let (debt, sites) = collect_debt(
+        (ledger, workspace, &owners, &census),
+        copies,
+        (&sink, &mut limits),
+        &mut findings,
+    )?;
     Ok(GateReport {
         census,
         jobs: reports,
         findings,
         debt,
+        sites,
     })
 }
 
@@ -143,13 +151,11 @@ fn append_reference_homes(
 }
 
 fn collect_debt(
-    ledger: &Ledger,
-    workspace: &Workspace,
-    owners: &owners::Owners<'_>,
-    census: &Census,
+    (ledger, workspace, owners, census): (&Ledger, &Workspace, &owners::Owners<'_>, &Census),
     copies: BTreeMap<String, usize>,
+    (sink, limits): (&ratchet::Sink<'_>, &mut MatchLimits),
     findings: &mut Vec<String>,
-) -> Result<DebtRecord, Error> {
+) -> Result<(DebtRecord, BTreeMap<crate::DebtSite, Vec<String>>), Error> {
     let sanctioned = resolve_distinct(ledger, workspace, owners, findings)?;
     let groups = debt_groups(census)?;
     for row in &sanctioned {
@@ -161,10 +167,11 @@ fn collect_debt(
             ));
         }
     }
-    Ok(
-        DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)?
-            .scoped(census.options().scope.clone()),
-    )
+    let counted = sink.count(workspace, ledger, limits)?;
+    let record = DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)?
+        .scoped(census.options().scope.clone())
+        .with_ratchet(sink.rules().map(str::to_owned), counted.counts)?;
+    Ok((record, counted.locations))
 }
 
 fn debt_groups(census: &Census) -> Result<BTreeSet<DebtGroup>, Error> {
@@ -211,7 +218,7 @@ fn matching_units<'a>(
         .filter(|unit| {
             job.matches(unit)
                 || hits.names.contains(&owners::key(unit))
-                || rules::referenced(row).any(|id| {
+                || row.referenced().any(|id| {
                     has_hit(hits, id, unit)
                         && (!crate::detectors::home_exempt(id)
                             || !home_packages.contains(unit.package.as_str()))
@@ -261,8 +268,7 @@ fn collect_patterns(
             workspace,
             found.file,
             owners,
-            &mut collected.hits,
-            &mut collected.subjects,
+            collected,
             rules::Hit {
                 rule: &found.pattern.id,
                 byte: found.byte,
@@ -378,6 +384,7 @@ fn report_copies(
     hits: &rules::JobHits<'_>,
     owners: &owners::Owners<'_>,
     home_packages: &BTreeSet<String>,
+    sink: &mut ratchet::Sink<'_>,
     findings: &mut Vec<String>,
 ) {
     let job = &row.job;
@@ -399,8 +406,18 @@ fn report_copies(
     {
         let key = (found.symbol.clone(), found.file.clone(), found.start_byte);
         let mut rule_copy = false;
-        for id in rules::referenced(row) {
+        let mut ratcheted_hit = false;
+        for id in row.referenced() {
             if crate::detectors::home_exempt(id) && exempt.contains(&key) {
+                continue;
+            }
+            if sink.is_ratcheted(id) {
+                // A ratcheted hit is debt, not a finding; the generic COPY
+                // finding is suppressed because the pattern alone explains the match; any other cause keeps it.
+                if hits.get(id).is_some_and(|units| units.contains_key(&key)) {
+                    ratcheted_hit = true;
+                    sink.divert(id, &key);
+                }
                 continue;
             }
             if let Some(matches) = hits.get(id).and_then(|units| units.get(&key)) {
@@ -413,7 +430,18 @@ fn report_copies(
                 }
             }
         }
-        if row.enforced && !rule_copy {
+        // A ratcheted hit explains the COPY only when nothing else does: a
+        // forbidden constant or fingerprint, or a context name, is reported
+        // solely by the generic finding.
+        // The owner scan runs only when a ratcheted hit could be the sole cause.
+        let reported = row.enforced
+            && !rule_copy
+            && (!ratcheted_hit
+                || hits.names.contains(&key)
+                || owners
+                    .values()
+                    .any(|unit| owners::key(unit) == key && job.matches(unit)));
+        if reported {
             findings.push(format!(
                 "{}:{}: job {:?}: {} is a COPY; use {}",
                 found.file, found.line, job.id, found.symbol, job.home
@@ -586,11 +614,12 @@ fn documented(workspace: &Workspace, anchor: &str, findings: &mut Vec<String>) {
 fn stale_matchers(
     census: &Census,
     row: &LedgerJob,
-    hits: &rules::Hits,
+    (hits, sink): (&rules::Hits, &ratchet::Sink<'_>),
     findings: &mut Vec<String>,
 ) {
     for id in &row.patterns {
-        if row.enforced && hits.get(id).is_some_and(BTreeMap::is_empty) {
+        // A burned-down ratcheted pattern with no hits stays a guard.
+        if row.enforced && !sink.is_ratcheted(id) && hits.get(id).is_some_and(BTreeMap::is_empty) {
             findings.push(format!(
                 "job {:?}: pattern {id:?} matches no source item",
                 row.job.id

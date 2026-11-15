@@ -135,6 +135,7 @@ shapes! {
     ("debt","DebtRecord","reportForm",1,1,"report version"),
     ("debt","DebtRecord","excludeTestItems",0,1,"boolean"),
     ("debt","DebtRecord","excludeDir",0,usize::MAX,"string"),
+    ("debt","DebtRecord","ratchetedRule",0,usize::MAX,"string"),
     ("debt","BodyDebt","memberSymbol",1,usize::MAX,"string"),
     ("debt","ShimDebt","memberSymbol",1,usize::MAX,"string"),
     ("debt","BodyDebt","multiplicity",0,usize::MAX,"multiplicity"),
@@ -143,6 +144,10 @@ shapes! {
     ("debt","MemberMultiplicity","copies",1,1,"package count"),
     ("debt","JobDebt","jobId",1,1,"string"),
     ("debt","JobDebt","copies",1,1,"positive integer"),
+    ("debt","SiteDebt","file",1,1,"string"),
+    ("debt","SiteDebt","ruleId",1,1,"string"),
+    ("debt","SiteDebt","siteKey",1,1,"site key"),
+    ("debt","SiteDebt","copies",1,1,"positive integer"),
 }
 
 /// The closed property set of each engine-owned Ledger class; `rdf:type` is
@@ -224,6 +229,7 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
             "targetKind",
             "excludeTargetKind",
             "shippingOnly",
+            "ratcheted",
             "includePath",
             "excludePath",
         ],
