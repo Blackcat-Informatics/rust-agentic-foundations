@@ -71,6 +71,14 @@ fn refuse(span: proc_macro2::Span, message: impl Into<String>) -> Refusal {
     }
 }
 
+/// Whether a path ends in `name`, so `wasm_bindgen::prelude::wasm_bindgen` reads as
+/// `wasm_bindgen`.
+fn last_is(path: &syn::Path, name: &str) -> bool {
+    path.segments
+        .last()
+        .is_some_and(|segment| segment.ident == name)
+}
+
 /// A namespace entry, which needs the argument's value.
 fn place(
     kind: &'static str,
@@ -124,10 +132,10 @@ impl Identity {
 
     fn meta(&mut self, meta: &syn::Meta) -> Result<(), Refusal> {
         match meta {
-            syn::Meta::NameValue(pair) if pair.path.is_ident("link_name") => {
+            syn::Meta::NameValue(pair) if last_is(&pair.path, "link_name") => {
                 self.name = Some(value_text(&pair.value)?);
             }
-            syn::Meta::List(list) if list.path.is_ident("cfg_attr") => {
+            syn::Meta::List(list) if last_is(&list.path, "cfg_attr") => {
                 let metas = list
                     .parse_args_with(
                         syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
@@ -138,10 +146,10 @@ impl Identity {
                     self.meta(inner)?;
                 }
             }
-            syn::Meta::List(list) if list.path.is_ident("wasm_bindgen") => {
+            syn::Meta::List(list) if last_is(&list.path, "wasm_bindgen") => {
                 self.arguments(list, true)?;
             }
-            syn::Meta::List(list) if list.path.is_ident("link") => self.arguments(list, false)?,
+            syn::Meta::List(list) if last_is(&list.path, "link") => self.arguments(list, false)?,
             _ => {}
         }
         Ok(())

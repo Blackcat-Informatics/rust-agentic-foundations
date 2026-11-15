@@ -192,7 +192,8 @@ and `indexing_getter`, `indexing_setter` and `indexing_deleter`. The name is
 property is the attribute's own value, then `js_name`, then the declared name (without
 a `set_` prefix for a setter), and a read and a write are different imports. The same value under two kinds is two
 namespaces. Arguments of `wasm_bindgen` that do not select a host function, such as
-`catch` and `variadic`, are ignored. Attributes inside `cfg_attr` are read. An
+`catch` and `variadic`, are ignored. Attributes inside `cfg_attr` are read. An attribute written through a path, such as
+`wasm_bindgen::prelude::wasm_bindgen`, is read by its last segment. An
 argument the detector cannot place is refused with its file and line.
 
 Every detector ships positive fixtures it flags and negative fixtures that look
@@ -333,7 +334,8 @@ delegation to a native provider.
   New generic detectors arrive with a new release of the crate.
   <!-- raf:tested-by raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures -->
 - `foreign-host-import` reads the attributes written on the `extern` block and its
-  functions, directly or inside `cfg_attr`. An `extern` block produced by a macro
+  functions, directly or inside `cfg_attr`, and through a path by its last
+  segment. An `extern` block produced by a macro
   expansion is not read.
   A `js_class` is its own namespace kind: the same import with and without it, or beside
   a `method` receiver of the same type, is two host functions.

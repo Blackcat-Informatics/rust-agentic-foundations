@@ -3441,6 +3441,33 @@ fn foreign_host_import_names_a_property_by_the_property_it_reads() {
         ),
         0
     );
+    // A setter is named the same way: its own value, then `js_name`, then the Rust name
+    // without `set_`.
+    let set_width = |attributes: &str, function: &str| {
+        format!(
+            "#[wasm_bindgen(module = \"window\")] extern \"C\" {{#[wasm_bindgen({attributes})] fn {function}(this: &Window, value: f64);}}"
+        )
+    };
+    let home_set = format!(
+        "/// Home.\npub mod home {{{}}}",
+        set_width("method, setter, js_name = innerWidth", "set_inner_width")
+    );
+    assert_eq!(
+        copies(
+            &home_set,
+            &set_width("method, setter", "set_innerWidth"),
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(
+            &home_set,
+            &set_width("method, setter", "set_innerHeight"),
+            &[]
+        ),
+        0
+    );
 }
 
 #[test]
