@@ -4766,11 +4766,17 @@ fn scoped_copies(site: &str, scope: &[(&str, &str)], shipping_only: bool) -> usi
 }
 
 const RATCHET_ONE: &str = "pub fn one(){std::mem::drop(1);let _=\"alpha\";}\npub fn two(){std::mem::drop(2);let _=\"beta\";}\n";
+const RATCHET_HOME: &str = "pub fn home(){std::mem::drop(0);}";
 const RATCHET_THREE: &str = "pub fn three(){std::mem::drop(3);let _=\"gamma\";}\n";
 
 /// Modules `src/<name>.rs` beside the approved home, the ratcheted or forbidden
 /// drop-call pattern, and an optional recorded debt text.
-fn ratchet_tree(modules: &[(&str, &str)], record: Option<&str>, ratcheted: bool) -> MemoryTree {
+fn ratchet_tree(
+    modules: &[(&str, &str)],
+    home: &str,
+    record: Option<&str>,
+    ratcheted: bool,
+) -> MemoryTree {
     let mut graph = lexical_pattern_graph("call", "std::mem::drop");
     if ratcheted {
         put(&mut graph, "#pattern", "ratcheted", Term::boolean(true));
@@ -4787,7 +4793,7 @@ fn ratchet_tree(modules: &[(&str, &str)], record: Option<&str>, ratcheted: bool)
         ),
         (
             "src/lib.rs".to_owned(),
-            format!("{declared}pub fn home(){{std::mem::drop(0);}}\npub use home as alias;\n"),
+            format!("{declared}{home}\npub use home as alias;\n"),
         ),
         (
             "helpers-ledger.ttl".to_owned(),
@@ -4809,7 +4815,7 @@ fn ratchet_tree(modules: &[(&str, &str)], record: Option<&str>, ratcheted: bool)
 fn ratcheted_patterns_record_counted_sites_and_hold_both_directions() {
     let check = |modules: &[(&str, &str)], record: Option<&str>| {
         Gate::workspace(".")
-            .check_tree(&ratchet_tree(modules, record, true))
+            .check_tree(&ratchet_tree(modules, RATCHET_HOME, record, true))
             .unwrap()
     };
     let both = [("a", RATCHET_ONE), ("b", RATCHET_THREE)];
@@ -4906,13 +4912,69 @@ fn ratcheted_patterns_record_counted_sites_and_hold_both_directions() {
         );
         assert!(check(modules, Some(&stale.debt().to_turtle().unwrap())).is_clean());
     }
+    burned_down_ratchet_stays_a_guard(&record);
     forbidden_neighbour_keeps_hard_failure_and_records_no_site(&both);
+}
+
+/// With no hit left anywhere, home included, the recorded sites are stale; the
+/// lowered record keeps the rule with no site row, the pattern is not reported as
+/// matching no source item, and a new hit is growth.
+fn burned_down_ratchet_stays_a_guard(record: &str) {
+    let burned = [("a", "pub fn one(){}\n"), ("b", "pub fn three(){}\n")];
+    let check_burned = |record: &str| {
+        Gate::workspace(".")
+            .check_tree(&ratchet_tree(
+                &burned,
+                "pub fn home(){}",
+                Some(record),
+                true,
+            ))
+            .unwrap()
+    };
+    let empty = check_burned(record);
+    assert_eq!(empty.findings().len(), 3, "{:?}", empty.findings());
+    assert!(
+        empty
+            .findings()
+            .iter()
+            .all(|finding| finding.contains("stale site")),
+        "{:?}",
+        empty.findings()
+    );
+    let guard = empty.debt().to_turtle().unwrap();
+    assert!(guard.contains("ratchetedRule") && !guard.contains("SiteDebt"));
+    assert!(empty.debt().sites().is_empty());
+    let guarded = check_burned(&guard);
+    assert!(guarded.is_clean(), "{:?}", guarded.findings());
+    assert!(
+        guarded
+            .findings()
+            .iter()
+            .all(|finding| !finding.contains("matches no source item")),
+    );
+    let regrown = Gate::workspace(".")
+        .check_tree(&ratchet_tree(
+            &[("a", RATCHET_ONE)],
+            "pub fn home(){}",
+            Some(&guard),
+            true,
+        ))
+        .unwrap();
+    assert_eq!(regrown.findings().len(), 2, "{:?}", regrown.findings());
+    assert!(
+        regrown
+            .findings()
+            .iter()
+            .all(|finding| finding.contains("growth cannot be recorded")),
+        "{:?}",
+        regrown.findings()
+    );
 }
 
 /// The same hits under a pattern that is not ratcheted stay findings.
 fn forbidden_neighbour_keeps_hard_failure_and_records_no_site(modules: &[(&str, &str)]) {
     let forbidden = Gate::workspace(".")
-        .check_tree(&ratchet_tree(modules, None, false))
+        .check_tree(&ratchet_tree(modules, RATCHET_HOME, None, false))
         .unwrap();
     assert!(forbidden.debt().sites().is_empty() && forbidden.debt().ratcheted().is_empty());
     assert_eq!(

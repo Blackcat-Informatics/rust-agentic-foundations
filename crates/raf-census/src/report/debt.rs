@@ -9,7 +9,7 @@ use raf_rdf::{Builder, Format, Graph, TermValue};
 
 use super::{DebtSite, SiteKey};
 use super::{ReportError as E, mint, shape, vocab, write::put};
-use crate::{Error, GroupKind, GroupingScope, check_normal_form};
+use crate::{Error, GroupKind, GroupingScope, RuleId, check_normal_form};
 
 /// Maximum serialized debt record size, shared by readers and writers: 16 MiB.
 pub const MAX_DEBT_BYTES: usize = 16 * 1024 * 1024;
@@ -184,7 +184,7 @@ impl DebtRecord {
     /// guard and a new hit of it is growth.
     ///
     /// # Errors
-    /// Refuses an empty rule id, a site whose rule is not in `rules`, and a
+    /// Refuses a rule that is not a valid rule id, a site whose rule is not in `rules`, and a
     /// zero count.
     pub fn with_ratchet(
         mut self,
@@ -192,8 +192,9 @@ impl DebtRecord {
         sites: BTreeMap<DebtSite, usize>,
     ) -> Result<Self, Error> {
         let rules: BTreeSet<String> = rules.into_iter().collect();
-        if rules.iter().any(String::is_empty) {
-            return Err(E::Value("debt ratcheted rule requires a nonempty id".into()).into());
+        for rule in &rules {
+            RuleId::new(rule)
+                .map_err(|error| E::Value(format!("debt ratcheted rule {rule:?}: {error}")))?;
         }
         for (site, count) in &sites {
             if *count == 0 {

@@ -53,8 +53,9 @@ file would make each read and preserve the other's schema, and a version change 
 one tool's keys, such as a new census normal form, would invalidate the other's debt.
 The census records its debt in `census-debt.ttl` beside its ledger; the workplan
 records its strict debt in the OKF record `work/debt/default.md`, beside the authored
-coverage record. Each record keeps its tool's keys: census groups, job copy counts and the counted sites of ratcheted
-patterns, and workplan findings by kind and subject with orphan line counts by item.
+coverage record. Each record keeps its tool's keys: census groups, job copy counts
+and the counted sites of ratcheted patterns, and workplan findings by kind and
+subject with orphan line counts by item.
 
 ## Conditions to revisit
 

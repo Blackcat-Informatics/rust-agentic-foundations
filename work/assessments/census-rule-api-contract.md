@@ -7,7 +7,7 @@ subject: cap:census-rule-api#contract
 inputs:
   - kind: section
     name: cap:census-rule-api#contract
-    digest: c0d963d4b09f8a9e1dc027e114324d06a929b58cbdd77253c1c17ed8f93ddbec
+    digest: 72e08c189bf8e4ab4eec2586620e91c6ed64aac96f784fe75ce61cd75b30839c
   - kind: symbol
     name: raf_census::Gate::assert_clean
     digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25

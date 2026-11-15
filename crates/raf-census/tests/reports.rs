@@ -105,7 +105,7 @@ fn census_vocabulary_reports() -> Vec<String> {
             DebtSite::new(
                 "src/lib.rs",
                 "banned",
-                SiteKey::digest("demo::a", Some("alpha")).unwrap(),
+                SiteKey::digest("demo::a", Some("alpha")),
             )
             .unwrap(),
             2,

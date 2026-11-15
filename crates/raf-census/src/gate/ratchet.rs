@@ -120,11 +120,13 @@ fn count_sites(
                 .get(first)
                 .filter(|literal| literal.start < end)
                 .map(|literal| literal.value.as_str());
-            let site = DebtSite::new(file, rule, SiteKey::digest(symbol, literal)?)?;
+            let site = DebtSite::new(file, rule, SiteKey::digest(symbol, literal))?;
             *counted.counts.entry(site.clone()).or_default() += 1;
             counted.locations.entry(site).or_default().push(format!(
                 "{file}:{line}: {symbol}: {}",
-                summaries.get(rule).copied().unwrap_or_default()
+                summaries.get(rule).copied().expect(
+                    "INVARIANT: every diverted hit's rule is a ledger pattern, and `summaries` holds every ledger pattern"
+                )
             ));
         }
     }

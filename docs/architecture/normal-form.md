@@ -491,12 +491,14 @@ index reports can be regenerated from source without changing fingerprints.
 
 A ratcheted site is a counted row of the debt record, keyed by its file, its rule
 and a site key. The site key is the lowercase hexadecimal BLAKE3-256 digest of the
-domain bytes `raf-census/debt-site/v1`, the symbol of the enclosing source item as
-a little-endian u32 length and its bytes, one presence byte, and when it is 1 the
-length and bytes of the first ordinary or raw string literal that starts at or
-after the site inside that item. Line numbers and byte offsets are never hashed.
+domain bytes `raf-census/debt-site/v1` (a `purrdf_hash::Domain`), the symbol of
+the enclosing source item as a `purrdf_hash::frame::frame_le_into` field (a
+little-endian u64 length and its bytes), one presence byte, and when it is 1 the
+same framing of the first ordinary or raw string literal that starts at or after
+the site inside that item. Line numbers and byte offsets are never hashed.
 The node name is `#site/<rule>/<key>@<file>`, and the reader recomputes it. A
 record with no ratcheted rule writes neither a `ratchetedRule` nor a `SiteDebt`.
+
 ## Version-bump rule
 
 The current Census report form is 5. The explicit native layout conversion

@@ -124,7 +124,8 @@ hashed, so inserting lines above a recorded site leaves the record
 byte-identical. Renaming the enclosing item or editing the keyed literal is one
 missing key plus one new key, and the new key is growth. Hits that share a file,
 rule and key are counted together; a swap of two hits with different keys is a
-missing key plus a new key, so a removed hit cannot hide a new one. The literal
+missing key plus a new key, so a removed hit cannot hide a new one. Two hits whose keys are equal are the one
+case the key does not separate: they may swap places with no change to the record. The literal
 scan shares the lexical walk of literalRegex and is charged to the same matching
 grant; exceeding a bound refuses and never truncates.
 
@@ -139,8 +140,8 @@ written, and a rule's sites are compared only when both sides ratchet it. The
 record carries no unused allowance. A forbidden rule or pattern keeps its hard
 failure and cannot be adopted as debt. A record with no ratcheted rule writes no
 ratchetedRule and no SiteDebt, so its bytes are unchanged. `DebtWrite` reports
-the number of recorded ratcheted sites, and its summary line names them only when
-there are any. Growth findings name the file, line, enclosing symbol and summary
+the number of distinct recorded site rows, and its summary line names them only
+when there are any. Growth findings name the file, line, enclosing symbol and summary
 of the hit.
 
 ### Exclusive writer coordination
@@ -245,7 +246,10 @@ directory entries remain untouched on refusal.
 A ratcheted pattern with three hits in two files is adopted as those three
 sites. A fourth hit refuses both checking and writing, inserting lines above a
 recorded site changes nothing, and removing a hit or deleting its file fails the
-check until the record is lowered.
+check until the record is lowered. When no hit remains anywhere, the lowered
+record keeps the rule with no site row, the next check is clean, and a new hit is
+growth.
+<!-- raf:tested-by raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions -->
 
 A recorded body group contains demo_a::len, demo_b::len and demo_c::len.
 Removing demo_c leaves a strict subset. The next Gate check reports shrinkage.
@@ -366,7 +370,7 @@ or execution of an external native implementation.
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes` | test | [Contract](#contract) |

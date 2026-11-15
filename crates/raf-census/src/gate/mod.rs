@@ -54,7 +54,7 @@ pub struct DebtWrite {
     pub groups: usize,
     /// The number of unenforced jobs with positive copy counts.
     pub jobs: usize,
-    /// The number of ratcheted pattern hits recorded as counted sites.
+    /// The number of distinct ratcheted site rows recorded.
     pub sites: usize,
 }
 
@@ -450,7 +450,7 @@ impl Gate {
                 path,
                 groups: report.debt.groups().len(),
                 jobs: report.debt.job_copies().len(),
-                sites: report.debt.sites().values().sum(),
+                sites: report.debt.sites().len(),
             })
         }
         #[cfg(not(target_os = "linux"))]
@@ -656,6 +656,8 @@ fn check_debt(tree: &impl Tree, mut report: GateReport) -> Result<GateReport, Er
             "growth cannot be recorded"
         } else if matches!(change, crate::DebtChange::Site { present: 0, .. }) {
             "stale site: run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to lower the record"
+        } else if matches!(change, crate::DebtChange::Adopt { .. }) {
+            "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to adopt the newly ratcheted rule into the record"
         } else if matches!(change, crate::DebtChange::Scope { .. }) {
             "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to record the present grouping scope"
         } else {

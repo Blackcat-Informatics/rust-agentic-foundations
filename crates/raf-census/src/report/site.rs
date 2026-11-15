@@ -4,52 +4,43 @@
 //! The identity of one ratcheted site: a file, a rule and a key that survives
 //! line movement.
 
-use purrdf_hash::{blake3, hex::Digest32};
+use purrdf_hash::{Domain, blake3, frame::frame_le_into, hex::Digest32};
 use raf_source::RelPath;
 
 use super::ReportError as E;
 use crate::{Error, RuleId};
 
-/// The domain prefix of every site-key preimage.
-const DOMAIN: &[u8] = b"raf-census/debt-site/v1";
+/// The domain of every site-key preimage.
+const DOMAIN: Domain = Domain::new(b"raf-census/debt-site/v1");
 
 /// A stable per-site key: the BLAKE3-256 digest of the enclosing item's symbol
 /// and the first string literal at or after the site inside that item.
 ///
-/// The preimage is the domain bytes, the symbol as a little-endian `u32` length
-/// and its bytes, one presence byte, and when the literal is present its length
-/// and bytes in the same encoding. Line numbers and byte offsets are never
-/// hashed, so inserting lines above a site leaves its key unchanged.
+/// The preimage is the domain bytes, the symbol framed by `purrdf-hash` (a
+/// little-endian `u64` length and its bytes), one presence byte, and when the
+/// literal is present its frame in the same encoding. Line numbers and byte
+/// offsets are never hashed, so inserting lines above a site leaves its key
+/// unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SiteKey(Digest32);
 
-fn length_prefixed(hasher: &mut blake3::Hasher, text: &str) -> Result<(), Error> {
-    let length = u32::try_from(text.len())
-        .map_err(|_| E::Value("site key: a symbol or literal exceeds u32::MAX bytes".into()))?;
-    hasher.update(&length.to_le_bytes());
-    hasher.update(text.as_bytes());
-    Ok(())
-}
-
 impl SiteKey {
     /// The key of a site in the item `symbol` whose first string literal is `literal`.
-    ///
-    /// # Errors
-    /// Refuses a symbol or literal longer than `u32::MAX` bytes.
-    pub fn digest(symbol: &str, literal: Option<&str>) -> Result<Self, Error> {
+    #[must_use]
+    pub fn digest(symbol: &str, literal: Option<&str>) -> Self {
         let mut hasher = blake3::Hasher::new();
-        hasher.update(DOMAIN);
-        length_prefixed(&mut hasher, symbol)?;
+        hasher.update(DOMAIN.as_bytes());
+        frame_le_into(&mut hasher, symbol.as_bytes());
         match literal {
             None => {
                 hasher.update(&[0]);
             }
             Some(literal) => {
                 hasher.update(&[1]);
-                length_prefixed(&mut hasher, literal)?;
+                frame_le_into(&mut hasher, literal.as_bytes());
             }
         }
-        Ok(Self(Digest32::new(*hasher.finalize().as_bytes())))
+        Self(Digest32::new(*hasher.finalize().as_bytes()))
     }
 
     /// The canonical rendering: 64 lowercase hexadecimal digits.

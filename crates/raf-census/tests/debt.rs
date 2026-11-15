@@ -63,12 +63,7 @@ fn record(members: &[&str], copies: usize) -> DebtRecord {
 }
 
 fn site(file: &str, rule: &str, literal: &str) -> DebtSite {
-    DebtSite::new(
-        file,
-        rule,
-        SiteKey::digest("demo::f", Some(literal)).unwrap(),
-    )
-    .unwrap()
+    DebtSite::new(file, rule, SiteKey::digest("demo::f", Some(literal))).unwrap()
 }
 
 /// A record that ratchets `banned` and counts `(file, literal, copies)` sites.
@@ -238,6 +233,13 @@ fn counted_nodes_refuse_redundant_counts_and_unowned_assertions() {
         edited.insert(row(key, new)).unwrap();
         let text = edited.finish().unwrap().to_text(Format::Turtle).unwrap();
         assert!(DebtRecord::from_turtle(&text).is_err(), "{key}");
+    }
+    // A ratcheted rule must be a valid rule id; a valid neighbour is accepted.
+    for (value, valid) in [("other", true), ("bad id", false)] {
+        let mut edited = Builder::from_graph(&sited_graph);
+        edited.insert(rule(value)).unwrap();
+        let text = edited.finish().unwrap().to_text(Format::Turtle).unwrap();
+        assert_eq!(DebtRecord::from_turtle(&text).is_ok(), valid, "{value}");
     }
     assert_eq!(
         DebtRecord::from_turtle(&original.to_turtle().unwrap()).unwrap(),
@@ -513,7 +515,7 @@ fn invalid_groups_and_zero_copy_rows_are_refused() {
     assert!(DebtRecord::new(NORMAL_FORM, [], BTreeMap::from([("x".into(), 0)])).is_err());
     assert!(DebtRecord::new(NORMAL_FORM, [], BTreeMap::from([(String::new(), 1)])).is_err());
     assert!(DebtRecord::new(0, [], BTreeMap::new()).is_err());
-    let key = SiteKey::digest("demo::f", None).unwrap();
+    let key = SiteKey::digest("demo::f", None);
     assert!(DebtSite::new("src/a.rs", "banned", key).is_ok());
     assert!(DebtSite::new("", "banned", key).is_err());
     assert!(DebtSite::new("/abs.rs", "banned", key).is_err());
@@ -541,8 +543,8 @@ fn invalid_groups_and_zero_copy_rows_are_refused() {
     );
     assert!(empty.with_ratchet(["banned".to_owned()], unlisted).is_ok());
     assert_ne!(
-        SiteKey::digest("demo::f", None).unwrap(),
-        SiteKey::digest("demo::f", Some("")).unwrap()
+        SiteKey::digest("demo::f", None),
+        SiteKey::digest("demo::f", Some(""))
     );
     assert_eq!(SiteKey::from_hex(&key.to_hex()), Some(key));
     assert_eq!(SiteKey::from_hex(&key.to_hex().to_uppercase()), None);

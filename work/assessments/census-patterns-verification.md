@@ -16,7 +16,7 @@ inputs:
     digest: c9d1c6bd2a789072a619d30dc36180ec757f80eee7439d528dc0c8dd198b9637
   - kind: symbol
     name: raf_census::gate::ratchet
-    digest: 2e5a645f191d6a7afb2a50ce2cd929dc9c035df48f8e6cd06b7893ca47cc04ae
+    digest: 92df3862bd4275e01a5c8e16ac6c0b0b2da0127f33f2c2c8de01cd60890bc5d0
   - kind: symbol
     name: raf_census::syntax
     digest: ab9f74dadb5ca96e691b1820076246d081db05871360de87c5262c7751ad0f38
