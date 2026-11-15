@@ -2991,6 +2991,7 @@ fn required_rdf_rules_have_no_home_or_test_exemption() {
         &["home-literal"],
         &["vocabulary-literal"],
         &["sole-name"],
+        &["foreign-host-import"],
         &["serde-json", "serde-json"],
     ];
     for ids in refused {
@@ -3325,6 +3326,7 @@ fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
     const HOME: &str = "/// Home.\npub mod home {#[wasm_bindgen(module = \"clock\")] extern \"C\" {pub fn now() -> f64;}}";
     const SAME: &str = "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn now() -> f64;}";
     const OTHER: &str = "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn later() -> f64;}";
+    const DATE: &str = "/// Home.\npub mod home {#[wasm_bindgen(js_namespace = Date, js_name = now)] extern \"C\" {pub fn read() -> f64;}}";
     let copies = |home: &str, consumer: &str, extra: &[(&str, &str)]| {
         let tree = detector_fixture_with(
             detector_ledger("foreign-host-import"),
@@ -3336,8 +3338,6 @@ fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
     };
     // A second package, a second module of the home package and a test target
     // each repeat the home's host function; a different host function does not.
-    assert_eq!(copies(HOME, SAME, &[]), 1);
-    assert_eq!(copies(HOME, OTHER, &[]), 0);
     assert_eq!(
         copies(&format!("{HOME}\npub mod second {{{SAME}}}"), "", &[]),
         1
@@ -3348,6 +3348,44 @@ fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
     );
     assert_eq!(copies(HOME, "", &[("consumer/tests/host.rs", SAME)]), 1);
     assert_eq!(copies(HOME, "", &[("consumer/tests/host.rs", OTHER)]), 0);
+    // A static method and a namespace argument name one host function; a
+    // receiver method of the same name is another.
+    assert_eq!(
+        copies(
+            DATE,
+            "#[wasm_bindgen(static_method_of = Date)] extern \"C\" {fn now() -> f64;}",
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(
+            DATE,
+            "#[wasm_bindgen(method)] extern \"C\" {fn now(this: &Date) -> f64;}",
+            &[]
+        ),
+        0
+    );
+    // An argument the detector cannot place is refused beside a valid neighbour.
+    for refused in [
+        "#[wasm_bindgen(module = 1)] extern \"C\" {fn now() -> f64;}",
+        "#[wasm_bindgen(module = \"clock\", unheard_of)] extern \"C\" {fn now() -> f64;}",
+    ] {
+        let tree = detector_fixture(detector_ledger("foreign-host-import"), HOME, refused);
+        let error = Gate::workspace(".").check_tree(&tree).unwrap_err();
+        assert!(
+            error.to_string().contains("host binding"),
+            "{refused}: {error}"
+        );
+    }
+    assert_eq!(
+        copies(
+            HOME,
+            "#[wasm_bindgen(module = \"clock\", catch)] extern \"C\" {fn now() -> f64;}",
+            &[]
+        ),
+        1
+    );
     // The home alone is not a finding.
     assert_eq!(copies(HOME, "", &[]), 0);
     // A home that imports nothing leaves the job without evidence.

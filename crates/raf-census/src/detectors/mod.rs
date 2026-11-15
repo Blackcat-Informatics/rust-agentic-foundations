@@ -107,10 +107,17 @@ impl RawHit {
     }
 }
 
+/// A source construct a detector cannot judge; the gate refuses it with this text.
+pub(crate) struct Refusal {
+    pub(crate) rule: &'static str,
+    pub(crate) line: usize,
+    pub(crate) message: String,
+}
+
 pub(crate) fn collect(
     file: &syn::File,
     requested: &std::collections::BTreeSet<&str>,
-) -> Vec<RawHit> {
+) -> Result<Vec<RawHit>, Refusal> {
     let mut hits = Vec::new();
     if layout::RULES.iter().any(|id| requested.contains(id)) {
         hits.extend(layout::collect(file));
@@ -122,11 +129,11 @@ pub(crate) fn collect(
         hits.extend(hasher::collect(file));
     }
     if requested.contains(host_import::RULE) {
-        hits.extend(host_import::collect(file));
+        hits.extend(host_import::collect(file)?);
     }
     if rdf::RULES.iter().any(|id| requested.contains(id)) {
         hits.extend(rdf::collect(file));
     }
     hits.retain(|hit| requested.contains(hit.rule));
-    hits
+    Ok(hits)
 }

@@ -172,12 +172,15 @@ pub const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 3] = [
         "/// Home.\npub mod home {#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(js_name = now)] pub fn read() -> f64;}}",
         &[
             "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn now() -> f64;}",
-            "#[link(wasm_import_module = \"clock\")] extern \"C\" {#[link_name = \"now\"] fn other() -> f64;}",
+            "#[cfg_attr(target_arch = \"wasm32\", wasm_bindgen(module = \"clock\"))] extern \"C\" {#[wasm_bindgen(js_name = \"now\")] fn tick() -> f64;}",
         ],
         &[
             "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn later() -> f64;}",
             "#[wasm_bindgen(module = \"other\")] extern \"C\" {fn now() -> f64;}",
             "extern \"C\" {fn now() -> f64;}",
+            "#[wasm_bindgen(js_namespace = clock)] extern \"C\" {fn now() -> f64;}",
+            "#[wasm_bindgen(raw_module = \"clock\")] extern \"C\" {fn now() -> f64;}",
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(getter)] fn now(this: &Clock) -> f64;}",
         ],
     ),
 ];

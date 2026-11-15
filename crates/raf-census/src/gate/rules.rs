@@ -119,9 +119,15 @@ pub(super) fn collect(
             let builtins = if builtin {
                 crate::detectors::collect(syntax, &requested)
             } else {
-                Vec::new()
+                Ok(Vec::new())
             };
             (registered, builtins)
+        })?;
+        let builtins = builtins.map_err(|refusal| {
+            refused(
+                refusal.rule,
+                &format!("{}:{}: {}", source.path, refusal.line, refusal.message),
+            )
         })?;
         builtin_hits(workspace, &source.path, owners, &mut collected, builtins)?;
         for (id, hits) in found {

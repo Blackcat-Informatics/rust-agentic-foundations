@@ -146,7 +146,7 @@ The census ships eighteen built-in detectors. Each reports hits as `rule:<id>`, 
 | Id | Reads | Meaning |
 | --- | --- | --- |
 | `std-default-hasher` | all | A std `HashMap` or `HashSet` left on its random default hasher. |
-| `foreign-host-import` | all | A function an `extern` block imports from the host under the namespace and name of an import in the home item, declared outside the home. |
+| `foreign-host-import` | all | A function an `extern` block imports from the host that the home or an entry point also imports, declared outside the home and entry points. |
 | `hex-format-loop` | all | A `{:02x}` or `{:02X}` format inside a loop or closure. |
 | `hex-pair-radix` | all | `u8::from_str_radix(_, 16)` used to decode a hex pair. |
 | `hex-table` | all | A hex-digit table written by hand, subject to the job's home policy. |
@@ -179,6 +179,19 @@ three representation policies,
 a detector exempts the home package of an ordinary job.
 A preferred-provider declaration removes this package exemption; only the actual
 home and entry-point items retain their classification as homes.
+
+A `foreign-host-import` job needs a home or entry point that declares a host
+function import in an `extern` block; without one the job is refused. An import is
+identified by its namespace, each entry carrying the kind of the argument that gave
+it, and by its imported name. The kinds are `module`, `raw_module`, `inline_js`,
+`js_class` and `js_namespace` (also written `static_method_of`) of `wasm_bindgen`,
+the receiver type of a `method` import, `wasm_import_module` and `name` of `link`,
+and `indexing_getter`, `indexing_setter` and `indexing_deleter`. The name is
+`js_name`, `link_name`, a `getter` or `setter` property (a read and a write are
+different imports), else the declared name. The same value under two kinds is two
+namespaces. Arguments of `wasm_bindgen` that do not select a host function, such as
+`catch` and `variadic`, are ignored. Attributes inside `cfg_attr` are read. An
+argument the detector cannot place is refused with its file and line.
 
 Every detector ships positive fixtures it flags and negative fixtures that look
 similar and that it leaves alone.
@@ -274,12 +287,14 @@ line is `PREFIXED reselect select_all ask1`; it leaves a two-line literal
 starting with the namespace and continuing `select ?s where {?s ?p ?o}` clean.
 A `foreign-host-import` job whose home module imports `now` from the `clock` module
 through `#[wasm_bindgen(module = "clock")] extern "C"` reports another `extern`
-block, in any package or target, that imports `now` from `clock`, whatever the
-local function is called. It leaves an import of `later`, an import of `now` from
-another module and the home itself clean. A host function is identified by the
-namespace arguments (`module`, `wasm_import_module`, `js_namespace`) of the block
-and the item, then its imported name (`js_name`, `link_name`, else the declared
-name). A home that declares no such import refuses the job.
+block, in any package or target, that imports `now` from `clock`, however the
+local function is called, including through `js_name` and `cfg_attr`. It leaves an
+import of `later`, an import of `now` from another module, from `raw_module` or from
+`js_namespace = clock`, a getter of `now` and the home itself clean. A home whose
+`js_namespace = Date` import is named `now` matches
+`#[wasm_bindgen(static_method_of = Date)] fn now()` and not a `method` import of
+`now`. A home without a host import, and an argument such as `module = 1` or an
+unknown name, refuse the job.
 <!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function -->
 
 A preferred-provider adapter can return the result of its admitted native
@@ -315,6 +330,10 @@ delegation to a native provider.
 - The detector set is closed; there is no configuration that adds a built-in id.
   New generic detectors arrive with a new release of the crate.
   <!-- raf:tested-by raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures -->
+- `foreign-host-import` reads the attributes written on the `extern` block and its
+  functions, directly or inside `cfg_attr`. An `extern` block produced by a macro
+  expansion is not read.
+  <!-- raf:tested-by raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function -->
 - Detectors work on syntax. They do not resolve types, so `std-default-hasher`
   recognises the std paths and aliases it can see in the file.
   <!-- raf:tested-by raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases -->
@@ -366,9 +385,10 @@ required findings with neighbouring clean source.
 
 - Each detector has a positive fixture that yields exactly one hit with the right
   `rule:<id>`, and a negative fixture that yields none.
-- A fixture shows that a detector other than `sole-name` reports no hit inside the
-  home package of an ordinary job that forbids it, except the three representation
-  policies, which do not exempt home packages.
+- A fixture shows that a detector other than `sole-name` and `foreign-host-import`
+  reports no hit inside the home package of an ordinary job that forbids it, except
+  the three representation policies, which do not exempt home packages. A second
+  module of the home package that repeats the home's host import is reported.
 - A preferred-provider fixture reports unlisted competing functions and structs
   in the adapter package, including a helper containing a discarded native call,
   while accepting a native helper and a neighbouring nonmatching table.
@@ -382,7 +402,10 @@ required findings with neighbouring clean source.
 - `foreign-host-import` fixtures flag a repeated host function in another package,
   another module of the home package and a test target, and leave a different
   function, the same name in another namespace, the home itself and an import with
-  no namespace clean; a home without an import refuses the job.
+  no namespace clean, including the same value under another namespace kind. A
+  static method matches the namespace form of the same function, and a method
+  receiver does not. A home without an import and an unplaceable argument each
+  refuse the job beside a valid neighbour.
 - `vocabulary-literal` fixtures flag a single-line literal with and without a
   keyword, a multi-line literal without a keyword and one whose keywords appear
   only inside longer words, and leave a multi-line literal with a lowercase
