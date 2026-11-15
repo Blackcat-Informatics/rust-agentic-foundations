@@ -433,11 +433,15 @@ fn report_copies(
         // A ratcheted hit explains the COPY only when nothing else does: a
         // forbidden constant or fingerprint, or a context name, is reported
         // solely by the generic finding.
-        let other_cause = hits.names.contains(&key)
-            || owners
-                .values()
-                .any(|unit| owners::key(unit) == key && job.matches(unit));
-        if row.enforced && !rule_copy && (!ratcheted_hit || other_cause) {
+        // The owner scan runs only when a ratcheted hit could be the sole cause.
+        let reported = row.enforced
+            && !rule_copy
+            && (!ratcheted_hit
+                || hits.names.contains(&key)
+                || owners
+                    .values()
+                    .any(|unit| owners::key(unit) == key && job.matches(unit)));
+        if reported {
             findings.push(format!(
                 "{}:{}: job {:?}: {} is a COPY; use {}",
                 found.file, found.line, job.id, found.symbol, job.home
