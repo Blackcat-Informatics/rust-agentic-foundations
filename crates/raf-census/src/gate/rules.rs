@@ -191,7 +191,7 @@ fn requested<'a>(
         }
         if matches!(
             id.as_str(),
-            "home-literal" | "vocabulary-literal" | "sole-name"
+            "home-literal" | "vocabulary-literal" | "sole-name" | "foreign-host-import"
         ) {
             return Err(refused(id, "this detector requires a ledger job and home"));
         }

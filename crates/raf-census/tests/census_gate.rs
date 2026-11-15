@@ -2789,6 +2789,16 @@ fn detector_tree(id: &str, home: &str, consumer: &str) -> MemoryTree {
 }
 
 fn detector_fixture(graph: Builder, home: &str, consumer: &str) -> MemoryTree {
+    detector_fixture_with(graph, home, consumer, &[])
+}
+
+/// The detector workspace with extra files, such as a consumer test target.
+fn detector_fixture_with(
+    graph: Builder,
+    home: &str,
+    consumer: &str,
+    extra: &[(&str, &str)],
+) -> MemoryTree {
     [
         (
             "Cargo.toml",
@@ -2810,6 +2820,7 @@ fn detector_fixture(graph: Builder, home: &str, consumer: &str) -> MemoryTree {
         ),
     ]
     .into_iter()
+    .chain(extra.iter().map(|(path, text)| (*path, (*text).into())))
     .collect()
 }
 
@@ -3226,7 +3237,11 @@ fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
                 .unwrap();
             assert!(inactive.is_clean(), "{id}: {:?}", inactive.findings());
             sources.push(((*positive).to_owned(), true));
-            sources.push((format!("#[cfg(test)] mod oracle {{{positive}}}"), false));
+            // Only `foreign-host-import` reads test targets; the others read shipping code.
+            sources.push((
+                format!("#[cfg(test)] mod oracle {{{positive}}}"),
+                id == "foreign-host-import",
+            ));
         }
         sources.extend(
             negatives
@@ -3303,6 +3318,47 @@ fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
         0
     );
     assert_eq!(report.findings().len(), 1);
+}
+
+#[test]
+fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
+    const HOME: &str = "/// Home.\npub mod home {#[wasm_bindgen(module = \"clock\")] extern \"C\" {pub fn now() -> f64;}}";
+    const SAME: &str = "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn now() -> f64;}";
+    const OTHER: &str = "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn later() -> f64;}";
+    let copies = |home: &str, consumer: &str, extra: &[(&str, &str)]| {
+        let tree = detector_fixture_with(
+            detector_ledger("foreign-host-import"),
+            home,
+            consumer,
+            extra,
+        );
+        Gate::workspace(".").check_tree(&tree).unwrap().jobs()[0].copies
+    };
+    // A second package, a second module of the home package and a test target
+    // each repeat the home's host function; a different host function does not.
+    assert_eq!(copies(HOME, SAME, &[]), 1);
+    assert_eq!(copies(HOME, OTHER, &[]), 0);
+    assert_eq!(
+        copies(&format!("{HOME}\npub mod second {{{SAME}}}"), "", &[]),
+        1
+    );
+    assert_eq!(
+        copies(&format!("{HOME}\npub mod second {{{OTHER}}}"), "", &[]),
+        0
+    );
+    assert_eq!(copies(HOME, "", &[("consumer/tests/host.rs", SAME)]), 1);
+    assert_eq!(copies(HOME, "", &[("consumer/tests/host.rs", OTHER)]), 0);
+    // The home alone is not a finding.
+    assert_eq!(copies(HOME, "", &[]), 0);
+    // A home that imports nothing leaves the job without evidence.
+    let error = Gate::workspace(".")
+        .check_tree(&detector_tree(
+            "foreign-host-import",
+            "/// Home.\npub fn home() {}",
+            SAME,
+        ))
+        .unwrap_err();
+    assert!(error.to_string().contains("requires a home that declares"));
 }
 
 #[test]

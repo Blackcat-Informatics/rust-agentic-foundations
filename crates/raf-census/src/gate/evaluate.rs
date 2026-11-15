@@ -58,7 +58,7 @@ pub(super) fn evaluate(
         else {
             continue;
         };
-        let hits = super::context::collect(hits, &census, row, &resolved, &mut limits)?;
+        let hits = super::context::collect(&collected, &census, row, &resolved, &mut limits)?;
         let ResolvedJob {
             mut job,
             homes,

@@ -146,7 +146,7 @@ pub const HEX: [(&str, &str, &str, bool); 3] = [
 /// keyword without a line break, a line break without a keyword and keywords
 /// only inside longer words stay hits; a multi-line literal with a whole-word
 /// keyword in any letter case is clean.
-pub const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 2] = [
+pub const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 3] = [
     (
         "home-literal",
         "/// Home.\npub fn home()->&'static str {\"token\"}",
@@ -165,6 +165,19 @@ pub const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 2] = [
         &[
             "fn copy(){let _=\"urn:other:term\";}",
             "fn copy(){let _=\"urn:demo:\\nselect ?s where {?s ?p ?o}\";}",
+        ],
+    ),
+    (
+        "foreign-host-import",
+        "/// Home.\npub mod home {#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(js_name = now)] pub fn read() -> f64;}}",
+        &[
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn now() -> f64;}",
+            "#[link(wasm_import_module = \"clock\")] extern \"C\" {#[link_name = \"now\"] fn other() -> f64;}",
+        ],
+        &[
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn later() -> f64;}",
+            "#[wasm_bindgen(module = \"other\")] extern \"C\" {fn now() -> f64;}",
+            "extern \"C\" {fn now() -> f64;}",
         ],
     ),
 ];

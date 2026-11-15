@@ -6,6 +6,7 @@
 mod format;
 mod hasher;
 mod hex;
+mod host_import;
 mod layout;
 mod names;
 mod rdf;
@@ -19,7 +20,7 @@ pub(crate) fn ids() -> impl Iterator<Item = &'static str> {
         .chain(hex::RULES)
         .chain(["hex-table", "json-pointer-escape"])
         .chain(["home-literal", "sole-name", "vocabulary-literal"])
-        .chain(["std-default-hasher"])
+        .chain(["std-default-hasher", host_import::RULE])
         .chain(rdf::RULES)
 }
 
@@ -28,13 +29,14 @@ pub(crate) fn implements(id: &str) -> bool {
 }
 
 pub(crate) fn home_exempt(id: &str) -> bool {
-    implements(id) && id != "sole-name" && !rdf::RULES.contains(&id)
+    implements(id) && id != "sole-name" && id != host_import::RULE && !rdf::RULES.contains(&id)
 }
 
 pub(crate) fn needs_syntax(id: &str) -> bool {
     layout::RULES.contains(&id)
         || hex::RULES.contains(&id)
         || id == "std-default-hasher"
+        || id == host_import::RULE
         || rdf::RULES.contains(&id)
 }
 
@@ -43,6 +45,7 @@ pub(crate) fn shipping_only(id: &str) -> bool {
         && !matches!(
             id,
             "std-default-hasher"
+                | host_import::RULE
                 | "hex-format-loop"
                 | "hex-pair-radix"
                 | "hex-table"
@@ -117,6 +120,9 @@ pub(crate) fn collect(
     }
     if requested.contains("std-default-hasher") {
         hits.extend(hasher::collect(file));
+    }
+    if requested.contains(host_import::RULE) {
+        hits.extend(host_import::collect(file));
     }
     if rdf::RULES.iter().any(|id| requested.contains(id)) {
         hits.extend(rdf::collect(file));
