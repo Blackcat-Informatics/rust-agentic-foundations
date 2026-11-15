@@ -219,7 +219,7 @@ fn review_cases(base: &Repo, cases: &mut Vec<Case>) {
             kind: ObligationKind::ReviewStale,
             path: OMEGA,
             line: None,
-            text: "cap:omega  document  review-stale  a completed current review with a clean verdict of the required kind recorded for the capability (security review `review:omega-security` has the verdict findings)".to_string(),
+            text: "cap:omega  document  review-stale  a completed current review of the required kind with a clean verdict recorded for the capability (security review `review:omega-security` has the verdict findings)".to_string(),
         }],
     });
 }

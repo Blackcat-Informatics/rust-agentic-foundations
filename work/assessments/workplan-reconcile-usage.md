@@ -7,7 +7,7 @@ subject: cap:workplan-reconcile#usage
 inputs:
   - kind: section
     name: cap:workplan-reconcile#usage
-    digest: 9ce3f85b87611eeadd063ebc930a69b7ec72e8876a1bc9d95314959ff1a63e2d
+    digest: 28cad2b359c03c4f65a9b3c055e8902b2aceb5afaa4b02da18562db6c9f1263c
   - kind: symbol
     name: raf_workplan::Workplan::impact
     digest: 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a

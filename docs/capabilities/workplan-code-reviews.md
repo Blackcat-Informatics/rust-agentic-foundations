@@ -94,7 +94,7 @@ condition: a verdict with findings, changed inputs, or both. The status is
 always the latest completed review of the scope and kind, so a later review with
 findings shadows an earlier clean one and a later clean review shadows an earlier
 one with findings; a blocked review shadows nothing. A capability without the
-key is judged exactly as before.
+key accepts a review of any verdict at current digests.
 <!-- raf:tested-by raf_workplan::test_crate::kinds::a_strict_capability_accepts_only_a_clean_current_review,raf_workplan::test_crate::kinds::a_strict_capability_refuses_a_clean_review_of_changed_source -->
 Semantic queries reuse document identities and the shared native RDF vocabulary:
 a review reifies its verdict about its source set and retains each input and

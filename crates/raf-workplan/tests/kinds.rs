@@ -384,7 +384,7 @@ fn review_stale_message(repo: &support::Repo, source: &raf_source::Workspace) ->
 /// current digests. Each refusal sits beside the accepted neighbour: a clean
 /// current review satisfies and one with findings does not, the latest review of
 /// the scope and kind decides in both directions, and a capability without the
-/// key accepts the same findings review as before.
+/// key accepts the same findings review.
 #[test]
 fn a_strict_capability_accepts_only_a_clean_current_review() {
     use raf_okf::ReviewVerdict::{Clean, Findings};

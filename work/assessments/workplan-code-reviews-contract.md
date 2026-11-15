@@ -7,7 +7,7 @@ subject: cap:workplan-code-reviews#contract
 inputs:
   - kind: section
     name: cap:workplan-code-reviews#contract
-    digest: 31bc1b25257b6e3781e10087fc3117137c227e9b15f5da696374dd485725b4c7
+    digest: c1440f062eee9927f95f225f9b0d6c972f21fe945c2054c01167a9d95a5585aa
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph::review
     digest: 16667bea9f5a5d3180030167352af2766dd9804e3bb9ace82054d9a2010c5419
