@@ -14,6 +14,7 @@ bindings:
     - raf_census::Unit::string_initializer
   tests:
     - raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures
+    - raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions
 
     - raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases
     - raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries
@@ -139,11 +140,18 @@ identity of a shared physical consumer body is checked in its own context before
 the body can be classified as a home.
 
 ### Detector identities and target eligibility
-<!-- raf:tested-by raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases,raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::fact_detectors_reuse_collected_values_and_keep_their_target_scope,raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields,raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases,raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::fact_detectors_reuse_collected_values_and_keep_their_target_scope,raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields,raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions -->
 
 The census ships eighteen built-in detectors. Each reports hits as `rule:<id>`, where
 `<id>` is the detector id, and a ledger job names the hit in
-`forbiddenFingerprint`.
+`forbiddenFingerprint`. A job may also name a detector in `ratchetedRule`, so that
+its hits are counted sites in the debt record instead of findings (see the
+[debt ratchet](./census-debt-ratchet.md)). Every detector except `home-literal`,
+`vocabulary-literal`, `sole-name` and `foreign-host-import` may be ratcheted; those
+four judge one job's home and context and the ledger refuses to ratchet them. A
+syntax detector's site uses the byte of its hit; the fact detectors `hex-table` and
+`json-pointer-escape` state a line, and their site uses the start of that line
+inside the owning item.
 
 | Id | Reads | Meaning |
 | --- | --- | --- |
@@ -444,4 +452,5 @@ required findings with neighbouring clean source.
 | `raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

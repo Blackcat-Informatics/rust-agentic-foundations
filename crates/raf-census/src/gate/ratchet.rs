@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The counted sites of ratcheted patterns: hits are diverted from findings,
-//! keyed by their enclosing symbol and first string literal, and counted.
+//! The counted sites of ratcheted patterns and rules: hits are diverted from
+//! findings, keyed by their enclosing symbol and first string literal, and
+//! counted.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -13,11 +14,13 @@ use super::patterns::string_literals;
 use super::rules::{Offsets, UnitKey, refused};
 use crate::{DebtSite, Error, Ledger, SiteKey};
 
-/// The (rule, owning unit, byte) of every diverted hit, with its line. The set
-/// deduplicates a hit that two jobs reach through one shared pattern.
-type Hits = BTreeMap<(String, UnitKey, usize), usize>;
+/// The (rule, owning unit, ordinal) of every diverted hit, with its byte, line
+/// and message. The ordinal is the hit's place among the unit's hits of the
+/// rule: a hit that two jobs reach through one shared rule is kept once, and
+/// two hits on one line are kept twice.
+type Hits = BTreeMap<(String, UnitKey, usize), (usize, usize, String)>;
 
-/// The ratcheted pattern ids of a ledger and the hits diverted from findings.
+/// The ratcheted pattern and rule ids of a ledger and the hits diverted from findings.
 pub(super) struct Sink<'a> {
     rules: BTreeSet<&'a str>,
     offsets: &'a Offsets,
@@ -32,6 +35,7 @@ impl<'a> Sink<'a> {
                 .iter()
                 .filter(|pattern| pattern.ratcheted)
                 .map(|pattern| pattern.id.as_str())
+                .chain(ledger.ratcheted_rules())
                 .collect(),
             offsets,
             hits: Hits::new(),
@@ -48,15 +52,18 @@ impl<'a> Sink<'a> {
 
     /// Divert every hit of the ratcheted rule `id` in the unit `unit`.
     pub(super) fn divert(&mut self, id: &str, unit: &UnitKey) {
-        for (byte, line) in self
+        for (ordinal, placed) in self
             .offsets
             .get(id)
             .and_then(|units| units.get(unit))
             .into_iter()
             .flatten()
+            .enumerate()
         {
-            self.hits
-                .insert((id.to_owned(), unit.clone(), *byte), *line);
+            self.hits.insert(
+                (id.to_owned(), unit.clone(), ordinal),
+                (placed.byte, placed.line, placed.message.clone()),
+            );
         }
     }
 
@@ -64,18 +71,12 @@ impl<'a> Sink<'a> {
     pub(super) fn count(
         &self,
         workspace: &Workspace,
-        ledger: &Ledger,
         limits: &mut MatchLimits,
     ) -> Result<Counted, Error> {
         if self.hits.is_empty() {
             return Ok(Counted::default());
         }
-        let summaries: BTreeMap<&str, &str> = ledger
-            .patterns()
-            .iter()
-            .map(|pattern| (pattern.id.as_str(), pattern.summary.as_str()))
-            .collect();
-        crate::units::on_thread(|| count_sites(workspace, &self.hits, &summaries, limits))?
+        crate::units::on_thread(|| count_sites(workspace, &self.hits, limits))?
     }
 }
 
@@ -86,18 +87,19 @@ pub(super) struct Counted {
     pub(super) locations: BTreeMap<DebtSite, Vec<String>>,
 }
 
+type Row<'a> = (&'a str, &'a str, usize, usize, &'a str);
+
 fn count_sites(
     workspace: &Workspace,
     hits: &Hits,
-    summaries: &BTreeMap<&str, &str>,
     limits: &mut MatchLimits,
 ) -> Result<Counted, Error> {
-    let mut by_file: BTreeMap<&str, Vec<(&str, &str, usize, usize)>> = BTreeMap::new();
-    for ((rule, (symbol, file, _), byte), line) in hits {
+    let mut by_file: BTreeMap<&str, Vec<Row<'_>>> = BTreeMap::new();
+    for ((rule, (symbol, file, _), _), (byte, line, message)) in hits {
         by_file
             .entry(file)
             .or_default()
-            .push((rule, symbol, *byte, *line));
+            .push((rule, symbol, *byte, *line, message));
     }
     let mut counted = Counted::default();
     for (file, rows) in by_file {
@@ -106,7 +108,7 @@ fn count_sites(
             .source(&path)
             .ok_or_else(|| refused("ratchet", &format!("{file}: source text is absent")))?;
         let literals = string_literals("ratchet", file, text, limits)?;
-        for (rule, symbol, byte, line) in rows {
+        for (rule, symbol, byte, line, message) in rows {
             let end = workspace
                 .item_at(&path, byte)
                 .iter()
@@ -122,12 +124,11 @@ fn count_sites(
                 .map(|literal| literal.value.as_str());
             let site = DebtSite::new(file, rule, SiteKey::digest(symbol, literal))?;
             *counted.counts.entry(site.clone()).or_default() += 1;
-            counted.locations.entry(site).or_default().push(format!(
-                "{file}:{line}: {symbol}: {}",
-                summaries.get(rule).copied().expect(
-                    "INVARIANT: every diverted hit's rule is a ledger pattern, and `summaries` holds every ledger pattern"
-                )
-            ));
+            counted
+                .locations
+                .entry(site)
+                .or_default()
+                .push(format!("{file}:{line}: {symbol}: {message}"));
         }
     }
     Ok(counted)

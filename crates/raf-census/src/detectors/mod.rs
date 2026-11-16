@@ -28,6 +28,15 @@ pub(crate) fn implements(id: &str) -> bool {
     ids().any(|candidate| candidate == id)
 }
 
+/// Whether the detector judges one job's home and context, so its hits belong
+/// to that job and cannot be counted per file.
+pub(crate) fn job_scoped(id: &str) -> bool {
+    matches!(
+        id,
+        "home-literal" | "vocabulary-literal" | "sole-name" | host_import::RULE
+    )
+}
+
 pub(crate) fn home_exempt(id: &str) -> bool {
     implements(id) && id != "sole-name" && id != host_import::RULE && !rdf::RULES.contains(&id)
 }

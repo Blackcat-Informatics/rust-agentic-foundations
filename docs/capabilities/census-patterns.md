@@ -29,13 +29,13 @@ bindings:
     - raf_census::test_crate::census_gate::anonymous_qualified_receivers_refuse_beside_supported_named_receivers
     - raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches
     - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
-    - raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions
-    - raf_census::test_crate::census_gate::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts
-    - raf_census::test_crate::census_gate::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits
-    - raf_census::test_crate::census_gate::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it
-    - raf_census::test_crate::census_gate::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour
-    - raf_census::test_crate::census_gate::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation
-    - raf_census::test_crate::census_gate::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched
+    - raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions
+    - raf_census::test_crate::census_gate::ratchet::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts
+    - raf_census::test_crate::census_gate::ratchet::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits
+    - raf_census::test_crate::census_gate::ratchet::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it
+    - raf_census::test_crate::census_gate::ratchet::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour
+    - raf_census::test_crate::census_gate::ratchet::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation
+    - raf_census::test_crate::census_gate::ratchet::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched
     - raf_census::test_crate::census_gate::lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run
     - raf_census::test_crate::census_gate::lexical_patterns_reuse_local_normalization_and_keep_parameter_context
     - raf_census::test_crate::census_gate::lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes
@@ -110,15 +110,15 @@ a scope that admits no target kind, an include prefix inside an exclude prefix, 
 absolute, above the root or the root itself, and raf:shippingOnly stated as false refuse at ledger
 load with the property to change. A referenced pattern whose every occurrence is out of scope is
 stale for an enforced job.
-<!-- raf:tested-by raf_census::test_crate::census_gate::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts,raf_census::test_crate::census_gate::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits,raf_census::test_crate::census_gate::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it,raf_census::test_crate::census_gate::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour,raf_census::test_crate::census_gate::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation,raf_census::test_crate::census_gate::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::ratchet::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts,raf_census::test_crate::census_gate::ratchet::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits,raf_census::test_crate::census_gate::ratchet::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it,raf_census::test_crate::census_gate::ratchet::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour,raf_census::test_crate::census_gate::ratchet::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation,raf_census::test_crate::census_gate::ratchet::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched -->
 
 Documentation comments are prose, not written string literals; literal matching
 excludes their desugared leaves. Explicit `#[doc = "..."]` attributes remain
 ordinary string literals.
 <!-- raf:tested-by raf_census::test_crate::census_gate::literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes -->
 
-**Ratcheted patterns.** A pattern may state raf:ratcheted, only as true. Its hits are then not findings: each is recorded in the debt record as a counted site keyed by file, rule and a site key (see the debt ratchet), and the generic copy finding for the matched unit is suppressed only when the ratcheted pattern alone explains the match; a unit that is also a copy through a forbidden constant, a forbidden structural fingerprint or a non-ratcheted rule still fails. A ratcheted pattern with no hit stays a recorded guard rather than going stale. Every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; `ratcheted` stated as false, stated twice or stated for a pattern whose job is unenforced refuses at ledger load, and a pattern that does not state it is forbidden and keeps its hard failure. A literalRegex hit is keyed on its own literal.
-<!-- raf:tested-by raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence -->
+**Ratcheted patterns.** A pattern may state raf:ratcheted, only as true. Its hits are then not findings: each is recorded in the debt record as a counted site keyed by file, rule and a site key (see the debt ratchet), and the generic copy finding for the matched unit is suppressed only when the ratcheted pattern alone explains the match; a unit that is also a copy through a forbidden constant, a forbidden structural fingerprint or a non-ratcheted rule still fails. A ratcheted pattern with no hit stays a recorded guard rather than going stale. Every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; `ratcheted` stated as false, stated twice or stated for a pattern whose job is unenforced refuses at ledger load, and a pattern that does not state it is forbidden and keeps its hard failure. A literalRegex hit is keyed on its own literal. A job may hold a built-in detector or registered rule to the same record through ratchetedRule (see the ledger and rule-API capabilities); that is the only way to ratchet a rule, and a pattern never uses it.
+<!-- raf:tested-by raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence -->
 
 **Validated references.** Patterns share the RuleId namespace with built-ins and registered rules. Missing,
 duplicate, unknown and unreferenced declarations refuse. A referenced pattern with
@@ -315,7 +315,6 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::gate::patterns::paths::cache::tests::index_growth_retains_the_original_grant_and_old_storage_on_refusal` | test | [Constraints](#constraints) |
 | `raf_census::gate::patterns::paths::cache::tests::native_storage_failures_keep_their_typed_cause` | test | [Constraints](#constraints) |
 | `raf_census::gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention` | test | [Constraints](#constraints) |
-| `raf_census::test_crate::census_gate::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::anonymous_qualified_receivers_refuse_beside_supported_named_receivers` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures` | test | [Contract](#contract) |
@@ -323,7 +322,6 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::call_patterns_observe_macro_repetition_and_statement_arguments_with_clean_neighbours` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::competing_import_namespaces_refuse_beside_distinct_namespace_imports` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::constant_pattern_identifiers_keep_their_actual_reference_in_match_arms` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases` | test | [Explanation](#explanation) |
 | `raf_census::test_crate::census_gate::general_path_patterns_include_grouped_renamed_imports_in_their_actual_module_scope` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::import_targets_keep_their_declaration_frame` | test | [Contract](#contract) |
@@ -342,14 +340,16 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours` | test | [Purpose](#purpose), [Contract](#contract), [Usage](#usage), [Examples](#examples), [Explanation](#explanation) |
-| `raf_census::test_crate::census_gate::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::token_patterns_include_file_level_macro_arguments_without_renaming_item_names` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::token_patterns_normalize_body_local_declarations_without_renaming_module_items` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace` | test | [Contract](#contract) |

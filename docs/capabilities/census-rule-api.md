@@ -28,6 +28,9 @@ bindings:
     - raf_census::test_crate::rules::positive_misses_and_negative_hits_are_refused
     - raf_census::selftest::tests::a_registered_rule_whose_fixture_fails_is_a_named_failing_case
     - raf_census::selftest::tests::a_registered_rule_whose_fixtures_hold_is_a_passing_case
+    - raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions
+    - raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted
+    - raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors
     - raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt
     - raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
     - raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library
@@ -154,6 +157,17 @@ pub trait Rule: Sync {
   rules and extensions to that same Gate. The shipped CLI refuses policy
   requiring callbacks it has not installed.
 <!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
+
+A job may ratchet a registered rule through ratchetedRule (see the
+[ledger](./census-ledger.md)): its hits are then counted sites in the debt
+record instead of findings, under the same keys and comparisons as a ratcheted
+pattern. `Rule` and `RuleHit` do not change. A hit states a line, so the site of a
+ratcheted rule's hit is its owning item and the first string literal at or after
+the start of the hit's line inside that item; two hits on one line count twice.
+A rule that the Gate requires everywhere cannot also be ratcheted.
+`RegisteredDebtWrite` carries the number of recorded site rows as an optional
+siteCount, present only when positive.
+<!-- raf:tested-by raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted,raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors -->
 
 - Validating the ledger, the gate resolves every `rule:<id>` that a job forbids
   against the built-in detectors, the patterns and the registered rules. An id that
@@ -400,6 +414,7 @@ The self-Census exercises the same builder path over the actual snapshot.
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::registered` | example target | [Usage](#usage), [Examples](#examples) |
+| `raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors` | test | [Contract](#contract) |
 | `raf_census::selftest::tests::a_registered_rule_whose_fixture_fails_is_a_named_failing_case` | test | [Contract](#contract) |
 | `raf_census::selftest::tests::a_registered_rule_whose_fixtures_hold_is_a_passing_case` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt` | test | [Contract](#contract), [Constraints](#constraints) |
@@ -408,6 +423,8 @@ The self-Census exercises the same builder path over the actual snapshot.
 | `raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::module_paths_outside_their_package_are_required_findings_beside_contained_ones` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
 | `raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour` | test | [Contract](#contract) |
 | `raf_census::test_crate::rules::invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case` | test | [Contract](#contract) |
 | `raf_census::test_crate::rules::positive_misses_and_negative_hits_are_refused` | test | [Contract](#contract) |
