@@ -865,15 +865,38 @@ fn refusal_is_reported_with_its_error(mut repo: Repo) {
             && !beside_refused[1].fix.contains("record an evidence record"),
         "{beside_refused:#?}"
     );
-    let mut alone = Repo::new();
-    alone.extend(
-        repo.into_iter()
-            .filter(|(path, _)| !path.ends_with("bench.md")),
+    // Two failing records are two findings, and beside no stale or refused passing
+    // record they yield nothing else.
+    let mut failing_only = Repo::new();
+    failing_only.extend(
+        repo.iter()
+            .filter(|(path, _)| !path.ends_with("bench.md"))
+            .map(|(path, text)| (path.clone(), text.clone())),
     );
-    alone.insert(failed_path, failed);
-    let only_failed = check_in(&alone, &normal);
+    failing_only.insert(failed_path.clone(), failed.clone());
+    failing_only.insert(
+        "work/evidence/bench-failed-too.md".to_string(),
+        failed.replace("evidence:bench-failed", "evidence:bench-failed-too"),
+    );
     assert_eq!(
-        kinds(&measured_only(only_failed)),
-        ["measured-evidence-failed"]
+        kinds(&measured_only(check_in(&failing_only, &normal))),
+        ["measured-evidence-failed", "measured-evidence-failed"]
+    );
+    // A failing record beside a passing record at stale digests is the failed
+    // finding, then the missing finding naming the changed input.
+    let (path, stale) = evidence_as("pass", &"0".repeat(64), MEASURED);
+    let mut beside_stale = failing_only;
+    beside_stale.remove("work/evidence/bench-failed-too.md");
+    beside_stale.insert(path, fixture::replaced(&stale, "demo::run", input));
+    let found = measured_only(check_in(&beside_stale, &normal));
+    assert_eq!(
+        kinds(&found),
+        ["measured-evidence-failed", "measured-evidence-missing"],
+        "{found:#?}"
+    );
+    assert!(
+        found[1].message.contains(&format!("{input} changed"))
+            && found[1].fix.contains("record an evidence record"),
+        "{found:#?}"
     );
 }

@@ -42,13 +42,15 @@
 //! evidence record whose `for` lists it, that states a measurement
 //! ([`raf_okf::EvidenceRecord::states_measurement`]): measured values, a unit
 //! for each and the conditions they were taken under, whose verdict is `pass`
-//! and whose inputs digest as recorded. Without one,
-//! `measured-evidence-missing` is raised at the key
-//! `measured_evidence_required`; when a measured record that covers the
-//! capability has the verdict `fail`, `measured-evidence-failed` is raised
-//! there, once for each such record, naming it, beside `measured-evidence-missing`
-//! when a passing record is stale or refused. A refusal by the source
-//! index is reported with its error, not as a changed input. The findings are not
+//! and whose inputs digest as recorded. Without one, the capability is refused at
+//! the key `measured_evidence_required`: each measured record that covers it with
+//! the verdict `fail` is its own `measured-evidence-failed` finding, naming it;
+//! a passing record that is stale or refused adds `measured-evidence-missing`
+//! after them; and with no failing record and no such passing record,
+//! `measured-evidence-missing` is raised alone. A failing record beside no stale
+//! or refused passing record yields only its own finding. A refusal by the source
+//! index is reported with its error, not as the changed inputs found before it
+//! in the same record. The findings are not
 //! debt, and a capability that does not state the key is judged as before.
 //!
 //! # Claims
@@ -177,8 +179,11 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
 /// The requirement is satisfied by an evidence record that covers the
 /// capability, states a measurement, has the verdict `pass`, and whose inputs
 /// all digest as they did when it was recorded. Without one, each measured
-/// record that covers the capability and fails is its own finding, naming the
-/// record; with no such record the measurement is missing.
+/// record that covers the capability and fails is its own
+/// `measured-evidence-failed` finding, naming the record. A passing record that
+/// is stale or refused adds one `measured-evidence-missing` finding after the
+/// failing ones; with no failing record and no such passing record the
+/// measurement is missing, and with only failing records nothing else is raised.
 fn measured_evidence(
     plan: &Workplan<'_>,
     capability: &Loaded<raf_okf::Capability>,

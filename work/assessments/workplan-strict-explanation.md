@@ -49,7 +49,7 @@ inputs:
     digest: e0af591739db479a091b718df1b215a15578d48a56ab73bae3db222026927436
   - kind: symbol
     name: raf_workplan::strict
-    digest: 60b55c4d72fc962215796de6a51417ed40edcd2ee10d2c6dd9bb4abedae9493f
+    digest: 270f29ef3de07495453e479124101a7a87f611e3c19040b891a5687b55f30d05
   - kind: symbol
     name: raf_workplan::work
     digest: a12641f798ca2966e2032b3fa7a3b7871f038d89d808d5e89658b2b25e79b472
