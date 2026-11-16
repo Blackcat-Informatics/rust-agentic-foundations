@@ -232,6 +232,9 @@ pub(crate) struct ModFact {
     pub(crate) name: String,
     /// The 1-based line of the name.
     pub(crate) name_line: usize,
+    /// The byte at which the name starts: after the attributes and before the
+    /// body, so no configuration and no edit of the body moves it.
+    pub(crate) name_start: usize,
     /// The whole declaration, attributes included.
     pub(crate) span: SpanFact,
     /// The braced body of an inline module.
@@ -439,14 +442,15 @@ pub(crate) struct ModBody {
 impl ModFact {
     /// The module path segment of a module declared inside a block. A block
     /// has no name that a path can write, so the segment holds the module
-    /// name and the byte where the declaration ends, in braces that no
-    /// identifier has: no path written in source can name the module, and
-    /// two blocks that declare one name stay apart. The end is used because
-    /// a configured load removes a leading `cfg_attr` that does not apply,
-    /// which moves the start of the declaration and never its end, so one
-    /// declaration has one segment in every load.
+    /// name and the byte where the name starts, in braces that no identifier
+    /// has: no path written in source can name the module, and two blocks
+    /// that declare one name stay apart. The name start is used because a
+    /// configured load removes a leading `cfg_attr` that does not apply,
+    /// which moves the start of the declaration, and an edit of the body
+    /// moves its end; neither moves the name, so one declaration has one
+    /// segment in every load.
     pub(crate) fn block_segment(&self) -> String {
-        format!("{{{}@{}}}", self.name, self.span.end_byte)
+        format!("{{{}@{}}}", self.name, self.name_start)
     }
 }
 
@@ -1817,9 +1821,11 @@ impl Extractor<'_> {
             size_of::<ModFact>() + name.capacity() + vis_bytes(&vis),
             name_line,
         )?;
+        let name_start = self.positions.span(module.ident.span())?.start_byte;
         Ok(ModFact {
             name,
             name_line,
+            name_start,
             span: self.positions.span(module.span())?,
             body_span,
             vis,
@@ -1888,11 +1894,11 @@ impl BlockMods<'_, '_, '_> {
 }
 
 impl<'ast> Visit<'ast> for BlockMods<'_, '_, '_> {
-    // Types, patterns and generics hold no statement, and a nested item other
-    // than a function, constant, static, impl or trait holds none of its own
-    // outside them, so none of those is read: the configured selection drops
-    // inactive statements, arms, fields and list elements only in the code
-    // that is read here.
+    // Types, patterns, generics and the items other than functions, constants,
+    // statics, impl blocks, traits and modules can hold an expression (an
+    // array length, an enum discriminant), but they are not read: the
+    // configured selection does not reach them, so a module found there could
+    // sit under an attribute that a configured load never evaluated.
     fn visit_type(&mut self, _: &'ast syn::Type) {}
 
     fn visit_pat(&mut self, _: &'ast syn::Pat) {}

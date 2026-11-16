@@ -1128,7 +1128,7 @@ fn a_block_module_has_the_same_path_in_a_structural_and_a_configured_load() {
     let configured = declared_load(&tree);
     let expected = vec![format!(
         "consumer::{{m@{}}}",
-        source.find("mod m;").expect("mod") + 6
+        source.find("mod m;").expect("mod") + 4
     )];
     assert_eq!(paths(&configured), expected);
     assert_eq!(paths(&structural), expected);

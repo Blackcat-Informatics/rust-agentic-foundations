@@ -1298,32 +1298,13 @@ fn a_module_path_outside_every_package_is_reported_without_an_owner() {
 
 /// The module path of a block-local module `name` declared at the first
 /// occurrence of `marker` in `source`: the path ends in the name and the byte
-/// where the declaration ends, after its `;` or its closing brace.
+/// where the name starts, after the attributes and the `mod` keyword.
 fn block_path(parent: &str, name: &str, source: &str, marker: &str) -> String {
     let start = source.find(marker).expect("the marker is in the source");
-    let rest = &source[start..];
-    let open = rest.find(['{', ';']).expect("the declaration ends");
-    let end = if rest.as_bytes()[open] == b';' {
-        start + open + 1
-    } else {
-        let mut depth = 0usize;
-        let mut at = start + open;
-        for (offset, byte) in rest[open..].bytes().enumerate() {
-            match byte {
-                b'{' => depth += 1,
-                b'}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        at = start + open + offset + 1;
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-        at
-    };
-    format!("{parent}::{{{name}@{end}}}")
+    let keyword = source[start..]
+        .find(&format!("mod {name}"))
+        .expect("the declaration is in the source");
+    format!("{parent}::{{{name}@{}}}", start + keyword + 4)
 }
 
 /// A module declared inside a function body, a constant initializer or a
@@ -1635,4 +1616,22 @@ fn a_path_on_an_inline_module_in_a_block_names_a_directory_beside_the_declaring_
         matches!(&error.kind, LoadErrorKind::UnresolvedMod { module } if module == "q"),
         "{error}"
     );
+}
+
+/// An edit inside the body of a block module does not rename it, and an edit
+/// above it does: the segment follows the start of the name.
+#[test]
+fn a_block_module_keeps_its_path_when_its_body_changes_and_moves_with_an_edit_above() {
+    let path_of_g = |source: &str| {
+        let ws = ok(&[("src/lib.rs", source)]);
+        ws.items()
+            .map(|item| item.path.to_string())
+            .find(|path| path.ends_with("::g"))
+            .expect("the function g is indexed")
+    };
+    let before = "fn f() {\n    mod inner {\n        pub fn g() {}\n    }\n}\n";
+    let body = before.replace("pub fn g() {}", "pub fn added() {}\n        pub fn g() {}");
+    let above = format!("// a comment\n{before}");
+    assert_eq!(path_of_g(before), path_of_g(&body));
+    assert_ne!(path_of_g(before), path_of_g(&above));
 }
