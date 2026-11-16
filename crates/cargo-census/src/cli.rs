@@ -76,7 +76,7 @@ pub(crate) enum Command {
         target: QueryTarget,
     },
     /// Evaluate native ledger policy without running any repository program.
-    Check,
+    Check(PolicyArgs),
     /// Emit a migrated RDF ledger to stdout without modifying either input.
     Migrate(MigrationArgs),
     /// Prove the installed census still finds seeded copies; needs no workspace and writes nothing.
@@ -86,7 +86,28 @@ pub(crate) enum Command {
         /// Publish the exact present record.
         #[arg(long, required = true)]
         write: bool,
+        #[command(flatten)]
+        policy: PolicyArgs,
     },
+}
+
+/// Gate requirements the caller selects for one run; nothing here is persisted
+/// in a ledger, report or debt record.
+#[derive(ClapArgs)]
+pub(crate) struct PolicyArgs {
+    /// Require every module `path` attribute to resolve to a file of its own package.
+    #[arg(long)]
+    pub(crate) require_module_paths_in_package: bool,
+}
+
+impl PolicyArgs {
+    pub(crate) fn apply(&self, gate: raf_census::Gate) -> raf_census::Gate {
+        if self.require_module_paths_in_package {
+            gate.require_module_paths_in_package()
+        } else {
+            gate
+        }
+    }
 }
 
 #[derive(Subcommand)]
