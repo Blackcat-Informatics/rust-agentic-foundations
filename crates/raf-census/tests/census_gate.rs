@@ -3431,14 +3431,29 @@ fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
     assert!(error.to_string().contains("requires a home that declares"));
 }
 
+const HOST_HOME: &str = "/// Home.\npub mod home {#[wasm_bindgen(module = \"clock\")] extern \"C\" {pub fn now() -> f64;}}";
+const HOST_LINKED: &str =
+    "/// Home.\npub mod home {#[link(name = \"m\")] extern \"C\" {pub fn now() -> f64;}}";
+
+/// Each case is a home, a source the detector refuses, the text of its refusal, and a
+/// neighbouring source with the one fault corrected, which it accepts.
+fn refused_beside_neighbour(cases: &[(&str, &str, &str, &str)]) {
+    for &(home, refused, expected, accepted) in cases {
+        let tree = detector_fixture(detector_ledger("foreign-host-import"), home, refused);
+        let error = Gate::workspace(".")
+            .check_tree(&tree)
+            .err()
+            .unwrap_or_else(|| panic!("accepted: {refused}"));
+        assert!(error.to_string().contains(expected), "{refused}: {error}");
+        host_copies(home, accepted, &[]);
+    }
+}
+
 #[test]
-fn foreign_host_import_refuses_what_it_cannot_place_beside_a_valid_neighbour() {
-    const HOME: &str = "/// Home.\npub mod home {#[wasm_bindgen(module = \"clock\")] extern \"C\" {pub fn now() -> f64;}}";
-    const LINKED: &str =
-        "/// Home.\npub mod home {#[link(name = \"m\")] extern \"C\" {pub fn now() -> f64;}}";
-    // Each case is a source the detector refuses, the text of its refusal, and a
-    // neighbouring source with the one fault corrected, which it accepts.
-    let cases: [(&str, &str, &str, &str); 12] = [
+fn foreign_host_import_refuses_method_constructor_and_property_shapes_beside_a_valid_neighbour() {
+    const HOME: &str = HOST_HOME;
+    // Each case is as in `refused_beside_neighbour`.
+    let cases = [
         (
             HOME,
             "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(getter, setter)] fn now() -> f64;}",
@@ -3475,6 +3490,16 @@ fn foreign_host_import_refuses_what_it_cannot_place_beside_a_valid_neighbour() {
             "needs a return type",
             "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(constructor)] fn new() -> Date;}",
         ),
+    ];
+    refused_beside_neighbour(&cases);
+}
+
+#[test]
+fn foreign_host_import_refuses_arguments_it_cannot_place_beside_a_valid_neighbour() {
+    const HOME: &str = HOST_HOME;
+    const LINKED: &str = HOST_LINKED;
+    // Each case is as in `refused_beside_neighbour`.
+    let cases = [
         (
             HOME,
             "#[wasm_bindgen(module = \"clock\", wasm_bindgen::catch)] extern \"C\" {fn now() -> f64;}",
@@ -3512,15 +3537,7 @@ fn foreign_host_import_refuses_what_it_cannot_place_beside_a_valid_neighbour() {
             "#[wasm_bindgen(module = \"clock\", catch)] extern \"C\" {fn now() -> f64;}",
         ),
     ];
-    for (home, refused, expected, accepted) in cases {
-        let tree = detector_fixture(detector_ledger("foreign-host-import"), home, refused);
-        let error = Gate::workspace(".")
-            .check_tree(&tree)
-            .err()
-            .unwrap_or_else(|| panic!("accepted: {refused}"));
-        assert!(error.to_string().contains(expected), "{refused}: {error}");
-        host_copies(home, accepted, &[]);
-    }
+    refused_beside_neighbour(&cases);
     // The `cfg` predicate of `link` does not change which host function is imported.
     assert_eq!(
         host_copies(

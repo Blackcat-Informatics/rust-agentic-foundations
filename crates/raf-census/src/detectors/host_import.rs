@@ -387,8 +387,8 @@ impl Imports {
             ..Identity::default()
         };
         identity.attributes(&function.attrs)?;
-        // The binding attribute reads one namespace path from the block or the item,
-        // and which wins differs between releases, so both is refused.
+        // Current releases of the binding attribute refuse a namespace on both the block
+        // and the item, and releases up to 0.2.125 take the item's value, so both is refused.
         if identity.namespace_written && self.block.namespace_written {
             return Err(refuse(
                 function.sig.ident.span(),
