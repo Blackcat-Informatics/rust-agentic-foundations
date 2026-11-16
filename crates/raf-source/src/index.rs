@@ -873,7 +873,7 @@ impl<'a> Builder<'a> {
                     push(&mut stack, Emit::Mods(body, module, 0), line)?;
                 }
                 Emit::Mods(body, module, next) => {
-                    let Some(decl) = body.mods.get(next) else {
+                    let Some(decl) = body.declaration(next) else {
                         continue;
                     };
                     push(
@@ -881,7 +881,11 @@ impl<'a> Builder<'a> {
                         Emit::Mods(body, module, next + 1),
                         decl.name_line,
                     )?;
-                    let child = self.module_item(decl, module, cx)?;
+                    let child = if body.is_block_local(next) {
+                        self.block_module(decl, module, cx)?
+                    } else {
+                        self.module_item(decl, module, cx)?
+                    };
                     if let Some(inline) = &decl.inline {
                         push(
                             &mut stack,
@@ -894,6 +898,23 @@ impl<'a> Builder<'a> {
             }
         }
         Ok(())
+    }
+
+    /// The module of a declaration inside a block. It has no item and no name
+    /// in any module scope, because no path written in source reaches it: its
+    /// items are indexed under the module path of [`ModFact::block_segment`].
+    fn block_module(
+        &mut self,
+        decl: &ModFact,
+        module: usize,
+        cx: &Cx<'_>,
+    ) -> Result<usize, LoadError> {
+        let path = format!(
+            "{}::{}",
+            self.index.modules[module].path,
+            decl.block_segment()
+        );
+        self.declare(&path, module, cx.file, decl.name_line)
     }
 
     /// The module a declaration names, and its item. Returns the module.

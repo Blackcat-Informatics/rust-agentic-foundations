@@ -128,6 +128,9 @@ struct DirCtx<'a> {
     /// The declaring file and line of the inline module `path` attribute
     /// that set `dir`, if one did.
     via: Option<(RelPath, usize)>,
+    /// True when the declarations here are inside a block, which owns no
+    /// directory for its modules.
+    block: bool,
     // The original subgrant is refunded only after the owned string dies.
     _admission: Option<OwnedAdmission<FrameAdmission<'a>>>,
 }
@@ -163,6 +166,7 @@ impl<'a> DirCtx<'a> {
             dir,
             relative,
             via,
+            block: false,
             _admission: admission,
         })
     }
@@ -174,6 +178,31 @@ impl<'a> DirCtx<'a> {
             self.via.clone(),
             parser,
         )
+        .map(|copy| copy.in_block(self.block))
+    }
+
+    /// The same context, marked as inside a block when `block` holds.
+    fn in_block(mut self, block: bool) -> Self {
+        self.block = block;
+        self
+    }
+
+    /// The directory under which a module declared here is found by name:
+    /// the module directory, or the directory itself where no module
+    /// directory is owned, which is inside a block and for a declaration
+    /// that is itself in one.
+    fn declared_dir(
+        &self,
+        unowned: bool,
+        origin: &Origin,
+        file: &RelPath,
+        line: usize,
+    ) -> Result<RelPath, LoadError> {
+        if unowned {
+            Ok(self.dir.clone())
+        } else {
+            self.module_dir(origin, file, line)
+        }
     }
 
     fn module_dir(
@@ -182,6 +211,9 @@ impl<'a> DirCtx<'a> {
         file: &RelPath,
         line: usize,
     ) -> Result<RelPath, LoadError> {
+        if self.block {
+            return Ok(self.dir.clone());
+        }
         match &self.relative {
             Some(stem) => join(&self.dir, stem, file, line, origin),
             None => Ok(self.dir.clone()),
@@ -259,8 +291,7 @@ impl<'a> BodyAt<'a> {
         let mut body = &self.parsed.facts.body;
         for &position in &self.inline {
             body = body
-                .mods
-                .get(position)
+                .declaration(position)
                 .and_then(|module| module.inline.as_ref())
                 .ok_or_else(|| {
                     LoadError::new(
@@ -318,11 +349,16 @@ struct Declared<'a> {
 }
 
 impl Declared<'_> {
+    /// True when declarations that this one declares are in a block: it is
+    /// declared in one, or inside a module that is.
+    fn unowned(&self) -> Result<bool, LoadError> {
+        Ok(self.ctx.block || self.at.body(&self.file)?.is_block_local(self.position))
+    }
+
     fn module(&self) -> Result<&ModFact, LoadError> {
         self.at
             .body(&self.file)?
-            .mods
-            .get(self.position)
+            .declaration(self.position)
             .ok_or_else(|| {
                 LoadError::new(
                     &self.file,
@@ -576,11 +612,14 @@ impl<'a> Walker<'a> {
         if frontier.0 <= next {
             frontier = (next + 1, 0);
         }
-        let modules = &at.body(file)?.mods;
-        while self.speculative_capacity() && frontier.0 < modules.len() {
+        let body = at.body(file)?;
+        while self.speculative_capacity() && frontier.0 < body.declarations() {
             #[cfg(all(test, target_os = "linux"))]
             let _preparation = crate::parse::parallel::tests::preparing();
-            let module = &modules[frontier.0];
+            let Some(module) = body.declaration(frontier.0) else {
+                break;
+            };
+            let unowned = ctx.block || body.is_block_local(frontier.0);
             if module.inline.is_some() {
                 frontier = (frontier.0 + 1, 0);
                 continue;
@@ -601,7 +640,11 @@ impl<'a> Walker<'a> {
                 } else {
                     Some(Candidate::Joined {
                         base: &ctx.dir,
-                        stem: ctx.relative.as_deref(),
+                        stem: if unowned {
+                            None
+                        } else {
+                            ctx.relative.as_deref()
+                        },
                         input: &module.name,
                         suffix: if frontier.1 == 0 { ".rs" } else { "/mod.rs" },
                     })
@@ -739,7 +782,7 @@ impl<'a> Walker<'a> {
                     next,
                     frontier,
                 } => {
-                    if next < at.body(&file)?.mods.len() {
+                    if next < at.body(&file)?.declarations() {
                         let frontier = self.prefetch_body(&at, &file, &ctx, next, frontier)?;
                         self.stack.push(Frame::Decls {
                             at: at.copy(None, self.parser)?,
@@ -1014,9 +1057,15 @@ impl<'a> Walker<'a> {
                 predicate: None,
             }));
         }
+        let unowned = declared.unowned()?;
+        let segment = if declared.at.body(file)?.is_block_local(declared.position) {
+            module.block_segment()
+        } else {
+            module.name.clone()
+        };
         let (module_path, cost) = self
             .paths
-            .intern(&format!("{}::{}", scope.module_path, module.name));
+            .intern(&format!("{}::{segment}", scope.module_path));
         self.meter
             .items(cost, file, Some(module.name_line))
             .map_err(|error| {
@@ -1043,9 +1092,16 @@ impl<'a> Walker<'a> {
         };
         let before = self.stack.len();
         if module.inline.is_some() {
-            self.inline_default(module, site, &declared, &inner)?;
+            self.inline_default(module, site, &declared, &inner, unowned)?;
         } else {
-            self.declared_default(module, site, &declared.ctx, &inner, has_alternatives)?;
+            self.declared_default(
+                module,
+                site,
+                &declared.ctx,
+                &inner,
+                has_alternatives,
+                unowned,
+            )?;
         }
         if has_alternatives {
             // Below the frames of the default part, so it runs once they are
@@ -1071,9 +1127,12 @@ impl<'a> Walker<'a> {
         site: Site<'_>,
         declared: &Declared<'a>,
         scope: &Scope,
+        unowned: bool,
     ) -> Result<(), LoadError> {
         let ctx = &declared.ctx;
-        let (dir, via) = if let Some(path) = module.paths.unconditional.first() {
+        // A `path` on an inline module makes it own a directory again, in a
+        // block too.
+        let (dir, via, block) = if let Some(path) = module.paths.unconditional.first() {
             let origin = Origin::PathAttr {
                 module: module.name.clone(),
                 predicate: None,
@@ -1081,21 +1140,23 @@ impl<'a> Walker<'a> {
             (
                 join(&ctx.dir, path, site.file, site.line, &origin)?,
                 Some((site.file.clone(), site.line)),
+                false,
             )
         } else {
             let by_name = Origin::ModDecl {
                 module: module.name.clone(),
             };
-            let base = ctx.module_dir(&by_name, site.file, site.line)?;
+            let base = ctx.declared_dir(unowned, &by_name, site.file, site.line)?;
             (
                 join(&base, &module.name, site.file, site.line, &by_name)?,
                 ctx.via.clone(),
+                unowned,
             )
         };
         self.stack.push(Frame::Decls {
             at: declared.at.copy(Some(declared.position), self.parser)?,
             file: site.file.clone(),
-            ctx: DirCtx::new(dir, None, via, self.parser)?,
+            ctx: DirCtx::new(dir, None, via, self.parser)?.in_block(block),
             scope: scope.clone(),
             next: 0,
             frontier: (0, 0),
@@ -1112,6 +1173,7 @@ impl<'a> Walker<'a> {
         ctx: &DirCtx<'a>,
         scope: &Scope,
         has_alternatives: bool,
+        unowned: bool,
     ) -> Result<(), LoadError> {
         if let Some(path) = module.paths.unconditional.first() {
             let origin = Origin::PathAttr {
@@ -1122,7 +1184,7 @@ impl<'a> Walker<'a> {
             let file = self.tidy(&file, site, &origin)?;
             self.follow_path_file(&file, site, &origin, scope.clone(), None)?;
         } else {
-            self.follow_default(module, site, ctx, scope, has_alternatives)?;
+            self.follow_default(module, site, ctx, scope, has_alternatives, unowned)?;
         }
         Ok(())
     }
@@ -1248,11 +1310,12 @@ impl<'a> Walker<'a> {
         ctx: &DirCtx<'a>,
         scope: &Scope,
         has_alternatives: bool,
+        unowned: bool,
     ) -> Result<(), LoadError> {
         let origin = Origin::ModDecl {
             module: module.name.clone(),
         };
-        let base = ctx.module_dir(&origin, site.file, site.line)?;
+        let base = ctx.declared_dir(unowned, &origin, site.file, site.line)?;
         let flat = join(
             &base,
             &format!("{}.rs", module.name),

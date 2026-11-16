@@ -1293,3 +1293,247 @@ fn a_module_path_outside_every_package_is_reported_without_an_owner() {
     assert_eq!(foreign[0].site.resolved.as_str(), "loose.rs");
     assert_eq!(foreign[0].owner, None);
 }
+
+// --- module declarations inside blocks ----------------------------------------
+
+/// The module path of a block-local module `name` declared at the first
+/// occurrence of `marker` in `source`: the declaration starts there, so the
+/// path ends in the name and that byte offset.
+fn block_path(parent: &str, name: &str, source: &str, marker: &str) -> String {
+    let start = source.find(marker).expect("the marker is in the source");
+    format!("{parent}::{{{name}@{start}}}")
+}
+
+/// A module declared inside a function body, a constant initializer or a
+/// method is followed and indexed under a path no source can write, and two
+/// blocks that declare one name keep two modules; the module is not a name in
+/// the module that holds the function.
+#[test]
+fn a_path_module_declared_in_a_block_is_followed_and_indexed_apart_from_the_module_scope() {
+    let lib = "fn run() {\n    #[path = \"one.rs\"]\n    mod shared;\n}\n\
+               const _: () = {\n    #[path = \"two.rs\"]\n    mod shared;\n};\n\
+               struct S;\nimpl S {\n    fn method() {\n        let _ = || {\n            #[path = \"three.rs\"]\n            mod shared;\n        };\n    }\n}\n";
+    let ws = ok(&[
+        ("src/lib.rs", lib),
+        ("src/one.rs", "pub fn in_one() {}"),
+        ("src/two.rs", "pub fn in_two() {}"),
+        ("src/three.rs", "pub fn in_three() {}"),
+    ]);
+    let one = block_path("demo", "shared", lib, "#[path = \"one.rs\"]");
+    let two = block_path("demo", "shared", lib, "#[path = \"two.rs\"]");
+    let three = block_path("demo", "shared", lib, "#[path = \"three.rs\"]");
+    assert_eq!(
+        reached(&ws),
+        files(&[
+            ("src/lib.rs", &["demo"]),
+            ("src/one.rs", &[one.as_str()]),
+            ("src/three.rs", &[three.as_str()]),
+            ("src/two.rs", &[two.as_str()]),
+        ])
+    );
+    assert_eq!(
+        item_paths(&ws),
+        files(&[
+            (
+                "src/lib.rs",
+                &["demo", "demo::S", "demo::S::method", "demo::run"]
+            ),
+            ("src/one.rs", &[format!("{one}::in_one").as_str()]),
+            ("src/three.rs", &[format!("{three}::in_three").as_str()]),
+            ("src/two.rs", &[format!("{two}::in_two").as_str()]),
+        ])
+    );
+}
+
+/// A block-local `path` is relative to the directory of the declaring file,
+/// as in an item list, and the module directory of a non-`mod.rs` file is not
+/// consulted.
+#[test]
+fn a_block_local_path_attribute_is_relative_to_the_declaring_files_directory() {
+    let a = "pub fn f() {\n    #[path = \"x.rs\"]\n    mod x;\n}\n";
+    let ws = ok(&[
+        ("src/lib.rs", "mod a;"),
+        ("src/a.rs", a),
+        ("src/x.rs", "pub fn in_x() {}"),
+    ]);
+    assert_eq!(
+        reached(&ws)
+            .into_iter()
+            .find(|(path, _)| path == "src/x.rs")
+            .map(|(_, modules)| modules),
+        Some(vec![block_path("demo::a", "x", a, "#[path")])
+    );
+    let error = load(&[
+        ("src/lib.rs", "mod a;"),
+        ("src/a.rs", a),
+        ("src/a/x.rs", "pub fn in_x() {}"),
+    ])
+    .expect_err("only the file directory counts");
+    assert!(
+        matches!(&error.kind, LoadErrorKind::UnresolvedMod { module } if module == "x"),
+        "{error}"
+    );
+    assert_eq!(error.file.as_str(), "src/a.rs");
+}
+
+/// A plain `mod name;` in a block is followed to the file its name gives in
+/// the directory of the declaring file, never in the module directory the
+/// file would own for a module of its item list.
+#[test]
+fn a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_module_directory() {
+    let a = "pub fn f() {\n    mod m;\n}\n";
+    let ws = ok(&[
+        ("src/lib.rs", "mod a;"),
+        ("src/a.rs", a),
+        ("src/m.rs", "pub fn in_m() {}"),
+    ]);
+    assert_eq!(
+        reached(&ws)
+            .into_iter()
+            .find(|(path, _)| path == "src/m.rs")
+            .map(|(_, modules)| modules),
+        Some(vec![block_path("demo::a", "m", a, "mod m")])
+    );
+    // The same declaration in the item list of `a.rs` finds `src/a/m.rs`.
+    assert!(
+        load(&[
+            ("src/lib.rs", "mod a;"),
+            ("src/a.rs", "mod m;"),
+            ("src/a/m.rs", ""),
+        ])
+        .is_ok()
+    );
+    let error = load(&[
+        ("src/lib.rs", "mod a;"),
+        ("src/a.rs", a),
+        ("src/a/m.rs", ""),
+    ])
+    .expect_err("a block owns no module directory");
+    assert!(
+        matches!(&error.kind, LoadErrorKind::UnresolvedMod { module } if module == "m"),
+        "{error}"
+    );
+    // `m/mod.rs` is the other name, and both together are an error.
+    assert!(load(&[("src/lib.rs", "fn f() { mod m; }"), ("src/m/mod.rs", ""),]).is_ok());
+    let both = load(&[
+        ("src/lib.rs", "fn f() { mod m; }"),
+        ("src/m.rs", ""),
+        ("src/m/mod.rs", ""),
+    ])
+    .expect_err("both files exist");
+    assert!(
+        matches!(both.kind, LoadErrorKind::BothModFiles { .. }),
+        "{both}"
+    );
+}
+
+/// An inline module in a block keeps the block's lack of a module directory
+/// for the plain modules it declares, and a `path` on it, or on a module
+/// inside it, resolves as in an item list.
+#[test]
+fn an_inline_module_in_a_block_resolves_its_children_without_the_files_module_directory() {
+    let a = "fn f() {\n    mod inner {\n        mod q;\n        #[path = \"p.rs\"]\n        mod p;\n    }\n}\n";
+    let ws = ok(&[
+        ("src/lib.rs", "mod a;"),
+        ("src/a.rs", a),
+        ("src/inner/q.rs", ""),
+        ("src/inner/p.rs", ""),
+    ]);
+    let inner = block_path("demo::a", "inner", a, "mod inner");
+    assert_eq!(
+        reached(&ws)
+            .into_iter()
+            .filter(|(path, _)| path.starts_with("src/inner/"))
+            .collect::<Vec<_>>(),
+        files(&[
+            ("src/inner/p.rs", &[format!("{inner}::p").as_str()]),
+            ("src/inner/q.rs", &[format!("{inner}::q").as_str()]),
+        ])
+    );
+    // `src/a/inner/q.rs` is where the item list of `a.rs` would look.
+    let error = load(&[
+        ("src/lib.rs", "mod a;"),
+        ("src/a.rs", a),
+        ("src/a/inner/q.rs", ""),
+        ("src/inner/p.rs", ""),
+    ])
+    .expect_err("a block owns no module directory");
+    assert!(
+        matches!(&error.kind, LoadErrorKind::UnresolvedMod { module } if module == "q"),
+        "{error}"
+    );
+}
+
+/// A block-local module inside a test function carries the test role to the
+/// file it names; the same declaration in a function that is no test does not.
+#[test]
+fn a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function() {
+    let ws = ok(&[
+        (
+            "src/lib.rs",
+            "#[test]\nfn t() {\n    #[path = \"fixture.rs\"]\n    mod fixture;\n}\n\
+             fn plain() {\n    #[path = \"data.rs\"]\n    mod data;\n}\n",
+        ),
+        ("src/fixture.rs", ""),
+        ("src/data.rs", ""),
+    ]);
+    let test_of = |file: &str| {
+        let loaded = ws.files().find(|f| f.path.as_str() == file).expect("file");
+        loaded.reached.iter().map(|r| r.test).collect::<Vec<_>>()
+    };
+    assert_eq!(test_of("src/fixture.rs"), vec![true]);
+    assert_eq!(test_of("src/data.rs"), vec![false]);
+}
+
+/// A block-local `path` that leaves its package is reported by the
+/// module-path check with the declaring file and line; one that stays inside
+/// the package is not.
+#[test]
+fn a_block_local_path_that_leaves_its_package_is_reported_beside_one_that_stays() {
+    let tree: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"p\", \"q\"]\nresolver = \"3\"\n",
+        ),
+        (
+            "p/Cargo.toml",
+            "[package]\nname = \"p\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+        ),
+        (
+            "p/src/lib.rs",
+            "fn run() {\n    #[path = \"own.rs\"]\n    mod own;\n    \
+             #[path = \"../../q/src/shared.rs\"]\n    mod shared;\n}\n",
+        ),
+        ("p/src/own.rs", ""),
+        (
+            "q/Cargo.toml",
+            "[package]\nname = \"q\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+        ),
+        ("q/src/lib.rs", ""),
+        ("q/src/shared.rs", ""),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    let found: Vec<_> = ws
+        .foreign_module_paths()
+        .into_iter()
+        .map(|foreign| {
+            (
+                format!("{}:{}", foreign.site.file, foreign.site.line),
+                foreign.site.resolved.to_string(),
+                foreign
+                    .owner
+                    .map(|id| ws.package(id).expect("package").name.clone()),
+            )
+        })
+        .collect();
+    assert_eq!(
+        found,
+        vec![(
+            "p/src/lib.rs:5".to_owned(),
+            "q/src/shared.rs".to_owned(),
+            Some("q".to_owned())
+        )]
+    );
+}

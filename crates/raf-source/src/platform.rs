@@ -352,7 +352,7 @@ impl<'w> Builder<'w, '_, '_, '_> {
                 self.uncertain |= !item.paths.conditional.is_empty();
                 return self.attrs(&item.attrs);
             }
-            let mut enclosing = body.mods.iter().filter(|item| {
+            let mut enclosing = body.mods.iter().chain(&body.blocks).filter(|item| {
                 item.inline.is_some() && item.span.start_byte <= start && start < item.span.end_byte
             });
             let Some(selected) = enclosing.next() else {
