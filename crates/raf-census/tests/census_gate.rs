@@ -5493,7 +5493,12 @@ impl Rule for FlagRule {
         "flag-rule"
     }
     fn check(&self, ctx: &FileCtx, file: &syn::File, out: &mut Vec<RuleHit>) {
-        let module = ctx.path.trim_start_matches("src/").trim_end_matches(".rs");
+        let module = ctx
+            .path
+            .rsplit('/')
+            .next()
+            .unwrap_or(&ctx.path)
+            .trim_end_matches(".rs");
         for item in &file.items {
             let syn::Item::Fn(item) = item else { continue };
             for statement in &item.block.stmts {
@@ -5535,6 +5540,60 @@ fn rule_modules(hit: &str) -> [(&'static str, String); 2] {
     ]
 }
 
+/// Two packages: the modules live in `demo`, the approved home in `approved`,
+/// so no detector's home-package exemption hides a hit.
+fn rule_tree(mut graph: Builder, modules: &[(&str, &str)], record: Option<&str>) -> MemoryTree {
+    assert!(
+        graph
+            .remove(Triple {
+                subject: Term::iri("#job"),
+                predicate: Term::iri(format!("{}homeSymbol", vocab::REPORT)),
+                object: Term::simple_literal("demo::alias"),
+            })
+            .unwrap()
+    );
+    put(
+        &mut graph,
+        "#job",
+        "homeSymbol",
+        Term::simple_literal("approved::home"),
+    );
+    let manifest = |name: &str| {
+        format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n")
+    };
+    let declared = modules
+        .iter()
+        .map(|(name, _)| format!("pub mod {name};\n"))
+        .collect::<Vec<_>>()
+        .concat();
+    let mut files = vec![
+        (
+            "Cargo.toml".to_owned(),
+            "[workspace]\nmembers = [\"approved\", \"demo\"]\nresolver = \"2\"\n".to_owned(),
+        ),
+        ("approved/Cargo.toml".to_owned(), manifest("approved")),
+        (
+            "approved/src/lib.rs".to_owned(),
+            "/// The operation.\npub fn home(){}\n".to_owned(),
+        ),
+        ("demo/Cargo.toml".to_owned(), manifest("demo")),
+        ("demo/src/lib.rs".to_owned(), declared),
+        (
+            "helpers-ledger.ttl".to_owned(),
+            graph.finish().unwrap().to_text(Format::Turtle).unwrap(),
+        ),
+    ];
+    files.extend(
+        modules
+            .iter()
+            .map(|(name, body)| (format!("demo/src/{name}.rs"), (*body).to_owned())),
+    );
+    if let Some(record) = record {
+        files.push(("census-debt.ttl".to_owned(), record.to_owned()));
+    }
+    files.into_iter().collect()
+}
+
 /// Check a tree whose one enforced job forbids `rule`, ratcheted or not.
 fn rule_report(
     (rule, ratcheted): (&str, bool),
@@ -5559,7 +5618,7 @@ fn rule_report(
     let modules: Vec<_> = modules.iter().map(|(n, b)| (*n, b.as_str())).collect();
     Gate::workspace(".")
         .rules(vec![Box::new(FlagRule) as Box<dyn Rule>])
-        .check_tree(&ratchet_tree_over(graph, &modules, RATCHET_HOME, record))
+        .check_tree(&rule_tree(graph, &modules, record))
         .unwrap()
 }
 
@@ -5573,6 +5632,7 @@ fn ratcheted_rules_record_counted_sites_and_hold_both_directions() {
     for (rule, hit) in [
         ("serde-json", "let _=serde_json::to_string(&1);"),
         ("flag-rule", "flag!();"),
+        ("json-pointer-escape", "let _=\"~0\";"),
     ] {
         let check = |modules: &[(&str, String)], record: Option<&str>| {
             rule_report((rule, true), modules, record)
@@ -5708,6 +5768,7 @@ fn ratchet_rule_declarations_are_enabled_enforced_scoped_and_consistent() {
         "ratchetedRule",
         Term::simple_literal("approved-call"),
     );
+    a_pattern_reached_through_another_jobs_rule_cannot_be_ratcheted();
     for (graph, reason) in [
         (
             forbidding(true, "flag-rule", Some("other-rule")),
@@ -5792,4 +5853,45 @@ fn a_required_rule_cannot_also_be_ratcheted() {
         .unwrap_err()
         .to_string();
     assert!(error.contains("cannot also be ratcheted"), "{error}");
+}
+
+/// Two jobs reach one forbidden pattern, the second by a rule fingerprint.
+fn a_pattern_reached_through_another_jobs_rule_cannot_be_ratcheted() {
+    let load = |graph: Builder| {
+        Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())
+    };
+    // A pattern reached through another job's rule fingerprint cannot be
+    // ratcheted there: that would lift the first job's hard failure. Without the
+    // ratchetedRule the same two jobs load.
+    let via_rule = |ratchet: bool| {
+        let mut graph = declared_pattern(Some("call"), true);
+        put(&mut graph, "", "job", Term::iri("#second"));
+        put(
+            &mut graph,
+            "#second",
+            "type",
+            Term::iri(format!("{}LedgerJob", vocab::REPORT)),
+        );
+        for (key, value) in [
+            ("jobId", "second"),
+            ("summary", "Reaches the pattern by rule"),
+            ("homeSymbol", "demo::home"),
+            ("forbiddenFingerprint", "rule:approved-call"),
+        ] {
+            put(&mut graph, "#second", key, Term::simple_literal(value));
+        }
+        put(&mut graph, "#second", "enforced", Term::boolean(true));
+        if ratchet {
+            put(
+                &mut graph,
+                "#second",
+                "ratchetedRule",
+                Term::simple_literal("approved-call"),
+            );
+        }
+        graph
+    };
+    assert!(load(via_rule(false)).is_ok());
+    let error = load(via_rule(true)).unwrap_err().to_string();
+    assert!(error.contains("state ratcheted on the pattern"), "{error}");
 }

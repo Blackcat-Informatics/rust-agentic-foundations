@@ -342,8 +342,8 @@ impl Ledger {
             jobs.push(job);
         }
         jobs.sort_by(|a, b| a.job.id.cmp(&b.job.id));
-        declarations::ratcheted_rules(&jobs)?;
         let patterns = declarations::patterns(&graph, &root, &mut reached, &jobs)?;
+        declarations::ratcheted_rules(&jobs, &patterns)?;
         let mut distinct = Vec::new();
         let mut distinct_sets = BTreeSet::new();
         for id in targets(&root, "distinct")? {

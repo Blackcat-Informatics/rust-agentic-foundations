@@ -193,7 +193,7 @@ fn matcher(node: &Node<'_>) -> Result<PatternMatcher, E> {
 /// Check every job's `ratchetedRule` ids: each is a rule the job forbids, the
 /// job is enforced, the detector is not job-scoped, and no other job forbids
 /// the same rule outright.
-pub(super) fn ratcheted_rules(jobs: &[LedgerJob]) -> Result<(), Error> {
+pub(super) fn ratcheted_rules(jobs: &[LedgerJob], patterns: &[LedgerPattern]) -> Result<(), Error> {
     let forbids = |job: &LedgerJob, id: &str| {
         job.job.forbidden.fingerprints.iter().any(|fingerprint| {
             matches!(fingerprint, crate::Fingerprint::Rule(rule) if rule.as_str() == id)
@@ -202,7 +202,7 @@ pub(super) fn ratcheted_rules(jobs: &[LedgerJob]) -> Result<(), Error> {
     for job in jobs {
         for id in &job.ratcheted_rules {
             let name = &job.job.id;
-            let reason = if job.patterns.contains(id) {
+            let reason = if patterns.iter().any(|pattern| &pattern.id == id) {
                 "it is a pattern; state ratcheted on the pattern instead"
             } else if !forbids(job, id) {
                 "the job does not forbid it; add forbiddenFingerprint rule:ID first"
