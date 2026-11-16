@@ -61,8 +61,8 @@ pub(crate) fn run(
             baseline(&gate.root()?, *format, out.as_deref(), output)?;
             Ok(0)
         }
-        Command::Check => {
-            let report = evaluate(&gate, registry.as_ref())?;
+        Command::Check(policy) => {
+            let report = evaluate(&policy.apply(gate), registry.as_ref())?;
             for finding in report.findings() {
                 writeln!(output, "{finding}").map_err(stdout)?;
             }
@@ -99,7 +99,8 @@ pub(crate) fn run(
             raf_census::Query::Fingerprint(symbol),
             output,
         ),
-        Command::Debt { write: _ } => {
+        Command::Debt { write: _, policy } => {
+            let gate = policy.apply(gate);
             let receipt = match registry.as_ref() {
                 Some(registry) => gate.write_debt_registry(registry)?,
                 None => gate.write_debt()?,

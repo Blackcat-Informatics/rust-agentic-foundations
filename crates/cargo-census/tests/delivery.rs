@@ -1881,3 +1881,61 @@ fn a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_ne
     assert!(clean.status.success(), "{clean:?}");
     assert_eq!(clean.stdout, Vec::<u8>::new());
 }
+
+/// The module-path requirement is a command-line choice for one run: `check`
+/// and `debt --write` refuse a module whose `path` attribute leaves its package
+/// only when asked, the same workspace is clean without the option, and the
+/// debt record keeps its exact bytes either way.
+#[test]
+fn module_paths_in_package_are_required_by_the_flag_beside_a_clean_run_without_it() {
+    let scratch = fixture();
+    let root = scratch.path();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n[workspace]\nmembers=['other']\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("other/src")).unwrap();
+    fs::write(
+        root.join("other/Cargo.toml"),
+        "[package]\nname='other'\nversion='0.1.0'\nedition='2021'\n",
+    )
+    .unwrap();
+    fs::write(root.join("other/src/lib.rs"), "").unwrap();
+    fs::write(root.join("other/src/shared.rs"), "").unwrap();
+    let lib = root.join("src/lib.rs");
+    let mut text = fs::read_to_string(&lib).unwrap();
+    text.push_str("#[path = \"../other/src/shared.rs\"]\nmod shared;\n");
+    fs::write(&lib, text).unwrap();
+
+    let debt = root.join("census-debt.ttl");
+    let written = run(root, &["debt", "--write"]);
+    assert!(written.status.success(), "{written:?}");
+    let plain = run(root, &["check"]);
+    assert!(plain.status.success(), "{plain:?}");
+    let record = fs::read(&debt).unwrap();
+
+    let required = run(root, &["check", "--require-module-paths-in-package"]);
+    assert_eq!(required.status.code(), Some(1), "{required:?}");
+    let stdout = String::from_utf8_lossy(&required.stdout);
+    assert!(
+        stdout.contains("module path attribute: src/lib.rs:")
+            && stdout.contains("in package `other`"),
+        "{stdout}"
+    );
+    let refused = run(
+        root,
+        &["debt", "--write", "--require-module-paths-in-package"],
+    );
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert_eq!(fs::read(&debt).unwrap(), record);
+
+    source(root, 2);
+    let contained = run(root, &["check", "--require-module-paths-in-package"]);
+    assert!(contained.status.success(), "{contained:?}");
+    let rewritten = run(
+        root,
+        &["debt", "--write", "--require-module-paths-in-package"],
+    );
+    assert!(rewritten.status.success(), "{rewritten:?}");
+}
