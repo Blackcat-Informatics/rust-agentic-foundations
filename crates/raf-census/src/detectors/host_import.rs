@@ -299,6 +299,10 @@ impl Identity {
                     .unwrap_or(&declared)
                     .to_owned())
             ),
+            None if self.constructor => self
+                .name
+                .clone()
+                .unwrap_or_else(|| "constructor".to_owned()),
             None => self.name.clone().unwrap_or(declared),
         };
         let place = namespaces

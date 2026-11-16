@@ -3499,10 +3499,19 @@ fn foreign_host_import_names_a_class_by_its_js_class_or_constructed_type() {
         )
     };
     let in_home = |import: String| format!("/// Home.\npub mod home {{{import}}}");
-    // A constructor is named by the class it builds, not by `new`.
+    // A constructor is named by the class it builds, not by its Rust name: an overload
+    // under another name builds the same class and matches.
     let home = in_home(bound("constructor", "pub fn new() -> Date"));
     assert_eq!(
         copies(&home, &bound("constructor", "fn new() -> Date"), &[]),
+        1
+    );
+    assert_eq!(
+        copies(
+            &home,
+            &bound("constructor", "fn new_with_millis(ms: f64) -> Date"),
+            &[]
+        ),
         1
     );
     assert_eq!(

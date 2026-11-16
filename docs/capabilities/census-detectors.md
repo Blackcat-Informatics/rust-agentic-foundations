@@ -190,10 +190,11 @@ it, and by its imported name. The kinds are `module`, `raw_module`, `inline_js`,
 the receiver type of a `method` import without a `js_class`, the returned class of a
 `constructor` import without a `js_class`, `wasm_import_module` and `name` of `link`,
 and `indexing_getter`, `indexing_setter` and `indexing_deleter`. The name is
-`js_name` or `link_name`, else the declared name. For a `getter` or `setter` the
-property is the attribute's own value, then `js_name` or `link_name`, then the declared name (without
-a `set_` prefix for a setter), and a read and a write are different imports. The same value under two kinds is two
-namespaces. Arguments of `wasm_bindgen` that do not select a host function, such as
+`js_name` or `link_name`, else the declared name, except that a `constructor`
+import with neither is named `constructor` whatever its Rust name. For a `getter` or
+`setter` the property is the attribute's own value, then `js_name` or `link_name`, then the
+declared name (without a `set_` prefix for a setter), and a read and a write are different
+imports. The same value under two kinds is two namespaces. Arguments of `wasm_bindgen` that do not select a host function, such as
 `catch` and `variadic`, are ignored. Attributes inside `cfg_attr` are read. The `wasm_bindgen` attribute is read by its last path segment, so a re-exported
 `wasm_bindgen::prelude::wasm_bindgen` counts; `link`, `link_name` and `cfg_attr` are
 read by their bare names only. An
@@ -416,7 +417,7 @@ required findings with neighbouring clean source.
   static method matches the namespace form of the same function, and a method
   receiver does not. Two spellings of one property, by `js_name` and by the attribute's own value, match, and
   two `js_name` values on one declared name do not. A home without an import and an unplaceable argument, including a `js_name` with no value, each
-  refuse the job beside a valid neighbour. Two constructors of one class match and
+  refuse the job beside a valid neighbour. Two constructors of one class match under any Rust names, and
   constructors of different classes do not; methods of one `js_class` match across
   Rust receiver types and methods of different classes do not.
 - `vocabulary-literal` fixtures flag a single-line literal with and without a
