@@ -1043,3 +1043,31 @@ fn block_local_modules_are_selected_by_the_configuration_beside_an_active_one() 
             .any(|p| p.ends_with("platform.rs") || p.ends_with("gone.rs"))
     );
 }
+
+/// A configured load drops an inactive statement, match arm or struct field
+/// before it reads the modules inside it, beside an active statement whose
+/// module is followed.
+#[test]
+fn modules_inside_inactive_statements_are_not_followed_beside_an_active_one() {
+    let source = "pub struct S { a: u8, b: u8 }\n\
+        pub fn f() {\n    \
+        #[cfg(windows)]\n    {\n        #[path = \"gone1.rs\"]\n        mod one;\n    }\n    \
+        #[cfg(windows)]\n    let _x = {\n        #[path = \"gone2.rs\"]\n        mod two;\n        0\n    };\n    \
+        let _y = match 0 {\n        #[cfg(windows)]\n        _ => {\n            #[path = \"gone3.rs\"]\n            mod three;\n        }\n        _ => {}\n    };\n    \
+        let _z = S {\n        #[cfg(windows)]\n        a: {\n            #[path = \"gone4.rs\"]\n            mod four;\n            0\n        },\n        b: 1,\n    };\n    \
+        #[cfg(unix)]\n    {\n        #[path = \"linux.rs\"]\n        mod active;\n    }\n}\n";
+    let tree = fixture(MANIFEST, source);
+    let ws = load(
+        &tree,
+        Some(context(&[], "consumer")),
+        Some(context(&[], "provider")),
+        "",
+        &LoadOptions::default(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    let loaded: Vec<String> = ws.files().map(|f| f.path.to_string()).collect();
+    assert!(
+        loaded.iter().any(|p| p == "consumer/src/linux.rs"),
+        "{loaded:?}"
+    );
+}

@@ -207,6 +207,18 @@ struct BlockSelection<'a> {
     failed: Option<LoadError>,
 }
 
+impl BlockSelection<'_> {
+    /// Apply `cfg` and `cfg_attr` to a list of attributed positions inside an
+    /// expression, dropping the inactive ones.
+    fn select<T>(&mut self, values: &mut Vec<T>, get: fn(&mut T) -> Option<&mut Vec<Attribute>>) {
+        if self.failed.is_none()
+            && let Err(error) = select(values, get, self.cfg, self.meter, self.path)
+        {
+            self.failed = Some(error);
+        }
+    }
+}
+
 impl VisitMut for BlockSelection<'_> {
     fn visit_block_mut(&mut self, block: &mut syn::Block) {
         for mut statement in std::mem::take(&mut block.stmts) {
@@ -222,11 +234,93 @@ impl VisitMut for BlockSelection<'_> {
                 if let Some(item) = one.pop() {
                     block.stmts.push(syn::Stmt::Item(item));
                 }
-            } else {
-                self.visit_stmt_mut(&mut statement);
-                block.stmts.push(statement);
+                continue;
+            }
+            let active = match statement_attrs(&mut statement) {
+                Some(attrs) => attributes(attrs, self.cfg, self.meter, self.path),
+                None => Ok(true),
+            };
+            match active {
+                Ok(true) => {
+                    self.visit_stmt_mut(&mut statement);
+                    block.stmts.push(statement);
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    self.failed = Some(error);
+                    return;
+                }
             }
         }
+    }
+
+    fn visit_expr_match_mut(&mut self, expression: &mut syn::ExprMatch) {
+        self.select(&mut expression.arms, |arm| Some(&mut arm.attrs));
+        syn::visit_mut::visit_expr_match_mut(self, expression);
+    }
+
+    fn visit_expr_struct_mut(&mut self, expression: &mut syn::ExprStruct) {
+        let mut fields: Vec<_> = std::mem::take(&mut expression.fields).into_iter().collect();
+        self.select(&mut fields, |field| Some(&mut field.attrs));
+        expression.fields = fields.into_iter().collect();
+        syn::visit_mut::visit_expr_struct_mut(self, expression);
+    }
+}
+
+/// The attributes of a statement that is not an item: those of a `let`, of a
+/// macro statement and of an expression statement.
+fn statement_attrs(statement: &mut syn::Stmt) -> Option<&mut Vec<Attribute>> {
+    match statement {
+        syn::Stmt::Local(local) => Some(&mut local.attrs),
+        syn::Stmt::Macro(mac) => Some(&mut mac.attrs),
+        syn::Stmt::Expr(expression, _) => expr_attrs(expression),
+        syn::Stmt::Item(_) => None,
+    }
+}
+
+fn expr_attrs(expression: &mut syn::Expr) -> Option<&mut Vec<Attribute>> {
+    use syn::Expr;
+    match expression {
+        Expr::Array(e) => Some(&mut e.attrs),
+        Expr::Assign(e) => Some(&mut e.attrs),
+        Expr::Async(e) => Some(&mut e.attrs),
+        Expr::Await(e) => Some(&mut e.attrs),
+        Expr::Binary(e) => Some(&mut e.attrs),
+        Expr::Block(e) => Some(&mut e.attrs),
+        Expr::Break(e) => Some(&mut e.attrs),
+        Expr::Call(e) => Some(&mut e.attrs),
+        Expr::Cast(e) => Some(&mut e.attrs),
+        Expr::Closure(e) => Some(&mut e.attrs),
+        Expr::Const(e) => Some(&mut e.attrs),
+        Expr::Continue(e) => Some(&mut e.attrs),
+        Expr::Field(e) => Some(&mut e.attrs),
+        Expr::ForLoop(e) => Some(&mut e.attrs),
+        Expr::Group(e) => Some(&mut e.attrs),
+        Expr::If(e) => Some(&mut e.attrs),
+        Expr::Index(e) => Some(&mut e.attrs),
+        Expr::Infer(e) => Some(&mut e.attrs),
+        Expr::Let(e) => Some(&mut e.attrs),
+        Expr::Lit(e) => Some(&mut e.attrs),
+        Expr::Loop(e) => Some(&mut e.attrs),
+        Expr::Macro(e) => Some(&mut e.attrs),
+        Expr::Match(e) => Some(&mut e.attrs),
+        Expr::MethodCall(e) => Some(&mut e.attrs),
+        Expr::Paren(e) => Some(&mut e.attrs),
+        Expr::Path(e) => Some(&mut e.attrs),
+        Expr::Range(e) => Some(&mut e.attrs),
+        Expr::RawAddr(e) => Some(&mut e.attrs),
+        Expr::Reference(e) => Some(&mut e.attrs),
+        Expr::Repeat(e) => Some(&mut e.attrs),
+        Expr::Return(e) => Some(&mut e.attrs),
+        Expr::Struct(e) => Some(&mut e.attrs),
+        Expr::Try(e) => Some(&mut e.attrs),
+        Expr::TryBlock(e) => Some(&mut e.attrs),
+        Expr::Tuple(e) => Some(&mut e.attrs),
+        Expr::Unary(e) => Some(&mut e.attrs),
+        Expr::Unsafe(e) => Some(&mut e.attrs),
+        Expr::While(e) => Some(&mut e.attrs),
+        Expr::Yield(e) => Some(&mut e.attrs),
+        _ => None,
     }
 }
 

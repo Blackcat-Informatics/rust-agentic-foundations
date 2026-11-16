@@ -128,9 +128,6 @@ struct DirCtx<'a> {
     /// The declaring file and line of the inline module `path` attribute
     /// that set `dir`, if one did.
     via: Option<(RelPath, usize)>,
-    /// True when the declarations here are inside a block, which owns no
-    /// directory for its modules.
-    block: bool,
     // The original subgrant is refunded only after the owned string dies.
     _admission: Option<OwnedAdmission<FrameAdmission<'a>>>,
 }
@@ -166,7 +163,6 @@ impl<'a> DirCtx<'a> {
             dir,
             relative,
             via,
-            block: false,
             _admission: admission,
         })
     }
@@ -178,19 +174,13 @@ impl<'a> DirCtx<'a> {
             self.via.clone(),
             parser,
         )
-        .map(|copy| copy.in_block(self.block))
-    }
-
-    /// The same context, marked as inside a block when `block` holds.
-    fn in_block(mut self, block: bool) -> Self {
-        self.block = block;
-        self
     }
 
     /// The directory under which a module declared here is found by name:
-    /// the module directory, or the directory itself where no module
-    /// directory is owned, which is inside a block and for a declaration
-    /// that is itself in one.
+    /// the module directory, or the directory itself for a declaration inside
+    /// a block, which owns no module directory. A module inside an inline
+    /// module of a block has no stem to fold either, since entering the
+    /// inline module drops it.
     fn declared_dir(
         &self,
         unowned: bool,
@@ -211,9 +201,6 @@ impl<'a> DirCtx<'a> {
         file: &RelPath,
         line: usize,
     ) -> Result<RelPath, LoadError> {
-        if self.block {
-            return Ok(self.dir.clone());
-        }
         match &self.relative {
             Some(stem) => join(&self.dir, stem, file, line, origin),
             None => Ok(self.dir.clone()),
@@ -349,10 +336,9 @@ struct Declared<'a> {
 }
 
 impl Declared<'_> {
-    /// True when declarations that this one declares are in a block: it is
-    /// declared in one, or inside a module that is.
-    fn unowned(&self) -> Result<bool, LoadError> {
-        Ok(self.ctx.block || self.at.body(&self.file)?.is_block_local(self.position))
+    /// True when the declaration is inside a block.
+    fn in_block(&self) -> Result<bool, LoadError> {
+        Ok(self.at.body(&self.file)?.is_block_local(self.position))
     }
 
     fn module(&self) -> Result<&ModFact, LoadError> {
@@ -619,7 +605,7 @@ impl<'a> Walker<'a> {
             let Some(module) = body.declaration(frontier.0) else {
                 break;
             };
-            let unowned = ctx.block || body.is_block_local(frontier.0);
+            let unowned = body.is_block_local(frontier.0);
             if module.inline.is_some() {
                 frontier = (frontier.0 + 1, 0);
                 continue;
@@ -1057,7 +1043,7 @@ impl<'a> Walker<'a> {
                 predicate: None,
             }));
         }
-        let unowned = declared.unowned()?;
+        let unowned = declared.in_block()?;
         let segment = if declared.at.body(file)?.is_block_local(declared.position) {
             module.block_segment()
         } else {
@@ -1130,9 +1116,7 @@ impl<'a> Walker<'a> {
         unowned: bool,
     ) -> Result<(), LoadError> {
         let ctx = &declared.ctx;
-        // A `path` on an inline module makes it own a directory again, in a
-        // block too.
-        let (dir, via, block) = if let Some(path) = module.paths.unconditional.first() {
+        let (dir, via) = if let Some(path) = module.paths.unconditional.first() {
             let origin = Origin::PathAttr {
                 module: module.name.clone(),
                 predicate: None,
@@ -1140,7 +1124,6 @@ impl<'a> Walker<'a> {
             (
                 join(&ctx.dir, path, site.file, site.line, &origin)?,
                 Some((site.file.clone(), site.line)),
-                false,
             )
         } else {
             let by_name = Origin::ModDecl {
@@ -1150,13 +1133,12 @@ impl<'a> Walker<'a> {
             (
                 join(&base, &module.name, site.file, site.line, &by_name)?,
                 ctx.via.clone(),
-                unowned,
             )
         };
         self.stack.push(Frame::Decls {
             at: declared.at.copy(Some(declared.position), self.parser)?,
             file: site.file.clone(),
-            ctx: DirCtx::new(dir, None, via, self.parser)?.in_block(block),
+            ctx: DirCtx::new(dir, None, via, self.parser)?,
             scope: scope.clone(),
             next: 0,
             frontier: (0, 0),

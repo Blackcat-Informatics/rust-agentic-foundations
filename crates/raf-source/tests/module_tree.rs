@@ -1584,11 +1584,11 @@ fn test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block() {
     assert_eq!(names, vec!["listed".to_owned()]);
 }
 
-/// A `path` on an inline module in a block makes it own a directory again, so
-/// the plain module inside it is found in the module directory of the file,
-/// where it is refused without the `path`.
+/// A `path` on an inline module in a block names a directory beside the
+/// declaring file, never one below the module directory of a non-`mod.rs`
+/// file, and the plain module inside it is found there.
 #[test]
-fn a_path_on_an_inline_module_in_a_block_makes_it_own_a_directory_again() {
+fn a_path_on_an_inline_module_in_a_block_names_a_directory_beside_the_declaring_file() {
     let a = "fn f() {\n    #[path = \"dir\"]\n    mod inner {\n        mod q;\n    }\n}\n";
     let ws = ok(&[
         ("src/lib.rs", "mod a;"),
@@ -1602,5 +1602,15 @@ fn a_path_on_an_inline_module_in_a_block_makes_it_own_a_directory_again() {
             .find(|(path, _)| path == "src/dir/q.rs")
             .map(|(_, modules)| modules),
         Some(vec![format!("{inner}::q")])
+    );
+    let error = load(&[
+        ("src/lib.rs", "mod a;"),
+        ("src/a.rs", a),
+        ("src/a/dir/q.rs", ""),
+    ])
+    .expect_err("the directory is not below the module directory");
+    assert!(
+        matches!(&error.kind, LoadErrorKind::UnresolvedMod { module } if module == "q"),
+        "{error}"
     );
 }

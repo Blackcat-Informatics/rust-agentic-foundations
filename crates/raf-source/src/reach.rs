@@ -1000,7 +1000,10 @@ impl<'a> Walk<'a> {
                 }
             }
             for site in &index.block_modules {
-                work::add(Work::ReachSteps, 1);
+                work::add(
+                    Work::ReachSteps,
+                    1 + in_module.get(&site.parent).map_or(0, Vec::len),
+                );
                 let owner = in_module
                     .get(&site.parent)
                     .into_iter()

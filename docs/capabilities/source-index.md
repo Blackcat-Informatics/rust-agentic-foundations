@@ -948,9 +948,10 @@ bindings:
     - raf_source::test_crate::module_tree::a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function
     - raf_source::test_crate::module_tree::the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_decided_one
     - raf_source::test_crate::module_tree::test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block
-    - raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_makes_it_own_a_directory_again
+    - raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_names_a_directory_beside_the_declaring_file
     - raf_source::test_crate::reachability::code_in_a_block_local_module_is_reached_with_the_function_that_declares_it
     - raf_source::test_crate::configured_sources::block_local_modules_are_selected_by_the_configuration_beside_an_active_one
+    - raf_source::test_crate::configured_sources::modules_inside_inactive_statements_are_not_followed_beside_an_active_one
     - raf_source::test_crate::module_tree::a_block_local_path_attribute_is_relative_to_the_declaring_files_directory
     - raf_source::test_crate::module_tree::a_block_local_path_that_leaves_its_package_is_reported_beside_one_that_stays
     - raf_source::test_crate::module_tree::a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped
@@ -2215,7 +2216,7 @@ named by a `path` attribute is treated like a `mod.rs` for its own children. Two
 `path` attributes that apply unconditionally are an error.
 
 ### Module declarations inside blocks
-<!-- raf:tested-by raf_source::test_crate::module_tree::a_path_module_declared_in_a_block_is_followed_and_indexed_apart_from_the_module_scope,raf_source::test_crate::module_tree::a_block_local_path_attribute_is_relative_to_the_declaring_files_directory,raf_source::test_crate::module_tree::a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_module_directory,raf_source::test_crate::module_tree::an_inline_module_in_a_block_resolves_its_children_without_the_files_module_directory,raf_source::test_crate::module_tree::a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function,raf_source::test_crate::module_tree::the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_decided_one,raf_source::test_crate::module_tree::test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block,raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_makes_it_own_a_directory_again,raf_source::test_crate::reachability::code_in_a_block_local_module_is_reached_with_the_function_that_declares_it,raf_source::test_crate::configured_sources::block_local_modules_are_selected_by_the_configuration_beside_an_active_one -->
+<!-- raf:tested-by raf_source::test_crate::module_tree::a_path_module_declared_in_a_block_is_followed_and_indexed_apart_from_the_module_scope,raf_source::test_crate::module_tree::a_block_local_path_attribute_is_relative_to_the_declaring_files_directory,raf_source::test_crate::module_tree::a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_module_directory,raf_source::test_crate::module_tree::an_inline_module_in_a_block_resolves_its_children_without_the_files_module_directory,raf_source::test_crate::module_tree::a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function,raf_source::test_crate::configured_sources::modules_inside_inactive_statements_are_not_followed_beside_an_active_one,raf_source::test_crate::module_tree::the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_decided_one,raf_source::test_crate::module_tree::test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block,raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_names_a_directory_beside_the_declaring_file,raf_source::test_crate::reachability::code_in_a_block_local_module_is_reached_with_the_function_that_declares_it,raf_source::test_crate::configured_sources::block_local_modules_are_selected_by_the_configuration_beside_an_active_one -->
 
 A module declared inside a block is recorded as a module fact with its attributes
 and followed by the walk, once for each target and module path that reaches the
@@ -2244,12 +2245,16 @@ in it. The items of its file are indexed under that path, and the declaration ha
 item of its own. Reachability reaches the items and impl blocks of the module from
 the innermost indexed item whose span holds the declaration, so code that only such a
 module uses stays reached with the item, and a module in an item that nothing reaches
-is not reached. The test platform guard of an item in the module is unknown, as for
+is not reached. A module declared inside `const _` is never reached, because that
+constant is not an indexed item. The test platform guard of an item in the module is unknown, as for
 any ancestry it cannot read. `test_fns()` does not list a `#[test]` function inside
 the module, because the test harness collects no test inside a block and the path
-names no filter that cargo accepts. A configured load selects the declaration by its
-`cfg` and `cfg_attr` attributes as it selects one of an item list, so an inactive one
-is not followed.
+names no filter that cargo accepts. Such a function keeps its test role in the index,
+so a consumer that reads the role, such as a coverage check, still sees a test that
+no binding can name. A configured load selects the declaration by its
+`cfg` and `cfg_attr` attributes as it selects one of an item list, and drops an
+inactive `let`, expression or macro statement, match arm and struct field before it
+reads the modules inside it, so an inactive one is not followed.
 
 The test role of the item that holds the block applies to the module, and that of
 each function inside the block. Not followed: a declaration inside the tokens of a
@@ -5507,6 +5512,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::configured_sources::empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::forwarding_default_and_inherited_feature_requirements_are_validated_at_the_actual_destination` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::modules_inside_inactive_statements_are_not_followed_beside_an_active_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
@@ -5790,7 +5796,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::module_tree::a_path_attribute_on_an_inline_module_in_a_non_mod_file_replaces_its_directory_component` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_path_attribute_on_an_inline_module_replaces_its_directory_component` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_path_module_declared_in_a_block_is_followed_and_indexed_apart_from_the_module_scope` | test | [Contract](#contract) |
-| `raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_makes_it_own_a_directory_again` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_names_a_directory_beside_the_declaring_file` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_module_directory` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_raw_identifier_module_reads_the_plain_file_name` | test | [Verification](#verification) |

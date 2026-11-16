@@ -461,6 +461,9 @@ pub(crate) fn guard<'w>(
                 .work(index.module_of.len(), &item.file, Some(item.name_line))?;
             let mut sites = index.module_of.iter().filter(|(_, child)| **child == at);
             let Some((&decl, _)) = sites.next() else {
+                builder
+                    .meter
+                    .work(index.block_modules.len(), &item.file, Some(item.name_line))?;
                 if index.block_modules.iter().any(|block| block.module == at) {
                     // A module declared inside a block has no item whose
                     // attributes could be read, so its ancestry stays unknown.
