@@ -352,7 +352,7 @@ impl<'w> Builder<'w, '_, '_, '_> {
                 self.uncertain |= !item.paths.conditional.is_empty();
                 return self.attrs(&item.attrs);
             }
-            let mut enclosing = body.mods.iter().filter(|item| {
+            let mut enclosing = body.mods.iter().chain(&body.blocks).filter(|item| {
                 item.inline.is_some() && item.span.start_byte <= start && start < item.span.end_byte
             });
             let Some(selected) = enclosing.next() else {
@@ -461,6 +461,15 @@ pub(crate) fn guard<'w>(
                 .work(index.module_of.len(), &item.file, Some(item.name_line))?;
             let mut sites = index.module_of.iter().filter(|(_, child)| **child == at);
             let Some((&decl, _)) = sites.next() else {
+                builder
+                    .meter
+                    .work(index.block_modules.len(), &item.file, Some(item.name_line))?;
+                if index.block_modules.iter().any(|block| block.module == at) {
+                    // A module declared inside a block has no item whose
+                    // attributes could be read, so its ancestry stays unknown.
+                    builder.uncertain = true;
+                    break;
+                }
                 return Err(missing());
             };
             if sites.next().is_some() {

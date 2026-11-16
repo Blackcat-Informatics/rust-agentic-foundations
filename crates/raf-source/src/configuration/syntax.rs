@@ -8,6 +8,7 @@ use super::{
 };
 use syn::ext::IdentExt as _;
 use syn::spanned::Spanned as _;
+use syn::visit_mut::VisitMut;
 use syn::{Attribute, Meta};
 
 pub(crate) fn predicate(
@@ -165,9 +166,213 @@ fn items(
             }
             _ => {}
         }
+        blocks(item, cfg, meter, path)?;
     }
     Ok(())
 }
+
+/// Select the module declarations inside the function bodies and initializers
+/// of an item, as `items` selects those of an item list.
+fn blocks(
+    item: &mut syn::Item,
+    cfg: &ActiveConfiguration,
+    meter: &Meter,
+    path: &RelPath,
+) -> Result<(), LoadError> {
+    if !matches!(
+        item,
+        syn::Item::Fn(_)
+            | syn::Item::Const(_)
+            | syn::Item::Static(_)
+            | syn::Item::Impl(_)
+            | syn::Item::Trait(_)
+    ) {
+        return Ok(());
+    }
+    let mut selection = BlockSelection {
+        cfg,
+        meter,
+        path,
+        failed: None,
+    };
+    selection.visit_item_mut(item);
+    selection.failed.map_or(Ok(()), Err)
+}
+
+/// Applies `cfg` and `cfg_attr` to the items declared in blocks.
+struct BlockSelection<'a> {
+    cfg: &'a ActiveConfiguration,
+    meter: &'a Meter,
+    path: &'a RelPath,
+    failed: Option<LoadError>,
+}
+
+impl BlockSelection<'_> {
+    /// Apply `cfg` and `cfg_attr` to a list of attributed positions inside an
+    /// expression, dropping the inactive ones.
+    fn select<T>(&mut self, values: &mut Vec<T>, get: fn(&mut T) -> Option<&mut Vec<Attribute>>) {
+        // Most lists carry no attribute; they cost nothing, and the selection
+        // of the rest is charged once each.
+        if values
+            .iter_mut()
+            .all(|value| get(value).is_none_or(|attrs| attrs.is_empty()))
+        {
+            return;
+        }
+        if self.failed.is_none()
+            && let Err(error) = select(values, get, self.cfg, self.meter, self.path)
+        {
+            self.failed = Some(error);
+        }
+    }
+}
+
+impl BlockSelection<'_> {
+    /// Select the elements of a comma separated list of expressions.
+    fn select_list<P: Default>(&mut self, list: &mut syn::punctuated::Punctuated<syn::Expr, P>) {
+        if list
+            .iter_mut()
+            .all(|value| expr_attrs(value).is_none_or(|attrs| attrs.is_empty()))
+        {
+            return;
+        }
+        let mut values: Vec<_> = std::mem::take(list).into_iter().collect();
+        self.select(&mut values, expr_attrs);
+        *list = values.into_iter().collect();
+    }
+}
+
+impl VisitMut for BlockSelection<'_> {
+    fn visit_block_mut(&mut self, block: &mut syn::Block) {
+        for mut statement in std::mem::take(&mut block.stmts) {
+            if self.failed.is_some() {
+                return;
+            }
+            if let syn::Stmt::Item(item) = statement {
+                let mut one = vec![item];
+                if let Err(error) = items(&mut one, self.cfg, self.meter, self.path) {
+                    self.failed = Some(error);
+                    return;
+                }
+                if let Some(item) = one.pop() {
+                    block.stmts.push(syn::Stmt::Item(item));
+                }
+                continue;
+            }
+            let active = match statement_attrs(&mut statement) {
+                Some(attrs) if !attrs.is_empty() => {
+                    attributes(attrs, self.cfg, self.meter, self.path)
+                }
+                _ => Ok(true),
+            };
+            match active {
+                Ok(true) => {
+                    self.visit_stmt_mut(&mut statement);
+                    block.stmts.push(statement);
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    self.failed = Some(error);
+                    return;
+                }
+            }
+        }
+    }
+
+    fn visit_expr_match_mut(&mut self, expression: &mut syn::ExprMatch) {
+        self.select(&mut expression.arms, |arm| Some(&mut arm.attrs));
+        syn::visit_mut::visit_expr_match_mut(self, expression);
+    }
+
+    fn visit_expr_array_mut(&mut self, expression: &mut syn::ExprArray) {
+        self.select_list(&mut expression.elems);
+        syn::visit_mut::visit_expr_array_mut(self, expression);
+    }
+
+    fn visit_expr_call_mut(&mut self, expression: &mut syn::ExprCall) {
+        self.select_list(&mut expression.args);
+        syn::visit_mut::visit_expr_call_mut(self, expression);
+    }
+
+    fn visit_expr_method_call_mut(&mut self, expression: &mut syn::ExprMethodCall) {
+        self.select_list(&mut expression.args);
+        syn::visit_mut::visit_expr_method_call_mut(self, expression);
+    }
+
+    fn visit_expr_tuple_mut(&mut self, expression: &mut syn::ExprTuple) {
+        self.select_list(&mut expression.elems);
+        syn::visit_mut::visit_expr_tuple_mut(self, expression);
+    }
+
+    fn visit_expr_struct_mut(&mut self, expression: &mut syn::ExprStruct) {
+        if expression.fields.iter().all(|field| field.attrs.is_empty()) {
+            syn::visit_mut::visit_expr_struct_mut(self, expression);
+            return;
+        }
+        let mut fields: Vec<_> = std::mem::take(&mut expression.fields).into_iter().collect();
+        self.select(&mut fields, |field| Some(&mut field.attrs));
+        expression.fields = fields.into_iter().collect();
+        syn::visit_mut::visit_expr_struct_mut(self, expression);
+    }
+}
+
+/// The attributes of a statement that is not an item: those of a `let`, of a
+/// macro statement and of an expression statement.
+fn statement_attrs(statement: &mut syn::Stmt) -> Option<&mut Vec<Attribute>> {
+    match statement {
+        syn::Stmt::Local(local) => Some(&mut local.attrs),
+        syn::Stmt::Macro(mac) => Some(&mut mac.attrs),
+        syn::Stmt::Expr(expression, _) => expr_attrs(expression),
+        syn::Stmt::Item(_) => None,
+    }
+}
+
+fn expr_attrs(expression: &mut syn::Expr) -> Option<&mut Vec<Attribute>> {
+    use syn::Expr;
+    match expression {
+        Expr::Array(e) => Some(&mut e.attrs),
+        Expr::Assign(e) => Some(&mut e.attrs),
+        Expr::Async(e) => Some(&mut e.attrs),
+        Expr::Await(e) => Some(&mut e.attrs),
+        Expr::Binary(e) => Some(&mut e.attrs),
+        Expr::Block(e) => Some(&mut e.attrs),
+        Expr::Break(e) => Some(&mut e.attrs),
+        Expr::Call(e) => Some(&mut e.attrs),
+        Expr::Cast(e) => Some(&mut e.attrs),
+        Expr::Closure(e) => Some(&mut e.attrs),
+        Expr::Const(e) => Some(&mut e.attrs),
+        Expr::Continue(e) => Some(&mut e.attrs),
+        Expr::Field(e) => Some(&mut e.attrs),
+        Expr::ForLoop(e) => Some(&mut e.attrs),
+        Expr::Group(e) => Some(&mut e.attrs),
+        Expr::If(e) => Some(&mut e.attrs),
+        Expr::Index(e) => Some(&mut e.attrs),
+        Expr::Infer(e) => Some(&mut e.attrs),
+        Expr::Let(e) => Some(&mut e.attrs),
+        Expr::Lit(e) => Some(&mut e.attrs),
+        Expr::Loop(e) => Some(&mut e.attrs),
+        Expr::Macro(e) => Some(&mut e.attrs),
+        Expr::Match(e) => Some(&mut e.attrs),
+        Expr::MethodCall(e) => Some(&mut e.attrs),
+        Expr::Paren(e) => Some(&mut e.attrs),
+        Expr::Path(e) => Some(&mut e.attrs),
+        Expr::Range(e) => Some(&mut e.attrs),
+        Expr::RawAddr(e) => Some(&mut e.attrs),
+        Expr::Reference(e) => Some(&mut e.attrs),
+        Expr::Repeat(e) => Some(&mut e.attrs),
+        Expr::Return(e) => Some(&mut e.attrs),
+        Expr::Struct(e) => Some(&mut e.attrs),
+        Expr::Try(e) => Some(&mut e.attrs),
+        Expr::TryBlock(e) => Some(&mut e.attrs),
+        Expr::Tuple(e) => Some(&mut e.attrs),
+        Expr::Unary(e) => Some(&mut e.attrs),
+        Expr::Unsafe(e) => Some(&mut e.attrs),
+        Expr::While(e) => Some(&mut e.attrs),
+        Expr::Yield(e) => Some(&mut e.attrs),
+        _ => None,
+    }
+}
+
 fn item_attrs(item: &mut syn::Item) -> Option<&mut Vec<Attribute>> {
     match item {
         syn::Item::Const(item) => Some(&mut item.attrs),

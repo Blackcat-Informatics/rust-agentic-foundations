@@ -66,15 +66,25 @@ fn nested_impl_self_is_read_in_the_enclosing_members_context() {
 }
 
 #[test]
-fn impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl() {
+fn impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl_and_one_in_a_block_module()
+ {
     let ws = lib(
         "pub struct S; const _: () = { impl S { fn anonymous() {} } }; \
          const NAMED: () = { impl S { fn named() {} } }; \
          pub fn f() { impl S { fn local() {} } } \
-         impl S { pub fn ordinary() {} }",
+         impl S { pub fn ordinary() {} } \
+         pub fn g() { mod mm { impl crate::S { pub fn in_module() {} } } }",
     );
     let blocks: Vec<_> = ws.impls().collect();
-    assert_eq!(blocks.len(), 1);
+    // An impl directly in a block is no item of a module and is not listed;
+    // one in a module declared in a block is, under that module's path.
+    assert_eq!(blocks.len(), 2);
+    assert!(
+        blocks[1].module.starts_with("demo::{mm@"),
+        "{}",
+        blocks[1].module
+    );
+    assert_eq!(blocks[1].members.len(), 1);
     assert_eq!(blocks[0].members.len(), 1);
     assert_eq!(
         blocks[0].members[0],
@@ -926,4 +936,58 @@ fn a_walk_past_the_item_bytes_budget_is_refused_and_one_within_it_is_given() {
         names(&ws, &reach(&ws, &[value(&ws, "demo::api")])),
         ["demo::api", "demo::helper"]
     );
+}
+
+/// The item at a path, found by walking every item: a module declared inside a
+/// block has no name a path resolution can start from.
+fn by_path(ws: &Workspace, suffix: &str) -> Node {
+    let found: Vec<_> = ws
+        .items()
+        .filter(|item| item.path.ends_with(suffix))
+        .collect();
+    assert_eq!(found.len(), 1, "{suffix}");
+    Node::Item(found[0].id)
+}
+
+/// What a module declared inside a function body reaches is reached with the
+/// function, as for a module of an item list, and an unreached function
+/// reaches nothing through its modules.
+#[test]
+fn code_in_a_block_local_module_is_reached_with_the_function_that_declares_it() {
+    let ws = load(&[
+        (
+            "src/lib.rs",
+            "pub fn run() {\n    mod inline { pub fn g() { crate::helper(); } }\n    \
+             #[path = \"out.rs\"]\n    mod out;\n}\n\
+             pub fn idle() {\n    mod unused { pub fn h() { crate::other(); } }\n}\n\
+             fn helper() {}\nfn other() {}\nfn from_file() {}\n",
+        ),
+        ("src/out.rs", "pub fn f() { crate::from_file(); }"),
+    ]);
+    let reached = reach(&ws, &[value(&ws, "demo::run")]);
+    assert!(reached.contains(value(&ws, "demo::helper")));
+    assert!(reached.contains(value(&ws, "demo::from_file")));
+    assert!(reached.contains(by_path(&ws, "::g")));
+    assert!(!reached.contains(value(&ws, "demo::other")));
+    assert!(!reached.contains(by_path(&ws, "::h")));
+}
+
+/// Two files that one module path merges, here the alternatives of a
+/// `cfg_attr` path, can declare a block module at one offset; each file keeps
+/// the containment edge of its own function, so each root reaches its helper.
+#[test]
+fn block_modules_at_one_offset_in_two_alternative_files_each_keep_their_containment() {
+    let body = |name: &str, helper: &str| {
+        format!("pub fn {name}() {{ mod local {{ pub fn g() {{ crate::{helper}(); }} }} }}")
+    };
+    let ws = load(&[
+        (
+            "src/lib.rs",
+            "#[cfg_attr(unix, path = \"a.rs\")]\n#[cfg_attr(windows, path = \"b.rs\")]\nmod p;\nfn ha() {}\nfn hb() {}\n",
+        ),
+        ("src/a.rs", &body("aa", "ha")),
+        ("src/b.rs", &body("bb", "hb")),
+    ]);
+    assert!(reach(&ws, &[value(&ws, "demo::p::aa")]).contains(value(&ws, "demo::ha")));
+    assert!(reach(&ws, &[value(&ws, "demo::p::bb")]).contains(value(&ws, "demo::hb")));
 }

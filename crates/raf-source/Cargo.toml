@@ -24,7 +24,7 @@ purrdf-lex.workspace = true
 purrdf-hash.workspace = true
 purrdf-iri.workspace = true
 purrdf-xsd.workspace = true
-syn = { workspace = true, features = ["full", "parsing", "printing", "visit"] }
+syn = { workspace = true, features = ["full", "parsing", "printing", "visit", "visit-mut"] }
 quote.workspace = true
 purrdf-toml.workspace = true
 proc-macro2 = { workspace = true, features = ["span-locations"] }
