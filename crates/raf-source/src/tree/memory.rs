@@ -242,6 +242,11 @@ impl Tree for MemoryTree {
         }
     }
 
+    /// The memory tree holds text, so its bytes are the UTF-8 of that text.
+    fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
+        self.read(path, max_bytes).map(String::into_bytes)
+    }
+
     fn read_unseen(
         &self,
         path: &RelPath,

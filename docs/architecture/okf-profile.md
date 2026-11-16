@@ -293,8 +293,10 @@ in that type's directory. Each of these directories holds Markdown files only.
 - **`inputs`** is a non-empty list of maps with exactly the keys `kind`, `name` and
   `digest`, each row once. The kind is `section` (a name of the form
   `cap:<slug>#<section>`), `symbol` (a crate-root identifier or a path of
-  identifiers joined by `::`) or `record` (an `evidence:<slug>`
-  id). Evidence and Review take `symbol` rows only. Review names retain canonical
+  identifiers joined by `::`), `record` (an `evidence:<slug>`
+  id) or `artifact` (a repository-relative file path of `/`-separated segments,
+  none empty, `.` or `..`). Evidence takes `symbol` and `artifact` rows, Review
+  takes `symbol` rows only, and an Assessment takes no `artifact` row. Review names retain canonical
   indexed paths, including Unicode and implementation keys, rather than a second
   Rust-path grammar. The inputs of an Assessment hold the
   `section` row of its subject. The digest is a SHA-256 digest written as 64

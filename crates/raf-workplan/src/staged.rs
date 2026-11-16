@@ -92,6 +92,16 @@ impl Tree for Staged<'_> {
         }
     }
 
+    fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
+        if self.absent(path) {
+            return Err(Self::not_found(path));
+        }
+        match self.text(path, max_bytes) {
+            Some(text) => text.map(|text| text.as_bytes().to_vec()),
+            None => self.inner.read_bytes(path, max_bytes),
+        }
+    }
+
     fn read_unseen(
         &self,
         path: &RelPath,

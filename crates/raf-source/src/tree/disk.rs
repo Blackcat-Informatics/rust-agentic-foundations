@@ -469,30 +469,14 @@ impl DiskTree {
         self.used(&handle, &shown, |handle| Ok(handle.metadata(&shown)?.len()))
     }
 
-    /// Read the exact bytes through the same verified handles as [`Tree::read`].
-    ///
-    /// The file is checked against the root before and after reading. At most
-    /// `max_bytes + 1` bytes are read, and the extra byte makes the read refuse.
-    /// No UTF-8 validation or text conversion is applied.
-    ///
-    /// # Errors
-    /// The errors of [`Tree::read`], except `NotUtf8` cannot occur. Foreign
-    /// authorities, outside paths and non-regular files remain refusals.
-    pub fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
-        super::require_first_party(path)?;
-        let shown = path.to_string();
-        let handle = self.open(path, Want::File, &shown)?;
-        self.used(&handle, &shown, |handle| handle.read(max_bytes, &shown))
-    }
-
     /// Take the actual file identity and read bytes from that same verified open.
     ///
     /// An identity accepted by `seen` returns [`super::OpenedBytes::Seen`]
     /// without reading its payload or applying the byte ceiling to that payload.
-    /// Otherwise the complete bytes obey [`DiskTree::read_bytes`].
+    /// Otherwise the complete bytes obey [`Tree::read_bytes`].
     ///
     /// # Errors
-    /// As [`DiskTree::read_bytes`], including identity and handle verification failures.
+    /// As [`Tree::read_bytes`], including identity and handle verification failures.
     pub fn read_unseen_bytes(
         &self,
         path: &RelPath,
@@ -592,6 +576,16 @@ impl DiskTree {
 impl Tree for DiskTree {
     fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
         text(self.read_bytes(path, max_bytes)?, path)
+    }
+
+    /// The file is checked against the root before and after reading. At most
+    /// `max_bytes + 1` bytes are read, and the extra byte makes the read
+    /// refuse. No UTF-8 validation or text conversion is applied.
+    fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
+        super::require_first_party(path)?;
+        let shown = path.to_string();
+        let handle = self.open(path, Want::File, &shown)?;
+        self.used(&handle, &shown, |handle| handle.read(max_bytes, &shown))
     }
 
     /// The identity is, on Unix, the device and inode of the verified handle,

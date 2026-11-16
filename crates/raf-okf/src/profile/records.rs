@@ -157,7 +157,26 @@ fn input_name_fits(doc_type: DocType, kind: InputKind, name: &str) -> bool {
         InputKind::Section => section_ref(name).is_some(),
         InputKind::Symbol => path_segments(name).is_some(),
         InputKind::Record => name.strip_prefix("evidence:").is_some_and(is_kebab),
+        InputKind::Artifact => is_artifact_path(name),
     }
+}
+
+/// Whether `segment` starts with a Windows drive designator such as `C:`.
+fn is_drive_prefix(segment: &str) -> bool {
+    matches!(segment.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic())
+}
+
+/// A repository-relative file path: `/`-separated segments, none empty, `.` or
+/// `..`, and no backslash, control character, drive designator (`C:`) or leading or trailing space, so
+/// the path cannot leave the workspace root or name it.
+fn is_artifact_path(text: &str) -> bool {
+    !text.is_empty()
+        && text.split('/').all(|segment| {
+            !matches!(segment, "" | "." | "..")
+                && segment == segment.trim()
+                && !segment.chars().any(|c| c == '\\' || c.is_control())
+                && !is_drive_prefix(segment)
+        })
 }
 
 /// The keys of a row outside `keys`, and the keys of `keys` it lacks, as

@@ -336,6 +336,7 @@ bindings:
     - raf_okf::test_crate::records::an_assessment_holds_the_section_row_of_its_subject
     - raf_okf::test_crate::records::an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind
     - raf_okf::test_crate::records::symbol_inputs_accept_crate_roots_and_refuse_malformed_paths
+    - raf_okf::test_crate::records::artifact_inputs_accept_repository_relative_paths_and_refuse_escapes
     - raf_okf::test_crate::records::evidence_from_a_bound_test_has_no_command_and_may_have_no_measures
     - raf_okf::test_crate::records::for_lists_at_least_one_capability_id
     - raf_okf::test_crate::records::input_rows_have_exactly_kind_name_and_digest
@@ -609,6 +610,16 @@ form a subject takes are rules of the complete policy and not of the profile.
 A `symbol` input names a crate-root identifier or a path of identifiers joined by
 `::`. Empty segments, a lone underscore, leading digits and hyphens are refused.
 
+### Artifact input names
+<!-- raf:tested-by raf_okf::test_crate::records::artifact_inputs_accept_repository_relative_paths_and_refuse_escapes -->
+
+An `artifact` input names a file by a repository-relative path of `/`-separated
+segments. An empty, `.` or `..` segment, a leading `/`, a trailing `/`, a drive designator such as `C:`, a backslash and
+a control character are refused, so the name cannot leave the workspace root or
+name it. Only an Evidence record takes an `artifact` row; an Assessment or a Review
+that states one is `okf-bad-input-kind`. An older reader refuses a record that states
+the row for the same reason.
+
 ### Positioned validation results
 <!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations -->
 
@@ -671,8 +682,8 @@ The records follow the key table and value rules of the architecture page:
   `InputKind` and a digest of 64 lowercase hexadecimal digits, the verdict into
   an `EvidenceVerdict` or an `AssessmentVerdict`, and `by` into an `Actor`, which
   is `human` or `agent` and never the name of a person;
-- evidence names the capabilities it covers in `for`, takes `symbol` inputs
-  only, and states `command` exactly when its subject is `command`; `revision`
+- evidence names the capabilities it covers in `for`, takes `symbol` and
+  `artifact` inputs only, and states `command` exactly when its subject is `command`; `revision`
   is a full commit id; `values` and `limits` hold `Number`s, each limit of
   evidence that passes names a value, and evidence that passes holds no value
   above its limit, compared exactly on retained native decimal values
@@ -1469,6 +1480,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::records::an_exclusion_has_a_reason_with_no_placeholder` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::artifact_inputs_accept_repository_relative_paths_and_refuse_escapes` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::both_lists_of_a_debt_record_are_required` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::coverage_is_one_record_at_its_one_path` | test | [Verification](#verification) |

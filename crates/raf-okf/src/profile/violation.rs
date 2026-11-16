@@ -531,6 +531,9 @@ impl fmt::Display for Rule {
                     InputKind::Section => "`cap:<slug>#<section>`",
                     InputKind::Symbol => "a crate root or a path such as `crate::item`",
                     InputKind::Record => "`evidence:<slug>`",
+                    InputKind::Artifact => {
+                        "a repository-relative file path without `.` or `..` segments"
+                    }
                 };
                 write!(f, "bad {} input name `{found}`; it is {form}", kind.name())
             }
@@ -631,12 +634,13 @@ impl fmt::Display for Rule {
 }
 
 /// Whether a record of `doc_type` takes inputs of `kind`: evidence is made
-/// against the symbols of the code it covers, and an assessment against its
+/// against the symbols of the code it covers and the artifacts it cites, and an assessment against its
 /// section, the symbols that section names and the evidence it cites.
 pub(crate) fn input_kind_allowed(doc_type: DocType, kind: InputKind) -> bool {
     match doc_type {
-        DocType::Evidence | DocType::Review => kind == InputKind::Symbol,
-        DocType::Assessment => true,
+        DocType::Evidence => matches!(kind, InputKind::Symbol | InputKind::Artifact),
+        DocType::Review => kind == InputKind::Symbol,
+        DocType::Assessment => kind != InputKind::Artifact,
         DocType::Capability
         | DocType::Change
         | DocType::Architecture

@@ -245,6 +245,27 @@ pub trait Tree {
     /// system fails.
     fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError>;
 
+    /// The exact bytes of the file at `path`, with no UTF-8 check, read
+    /// through the same verified handle as [`Tree::read`].
+    ///
+    /// A backend that cannot return the bytes of a file refuses with
+    /// [`TreeError::Io`] of kind [`std::io::ErrorKind::Unsupported`]; it never
+    /// converts through text.
+    ///
+    /// # Errors
+    ///
+    /// As [`Tree::read`], except that [`TreeError::NotUtf8`] cannot occur.
+    fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
+        let _ = max_bytes;
+        Err(TreeError::Io {
+            path: path.to_string(),
+            source: std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "this tree backend reads text only; read the artifact through a disk or memory tree",
+            ),
+        })
+    }
+
     /// Open the file at `path` once, take its identity from that open, and
     /// read its text from the same open unless `seen` says the identity is
     /// one the caller already holds.

@@ -184,6 +184,7 @@ impl fmt::Display for MovedInput {
             InputKind::Section => "section",
             InputKind::Symbol => "symbol",
             InputKind::Record => "evidence record",
+            InputKind::Artifact => "artifact",
         };
         write!(f, "the {what} `{}` ", self.name)?;
         match &self.change {
@@ -917,7 +918,13 @@ impl Workplan<'_> {
                 inputs.evidence.push(evidence_id.to_owned());
             }
             if let Some(record) = record {
-                for input in &record.value().inputs {
+                // The record digest covers its artifact rows; only symbols are model inputs.
+                for input in record
+                    .value()
+                    .inputs
+                    .iter()
+                    .filter(|input| input.kind == InputKind::Symbol)
+                {
                     self.model_symbol_input(&input.name, named, inputs);
                 }
             }
@@ -1086,6 +1093,14 @@ impl Workplan<'_> {
                         InputKind::Declaration => AssessError::DeclarationNotLoaded { id: name },
                         InputKind::Record => AssessError::EvidenceNotLoaded { id: name },
                         InputKind::Symbol => AssessError::SymbolUnresolved { path: name, reason },
+                        // INVARIANT: `inputs_now` inserts rows of section, declaration,
+                        // symbol and record kinds only. An evidence record's artifact
+                        // rows are covered by its record digest and are never copied
+                        // into the assessment inputs, and the profile bars an artifact
+                        // row from an assessment.
+                        InputKind::Artifact => unreachable!(
+                            "INVARIANT: an assessment holds no artifact input, so none is unresolved"
+                        ),
                         InputKind::Section => {
                             let section = parse_subject(&name)?;
                             self.assessed_capability(section.capability())?;

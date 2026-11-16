@@ -786,7 +786,67 @@ fn a_failing_or_stale_measured_record_does_not_satisfy_the_requirement() {
     let beside = check_in(&repo, &workspace_of(&fixture::source_files()));
     assert_eq!(beside, [], "{beside:#?}");
     stale_passing_records_share_one_finding(repo.clone());
+    artifact_currency_neighbours();
     refusal_is_reported_with_its_error(repo);
+}
+
+/// The artifact half of the case above: a measured record that cites a file
+/// whose bytes changed is stale and names the path, the same record beside the
+/// matching file satisfies the requirement, and a tree that cannot read the
+/// file refuses rather than calling the record stale.
+fn artifact_currency_neighbours() {
+    const ARTIFACT: &str = ".stage/run/bench.txt";
+    let (path, text) = evidence(MEASURED);
+    let row = format!(
+        "  - kind: artifact\n    name: {ARTIFACT}\n    digest: {}\nverdict: pass",
+        Digest::artifact(ARTIFACT, b"peak 41\n")
+    );
+    let with = |bytes: &str| {
+        let mut repo = repo(
+            fixture::replaced(
+                &fixture::capability(),
+                "depends: []",
+                "measured_evidence_required: true\ndepends: []",
+            ),
+            fixture::coverage(""),
+        );
+        repo.insert(
+            path.clone(),
+            fixture::replaced(&text, "verdict: pass", &row),
+        );
+        repo.insert(ARTIFACT.to_string(), bytes.to_string());
+        repo
+    };
+    let workspace = workspace_of(&fixture::source_files());
+    let changed = measured_only(check_in(&with("peak 80\n"), &workspace));
+    assert_eq!(
+        kinds(&changed),
+        ["measured-evidence-missing"],
+        "{changed:#?}"
+    );
+    assert!(
+        changed[0].message.contains(&format!("{ARTIFACT} changed")),
+        "a changed artifact is named as changed: {changed:#?}"
+    );
+    assert_eq!(measured_only(check_in(&with("peak 41\n"), &workspace)), []);
+    let tree = support::TextOnly(with("peak 41\n").iter().collect());
+    let refused = measured_only(Workplan::load(&tree, &workspace).check());
+    assert_eq!(
+        kinds(&refused),
+        ["measured-evidence-missing"],
+        "{refused:#?}"
+    );
+    assert!(
+        refused[0].message.contains("could not be checked")
+            && refused[0].message.contains(ARTIFACT)
+            && !refused[0].message.contains("changed"),
+        "a refused artifact read is reported with its error: {refused:#?}"
+    );
+    assert!(
+        !refused[0].fix.contains("record an evidence record")
+            && refused[0].fix.contains("disk tree"),
+        "re-recording cannot clear a refusal: {refused:#?}"
+    );
 }
 
 /// The measured-evidence findings of `found`: the added source items of some

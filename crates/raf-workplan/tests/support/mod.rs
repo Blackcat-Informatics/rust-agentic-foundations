@@ -492,3 +492,30 @@ pub(crate) fn line_of(text: &str, needle: &str) -> usize {
         None => panic!("no line contains `{needle}`"),
     }
 }
+
+/// A tree that reads text and cannot return bytes, so it refuses every artifact
+/// read with the default unsupported-operation error.
+pub(crate) struct TextOnly(pub(crate) MemoryTree);
+
+impl raf_source::Tree for TextOnly {
+    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, raf_source::TreeError> {
+        self.0.read(path, max_bytes)
+    }
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&raf_source::FileId) -> bool,
+    ) -> Result<raf_source::Opened, raf_source::TreeError> {
+        self.0.read_unseen(path, max_bytes, seen)
+    }
+    fn list(&self, path: &RelPath) -> Result<Vec<raf_source::Entry>, raf_source::TreeError> {
+        self.0.list(path)
+    }
+    fn entry(
+        &self,
+        path: &RelPath,
+    ) -> Result<Option<raf_source::EntryKind>, raf_source::TreeError> {
+        self.0.entry(path)
+    }
+}

@@ -690,10 +690,11 @@ link, marker and reference rules through `raf_workplan::plain::check`.
 
 `raf_workplan::digest::Digest` is the SHA-256 (FIPS 180-4) of a canonical
 encoding of a record input, one or more fields
-`<kind> NUL <name> NUL <length> NUL <text>`: the kind (`section`, `symbol` or
-`record`) keeps the domains apart and the decimal length says where each field
+`<kind> NUL <name> NUL <length> NUL <text>`: the kind (`section`, `symbol`,
+`record` or `artifact`) keeps the domains apart and the decimal length says where each field
 ends.
-`Digest::section` hashes the authored text of a section, with the content of its
+`Digest::artifact` hashes the exact bytes of a file under the field name of its
+repository-relative path, with no line-ending conversion. `Digest::section` hashes the authored text of a section, with the content of its
 generated blocks left out; `Digest::symbol` hashes the source span of each
 definition a path resolves to, once per source item and in file order, and for a
 module below a crate root also the whole text of each file of the module and of the

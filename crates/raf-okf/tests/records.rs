@@ -147,7 +147,16 @@ fn a_valid_assessment_validates_to_its_typed_value() {
     assert_eq!(record.subject.section, CapabilitySection::Explanation);
     assert_eq!(record.subject.text(), "cap:workplan-reconcile#explanation");
     let kinds: Vec<InputKind> = record.inputs.iter().map(|input| input.kind).collect();
-    assert_eq!(kinds, InputKind::ALL);
+    // An assessment takes every kind but the artifact, which only evidence takes.
+    assert_eq!(
+        kinds,
+        [
+            InputKind::Declaration,
+            InputKind::Section,
+            InputKind::Symbol,
+            InputKind::Record
+        ]
+    );
     assert_eq!(record.verdict, AssessmentVerdict::Accepted);
     assert_eq!(record.by, Actor::Human);
     let rejected = mutate(&assessment(), "verdict: accepted", "verdict: rejected");
@@ -395,7 +404,7 @@ fn input_rows_have_exactly_kind_name_and_digest() {
 
 #[test]
 fn an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind() {
-    // Evidence is made against symbols only.
+    // Evidence is made against symbols and artifacts only.
     let section = mutate(&evidence(), "kind: symbol", "kind: section").replace(
         "name: raf_okf::Document::parse",
         "name: cap:okf-profile#contract",
@@ -476,6 +485,59 @@ fn symbol_inputs_accept_crate_roots_and_refuse_malformed_paths() {
             },
         );
     }
+}
+
+/// An artifact input is a repository-relative file path, and only evidence
+/// takes one: a path that is absolute, climbs out of the workspace or has an
+/// empty or `.` segment is refused beside the accepted path, and an assessment
+/// with the kind is refused.
+#[test]
+fn artifact_inputs_accept_repository_relative_paths_and_refuse_escapes() {
+    let artifact = |name: &str| {
+        mutate(
+            &mutate(&evidence(), "kind: symbol", "kind: artifact"),
+            "name: raf_okf::Document::parse",
+            &format!("name: \"{}\"", name.replace('\\', "\\\\")),
+        )
+    };
+    let RafDocument::Evidence(record) = clean(&artifact(".stage/run/trace.bin"), EVIDENCE_PATH)
+    else {
+        panic!("an evidence record");
+    };
+    assert_eq!(record.inputs[0].kind, InputKind::Artifact);
+    assert_eq!(record.inputs[0].name, ".stage/run/trace.bin");
+    for name in [
+        "../outside.txt",
+        "/etc/passwd",
+        "C:/Windows/log.txt",
+        "C:log.txt",
+        "a/../../b",
+        "a//b",
+        "a/./b",
+        "a/..",
+        "a\\b",
+        "dir/",
+    ] {
+        assert_only(
+            &artifact(name),
+            EVIDENCE_PATH,
+            &key("inputs"),
+            &Rule::BadInputName {
+                kind: InputKind::Artifact,
+                found: name.to_string(),
+            },
+        );
+    }
+    let assessed = mutate(&assessment(), "kind: record", "kind: artifact");
+    assert_only(
+        &assessed,
+        ASSESSMENT_PATH,
+        &key("inputs"),
+        &Rule::BadInputKind {
+            doc_type: DocType::Assessment,
+            found: "artifact".to_string(),
+        },
+    );
 }
 
 #[test]

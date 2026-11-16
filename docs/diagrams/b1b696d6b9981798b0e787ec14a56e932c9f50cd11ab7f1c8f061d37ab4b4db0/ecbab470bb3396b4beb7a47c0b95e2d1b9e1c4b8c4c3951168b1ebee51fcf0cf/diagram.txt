@@ -42,7 +42,7 @@ IRI resource: IRI resource: load.
 literal: literal: "docs/architecture/okf-profile.md".
 [source binding] raf_workplan::Workplan::load: IRI resource: f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192.
 Original RDF text: https://blackcatinformatics.ca/raf/workplan/1#source/f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192
-resolved identity at crates/raf-workplan/src/model.rs:155; no execution claim
+resolved identity at crates/raf-workplan/src/model.rs:157; no execution claim
 [declared component] Workplan model: IRI resource: workplan.
 Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan
 DECLARED responsibility: Resolve document and source relationships
@@ -56,7 +56,7 @@ literal: literal: "raf_okf::RafDocument".
 literal: literal: "boundary".
 [source binding] raf_okf::RafDocument: IRI resource: 4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a.
 Original RDF text: https://blackcatinformatics.ca/raf/workplan/1#source/4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a
-resolved identity at crates/raf-okf/src/profile/typed.rs:1038; no execution claim
+resolved identity at crates/raf-okf/src/profile/typed.rs:1048; no execution claim
 literal: literal: "b023d923d32d3fd25eaf4f89393ac3ef5224a73f453c0b838e2557d9657d6d9d".
 literal: literal: "Profile reader".
 literal: literal: "1".

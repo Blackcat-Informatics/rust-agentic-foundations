@@ -42,6 +42,8 @@ pub(crate) struct Evidence {
     pub(crate) verdict: &'static str,
     /// The symbol inputs: path and digest.
     pub(crate) inputs: Vec<(String, String)>,
+    /// The artifact inputs: repository-relative path and digest.
+    pub(crate) artifacts: Vec<(String, String)>,
     pub(crate) values: Vec<(String, String)>,
     pub(crate) limits: Vec<(String, String)>,
     pub(crate) units: Vec<(String, String)>,
@@ -57,6 +59,7 @@ impl Evidence {
             covers,
             verdict: "pass",
             inputs: vec![("demo::real".to_string(), real_digest())],
+            artifacts: Vec::new(),
             values: Vec::new(),
             limits: Vec::new(),
             units: Vec::new(),
@@ -71,6 +74,13 @@ impl Evidence {
 
     pub(crate) fn inputs(mut self, inputs: Vec<(String, String)>) -> Self {
         self.inputs = inputs;
+        self
+    }
+
+    /// Cite the file `path`, made against the bytes `bytes`.
+    pub(crate) fn artifact(mut self, path: &str, bytes: &[u8]) -> Self {
+        self.artifacts
+            .push((path.to_string(), Digest::artifact(path, bytes).to_string()));
         self
     }
 
@@ -104,6 +114,13 @@ impl Evidence {
         let mut inputs = String::new();
         for (name, digest) in &self.inputs {
             inputs.push_str("  - kind: symbol\n    name: ");
+            inputs.push_str(name);
+            inputs.push_str("\n    digest: ");
+            inputs.push_str(digest);
+            inputs.push('\n');
+        }
+        for (name, digest) in &self.artifacts {
+            inputs.push_str("  - kind: artifact\n    name: ");
             inputs.push_str(name);
             inputs.push_str("\n    digest: ");
             inputs.push_str(digest);

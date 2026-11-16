@@ -26,6 +26,12 @@ bindings:
     - cargo_workplan::test_crate::process::a_usage_error_starts_no_process
     - cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output
     - raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name
+    - raf_workplan::test_crate::obligations::a_binary_artifact_is_current_while_its_bytes_match_and_stale_when_one_changes
+    - raf_workplan::test_crate::obligations::an_artifact_that_leads_outside_the_workspace_is_refused
+    - raf_workplan::test_crate::obligations::an_artifact_the_tree_cannot_read_refuses_the_reconcile_instead_of_going_stale
+    - raf_workplan::test_crate::strict::a_failing_or_stale_measured_record_does_not_satisfy_the_requirement
+    - raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not
+    - raf_workplan::test_crate::obligations::each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line
     - raf_okf::test_crate::claims::a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it
     - raf_okf::test_crate::claims::a_claim_may_rest_on_several_records
     - raf_okf::test_crate::claims::a_claim_after_a_list_item_supports_that_item_only
@@ -60,6 +66,9 @@ Keep authored evidence relationships inspectable without executing the command t
 
 **Static contract.** Evidence records are authored metadata. Their verdict, values, limits, revisions and input digests describe assertions recorded by an author. Reading a stored command never runs it, and stored runtime verdicts never become RAF-observed execution success. The generic record API permits explicit metadata creation and replacement within the evidence directory; the CLI has no command-executing `evidence record` operation.
 <!-- raf:tested-by cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views,raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value -->
+
+**Artifact inputs.** An evidence record may cite a file, a measurement or a log, by a row of kind `artifact` that names its repository-relative path and the SHA-256 digest of the field `artifact NUL <path> NUL <length> NUL <bytes>`, which covers its exact bytes, with no line-ending conversion, under its path. The load reads each cited file once through the verified handle of the tree, as bytes, and the reconcile, the complete check and the diagrams compare the digest. A missing file, a file that is not regular, a symbolic-link loop, a file over 256 MiB, a changed file and an input that leads out of the workspace root, by a path or a symbolic link, each leave the input stale: the reconcile owes `evidence-stale`, and the complete check names the path in `measured-evidence-missing` for a capability that requires measured evidence. Any other read failure, such as an I/O error or a tree that cannot return bytes, is a refusal and not a stale input: the reconcile fails with `ReconcileError::ArtifactRefused`, and the complete check reports the refusal with its error and a fix that does not ask for the evidence to be recorded again. A path with an empty, `.` or `..` segment is refused by the profile. An assessment does not read a cited artifact; the digest of the evidence record covers its artifact rows. The `revision` key stays informational and is never read from Git, so the check proves that the file matches the recorded digest and not that it existed at that revision. A file under an ignored directory is read like any other but is not tracked, so it may exist on one machine and not on another and cannot be recovered from Git. A record without an `artifact` row is judged as before. An older RAF refuses a record that states the row.
+<!-- raf:tested-by raf_workplan::test_crate::obligations::a_binary_artifact_is_current_while_its_bytes_match_and_stale_when_one_changes,raf_workplan::test_crate::obligations::an_artifact_that_leads_outside_the_workspace_is_refused,raf_workplan::test_crate::obligations::an_artifact_the_tree_cannot_read_refuses_the_reconcile_instead_of_going_stale,raf_workplan::test_crate::strict::a_failing_or_stale_measured_record_does_not_satisfy_the_requirement,raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not,raf_workplan::test_crate::obligations::each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line -->
 
 Claims refer to evidence by slug and retain capability, section, line and statement text. `evidence_claims` and `evidence_for` report complete static relationships, including explicitly missing evidence. Unloaded capability documents refuse a complete dependency answer. Native RDF projections preserve the same authored claims and support edges.
 <!-- raf:tested-by raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability,raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers -->
@@ -128,12 +137,17 @@ Native record round trips, claim lookup refusals and the stored-command fixture 
 | `raf_workplan::Workplan::evidence_claims` | doctest | [Usage](#usage) |
 | `raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication` | test | [Verification](#verification) |
 | `raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::completion_waits_for_the_measured_evidence_a_capability_requires` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::evidence::a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::obligations::a_binary_artifact_is_current_while_its_bytes_match_and_stale_when_one_changes` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::obligations::an_artifact_that_leads_outside_the_workspace_is_refused` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::obligations::an_artifact_the_tree_cannot_read_refuses_the_reconcile_instead_of_going_stale` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::obligations::each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge` | test | [Verification](#verification) |
@@ -144,6 +158,7 @@ Native record round trips, claim lookup refusals and the stored-command fixture 
 | `raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_capability_requiring_measured_evidence_is_refused_without_it_and_accepted_with_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::strict::a_capability_that_does_not_require_measured_evidence_is_judged_as_before` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::strict::a_failing_or_stale_measured_record_does_not_satisfy_the_requirement` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::strict::a_failing_or_stale_measured_record_does_not_satisfy_the_requirement` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::strict::a_record_that_states_units_or_conditions_states_them_for_every_value` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

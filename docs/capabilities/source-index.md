@@ -23,7 +23,7 @@ bindings:
     - raf_source::discover_root
     - raf_source::DiskTree
     - raf_source::DiskTree::directory_handle
-    - raf_source::DiskTree::read_bytes
+    - raf_source::Tree::read_bytes
     - raf_source::DiskTree::read_unseen_bytes
     - raf_source::OpenedBytes
     - raf_source::DiskTree::capture_file
@@ -1259,8 +1259,12 @@ destination. Foreign authorities and outside parents refuse. Hosts without a
 verified lexical-link strategy return an explicit unsupported-operation error.
 <!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle,raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name,raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted,raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths -->
 
-`DiskTree` provides inherent `read_bytes` and `read_unseen_bytes` operations
-alongside the text-only `Tree` interface. Binary reads preserve arbitrary bytes
+`Tree::read_bytes` returns the exact bytes of a file, and `DiskTree` also provides
+the inherent `read_unseen_bytes` operation. `DiskTree` and `MemoryTree` implement
+`read_bytes`, and `SourceTrees` passes it to the selected backend. The Git and
+registry archive trees do not return bytes: like any backend that does not
+implement the call, they refuse it with an unsupported-operation `TreeError::Io`
+and never convert through text. Binary reads preserve arbitrary bytes
 without UTF-8 validation. A read-unseen result is `OpenedBytes`: it either holds
 the actual verified file identity and complete bytes from that same open, or
 reports an identity accepted by the caller without reading its payload or
@@ -1444,9 +1448,9 @@ accepts the empty root spelling; it does not resolve filesystem contents.
 ### Tree operations
 <!-- raf:tested-by raf_source::test_crate::memory_tree::a_file_reads_back_and_a_missing_file_is_not_found,raf_source::test_crate::memory_tree::a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable,raf_source::test_crate::memory_tree::directories_are_inferred_and_listings_are_sorted_with_their_kinds,raf_source::test_crate::memory_tree::entry_reports_file_dir_and_absence_without_an_error,raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen -->
 
-The trait has four
+The trait has five
 calls, each returning a `Result`: `read(path, max_bytes)` returns the text of a
-file; `read_unseen(path, max_bytes, seen)` opens a file once, takes its `FileId`
+file; `read_bytes(path, max_bytes)` returns its bytes without a UTF-8 check; `read_unseen(path, max_bytes, seen)` opens a file once, takes its `FileId`
 from that open and reads its text from the same open unless `seen` accepts the
 identity (`identity(path)` is the same call with every identity seen);
 `list(path)` returns the entries of a directory sorted by name, each with a kind of
@@ -3470,7 +3474,7 @@ Use `capture_directory_bounded(path, max_entries)` when a complete capture must
 fit an entry budget. A zero ceiling accepts an empty directory and refuses a
 nonempty one; the existing unbounded directory-capture contract is unchanged.
 
-Call `read_bytes` on a `DiskTree` with a checked `RelPath` and byte ceiling to
+Call `read_bytes` on a `Tree` with a checked `RelPath` and byte ceiling to
 read an asset without text conversion. Call `read_unseen_bytes` with the same
 arguments and an identity predicate to avoid reading an already-held payload.
 Match `OpenedBytes` to distinguish the seen identity from a complete byte read.

@@ -6,9 +6,10 @@
 //!
 //! An evidence record and an assessment keep one digest for each input they
 //! were made against, and an input whose digest now differs has moved. The
-//! three inputs are an authored section ([`Digest::section`]), the source
-//! text of a symbol ([`Digest::symbol`]) and the text of a record
-//! ([`Digest::record`]).
+//! four inputs are an authored section ([`Digest::section`]), the source
+//! text of a symbol ([`Digest::symbol`]), the text of a record
+//! ([`Digest::record`]) and the bytes of an artifact file
+//! ([`Digest::artifact`]), which are hashed exactly as read.
 //!
 //! The hashed bytes are one or more fields, each written as
 //!
@@ -16,15 +17,17 @@
 //! <kind> NUL <name> NUL <length> NUL <bytes>
 //! ```
 //!
-//! where `kind` is `section`, `symbol` or `record`, `name` names the input
-//! (the section slug, the symbol path, or nothing for a record), `length` is
+//! where `kind` is `section`, `symbol`, `record` or `artifact`, `name` names the input
+//! (the section slug, the symbol path, nothing for a record, or the
+//! repository-relative path of an artifact), `length` is
 //! the number of bytes in decimal ASCII and `bytes` is the text. The kind
 //! separates the domains, so a section and a symbol with the same text have
 //! different digests, and the length ends each field. The kind and the name
 //! end at their NUL, and no kind or name holds one (a kind is one of the
-//! three words, a name is a section slug, a resolved symbol path or empty), so
+//! four words, a name is a section slug, a resolved symbol path, an artifact
+//! path, which the profile bars from holding a control character, or empty), so
 //! no two different sequences of fields encode to the same bytes. Every text
-//! has its CRLF line endings replaced by LF exactly once, in one pass, before
+//! but the bytes of an artifact has its CRLF line endings replaced by LF exactly once, in one pass, before
 //! it is hashed, so a checkout that converts line endings does not move a
 //! digest; a lone CR is text and is kept, so `x\r\r\ny` is hashed with one CR
 //! left before its LF and differs from both `x\r\ny` and `x\ny`. The
@@ -243,6 +246,19 @@ impl Digest {
         Self(*hasher.finish().as_bytes())
     }
 
+    /// The digest of the exact bytes of the file at the repository-relative
+    /// path `path`: the field `artifact NUL <path> NUL <length> NUL <bytes>`.
+    ///
+    /// The bytes are hashed as read, with no line-ending conversion: an
+    /// artifact is a measurement or a log, and a binary file has no lines.
+    #[must_use]
+    pub fn artifact(path: &str, bytes: &[u8]) -> Self {
+        let mut hasher = ContentHasher::default();
+        header(&mut hasher, "artifact", path, bytes.len());
+        hasher.update(bytes);
+        Self(*hasher.finish().as_bytes())
+    }
+
     /// The versioned closed architecture declarations, independent of prose.
     ///
     /// Native JSON fixes field boundaries and enum spellings. Unordered rows
@@ -402,33 +418,76 @@ pub enum SymbolDigestError {
     },
 }
 
-/// The reasons the symbol inputs of an evidence record no longer digest as
-/// recorded, in input order: one for each input that changed and one for each
-/// input that no longer resolves. An empty list means every symbol input is
-/// current. Inputs of another kind are not judged.
+/// The reasons the symbol and artifact inputs of an evidence record no longer
+/// digest as recorded, in input order: one for each input that changed and one
+/// for each input that no longer resolves. An empty list means every such
+/// input is current. Inputs of another kind are not judged.
 ///
 /// # Errors
 ///
-/// The error of the first input whose query the source index refused
-/// ([`SymbolDigestError::is_query_refusal`]): no currency was established, and
-/// reporting it as a changed input would hide the cause.
-pub(crate) fn stale_symbol_inputs(
-    source: &Workspace,
+/// The refusal of the first input whose currency could not be established: a
+/// symbol whose query the source index refused
+/// ([`SymbolDigestError::is_query_refusal`]) or an artifact the tree refused or
+/// failed to read. Reporting either as a changed input would hide the cause.
+pub(crate) fn stale_inputs(
+    plan: &crate::Workplan<'_>,
     inputs: &[raf_okf::Input],
-) -> Result<Vec<String>, SymbolDigestError> {
+) -> Result<Vec<String>, InputRefusal> {
     let mut stale = Vec::new();
-    for input in inputs
-        .iter()
-        .filter(|input| input.kind == raf_okf::InputKind::Symbol)
-    {
-        match Digest::symbol(source, &input.name) {
-            Ok(now) if now.to_string() == input.digest => {}
-            Ok(_) => stale.push(format!("{} changed", input.name)),
-            Err(error) if error.is_query_refusal() => return Err(error),
-            Err(error) => stale.push(format!("{}: {error}", input.name)),
+    for input in inputs {
+        match input.kind {
+            raf_okf::InputKind::Symbol => match Digest::symbol(plan.source(), &input.name) {
+                Ok(now) if now.to_string() == input.digest => {}
+                Ok(_) => stale.push(format!("{} changed", input.name)),
+                Err(error) if error.is_query_refusal() => return Err(InputRefusal::Symbol(error)),
+                Err(error) => stale.push(format!("{}: {error}", input.name)),
+            },
+            raf_okf::InputKind::Artifact => {
+                match plan
+                    .artifacts
+                    .moved(&input.name, &input.digest)
+                    .map_err(InputRefusal::Artifact)?
+                {
+                    None => {}
+                    Some(crate::obligation::InputMoved::Unresolved(reason)) => {
+                        stale.push(format!("{}: {reason}", input.name));
+                    }
+                    Some(_) => stale.push(format!("{} changed", input.name)),
+                }
+            }
+            raf_okf::InputKind::Declaration
+            | raf_okf::InputKind::Section
+            | raf_okf::InputKind::Record => {}
         }
     }
     Ok(stale)
+}
+
+/// Why the currency of an input could not be established.
+#[derive(Debug)]
+pub(crate) enum InputRefusal {
+    /// The source index refused the query of a symbol input.
+    Symbol(SymbolDigestError),
+    /// The tree refused or failed the read of an artifact input.
+    Artifact(crate::artifact::ArtifactRefusal),
+}
+
+impl fmt::Display for InputRefusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Symbol(error) => error.fmt(f),
+            Self::Artifact(error) => error.fmt(f),
+        }
+    }
+}
+
+impl Error for InputRefusal {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Symbol(error) => Some(error),
+            Self::Artifact(error) => Some(error),
+        }
+    }
 }
 
 impl SymbolDigestError {
@@ -567,13 +626,18 @@ fn lf(text: &str) -> String {
 /// Feed one field `kind NUL name NUL length NUL text` to `hasher`. The text
 /// is hashed as given: the callers have replaced its CRLF line endings once.
 fn field(hasher: &mut ContentHasher, kind: &str, name: &str, text: &str) {
+    header(hasher, kind, name, text.len());
+    hasher.update(text.as_bytes());
+}
+
+/// Feed the head `kind NUL name NUL length NUL` of a field to `hasher`.
+fn header(hasher: &mut ContentHasher, kind: &str, name: &str, length: usize) {
     hasher.update(kind.as_bytes());
     hasher.update(&[0]);
     hasher.update(name.as_bytes());
     hasher.update(&[0]);
-    hasher.update(text.len().to_string().as_bytes());
+    hasher.update(length.to_string().as_bytes());
     hasher.update(&[0]);
-    hasher.update(text.as_bytes());
 }
 
 /// Identity framing and the shared SHA-256 implementation's known vectors.

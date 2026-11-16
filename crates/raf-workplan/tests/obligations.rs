@@ -10,6 +10,9 @@
 mod support;
 
 use std::collections::BTreeSet;
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
+use std::path::Path;
 
 use raf_okf::{Actor, AssessmentVerdict};
 use raf_workplan::ChangeLookupError;
@@ -17,7 +20,7 @@ use raf_workplan::obligation::{Needed, ObligationKind, ReconcileError, Reconcile
 use support::changes::{
     BOUND, DONE, OMEGA, SHAPE, base, capability, record, replaced, repo, without,
 };
-use support::disk::{Scratch, on_disk, snapshot, write_repo};
+use support::disk::{Scratch, on_disk, put, snapshot, write_repo};
 use support::evidence::{Evidence, OTHER_DIGEST, claim, real_digest};
 use support::synced::{self, assessed, assessed_as, document, with_plan};
 use support::{Repo, line_of};
@@ -113,6 +116,7 @@ fn cases() -> Vec<Case> {
     tense_cases(&base, &mut cases);
     unloaded_proposal_cases(&base, &mut cases);
     trace_cases(&mut cases);
+    artifact_cases(&mut cases);
     review_cases(&base, &mut cases);
     cases
 }
@@ -690,6 +694,47 @@ fn trace_cases(cases: &mut Vec<Case>) {
                 "cap:omega  document  evidence-stale  {STALE_EVIDENCE} (`evidence:bound` was made against `demo::vanished`, which does not resolve now: `demo::vanished` names nothing in the workspace)"
             ),
         }],
+    });
+}
+
+/// An evidence record that cites a file by path and the digest of its bytes
+/// owes nothing while the file holds those bytes; a file that is gone and a
+/// file that holds other bytes each owe a new record.
+fn artifact_cases(cases: &mut Vec<Case>) {
+    const PATH: &str = ".stage/run/bench.txt";
+    let cited = Evidence::passing("bound", "[cap:omega]").artifact(PATH, b"peak 41\n");
+    let with = |contents: Option<&str>| {
+        let mut files = vec![
+            (OMEGA, capability("omega", "implementing", BOUND, &[])),
+            (SHAPE, base()[SHAPE].clone()),
+            ("work/evidence/bound.md", cited.text()),
+        ];
+        if let Some(text) = contents {
+            files.push((PATH, text.to_string()));
+        }
+        repo(&files)
+    };
+    let owed = |reason: &str| Want {
+        kind: ObligationKind::EvidenceStale,
+        path: "work/evidence/bound.md",
+        line: None,
+        text: format!(
+            "cap:omega  document  evidence-stale  {STALE_EVIDENCE} (`evidence:bound` was made against `{PATH}`, {reason})"
+        ),
+    };
+    cases.push(Case {
+        name: "evidence-stale-artifact-missing",
+        broken: with(None),
+        fixed: with(Some("peak 41\n")),
+        want: vec![owed(&format!(
+            "which does not resolve now: {PATH}: no such file or directory"
+        ))],
+    });
+    cases.push(Case {
+        name: "evidence-stale-artifact-changed",
+        broken: with(Some("peak 80\n")),
+        fixed: with(Some("peak 41\n")),
+        want: vec![owed("which has changed since")],
     });
 }
 
@@ -1864,5 +1909,101 @@ fn needed_is_a_typed_value_whose_text_starts_with_the_contract_string() {
             "{text}"
         );
         assert!(!matches!(obligation.evidence, Needed::SectionDiff));
+    }
+}
+
+// --- artifact inputs on a disk tree -----------------------------------------
+
+const ARTIFACT_BINARY: &str = ".stage/run/trace.bin";
+/// Not UTF-8: a text read could not have digested it.
+const ARTIFACT_BYTES: &[u8] = &[0xff, 0xfe, 0x00, 0x80, 0x41];
+
+fn artifact_stale_count(root: &Path) -> usize {
+    on_disk(root, |plan| {
+        plan.reconcile("shape")
+            .unwrap_or_else(|error| panic!("reconcile: {error}"))
+            .obligations()
+            .iter()
+            .filter(|obligation| obligation.kind == ObligationKind::EvidenceStale)
+            .count()
+    })
+}
+
+fn write_artifact_record(root: &Path, record: &Evidence) {
+    write_repo(
+        root,
+        &repo(&[
+            (OMEGA, capability("omega", "implementing", BOUND, &[])),
+            (SHAPE, base()[SHAPE].clone()),
+            (record.path().as_str(), record.text()),
+        ]),
+    );
+}
+
+/// A binary artifact is digested by its exact bytes through the verified
+/// handle: the matching file is current, and one flipped byte is stale.
+#[test]
+fn a_binary_artifact_is_current_while_its_bytes_match_and_stale_when_one_changes() {
+    let scratch = Scratch::new("artifact-binary");
+    let root = scratch.path();
+    write_artifact_record(
+        root,
+        &Evidence::passing("bound", "[cap:omega]").artifact(ARTIFACT_BINARY, ARTIFACT_BYTES),
+    );
+    std::fs::create_dir_all(root.join(".stage/run")).expect("create the artifact directory");
+    std::fs::write(root.join(ARTIFACT_BINARY), ARTIFACT_BYTES).expect("write the artifact");
+    assert_eq!(artifact_stale_count(root), 0);
+    std::fs::write(root.join(ARTIFACT_BINARY), [0xff, 0xfe, 0x00, 0x81, 0x41]).expect("change it");
+    assert_eq!(artifact_stale_count(root), 1);
+}
+
+/// A symbolic link that leads out of the workspace root is refused as an
+/// artifact, so the record is stale, while a file inside the root is current.
+#[cfg(unix)]
+#[test]
+fn an_artifact_that_leads_outside_the_workspace_is_refused() {
+    let scratch = Scratch::new("artifact-inside");
+    let outside = Scratch::new("artifact-outside");
+    put(outside.path(), "secret.txt", "peak 41\n");
+    let root = scratch.path();
+    write_artifact_record(
+        root,
+        &Evidence::passing("bound", "[cap:omega]").artifact("link/secret.txt", b"peak 41\n"),
+    );
+    symlink(outside.path(), root.join("link")).expect("link out of the root");
+    assert_eq!(artifact_stale_count(root), 1);
+    // The neighbour: the same bytes below the root are accepted.
+    std::fs::remove_file(root.join("link")).expect("remove the link");
+    put(root, "link/secret.txt", "peak 41\n");
+    assert_eq!(artifact_stale_count(root), 0);
+}
+
+/// A tree that cannot read a cited artifact refuses the reconcile with an
+/// error naming the record and the path, never an `evidence-stale` line that
+/// would send the author to record again; the memory tree beside it reads the
+/// same file and owes nothing.
+#[test]
+fn an_artifact_the_tree_cannot_read_refuses_the_reconcile_instead_of_going_stale() {
+    const PATH: &str = ".stage/run/bench.txt";
+    let cited = Evidence::passing("bound", "[cap:omega]").artifact(PATH, b"peak 41\n");
+    let files = assessed(
+        &repo(&[
+            (OMEGA, capability("omega", "implementing", BOUND, &[])),
+            (SHAPE, base()[SHAPE].clone()),
+            ("work/evidence/bound.md", cited.text()),
+            (PATH, "peak 41\n".to_string()),
+        ]),
+        "shape",
+    );
+    let accepted = reconcile_as_is(&files, "shape").expect("the memory tree reads the artifact");
+    assert!(accepted.is_empty(), "{accepted}");
+    let tree = support::TextOnly(files.iter().collect());
+    let workspace = support::demo_workspace();
+    let plan = raf_workplan::Workplan::load(&tree, &workspace);
+    match plan.reconcile("shape") {
+        Err(ReconcileError::ArtifactRefused { evidence, path, .. }) => {
+            assert_eq!((evidence.as_str(), path.as_str()), ("evidence:bound", PATH));
+        }
+        other => panic!("expected an artifact refusal, got {other:?}"),
     }
 }

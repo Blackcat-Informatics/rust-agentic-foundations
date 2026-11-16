@@ -68,6 +68,11 @@ impl Tree for SourceTrees<'_> {
         tree.read(&local, max_bytes)
     }
 
+    fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
+        let (tree, local) = self.selected(path)?;
+        tree.read_bytes(&local, max_bytes)
+    }
+
     fn read_unseen(
         &self,
         path: &RelPath,

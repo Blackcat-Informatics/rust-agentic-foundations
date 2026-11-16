@@ -36,6 +36,7 @@ pub(crate) fn load<'s>(
     for doc_type in LOADED {
         scan_directory(docs, doc_type, links, &mut plan);
     }
+    plan.artifacts = crate::artifact::Artifacts::load(docs, &plan.evidence);
     plan.relate();
     plan.diagram_assets = crate::diagram::assets::load(docs, &plan);
     for (directory, reason) in links.unreadable() {

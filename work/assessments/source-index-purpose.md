@@ -88,7 +88,7 @@ inputs:
     digest: 706ee61e548a5ece7be9173a8c3e088cb4695c654d3df2292e605d79b63dd699
   - kind: symbol
     name: raf_source::DiskTree::capture_file
-    digest: 344fcdd262128a1124e4091edce268dd8fa8e8b24c3c3b2fee7929b18cd98c73
+    digest: 06d285dc6ea4f6c47e61493dd7043763925d8e0c232dab1b7319958efc71a70d
   - kind: symbol
     name: raf_source::DiskTree::capture_link
     digest: 0531e1b1124bf737d65aa4b4a34eb6bc0b0c3906afbdef7d526f359a24e47cd8
@@ -96,11 +96,8 @@ inputs:
     name: raf_source::DiskTree::directory_handle
     digest: 755582acb3fcce96b715feb889c5d8be39d2fd3e046e9e40551c8153c3ba461e
   - kind: symbol
-    name: raf_source::DiskTree::read_bytes
-    digest: 4418409a968a7d43c455140431f871c1ed0cb469164aee7d37ae3c3d86930679
-  - kind: symbol
     name: raf_source::DiskTree::read_unseen_bytes
-    digest: 3589119265e0b17fc91e100de09c467418fca9bfd5e734c36e90485ae3f2b125
+    digest: cf31a8cda7db05997b9df57f62404e2d1a8894d5a8c7388ddb8c5692b9eaa943
   - kind: symbol
     name: raf_source::Edge
     digest: 05e2de77698208d5ec648e7a658929eadf3652257ea36f39c56f28ce44ea5045
@@ -394,7 +391,10 @@ inputs:
     digest: cb04b33807694255f1b153b224d9ed22f61ff8a4be002811b093e0b5c43970e1
   - kind: symbol
     name: raf_source::Tree
-    digest: 4a6473970d811355ae6d37d1f11fc1c2075fcbe506ef1606ddb4d1133911639c
+    digest: 47e9968759c245bf187497fad588f8c41a39b2356fc4031b4082b1f8a3223d64
+  - kind: symbol
+    name: raf_source::Tree::read_bytes
+    digest: be62a987879e97b448aadd9b504c5f23f57218c5b7e0cdd361846c7144fc4438
   - kind: symbol
     name: raf_source::TreeError
     digest: 1870f1f59aec46e41cf5240d1029068a8038cb77307e2221a53bee581121fc48
@@ -535,13 +535,13 @@ inputs:
     digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
   - kind: symbol
     name: raf_source::tree
-    digest: 078796918c101347df949cb2d69a03d131f88b87ae18c88fd9aa6bb387d40a67
+    digest: 255e85bc99c310af2f0f02f685c6d6c192aab5b8c22204e76bf5259e1b8a1de0
   - kind: symbol
     name: raf_source::tree::disk
-    digest: 7b505520fb8fc0e8c4e7049d8db1e12c5da00800fc5417cd3066fdbffa1fd80b
+    digest: faa6d96e34bb963e9ce92b80011a735b72229f96383019987b696f56fb3217bc
   - kind: symbol
     name: raf_source::tree::memory
-    digest: e3ddc3af6bc6da8f0eb66a0906ef0f7e6140ffef740bcf91aac9bae411d8497b
+    digest: 0845157bbecf5b541e8969cf9abe09a47c46e01d90eb655a28c525af87cdf0b4
   - kind: symbol
     name: raf_source::visit_pattern_bindings
     digest: 27019e74a30a0147f477718f5c4d7d4fd9cd0c9ed93f86efddf4718b98e98fcf
