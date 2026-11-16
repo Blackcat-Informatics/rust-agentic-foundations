@@ -785,6 +785,11 @@ fn a_failing_or_stale_measured_record_does_not_satisfy_the_requirement() {
     );
     let beside = check_in(&repo, &workspace_of(&fixture::source_files()));
     assert_eq!(beside, [], "{beside:#?}");
+    refusal_is_reported_with_its_error(repo);
+}
+
+/// The refusal half of the case above: `repo` requires measured evidence.
+fn refusal_is_reported_with_its_error(mut repo: Repo) {
     // A refusal by the source index is no mismatch. The input is reached through
     // a glob re-export, which the index resolves under its query allowance: at an
     // allowance of zero the finding carries the budget error, not "changed", and
@@ -836,5 +841,39 @@ fn a_failing_or_stale_measured_record_does_not_satisfy_the_requirement() {
     assert!(
         !refused[0].fix.contains("record an evidence record"),
         "re-recording cannot clear a refusal: {refused:#?}"
+    );
+    // A failing record beside a passing record the index refuses is still its own
+    // finding, and the refusal of the passing record is reported with its error
+    // beside it, not dropped; beside no stale or refused record the failing
+    // record yields only its own finding.
+    let (_, failed) = evidence_as("fail", &current_digest(), MEASURED);
+    let failed_path = "work/evidence/bench-failed.md".to_string();
+    let failed = failed.replace("evidence:bench", "evidence:bench-failed");
+    let mut both = repo.clone();
+    both.insert(failed_path.clone(), failed.clone());
+    assert_eq!(measured_only(check_in(&both, &normal)), []);
+    let beside_refused = measured_only(check_in(&both, &limited));
+    assert_eq!(
+        kinds(&beside_refused),
+        ["measured-evidence-failed", "measured-evidence-missing"],
+        "{beside_refused:#?}"
+    );
+    assert!(
+        beside_refused[0].message.contains("evidence:bench-failed")
+            && beside_refused[1].message.contains(input)
+            && !beside_refused[1].message.contains("changed")
+            && !beside_refused[1].fix.contains("record an evidence record"),
+        "{beside_refused:#?}"
+    );
+    let mut alone = Repo::new();
+    alone.extend(
+        repo.into_iter()
+            .filter(|(path, _)| !path.ends_with("bench.md")),
+    );
+    alone.insert(failed_path, failed);
+    let only_failed = check_in(&alone, &normal);
+    assert_eq!(
+        kinds(&measured_only(only_failed)),
+        ["measured-evidence-failed"]
     );
 }

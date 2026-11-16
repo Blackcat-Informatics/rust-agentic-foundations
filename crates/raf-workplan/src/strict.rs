@@ -46,7 +46,8 @@
 //! `measured-evidence-missing` is raised at the key
 //! `measured_evidence_required`; when a measured record that covers the
 //! capability has the verdict `fail`, `measured-evidence-failed` is raised
-//! there instead, once for each such record, naming it. A refusal by the source
+//! there, once for each such record, naming it, beside `measured-evidence-missing`
+//! when a passing record is stale or refused. A refusal by the source
 //! index is reported with its error, not as a changed input. The findings are not
 //! debt, and a capability that does not state the key is judged as before.
 //!
@@ -214,9 +215,6 @@ fn measured_evidence(
             )
         })
         .collect();
-    if !failing.is_empty() {
-        return failing;
-    }
     let reasons: Vec<String> = measured
         .iter()
         .zip(&currency)
@@ -239,21 +237,26 @@ fn measured_evidence(
     } else {
         reasons.join("; ")
     };
-    let refused = currency
-        .iter()
-        .any(|now| matches!(now, Currency::Refused(_)));
+    if !failing.is_empty() && reasons.is_empty() {
+        return failing;
+    }
+    let refused = measured.iter().zip(&currency).any(|(record, now)| {
+        record.value().verdict == EvidenceVerdict::Pass && matches!(now, Currency::Refused(_))
+    });
     let fix = if refused {
         "repair the source or raise the query allowance of the load so the source index can check the record's inputs; recording the evidence again cannot clear a refusal"
     } else {
         "record an evidence record whose `for` lists this capability with the verdict `pass`, current input digests, `values`, a unit for each value under `units`, and `conditions`"
     };
-    vec![Finding::new(
+    let mut out = failing;
+    out.push(Finding::new(
         kind::MEASURED_EVIDENCE_MISSING,
         capability.path(),
         at(),
         format!("`{id}` requires measured evidence, and {detail}"),
         fix,
-    )]
+    ));
+    out
 }
 
 /// Whether the symbol inputs of an evidence record digest now as they were recorded.
