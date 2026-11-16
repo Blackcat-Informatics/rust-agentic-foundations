@@ -785,7 +785,17 @@ fn a_failing_or_stale_measured_record_does_not_satisfy_the_requirement() {
     );
     let beside = check_in(&repo, &workspace_of(&fixture::source_files()));
     assert_eq!(beside, [], "{beside:#?}");
+    stale_passing_records_share_one_finding(repo.clone());
     refusal_is_reported_with_its_error(repo);
+}
+
+/// The measured-evidence findings of `found`: the added source items of some
+/// cases are unbound, so only these are read.
+fn measured_only(found: Vec<Finding>) -> Vec<Finding> {
+    found
+        .into_iter()
+        .filter(|finding| finding.kind.starts_with("measured-evidence"))
+        .collect()
 }
 
 /// The refusal half of the case above: `repo` requires measured evidence.
@@ -814,13 +824,6 @@ fn refusal_is_reported_with_its_error(mut repo: Repo) {
     );
     repo.remove("work/evidence/bench-failed.md");
     repo.insert(path, fixture::replaced(&text, "demo::run", input));
-    // The added items are unbound, so only the measured-evidence findings are read.
-    let measured_only = |found: Vec<Finding>| -> Vec<Finding> {
-        found
-            .into_iter()
-            .filter(|finding| finding.kind.starts_with("measured-evidence"))
-            .collect()
-    };
     assert_eq!(measured_only(check_in(&repo, &normal)), []);
     let mut options = LoadOptions::default();
     options.max_query_work = 0;
@@ -833,8 +836,17 @@ fn refusal_is_reported_with_its_error(mut repo: Repo) {
         "{refused:#?}"
     );
     assert!(
+        refused[0]
+            .message
+            .contains("could not be checked against the source"),
+        "{refused:#?}"
+    );
+    assert!(
         refused[0].message.contains("evidence:bench")
             && refused[0].message.contains(input)
+            && refused[0]
+                .message
+                .contains("could not be checked against the source")
             && !refused[0].message.contains("changed"),
         "a refusal is reported with its error and not as a changed input: {refused:#?}"
     );
@@ -897,6 +909,43 @@ fn refusal_is_reported_with_its_error(mut repo: Repo) {
     assert!(
         found[1].message.contains(&format!("{input} changed"))
             && found[1].fix.contains("record an evidence record"),
+        "{found:#?}"
+    );
+}
+
+/// Two covering passing records that are both stale are one
+/// `measured-evidence-missing` finding, not one for each record: it names both
+/// records and each changed input of the record that has two. `repo` requires
+/// measured evidence.
+fn stale_passing_records_share_one_finding(mut repo: Repo) {
+    let mut files = fixture::source_files();
+    files[1].1.push_str("pub fn second() {}\n");
+    let zero = "0".repeat(64);
+    let (path, one) = evidence_as("pass", &zero, MEASURED);
+    let line = format!("    digest: {zero}\n");
+    let two = fixture::replaced(
+        &one,
+        &line,
+        &format!("{line}  - kind: symbol\n    name: demo::second\n{line}"),
+    );
+    repo.remove("work/evidence/bench-failed.md");
+    repo.insert(path, two);
+    repo.insert(
+        "work/evidence/bench-other.md".to_string(),
+        one.replace("evidence:bench", "evidence:bench-other"),
+    );
+    let found = measured_only(check_in(&repo, &workspace_of(&files)));
+    assert_eq!(kinds(&found), ["measured-evidence-missing"], "{found:#?}");
+    let message = &found[0].message;
+    assert!(
+        [
+            "evidence:bench`",
+            "evidence:bench-other",
+            "demo::run changed",
+            "demo::second changed"
+        ]
+        .iter()
+        .all(|name| message.contains(name)),
         "{found:#?}"
     );
 }
