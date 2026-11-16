@@ -464,12 +464,17 @@ fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
         RuleTag::BadMeasure => evidence("  peak: 41", "  peak: fast", key("values")),
         RuleTag::LimitWithoutValue => evidence("  peak: 64", "  other: 64", key("limits")),
         RuleTag::VerdictOverLimit => evidence("  peak: 41", "  peak: 99", key("verdict")),
-        RuleTag::ValueWithoutUnit => evidence("  peak: MiB", "  other: MiB", key("values")),
+        RuleTag::ValueWithoutUnit => {
+            evidence("  peak: 41", "  peak: 41\n  extra: 1", key("values"))
+        }
         RuleTag::ConditionsMissing => evidence(
             "conditions: \"release build on the reference host\"\n",
             "",
             key("values"),
         ),
+        RuleTag::UnitWithoutValue => {
+            evidence("  peak: MiB", "  peak: MiB\n  other: s", key("units"))
+        }
         RuleTag::BadCrateName => coverage("scope: []", "scope: [\"de mo\"]", key("scope")),
         RuleTag::BadExclusionItem => coverage(
             "item: demo::test_crate::it::*",
@@ -1388,8 +1393,22 @@ fn measured_evidence_cases() -> Vec<Case> {
     vec![
         Case::new(
             "measured-evidence-missing",
-            strict_capability(capability),
+            strict_capability(capability.clone()),
             "measured-evidence-missing",
+            fixture::CAPABILITY,
+            key("measured_evidence_required"),
+        )
+        .source(fixture::source_files()),
+        Case::new(
+            "measured-evidence-failed",
+            strict_repo(|repo| {
+                repo.insert(fixture::CAPABILITY.to_string(), capability.clone());
+                repo.insert(
+                    "work/evidence/bench.md".to_string(),
+                    "---\ntype: Evidence\nid: evidence:bench\nsubject: command\ninputs:\n  - kind: symbol\n    name: demo::run\n    digest: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\nverdict: fail\nby: agent\nfor: [cap:demo]\ncommand: \"cargo bench\"\nvalues:\n  peak: 41\nunits:\n  peak: MiB\nconditions: \"release build on the reference host\"\n---\n".to_string(),
+                );
+            }),
+            "measured-evidence-failed",
             fixture::CAPABILITY,
             key("measured_evidence_required"),
         )

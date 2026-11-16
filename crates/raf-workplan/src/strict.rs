@@ -39,12 +39,18 @@
 //! # Measured evidence
 //!
 //! A capability that states `measured_evidence_required: true` needs an
-//! evidence record whose `for` lists it and that states a measurement
+//! evidence record whose `for` lists it, that states a measurement
 //! ([`raf_okf::EvidenceRecord::states_measurement`]): measured values, a unit
-//! for each and the conditions they were taken under. Without one,
-//! `measured-evidence-missing` is raised at the key
-//! `measured_evidence_required`. The finding is not debt, and a capability
-//! that does not state the key is judged as before.
+//! for each and the conditions they were taken under, whose verdict is `pass`
+//! and whose inputs digest as recorded. Without one, the capability is refused at
+//! the key `measured_evidence_required`: each measured record that covers it with
+//! the verdict `fail` is its own `measured-evidence-failed` finding, naming it;
+//! a passing record that is stale or refused adds `measured-evidence-missing`
+//! (one finding for all such records) after them; and with no failing record and no
+//! such passing record, `measured-evidence-missing` is raised alone. A failing record beside no stale
+//! or refused passing record yields only its own finding. A refusal by the source
+//! index is reported with its error, not as a changed input. The findings are not
+//! debt, and a capability that does not state the key is judged as before.
 //!
 //! # Claims
 //!
@@ -113,10 +119,11 @@ pub use claims::{ClaimCoverage, ClaimsReport};
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use raf_okf::{DocType, Location};
+use raf_okf::{DocType, EvidenceRecord, EvidenceVerdict, Location};
 
 use crate::coverage::{self, Computed};
 use crate::debt::{self, Owed};
+use crate::digest::stale_symbol_inputs;
 use crate::finding::kind;
 use crate::graph::{Binding, ScopeEdge};
 use crate::work::{Work, add};
@@ -143,17 +150,8 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
     let mut findings = debt::judge(plan).reported;
     // An explicit review requirement is never waived by unrelated prose debt.
     for capability in plan.capabilities() {
-        if capability.value().measured_evidence_required && !states_measurement(plan, capability) {
-            findings.push(Finding::new(
-                kind::MEASURED_EVIDENCE_MISSING,
-                capability.path(),
-                Location::Key("measured_evidence_required".to_string()),
-                format!(
-                    "`{}` requires measured evidence, and no evidence record that covers it states measured values with a unit for each and the conditions they were taken under",
-                    capability.value().header.id
-                ),
-                "record an evidence record whose `for` lists this capability with `values`, a unit for each value under `units`, and `conditions`",
-            ));
+        if capability.value().measured_evidence_required {
+            findings.extend(measured_evidence(plan, capability));
         }
         let result = plan.required_reviews(capability);
         match result {
@@ -175,15 +173,117 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
     findings
 }
 
-/// Whether an evidence record that covers `capability` states a measurement.
-fn states_measurement(plan: &Workplan<'_>, capability: &Loaded<raf_okf::Capability>) -> bool {
-    plan.evidence().iter().any(|record| {
-        record.value().states_measurement()
-            && record
-                .value()
-                .covers
-                .contains(&capability.value().header.id)
-    })
+/// The findings of the measured-evidence requirement of `capability`.
+///
+/// The requirement is satisfied by an evidence record that covers the
+/// capability, states a measurement, has the verdict `pass`, and whose inputs
+/// all digest as they did when it was recorded. Without one, each measured
+/// record that covers the capability and fails is its own
+/// `measured-evidence-failed` finding, naming the record. A passing record that
+/// is stale or refused adds a single `measured-evidence-missing` finding, shared by all
+/// such records, after the failing ones; with no failing record and no such passing record the
+/// measurement is missing, and with only failing records nothing else is raised.
+fn measured_evidence(
+    plan: &Workplan<'_>,
+    capability: &Loaded<raf_okf::Capability>,
+) -> Vec<Finding> {
+    let id = &capability.value().header.id;
+    let measured: Vec<&Loaded<EvidenceRecord>> = plan
+        .evidence()
+        .iter()
+        .filter(|record| record.value().states_measurement() && record.value().covers.contains(id))
+        .collect();
+    let at = || Location::Key("measured_evidence_required".to_string());
+    let currency: Vec<Currency> = measured
+        .iter()
+        .map(|record| currency(plan, record.value()))
+        .collect();
+    if measured.iter().zip(&currency).any(|(record, now)| {
+        record.value().verdict == EvidenceVerdict::Pass && *now == Currency::Current
+    }) {
+        return Vec::new();
+    }
+    let failing: Vec<Finding> = measured
+        .iter()
+        .filter(|record| record.value().verdict == EvidenceVerdict::Fail)
+        .map(|record| {
+            Finding::new(
+                kind::MEASURED_EVIDENCE_FAILED,
+                capability.path(),
+                at(),
+                format!(
+                    "`{id}` requires measured evidence, and `{}` covers it with the verdict `fail`",
+                    record.value().header.id
+                ),
+                "fix what the record measured and record it again with the verdict `pass`, or record a passing measurement beside it",
+            )
+        })
+        .collect();
+    let reasons: Vec<String> = measured
+        .iter()
+        .zip(&currency)
+        .filter(|(record, _)| record.value().verdict == EvidenceVerdict::Pass)
+        .filter_map(|(record, now)| {
+            let record_id = &record.value().header.id;
+            match now {
+                Currency::Current => None,
+                Currency::Stale(changed) => Some(format!(
+                    "`{record_id}` was recorded at digests that no longer match the source: {changed}"
+                )),
+                Currency::Refused(refusal) => Some(format!(
+                    "`{record_id}` could not be checked against the source: {refusal}"
+                )),
+            }
+        })
+        .collect();
+    let detail = if reasons.is_empty() {
+        "no evidence record that covers it states measured values with a unit for each and the conditions they were taken under".to_string()
+    } else {
+        reasons.join("; ")
+    };
+    if !failing.is_empty() && reasons.is_empty() {
+        return failing;
+    }
+    let refused = measured.iter().zip(&currency).any(|(record, now)| {
+        record.value().verdict == EvidenceVerdict::Pass && matches!(now, Currency::Refused(_))
+    });
+    let fix = if refused {
+        "repair the source or raise the query allowance of the load so the source index can check the record's inputs; recording the evidence again cannot clear a refusal"
+    } else {
+        "record an evidence record whose `for` lists this capability with the verdict `pass`, current input digests, `values`, a unit for each value under `units`, and `conditions`"
+    };
+    let mut out = failing;
+    out.push(Finding::new(
+        kind::MEASURED_EVIDENCE_MISSING,
+        capability.path(),
+        at(),
+        format!("`{id}` requires measured evidence, and {detail}"),
+        fix,
+    ));
+    out
+}
+
+/// Whether the symbol inputs of an evidence record digest now as they were recorded.
+#[derive(Debug, PartialEq, Eq)]
+enum Currency {
+    /// Every symbol input digests as recorded.
+    Current,
+    /// At least one symbol input changed or no longer resolves; the text names each
+    /// and why.
+    Stale(String),
+    /// The source index refused a query, so no currency was established; the text is the
+    /// refusal. Reporting it as a mismatch would hide its real cause.
+    Refused(String),
+}
+
+/// The currency of `record`'s symbol inputs, a refusal by the source index being
+/// refused rather than stale.
+fn currency(plan: &Workplan<'_>, record: &EvidenceRecord) -> Currency {
+    match stale_symbol_inputs(plan.source(), &record.inputs) {
+        Ok(stale) if stale.is_empty() => Currency::Current,
+        Ok(stale) => Currency::Stale(stale.join(", ")),
+        Err(refusal) => Currency::Refused(refusal.to_string()),
+    }
 }
 
 /// The gaps of two-way coverage of the packages a binding reaches and `scope`

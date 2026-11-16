@@ -350,6 +350,12 @@ pub enum Rule {
     },
     /// A measured record that states units but no conditions.
     ConditionsMissing,
+    /// A unit that names no measured value: a record that states units names
+    /// each of them for a value it holds.
+    UnitWithoutValue {
+        /// The name the unit is given for.
+        name: String,
+    },
     /// Native code-span interpretation of a decoded frontmatter scalar failed.
     Markdown {
         /// Original refusal with positions in the decoded scalar.
@@ -616,6 +622,10 @@ impl fmt::Display for Rule {
             Self::ConditionsMissing => f.write_str(
                 "the record states units and values but no `conditions`; say how and where the values were taken",
             ),
+            Self::UnitWithoutValue { name } => write!(
+                f,
+                "the unit for `{name}` names no value in `values`; a unit belongs to a measured value the record holds, so add the value or remove the unit"
+            ),
         }
     }
 }
@@ -830,6 +840,8 @@ pub enum RuleTag {
     ValueWithoutUnit,
     /// [`Rule::ConditionsMissing`].
     ConditionsMissing,
+    /// [`Rule::UnitWithoutValue`].
+    UnitWithoutValue,
     /// Native decoded-scalar refusal.
     Markdown,
 }
@@ -904,6 +916,7 @@ impl RuleTag {
             Self::BadException => "bad-exception",
             Self::ValueWithoutUnit => "value-without-unit",
             Self::ConditionsMissing => "conditions-missing",
+            Self::UnitWithoutValue => "unit-without-value",
             Self::Markdown => "markdown",
         }
     }
@@ -917,7 +930,7 @@ impl fmt::Display for RuleTag {
 
 impl Rule {
     /// Every tag, in the order of the variants of [`Rule`].
-    pub const ALL: [RuleTag; 66] = [
+    pub const ALL: [RuleTag; 67] = [
         RuleTag::MissingKey,
         RuleTag::UnknownKey,
         RuleTag::ResourceKey,
@@ -983,6 +996,7 @@ impl Rule {
         RuleTag::BadException,
         RuleTag::ValueWithoutUnit,
         RuleTag::ConditionsMissing,
+        RuleTag::UnitWithoutValue,
         RuleTag::Markdown,
     ];
 
@@ -1055,6 +1069,7 @@ impl Rule {
             Self::BadException { .. } => RuleTag::BadException,
             Self::ValueWithoutUnit { .. } => RuleTag::ValueWithoutUnit,
             Self::ConditionsMissing => RuleTag::ConditionsMissing,
+            Self::UnitWithoutValue { .. } => RuleTag::UnitWithoutValue,
             Self::Markdown { .. } => RuleTag::Markdown,
         }
     }
@@ -1245,6 +1260,9 @@ mod tag_tests {
                 name: String::new(),
             },
             RuleTag::ConditionsMissing => Rule::ConditionsMissing,
+            RuleTag::UnitWithoutValue => Rule::UnitWithoutValue {
+                name: String::new(),
+            },
         }
     }
 
@@ -1318,12 +1336,13 @@ mod tag_tests {
             Rule::BadException { .. } => 62,
             Rule::ValueWithoutUnit { .. } => 63,
             Rule::ConditionsMissing => 64,
-            Rule::Markdown { .. } => 65,
+            Rule::UnitWithoutValue { .. } => 65,
+            Rule::Markdown { .. } => 66,
         }
     }
 
     /// How many variants `Rule` has.
-    const VARIANTS: usize = 66;
+    const VARIANTS: usize = 67;
 
     #[test]
     fn all_lists_every_rule_once_in_variant_order() {

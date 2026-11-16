@@ -7,7 +7,8 @@
 mod support;
 
 use raf_okf::Location;
-use raf_source::MemoryTree;
+use raf_source::{LoadOptions, MemoryTree, Workspace};
+use raf_workplan::digest::Digest;
 use raf_workplan::{Finding, Gate, Workplan};
 use support::cases::strict_cases;
 use support::disk::{Scratch, put};
@@ -612,15 +613,28 @@ fn while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_report
     assert_eq!(strict, check_in(&broken, &source));
 }
 
-/// An evidence record for `cap:demo` with the extra frontmatter lines `extra`.
+/// An evidence record for `cap:demo` with the extra frontmatter lines `extra`,
+/// the verdict `pass` and the input digest of `demo::run` as the source has it.
 fn evidence(extra: &str) -> (String, String) {
+    evidence_as("pass", &current_digest(), extra)
+}
+
+/// The digest `demo::run` has in the fixture source.
+fn current_digest() -> String {
+    Digest::symbol(&workspace_of(&fixture::source_files()), "demo::run")
+        .expect("the fixture source resolves demo::run")
+        .to_string()
+}
+
+/// An evidence record for `cap:demo` with `verdict`, the input digest `digest`
+/// and the extra frontmatter lines `extra`.
+fn evidence_as(verdict: &str, digest: &str, extra: &str) -> (String, String) {
     (
         "work/evidence/bench.md".to_string(),
         format!(
             "---\ntype: Evidence\nid: evidence:bench\nsubject: command\ninputs:\n  \
-             - kind: symbol\n    name: demo::run\n    digest: {}\n\
-             verdict: pass\nby: agent\nfor: [cap:demo]\ncommand: \"cargo bench\"\n{extra}---\n",
-            "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+             - kind: symbol\n    name: demo::run\n    digest: {digest}\n\
+             verdict: {verdict}\nby: agent\nfor: [cap:demo]\ncommand: \"cargo bench\"\n{extra}---\n"
         ),
     )
 }
@@ -708,4 +722,229 @@ fn a_record_that_states_units_or_conditions_states_them_for_every_value() {
     );
     // The complete neighbour loads with no finding of the record.
     assert_eq!(requiring(Some(evidence(MEASURED))), []);
+}
+
+#[test]
+fn a_failing_or_stale_measured_record_does_not_satisfy_the_requirement() {
+    // A measured record that fails is its own finding, naming the record,
+    // distinct from no measurement.
+    let failing = requiring(Some(evidence_as("fail", &current_digest(), MEASURED)));
+    assert_eq!(
+        kinds(&failing),
+        ["measured-evidence-failed"],
+        "{failing:#?}"
+    );
+    assert!(
+        failing[0].message.contains("evidence:bench"),
+        "{failing:#?}"
+    );
+    assert_eq!(
+        (failing[0].file.as_str(), &failing[0].location),
+        (
+            fixture::CAPABILITY,
+            &Location::Key("measured_evidence_required".to_string())
+        )
+    );
+    // A passing record at digests the source no longer has is no measurement
+    // that holds, and not a failure.
+    let stale = requiring(Some(evidence_as("pass", &"0".repeat(64), MEASURED)));
+    assert_eq!(kinds(&stale), ["measured-evidence-missing"], "{stale:#?}");
+    assert!(stale[0].message.contains("evidence:bench"), "{stale:#?}");
+    assert!(
+        stale[0].message.contains("demo::run changed"),
+        "a changed input is named as changed: {stale:#?}"
+    );
+    // An input that no longer resolves is named with the reason, not reported as a
+    // digest mismatch; the current neighbour below it resolves and is accepted.
+    let (path, text) = evidence_as("pass", &current_digest(), MEASURED);
+    let gone = requiring(Some((
+        path,
+        fixture::replaced(&text, "demo::run", "demo::gone"),
+    )));
+    assert_eq!(kinds(&gone), ["measured-evidence-missing"], "{gone:#?}");
+    assert!(
+        gone[0].message.contains("demo::gone") && !gone[0].message.contains("demo::gone changed"),
+        "an unresolved input names its reason: {gone:#?}"
+    );
+    // The passing record at current digests beside them satisfies it, and a
+    // failing record beside it does not undo that.
+    assert_eq!(requiring(Some(evidence(MEASURED))), []);
+    let mut repo = repo(
+        fixture::replaced(
+            &fixture::capability(),
+            "depends: []",
+            "measured_evidence_required: true\ndepends: []",
+        ),
+        fixture::coverage(""),
+    );
+    repo.extend([evidence(MEASURED)]);
+    let (_, text) = evidence_as("fail", &current_digest(), MEASURED);
+    repo.insert(
+        "work/evidence/bench-failed.md".to_string(),
+        text.replace("evidence:bench", "evidence:bench-failed"),
+    );
+    let beside = check_in(&repo, &workspace_of(&fixture::source_files()));
+    assert_eq!(beside, [], "{beside:#?}");
+    stale_passing_records_share_one_finding(repo.clone());
+    refusal_is_reported_with_its_error(repo);
+}
+
+/// The measured-evidence findings of `found`: the added source items of some
+/// cases are unbound, so only these are read.
+fn measured_only(found: Vec<Finding>) -> Vec<Finding> {
+    found
+        .into_iter()
+        .filter(|finding| finding.kind.starts_with("measured-evidence"))
+        .collect()
+}
+
+/// The refusal half of the case above: `repo` requires measured evidence.
+fn refusal_is_reported_with_its_error(mut repo: Repo) {
+    // A refusal by the source index is no mismatch. The input is reached through
+    // a glob re-export, which the index resolves under its query allowance: at an
+    // allowance of zero the finding carries the budget error, not "changed", and
+    // does not tell the author to record again. The current-digest neighbour, the
+    // same record under the normal allowance, is accepted.
+    let mut files = fixture::source_files();
+    files[1].1.push_str(
+        "pub mod carrier { pub fn exported() {} }\npub mod child { pub use crate::carrier::*; }\n",
+    );
+    let tree: MemoryTree = files
+        .iter()
+        .map(|(path, text)| (*path, text.as_str()))
+        .collect();
+    let normal = workspace_of(&files);
+    let input = "demo::child::exported";
+    let (path, text) = evidence_as(
+        "pass",
+        &Digest::symbol(&normal, input)
+            .expect("the globbed input resolves")
+            .to_string(),
+        MEASURED,
+    );
+    repo.remove("work/evidence/bench-failed.md");
+    repo.insert(path, fixture::replaced(&text, "demo::run", input));
+    assert_eq!(measured_only(check_in(&repo, &normal)), []);
+    let mut options = LoadOptions::default();
+    options.max_query_work = 0;
+    let limited = Workspace::load_with(&tree, &["."], &options)
+        .expect("the query limit does not prevent loading");
+    let refused = measured_only(check_in(&repo, &limited));
+    assert_eq!(
+        kinds(&refused),
+        ["measured-evidence-missing"],
+        "{refused:#?}"
+    );
+    assert!(
+        refused[0].message.contains("evidence:bench")
+            && refused[0].message.contains(input)
+            && refused[0]
+                .message
+                .contains("could not be checked against the source")
+            && !refused[0].message.contains("changed"),
+        "a refusal is reported with its error and not as a changed input: {refused:#?}"
+    );
+    assert!(
+        !refused[0].fix.contains("record an evidence record"),
+        "re-recording cannot clear a refusal: {refused:#?}"
+    );
+    // The fix names what can clear a refusal.
+    assert!(
+        refused[0].fix.contains("raise the query allowance"),
+        "{refused:#?}"
+    );
+    // A failing record beside a passing record the index refuses is still its own
+    // finding, and the refusal of the passing record is reported with its error
+    // beside it, not dropped; beside no stale or refused record the failing
+    // record yields only its own finding.
+    let (_, failed) = evidence_as("fail", &current_digest(), MEASURED);
+    let failed_path = "work/evidence/bench-failed.md".to_string();
+    let failed = failed.replace("evidence:bench", "evidence:bench-failed");
+    let mut both = repo.clone();
+    both.insert(failed_path.clone(), failed.clone());
+    assert_eq!(measured_only(check_in(&both, &normal)), []);
+    let beside_refused = measured_only(check_in(&both, &limited));
+    assert_eq!(
+        kinds(&beside_refused),
+        ["measured-evidence-failed", "measured-evidence-missing"],
+        "{beside_refused:#?}"
+    );
+    assert!(
+        beside_refused[0].message.contains("evidence:bench-failed")
+            && beside_refused[1].message.contains(input)
+            && !beside_refused[1].message.contains("changed")
+            && !beside_refused[1].fix.contains("record an evidence record"),
+        "{beside_refused:#?}"
+    );
+    // Two failing records are two findings, and beside no stale or refused passing
+    // record they yield nothing else.
+    let mut failing_only = Repo::new();
+    failing_only.extend(
+        repo.iter()
+            .filter(|(path, _)| !path.ends_with("bench.md"))
+            .map(|(path, text)| (path.clone(), text.clone())),
+    );
+    failing_only.insert(failed_path.clone(), failed.clone());
+    failing_only.insert(
+        "work/evidence/bench-failed-too.md".to_string(),
+        failed.replace("evidence:bench-failed", "evidence:bench-failed-too"),
+    );
+    assert_eq!(
+        kinds(&measured_only(check_in(&failing_only, &normal))),
+        ["measured-evidence-failed", "measured-evidence-failed"]
+    );
+    // A failing record beside a passing record at stale digests is the failed
+    // finding, then the missing finding naming the changed input.
+    let (path, stale) = evidence_as("pass", &"0".repeat(64), MEASURED);
+    let mut beside_stale = failing_only;
+    beside_stale.remove("work/evidence/bench-failed-too.md");
+    beside_stale.insert(path, fixture::replaced(&stale, "demo::run", input));
+    let found = measured_only(check_in(&beside_stale, &normal));
+    assert_eq!(
+        kinds(&found),
+        ["measured-evidence-failed", "measured-evidence-missing"],
+        "{found:#?}"
+    );
+    assert!(
+        found[1].message.contains(&format!("{input} changed"))
+            && found[1].fix.contains("record an evidence record"),
+        "{found:#?}"
+    );
+}
+
+/// Two covering passing records that are both stale are one
+/// `measured-evidence-missing` finding, not one for each record: it names both
+/// records and each changed input of the record that has two. `repo` requires
+/// measured evidence.
+fn stale_passing_records_share_one_finding(mut repo: Repo) {
+    let mut files = fixture::source_files();
+    files[1].1.push_str("pub fn second() {}\n");
+    let zero = "0".repeat(64);
+    let (path, one) = evidence_as("pass", &zero, MEASURED);
+    let line = format!("    digest: {zero}\n");
+    let two = fixture::replaced(
+        &one,
+        &line,
+        &format!("{line}  - kind: symbol\n    name: demo::second\n{line}"),
+    );
+    repo.remove("work/evidence/bench-failed.md");
+    repo.insert(path, two);
+    repo.insert(
+        "work/evidence/bench-other.md".to_string(),
+        one.replace("evidence:bench", "evidence:bench-other"),
+    );
+    let found = measured_only(check_in(&repo, &workspace_of(&files)));
+    assert_eq!(kinds(&found), ["measured-evidence-missing"], "{found:#?}");
+    let message = &found[0].message;
+    assert!(
+        [
+            "evidence:bench`",
+            "evidence:bench-other",
+            "demo::run changed",
+            "demo::second changed"
+        ]
+        .iter()
+        .all(|name| message.contains(name)),
+        "{found:#?}"
+    );
 }

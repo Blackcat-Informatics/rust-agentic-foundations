@@ -402,6 +402,35 @@ pub enum SymbolDigestError {
     },
 }
 
+/// The reasons the symbol inputs of an evidence record no longer digest as
+/// recorded, in input order: one for each input that changed and one for each
+/// input that no longer resolves. An empty list means every symbol input is
+/// current. Inputs of another kind are not judged.
+///
+/// # Errors
+///
+/// The error of the first input whose query the source index refused
+/// ([`SymbolDigestError::is_query_refusal`]): no currency was established, and
+/// reporting it as a changed input would hide the cause.
+pub(crate) fn stale_symbol_inputs(
+    source: &Workspace,
+    inputs: &[raf_okf::Input],
+) -> Result<Vec<String>, SymbolDigestError> {
+    let mut stale = Vec::new();
+    for input in inputs
+        .iter()
+        .filter(|input| input.kind == raf_okf::InputKind::Symbol)
+    {
+        match Digest::symbol(source, &input.name) {
+            Ok(now) if now.to_string() == input.digest => {}
+            Ok(_) => stale.push(format!("{} changed", input.name)),
+            Err(error) if error.is_query_refusal() => return Err(error),
+            Err(error) => stale.push(format!("{}: {error}", input.name)),
+        }
+    }
+    Ok(stale)
+}
+
 impl SymbolDigestError {
     pub(crate) fn is_query_refusal(&self) -> bool {
         matches!(

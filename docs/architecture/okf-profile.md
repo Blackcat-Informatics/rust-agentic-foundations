@@ -221,7 +221,9 @@ in that type's directory. Each of these directories holds Markdown files only.
   satisfy the requirement. It has no effect without `review_required`.
 - **`measured_evidence_required`** (optional) is `true` or `false`; absent means
   `false`. A capability that states `true` requires an evidence record that
-  covers it and states a measurement (see `units` and `conditions` of Evidence).
+  covers it, states a measurement (see `units` and `conditions` of Evidence), has the
+  verdict `pass` and has current input digests; a covering measured record with the
+  verdict `fail` is reported as its own finding unless a passing measured record with current digests also covers the capability.
 - **`changes`** is a non-empty list of capability ids that exist.
 - **`diagrams`** is an optional list of at most 64 named maps on Capability
   and Architecture documents. Each map requires `name`, `kind` and `scope`;
@@ -316,9 +318,11 @@ in that type's directory. Each of these directories holds Markdown files only.
 - **`units`** (optional) is a map of measure names to non-empty unit texts, and
   **`conditions`** (optional) is a non-empty text saying how and where the values
   were taken. A record that states either gives every value of `values` its
-  unit, and states `conditions` when it states `units` and holds a value. A
-  record that states neither is unchanged. A record states a measurement when it
-  holds at least one value, a unit for each value and its conditions.
+  unit, and states `conditions` when it states `units` and holds a value. Every
+  unit names a value the record holds; a unit with no value is refused at load,
+  naming the unit that has no value. A record that states neither is
+  unchanged. A record states a measurement when it holds at least one value, a
+  unit for each value and its conditions.
 - **`scope`** of Coverage is a list of crate package names, each once; the empty list `[]`
   names no crate.
 - **`scope`** of Review is one `crate:<package>`, `module:<path>` or capability

@@ -13,7 +13,10 @@ use raf_source::{DependencyKind, DependencySpec};
 
 use super::{DiagramError, DiagramGrouping, DiagramKind, NamedDiagramView};
 pub(super) use crate::digest::semantic_hash as hash;
-use crate::{Workplan, digest::Digest};
+use crate::{
+    Workplan,
+    digest::{Digest, stale_symbol_inputs},
+};
 
 mod identity;
 use identity::{relation_iri, selection_iri};
@@ -654,17 +657,15 @@ pub(super) fn verification_fields(
     record: &raf_okf::EvidenceRecord,
 ) -> Result<Vec<(String, String)>, DiagramError> {
     let mut fields = vec![("verdict".into(), record.verdict.name().into())];
-    let mut stale = Vec::new();
+    if record
+        .inputs
+        .iter()
+        .any(|input| input.kind != InputKind::Symbol)
+    {
+        return Err(DiagramError::refused("unsupported evidence input kind"));
+    }
+    let stale = stale_symbol_inputs(plan.source(), &record.inputs).map_err(DiagramError::data)?;
     for input in &record.inputs {
-        if input.kind != InputKind::Symbol {
-            return Err(DiagramError::refused("unsupported evidence input kind"));
-        }
-        match Digest::symbol(plan.source(), &input.name) {
-            Ok(now) if now.to_string() == input.digest => {}
-            Ok(_) => stale.push(format!("{} changed", input.name)),
-            Err(error) if error.is_query_refusal() => return Err(DiagramError::data(error)),
-            Err(error) => stale.push(format!("{}: {error}", input.name)),
-        }
         fields.push((
             "originalInput".into(),
             format!("{} {}", input.name, input.digest),
