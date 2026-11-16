@@ -435,7 +435,12 @@ fn ledger_vocabulary_settings() -> Builder {
     ] {
         put(&mut graph, "#job", key, Term::simple_literal(value));
     }
-    for (key, value) in [("entryPoint", "demo::entry"), ("forbiddenName", "^copy$")] {
+    for (key, value) in [
+        ("entryPoint", "demo::entry"),
+        ("forbiddenName", "^copy$"),
+        ("forbiddenFingerprint", "rule:copy-rule"),
+        ("ratchetedRule", "copy-rule"),
+    ] {
         put(&mut graph, "#job", key, Term::simple_literal(value));
     }
     put(&mut graph, "#job", "extension", Term::iri("#extension"));
@@ -498,6 +503,7 @@ fn ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_prese
         assert!(error.to_string().contains(key), "{error}");
     }
     ratcheted_declarations_are_true_only_unique_and_held_by_enforced_jobs();
+    ratchet_rule_declarations_are_enabled_enforced_scoped_and_consistent();
     let mut invalid = declared_pattern(Some("call"), true);
     for (node, key) in [("#pattern", "patternId"), ("#job", "forbiddenPattern")] {
         assert!(
@@ -5477,4 +5483,313 @@ fn a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched() {
             report.findings()
         );
     }
+}
+
+/// A registered rule that flags every `flag!()` statement of a top-level
+/// function, at the line of the statement, in the function's own module.
+struct FlagRule;
+impl Rule for FlagRule {
+    fn id(&self) -> &'static str {
+        "flag-rule"
+    }
+    fn check(&self, ctx: &FileCtx, file: &syn::File, out: &mut Vec<RuleHit>) {
+        let module = ctx.path.trim_start_matches("src/").trim_end_matches(".rs");
+        for item in &file.items {
+            let syn::Item::Fn(item) = item else { continue };
+            for statement in &item.block.stmts {
+                if let syn::Stmt::Macro(flag) = statement
+                    && flag.mac.path.is_ident("flag")
+                {
+                    out.push(RuleHit {
+                        line: flag.mac.path.segments[0].ident.span().start().line,
+                        message: "a flagged statement".into(),
+                        symbol: if module == "lib" {
+                            format!("{}::{}", ctx.package, item.sig.ident)
+                        } else {
+                            format!("{}::{module}::{}", ctx.package, item.sig.ident)
+                        },
+                    });
+                }
+            }
+        }
+    }
+    fn fixtures(&self) -> RuleFixtures {
+        RuleFixtures {
+            positive: vec!["fn run() { flag!(); }"],
+            negative: vec!["fn run() {}"],
+        }
+    }
+}
+
+/// Modules of two files with three flagged sites, `hit` being one statement
+/// that the rule under test reports.
+fn rule_modules(hit: &str) -> [(&'static str, String); 2] {
+    [
+        (
+            "a",
+            format!(
+                "pub fn one(){{{hit}let _=\"alpha\";}}\npub fn two(){{{hit}let _=\"beta\";}}\n"
+            ),
+        ),
+        ("b", format!("pub fn three(){{{hit}let _=\"gamma\";}}\n")),
+    ]
+}
+
+/// Check a tree whose one enforced job forbids `rule`, ratcheted or not.
+fn rule_report(
+    (rule, ratcheted): (&str, bool),
+    modules: &[(&str, String)],
+    record: Option<&str>,
+) -> raf_census::GateReport {
+    let mut graph = job(true);
+    put(
+        &mut graph,
+        "#job",
+        "forbiddenFingerprint",
+        Term::simple_literal(format!("rule:{rule}")),
+    );
+    if ratcheted {
+        put(
+            &mut graph,
+            "#job",
+            "ratchetedRule",
+            Term::simple_literal(rule),
+        );
+    }
+    let modules: Vec<_> = modules.iter().map(|(n, b)| (*n, b.as_str())).collect();
+    Gate::workspace(".")
+        .rules(vec![Box::new(FlagRule) as Box<dyn Rule>])
+        .check_tree(&ratchet_tree_over(graph, &modules, RATCHET_HOME, record))
+        .unwrap()
+}
+
+/// A job-level `ratchetedRule` holds a built-in detector and a registered rule
+/// to the same counted-site contract as a ratcheted pattern: exact adoption,
+/// line movement leaves the record byte-identical, a rise fails, a fall fails
+/// until the record is lowered, a deleted file is stale, and the same rule left
+/// forbidden stays a hard finding that records nothing.
+#[test]
+fn ratcheted_rules_record_counted_sites_and_hold_both_directions() {
+    for (rule, hit) in [
+        ("serde-json", "let _=serde_json::to_string(&1);"),
+        ("flag-rule", "flag!();"),
+    ] {
+        let check = |modules: &[(&str, String)], record: Option<&str>| {
+            rule_report((rule, true), modules, record)
+        };
+        let both = rule_modules(hit);
+        let adopted = check(&both, None);
+        let debt = adopted.debt();
+        assert_eq!(debt.ratcheted().iter().collect::<Vec<_>>(), [rule]);
+        assert_eq!(debt.sites().len(), 3, "{rule}: {:?}", adopted.findings());
+        assert!(debt.sites().keys().all(|site| site.rule().as_str() == rule));
+        assert!(
+            adopted
+                .findings()
+                .iter()
+                .all(|finding| finding.contains("Adopt")),
+            "{rule}: {:?}",
+            adopted.findings()
+        );
+        let record = debt.to_turtle().unwrap();
+        assert!(check(&both, Some(&record)).is_clean(), "{rule}");
+        // Inserting lines above every site keeps the record byte-identical.
+        let shifted = both
+            .clone()
+            .map(|(name, body)| (name, format!("// moved\n\n{body}")));
+        let moved = check(&shifted, Some(&record));
+        assert!(moved.is_clean(), "{rule}: {:?}", moved.findings());
+        assert_eq!(moved.debt().to_turtle().unwrap(), record, "{rule}");
+        // One more hit is growth, as a new key and as a repeat of a recorded
+        // key (two hits on one line count twice).
+        let fourth = format!("pub fn four(){{{hit}let _=\"delta\";}}\n");
+        let new_key = [
+            ("a", format!("{}{fourth}", both[0].1)),
+            ("b", both[1].1.clone()),
+        ];
+        let repeated = [
+            ("a", both[0].1.replacen(hit, &format!("{hit}{hit}"), 1)),
+            ("b", both[1].1.clone()),
+        ];
+        for modules in [new_key, repeated] {
+            let grown = check(&modules, Some(&record));
+            assert_eq!(grown.findings().len(), 1, "{rule}: {:?}", grown.findings());
+            assert!(
+                grown.findings()[0].contains("growth cannot be recorded")
+                    && grown.findings()[0].contains("src/a.rs:"),
+                "{rule}: {:?}",
+                grown.findings()
+            );
+            assert!(record_may_not_admit(&record, grown.debt()), "{rule}");
+        }
+        // A fall fails check until the record is lowered; then it passes.
+        let wide = check(&repeated_modules(&both, hit), None)
+            .debt()
+            .to_turtle()
+            .unwrap();
+        let fallen = check(&both, Some(&wide));
+        assert_eq!(
+            fallen.findings().len(),
+            1,
+            "{rule}: {:?}",
+            fallen.findings()
+        );
+        assert!(fallen.findings()[0].contains("lower the record"), "{rule}");
+        assert!(check(&both, Some(&fallen.debt().to_turtle().unwrap())).is_clean());
+        // A deleted file and a vanished hit leave stale sites.
+        let unhit = [
+            both[0].clone(),
+            ("b", "pub fn three(){let _=\"gamma\";}\n".to_owned()),
+        ];
+        for modules in [&unhit[..], &both[..1]] {
+            let stale = check(modules, Some(&record));
+            assert_eq!(stale.findings().len(), 1, "{rule}: {:?}", stale.findings());
+            assert!(stale.findings()[0].contains("stale site"), "{rule}");
+            assert!(check(modules, Some(&stale.debt().to_turtle().unwrap())).is_clean());
+        }
+        // The same hits under a rule that no job ratchets are findings, not debt.
+        let forbidden = rule_report((rule, false), &both, None);
+        assert!(forbidden.debt().sites().is_empty() && forbidden.debt().ratcheted().is_empty());
+        assert_eq!(
+            forbidden
+                .findings()
+                .iter()
+                .filter(|finding| finding.contains(&format!("rule {rule}:")))
+                .count(),
+            3,
+            "{rule}: {:?}",
+            forbidden.findings()
+        );
+    }
+}
+
+fn repeated_modules(both: &[(&'static str, String); 2], hit: &str) -> [(&'static str, String); 2] {
+    [
+        ("a", both[0].1.replacen(hit, &format!("{hit}{hit}"), 1)),
+        both[1].clone(),
+    ]
+}
+
+/// `ratchetedRule` names a rule the same enforced job forbids, never a pattern
+/// or a job-scoped detector, and every job that forbids the rule agrees. Each
+/// refusal sits beside the valid declaration it differs from.
+fn ratchet_rule_declarations_are_enabled_enforced_scoped_and_consistent() {
+    let load = |graph: Builder| {
+        Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())
+    };
+    let forbidding = |enforced: bool, rule: &str, ratcheted: Option<&str>| {
+        let mut graph = job(enforced);
+        put(
+            &mut graph,
+            "#job",
+            "forbiddenFingerprint",
+            Term::simple_literal(format!("rule:{rule}")),
+        );
+        if let Some(id) = ratcheted {
+            put(
+                &mut graph,
+                "#job",
+                "ratchetedRule",
+                Term::simple_literal(id),
+            );
+        }
+        graph
+    };
+    let valid = load(forbidding(true, "flag-rule", Some("flag-rule"))).unwrap();
+    assert_eq!(valid.jobs()[0].ratcheted_rules, ["flag-rule"]);
+    assert_eq!(
+        load(forbidding(true, "flag-rule", None)).unwrap().jobs()[0].ratcheted_rules,
+        Vec::<String>::new()
+    );
+    let mut pattern = ratcheted_declaration();
+    put(
+        &mut pattern,
+        "#job",
+        "ratchetedRule",
+        Term::simple_literal("approved-call"),
+    );
+    for (graph, reason) in [
+        (
+            forbidding(true, "flag-rule", Some("other-rule")),
+            "does not forbid",
+        ),
+        (
+            forbidding(false, "flag-rule", Some("flag-rule")),
+            "not enforced",
+        ),
+        (
+            forbidding(true, "home-literal", Some("home-literal")),
+            "cannot be ratcheted",
+        ),
+        (pattern, "state ratcheted on the pattern"),
+    ] {
+        let error = load(graph).unwrap_err().to_string();
+        assert!(error.contains(reason), "{reason}: {error}");
+    }
+    let second = |ratchets: bool| {
+        let mut graph = forbidding(true, "flag-rule", Some("flag-rule"));
+        put(&mut graph, "", "job", Term::iri("#second"));
+        put(
+            &mut graph,
+            "#second",
+            "type",
+            Term::iri(format!("{}LedgerJob", vocab::REPORT)),
+        );
+        for (key, value) in [
+            ("jobId", "second"),
+            ("summary", "Forbids the same rule"),
+            ("homeSymbol", "demo::home"),
+            ("forbiddenFingerprint", "rule:flag-rule"),
+        ] {
+            put(&mut graph, "#second", key, Term::simple_literal(value));
+        }
+        put(&mut graph, "#second", "enforced", Term::boolean(true));
+        if ratchets {
+            put(
+                &mut graph,
+                "#second",
+                "ratchetedRule",
+                Term::simple_literal("flag-rule"),
+            );
+        }
+        graph
+    };
+    let error = load(second(false)).unwrap_err().to_string();
+    assert!(
+        error.contains("forbids it outright") && error.contains("second"),
+        "{error}"
+    );
+    assert!(load(second(true)).is_ok());
+}
+
+/// A rule the Gate requires everywhere cannot also be ratcheted by a job; the
+/// same ratchet without the requirement evaluates.
+#[test]
+fn a_required_rule_cannot_also_be_ratcheted() {
+    let modules = rule_modules("flag!();");
+    let build = || {
+        let mut graph = job(true);
+        put(
+            &mut graph,
+            "#job",
+            "forbiddenFingerprint",
+            Term::simple_literal("rule:flag-rule"),
+        );
+        put(
+            &mut graph,
+            "#job",
+            "ratchetedRule",
+            Term::simple_literal("flag-rule"),
+        );
+        let modules: Vec<_> = modules.iter().map(|(n, b)| (*n, b.as_str())).collect();
+        ratchet_tree_over(graph, &modules, RATCHET_HOME, None)
+    };
+    let gate = || Gate::workspace(".").rules(vec![Box::new(FlagRule) as Box<dyn Rule>]);
+    assert!(gate().check_tree(&build()).is_ok());
+    let error = gate()
+        .require_rules(["flag-rule"])
+        .check_tree(&build())
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("cannot also be ratcheted"), "{error}");
 }

@@ -189,3 +189,44 @@ fn matcher(node: &Node<'_>) -> Result<PatternMatcher, E> {
     }
     selected.ok_or_else(|| E::Missing("pattern matcher".into()))
 }
+
+/// Check every job's `ratchetedRule` ids: each is a rule the job forbids, the
+/// job is enforced, the detector is not job-scoped, and no other job forbids
+/// the same rule outright.
+pub(super) fn ratcheted_rules(jobs: &[LedgerJob]) -> Result<(), Error> {
+    let forbids = |job: &LedgerJob, id: &str| {
+        job.job.forbidden.fingerprints.iter().any(|fingerprint| {
+            matches!(fingerprint, crate::Fingerprint::Rule(rule) if rule.as_str() == id)
+        })
+    };
+    for job in jobs {
+        for id in &job.ratcheted_rules {
+            let name = &job.job.id;
+            let reason = if job.patterns.contains(id) {
+                "it is a pattern; state ratcheted on the pattern instead"
+            } else if !forbids(job, id) {
+                "the job does not forbid it; add forbiddenFingerprint rule:ID first"
+            } else if !job.enforced {
+                "the job is not enforced; set enforced to true or drop ratchetedRule"
+            } else if crate::detectors::job_scoped(id) {
+                "this detector judges one job's home and context and cannot be ratcheted"
+            } else {
+                continue;
+            };
+            return Err(E::Value(format!("job {name:?} ratchetedRule {id:?}: {reason}")).into());
+        }
+    }
+    for id in jobs.iter().flat_map(|job| &job.ratcheted_rules) {
+        if let Some(job) = jobs
+            .iter()
+            .find(|job| forbids(job, id) && !job.ratcheted_rules.contains(id))
+        {
+            return Err(E::Value(format!(
+                "rule {id:?} is ratcheted by one job but job {:?} forbids it outright; ratchet it there too or drop it everywhere",
+                job.job.id
+            ))
+            .into());
+        }
+    }
+    Ok(())
+}

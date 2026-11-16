@@ -67,6 +67,7 @@ fn native_responses_preserve_order_multiplicity_and_evaluation_errors() {
     let text = receipt.to_ntriples().unwrap();
     let decoded = RegisteredDebtWrite::from_ntriples(&text).unwrap();
     assert_eq!(decoded.counts(), Some((2, 3)));
+    assert_eq!(decoded.sites(), 4);
     assert_eq!(decoded.exit_code(), 0);
     assert_eq!(decoded.error_message(), None);
     assert_eq!(decoded.to_ntriples().unwrap(), text);
@@ -146,9 +147,11 @@ fn protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors() {
         .unwrap()
         .to_ntriples()
         .unwrap();
+    the_site_count_is_optional_and_positive(&receipt);
     for (key, value) in [
         ("groupCount", shape::integer(0)),
         ("jobCount", shape::integer(0)),
+        ("siteCount", shape::integer(1)),
     ] {
         let text = edit_debt(&error, |graph| put(graph, "", key, value).unwrap());
         assert!(RegisteredDebtWrite::from_ntriples(&text).is_err());
@@ -306,7 +309,7 @@ fn debt_receipt() -> RegisteredDebtWrite {
         path: "census-debt.ttl".into(),
         groups: 2,
         jobs: 3,
-        sites: 0,
+        sites: 4,
     }))
     .unwrap()
 }
@@ -316,4 +319,36 @@ fn edit_debt(text: &str, change: impl FnOnce(&mut Builder)) -> String {
     let mut builder = Builder::from_graph(&graph);
     change(&mut builder);
     builder.finish().unwrap().to_text(Format::NTriples).unwrap()
+}
+
+/// The site count is optional and positive: absent means none, zero is refused,
+/// and a receipt with no sites states none.
+fn the_site_count_is_optional_and_positive(receipt: &str) {
+    let without = edit_debt(receipt, |graph| {
+        replace(graph, "", "siteCount", shape::integer(4), None);
+    });
+    assert_eq!(
+        RegisteredDebtWrite::from_ntriples(&without)
+            .unwrap()
+            .sites(),
+        0
+    );
+    let zero = edit_debt(receipt, |graph| {
+        replace(
+            graph,
+            "",
+            "siteCount",
+            shape::integer(4),
+            Some(shape::integer(0)),
+        );
+    });
+    assert!(RegisteredDebtWrite::from_ntriples(&zero).is_err());
+    let empty = RegisteredDebtWrite::from_write(&Ok(crate::DebtWrite {
+        path: "census-debt.ttl".into(),
+        groups: 1,
+        jobs: 0,
+        sites: 0,
+    }))
+    .unwrap();
+    assert!(!empty.to_ntriples().unwrap().contains("siteCount"));
 }

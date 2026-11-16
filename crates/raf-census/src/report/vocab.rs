@@ -183,6 +183,7 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
             "forbiddenConstant",
             "forbiddenFingerprint",
             "forbiddenPattern",
+            "ratchetedRule",
             "variant",
             "extension",
             "preferredProvider",

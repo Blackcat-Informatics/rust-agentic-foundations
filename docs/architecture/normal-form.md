@@ -497,7 +497,10 @@ little-endian u64 length and its bytes), one presence byte, and when it is 1 the
 same framing of the first ordinary or raw string literal that starts at or after
 the site inside that item. Line numbers and byte offsets are never hashed.
 The node name is `#site/<rule>/<key>@<file>`, and the reader recomputes it. A
-record with no ratcheted rule writes neither a `ratchetedRule` nor a `SiteDebt`.
+record with no ratcheted rule writes neither a `ratchetedRule` nor a `SiteDebt`. A rule
+id names a ratcheted pattern, built-in detector or registered rule alike, so rules add
+no property to the record. A registered or fact-detector hit states a line, and its
+site uses the first literal at or after the start of that line inside the item.
 
 ## Version-bump rule
 
@@ -530,8 +533,9 @@ that states it is refused by that earlier reader as an unknown predicate naming
 the property, not with the report-form message. The grouping-scope properties
 `excludeTestItems` and `excludeDir`, and the job evidence properties `vectorPath`,
 `benchTarget` and `specRef`, are such additions within report form 5.
-So are the ledger pattern property `ratcheted`, the debt root property `ratchetedRule`
-and the `SiteDebt` node class: a node class written only for a ratcheted rule, and
+So are the ledger pattern property `ratcheted`, the ledger job property `ratchetedRule`,
+the debt root property `ratchetedRule`, the optional `siteCount` of a registered debt
+receipt and the `SiteDebt` node class: a node class written only for a ratcheted rule, and
 never for an existing input, adds no byte to a record without one. An earlier reader
 refuses each by name.
 A value newly accepted in an existing closed set, emitted only in a new mode and

@@ -470,12 +470,19 @@ fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate()
     let stale = run(root, &["debt", "--write"]);
     assert_eq!(stale.status.code(), Some(1));
     assert_eq!(fs::read_to_string(path).unwrap(), lower);
-    // A ratcheted pattern: the write adopts its hits as counted sites, a fourth
-    // hit is refused, and a removed hit fails the check until the record is lowered.
+    for builtin in [false, true] {
+        ratcheted_hits_adopt_refuse_growth_and_lower(builtin);
+    }
+}
+
+/// A ratcheted pattern (`builtin` false) or built-in detector (`builtin` true):
+/// the write adopts its hits as counted sites, a fourth hit is refused, and a
+/// removed hit fails the check until the record is lowered.
+fn ratcheted_hits_adopt_refuse_growth_and_lower(builtin: bool) {
     let ratcheted = fixture();
     let root = ratcheted.path();
-    fs::write(root.join("helpers-ledger.ttl"), ratcheted_ledger()).unwrap();
-    ratcheted_source(root, &["one", "two", "three"]);
+    fs::write(root.join("helpers-ledger.ttl"), ratcheted_ledger(builtin)).unwrap();
+    ratcheted_source(root, &["one", "two", "three"], builtin);
     let path = root.join("census-debt.ttl");
     let unadopted = run(root, &["check"]);
     assert_eq!(unadopted.status.code(), Some(1), "{unadopted:?}");
@@ -489,7 +496,7 @@ fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate()
     assert_eq!(DebtRecord::from_turtle(&record).unwrap().sites().len(), 3);
     let held = run(root, &["check"]);
     assert!(held.status.success(), "{held:?}");
-    ratcheted_source(root, &["one", "two", "three", "four"]);
+    ratcheted_source(root, &["one", "two", "three", "four"], builtin);
     for words in [&["check"][..], &["debt", "--write"][..]] {
         let grown = run(root, words);
         assert_eq!(grown.status.code(), Some(1), "{grown:?}");
@@ -501,7 +508,7 @@ fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate()
         );
     }
     assert_eq!(fs::read_to_string(&path).unwrap(), record);
-    ratcheted_source(root, &["one", "two"]);
+    ratcheted_source(root, &["one", "two"], builtin);
     let fallen = run(root, &["check"]);
     assert_eq!(fallen.status.code(), Some(1), "{fallen:?}");
     let lowered = run(root, &["debt", "--write"]);
@@ -517,9 +524,9 @@ fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate()
     assert!(settled.status.success(), "{settled:?}");
 }
 
-/// An enforced job whose forbidden pattern is ratcheted: its hits are recorded
+/// An enforced job whose forbidden pattern or built-in rule is ratcheted: its hits are recorded
 /// as counted sites instead of failing the gate.
-fn ratcheted_ledger() -> String {
+fn ratcheted_ledger(builtin: bool) -> String {
     let mut graph = Builder::from_graph(Ledger::from_turtle(&ledger(1)).unwrap().graph());
     let enforced = |value| Triple {
         subject: Term::iri("#job"),
@@ -534,6 +541,15 @@ fn ratcheted_ledger() -> String {
         object: Term::typed_literal("7", vocab::INTEGER),
     };
     assert!(graph.remove(constant).unwrap());
+    if builtin {
+        for (key, value) in [
+            ("forbiddenFingerprint", "rule:serde-json"),
+            ("ratchetedRule", "serde-json"),
+        ] {
+            put(&mut graph, "#job", key, Term::simple_literal(value));
+        }
+        return graph.finish().unwrap().to_text(Format::Turtle).unwrap();
+    }
     put(&mut graph, "", "pattern", Term::iri("#pattern"));
     put(
         &mut graph,
@@ -559,14 +575,15 @@ fn ratcheted_ledger() -> String {
 }
 
 /// One drop call per name, each followed by a distinct string literal.
-fn ratcheted_source(root: &Path, names: &[&str]) {
+fn ratcheted_source(root: &Path, names: &[&str], builtin: bool) {
+    let hit = if builtin {
+        "serde_json::to_string(&0)"
+    } else {
+        "std::mem::drop(0)"
+    };
     let mut text = "/// The operation.\npub fn home()->u32{7}\n".to_owned();
     for name in names {
-        writeln!(
-            text,
-            "pub fn hit_{name}(){{std::mem::drop(0);let _=\"{name}\";}}"
-        )
-        .unwrap();
+        writeln!(text, "pub fn hit_{name}(){{{hit};let _=\"{name}\";}}").unwrap();
     }
     fs::write(root.join("src/lib.rs"), text).unwrap();
 }

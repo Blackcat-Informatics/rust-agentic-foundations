@@ -195,7 +195,7 @@ unchanged to the consumer's validator, so they carry no engine vocabulary.
 | `Match` | `matchClass` match-role IRI; standard RDF reifies links the quoted job-to-unit match |
 | `Home`, `Variant`, `Copy` | Enumerated match-role IRIs, with no owned properties |
 | `SharedConstant` | `value` integer greater than 65535; `packageCount` integer at least two and no greater than the member count; `member` links to units |
-| `DebtRecord` | `normalForm`, `reportForm` integers; optional grouping scope; repeated `ratchetedRule` strings naming the ratcheted patterns, written only when there is one |
+| `DebtRecord` | `normalForm`, `reportForm` integers; optional grouping scope; repeated `ratchetedRule` strings naming the ratcheted patterns and rules, written only when there is one |
 | `BodyDebt`, `ShimDebt` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members |
 | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
 | `JobDebt` | `jobId` string; `copies` positive integer |
@@ -205,7 +205,7 @@ unchanged to the consumer's validator, so they carry no engine vocabulary.
 | Census Ledger class | Properties and object types |
 |---|---|
 | `Ledger` | `normalForm`, `reportForm` version integers; optional `minTokens` positive integer and `maxFileBytes` nonnegative integer; optional `excludeTestItems` boolean, stated only as true; repeated `excludeDir` directory-name strings, which leave excluded units out of body and shim grouping only; repeated `root`, `reference` strings; `job`, `distinct`, `pattern` links to owned declarations |
-| `LedgerJob` | `jobId`, `summary`, `homeSymbol` strings; `enforced` boolean; repeated `entryPoint`, `forbiddenName`, `forbiddenFingerprint`, `forbiddenPattern`, `vectorPath` and `benchTarget` strings, one optional `specRef` string, and `forbiddenConstant` unsigned integer values; `variant`, `extension`, `preferredProvider` links to owned declarations |
+| `LedgerJob` | `jobId`, `summary`, `homeSymbol` strings; `enforced` boolean; repeated `entryPoint`, `forbiddenName`, `forbiddenFingerprint`, `forbiddenPattern`, `ratchetedRule`, `vectorPath` and `benchTarget` strings, one optional `specRef` string, and `forbiddenConstant` unsigned integer values; `variant`, `extension`, `preferredProvider` links to owned declarations |
 | `Variant` | `symbol`, `file`, `detector`, `criterion`, `reason` strings; `anchor` documentation IRI |
 | `Distinct` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members; `kind` string body or shim; `criterion`, `reason` strings; `anchor` documentation IRI |
 | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
@@ -225,7 +225,7 @@ and a match-role IRI in an Index.
 |---|---|
 | `RegisteredCheck` | `protocolVersion` fixed protocol IRI; `status` string; `findingCount` integer; `finding` links to owned findings; `errorMessage` string only for evaluation error |
 | `CensusFinding` | `ordinal` nonnegative integer; `message` string |
-| `RegisteredDebtWrite` | `protocolVersion` fixed protocol IRI; `status` string; `groupCount`, `jobCount` integers only for a written response; `errorMessage` string only for publication error |
+| `RegisteredDebtWrite` | `protocolVersion` fixed protocol IRI; `status` string; `groupCount`, `jobCount` integers and optional positive `siteCount` integer only for a written response; `errorMessage` string only for publication error |
 
 The inventories cover engine-emitted classes, properties and enumerated object
 IRIs in the shared namespace, including references inside triple terms. Literal

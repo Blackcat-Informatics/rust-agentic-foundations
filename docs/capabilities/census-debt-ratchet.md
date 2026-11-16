@@ -44,6 +44,8 @@ bindings:
     - raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions
     - raf_census::test_crate::debt::ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows
     - raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions
+    - raf_census::test_crate::census_gate::ratcheted_rules_record_counted_sites_and_hold_both_directions
+    - raf_census::test_crate::census_gate::a_required_rule_cannot_also_be_ratcheted
     - rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte
     - raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record
     - raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record
@@ -60,7 +62,7 @@ depends: [cap:census-normal-form, cap:census-ledger, cap:rdf-report-profile]
 ## Purpose
 
 The ratchet records present duplication and the hits of ratcheted patterns
-while refusing both new debt and stale slack. Removing duplication must lower the record, so an old allowance cannot
+and rules while refusing both new debt and stale slack. Removing duplication must lower the record, so an old allowance cannot
 hide a regression.
 
 ## Contract
@@ -109,9 +111,10 @@ group; a write records the present scope. An absent record takes the present
 scope, so a scope alone never requires a record.
 
 ### Counted site ratchet
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte,raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::debt::ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte,raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratcheted_rules_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::a_required_rule_cannot_also_be_ratcheted,raf_census::test_crate::debt::ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate -->
 
-A ledger Pattern that states ratcheted true does not produce findings. Its hits
+A ledger Pattern that states ratcheted true, or a rule that a job names in
+ratchetedRule, does not produce findings. Its hits
 are recorded as counted sites: one row per (file, rule id, site key), with the
 number of hits that share it. The record names every ratcheted rule in
 ratchetedRule, so a rule whose hits are all burned down stays recorded and a new
@@ -128,6 +131,19 @@ missing key plus a new key, so a removed hit cannot hide a new one. Two hits who
 case the key does not separate: they may swap places with no change to the record. The literal
 scan shares the lexical walk of literalRegex and is charged to the same matching
 grant; exceeding a bound refuses and never truncates.
+
+A ratcheted rule is a built-in detector or a registered rule that the same
+enforced job forbids with a rule fingerprint and names in ratchetedRule. It is
+held by the same record, keys and comparisons as a pattern. Built-in syntax
+detectors state the byte of each hit. A registered rule or fact detector states a
+line only, so its site is the owning item and the first string literal at or
+after the start of the hit's line inside that item, and two hits on one line
+count twice. A rule that two jobs forbid is held the same way by both, a rule the
+Gate requires cannot also be ratcheted, and a detector that judges one job's home
+and context (home-literal, vocabulary-literal, sole-name, foreign-host-import)
+cannot be ratcheted. The record format needs no new property for rules:
+ratchetedRule names rule ids of either kind. `RegisteredDebtWrite` states the
+site count only when it is positive.
 
 The two-sided ratchet applies to each site. A site that is new, or whose count
 rises, is growth: it fails the check and cannot be written. A count that falls
@@ -243,13 +259,13 @@ same ordinary debt publication. Preexisting temporary files and symlink or
 directory entries remain untouched on refusal.
 <!-- raf:tested-by cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records -->
 
-A ratcheted pattern with three hits in two files is adopted as those three
+A ratcheted pattern or rule with three hits in two files is adopted as those three
 sites. A fourth hit refuses both checking and writing, inserting lines above a
 recorded site changes nothing, and removing a hit or deleting its file fails the
 check until the record is lowered. When no hit remains anywhere, the lowered
 record keeps the rule with no site row, the next check is clean, and a new hit is
 growth.
-<!-- raf:tested-by raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratcheted_rules_record_counted_sites_and_hold_both_directions -->
 
 A recorded body group contains demo_a::len, demo_b::len and demo_c::len.
 Removing demo_c leaves a strict subset. The next Gate check reports shrinkage.
@@ -292,7 +308,7 @@ partial record. The debt example covers the configured registered writer.
 <!-- raf:tested-by raf_census::example_crate::debt -->
 
 - The ratchet covers duplicate groups, unenforced job-copy counts and the
-  counted sites of ratcheted patterns. Forbidden rule and pattern findings and
+  counted sites of ratcheted patterns and rules. Forbidden rule and pattern findings and
   unavailable policy execution cannot be hidden in a record.
   Readers and writers share a 16-MiB serialized cap. Unknown shapes, invalid
   counts, unowned nodes and noncanonical/digest-invalid text refuse. Persistent
@@ -341,7 +357,7 @@ errors. Fixture programs and example consumers are never initiated by RAF.
 
 Bound cases cover both ratchet directions, kind changes, counted cfg members,
 canonical formats, shape/digest refusal, version comparison, the grouping
-scope a record states and the counted sites of a ratcheted pattern, including
+scope a record states and the counted sites of a ratcheted pattern, built-in detector and registered rule, including
 the byte-identical record of a repository with none. Actual command
 fixtures prove adoption, growth refusal, lowering, registration refusal and
 preservation of the previous file. The existing executable example includes
@@ -369,8 +385,10 @@ or execution of an external native implementation.
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::a_required_rule_cannot_also_be_ratcheted` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::census_gate::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes` | test | [Contract](#contract) |

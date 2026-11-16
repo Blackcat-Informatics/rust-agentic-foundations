@@ -14,7 +14,45 @@ pub(super) type UnitKey = (String, String, usize);
 pub(super) type Hits = BTreeMap<String, BTreeMap<UnitKey, Vec<RuleHit>>>;
 /// The byte and line of every recorded hit, by rule and owning unit. The public
 /// `RuleHit` states a line only; the ratchet needs the byte.
-pub(super) type Offsets = BTreeMap<String, BTreeMap<UnitKey, Vec<(usize, usize)>>>;
+pub(super) type Offsets = BTreeMap<String, BTreeMap<UnitKey, Vec<Placed>>>;
+
+/// One recorded hit with the position the site key needs.
+pub(super) struct Placed {
+    pub(super) byte: usize,
+    pub(super) line: usize,
+    pub(super) message: String,
+}
+
+/// The first byte of the one-based `line` of `text`; the end of the text for a line past it.
+fn line_start(text: &str, line: usize) -> usize {
+    line.checked_sub(2).map_or(0, |skip| {
+        text.match_indices('\n')
+            .nth(skip)
+            .map_or(text.len(), |(at, _)| at + 1)
+    })
+}
+
+/// Record the position of a line-only hit of the unit `owner`: the start of its
+/// line, no earlier than the start of the owning item.
+pub(super) fn record_line(
+    collected: &mut Collected,
+    (rule, key): (&str, UnitKey),
+    text: &str,
+    hit: &RuleHit,
+) {
+    let byte = line_start(text, hit.line).max(key.2);
+    collected
+        .offsets
+        .entry(rule.to_owned())
+        .or_default()
+        .entry(key)
+        .or_default()
+        .push(Placed {
+            byte,
+            line: hit.line,
+            message: hit.message.clone(),
+        });
+}
 
 pub(super) struct Hit<'a> {
     pub(super) rule: &'a str,
@@ -84,6 +122,7 @@ pub(super) fn collect(
     ledger: &Ledger,
 ) -> Result<Collected, Error> {
     let rules = selected.registered;
+    let tracked = ledger.ratcheted_rules();
     let admitted = admit(rules)?;
     let mut ids: BTreeSet<_> = admitted.iter().map(|(id, _)| *id).collect();
     let requested = requested(ledger, selected.required, &ids)?;
@@ -99,7 +138,7 @@ pub(super) fn collect(
         subjects: BTreeMap::new(),
         offsets: BTreeMap::new(),
     };
-    fact_hits(census, &requested, &mut collected.hits);
+    fact_hits(workspace, census, (&requested, &tracked), &mut collected)?;
     if rules.is_empty() && !builtin {
         return Ok(collected);
     }
@@ -158,6 +197,9 @@ pub(super) fn collect(
                 }
                 let owner = owners[0];
                 hit.symbol.clone_from(&owner.symbol);
+                if tracked.contains(id) {
+                    record_line(&mut collected, (id, owners::key(owner)), &source.text, &hit);
+                }
                 collected
                     .hits
                     .get_mut(id)
@@ -184,8 +226,15 @@ fn requested<'a>(
                 .chain(row.variants.iter().map(|variant| variant.detector.as_str()))
         })
         .collect();
+    let ratcheted = ledger.ratcheted_rules();
     let mut required_ids = BTreeSet::new();
     for id in required {
+        if ratcheted.contains(id.as_str()) {
+            return Err(refused(
+                id,
+                "a rule the Gate requires cannot also be ratcheted by a job; drop it from ratchetedRule or from the required rules",
+            ));
+        }
         if !required_ids.insert(id.as_str()) {
             return Err(refused(id, "required rule is declared more than once"));
         }
@@ -195,10 +244,7 @@ fn requested<'a>(
                 "required rule has no registered implementation",
             ));
         }
-        if matches!(
-            id.as_str(),
-            "home-literal" | "vocabulary-literal" | "sole-name" | "foreign-host-import"
-        ) {
+        if crate::detectors::job_scoped(id) {
             return Err(refused(id, "this detector requires a ledger job and home"));
         }
         requested.insert(id.as_str());
@@ -230,26 +276,43 @@ fn admit(rules: &[Box<dyn Rule>]) -> Result<Vec<(&'static str, &dyn Rule)>, Erro
     Ok(admitted)
 }
 
-fn fact_hits(census: &Census, requested: &BTreeSet<&str>, matches: &mut Hits) {
+fn fact_hits(
+    workspace: &Workspace,
+    census: &Census,
+    (requested, tracked): (&BTreeSet<&str>, &BTreeSet<&str>),
+    collected: &mut Collected,
+) -> Result<(), Error> {
     if !requested.contains("hex-table") && !requested.contains("json-pointer-escape") {
-        return;
+        return Ok(());
     }
     for unit in census.units() {
         for hit in crate::detectors::facts(unit) {
-            if requested.contains(hit.rule) {
-                matches
-                    .get_mut(hit.rule)
-                    .expect("implemented fact detector")
-                    .entry(owners::key(unit))
-                    .or_default()
-                    .push(RuleHit {
-                        line: hit.line,
-                        symbol: unit.symbol.clone(),
-                        message: hit.message,
-                    });
+            if !requested.contains(hit.rule) {
+                continue;
             }
+            let found = RuleHit {
+                line: hit.line,
+                symbol: unit.symbol.clone(),
+                message: hit.message,
+            };
+            if tracked.contains(hit.rule) {
+                let path = raf_source::RelPath::new(&unit.file)
+                    .map_err(|error| refused(hit.rule, &error.to_string()))?;
+                let text = workspace.source(&path).ok_or_else(|| {
+                    refused(hit.rule, &format!("{}: source text is absent", unit.file))
+                })?;
+                record_line(collected, (hit.rule, owners::key(unit)), text, &found);
+            }
+            collected
+                .hits
+                .get_mut(hit.rule)
+                .expect("implemented fact detector")
+                .entry(owners::key(unit))
+                .or_default()
+                .push(found);
         }
     }
+    Ok(())
 }
 
 fn builtin_hits(
@@ -311,7 +374,11 @@ pub(super) fn record_hit(
             .or_default()
             .entry(key.clone())
             .or_default()
-            .push((hit.byte, hit.line));
+            .push(Placed {
+                byte: hit.byte,
+                line: hit.line,
+                message: hit.message.clone(),
+            });
         collected
             .hits
             .get_mut(hit.rule)
@@ -389,7 +456,11 @@ fn source_hit(
         .or_default()
         .entry(key.clone())
         .or_default()
-        .push((hit.byte, hit.line));
+        .push(Placed {
+            byte: hit.byte,
+            line: hit.line,
+            message: hit.message.clone(),
+        });
     collected
         .hits
         .get_mut(hit.rule)

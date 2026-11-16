@@ -18,6 +18,7 @@ pub const DEBT_WRITE_PROTOCOL_VERSION: &str = "urn:raf:census:registered-debt-wr
 pub struct RegisteredDebtWrite {
     graph: Graph,
     counts: Option<(usize, usize)>,
+    sites: usize,
 }
 
 impl RegisteredDebtWrite {
@@ -49,6 +50,14 @@ impl RegisteredDebtWrite {
                     "jobCount",
                     shape::integer(receipt.jobs as u128),
                 )?;
+                if receipt.sites > 0 {
+                    put(
+                        &mut graph,
+                        "",
+                        "siteCount",
+                        shape::integer(receipt.sites as u128),
+                    )?;
+                }
                 Some((receipt.groups, receipt.jobs))
             }
             Err(error) => {
@@ -69,6 +78,7 @@ impl RegisteredDebtWrite {
         let receipt = Self {
             graph: graph.finish().map_err(E::Ground)?,
             counts,
+            sites: result.as_ref().map_or(0, |receipt| receipt.sites),
         };
         receipt.to_ntriples()?;
         Ok(receipt)
@@ -98,11 +108,22 @@ impl RegisteredDebtWrite {
                 "debt receipt requires protocol {DEBT_WRITE_PROTOCOL_VERSION}"
             )));
         }
+        let mut sites = 0;
         let counts = match string_value(root, "status")? {
-            "written" => Some((
-                shape::count(&root, "groupCount")?,
-                shape::count(&root, "jobCount")?,
-            )),
+            "written" => {
+                if root.values(&shape::property("siteCount")).next().is_some() {
+                    sites = shape::count(&root, "siteCount")?;
+                    if sites == 0 {
+                        return Err(E::Value(
+                            "debt receipt siteCount is stated only when positive".into(),
+                        ));
+                    }
+                }
+                Some((
+                    shape::count(&root, "groupCount")?,
+                    shape::count(&root, "jobCount")?,
+                ))
+            }
             "error" => {
                 string_value(root, "errorMessage")?;
                 None
@@ -110,7 +131,13 @@ impl RegisteredDebtWrite {
             other => return Err(E::Value(format!("debt receipt status {other}"))),
         };
         let fields: &[&str] = if counts.is_some() {
-            &["protocolVersion", "status", "groupCount", "jobCount"]
+            &[
+                "protocolVersion",
+                "status",
+                "groupCount",
+                "jobCount",
+                "siteCount",
+            ]
         } else {
             &["protocolVersion", "status", "errorMessage"]
         };
@@ -126,7 +153,11 @@ impl RegisteredDebtWrite {
         if graph.nodes().count() != 1 {
             return Err(E::Orphan("debt receipt contains extra subjects".into()));
         }
-        Ok(Self { graph, counts })
+        Ok(Self {
+            graph,
+            counts,
+            sites,
+        })
     }
 
     /// Emit the canonical native carrier.
@@ -151,6 +182,12 @@ impl RegisteredDebtWrite {
     #[must_use]
     pub const fn exit_code(&self) -> u8 {
         if self.counts.is_some() { 0 } else { 1 }
+    }
+
+    /// The number of ratcheted site rows recorded; zero when none, and for an error.
+    #[must_use]
+    pub const fn sites(&self) -> usize {
+        self.sites
     }
 
     /// The original writer error, without treating it as debt or a finding.

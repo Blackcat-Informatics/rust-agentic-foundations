@@ -167,7 +167,7 @@ fn collect_debt(
             ));
         }
     }
-    let counted = sink.count(workspace, ledger, limits)?;
+    let counted = sink.count(workspace, limits)?;
     let record = DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)?
         .scoped(census.options().scope.clone())
         .with_ratchet(sink.rules().map(str::to_owned), counted.counts)?;

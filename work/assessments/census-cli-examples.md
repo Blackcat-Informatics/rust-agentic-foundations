@@ -40,7 +40,7 @@ inputs:
     digest: 0cf0dafd2c191031bf6850d83d15f5b4a10b6c044d03d412a3038423cc7445ba
   - kind: symbol
     name: raf_census::RegisteredDebtWrite
-    digest: 909a50042ab3a2fd43b76ada3ac34f463901895ae64a6baf0460403100ff6085
+    digest: fb2953459e033ae232258e09b7d49475b5a1cd37cc91298912e0106c4600008e
   - kind: symbol
     name: raf_census::RegisteredOperation
     digest: 98bcfe7fbfb82787e373bc668fe6ed676710da4e3558b9fd8822e7b7367fb640
@@ -52,7 +52,7 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::registered
-    digest: d76d642bd5327e8e7e565c7be591417e9bbc9146443458d86525443185c7c3af
+    digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
   - kind: symbol
     name: raf_census::selftest
     digest: a8f4a7e4df293d2348f27cbda45719380e6910ac137e9bb1db1779650ae9ceee

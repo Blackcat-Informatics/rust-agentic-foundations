@@ -98,6 +98,10 @@ pub struct LedgerJob {
     pub names: Vec<NamePattern>,
     /// Declarative pattern ids; the gate must resolve every one before running.
     pub patterns: Vec<String>,
+    /// The built-in detector and registered rule ids whose hits this job records
+    /// as counted sites instead of findings; each is a forbidden rule fingerprint
+    /// of this job, and the list is sorted and free of repeats.
+    pub ratcheted_rules: Vec<String>,
     /// Sanctioned implementations and their reasons.
     pub variants: Vec<LedgerVariant>,
     /// The native graph node offered to a registered extension, when present.
@@ -172,6 +176,14 @@ impl Ledger {
     #[must_use]
     pub fn patterns(&self) -> &[LedgerPattern] {
         &self.patterns
+    }
+
+    /// The ids of every built-in detector and registered rule that some job ratchets.
+    pub(crate) fn ratcheted_rules(&self) -> BTreeSet<&str> {
+        self.jobs
+            .iter()
+            .flat_map(|row| row.ratcheted_rules.iter().map(String::as_str))
+            .collect()
     }
     /// The census normalization and source-read limits.
     #[must_use]
@@ -330,6 +342,7 @@ impl Ledger {
             jobs.push(job);
         }
         jobs.sort_by(|a, b| a.job.id.cmp(&b.job.id));
+        declarations::ratcheted_rules(&jobs)?;
         let patterns = declarations::patterns(&graph, &root, &mut reached, &jobs)?;
         let mut distinct = Vec::new();
         let mut distinct_sets = BTreeSet::new();
@@ -463,6 +476,7 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
     if summary.contains(['\r', '\n']) {
         return Err(E::Value(format!("job {:?}: summary must be one line", job.id)).into());
     }
+    let ratcheted_rules = strings(&node, "ratchetedRule")?;
     let vectors = read_vectors(&node, &job.id)?;
     let benches = read_benches(&node, &job.id)?;
     let specification = read_specification(&node)?;
@@ -472,6 +486,7 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
         enforced,
         names,
         patterns: strings(&node, "forbiddenPattern")?,
+        ratcheted_rules,
         variants,
         extension: extension.into_iter().next(),
         preferred_provider,

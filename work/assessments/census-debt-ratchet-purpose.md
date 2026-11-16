@@ -7,7 +7,7 @@ subject: cap:census-debt-ratchet#purpose
 inputs:
   - kind: section
     name: cap:census-debt-ratchet#purpose
-    digest: 88750728eb7bb310bf4b3655e8a4b3510b98b913394bad566a4428bec0cbb139
+    digest: 4051fdba33c0c2a1b3d448f4e018d65f726a252faaa476260e43f59fb067cc1c
   - kind: symbol
     name: raf_census::DEBT_FILE
     digest: 12ca19be3fbb9901282949df239635101deb59bd25e6d5092aa5492478c3ccbb
@@ -46,7 +46,7 @@ inputs:
     digest: cc3320f0acdf6398ea6ecb2e75be7a907ae578cfd63c2023370041617718c93c
   - kind: symbol
     name: raf_census::gate::ratchet
-    digest: 92df3862bd4275e01a5c8e16ac6c0b0b2da0127f33f2c2c8de01cd60890bc5d0
+    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
   - kind: symbol
     name: raf_census::gate::read_debt
     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
