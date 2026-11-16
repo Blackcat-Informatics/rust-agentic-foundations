@@ -971,3 +971,23 @@ fn code_in_a_block_local_module_is_reached_with_the_function_that_declares_it() 
     assert!(!reached.contains(value(&ws, "demo::other")));
     assert!(!reached.contains(by_path(&ws, "::h")));
 }
+
+/// Two files that one module path merges, here the alternatives of a
+/// `cfg_attr` path, can declare a block module at one offset; each file keeps
+/// the containment edge of its own function, so each root reaches its helper.
+#[test]
+fn block_modules_at_one_offset_in_two_alternative_files_each_keep_their_containment() {
+    let body = |name: &str, helper: &str| {
+        format!("pub fn {name}() {{ mod local {{ pub fn g() {{ crate::{helper}(); }} }} }}")
+    };
+    let ws = load(&[
+        (
+            "src/lib.rs",
+            "#[cfg_attr(unix, path = \"a.rs\")]\n#[cfg_attr(windows, path = \"b.rs\")]\nmod p;\nfn ha() {}\nfn hb() {}\n",
+        ),
+        ("src/a.rs", &body("aa", "ha")),
+        ("src/b.rs", &body("bb", "hb")),
+    ]);
+    assert!(reach(&ws, &[value(&ws, "demo::p::aa")]).contains(value(&ws, "demo::ha")));
+    assert!(reach(&ws, &[value(&ws, "demo::p::bb")]).contains(value(&ws, "demo::hb")));
+}

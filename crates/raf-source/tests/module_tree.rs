@@ -1467,18 +1467,23 @@ fn an_inline_module_in_a_block_resolves_its_children_without_the_files_module_di
     );
 }
 
-/// A block-local module inside a test function carries the test role to the
-/// file it names; the same declaration in a function that is no test does not.
+/// A block-local module inside a test function or a test-gated constant
+/// carries the test role to the file it names; the same declaration in code
+/// that is no test does not.
 #[test]
 fn a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function() {
     let ws = ok(&[
         (
             "src/lib.rs",
             "#[test]\nfn t() {\n    #[path = \"fixture.rs\"]\n    mod fixture;\n}\n\
-             fn plain() {\n    #[path = \"data.rs\"]\n    mod data;\n}\n",
+             fn plain() {\n    #[path = \"data.rs\"]\n    mod data;\n    \
+             #[cfg(test)]\n    const C: () = {\n        #[path = \"gated.rs\"]\n        mod gated;\n    };\n    \
+             const D: () = {\n        #[path = \"plain_const.rs\"]\n        mod plain_const;\n    };\n}\n",
         ),
         ("src/fixture.rs", ""),
         ("src/data.rs", ""),
+        ("src/gated.rs", ""),
+        ("src/plain_const.rs", ""),
     ]);
     let test_of = |file: &str| {
         let loaded = ws.files().find(|f| f.path.as_str() == file).expect("file");
@@ -1486,6 +1491,8 @@ fn a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_
     };
     assert_eq!(test_of("src/fixture.rs"), vec![true]);
     assert_eq!(test_of("src/data.rs"), vec![false]);
+    assert_eq!(test_of("src/gated.rs"), vec![true]);
+    assert_eq!(test_of("src/plain_const.rs"), vec![false]);
 }
 
 /// A block-local `path` that leaves its package is reported by the

@@ -1869,14 +1869,14 @@ impl Extractor<'_> {
 /// deep, without entering the module declarations themselves.
 struct BlockMods<'e, 'f, 'x> {
     extractor: &'e Extractor<'x>,
-    /// The test role of the innermost enclosing function.
+    /// The test role of the innermost enclosing item.
     test: TestRole,
     found: &'f mut Vec<ModFact>,
     failed: Option<ExtractError>,
 }
 
 impl BlockMods<'_, '_, '_> {
-    /// Visit a function with the test role its own attributes give.
+    /// Visit an item with the test role its own attributes give.
     fn within(&mut self, attrs: &[Attribute], visit: impl FnOnce(&mut Self)) {
         if self.failed.is_some() {
             return;
@@ -1933,6 +1933,42 @@ impl<'ast> Visit<'ast> for BlockMods<'_, '_, '_> {
     fn visit_item_fn(&mut self, function: &'ast syn::ItemFn) {
         self.within(&function.attrs, |this| {
             syn::visit::visit_item_fn(this, function);
+        });
+    }
+
+    fn visit_item_const(&mut self, item: &'ast syn::ItemConst) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_item_const(this, item);
+        });
+    }
+
+    fn visit_item_static(&mut self, item: &'ast syn::ItemStatic) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_item_static(this, item);
+        });
+    }
+
+    fn visit_item_impl(&mut self, item: &'ast syn::ItemImpl) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_item_impl(this, item);
+        });
+    }
+
+    fn visit_item_trait(&mut self, item: &'ast syn::ItemTrait) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_item_trait(this, item);
+        });
+    }
+
+    fn visit_impl_item_const(&mut self, item: &'ast syn::ImplItemConst) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_impl_item_const(this, item);
+        });
+    }
+
+    fn visit_trait_item_const(&mut self, item: &'ast syn::TraitItemConst) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_trait_item_const(this, item);
         });
     }
 

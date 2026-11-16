@@ -926,18 +926,18 @@ impl<'a> Builder<'a> {
             self.index.modules[module].path,
             decl.block_segment()
         );
-        let before = self.index.modules.len();
         let child = self.declare(&path, module, cx.file, decl.name_line)?;
-        if self.index.modules.len() > before {
-            self.store
-                .charge(size_of::<BlockModule>(), cx.file, Some(decl.name_line))?;
-            self.index.block_modules.push(BlockModule {
-                module: child,
-                parent: module,
-                file: cx.file.clone(),
-                span: (decl.span.start_byte, decl.span.end_byte),
-            });
-        }
+        // One record for each declaring file: files that one module path merges
+        // (the alternatives of a `cfg_attr` path) can declare the same child
+        // at the same offset, and each file's items need their own site.
+        self.store
+            .charge(size_of::<BlockModule>(), cx.file, Some(decl.name_line))?;
+        self.index.block_modules.push(BlockModule {
+            module: child,
+            parent: module,
+            file: cx.file.clone(),
+            span: (decl.span.start_byte, decl.span.end_byte),
+        });
         Ok(child)
     }
 
