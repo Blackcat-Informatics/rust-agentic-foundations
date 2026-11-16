@@ -46,11 +46,10 @@
 //! the key `measured_evidence_required`: each measured record that covers it with
 //! the verdict `fail` is its own `measured-evidence-failed` finding, naming it;
 //! a passing record that is stale or refused adds `measured-evidence-missing`
-//! after them; and with no failing record and no such passing record,
-//! `measured-evidence-missing` is raised alone. A failing record beside no stale
+//! (one finding for all such records) after them; and with no failing record and no
+//! such passing record, `measured-evidence-missing` is raised alone. A failing record beside no stale
 //! or refused passing record yields only its own finding. A refusal by the source
-//! index is reported with its error, not as the changed inputs found before it
-//! in the same record. The findings are not
+//! index is reported with its error, not as a changed input. The findings are not
 //! debt, and a capability that does not state the key is judged as before.
 //!
 //! # Claims
@@ -181,8 +180,8 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
 /// all digest as they did when it was recorded. Without one, each measured
 /// record that covers the capability and fails is its own
 /// `measured-evidence-failed` finding, naming the record. A passing record that
-/// is stale or refused adds one `measured-evidence-missing` finding after the
-/// failing ones; with no failing record and no such passing record the
+/// is stale or refused adds a single `measured-evidence-missing` finding, shared by all
+/// such records, after the failing ones; with no failing record and no such passing record the
 /// measurement is missing, and with only failing records nothing else is raised.
 fn measured_evidence(
     plan: &Workplan<'_>,

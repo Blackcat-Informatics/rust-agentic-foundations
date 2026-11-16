@@ -755,7 +755,7 @@ fn a_failing_or_stale_measured_record_does_not_satisfy_the_requirement() {
         "a changed input is named as changed: {stale:#?}"
     );
     // An input that no longer resolves is named with the reason, not reported as a
-    // digest mismatch; the current neighbour above it resolves and is accepted.
+    // digest mismatch; the current neighbour below it resolves and is accepted.
     let (path, text) = evidence_as("pass", &current_digest(), MEASURED);
     let gone = requiring(Some((
         path,
@@ -767,7 +767,7 @@ fn a_failing_or_stale_measured_record_does_not_satisfy_the_requirement() {
         "an unresolved input names its reason: {gone:#?}"
     );
     // The passing record at current digests beside them satisfies it, and a
-    // failing record of other values beside it does not undo that.
+    // failing record beside it does not undo that.
     assert_eq!(requiring(Some(evidence(MEASURED))), []);
     let mut repo = repo(
         fixture::replaced(

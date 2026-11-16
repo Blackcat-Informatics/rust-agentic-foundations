@@ -223,7 +223,7 @@ in that type's directory. Each of these directories holds Markdown files only.
   `false`. A capability that states `true` requires an evidence record that
   covers it, states a measurement (see `units` and `conditions` of Evidence), has the
   verdict `pass` and has current input digests; a covering measured record with the
-  verdict `fail` is reported as its own finding.
+  verdict `fail` is reported as its own finding unless a passing record with current digests also covers the capability.
 - **`changes`** is a non-empty list of capability ids that exist.
 - **`diagrams`** is an optional list of at most 64 named maps on Capability
   and Architecture documents. Each map requires `name`, `kind` and `scope`;
