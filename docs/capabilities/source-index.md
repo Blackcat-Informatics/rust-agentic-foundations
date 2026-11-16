@@ -912,6 +912,7 @@ bindings:
     - raf_source::test_crate::discovery_targets::a_virtual_manifest_contributes_nothing_but_its_children_are_found
     - raf_source::test_crate::discovery_targets::an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key
     - raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found
+    - raf_source::test_crate::discovery_targets::autolib_false_drops_the_inferred_library_but_keeps_an_explicit_one
     - raf_source::test_crate::discovery_targets::deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads
     - raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour
     - raf_source::test_crate::discovery_targets::only_the_named_roots_are_searched
@@ -2139,10 +2140,11 @@ library only. The build script has no table and is never tested, so its `harness
 names its key, such as `bin.harness`.
 
 ### Target paths and automatic discovery
-<!-- raf:tested-by raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag,raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour,raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found -->
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag,raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour,raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found,raf_source::test_crate::discovery_targets::autolib_false_drops_the_inferred_library_but_keeps_an_explicit_one -->
 
 The library is `[lib]` or `src/lib.rs`, named by `[lib] name` or the package
-name. Binaries are the `[[bin]]` tables, `src/main.rs`, `src/bin/*.rs` and
+name, and `autolib = false` leaves `src/lib.rs` undiscovered unless an explicit
+`[lib]` names it. Binaries are the `[[bin]]` tables, `src/main.rs`, `src/bin/*.rs` and
 `src/bin/*/main.rs`; tests, benches and examples are their tables plus `tests/*.rs`,
 `tests/*/main.rs` and the same under `benches/` and `examples/`. `autobins`,
 `autotests`, `autobenches` and `autoexamples` set to false turn the inferred ones off,
@@ -5486,6 +5488,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::discovery_targets::an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::autolib_false_drops_the_inferred_library_but_keeps_an_explicit_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::discovery_target_and_module_failures_precede_later_load_phases` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag` | test | [Contract](#contract) |

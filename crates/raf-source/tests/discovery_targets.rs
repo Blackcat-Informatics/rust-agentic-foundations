@@ -715,6 +715,40 @@ fn autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_f
 }
 
 #[test]
+fn autolib_false_drops_the_inferred_library_but_keeps_an_explicit_one() {
+    let off = "[package]\nname = \"demo\"\nautolib = false\n";
+    // No `[lib]`: `src/lib.rs` is not a library, and the binary beside it stays.
+    let ws = load(
+        &[("Cargo.toml", off), ("src/lib.rs", ""), ("src/main.rs", "")],
+        &["."],
+    )
+    .expect("loads");
+    assert_eq!(
+        summary(&ws),
+        [entry(
+            "demo",
+            TargetKind::Bin,
+            "demo::bin_crate::demo",
+            "src/main.rs",
+            true
+        )]
+    );
+    // An explicit `[lib]` keeps the library under the same flag.
+    let explicit = format!("{off}\n[lib]\nname = \"demo\"\n");
+    let ws = load(&[("Cargo.toml", &explicit), ("src/lib.rs", "")], &["."]).expect("loads");
+    assert_eq!(
+        summary(&ws),
+        [entry("demo", TargetKind::Lib, "demo", "src/lib.rs", true)]
+    );
+    // The default flag still infers the library.
+    let ws = load(&[("Cargo.toml", DEMO), ("src/lib.rs", "")], &["."]).expect("loads");
+    assert_eq!(
+        summary(&ws),
+        [entry("demo", TargetKind::Lib, "demo", "src/lib.rs", true)]
+    );
+}
+
+#[test]
 fn two_packages_with_one_name_are_an_error_naming_both_manifests() {
     let files = [
         ("a/Cargo.toml", "[package]\nname = \"same\"\n"),

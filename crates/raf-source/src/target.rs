@@ -286,6 +286,11 @@ impl Context<'_> {
 
     fn library(&self, out: &mut Vec<Derived>) -> Result<(), LoadError> {
         let explicit = self.manifest.lib.as_ref();
+        // `autolib = false` leaves `src/lib.rs` undiscovered; only an explicit
+        // `[lib]` makes a library, as `library_target_name` also decides.
+        if explicit.is_none() && !self.package.auto("lib") {
+            return Ok(());
+        }
         let written = explicit.and_then(|lib| lib.path.as_deref());
         // The key that led to the root: `lib.path` when the manifest names
         // the file, the `[lib]` table when it only declares the library, and
