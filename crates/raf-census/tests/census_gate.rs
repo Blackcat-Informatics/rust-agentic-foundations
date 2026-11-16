@@ -2789,6 +2789,16 @@ fn detector_tree(id: &str, home: &str, consumer: &str) -> MemoryTree {
 }
 
 fn detector_fixture(graph: Builder, home: &str, consumer: &str) -> MemoryTree {
+    detector_fixture_with(graph, home, consumer, &[])
+}
+
+/// The detector workspace with extra files, such as a consumer test target.
+fn detector_fixture_with(
+    graph: Builder,
+    home: &str,
+    consumer: &str,
+    extra: &[(&str, &str)],
+) -> MemoryTree {
     [
         (
             "Cargo.toml",
@@ -2810,6 +2820,7 @@ fn detector_fixture(graph: Builder, home: &str, consumer: &str) -> MemoryTree {
         ),
     ]
     .into_iter()
+    .chain(extra.iter().map(|(path, text)| (*path, (*text).into())))
     .collect()
 }
 
@@ -2980,6 +2991,7 @@ fn required_rdf_rules_have_no_home_or_test_exemption() {
         &["home-literal"],
         &["vocabulary-literal"],
         &["sole-name"],
+        &["foreign-host-import"],
         &["serde-json", "serde-json"],
     ];
     for ids in refused {
@@ -3226,7 +3238,11 @@ fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
                 .unwrap();
             assert!(inactive.is_clean(), "{id}: {:?}", inactive.findings());
             sources.push(((*positive).to_owned(), true));
-            sources.push((format!("#[cfg(test)] mod oracle {{{positive}}}"), false));
+            // Only `foreign-host-import` reads test targets; the others read shipping code.
+            sources.push((
+                format!("#[cfg(test)] mod oracle {{{positive}}}"),
+                id == "foreign-host-import",
+            ));
         }
         sources.extend(
             negatives
@@ -3303,6 +3319,215 @@ fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
         0
     );
     assert_eq!(report.findings().len(), 1);
+}
+
+/// The copies a `foreign-host-import` job finds in a detector workspace.
+fn host_copies(home: &str, consumer: &str, extra: &[(&str, &str)]) -> usize {
+    let tree = detector_fixture_with(
+        detector_ledger("foreign-host-import"),
+        home,
+        consumer,
+        extra,
+    );
+    Gate::workspace(".").check_tree(&tree).unwrap().jobs()[0].copies
+}
+
+#[test]
+fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
+    const HOME: &str = "/// Home.\npub mod home {#[wasm_bindgen(module = \"clock\")] extern \"C\" {pub fn now() -> f64;}}";
+    const SAME: &str = "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn now() -> f64;}";
+    const OTHER: &str = "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn later() -> f64;}";
+    const DATE: &str = "/// Home.\npub mod home {#[wasm_bindgen(js_namespace = Date, js_name = now)] extern \"C\" {pub fn read() -> f64;}}";
+    let copies = host_copies;
+    // A second package, a second module of the home package and a test target
+    // each repeat the home's host function; a different host function does not.
+    assert_eq!(
+        copies(&format!("{HOME}\npub mod second {{{SAME}}}"), "", &[]),
+        1
+    );
+    assert_eq!(
+        copies(&format!("{HOME}\npub mod second {{{OTHER}}}"), "", &[]),
+        0
+    );
+    assert_eq!(copies(HOME, "", &[("consumer/tests/host.rs", SAME)]), 1);
+    assert_eq!(copies(HOME, "", &[("consumer/tests/host.rs", OTHER)]), 0);
+    // A static method and a namespace argument name one host function; a
+    // receiver method of the same name is another.
+    assert_eq!(
+        copies(
+            DATE,
+            "#[wasm_bindgen(static_method_of = Date)] extern \"C\" {fn now() -> f64;}",
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(
+            DATE,
+            "#[wasm_bindgen(method)] extern \"C\" {fn now(this: &Date) -> f64;}",
+            &[]
+        ),
+        0
+    );
+    // `link` and `cfg_attr` are read by their bare names only: a path-qualified one is
+    // another crate's attribute, neither read as the built-in nor refused.
+    let linked =
+        "/// Home.\npub mod home {#[link(name = \"m\")] extern \"C\" {pub fn now() -> f64;}}";
+    assert_eq!(
+        copies(
+            linked,
+            "#[link(name = \"m\")] extern \"C\" {fn now() -> f64;}",
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(
+            linked,
+            "#[shim::link(name = \"m\")] extern \"C\" {fn now() -> f64;}",
+            &[]
+        ),
+        0
+    );
+    // An argument the detector cannot place is refused beside a valid neighbour.
+    for refused in [
+        "#[wasm_bindgen(module = \"clock\", js_name)] extern \"C\" {fn now() -> f64;}",
+        "#[wasm_bindgen(module = 1)] extern \"C\" {fn now() -> f64;}",
+        "#[wasm_bindgen(module = \"clock\", unheard_of)] extern \"C\" {fn now() -> f64;}",
+    ] {
+        let tree = detector_fixture(detector_ledger("foreign-host-import"), HOME, refused);
+        let error = Gate::workspace(".").check_tree(&tree).unwrap_err();
+        assert!(
+            error.to_string().contains("host binding"),
+            "{refused}: {error}"
+        );
+    }
+    assert_eq!(
+        copies(
+            HOME,
+            "#[wasm_bindgen(module = \"clock\", catch)] extern \"C\" {fn now() -> f64;}",
+            &[]
+        ),
+        1
+    );
+    // The home alone is not a finding.
+    assert_eq!(copies(HOME, "", &[]), 0);
+    // A home that imports nothing leaves the job without evidence.
+    let error = Gate::workspace(".")
+        .check_tree(&detector_tree(
+            "foreign-host-import",
+            "/// Home.\npub fn home() {}",
+            SAME,
+        ))
+        .unwrap_err();
+    assert!(error.to_string().contains("requires a home that declares"));
+}
+
+#[test]
+fn foreign_host_import_names_a_property_by_the_property_it_reads() {
+    let copies = host_copies;
+    // A property import is named by its own value, then `js_name`, then the Rust
+    // name: two spellings of one property match, two properties on one Rust name do not.
+    let width = |attributes: &str, function: &str| {
+        format!(
+            "#[wasm_bindgen(module = \"window\")] extern \"C\" {{#[wasm_bindgen({attributes})] fn {function}(this: &Window) -> f64;}}"
+        )
+    };
+    let home_width = format!(
+        "/// Home.\npub mod home {{{}}}",
+        width("method, getter, js_name = innerWidth", "width")
+    );
+    assert_eq!(
+        copies(
+            &home_width,
+            &width("method, getter, js_name = innerWidth", "inner_width"),
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(
+            &home_width,
+            &width("method, getter = innerWidth", "other"),
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(
+            &home_width,
+            &width("method, getter, js_name = innerHeight", "width"),
+            &[]
+        ),
+        0
+    );
+    // A setter is named the same way: its own value, then `js_name`, then the Rust name
+    // without `set_`.
+    let set_width = |attributes: &str, function: &str| {
+        format!(
+            "#[wasm_bindgen(module = \"window\")] extern \"C\" {{#[wasm_bindgen({attributes})] fn {function}(this: &Window, value: f64);}}"
+        )
+    };
+    let home_set = format!(
+        "/// Home.\npub mod home {{{}}}",
+        set_width("method, setter, js_name = innerWidth", "set_inner_width")
+    );
+    assert_eq!(
+        copies(
+            &home_set,
+            &set_width("method, setter", "set_innerWidth"),
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(
+            &home_set,
+            &set_width("method, setter", "set_innerHeight"),
+            &[]
+        ),
+        0
+    );
+}
+
+#[test]
+fn foreign_host_import_names_a_class_by_its_js_class_or_constructed_type() {
+    let copies = host_copies;
+    let bound = |attributes: &str, signature: &str| {
+        format!(
+            "#[wasm_bindgen(module = \"dates\")] extern \"C\" {{#[wasm_bindgen({attributes})] {signature};}}"
+        )
+    };
+    let in_home = |import: String| format!("/// Home.\npub mod home {{{import}}}");
+    // A constructor is named by the class it builds, not by its Rust name: an overload
+    // under another name builds the same class and matches.
+    let home = in_home(bound("constructor", "pub fn new() -> Date"));
+    assert_eq!(
+        copies(&home, &bound("constructor", "fn new() -> Date"), &[]),
+        1
+    );
+    assert_eq!(
+        copies(
+            &home,
+            &bound("constructor", "fn new_with_millis(ms: f64) -> Date"),
+            &[]
+        ),
+        1
+    );
+    assert_eq!(
+        copies(&home, &bound("constructor", "fn new() -> Map"), &[]),
+        0
+    );
+    // A stated `js_class` names a method's class, whatever the Rust receiver is called.
+    let method = |class: &str, receiver: &str| {
+        bound(
+            &format!("method, js_class = \"{class}\", js_name = getTime"),
+            &format!("fn get_time(this: &{receiver}) -> f64"),
+        )
+    };
+    let home = in_home(method("Date", "HomeDate"));
+    assert_eq!(copies(&home, &method("Date", "OtherDate"), &[]), 1);
+    assert_eq!(copies(&home, &method("Map", "OtherDate"), &[]), 0);
 }
 
 #[test]

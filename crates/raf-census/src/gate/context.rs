@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::{
     evaluate::{ResolvedJob, policy},
     owners,
-    rules::{Hits, JobHits},
+    rules::{Collected, Hits, JobHits, Subject, UnitKey},
 };
 use crate::{Census, Error, Fingerprint, LedgerJob, RuleHit, StringKind, Unit, UnitKind};
 
@@ -28,20 +28,23 @@ fn literals(unit: &Unit) -> impl Iterator<Item = &crate::StringLiteral> {
 }
 
 pub(super) fn collect<'a>(
-    shared: &'a Hits,
+    collected: &'a Collected,
     census: &Census,
     row: &LedgerJob,
     scope: &ResolvedJob,
     limits: &mut MatchLimits,
 ) -> Result<JobHits<'a>, Error> {
     let mut result = JobHits {
-        shared,
+        shared: &collected.hits,
         contextual: BTreeMap::new(),
         names: BTreeSet::new(),
     };
     let home_literal = enabled(row, "home-literal");
     let vocabulary = enabled(row, "vocabulary-literal");
     let sole = enabled(row, "sole-name");
+    if enabled(row, "foreign-host-import") {
+        foreign_imports(&mut result, row, scope, &collected.subjects)?;
+    }
     if row.names.is_empty() && !home_literal && !vocabulary && !sole {
         return Ok(result);
     }
@@ -209,4 +212,53 @@ fn push(hits: &mut Hits, id: &'static str, unit: &Unit, line: usize, message: St
             message,
             symbol: unit.symbol.clone(),
         });
+}
+
+/// Keep the imports of a host function that the job's home also imports, at
+/// the sites outside the home.
+///
+/// A built-in hit's message states the imported identity, so equal messages
+/// are the same host function.
+fn foreign_imports(
+    result: &mut JobHits<'_>,
+    row: &LedgerJob,
+    scope: &ResolvedJob,
+    subjects: &BTreeMap<UnitKey, Subject>,
+) -> Result<(), Error> {
+    const ID: &str = "foreign-host-import";
+    let at_home = |key: &UnitKey| {
+        scope.homes.contains(key)
+            || subjects
+                .get(key)
+                .is_some_and(|subject| !subject.sites.is_disjoint(&scope.home_sources))
+    };
+    let imports = result.shared.get(ID);
+    let imported: BTreeSet<&str> = imports
+        .into_iter()
+        .flatten()
+        .filter(|(key, _)| at_home(key))
+        .flat_map(|(_, rows)| rows.iter().map(|hit| hit.message.as_str()))
+        .collect();
+    if imported.is_empty() {
+        return Err(policy(&format!(
+            "job {:?}: foreign-host-import requires a home that declares a host function import in an extern block",
+            row.job.id
+        )));
+    }
+    let mut kept = BTreeMap::new();
+    for (key, rows) in imports.into_iter().flatten() {
+        if at_home(key) {
+            continue;
+        }
+        let rows: Vec<_> = rows
+            .iter()
+            .filter(|hit| imported.contains(hit.message.as_str()))
+            .cloned()
+            .collect();
+        if !rows.is_empty() {
+            kept.insert(key.clone(), rows);
+        }
+    }
+    result.contextual.insert(ID.to_owned(), kept);
+    Ok(())
 }

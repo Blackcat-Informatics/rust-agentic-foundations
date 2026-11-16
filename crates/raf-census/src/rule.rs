@@ -11,6 +11,7 @@ use crate::{DEFAULT_MAX_FILE_BYTES, Error, FileCtx};
 
 pub(crate) const BUILTIN_RULE_IDS: &[&str] = &[
     "std-default-hasher",
+    "foreign-host-import",
     "hex-format-loop",
     "hex-pair-radix",
     "hex-table",
