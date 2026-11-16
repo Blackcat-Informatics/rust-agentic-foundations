@@ -43,9 +43,9 @@ bindings:
     - raf_census::test_crate::debt::counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity
     - raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions
     - raf_census::test_crate::debt::ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows
-    - raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions
-    - raf_census::test_crate::census_gate::ratcheted_rules_record_counted_sites_and_hold_both_directions
-    - raf_census::test_crate::census_gate::a_required_rule_cannot_also_be_ratcheted
+    - raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions
+    - raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions
+    - raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted
     - rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte
     - raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record
     - raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record
@@ -111,7 +111,7 @@ group; a write records the present scope. An absent record takes the present
 scope, so a scope alone never requires a record.
 
 ### Counted site ratchet
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte,raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratcheted_rules_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::a_required_rule_cannot_also_be_ratcheted,raf_census::test_crate::debt::ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte,raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted,raf_census::test_crate::debt::ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate -->
 
 A ledger Pattern that states ratcheted true, or a rule that a job names in
 ratchetedRule, does not produce findings. Its hits
@@ -265,7 +265,7 @@ recorded site changes nothing, and removing a hit or deleting its file fails the
 check until the record is lowered. When no hit remains anywhere, the lowered
 record keeps the rule with no site row, the next check is clean, and a new hit is
 growth.
-<!-- raf:tested-by raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratcheted_rules_record_counted_sites_and_hold_both_directions -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions -->
 
 A recorded body group contains demo_a::len, demo_b::len and demo_c::len.
 Removing demo_c leaves a strict subset. The next Gate check reports shrinkage.
@@ -385,10 +385,10 @@ or execution of an external native implementation.
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::a_required_rule_cannot_also_be_ratcheted` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
-| `raf_census::test_crate::census_gate::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes` | test | [Contract](#contract) |
