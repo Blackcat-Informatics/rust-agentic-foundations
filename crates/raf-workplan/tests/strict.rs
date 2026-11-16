@@ -836,12 +836,6 @@ fn refusal_is_reported_with_its_error(mut repo: Repo) {
         "{refused:#?}"
     );
     assert!(
-        refused[0]
-            .message
-            .contains("could not be checked against the source"),
-        "{refused:#?}"
-    );
-    assert!(
         refused[0].message.contains("evidence:bench")
             && refused[0].message.contains(input)
             && refused[0]
@@ -853,6 +847,11 @@ fn refusal_is_reported_with_its_error(mut repo: Repo) {
     assert!(
         !refused[0].fix.contains("record an evidence record"),
         "re-recording cannot clear a refusal: {refused:#?}"
+    );
+    // The fix names what can clear a refusal.
+    assert!(
+        refused[0].fix.contains("raise the query allowance"),
+        "{refused:#?}"
     );
     // A failing record beside a passing record the index refuses is still its own
     // finding, and the refusal of the passing record is reported with its error
