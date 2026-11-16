@@ -1176,6 +1176,9 @@ impl Workspace {
     pub fn test_fns(&self) -> Result<Vec<TestFn>, LoadError> {
         self.items()
             .filter(|item| item.test == TestRole::TestFn)
+            // The test harness collects no test inside a block, and the path
+            // of one names no filter that cargo accepts.
+            .filter(|item| !item.path.contains("::{"))
             .map(|item| test_fn_of(item, &self.targets))
             .collect()
     }

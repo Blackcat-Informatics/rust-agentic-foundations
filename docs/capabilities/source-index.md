@@ -912,6 +912,7 @@ bindings:
     - raf_source::test_crate::discovery_targets::a_virtual_manifest_contributes_nothing_but_its_children_are_found
     - raf_source::test_crate::discovery_targets::an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key
     - raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found
+    - raf_source::test_crate::discovery_targets::autolib_false_drops_the_inferred_library_but_keeps_an_explicit_one
     - raf_source::test_crate::discovery_targets::deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads
     - raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour
     - raf_source::test_crate::discovery_targets::only_the_named_roots_are_searched
@@ -945,6 +946,11 @@ bindings:
     - raf_source::test_crate::memory_tree::directories_are_inferred_and_listings_are_sorted_with_their_kinds
     - raf_source::test_crate::memory_tree::entry_reports_file_dir_and_absence_without_an_error
     - raf_source::test_crate::module_tree::a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function
+    - raf_source::test_crate::module_tree::the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_decided_one
+    - raf_source::test_crate::module_tree::test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block
+    - raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_makes_it_own_a_directory_again
+    - raf_source::test_crate::reachability::code_in_a_block_local_module_is_reached_with_the_function_that_declares_it
+    - raf_source::test_crate::configured_sources::block_local_modules_are_selected_by_the_configuration_beside_an_active_one
     - raf_source::test_crate::module_tree::a_block_local_path_attribute_is_relative_to_the_declaring_files_directory
     - raf_source::test_crate::module_tree::a_block_local_path_that_leaves_its_package_is_reported_beside_one_that_stays
     - raf_source::test_crate::module_tree::a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped
@@ -2145,10 +2151,11 @@ library only. The build script has no table and is never tested, so its `harness
 names its key, such as `bin.harness`.
 
 ### Target paths and automatic discovery
-<!-- raf:tested-by raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag,raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour,raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found -->
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag,raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour,raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found,raf_source::test_crate::discovery_targets::autolib_false_drops_the_inferred_library_but_keeps_an_explicit_one -->
 
 The library is `[lib]` or `src/lib.rs`, named by `[lib] name` or the package
-name. Binaries are the `[[bin]]` tables, `src/main.rs`, `src/bin/*.rs` and
+name, and `autolib = false` leaves `src/lib.rs` undiscovered unless an explicit
+`[lib]` names it. Binaries are the `[[bin]]` tables, `src/main.rs`, `src/bin/*.rs` and
 `src/bin/*/main.rs`; tests, benches and examples are their tables plus `tests/*.rs`,
 `tests/*/main.rs` and the same under `benches/` and `examples/`. `autobins`,
 `autotests`, `autobenches` and `autoexamples` set to false turn the inferred ones off,
@@ -2208,7 +2215,7 @@ named by a `path` attribute is treated like a `mod.rs` for its own children. Two
 `path` attributes that apply unconditionally are an error.
 
 ### Module declarations inside blocks
-<!-- raf:tested-by raf_source::test_crate::module_tree::a_path_module_declared_in_a_block_is_followed_and_indexed_apart_from_the_module_scope,raf_source::test_crate::module_tree::a_block_local_path_attribute_is_relative_to_the_declaring_files_directory,raf_source::test_crate::module_tree::a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_module_directory,raf_source::test_crate::module_tree::an_inline_module_in_a_block_resolves_its_children_without_the_files_module_directory,raf_source::test_crate::module_tree::a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function -->
+<!-- raf:tested-by raf_source::test_crate::module_tree::a_path_module_declared_in_a_block_is_followed_and_indexed_apart_from_the_module_scope,raf_source::test_crate::module_tree::a_block_local_path_attribute_is_relative_to_the_declaring_files_directory,raf_source::test_crate::module_tree::a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_module_directory,raf_source::test_crate::module_tree::an_inline_module_in_a_block_resolves_its_children_without_the_files_module_directory,raf_source::test_crate::module_tree::a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function,raf_source::test_crate::module_tree::the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_decided_one,raf_source::test_crate::module_tree::test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block,raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_makes_it_own_a_directory_again,raf_source::test_crate::reachability::code_in_a_block_local_module_is_reached_with_the_function_that_declares_it,raf_source::test_crate::configured_sources::block_local_modules_are_selected_by_the_configuration_beside_an_active_one -->
 
 A module declared inside a block is recorded as a module fact with its attributes
 and followed by the walk, once for each target and module path that reaches the
@@ -2231,11 +2238,26 @@ The module has the module path of the module that holds the block, then one segm
 of the form `{name@offset}`, where `offset` is the byte at which the declaration
 starts, attributes included. No path written in source can name that segment, so the
 module is no name in the scope of the enclosing module and no `use` reaches it, and
-two blocks that declare one name stay apart. The items of its file are indexed under
-that path, and the declaration has no item of its own. The test role of the
-enclosing function or item applies to the module. Not followed: a declaration inside
-the tokens of a macro invocation, and one in the expressions of an enum discriminant,
-a struct or union field type or a type alias, which hold no function body.
+two blocks of one file that declare one name stay apart. An edit above the
+declaration moves the offset and so renames the module and the path of every item
+in it. The items of its file are indexed under that path, and the declaration has no
+item of its own. Reachability reaches the items and impl blocks of the module from
+the innermost indexed item whose span holds the declaration, so code that only such a
+module uses stays reached with the item, and a module in an item that nothing reaches
+is not reached. The test platform guard of an item in the module is unknown, as for
+any ancestry it cannot read. `test_fns()` does not list a `#[test]` function inside
+the module, because the test harness collects no test inside a block and the path
+names no filter that cargo accepts. A configured load selects the declaration by its
+`cfg` and `cfg_attr` attributes as it selects one of an item list, so an inactive one
+is not followed.
+
+The test role of the item that holds the block applies to the module, and that of
+each function inside the block. Not followed: a declaration inside the tokens of a
+macro invocation, and one in the expressions of an enum discriminant or variant field
+type, a struct or union field type, a const generic default, an `extern` block item
+or a type alias, which hold no function body. The format-macro identification of
+reachability does not read the attributes `macro_use` and `no_implicit_prelude` of an
+inline module in a block.
 
 ### Conditional module paths
 <!-- raf:tested-by raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate,raf_source::test_crate::module_tree::the_default_file_is_also_followed_beside_cfg_attr_alternatives_when_it_exists,raf_source::test_crate::module_tree::a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped -->
@@ -2638,7 +2660,8 @@ that reach it, and whether it ships; `source(file)` is the exact text that was i
 
 `test_fns()` returns, for each `#[test]` function (or a typed error if one's path does not start with its target's crate path), the package, the kind and Cargo
 name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path inside the
-crate, which is what `cargo test -p <package> --test <target> <name>` needs.
+crate, which is what `cargo test -p <package> --test <target> <name>` needs. A `#[test]`
+function inside a module declared in a block is not listed.
 
 ### Reported load usage
 <!-- raf:tested-by raf_source::test_crate::load_budgets::usage_reports_what_a_load_spent,raf_source::test_crate::load_budgets::glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused -->
@@ -5475,6 +5498,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::code_paths::method_and_trait_members_read_their_defining_module_instead_of_their_symbol_parent` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::pattern_binding_observations_exclude_names_introduced_by_guard_expressions` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::a_physical_file_cannot_silently_merge_different_active_package_contexts` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::block_local_modules_are_selected_by_the_configuration_beside_an_active_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::configured_sources::configured_predicates_refuse_qualified_paths_beside_unqualified_names` | test | [Contract](#contract) |
@@ -5522,6 +5546,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::discovery_targets::an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::autolib_false_drops_the_inferred_library_but_keeps_an_explicit_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::discovery_target_and_module_failures_precede_later_load_phases` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag` | test | [Contract](#contract) |
@@ -5765,6 +5790,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::module_tree::a_path_attribute_on_an_inline_module_in_a_non_mod_file_replaces_its_directory_component` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_path_attribute_on_an_inline_module_replaces_its_directory_component` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_path_module_declared_in_a_block_is_followed_and_indexed_apart_from_the_module_scope` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_makes_it_own_a_directory_again` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_module_directory` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_raw_identifier_module_reads_the_plain_file_name` | test | [Verification](#verification) |
@@ -5782,9 +5808,11 @@ one-byte-short refusal.
 | `raf_source::test_crate::module_tree::module_nesting_beyond_the_depth_budget_is_refused_and_the_budget_itself_loads` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::module_tree::one_file_spelled_two_ways_is_one_file_recorded_under_both_module_paths` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::super_super_from_a_child_that_sorts_before_its_parent_climbs_to_the_crate_root` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::the_children_of_a_path_attribute_file_are_placed_under_its_module_whatever_their_names` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::the_default_file_is_also_followed_beside_cfg_attr_alternatives_when_it_exists` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_decided_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::two_unconditional_path_attributes_are_an_error_beside_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::overflow_harness::a_child_that_exits_three_without_a_result_line_is_a_failure` | test | [Verification](#verification) |
 | `raf_source::test_crate::overflow_harness::a_child_that_panics_is_a_failure_and_not_an_abort` | test | [Verification](#verification) |
@@ -5853,6 +5881,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::reachability::an_edition_2015_body_import_is_read_from_its_module_beside_an_explicit_crate_path` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::reachability::an_impl_block_root_reaches_its_members_and_what_its_header_names` | test | [Verification](#verification) |
 | `raf_source::test_crate::reachability::an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::code_in_a_block_local_module_is_reached_with_the_function_that_declares_it` | test | [Contract](#contract) |
 | `raf_source::test_crate::reachability::gen_is_a_name_before_edition_2024_and_a_keyword_from_it` | test | [Contract](#contract) |
 | `raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::reachability::nested_impl_self_is_read_in_the_enclosing_members_context` | test | [Constraints](#constraints) |

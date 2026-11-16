@@ -8,6 +8,7 @@ use super::{
 };
 use syn::ext::IdentExt as _;
 use syn::spanned::Spanned as _;
+use syn::visit_mut::VisitMut;
 use syn::{Attribute, Meta};
 
 pub(crate) fn predicate(
@@ -165,9 +166,70 @@ fn items(
             }
             _ => {}
         }
+        blocks(item, cfg, meter, path)?;
     }
     Ok(())
 }
+
+/// Select the module declarations inside the function bodies and initializers
+/// of an item, as `items` selects those of an item list.
+fn blocks(
+    item: &mut syn::Item,
+    cfg: &ActiveConfiguration,
+    meter: &Meter,
+    path: &RelPath,
+) -> Result<(), LoadError> {
+    if !matches!(
+        item,
+        syn::Item::Fn(_)
+            | syn::Item::Const(_)
+            | syn::Item::Static(_)
+            | syn::Item::Impl(_)
+            | syn::Item::Trait(_)
+    ) {
+        return Ok(());
+    }
+    let mut selection = BlockSelection {
+        cfg,
+        meter,
+        path,
+        failed: None,
+    };
+    selection.visit_item_mut(item);
+    selection.failed.map_or(Ok(()), Err)
+}
+
+/// Applies `cfg` and `cfg_attr` to the items declared in blocks.
+struct BlockSelection<'a> {
+    cfg: &'a ActiveConfiguration,
+    meter: &'a Meter,
+    path: &'a RelPath,
+    failed: Option<LoadError>,
+}
+
+impl VisitMut for BlockSelection<'_> {
+    fn visit_block_mut(&mut self, block: &mut syn::Block) {
+        for mut statement in std::mem::take(&mut block.stmts) {
+            if self.failed.is_some() {
+                return;
+            }
+            if let syn::Stmt::Item(item) = statement {
+                let mut one = vec![item];
+                if let Err(error) = items(&mut one, self.cfg, self.meter, self.path) {
+                    self.failed = Some(error);
+                    return;
+                }
+                if let Some(item) = one.pop() {
+                    block.stmts.push(syn::Stmt::Item(item));
+                }
+            } else {
+                self.visit_stmt_mut(&mut statement);
+                block.stmts.push(statement);
+            }
+        }
+    }
+}
+
 fn item_attrs(item: &mut syn::Item) -> Option<&mut Vec<Attribute>> {
     match item {
         syn::Item::Const(item) => Some(&mut item.attrs),

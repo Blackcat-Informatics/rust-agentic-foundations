@@ -1008,3 +1008,38 @@ fn empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags() {
         .expect_err("missing predicate or comma is refused");
     }
 }
+
+/// A configured load selects the module declarations inside a block as it
+/// selects those of an item list: an inactive one is not followed, and an
+/// inactive `cfg_attr` path is not read as a live file, beside an active one.
+#[test]
+fn block_local_modules_are_selected_by_the_configuration_beside_an_active_one() {
+    let source = "#[cfg(windows)]\n#[path = \"missing.rs\"]\nmod listed;\n\
+        pub fn f() {\n    \
+        #[cfg(windows)]\n    #[path = \"gone.rs\"]\n    mod sys;\n    \
+        #[cfg(unix)]\n    #[path = \"linux.rs\"]\n    mod active;\n    \
+        #[cfg_attr(windows, path = \"platform.rs\")]\n    #[path = \"chosen.rs\"]\n    mod picked;\n}\n";
+    let tree = fixture(MANIFEST, source);
+    let ws = load(
+        &tree,
+        Some(context(&[], "consumer")),
+        Some(context(&[], "provider")),
+        "",
+        &LoadOptions::default(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    let loaded: Vec<String> = ws.files().map(|f| f.path.to_string()).collect();
+    assert!(
+        loaded.iter().any(|p| p == "consumer/src/linux.rs"),
+        "{loaded:?}"
+    );
+    assert!(
+        loaded.iter().any(|p| p == "consumer/src/chosen.rs"),
+        "{loaded:?}"
+    );
+    assert!(
+        !loaded
+            .iter()
+            .any(|p| p.ends_with("platform.rs") || p.ends_with("gone.rs"))
+    );
+}

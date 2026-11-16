@@ -927,3 +927,37 @@ fn a_walk_past_the_item_bytes_budget_is_refused_and_one_within_it_is_given() {
         ["demo::api", "demo::helper"]
     );
 }
+
+/// The item at a path, found by walking every item: a module declared inside a
+/// block has no name a path resolution can start from.
+fn by_path(ws: &Workspace, suffix: &str) -> Node {
+    let found: Vec<_> = ws
+        .items()
+        .filter(|item| item.path.ends_with(suffix))
+        .collect();
+    assert_eq!(found.len(), 1, "{suffix}");
+    Node::Item(found[0].id)
+}
+
+/// What a module declared inside a function body reaches is reached with the
+/// function, as for a module of an item list, and an unreached function
+/// reaches nothing through its modules.
+#[test]
+fn code_in_a_block_local_module_is_reached_with_the_function_that_declares_it() {
+    let ws = load(&[
+        (
+            "src/lib.rs",
+            "pub fn run() {\n    mod inline { pub fn g() { crate::helper(); } }\n    \
+             #[path = \"out.rs\"]\n    mod out;\n}\n\
+             pub fn idle() {\n    mod unused { pub fn h() { crate::other(); } }\n}\n\
+             fn helper() {}\nfn other() {}\nfn from_file() {}\n",
+        ),
+        ("src/out.rs", "pub fn f() { crate::from_file(); }"),
+    ]);
+    let reached = reach(&ws, &[value(&ws, "demo::run")]);
+    assert!(reached.contains(value(&ws, "demo::helper")));
+    assert!(reached.contains(value(&ws, "demo::from_file")));
+    assert!(reached.contains(by_path(&ws, "::g")));
+    assert!(!reached.contains(value(&ws, "demo::other")));
+    assert!(!reached.contains(by_path(&ws, "::h")));
+}

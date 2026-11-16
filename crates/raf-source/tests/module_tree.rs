@@ -1537,3 +1537,70 @@ fn a_block_local_path_that_leaves_its_package_is_reported_beside_one_that_stays(
         )]
     );
 }
+
+/// The test platform guard of an item in a block-local module is unknown,
+/// not an error, and the guard of a neighbour in the module list still
+/// decides.
+#[test]
+fn the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_decided_one() {
+    let ws = ok(&[
+        (
+            "src/lib.rs",
+            "#[cfg(windows)]\npub fn plain() {}\npub fn run() {\n    mod inner {\n        pub fn g() {}\n    }\n    #[path = \"out.rs\"]\n    mod out;\n}\n",
+        ),
+        ("src/out.rs", "pub fn in_out() {}"),
+    ]);
+    let platform =
+        raf_source::CompilerPlatform::parse("target_os=\"linux\"\ntarget_family=\"unix\"\n")
+            .expect("a platform");
+    let guard_of = |suffix: &str| {
+        let item = ws
+            .items()
+            .find(|item| item.path.ends_with(suffix))
+            .unwrap_or_else(|| panic!("{suffix}"));
+        ws.test_platform_guard(item.id)
+            .unwrap_or_else(|e| panic!("{suffix}: {e}"))
+            .evaluate(&platform)
+    };
+    assert_eq!(guard_of("demo::plain"), Some(false));
+    assert_eq!(guard_of("::g"), None);
+    assert_eq!(guard_of("::in_out"), None);
+}
+
+/// A test function inside a block-local module is no test the harness
+/// collects, so it is not listed, and a test of the module list is.
+#[test]
+fn test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block() {
+    let ws = ok(&[(
+        "src/lib.rs",
+        "#[test]\nfn listed() {}\nfn run() {\n    mod inner {\n        #[test]\n        fn hidden() {}\n    }\n}\n",
+    )]);
+    let names: Vec<String> = ws
+        .test_fns()
+        .expect("test functions")
+        .into_iter()
+        .map(|test| test.name)
+        .collect();
+    assert_eq!(names, vec!["listed".to_owned()]);
+}
+
+/// A `path` on an inline module in a block makes it own a directory again, so
+/// the plain module inside it is found in the module directory of the file,
+/// where it is refused without the `path`.
+#[test]
+fn a_path_on_an_inline_module_in_a_block_makes_it_own_a_directory_again() {
+    let a = "fn f() {\n    #[path = \"dir\"]\n    mod inner {\n        mod q;\n    }\n}\n";
+    let ws = ok(&[
+        ("src/lib.rs", "mod a;"),
+        ("src/a.rs", a),
+        ("src/dir/q.rs", ""),
+    ]);
+    let inner = block_path("demo::a", "inner", a, "#[path");
+    assert_eq!(
+        reached(&ws)
+            .into_iter()
+            .find(|(path, _)| path == "src/dir/q.rs")
+            .map(|(_, modules)| modules),
+        Some(vec![format!("{inner}::q")])
+    );
+}
