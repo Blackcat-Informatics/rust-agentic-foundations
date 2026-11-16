@@ -211,11 +211,34 @@ impl BlockSelection<'_> {
     /// Apply `cfg` and `cfg_attr` to a list of attributed positions inside an
     /// expression, dropping the inactive ones.
     fn select<T>(&mut self, values: &mut Vec<T>, get: fn(&mut T) -> Option<&mut Vec<Attribute>>) {
+        // Most lists carry no attribute; they cost nothing, and the selection
+        // of the rest is charged once each.
+        if values
+            .iter_mut()
+            .all(|value| get(value).is_none_or(|attrs| attrs.is_empty()))
+        {
+            return;
+        }
         if self.failed.is_none()
             && let Err(error) = select(values, get, self.cfg, self.meter, self.path)
         {
             self.failed = Some(error);
         }
+    }
+}
+
+impl BlockSelection<'_> {
+    /// Select the elements of a comma separated list of expressions.
+    fn select_list<P: Default>(&mut self, list: &mut syn::punctuated::Punctuated<syn::Expr, P>) {
+        if list
+            .iter_mut()
+            .all(|value| expr_attrs(value).is_none_or(|attrs| attrs.is_empty()))
+        {
+            return;
+        }
+        let mut values: Vec<_> = std::mem::take(list).into_iter().collect();
+        self.select(&mut values, expr_attrs);
+        *list = values.into_iter().collect();
     }
 }
 
@@ -237,8 +260,10 @@ impl VisitMut for BlockSelection<'_> {
                 continue;
             }
             let active = match statement_attrs(&mut statement) {
-                Some(attrs) => attributes(attrs, self.cfg, self.meter, self.path),
-                None => Ok(true),
+                Some(attrs) if !attrs.is_empty() => {
+                    attributes(attrs, self.cfg, self.meter, self.path)
+                }
+                _ => Ok(true),
             };
             match active {
                 Ok(true) => {
@@ -259,7 +284,31 @@ impl VisitMut for BlockSelection<'_> {
         syn::visit_mut::visit_expr_match_mut(self, expression);
     }
 
+    fn visit_expr_array_mut(&mut self, expression: &mut syn::ExprArray) {
+        self.select_list(&mut expression.elems);
+        syn::visit_mut::visit_expr_array_mut(self, expression);
+    }
+
+    fn visit_expr_call_mut(&mut self, expression: &mut syn::ExprCall) {
+        self.select_list(&mut expression.args);
+        syn::visit_mut::visit_expr_call_mut(self, expression);
+    }
+
+    fn visit_expr_method_call_mut(&mut self, expression: &mut syn::ExprMethodCall) {
+        self.select_list(&mut expression.args);
+        syn::visit_mut::visit_expr_method_call_mut(self, expression);
+    }
+
+    fn visit_expr_tuple_mut(&mut self, expression: &mut syn::ExprTuple) {
+        self.select_list(&mut expression.elems);
+        syn::visit_mut::visit_expr_tuple_mut(self, expression);
+    }
+
     fn visit_expr_struct_mut(&mut self, expression: &mut syn::ExprStruct) {
+        if expression.fields.iter().all(|field| field.attrs.is_empty()) {
+            syn::visit_mut::visit_expr_struct_mut(self, expression);
+            return;
+        }
         let mut fields: Vec<_> = std::mem::take(&mut expression.fields).into_iter().collect();
         self.select(&mut fields, |field| Some(&mut field.attrs));
         expression.fields = fields.into_iter().collect();

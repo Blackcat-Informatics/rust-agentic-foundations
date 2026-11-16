@@ -1297,11 +1297,33 @@ fn a_module_path_outside_every_package_is_reported_without_an_owner() {
 // --- module declarations inside blocks ----------------------------------------
 
 /// The module path of a block-local module `name` declared at the first
-/// occurrence of `marker` in `source`: the declaration starts there, so the
-/// path ends in the name and that byte offset.
+/// occurrence of `marker` in `source`: the path ends in the name and the byte
+/// where the declaration ends, after its `;` or its closing brace.
 fn block_path(parent: &str, name: &str, source: &str, marker: &str) -> String {
     let start = source.find(marker).expect("the marker is in the source");
-    format!("{parent}::{{{name}@{start}}}")
+    let rest = &source[start..];
+    let open = rest.find(['{', ';']).expect("the declaration ends");
+    let end = if rest.as_bytes()[open] == b';' {
+        start + open + 1
+    } else {
+        let mut depth = 0usize;
+        let mut at = start + open;
+        for (offset, byte) in rest[open..].bytes().enumerate() {
+            match byte {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        at = start + open + offset + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        at
+    };
+    format!("{parent}::{{{name}@{end}}}")
 }
 
 /// A module declared inside a function body, a constant initializer or a

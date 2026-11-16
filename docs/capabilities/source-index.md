@@ -952,6 +952,8 @@ bindings:
     - raf_source::test_crate::reachability::code_in_a_block_local_module_is_reached_with_the_function_that_declares_it
     - raf_source::test_crate::configured_sources::block_local_modules_are_selected_by_the_configuration_beside_an_active_one
     - raf_source::test_crate::configured_sources::modules_inside_inactive_statements_are_not_followed_beside_an_active_one
+    - raf_source::test_crate::configured_sources::modules_inside_inactive_list_elements_and_nested_types_are_not_followed
+    - raf_source::test_crate::configured_sources::a_block_module_has_the_same_path_in_a_structural_and_a_configured_load
     - raf_source::test_crate::module_tree::a_block_local_path_attribute_is_relative_to_the_declaring_files_directory
     - raf_source::test_crate::module_tree::a_block_local_path_that_leaves_its_package_is_reported_beside_one_that_stays
     - raf_source::test_crate::module_tree::a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped
@@ -2216,7 +2218,7 @@ named by a `path` attribute is treated like a `mod.rs` for its own children. Two
 `path` attributes that apply unconditionally are an error.
 
 ### Module declarations inside blocks
-<!-- raf:tested-by raf_source::test_crate::module_tree::a_path_module_declared_in_a_block_is_followed_and_indexed_apart_from_the_module_scope,raf_source::test_crate::module_tree::a_block_local_path_attribute_is_relative_to_the_declaring_files_directory,raf_source::test_crate::module_tree::a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_module_directory,raf_source::test_crate::module_tree::an_inline_module_in_a_block_resolves_its_children_without_the_files_module_directory,raf_source::test_crate::module_tree::a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function,raf_source::test_crate::configured_sources::modules_inside_inactive_statements_are_not_followed_beside_an_active_one,raf_source::test_crate::module_tree::the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_decided_one,raf_source::test_crate::module_tree::test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block,raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_names_a_directory_beside_the_declaring_file,raf_source::test_crate::reachability::code_in_a_block_local_module_is_reached_with_the_function_that_declares_it,raf_source::test_crate::configured_sources::block_local_modules_are_selected_by_the_configuration_beside_an_active_one -->
+<!-- raf:tested-by raf_source::test_crate::module_tree::a_path_module_declared_in_a_block_is_followed_and_indexed_apart_from_the_module_scope,raf_source::test_crate::module_tree::a_block_local_path_attribute_is_relative_to_the_declaring_files_directory,raf_source::test_crate::module_tree::a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_module_directory,raf_source::test_crate::module_tree::an_inline_module_in_a_block_resolves_its_children_without_the_files_module_directory,raf_source::test_crate::module_tree::a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function,raf_source::test_crate::configured_sources::modules_inside_inactive_statements_are_not_followed_beside_an_active_one,raf_source::test_crate::configured_sources::modules_inside_inactive_list_elements_and_nested_types_are_not_followed,raf_source::test_crate::configured_sources::a_block_module_has_the_same_path_in_a_structural_and_a_configured_load,raf_source::test_crate::module_tree::the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_decided_one,raf_source::test_crate::module_tree::test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block,raf_source::test_crate::module_tree::a_path_on_an_inline_module_in_a_block_names_a_directory_beside_the_declaring_file,raf_source::test_crate::reachability::code_in_a_block_local_module_is_reached_with_the_function_that_declares_it,raf_source::test_crate::configured_sources::block_local_modules_are_selected_by_the_configuration_beside_an_active_one -->
 
 A module declared inside a block is recorded as a module fact with its attributes
 and followed by the walk, once for each target and module path that reaches the
@@ -2237,7 +2239,9 @@ name to the directory, and the modules it declares are under the same rule, unti
 
 The module has the module path of the module that holds the block, then one segment
 of the form `{name@offset}`, where `offset` is the byte at which the declaration
-starts, attributes included. No path written in source can name that segment, so the
+ends, after its `;` or closing brace. The end is used because a configured load removes
+a leading `cfg_attr` that does not apply, which moves the start and never the end, so
+a declaration has one path in every load. No path written in source can name that segment, so the
 module is no name in the scope of the enclosing module and no `use` reaches it, and
 two blocks of one file that declare one name stay apart. An edit above the
 declaration moves the offset and so renames the module and the path of every item
@@ -2253,14 +2257,19 @@ names no filter that cargo accepts. Such a function keeps its test role in the i
 so a consumer that reads the role, such as a coverage check, still sees a test that
 no binding can name. A configured load selects the declaration by its
 `cfg` and `cfg_attr` attributes as it selects one of an item list, and drops an
-inactive `let`, expression or macro statement, match arm and struct field before it
-reads the modules inside it, so an inactive one is not followed.
+inactive `let`, expression or macro statement, match arm, struct field, array element,
+call argument, method-call argument and tuple element before it reads the modules
+inside it, so an inactive one is not followed. These are the positions where rustc
+accepts `cfg` inside a function body.
 
 The test role of the item that holds the block applies to the module, and that of
-each function inside the block. Not followed: a declaration inside the tokens of a
-macro invocation, and one in the expressions of an enum discriminant or variant field
-type, a struct or union field type, a const generic default, an `extern` block item
-or a type alias, which hold no function body. The format-macro identification of
+each function inside the block. Only functions, constants, statics, impl blocks,
+traits and modules are read, at any depth of the blocks inside them, and no type,
+pattern or generic parameter list is read. Not followed: a declaration inside the
+tokens of a macro invocation, one inside a type (an array length, for instance), a
+pattern or a generic parameter list, and one inside a struct, union, enum, type alias
+or `extern` block, which holds no function body; the configured selection above reads
+the same set. The format-macro identification of
 reachability does not read the attributes `macro_use` and `no_implicit_prelude` of an
 inline module in a block.
 
@@ -5502,6 +5511,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::code_paths::method_and_trait_members_read_their_defining_module_instead_of_their_symbol_parent` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::pattern_binding_observations_exclude_names_introduced_by_guard_expressions` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::a_block_module_has_the_same_path_in_a_structural_and_a_configured_load` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::a_physical_file_cannot_silently_merge_different_active_package_contexts` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::block_local_modules_are_selected_by_the_configuration_beside_an_active_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation` | test | [Contract](#contract) |
@@ -5512,6 +5522,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::configured_sources::empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::forwarding_default_and_inherited_feature_requirements_are_validated_at_the_actual_destination` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::modules_inside_inactive_list_elements_and_nested_types_are_not_followed` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::modules_inside_inactive_statements_are_not_followed_beside_an_active_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation` | test | [Contract](#contract) |

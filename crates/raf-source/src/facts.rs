@@ -439,11 +439,14 @@ pub(crate) struct ModBody {
 impl ModFact {
     /// The module path segment of a module declared inside a block. A block
     /// has no name that a path can write, so the segment holds the module
-    /// name and the byte where the declaration starts, in braces that no
+    /// name and the byte where the declaration ends, in braces that no
     /// identifier has: no path written in source can name the module, and
-    /// two blocks that declare one name stay apart.
+    /// two blocks that declare one name stay apart. The end is used because
+    /// a configured load removes a leading `cfg_attr` that does not apply,
+    /// which moves the start of the declaration and never its end, so one
+    /// declaration has one segment in every load.
     pub(crate) fn block_segment(&self) -> String {
-        format!("{{{}@{}}}", self.name, self.span.start_byte)
+        format!("{{{}@{}}}", self.name, self.span.end_byte)
     }
 }
 
@@ -1885,6 +1888,31 @@ impl BlockMods<'_, '_, '_> {
 }
 
 impl<'ast> Visit<'ast> for BlockMods<'_, '_, '_> {
+    // Types, patterns and generics hold no statement, and a nested item other
+    // than a function, constant, static, impl or trait holds none of its own
+    // outside them, so none of those is read: the configured selection drops
+    // inactive statements, arms, fields and list elements only in the code
+    // that is read here.
+    fn visit_type(&mut self, _: &'ast syn::Type) {}
+
+    fn visit_pat(&mut self, _: &'ast syn::Pat) {}
+
+    fn visit_generics(&mut self, _: &'ast syn::Generics) {}
+
+    fn visit_item(&mut self, item: &'ast Item) {
+        if matches!(
+            item,
+            Item::Fn(_)
+                | Item::Const(_)
+                | Item::Static(_)
+                | Item::Impl(_)
+                | Item::Trait(_)
+                | Item::Mod(_)
+        ) {
+            syn::visit::visit_item(self, item);
+        }
+    }
+
     fn visit_item_mod(&mut self, module: &'ast syn::ItemMod) {
         if self.failed.is_some() {
             return;

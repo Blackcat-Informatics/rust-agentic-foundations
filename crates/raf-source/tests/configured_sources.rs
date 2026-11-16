@@ -1071,3 +1071,65 @@ fn modules_inside_inactive_statements_are_not_followed_beside_an_active_one() {
         "{loaded:?}"
     );
 }
+
+fn declared_load(tree: &MemoryTree) -> Workspace {
+    load(
+        tree,
+        Some(context(&[], "consumer")),
+        Some(context(&[], "provider")),
+        "",
+        &LoadOptions::default(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// A configured load drops an inactive array element, call argument,
+/// method-call argument and tuple element before it reads the modules inside
+/// it, and does not read the types of an item nested in a body, beside an
+/// active element whose module is followed.
+#[test]
+fn modules_inside_inactive_list_elements_and_nested_types_are_not_followed() {
+    let source = "pub fn f() {\n    \
+        let _a = [\n        #[cfg(windows)]\n        { #[path = \"gone1.rs\"] mod one; 1 },\n        \
+        #[cfg(unix)]\n        { #[path = \"linux.rs\"] mod active; 2 },\n    ];\n    \
+        g(\n        #[cfg(windows)]\n        { #[path = \"gone2.rs\"] mod two; 1 },\n        2,\n    );\n    \
+        0.max(\n        #[cfg(windows)]\n        { #[path = \"gone3.rs\"] mod three; 1 },\n    );\n    \
+        let _t = (\n        #[cfg(windows)]\n        { #[path = \"gone4.rs\"] mod four; 1 },\n        2,\n    );\n    \
+        struct S([u8; { #[cfg(windows)] { #[path = \"gone5.rs\"] mod five; } 1 }]);\n}\n\
+        fn g(_: u8) {}\n";
+    let tree = fixture(MANIFEST, source);
+    let ws = declared_load(&tree);
+    let loaded: Vec<String> = ws.files().map(|f| f.path.to_string()).collect();
+    assert!(
+        loaded.iter().any(|p| p == "consumer/src/linux.rs"),
+        "{loaded:?}"
+    );
+    assert!(!loaded.iter().any(|p| p.contains("gone")), "{loaded:?}");
+}
+
+/// One declaration has one module path in the structural load and in a
+/// configured load, even when the configuration removes the `cfg_attr` that
+/// starts it.
+#[test]
+fn a_block_module_has_the_same_path_in_a_structural_and_a_configured_load() {
+    let source = "pub fn f() {\n    #[cfg_attr(windows, path = \"platform.rs\")]\n    \
+        #[path = \"chosen.rs\"]\n    mod m;\n}\n";
+    let tree = fixture(MANIFEST, source);
+    let paths = |ws: &Workspace| -> Vec<String> {
+        ws.files()
+            .find(|f| f.path.as_str() == "consumer/src/chosen.rs")
+            .expect("the chosen file is loaded")
+            .reached
+            .iter()
+            .map(|r| r.module_path.to_string())
+            .collect()
+    };
+    let structural = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    let configured = declared_load(&tree);
+    let expected = vec![format!(
+        "consumer::{{m@{}}}",
+        source.find("mod m;").expect("mod") + 6
+    )];
+    assert_eq!(paths(&configured), expected);
+    assert_eq!(paths(&structural), expected);
+}
