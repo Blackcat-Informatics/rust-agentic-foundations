@@ -1896,9 +1896,10 @@ impl BlockMods<'_, '_, '_> {
 impl<'ast> Visit<'ast> for BlockMods<'_, '_, '_> {
     // Types, patterns, generics and the items other than functions, constants,
     // statics, impl blocks, traits and modules can hold an expression (an
-    // array length, an enum discriminant), but they are not read: the
-    // configured selection does not reach them, so a module found there could
-    // sit under an attribute that a configured load never evaluated.
+    // array length, an enum discriminant), but this scan skips them: the
+    // configured selection does not select the attributed positions inside
+    // them, so a module found there could sit under an attribute that a
+    // configured load never evaluated.
     fn visit_type(&mut self, _: &'ast syn::Type) {}
 
     fn visit_pat(&mut self, _: &'ast syn::Pat) {}

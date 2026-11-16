@@ -1136,7 +1136,7 @@ bindings:
     - raf_source::reach::format::identity::tests::native_propagation_visits_cycles_and_duplicate_edges_once_per_active_source
     - raf_source::test_crate::format_reach::a_cfg_alternative_sibling_alias_does_not_move_the_declared_modules_prelude_attribute
     - raf_source::test_crate::reachability::an_edition_2015_body_import_is_read_from_its_module_beside_an_explicit_crate_path
-    - raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl
+    - raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl_and_one_in_a_block_module
     - raf_source::test_crate::reachability::nested_impl_self_is_read_in_the_enclosing_members_context
     - raf_source::test_crate::reachability::qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member
     - raf_source::settle::tests::pending_and_blocker_storage_require_the_original_grants
@@ -2245,9 +2245,10 @@ which moves the start of the declaration, and an edit of the body moves its end;
 neither moves the name, so a declaration has one path in every load. No path written
 in source can name that segment, so the module is no name in the scope of the enclosing
 module and no `use` reaches it, and two blocks of one file that declare one name stay
-apart. An edit above the module, or to its text before the name, moves the offset and
-so renames the module and the path of every item in it; an edit after the name does
-not. The items of its file are indexed under that path, and the declaration has no
+apart. An edit above the module, or to its text before the name, that changes the number of
+bytes before the name moves the offset and so renames the module and the path of every
+item in it, even when the edit is on the same line; an edit that keeps that count, and
+every edit after the name, does not. The items of its file are indexed under that path, and the declaration has no
 item of its own. Reachability reaches the items and impl blocks of the module from
 the innermost indexed item whose span holds the declaration, so code that only such a
 module uses stays reached with the item, and a module in an item that nothing reaches
@@ -2270,8 +2271,8 @@ traits and modules are read, at any depth of the blocks inside them, and no type
 pattern or generic parameter list is read. Not followed: a declaration inside the
 tokens of a macro invocation, one inside a type (an array length, for instance), a
 pattern or a generic parameter list, and one inside a struct, union, enum, type alias
-or `extern` block, which holds no function body; the configured selection above reads
-the same set. The format-macro identification of
+or `extern` block. The fact scan skips these, so the configured selection above does
+not have to select the positions inside them. The format-macro identification of
 reachability does not read the attributes `macro_use` and `no_implicit_prelude` of an
 inline module in a block.
 
@@ -3218,7 +3219,7 @@ A module path that no target holds is `ResolveError::UnknownModule`, whichever k
 ### Impl records
 <!-- raf:tested-by raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members,raf_source::test_crate::symbol_index::a_negative_impl_keeps_its_bang_in_the_trait_path_beside_a_positive_one -->
 
-`Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, once for each module path its file is reached under, in file order: sorted by file, the byte where the block starts, module path and target. Each is an `ImplBlock`: its `id`, an `ImplId` that is its place in that order and that `Workspace::impl_block(id)` takes back, its `file` and the `line` of the `impl` keyword, its `span` from its first attribute or the `impl` keyword to its closing brace, the `module` that holds it and its `target`, its `test` role, its written `self_type` and `trait_path` without spaces, its `self_items`, the key of its self type, and its `members` in source order. The key is the struct, enum or union that the self type path names from the block's module, through type aliases, as the members of the block are placed (two for the `cfg` alternatives of one type); it is empty when the self type names nothing of the workspace or a type the index cannot place: a generic parameter, a reference, a slice, a tuple, a type of a dependency or one that a macro generates, as for `impl Tr for String`, `impl<T> Tr for T`, `impl Tr for &Foo` and `impl Missing`. A negative impl keeps its `!` in `trait_path` (`!Sync`). An impl block inside a function body or any other block expression, such as `const _: () = { .. };`, is not an item of a module and is not listed, nor is one that a macro invocation would generate. Each record is charged to the item-bytes budget at the line of its `impl` keyword.
+`Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, once for each module path its file is reached under, in file order: sorted by file, the byte where the block starts, module path and target. Each is an `ImplBlock`: its `id`, an `ImplId` that is its place in that order and that `Workspace::impl_block(id)` takes back, its `file` and the `line` of the `impl` keyword, its `span` from its first attribute or the `impl` keyword to its closing brace, the `module` that holds it and its `target`, its `test` role, its written `self_type` and `trait_path` without spaces, its `self_items`, the key of its self type, and its `members` in source order. The key is the struct, enum or union that the self type path names from the block's module, through type aliases, as the members of the block are placed (two for the `cfg` alternatives of one type); it is empty when the self type names nothing of the workspace or a type the index cannot place: a generic parameter, a reference, a slice, a tuple, a type of a dependency or one that a macro generates, as for `impl Tr for String`, `impl<T> Tr for T`, `impl Tr for &Foo` and `impl Missing`. A negative impl keeps its `!` in `trait_path` (`!Sync`). An impl block that sits directly in a function body or any other block expression, such as `const _: () = { .. };`, is not an item of a module and is not listed, nor is one that a macro invocation would generate. An impl block inside a module declared in a block is listed under that module's path. Each record is charged to the item-bytes budget at the line of its `impl` keyword.
 
 ### Reachability edges
 <!-- raf:tested-by raf_source::test_crate::reachability::a_private_helper_called_by_a_bound_item_is_reached_and_an_unreferenced_one_is_not,raf_source::test_crate::reachability::a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type -->
@@ -4127,10 +4128,11 @@ delegates to that library or enforce preferred-provider policy.
   <!-- raf:tested-by raf_source::test_crate::reachability::an_edition_2015_body_import_is_read_from_its_module_beside_an_explicit_crate_path -->
   that holds the function, where rustc reads it from the crate root, so what it brings
   in is not reached.
-- An impl block inside `const _: () = { .. };` or any other block expression is not in
-  <!-- raf:tested-by raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl -->
+- An impl block that sits directly in `const _: () = { .. };` or any other block expression is not in
+  <!-- raf:tested-by raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl_and_one_in_a_block_module -->
   `impls()`: in an item it is read as tokens of the item, and a `const _` at module
-  level is no item's, so a block there is never reached.
+  level is no item's, so a block there is never reached. An impl block inside a module
+  declared in a block is in `impls()` under that module's path.
 - An item that syn returns as tokens is indexed only in the three shapes the Contract
   <!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written,raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line,raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do -->
   names: a `use` group with a member that starts with `::`, a function with no body and
@@ -5903,7 +5905,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::reachability::an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::reachability::code_in_a_block_local_module_is_reached_with_the_function_that_declares_it` | test | [Contract](#contract) |
 | `raf_source::test_crate::reachability::gen_is_a_name_before_edition_2024_and_a_keyword_from_it` | test | [Contract](#contract) |
-| `raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl_and_one_in_a_block_module` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::reachability::nested_impl_self_is_read_in_the_enclosing_members_context` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::reachability::paths_inside_tests_and_binaries_reach_their_own_crate_and_the_library` | test | [Verification](#verification) |
 | `raf_source::test_crate::reachability::qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member` | test | [Constraints](#constraints) |

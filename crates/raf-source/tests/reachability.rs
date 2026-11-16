@@ -66,15 +66,25 @@ fn nested_impl_self_is_read_in_the_enclosing_members_context() {
 }
 
 #[test]
-fn impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl() {
+fn impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl_and_one_in_a_block_module()
+ {
     let ws = lib(
         "pub struct S; const _: () = { impl S { fn anonymous() {} } }; \
          const NAMED: () = { impl S { fn named() {} } }; \
          pub fn f() { impl S { fn local() {} } } \
-         impl S { pub fn ordinary() {} }",
+         impl S { pub fn ordinary() {} } \
+         pub fn g() { mod mm { impl crate::S { pub fn in_module() {} } } }",
     );
     let blocks: Vec<_> = ws.impls().collect();
-    assert_eq!(blocks.len(), 1);
+    // An impl directly in a block is no item of a module and is not listed;
+    // one in a module declared in a block is, under that module's path.
+    assert_eq!(blocks.len(), 2);
+    assert!(
+        blocks[1].module.starts_with("demo::{mm@"),
+        "{}",
+        blocks[1].module
+    );
+    assert_eq!(blocks[1].members.len(), 1);
     assert_eq!(blocks[0].members.len(), 1);
     assert_eq!(
         blocks[0].members[0],
