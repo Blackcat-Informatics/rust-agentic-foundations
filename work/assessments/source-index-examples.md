@@ -12,9 +12,6 @@ inputs:
     name: raf_source::CapturedFile
     digest: 6e917bee0643b4da2aa71aabaf5eb016666370808a1c9ef8f985c135d0220f03
   - kind: symbol
-    name: raf_source::DiskTree::read_bytes
-    digest: 4418409a968a7d43c455140431f871c1ed0cb469164aee7d37ae3c3d86930679
-  - kind: symbol
     name: raf_source::MemoryTree
     digest: 07a127a9ed66d9c1e464b41940094eecd18bdd384ea6765f43aad698fab6df49
   - kind: symbol
@@ -22,7 +19,10 @@ inputs:
     digest: 3f2fbcbbb97d89f7aea7caec1851f3a6bbb48df41031d9997d97081373d9e413
   - kind: symbol
     name: raf_source::Tree
-    digest: 4a6473970d811355ae6d37d1f11fc1c2075fcbe506ef1606ddb4d1133911639c
+    digest: 47e9968759c245bf187497fad588f8c41a39b2356fc4031b4082b1f8a3223d64
+  - kind: symbol
+    name: raf_source::Tree::read_bytes
+    digest: be62a987879e97b448aadd9b504c5f23f57218c5b7e0cdd361846c7144fc4438
   - kind: symbol
     name: raf_source::Usage
     digest: c86ad8e58151210ec1ffd4f0de601b6f82dd60eeccde1eb0b5d815a28ceec492

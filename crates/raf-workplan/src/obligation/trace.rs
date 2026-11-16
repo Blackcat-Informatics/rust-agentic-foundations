@@ -10,7 +10,9 @@
 //!   once for each of these that holds.
 //! * `evidence-stale`: for each evidence record that a listed capability's `for`
 //!   edge or claim reaches, each input whose digest now differs from the digest
-//!   it keeps, or that resolves to nothing now. Nothing reads a revision or Git.
+//!   it keeps, or that resolves to nothing now: a symbol input resolves through
+//!   the source index, an artifact input is the file of that path in the tree.
+//!   Nothing reads a revision or Git.
 //! * `assessment-missing`, `assessment-stale` and `assessment-rejected`: for
 //!   each authored section in `affects`, the assessment record under the id of
 //!   the section ([`record_slug`](crate::assessment::record_slug)): none, one
@@ -114,20 +116,26 @@ pub(super) fn raise(
                 continue;
             };
             for input in &record.value().inputs {
-                // The profile gives an evidence record `symbol` inputs only.
-                if input.kind != InputKind::Symbol {
-                    continue;
-                }
-                let digest = now
-                    .entry(input.name.clone())
-                    .or_insert_with(|| Digest::symbol(plan.source(), &input.name));
-                let moved = match digest {
-                    Ok(digest) if digest.to_string() == input.digest => continue,
-                    Ok(_) => InputMoved::Moved,
-                    Err(error) => InputMoved::Unresolved(match error {
-                        SymbolDigestError::Resolve { error, .. } => error.to_string(),
-                        other => other.to_string(),
-                    }),
+                // The profile gives an evidence record `symbol` and `artifact` inputs only.
+                let moved = match input.kind {
+                    InputKind::Symbol => {
+                        let digest = now
+                            .entry(input.name.clone())
+                            .or_insert_with(|| Digest::symbol(plan.source(), &input.name));
+                        match digest {
+                            Ok(digest) if digest.to_string() == input.digest => continue,
+                            Ok(_) => InputMoved::Moved,
+                            Err(error) => InputMoved::Unresolved(match error {
+                                SymbolDigestError::Resolve { error, .. } => error.to_string(),
+                                other => other.to_string(),
+                            }),
+                        }
+                    }
+                    InputKind::Artifact => match plan.artifacts.moved(&input.name, &input.digest) {
+                        Ok(()) => continue,
+                        Err(moved) => moved,
+                    },
+                    InputKind::Declaration | InputKind::Section | InputKind::Record => continue,
                 };
                 found.push(Obligation {
                     kind: ObligationKind::EvidenceStale,

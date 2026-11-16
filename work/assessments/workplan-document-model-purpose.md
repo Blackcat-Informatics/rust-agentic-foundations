@@ -88,7 +88,7 @@ inputs:
     digest: c251c0aa5163f88d1fdbd5c9a07bb3fdadbfa192cf843854f73d38f31f0077da
   - kind: symbol
     name: raf_workplan::Workplan
-    digest: 68ca77137d5dd40e03d33d383c9ce0871fdfa329c92ea67898ad0d5afa94913b
+    digest: 9dbaf33a987a2a88681f5086addf2223d4d30f9357ba7f12e5caf08bc2954455
   - kind: symbol
     name: raf_workplan::Workplan::architecture_models
     digest: 91f15ba332366b1cfa9fae5aed1ae905202912a0728c1b9750fcc86ccedad993
@@ -124,7 +124,7 @@ inputs:
     digest: 116bcb10c96cebf7344e2a3ca0746921d0265d7a9e4fd01bfbfc96697e1ad64c
   - kind: symbol
     name: raf_workplan::digest
-    digest: 98f0395a6d2d1b38c15638b9e7861e0e9ce7635b9309467398b2a327f1f7fc58
+    digest: 0982e19bf7979bf26f90f5b83f5934ecd09dfa12f95c63e50882e80a8aafd947
   - kind: symbol
     name: raf_workplan::digest::Digest
     digest: 6c7d21b4cba7380d4dcffe0adcc0a59123376b9416b489895f3bbed78b3bba9c
@@ -145,10 +145,10 @@ inputs:
     digest: 21859b0f3099ed421eaccb5b5e785a1a9dc31eab9afed660df652a1f3318dd8d
   - kind: symbol
     name: raf_workplan::graph
-    digest: 3780a0701c712849be6484b8f2a073d0d10255eacb5182c32cbab5a0ceb58f17
+    digest: 4e24cb03ab7e37659b8a005a9aa1f41fa5e0aa53b0fa5cdb73e946823b39316f
   - kind: symbol
     name: raf_workplan::load::load
-    digest: ce463c98bf1a76fefa7a223d501f710e19d104fb35806ff12251d5de08b53ab7
+    digest: 70cb8296c76cae470a7ae21938b957258940d80865bbbb2929f989633e0a7ac7
   - kind: symbol
     name: raf_workplan::plain
     digest: 6b773895ebb66d1a71d178eeceedeffff921f45e4c269b24990de65f9111c076

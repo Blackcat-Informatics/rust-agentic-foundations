@@ -263,6 +263,9 @@ impl Tree for CommittedGitTree<'_> {
     fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
         self.tree.read(path, max_bytes)
     }
+    fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
+        self.tree.read_bytes(path, max_bytes)
+    }
     fn read_unseen(
         &self,
         path: &RelPath,

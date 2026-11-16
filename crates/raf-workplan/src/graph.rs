@@ -1484,6 +1484,8 @@ fn add_input(
             .binary_search(&input.name)
             .is_ok()
             .then(|| InputTarget::Record(input.name.clone())),
+        // A file names no document or item, so the row has no edge.
+        InputKind::Artifact => None,
     };
     if let Some(to) = to {
         graph.inputs.push(InputEdge {

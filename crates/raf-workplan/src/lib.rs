@@ -49,6 +49,7 @@
 //! ```
 
 pub mod architecture;
+mod artifact;
 pub mod assessment;
 mod bindings;
 pub mod coverage;

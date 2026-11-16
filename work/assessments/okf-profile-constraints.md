@@ -196,10 +196,10 @@ inputs:
     digest: 81fbfbc362952f0b3e7e93bc94c77581a42f12c93671d99e78af2121ec42cb58
   - kind: symbol
     name: raf_okf::Input
-    digest: e8b0512aa2e3ac089ad4d4a92c70ba8532ffdcdf1020c3d96384dde60300c905
+    digest: f17789972d41403929c2d363024da97c3fceedb81da616be1de74f98ed714090
   - kind: symbol
     name: raf_okf::InputKind
-    digest: c32d5311fa2cf9691c979f524170a7134d6d5c1e4f1784fe8b4da72a10bcc2fa
+    digest: 3cbbda1d95b0d24c08e2643876b2beedd1d8872b3fcdbbfb5f7c56fdce9bf13d
   - kind: symbol
     name: raf_okf::ItemValue
     digest: 487994b073a114335a3ca9e2d66ed04eff9c457229fc572575353096dd1ae190

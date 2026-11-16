@@ -316,11 +316,20 @@ pub enum InputKind {
     Symbol,
     /// An evidence record, named `evidence:<slug>`.
     Record,
+    /// A file of the repository, named by its repository-relative path; its
+    /// digest is of the bytes of the file.
+    Artifact,
 }
 
 impl InputKind {
     /// Every kind.
-    pub const ALL: [Self; 4] = [Self::Declaration, Self::Section, Self::Symbol, Self::Record];
+    pub const ALL: [Self; 5] = [
+        Self::Declaration,
+        Self::Section,
+        Self::Symbol,
+        Self::Record,
+        Self::Artifact,
+    ];
 
     /// The kind named by the value of a `kind` key.
     #[must_use]
@@ -336,6 +345,7 @@ impl InputKind {
             Self::Section => "section",
             Self::Symbol => "symbol",
             Self::Record => "record",
+            Self::Artifact => "artifact",
         }
     }
 }
@@ -347,7 +357,7 @@ impl InputKind {
 pub struct Input {
     /// What the row names.
     pub kind: InputKind,
-    /// The section, symbol path or evidence id.
+    /// The section, symbol path, evidence id or artifact path.
     pub name: String,
     /// The digest, 64 lowercase hexadecimal digits.
     pub digest: String,

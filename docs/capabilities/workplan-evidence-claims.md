@@ -26,6 +26,10 @@ bindings:
     - cargo_workplan::test_crate::process::a_usage_error_starts_no_process
     - cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output
     - raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name
+    - raf_workplan::test_crate::obligations::a_binary_artifact_is_current_while_its_bytes_match_and_stale_when_one_changes
+    - raf_workplan::test_crate::obligations::an_artifact_that_leads_outside_the_workspace_is_refused
+    - raf_workplan::test_crate::obligations::the_profile_refuses_an_artifact_path_that_escapes_the_workspace
+    - raf_workplan::test_crate::obligations::each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line
     - raf_okf::test_crate::claims::a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it
     - raf_okf::test_crate::claims::a_claim_may_rest_on_several_records
     - raf_okf::test_crate::claims::a_claim_after_a_list_item_supports_that_item_only
@@ -60,6 +64,9 @@ Keep authored evidence relationships inspectable without executing the command t
 
 **Static contract.** Evidence records are authored metadata. Their verdict, values, limits, revisions and input digests describe assertions recorded by an author. Reading a stored command never runs it, and stored runtime verdicts never become RAF-observed execution success. The generic record API permits explicit metadata creation and replacement within the evidence directory; the CLI has no command-executing `evidence record` operation.
 <!-- raf:tested-by cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views,raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value -->
+
+**Artifact inputs.** An evidence record may cite a file, a measurement or a log, by a row of kind `artifact` that names its repository-relative path and the SHA-256 digest of its exact bytes. The load reads each cited file once through the verified handle of the tree, as bytes, and the check compares the digest. A missing file, a file that is not regular, a file over 256 MiB and a changed file each leave the input stale, and an input that leads out of the workspace root, by a path or a symbolic link, is refused; a stale input is the `evidence-stale` obligation, and the complete check names it. A path with an empty, `.` or `..` segment is refused by the profile. The `revision` key stays informational and is never read from Git, so the check proves that the file matches the recorded digest and not that it existed at that revision. A file under an ignored directory is read like any other but is not tracked, so it may exist on one machine and not on another and cannot be recovered from Git. A tree that cannot return bytes, such as a Git snapshot, refuses the read and the input is stale with that reason. A record without an `artifact` row is judged as before. An older RAF refuses a record that states the row.
+<!-- raf:tested-by raf_workplan::test_crate::obligations::a_binary_artifact_is_current_while_its_bytes_match_and_stale_when_one_changes,raf_workplan::test_crate::obligations::an_artifact_that_leads_outside_the_workspace_is_refused,raf_workplan::test_crate::obligations::the_profile_refuses_an_artifact_path_that_escapes_the_workspace,raf_workplan::test_crate::obligations::each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line -->
 
 Claims refer to evidence by slug and retain capability, section, line and statement text. `evidence_claims` and `evidence_for` report complete static relationships, including explicitly missing evidence. Unloaded capability documents refuse a complete dependency answer. Native RDF projections preserve the same authored claims and support edges.
 <!-- raf:tested-by raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability,raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers -->
@@ -134,6 +141,10 @@ Native record round trips, claim lookup refusals and the stored-command fixture 
 | `raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::obligations::a_binary_artifact_is_current_while_its_bytes_match_and_stale_when_one_changes` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::obligations::an_artifact_that_leads_outside_the_workspace_is_refused` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::obligations::each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::obligations::the_profile_refuses_an_artifact_path_that_escapes_the_workspace` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge` | test | [Verification](#verification) |

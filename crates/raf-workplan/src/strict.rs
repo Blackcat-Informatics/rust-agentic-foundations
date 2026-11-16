@@ -123,7 +123,7 @@ use raf_okf::{DocType, EvidenceRecord, EvidenceVerdict, Location};
 
 use crate::coverage::{self, Computed};
 use crate::debt::{self, Owed};
-use crate::digest::stale_symbol_inputs;
+use crate::digest::stale_inputs;
 use crate::finding::kind;
 use crate::graph::{Binding, ScopeEdge};
 use crate::work::{Work, add};
@@ -263,12 +263,12 @@ fn measured_evidence(
     out
 }
 
-/// Whether the symbol inputs of an evidence record digest now as they were recorded.
+/// Whether the symbol and artifact inputs of an evidence record digest now as they were recorded.
 #[derive(Debug, PartialEq, Eq)]
 enum Currency {
-    /// Every symbol input digests as recorded.
+    /// Every symbol and artifact input digests as recorded.
     Current,
-    /// At least one symbol input changed or no longer resolves; the text names each
+    /// At least one symbol or artifact input changed or no longer resolves; the text names each
     /// and why.
     Stale(String),
     /// The source index refused a query, so no currency was established; the text is the
@@ -276,10 +276,10 @@ enum Currency {
     Refused(String),
 }
 
-/// The currency of `record`'s symbol inputs, a refusal by the source index being
+/// The currency of `record`'s symbol and artifact inputs, a refusal by the source index being
 /// refused rather than stale.
 fn currency(plan: &Workplan<'_>, record: &EvidenceRecord) -> Currency {
-    match stale_symbol_inputs(plan.source(), &record.inputs) {
+    match stale_inputs(plan, &record.inputs) {
         Ok(stale) if stale.is_empty() => Currency::Current,
         Ok(stale) => Currency::Stale(stale.join(", ")),
         Err(refusal) => Currency::Refused(refusal.to_string()),

@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 4762314bf51b9da9e08d4e1bb348e9bd8e0a4181d140821959f7ecd003a7f446
+    digest: 49afac8c23baa6b3cef8538c5cfa59a2f1c7c43e458dec985c5935afb4f6b361
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -60,11 +60,8 @@ inputs:
     name: raf_source::DiskTree::directory_handle
     digest: 755582acb3fcce96b715feb889c5d8be39d2fd3e046e9e40551c8153c3ba461e
   - kind: symbol
-    name: raf_source::DiskTree::read_bytes
-    digest: 4418409a968a7d43c455140431f871c1ed0cb469164aee7d37ae3c3d86930679
-  - kind: symbol
     name: raf_source::DiskTree::read_unseen_bytes
-    digest: 3589119265e0b17fc91e100de09c467418fca9bfd5e734c36e90485ae3f2b125
+    digest: cf31a8cda7db05997b9df57f62404e2d1a8894d5a8c7388ddb8c5692b9eaa943
   - kind: symbol
     name: raf_source::Edge
     digest: 05e2de77698208d5ec648e7a658929eadf3652257ea36f39c56f28ce44ea5045
@@ -286,7 +283,10 @@ inputs:
     digest: cb04b33807694255f1b153b224d9ed22f61ff8a4be002811b093e0b5c43970e1
   - kind: symbol
     name: raf_source::Tree
-    digest: 4a6473970d811355ae6d37d1f11fc1c2075fcbe506ef1606ddb4d1133911639c
+    digest: 47e9968759c245bf187497fad588f8c41a39b2356fc4031b4082b1f8a3223d64
+  - kind: symbol
+    name: raf_source::Tree::read_bytes
+    digest: be62a987879e97b448aadd9b504c5f23f57218c5b7e0cdd361846c7144fc4438
   - kind: symbol
     name: raf_source::TreeError
     digest: 1870f1f59aec46e41cf5240d1029068a8038cb77307e2221a53bee581121fc48
@@ -400,10 +400,10 @@ inputs:
     digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
   - kind: symbol
     name: raf_source::tree
-    digest: 078796918c101347df949cb2d69a03d131f88b87ae18c88fd9aa6bb387d40a67
+    digest: 1e93dcd3d96aaa22c219f8aecd9938b779dec25fcee25104ea091302a3b8c6de
   - kind: symbol
     name: raf_source::tree::disk
-    digest: 7b505520fb8fc0e8c4e7049d8db1e12c5da00800fc5417cd3066fdbffa1fd80b
+    digest: 7ed16eaaaaff825fc76759cbdc3dd82b8edf3b2ca5ef727b24b4e0d09d7cfe37
   - kind: symbol
     name: raf_source::visit_pattern_bindings
     digest: 27019e74a30a0147f477718f5c4d7d4fd9cd0c9ed93f86efddf4718b98e98fcf

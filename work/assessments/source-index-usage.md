@@ -7,7 +7,7 @@ subject: cap:source-index#usage
 inputs:
   - kind: section
     name: cap:source-index#usage
-    digest: 94a30d9530ff6b32daf37171fa59c0b1b93ca845eaf39bac14abed6fe52f5cbd
+    digest: fcc631e0d93d08f40f2208363fd13fc20dfb6691fb20434e2b044e82637c1a83
   - kind: symbol
     name: raf_source::CfgAtom
     digest: d36cd070e76abf89aa638ebe1dc5acff34ddaae19f6d22e8410100a04eaa0ea6
@@ -24,9 +24,6 @@ inputs:
     name: raf_source::DeclaredConfiguration
     digest: 618a797f674154b413697821c14b31ec355ecd46f4ba517bcf4ea6b052e26634
   - kind: symbol
-    name: raf_source::DiskTree
-    digest: 5496855041cec7a22d2303a3eb9049dbcafa368c7a19589c040d0e13f752702f
-  - kind: symbol
     name: raf_source::DiskTree::capture_directory
     digest: 2b699d4b2b1b1acf22684b8723ad64b2dbd8dc6c0a82aed8acb384de3ef77797
   - kind: symbol
@@ -42,11 +39,8 @@ inputs:
     name: raf_source::DiskTree::directory_handle
     digest: 755582acb3fcce96b715feb889c5d8be39d2fd3e046e9e40551c8153c3ba461e
   - kind: symbol
-    name: raf_source::DiskTree::read_bytes
-    digest: 4418409a968a7d43c455140431f871c1ed0cb469164aee7d37ae3c3d86930679
-  - kind: symbol
     name: raf_source::DiskTree::read_unseen_bytes
-    digest: 3589119265e0b17fc91e100de09c467418fca9bfd5e734c36e90485ae3f2b125
+    digest: cf31a8cda7db05997b9df57f62404e2d1a8894d5a8c7388ddb8c5692b9eaa943
   - kind: symbol
     name: raf_source::ExportedItem
     digest: 251ba19facd68b040aa6f89189fe54e3100a1d87871149743831b8a13690633a
@@ -136,7 +130,10 @@ inputs:
     digest: 944b3d0a58346acc9bee0af0b80f3d54aa551a6f6dbb62f78b0440f992d3cf88
   - kind: symbol
     name: raf_source::Tree
-    digest: 4a6473970d811355ae6d37d1f11fc1c2075fcbe506ef1606ddb4d1133911639c
+    digest: 47e9968759c245bf187497fad588f8c41a39b2356fc4031b4082b1f8a3223d64
+  - kind: symbol
+    name: raf_source::Tree::read_bytes
+    digest: be62a987879e97b448aadd9b504c5f23f57218c5b7e0cdd361846c7144fc4438
   - kind: symbol
     name: raf_source::Usage
     digest: c86ad8e58151210ec1ffd4f0de601b6f82dd60eeccde1eb0b5d815a28ceec492
@@ -199,10 +196,10 @@ inputs:
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3
   - kind: symbol
     name: raf_source::tree
-    digest: 078796918c101347df949cb2d69a03d131f88b87ae18c88fd9aa6bb387d40a67
+    digest: 1e93dcd3d96aaa22c219f8aecd9938b779dec25fcee25104ea091302a3b8c6de
   - kind: symbol
     name: raf_source::tree::disk
-    digest: 7b505520fb8fc0e8c4e7049d8db1e12c5da00800fc5417cd3066fdbffa1fd80b
+    digest: 7ed16eaaaaff825fc76759cbdc3dd82b8edf3b2ca5ef727b24b4e0d09d7cfe37
 verdict: accepted
 by: agent
 ---

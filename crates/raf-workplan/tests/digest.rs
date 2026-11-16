@@ -35,6 +35,7 @@ fn contract(text: &str) -> Digest {
 /// printf 'section\0contract\0%s\0Contract\n\nIt holds.\n' 20 | sha256sum
 /// printf 'symbol\0demo::f\0%s\0/// Doc.\npub fn f() {}' 22 | sha256sum
 /// printf 'record\0\0%s\0pub fn f() {}' 13 | sha256sum
+/// printf 'artifact\0log/a.bin\0%s\0x\r\ny' 4 | sha256sum
 /// ```
 #[test]
 fn each_kind_hashes_its_documented_encoding() {
@@ -52,6 +53,15 @@ fn each_kind_hashes_its_documented_encoding() {
     assert_eq!(
         Digest::record("pub fn f() {}").to_string(),
         "4225d769b57370cd80e0d3c8b288194aa184a7858182a02f1f7bd71f463df117"
+    );
+    // An artifact is hashed as read: its CRLF is kept, unlike the text of a record.
+    assert_eq!(
+        Digest::artifact("log/a.bin", b"x\r\ny").to_string(),
+        "e6078256564f70512bdc75ee67c57e26d795a3cd8a04b80fd1c2761e08fa9c0c"
+    );
+    assert_ne!(
+        Digest::artifact("log/a.bin", b"x\r\ny"),
+        Digest::artifact("log/a.bin", b"x\ny")
     );
 }
 

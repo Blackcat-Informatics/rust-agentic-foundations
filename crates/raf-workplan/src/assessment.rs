@@ -184,6 +184,7 @@ impl fmt::Display for MovedInput {
             InputKind::Section => "section",
             InputKind::Symbol => "symbol",
             InputKind::Record => "evidence record",
+            InputKind::Artifact => "artifact",
         };
         write!(f, "the {what} `{}` ", self.name)?;
         match &self.change {
@@ -1086,6 +1087,12 @@ impl Workplan<'_> {
                         InputKind::Declaration => AssessError::DeclarationNotLoaded { id: name },
                         InputKind::Record => AssessError::EvidenceNotLoaded { id: name },
                         InputKind::Symbol => AssessError::SymbolUnresolved { path: name, reason },
+                        // INVARIANT: `inputs_now` builds rows of section, declaration,
+                        // symbol and record kinds only; the profile bars an artifact
+                        // row from an assessment.
+                        InputKind::Artifact => unreachable!(
+                            "INVARIANT: an assessment holds no artifact input, so none is unresolved"
+                        ),
                         InputKind::Section => {
                             let section = parse_subject(&name)?;
                             self.assessed_capability(section.capability())?;

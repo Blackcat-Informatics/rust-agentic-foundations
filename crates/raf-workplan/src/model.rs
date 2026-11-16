@@ -126,6 +126,8 @@ pub struct Workplan<'s> {
     graph: Graph,
     source: &'s Workspace,
     pub(crate) diagram_assets: crate::diagram::assets::Stored,
+    /// The artifacts the evidence records cite, digested at load.
+    pub(crate) artifacts: crate::artifact::Artifacts,
 }
 
 impl<'s> Workplan<'s> {
@@ -187,6 +189,7 @@ impl<'s> Workplan<'s> {
             graph: Graph::default(),
             source,
             diagram_assets: crate::diagram::assets::Stored::default(),
+            artifacts: crate::artifact::Artifacts::default(),
         }
     }
 
