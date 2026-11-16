@@ -364,9 +364,11 @@ it in `cargo test` and in the commit hook.
   not accumulate worktrees.
 - Resolve a merge conflict by reading both sides. Never take one side whole.
 - A change is reviewed independently before it merges. The reviewer gets the change
-  and the requirement, never the author's conclusion, and reads the exact head that
-  will merge. A finding is fixed, or shown from the code not to apply; a real gap
-  that leaves the change is tracked before the merge.
+  and the requirement, never the author's conclusion. A finding is fixed, or shown
+  from the code not to apply; a real gap that leaves the change is tracked before
+  the merge. A delta made after that review that changes behaviour gets one further
+  independent read of the exact head that will merge; a delta that changes no
+  behaviour (wording, comments or documentation) needs no further independent read.
 - What an agent or a tool reports is a claim. Read the evidence it names before
   repeating it or building on it.
 
