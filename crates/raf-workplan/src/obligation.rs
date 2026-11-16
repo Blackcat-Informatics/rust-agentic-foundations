@@ -904,6 +904,18 @@ pub enum ReconcileError {
         /// did not load.
         findings: Vec<Finding>,
     },
+    /// The tree refused or failed the read of an artifact that an evidence
+    /// record of a listed capability cites, so whether the record is current is
+    /// unknown. A missing, non-regular, oversized or outside file is not this
+    /// error: it leaves the record stale.
+    ArtifactRefused {
+        /// The id of the evidence record.
+        evidence: String,
+        /// The repository-relative path of the artifact.
+        path: String,
+        /// What the tree said.
+        reason: String,
+    },
 }
 
 impl fmt::Display for ReconcileError {
@@ -922,6 +934,14 @@ impl fmt::Display for ReconcileError {
                 )?;
                 write_findings(f, findings)
             }
+            Self::ArtifactRefused {
+                evidence,
+                path,
+                reason,
+            } => write!(
+                f,
+                "`{evidence}` cites the artifact `{path}`, which could not be read: {reason}; read the workspace through a tree that returns bytes, such as the disk tree, and repair the failure, since recording the evidence again cannot clear it"
+            ),
         }
     }
 }
@@ -931,7 +951,7 @@ impl Error for ReconcileError {
         match self {
             Self::Review(error) => Some(error),
             Self::Change(error) => Some(error),
-            Self::CapabilityNotLoaded { .. } => None,
+            Self::CapabilityNotLoaded { .. } | Self::ArtifactRefused { .. } => None,
         }
     }
 }

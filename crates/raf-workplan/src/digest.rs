@@ -425,29 +425,34 @@ pub enum SymbolDigestError {
 ///
 /// # Errors
 ///
-/// The error of the first input whose query the source index refused
-/// ([`SymbolDigestError::is_query_refusal`]): no currency was established, and
-/// reporting it as a changed input would hide the cause.
+/// The refusal of the first input whose currency could not be established: a
+/// symbol whose query the source index refused
+/// ([`SymbolDigestError::is_query_refusal`]) or an artifact the tree refused or
+/// failed to read. Reporting either as a changed input would hide the cause.
 pub(crate) fn stale_inputs(
     plan: &crate::Workplan<'_>,
     inputs: &[raf_okf::Input],
-) -> Result<Vec<String>, SymbolDigestError> {
+) -> Result<Vec<String>, InputRefusal> {
     let mut stale = Vec::new();
     for input in inputs {
         match input.kind {
             raf_okf::InputKind::Symbol => match Digest::symbol(plan.source(), &input.name) {
                 Ok(now) if now.to_string() == input.digest => {}
                 Ok(_) => stale.push(format!("{} changed", input.name)),
-                Err(error) if error.is_query_refusal() => return Err(error),
+                Err(error) if error.is_query_refusal() => return Err(InputRefusal::Symbol(error)),
                 Err(error) => stale.push(format!("{}: {error}", input.name)),
             },
             raf_okf::InputKind::Artifact => {
-                match plan.artifacts.moved(&input.name, &input.digest) {
-                    Ok(()) => {}
-                    Err(crate::obligation::InputMoved::Unresolved(reason)) => {
+                match plan
+                    .artifacts
+                    .moved(&input.name, &input.digest)
+                    .map_err(InputRefusal::Artifact)?
+                {
+                    None => {}
+                    Some(crate::obligation::InputMoved::Unresolved(reason)) => {
                         stale.push(format!("{}: {reason}", input.name));
                     }
-                    Err(_) => stale.push(format!("{} changed", input.name)),
+                    Some(_) => stale.push(format!("{} changed", input.name)),
                 }
             }
             raf_okf::InputKind::Declaration
@@ -456,6 +461,33 @@ pub(crate) fn stale_inputs(
         }
     }
     Ok(stale)
+}
+
+/// Why the currency of an input could not be established.
+#[derive(Debug)]
+pub(crate) enum InputRefusal {
+    /// The source index refused the query of a symbol input.
+    Symbol(SymbolDigestError),
+    /// The tree refused or failed the read of an artifact input.
+    Artifact(crate::artifact::ArtifactRefusal),
+}
+
+impl fmt::Display for InputRefusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Symbol(error) => error.fmt(f),
+            Self::Artifact(error) => error.fmt(f),
+        }
+    }
+}
+
+impl Error for InputRefusal {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Symbol(error) => Some(error),
+            Self::Artifact(error) => Some(error),
+        }
+    }
 }
 
 impl SymbolDigestError {

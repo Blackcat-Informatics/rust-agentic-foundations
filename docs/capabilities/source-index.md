@@ -1261,9 +1261,10 @@ verified lexical-link strategy return an explicit unsupported-operation error.
 
 `Tree::read_bytes` returns the exact bytes of a file, and `DiskTree` also provides
 the inherent `read_unseen_bytes` operation. `DiskTree` and `MemoryTree` implement
-`read_bytes`, `SourceTrees` and the committed Git tree delegate it, and a backend
-that cannot return bytes refuses with an unsupported-operation `TreeError::Io`
-and never converts through text. Binary reads preserve arbitrary bytes
+`read_bytes`, and `SourceTrees` passes it to the selected backend. The Git and
+registry archive trees do not return bytes: like any backend that does not
+implement the call, they refuse it with an unsupported-operation `TreeError::Io`
+and never convert through text. Binary reads preserve arbitrary bytes
 without UTF-8 validation. A read-unseen result is `OpenedBytes`: it either holds
 the actual verified file identity and complete bytes from that same open, or
 reports an identity accepted by the caller without reading its payload or

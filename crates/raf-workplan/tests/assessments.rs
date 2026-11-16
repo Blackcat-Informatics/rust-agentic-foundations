@@ -413,6 +413,19 @@ fn declaration_currency_neighbors() {
         [changed_input(InputKind::Record, "evidence:model")]
     );
     fixture.accept(CONTRACT);
+    // An artifact row of model-associated evidence is covered by the record
+    // digest and never read as a symbol, so the section is assessed beside the
+    // record without one above.
+    let artifact = ".stage/run/bench.txt";
+    put(fixture.root(), artifact, "peak 41\n");
+    let cited = evidence.clone().artifact(artifact, b"peak 41\n");
+    put(fixture.root(), &cited.path(), &cited.text());
+    assert_eq!(
+        stale(&fixture.currency(CONTRACT)),
+        [changed_input(InputKind::Record, "evidence:model")]
+    );
+    fixture.accept(CONTRACT);
+    assert_eq!(fixture.currency(CONTRACT), Currency::Current);
     let current = read(fixture.root(), CAP);
     let revised = model.replace("Run operations", "Execute operations");
     put(fixture.root(), CAP, &current.replacen(&revised, "", 1));

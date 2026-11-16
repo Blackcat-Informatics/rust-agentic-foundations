@@ -1978,23 +1978,32 @@ fn an_artifact_that_leads_outside_the_workspace_is_refused() {
     assert_eq!(artifact_stale_count(root), 0);
 }
 
-/// The profile refuses an artifact path that climbs out of the workspace or
-/// is absolute, and accepts a repository-relative one.
+/// A tree that cannot read a cited artifact refuses the reconcile with an
+/// error naming the record and the path, never an `evidence-stale` line that
+/// would send the author to record again; the memory tree beside it reads the
+/// same file and owes nothing.
 #[test]
-fn the_profile_refuses_an_artifact_path_that_escapes_the_workspace() {
-    let scratch = Scratch::new("artifact-profile");
-    let root = scratch.path();
-    let rejected = |path: &str| {
-        let record = Evidence::passing("bound", "[cap:omega]").artifact(path, b"x");
-        write_artifact_record(root, &record);
-        on_disk(root, |plan| {
-            plan.check()
-                .iter()
-                .any(|finding| finding.to_string().contains("bad artifact input name"))
-        })
-    };
-    assert!(rejected("../outside.txt"));
-    assert!(rejected("/etc/passwd"));
-    assert!(rejected("a/../../b"));
-    assert!(!rejected(".stage/run/trace.bin"));
+fn an_artifact_the_tree_cannot_read_refuses_the_reconcile_instead_of_going_stale() {
+    const PATH: &str = ".stage/run/bench.txt";
+    let cited = Evidence::passing("bound", "[cap:omega]").artifact(PATH, b"peak 41\n");
+    let files = assessed(
+        &repo(&[
+            (OMEGA, capability("omega", "implementing", BOUND, &[])),
+            (SHAPE, base()[SHAPE].clone()),
+            ("work/evidence/bound.md", cited.text()),
+            (PATH, "peak 41\n".to_string()),
+        ]),
+        "shape",
+    );
+    let accepted = reconcile_as_is(&files, "shape").expect("the memory tree reads the artifact");
+    assert!(accepted.is_empty(), "{accepted}");
+    let tree = support::TextOnly(files.iter().collect());
+    let workspace = support::demo_workspace();
+    let plan = raf_workplan::Workplan::load(&tree, &workspace);
+    match plan.reconcile("shape") {
+        Err(ReconcileError::ArtifactRefused { evidence, path, .. }) => {
+            assert_eq!((evidence.as_str(), path.as_str()), ("evidence:bound", PATH));
+        }
+        other => panic!("expected an artifact refusal, got {other:?}"),
+    }
 }

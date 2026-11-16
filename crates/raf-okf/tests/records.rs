@@ -404,7 +404,7 @@ fn input_rows_have_exactly_kind_name_and_digest() {
 
 #[test]
 fn an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind() {
-    // Evidence is made against symbols only.
+    // Evidence is made against symbols and artifacts only.
     let section = mutate(&evidence(), "kind: symbol", "kind: section").replace(
         "name: raf_okf::Document::parse",
         "name: cap:okf-profile#contract",
@@ -490,7 +490,7 @@ fn symbol_inputs_accept_crate_roots_and_refuse_malformed_paths() {
 /// An artifact input is a repository-relative file path, and only evidence
 /// takes one: a path that is absolute, climbs out of the workspace or has an
 /// empty or `.` segment is refused beside the accepted path, and an assessment
-/// or a review with the kind is refused.
+/// with the kind is refused.
 #[test]
 fn artifact_inputs_accept_repository_relative_paths_and_refuse_escapes() {
     let artifact = |name: &str| {
@@ -509,6 +509,7 @@ fn artifact_inputs_accept_repository_relative_paths_and_refuse_escapes() {
     for name in [
         "../outside.txt",
         "/etc/passwd",
+        "a/../../b",
         "a//b",
         "a/./b",
         "a/..",

@@ -123,7 +123,7 @@ use raf_okf::{DocType, EvidenceRecord, EvidenceVerdict, Location};
 
 use crate::coverage::{self, Computed};
 use crate::debt::{self, Owed};
-use crate::digest::stale_inputs;
+use crate::digest::{InputRefusal, stale_inputs};
 use crate::finding::kind;
 use crate::graph::{Binding, ScopeEdge};
 use crate::work::{Work, add};
@@ -230,7 +230,7 @@ fn measured_evidence(
                 Currency::Stale(changed) => Some(format!(
                     "`{record_id}` was recorded at digests that no longer match the source: {changed}"
                 )),
-                Currency::Refused(refusal) => Some(format!(
+                Currency::Refused { refusal, .. } => Some(format!(
                     "`{record_id}` could not be checked against the source: {refusal}"
                 )),
             }
@@ -244,11 +244,16 @@ fn measured_evidence(
     if !failing.is_empty() && reasons.is_empty() {
         return failing;
     }
-    let refused = measured.iter().zip(&currency).any(|(record, now)| {
-        record.value().verdict == EvidenceVerdict::Pass && matches!(now, Currency::Refused(_))
-    });
-    let fix = if refused {
+    let refused = |artifact: bool| {
+        measured.iter().zip(&currency).any(|(record, now)| {
+            record.value().verdict == EvidenceVerdict::Pass
+                && matches!(now, Currency::Refused { artifact: was, .. } if *was == artifact)
+        })
+    };
+    let fix = if refused(false) {
         "repair the source or raise the query allowance of the load so the source index can check the record's inputs; recording the evidence again cannot clear a refusal"
+    } else if refused(true) {
+        "read the workspace through a tree that returns bytes, such as the disk tree, and repair the failure the artifact read reports; recording the evidence again cannot clear a refusal"
     } else {
         "record an evidence record whose `for` lists this capability with the verdict `pass`, current input digests, `values`, a unit for each value under `units`, and `conditions`"
     };
@@ -271,9 +276,15 @@ enum Currency {
     /// At least one symbol or artifact input changed or no longer resolves; the text names each
     /// and why.
     Stale(String),
-    /// The source index refused a query, so no currency was established; the text is the
-    /// refusal. Reporting it as a mismatch would hide its real cause.
-    Refused(String),
+    /// The source index refused a query, or the tree refused or failed an artifact
+    /// read, so no currency was established; the text is the refusal. Reporting it
+    /// as a mismatch would hide its real cause.
+    Refused {
+        /// What refused.
+        refusal: String,
+        /// Whether an artifact read, rather than a source-index query, refused.
+        artifact: bool,
+    },
 }
 
 /// The currency of `record`'s symbol and artifact inputs, a refusal by the source index being
@@ -282,7 +293,10 @@ fn currency(plan: &Workplan<'_>, record: &EvidenceRecord) -> Currency {
     match stale_inputs(plan, &record.inputs) {
         Ok(stale) if stale.is_empty() => Currency::Current,
         Ok(stale) => Currency::Stale(stale.join(", ")),
-        Err(refusal) => Currency::Refused(refusal.to_string()),
+        Err(refusal) => Currency::Refused {
+            artifact: matches!(refusal, InputRefusal::Artifact(_)),
+            refusal: refusal.to_string(),
+        },
     }
 }
 

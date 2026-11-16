@@ -33,7 +33,8 @@ use crate::graph::SectionId;
 use crate::{Loaded, Workplan};
 
 use super::{
-    ClaimProblem, InputMoved, Needed, Obligation, ObligationKind, OverLimit, Part, Place, Subject,
+    ClaimProblem, InputMoved, Needed, Obligation, ObligationKind, OverLimit, Part, Place,
+    ReconcileError, Subject,
 };
 
 /// Each value of `values` over its limit in `limits`, in the order of the
@@ -60,11 +61,16 @@ pub(crate) fn claim_part(section: Option<&str>) -> Part {
 }
 
 /// The trace obligations of the listed capabilities.
+///
+/// # Errors
+///
+/// [`ReconcileError::ArtifactRefused`] when the tree refused or failed the read
+/// of an artifact input that a listed capability's evidence names.
 pub(super) fn raise(
     plan: &Workplan<'_>,
     listed: &[&Loaded<Capability>],
     found: &mut Vec<Obligation>,
-) {
+) -> Result<(), ReconcileError> {
     let records: BTreeMap<&str, &Loaded<EvidenceRecord>> = plan
         .evidence()
         .iter()
@@ -132,8 +138,15 @@ pub(super) fn raise(
                         }
                     }
                     InputKind::Artifact => match plan.artifacts.moved(&input.name, &input.digest) {
-                        Ok(()) => continue,
-                        Err(moved) => moved,
+                        Ok(None) => continue,
+                        Ok(Some(moved)) => moved,
+                        Err(refusal) => {
+                            return Err(ReconcileError::ArtifactRefused {
+                                evidence: evidence.to_string(),
+                                path: refusal.path,
+                                reason: refusal.reason,
+                            });
+                        }
                     },
                     InputKind::Declaration | InputKind::Section | InputKind::Record => continue,
                 };
@@ -154,6 +167,7 @@ pub(super) fn raise(
             }
         }
     }
+    Ok(())
 }
 
 /// The assessment obligations of the sections in `affects`.
