@@ -24,6 +24,7 @@ bindings:
     - raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence
     - raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope
     - raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function
+    - raf_census::test_crate::census_gate::foreign_host_import_refuses_what_it_cannot_place_beside_a_valid_neighbour
     - raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads
     - raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type
     - raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package
@@ -40,10 +41,10 @@ depends: [cap:census-normal-form]
 ## Purpose
 
 Fingerprints find copies of a body that already exists elsewhere. Some duplicated
-helpers are better recognised by what they do: a hex-digit table, a hand-rolled
-ceiling division, a default-hasher map. Detectors are generic checks for these
-recurring hand-written helpers, and they report as `rule` fingerprints that a
-ledger job can forbid.
+constructs are better recognised by what they do: a hex-digit table, a hand-rolled
+ceiling division, a default-hasher map, a declaration that imports a host function.
+Detectors are generic checks for these recurring constructs, and they report as
+`rule` fingerprints that a ledger job can forbid.
 
 Representation policies also reject written JSON dependencies, recognized RDF
 text formatters and local RDF term enums that omit triple terms. A repository
@@ -103,7 +104,7 @@ Syntax recognizers describe the detected construction; they do not select a
 different hard-coded library or standard-library alternative.
 
 ### Job-scoped literals and names
-<!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads,raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_refuses_what_it_cannot_place_beside_a_valid_neighbour,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads,raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type -->
 
 Job-dependent evidence is isolated to the job that names its detector.
 Home-literal evidence includes empty ordinary strings and requires at least
@@ -191,7 +192,7 @@ A preferred-provider declaration removes this package exemption; only the actual
 home and entry-point items retain their classification as homes.
 
 A `foreign-host-import` job needs a home or entry point that declares a host
-function import in an `extern` block; without one the job is refused. An import is
+function import in an `extern` block; without one the Gate check fails. An import is
 identified by its namespace, each entry carrying the kind of the argument that gave
 it, and by its imported name. The kinds are `module`, `raw_module`, `inline_js`,
 `js_class` and `js_namespace` (also written `static_method_of`) of `wasm_bindgen`,
@@ -200,13 +201,31 @@ the receiver type of a `method` import without a `js_class`, the returned class 
 and `indexing_getter`, `indexing_setter` and `indexing_deleter`. The name is
 `js_name` or `link_name`, else the declared name, except that a `constructor`
 import with neither is named `constructor` whatever its Rust name. For a `getter` or
-`setter` the property is the attribute's own value, then `js_name` or `link_name`, then the
-declared name (without a `set_` prefix for a setter), and a read and a write are different
-imports. The same value under two kinds is two namespaces. Arguments of `wasm_bindgen` that do not select a host function, such as
-`catch` and `variadic`, are ignored. Attributes inside `cfg_attr` are read. The `wasm_bindgen` attribute is read by its last path segment, so a re-exported
+`setter` the property is the attribute's own value, then `js_name` or `link_name`,
+then the declared name (without a `set_` prefix for a setter), and a read and a
+write are different imports. The same value under two kinds is two namespaces.
+
+Arguments of `wasm_bindgen` that do not select a host function, such as `catch` and
+`variadic`, are ignored, as are `kind`, `modifiers`, `import_name_type` and the
+parenthesized `cfg(..)` predicate of `link`. Attributes inside `cfg_attr` are read.
+The `wasm_bindgen` attribute is read by its last path segment, so a re-exported
 `wasm_bindgen::prelude::wasm_bindgen` counts; `link`, `link_name` and `cfg_attr` are
-read by their bare names only. An
-argument the detector cannot place is refused with its file and line.
+read by their bare names only.
+
+The detector refuses, and the Gate check fails with the file and line, when:
+
+- an argument is not one it can place, or is written with a path such as
+  `wasm_bindgen::catch`;
+- an argument that needs a value has none, or its value is not a string, a path or a
+  list of paths;
+- an argument other than the `cfg(..)` of `link` is followed by a parenthesized list;
+- one import is both a `getter` and a `setter`, or repeats either;
+- a `method` import has no typed first parameter, or its receiver is not a named type;
+- a `constructor` import has no return type, or its return type is not a named type;
+- `js_namespace` is written on an `extern` block and again on an item in it, because
+  the binding attribute releases differ on which of the two applies; or
+- a macro invocation stands inside an `extern` block, since it may declare imports
+  the detector cannot read.
 
 Every detector ships positive fixtures it flags and negative fixtures that look
 similar and that it leaves alone.
@@ -309,8 +328,8 @@ import of `later`, an import of `now` from another module, from `raw_module` or 
 `js_namespace = Date` import is named `now` matches
 `#[wasm_bindgen(static_method_of = Date)] fn now()` and not a `method` import of
 `now`. A home without a host import, and an argument such as `module = 1` or an
-unknown name, refuse the job.
-<!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads,raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type -->
+unknown name each fail the Gate check.
+<!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_refuses_what_it_cannot_place_beside_a_valid_neighbour,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads,raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type -->
 
 A preferred-provider adapter can return the result of its admitted native
 encoder while another helper in the same package spells a hex-digit table.
@@ -348,18 +367,19 @@ delegation to a native provider.
 - `foreign-host-import` reads the attributes written on the `extern` block and its
   functions, directly or inside `cfg_attr`, and `wasm_bindgen` through a path by its last
   segment. `link`, `link_name` and `cfg_attr` under a path are another crate's attributes
-  and are not read. A `use` alias that renames an attribute is not read. An `extern` block produced by a macro
-  expansion is not read.
+  and are not read. A `use` alias that renames an attribute is not read. An `extern`
+  block produced by a macro expansion is not read, and a macro invocation written
+  inside an `extern` block is refused.
   A `js_class` is its own namespace kind: the same import with and without it, or beside
   a `method` receiver of the same type, is two host functions.
-  <!-- raf:tested-by raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads,raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type -->
+  <!-- raf:tested-by raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_refuses_what_it_cannot_place_beside_a_valid_neighbour,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads,raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type -->
 - Detectors work on syntax. They do not resolve types, so `std-default-hasher`
   recognises the std paths and aliases it can see in the file.
   <!-- raf:tested-by raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases -->
 - A detector reports hits; a required-rule selection makes eligible hits hard
   findings, while other hits become findings through the ledger job that forbids
   them.
-  <!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads,raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type -->
+  <!-- raf:tested-by raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function,raf_census::test_crate::census_gate::foreign_host_import_refuses_what_it_cannot_place_beside_a_valid_neighbour,raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads,raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type -->
 
 ## Explanation
 
@@ -424,8 +444,12 @@ required findings with neighbouring clean source.
   no namespace clean, including the same value under another namespace kind. A
   static method matches the namespace form of the same function, and a method
   receiver does not. Two spellings of one property, by `js_name` and by the attribute's own value, match, and
-  two `js_name` values on one declared name do not. A home without an import and an unplaceable argument, including a `js_name` with no value, each
-  refuse the job beside a valid neighbour. Two constructors of one class match under any Rust names, and
+  two `js_name` values on one declared name do not. A home without an import and an unplaceable argument, including a `js_name`
+  with no value, each fail the Gate check beside a valid neighbour. Each refusal listed in the
+  usage section, such as a getter with a setter, a repeated getter, a malformed `method`
+  receiver, a `constructor` without a named return type, a path-qualified argument, a
+  namespace on both block and item and a macro in a block, fails beside a corrected
+  neighbour that is accepted, and `link` with a `cfg(..)` predicate is accepted. Two constructors of one class match under any Rust names, and
   constructors of different classes do not; methods of one `js_class` match across
   Rust receiver types and methods of different classes do not.
 - `vocabulary-literal` fixtures flag a single-line literal with and without a
@@ -449,6 +473,7 @@ required findings with neighbouring clean source.
 | `raf_census::test_crate::census_gate::fact_detectors_reuse_collected_values_and_keep_their_target_scope` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::foreign_host_import_refuses_what_it_cannot_place_beside_a_valid_neighbour` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order` | test | [Contract](#contract) |

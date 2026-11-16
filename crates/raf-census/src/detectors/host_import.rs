@@ -61,6 +61,8 @@ struct Identity {
     property: Option<(Access, Option<String>)>,
     method: bool,
     constructor: bool,
+    /// Whether a `js_namespace` argument was written on this block or item itself.
+    namespace_written: bool,
 }
 
 fn refuse(span: proc_macro2::Span, message: impl Into<String>) -> Refusal {
@@ -165,6 +167,21 @@ impl Identity {
                 ));
                 return Ok(());
             };
+            if meta.input.peek(syn::token::Paren) {
+                if key == "cfg" && !bindgen {
+                    // The predicate of `link(.., cfg(..))` decides whether the link applies and
+                    // not which host function is imported, so it is read past.
+                    let predicate;
+                    syn::parenthesized!(predicate in meta.input);
+                    predicate.parse::<proc_macro2::TokenStream>()?;
+                    return Ok(());
+                }
+                failure = Some(refuse(
+                    meta.path.span(),
+                    format!("the host binding argument `{key}` does not take a parenthesized list"),
+                ));
+                return Ok(());
+            }
             let value = if meta.input.peek(syn::Token![=]) {
                 let expr: syn::Expr = meta.value()?.parse()?;
                 Some(value_text(&expr))
@@ -199,6 +216,7 @@ impl Identity {
     ) -> Result<(), Refusal> {
         let namespace = |kind: &'static str, value: Option<String>| place(kind, value, span);
         if bindgen && let Some(kind) = NAMESPACES.iter().copied().find(|known| *known == key) {
+            self.namespace_written |= kind == "js_namespace";
             self.namespaces.insert(namespace(kind, value)?);
             return Ok(());
         }
@@ -210,7 +228,7 @@ impl Identity {
             ("name", false) => {
                 self.namespaces.insert(namespace("library", value)?);
             }
-            ("kind" | "modifiers" | "cfg" | "import_name_type", false) => {}
+            ("kind" | "modifiers" | "import_name_type", false) => {}
             ("static_method_of", true) => {
                 self.namespaces.insert(namespace("js_namespace", value)?);
             }
@@ -225,11 +243,13 @@ impl Identity {
                 } else {
                     Access::Write
                 };
-                if self.property.is_some() {
-                    return Err(refuse(
-                        span,
-                        "an import cannot be both a getter and a setter",
-                    ));
+                if let Some((written, _)) = self.property {
+                    let message = if written == access {
+                        format!("the host binding argument `{key}` is written twice on one import")
+                    } else {
+                        "an import cannot be both a getter and a setter".to_owned()
+                    };
+                    return Err(refuse(span, message));
                 }
                 self.property = Some((access, value));
             }
@@ -367,6 +387,14 @@ impl Imports {
             ..Identity::default()
         };
         identity.attributes(&function.attrs)?;
+        // The binding attribute reads one namespace path from the block or the item,
+        // and which wins differs between releases, so both is refused.
+        if identity.namespace_written && self.block.namespace_written {
+            return Err(refuse(
+                function.sig.ident.span(),
+                "`js_namespace` is written on both an extern block and an item in it; write the full path on one of them",
+            ));
+        }
         let message = identity.describe(function)?;
         let span = function.sig.ident.span();
         self.hits.push(RawHit {
@@ -392,6 +420,15 @@ impl<'ast> Visit<'ast> for Imports {
         let outer = std::mem::replace(&mut self.block, block);
         syn::visit::visit_item_foreign_mod(self, node);
         self.block = outer;
+    }
+
+    fn visit_foreign_item_macro(&mut self, node: &'ast syn::ForeignItemMacro) {
+        if self.refusal.is_none() {
+            self.refusal = Some(refuse(
+                node.mac.span(),
+                "a macro invocation inside an extern block may declare host imports this detector cannot read; write the imports out",
+            ));
+        }
     }
 
     fn visit_foreign_item_fn(&mut self, node: &'ast syn::ForeignItemFn) {
