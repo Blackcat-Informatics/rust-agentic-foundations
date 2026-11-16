@@ -1471,7 +1471,7 @@ fn an_inline_module_in_a_block_resolves_its_children_without_the_files_module_di
 /// carries the test role to the file it names; the same declaration in code
 /// that is no test does not.
 #[test]
-fn a_block_local_module_in_a_test_function_is_tagged_test_beside_one_in_a_plain_function() {
+fn a_block_local_module_in_a_test_function_or_constant_is_tagged_test_beside_plain_ones() {
     let ws = ok(&[
         (
             "src/lib.rs",

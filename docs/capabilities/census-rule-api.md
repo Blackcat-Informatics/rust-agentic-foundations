@@ -96,8 +96,8 @@ ledger job, home, variant or debt record cannot exempt the finding, so a gate th
 requires it refuses to write debt while one remains. A path shared on purpose
 between packages leaves the requirement unselected or moves the shared module
 into a package the others depend on. The structural and locked checks apply it
-alike. A module declared inside a function, constant, static, impl block or trait body,
-at any depth of its blocks, is followed by the module walk, so the check sees its
+alike. A module declared inside the body of a function, constant, static, impl block or
+trait, at any block depth, is followed by the module walk, so the check sees its
 `path`; one inside a type (an array length), a pattern, a generic parameter list, an
 enum discriminant or a struct, union, type alias or `extern` block, or inside a macro
 invocation, is not followed and the check does not see it. Without the requirement no module path is judged, and nothing of the
