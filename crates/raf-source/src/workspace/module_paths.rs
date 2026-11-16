@@ -51,8 +51,8 @@ impl Workspace {
     /// tree is walked from its root. Structural loads follow every `cfg_attr`
     /// alternative; configured loads follow only the active ones.
     ///
-    /// Module declarations inside function bodies are not followed by the module
-    /// walk, so this list does not see them.
+    /// A module declared inside a function body or another block is followed,
+    /// so a `path` there that leaves its package is listed too.
     #[must_use]
     pub fn foreign_module_paths(&self) -> Vec<ForeignModulePath<'_>> {
         let mut found = Vec::new();

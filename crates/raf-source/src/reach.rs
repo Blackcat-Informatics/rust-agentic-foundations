@@ -950,6 +950,9 @@ struct Walk<'a> {
     blocks_of_type: BTreeMap<ItemId, Vec<ImplId>>,
     /// The impl blocks each module holds.
     blocks_of_module: BTreeMap<usize, Vec<ImplId>>,
+    /// The block modules each item holds a declaration of, by the item whose
+    /// span is the innermost to hold it.
+    block_modules_of: BTreeMap<ItemId, Vec<usize>>,
     /// The crate root items.
     roots: BTreeSet<ItemId>,
     /// The runs of each file lexed so far, with the edition whose keywords
@@ -988,10 +991,49 @@ impl<'a> Walk<'a> {
                 blocks_of_type.entry(*ty).or_default().push(block.id);
             }
         }
+        let mut block_modules_of: BTreeMap<ItemId, Vec<usize>> = BTreeMap::new();
+        if !index.block_modules.is_empty() {
+            let mut in_module: BTreeMap<usize, Vec<ItemId>> = BTreeMap::new();
+            for item in &index.items {
+                if let Some(module) = homes[item.id.0].module {
+                    in_module.entry(module).or_default().push(item.id);
+                }
+            }
+            for site in &index.block_modules {
+                work::add(
+                    Work::ReachSteps,
+                    1 + in_module.get(&site.parent).map_or(0, Vec::len),
+                );
+                let owner = in_module
+                    .get(&site.parent)
+                    .into_iter()
+                    .flatten()
+                    .map(|id| &index.items[id.0])
+                    .filter(|item| {
+                        item.file == site.file
+                            && item.span.start_byte <= site.span.0
+                            && site.span.1 <= item.span.end_byte
+                    })
+                    .min_by_key(|item| item.span.end_byte - item.span.start_byte);
+                if let Some(owner) = owner {
+                    block_modules_of
+                        .entry(owner.id)
+                        .or_default()
+                        .push(site.module);
+                }
+            }
+        }
         let roots: BTreeSet<ItemId> = index.root_items.values().copied().collect();
         let held = homes.capacity() * size_of::<Home>()
             + lists_bytes(&blocks_of_type)
             + lists_bytes(&blocks_of_module)
+            + btree_map::<ItemId, Vec<usize>>()
+            + block_modules_of
+                .values()
+                .map(|list| {
+                    btree_entry::<ItemId, Vec<usize>>() + list.capacity() * size_of::<usize>()
+                })
+                .sum::<usize>()
             + btree_map::<ItemId, ()>()
             + roots.len() * btree_entry::<ItemId, ()>()
             + btree_map::<(RelPath, u16), FileRuns>()
@@ -1007,6 +1049,7 @@ impl<'a> Walk<'a> {
             homes,
             blocks_of_type,
             blocks_of_module,
+            block_modules_of,
             roots,
             files_runs: BTreeMap::new(),
             seen: BTreeMap::new(),
@@ -1261,6 +1304,21 @@ impl<'a> Walk<'a> {
                         }
                     }
                     _ => {}
+                }
+                if first {
+                    // A module declared inside the item's body is reached
+                    // with the item, as a module in an item list is with the
+                    // module that holds it.
+                    for &module in self.block_modules_of.get(&id).into_iter().flatten() {
+                        for child in &index.modules[module].defs {
+                            work::add(Work::ReachSteps, 1);
+                            out.push((Node::Item(*child), Edge::Contains));
+                        }
+                        for block in self.blocks_of_module.get(&module).into_iter().flatten() {
+                            work::add(Work::ReachSteps, 1);
+                            out.push((Node::Impl(*block), Edge::Contains));
+                        }
+                    }
                 }
                 let home = self.homes[id.0];
                 if first && let Some(module) = home.module {

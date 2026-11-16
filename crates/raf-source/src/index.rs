@@ -279,6 +279,16 @@ pub(crate) struct ImplDecl<'f> {
     pub(crate) fact: &'f ImplFact,
 }
 
+/// A module declared inside a block: the module, the module that holds the
+/// block, and the declaration in its file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BlockModule {
+    pub(crate) module: usize,
+    pub(crate) parent: usize,
+    pub(crate) file: RelPath,
+    pub(crate) span: (usize, usize),
+}
+
 /// A module: all the declarations that define the module at one path of one
 /// crate.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -301,6 +311,8 @@ pub(crate) struct Index {
     pub(crate) modules: Vec<Module>,
     /// The module at each path of each crate, by the crate's root module.
     pub(crate) module_by_path: BTreeMap<(usize, SharedStr), usize>,
+    /// The modules declared inside blocks, which have no `mod` item.
+    pub(crate) block_modules: Vec<BlockModule>,
     /// The module that a `mod` item stands for.
     pub(crate) module_of: BTreeMap<ItemId, usize>,
     /// Lexical homes of exported macros placed in a different export module.
@@ -873,7 +885,7 @@ impl<'a> Builder<'a> {
                     push(&mut stack, Emit::Mods(body, module, 0), line)?;
                 }
                 Emit::Mods(body, module, next) => {
-                    let Some(decl) = body.mods.get(next) else {
+                    let Some(decl) = body.declaration(next) else {
                         continue;
                     };
                     push(
@@ -881,7 +893,11 @@ impl<'a> Builder<'a> {
                         Emit::Mods(body, module, next + 1),
                         decl.name_line,
                     )?;
-                    let child = self.module_item(decl, module, cx)?;
+                    let child = if body.is_block_local(next) {
+                        self.block_module(decl, module, cx)?
+                    } else {
+                        self.module_item(decl, module, cx)?
+                    };
                     if let Some(inline) = &decl.inline {
                         push(
                             &mut stack,
@@ -894,6 +910,35 @@ impl<'a> Builder<'a> {
             }
         }
         Ok(())
+    }
+
+    /// The module of a declaration inside a block. It has no item and no name
+    /// in any module scope, because no path written in source reaches it: its
+    /// items are indexed under the module path of [`ModFact::block_segment`].
+    fn block_module(
+        &mut self,
+        decl: &ModFact,
+        module: usize,
+        cx: &Cx<'_>,
+    ) -> Result<usize, LoadError> {
+        let path = format!(
+            "{}::{}",
+            self.index.modules[module].path,
+            decl.block_segment()
+        );
+        let child = self.declare(&path, module, cx.file, decl.name_line)?;
+        // One record for each declaring file: files that one module path merges
+        // (the alternatives of a `cfg_attr` path) can declare the same child
+        // at the same offset, and each file's items need their own site.
+        self.store
+            .charge(size_of::<BlockModule>(), cx.file, Some(decl.name_line))?;
+        self.index.block_modules.push(BlockModule {
+            module: child,
+            parent: module,
+            file: cx.file.clone(),
+            span: (decl.span.start_byte, decl.span.end_byte),
+        });
+        Ok(child)
     }
 
     /// The module a declaration names, and its item. Returns the module.
@@ -1007,6 +1052,7 @@ impl Index {
             order: Vec::new(),
             modules: Vec::new(),
             module_by_path: BTreeMap::new(),
+            block_modules: Vec::new(),
             module_of: BTreeMap::new(),
             crate_of: BTreeMap::new(),
             crate_roots: BTreeMap::new(),

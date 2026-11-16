@@ -232,6 +232,9 @@ pub(crate) struct ModFact {
     pub(crate) name: String,
     /// The 1-based line of the name.
     pub(crate) name_line: usize,
+    /// The byte at which the name starts: after the attributes and before the
+    /// body, so no configuration and no edit of the body moves it.
+    pub(crate) name_start: usize,
     /// The whole declaration, attributes included.
     pub(crate) span: SpanFact,
     /// The braced body of an inline module.
@@ -423,12 +426,54 @@ pub(crate) struct ModBody {
     pub(crate) items: Vec<ItemFact>,
     /// Module declarations.
     pub(crate) mods: Vec<ModFact>,
+    /// Module declarations inside the function bodies, constant initializers
+    /// and other blocks of the items of this module, in source order. They
+    /// name no item of the module: only the module walk and the index read
+    /// them.
+    pub(crate) blocks: Vec<ModFact>,
     /// `use` declarations.
     pub(crate) uses: Vec<UseFact>,
     /// `impl` blocks.
     pub(crate) impls: Vec<ImplFact>,
     /// Item-producing macro invocations, without generated definitions.
     pub(crate) unexpanded: Vec<UnexpandedFact>,
+}
+
+impl ModFact {
+    /// The module path segment of a module declared inside a block. A block
+    /// has no name that a path can write, so the segment holds the module
+    /// name and the byte where the name starts, in braces that no identifier
+    /// has: no path written in source can name the module, and two blocks
+    /// that declare one name stay apart. The name start is used because a
+    /// configured load removes a leading `cfg_attr` that does not apply,
+    /// which moves the start of the declaration, and an edit of the body
+    /// moves its end; neither moves the name, so one declaration has one
+    /// segment in every load.
+    pub(crate) fn block_segment(&self) -> String {
+        format!("{{{}@{}}}", self.name, self.name_start)
+    }
+}
+
+impl ModBody {
+    /// How many module declarations the walk follows in this body: those of
+    /// the item list, then those inside blocks.
+    pub(crate) fn declarations(&self) -> usize {
+        self.mods.len() + self.blocks.len()
+    }
+
+    /// The declaration at `position` of the item list followed by the blocks.
+    pub(crate) fn declaration(&self, position: usize) -> Option<&ModFact> {
+        self.mods.get(position).or_else(|| {
+            position
+                .checked_sub(self.mods.len())
+                .and_then(|local| self.blocks.get(local))
+        })
+    }
+
+    /// True when the declaration at `position` is inside a block.
+    pub(crate) fn is_block_local(&self, position: usize) -> bool {
+        position >= self.mods.len()
+    }
 }
 
 /// The facts of one file.
@@ -1107,6 +1152,7 @@ impl Extractor<'_> {
         }
         let room = slack(&mut body.items)
             + slack(&mut body.mods)
+            + slack(&mut body.blocks)
             + slack(&mut body.uses)
             + slack(&mut body.impls)
             + slack(&mut body.unexpanded);
@@ -1314,6 +1360,7 @@ impl Extractor<'_> {
     }
 
     fn one(&self, item: &Item, inherited: TestRole, body: &mut ModBody) -> Found<()> {
+        self.blocks(item, inherited, &mut body.blocks)?;
         if let Some(fact) = self.named(item, inherited, &mut body.unexpanded)? {
             body.items.push(fact);
             return Ok(());
@@ -1774,9 +1821,11 @@ impl Extractor<'_> {
             size_of::<ModFact>() + name.capacity() + vis_bytes(&vis),
             name_line,
         )?;
+        let name_start = self.positions.span(module.ident.span())?.start_byte;
         Ok(ModFact {
             name,
             name_line,
+            name_start,
             span: self.positions.span(module.span())?,
             body_span,
             vis,
@@ -1787,6 +1836,152 @@ impl Extractor<'_> {
             paths: summary.paths,
             inline,
         })
+    }
+}
+
+impl Extractor<'_> {
+    /// The module declarations inside the function bodies and initializers of
+    /// `item`, appended to `found`. Items that hold no expression (types,
+    /// `use` declarations, modules) hold none; a module is read whole by
+    /// [`Self::module_fact`], which reads its own items the same way.
+    fn blocks(&self, item: &Item, inherited: TestRole, found: &mut Vec<ModFact>) -> Found<()> {
+        let attrs = match item {
+            Item::Fn(f) => &f.attrs,
+            Item::Const(c) => &c.attrs,
+            Item::Static(s) => &s.attrs,
+            Item::Impl(i) => &i.attrs,
+            Item::Trait(t) => &t.attrs,
+            _ => return Ok(()),
+        };
+        let own = summarize(attrs, &FactMeter::scratch())?;
+        let mut finder = BlockMods {
+            extractor: self,
+            test: role(own.own_test, inherited),
+            found,
+            failed: None,
+        };
+        finder.visit_item(item);
+        finder.failed.map_or(Ok(()), Err)
+    }
+}
+
+/// Finds the module declarations nested in the expressions of an item, however
+/// deep, without entering the module declarations themselves.
+struct BlockMods<'e, 'f, 'x> {
+    extractor: &'e Extractor<'x>,
+    /// The test role of the innermost enclosing item.
+    test: TestRole,
+    found: &'f mut Vec<ModFact>,
+    failed: Option<ExtractError>,
+}
+
+impl BlockMods<'_, '_, '_> {
+    /// Visit an item with the test role its own attributes give.
+    fn within(&mut self, attrs: &[Attribute], visit: impl FnOnce(&mut Self)) {
+        if self.failed.is_some() {
+            return;
+        }
+        match summarize(attrs, &FactMeter::scratch()) {
+            Ok(own) => {
+                let outer = self.test;
+                self.test = role(own.own_test, outer);
+                visit(self);
+                self.test = outer;
+            }
+            Err(error) => self.failed = Some(error),
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for BlockMods<'_, '_, '_> {
+    // Types, patterns, generics and the items other than functions, constants,
+    // statics, impl blocks, traits and modules can hold an expression (an
+    // array length, an enum discriminant), but this scan skips them: the
+    // configured selection does not select the attributed positions inside
+    // them, so a module found there could sit under an attribute that a
+    // configured load never evaluated.
+    fn visit_type(&mut self, _: &'ast syn::Type) {}
+
+    fn visit_pat(&mut self, _: &'ast syn::Pat) {}
+
+    fn visit_generics(&mut self, _: &'ast syn::Generics) {}
+
+    fn visit_item(&mut self, item: &'ast Item) {
+        if matches!(
+            item,
+            Item::Fn(_)
+                | Item::Const(_)
+                | Item::Static(_)
+                | Item::Impl(_)
+                | Item::Trait(_)
+                | Item::Mod(_)
+        ) {
+            syn::visit::visit_item(self, item);
+        }
+    }
+
+    fn visit_item_mod(&mut self, module: &'ast syn::ItemMod) {
+        if self.failed.is_some() {
+            return;
+        }
+        match self.extractor.module_fact(module, self.test) {
+            Ok(fact) => self.found.push(fact),
+            Err(error) => self.failed = Some(error),
+        }
+    }
+
+    fn visit_item_fn(&mut self, function: &'ast syn::ItemFn) {
+        self.within(&function.attrs, |this| {
+            syn::visit::visit_item_fn(this, function);
+        });
+    }
+
+    fn visit_item_const(&mut self, item: &'ast syn::ItemConst) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_item_const(this, item);
+        });
+    }
+
+    fn visit_item_static(&mut self, item: &'ast syn::ItemStatic) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_item_static(this, item);
+        });
+    }
+
+    fn visit_item_impl(&mut self, item: &'ast syn::ItemImpl) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_item_impl(this, item);
+        });
+    }
+
+    fn visit_item_trait(&mut self, item: &'ast syn::ItemTrait) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_item_trait(this, item);
+        });
+    }
+
+    fn visit_impl_item_const(&mut self, item: &'ast syn::ImplItemConst) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_impl_item_const(this, item);
+        });
+    }
+
+    fn visit_trait_item_const(&mut self, item: &'ast syn::TraitItemConst) {
+        self.within(&item.attrs, |this| {
+            syn::visit::visit_trait_item_const(this, item);
+        });
+    }
+
+    fn visit_impl_item_fn(&mut self, function: &'ast syn::ImplItemFn) {
+        self.within(&function.attrs, |this| {
+            syn::visit::visit_impl_item_fn(this, function);
+        });
+    }
+
+    fn visit_trait_item_fn(&mut self, function: &'ast syn::TraitItemFn) {
+        self.within(&function.attrs, |this| {
+            syn::visit::visit_trait_item_fn(this, function);
+        });
     }
 }
 
