@@ -7,7 +7,7 @@
 mod support;
 
 use raf_okf::Location;
-use raf_source::MemoryTree;
+use raf_source::{LoadOptions, MemoryTree, Workspace};
 use raf_workplan::digest::Digest;
 use raf_workplan::{Finding, Gate, Workplan};
 use support::cases::strict_cases;
@@ -785,4 +785,56 @@ fn a_failing_or_stale_measured_record_does_not_satisfy_the_requirement() {
     );
     let beside = check_in(&repo, &workspace_of(&fixture::source_files()));
     assert_eq!(beside, [], "{beside:#?}");
+    // A refusal by the source index is no mismatch. The input is reached through
+    // a glob re-export, which the index resolves under its query allowance: at an
+    // allowance of zero the finding carries the budget error, not "changed", and
+    // does not tell the author to record again. The current-digest neighbour, the
+    // same record under the normal allowance, is accepted.
+    let mut files = fixture::source_files();
+    files[1].1.push_str(
+        "pub mod carrier { pub fn exported() {} }\npub mod child { pub use crate::carrier::*; }\n",
+    );
+    let tree: MemoryTree = files
+        .iter()
+        .map(|(path, text)| (*path, text.as_str()))
+        .collect();
+    let normal = workspace_of(&files);
+    let input = "demo::child::exported";
+    let (path, text) = evidence_as(
+        "pass",
+        &Digest::symbol(&normal, input)
+            .expect("the globbed input resolves")
+            .to_string(),
+        MEASURED,
+    );
+    repo.remove("work/evidence/bench-failed.md");
+    repo.insert(path, fixture::replaced(&text, "demo::run", input));
+    // The added items are unbound, so only the measured-evidence findings are read.
+    let measured_only = |found: Vec<Finding>| -> Vec<Finding> {
+        found
+            .into_iter()
+            .filter(|finding| finding.kind.starts_with("measured-evidence"))
+            .collect()
+    };
+    assert_eq!(measured_only(check_in(&repo, &normal)), []);
+    let mut options = LoadOptions::default();
+    options.max_query_work = 0;
+    let limited = Workspace::load_with(&tree, &["."], &options)
+        .expect("the query limit does not prevent loading");
+    let refused = measured_only(check_in(&repo, &limited));
+    assert_eq!(
+        kinds(&refused),
+        ["measured-evidence-missing"],
+        "{refused:#?}"
+    );
+    assert!(
+        refused[0].message.contains("evidence:bench")
+            && refused[0].message.contains(input)
+            && !refused[0].message.contains("changed"),
+        "a refusal is reported with its error and not as a changed input: {refused:#?}"
+    );
+    assert!(
+        !refused[0].fix.contains("record an evidence record"),
+        "re-recording cannot clear a refusal: {refused:#?}"
+    );
 }

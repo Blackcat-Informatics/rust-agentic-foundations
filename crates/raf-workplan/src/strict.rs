@@ -46,8 +46,9 @@
 //! `measured-evidence-missing` is raised at the key
 //! `measured_evidence_required`; when a measured record that covers the
 //! capability has the verdict `fail`, `measured-evidence-failed` is raised
-//! there instead, once for each such record, naming it. The findings are not debt, and a capability
-//! that does not state the key is judged as before.
+//! there instead, once for each such record, naming it. A refusal by the source
+//! index is reported with its error, not as a changed input. The findings are not
+//! debt, and a capability that does not state the key is judged as before.
 //!
 //! # Claims
 //!
@@ -227,7 +228,7 @@ fn measured_evidence(
                 Currency::Stale(changed) => Some(format!(
                     "`{record_id}` was recorded at digests that no longer match the source: {changed}"
                 )),
-                Currency::Unresolved(refusal) => Some(format!(
+                Currency::Refused(refusal) => Some(format!(
                     "`{record_id}` could not be checked against the source: {refusal}"
                 )),
             }
@@ -238,12 +239,20 @@ fn measured_evidence(
     } else {
         reasons.join("; ")
     };
+    let refused = currency
+        .iter()
+        .any(|now| matches!(now, Currency::Refused(_)));
+    let fix = if refused {
+        "repair the source or raise the query allowance of the load so the source index can check the record's inputs; recording the evidence again cannot clear a refusal"
+    } else {
+        "record an evidence record whose `for` lists this capability with the verdict `pass`, current input digests, `values`, a unit for each value under `units`, and `conditions`"
+    };
     vec![Finding::new(
         kind::MEASURED_EVIDENCE_MISSING,
         capability.path(),
         at(),
         format!("`{id}` requires measured evidence, and {detail}"),
-        "record an evidence record whose `for` lists this capability with the verdict `pass`, current input digests, `values`, a unit for each value under `units`, and `conditions`",
+        fix,
     )]
 }
 
@@ -252,20 +261,21 @@ fn measured_evidence(
 enum Currency {
     /// Every symbol input digests as recorded.
     Current,
-    /// At least one symbol input changed or no longer resolves; the text names them.
+    /// At least one symbol input changed or no longer resolves; the text names each
+    /// and why.
     Stale(String),
     /// The source index refused a query, so no currency was established; the text is the
     /// refusal. Reporting it as a mismatch would hide its real cause.
-    Unresolved(String),
+    Refused(String),
 }
 
 /// The currency of `record`'s symbol inputs, a refusal by the source index being
-/// unresolved rather than stale.
+/// refused rather than stale.
 fn currency(plan: &Workplan<'_>, record: &EvidenceRecord) -> Currency {
     match stale_symbol_inputs(plan.source(), &record.inputs) {
         Ok(stale) if stale.is_empty() => Currency::Current,
         Ok(stale) => Currency::Stale(stale.join(", ")),
-        Err(refusal) => Currency::Unresolved(refusal.to_string()),
+        Err(refusal) => Currency::Refused(refusal.to_string()),
     }
 }
 
