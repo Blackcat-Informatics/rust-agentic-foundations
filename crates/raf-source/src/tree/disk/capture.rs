@@ -59,11 +59,11 @@ impl DiskTree {
     /// Capture bytes, identity and permissions through one verified regular handle.
     ///
     /// The type and permissions are checked again after reading. Symlinks are
-    /// followed under the same containment rules as [`Self::read_bytes`]. Ownership,
+    /// followed under the same containment rules as [`Tree::read_bytes`](crate::Tree::read_bytes). Ownership,
     /// ACLs and extended attributes are not captured by this operation.
     ///
     /// # Errors
-    /// The errors of [`Self::read_bytes`], or an interrupted observation when
+    /// The errors of [`Tree::read_bytes`](crate::Tree::read_bytes), or an interrupted observation when
     /// the file's type or permissions change during the read.
     pub fn capture_file(&self, path: &RelPath, max_bytes: u64) -> Result<CapturedFile, TreeError> {
         super::super::require_first_party(path)?;

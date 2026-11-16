@@ -15,7 +15,7 @@ use super::{DiagramError, DiagramGrouping, DiagramKind, NamedDiagramView};
 pub(super) use crate::digest::semantic_hash as hash;
 use crate::{
     Workplan,
-    digest::{Digest, stale_inputs},
+    digest::{Digest, InputRefusal, stale_inputs},
 };
 
 mod identity;
@@ -664,7 +664,11 @@ pub(super) fn verification_fields(
     {
         return Err(DiagramError::refused("unsupported evidence input kind"));
     }
-    let stale = stale_inputs(plan, &record.inputs).map_err(DiagramError::data)?;
+    let stale = stale_inputs(plan, &record.inputs).map_err(|refusal| match refusal {
+        // The cause is the typed error itself, so a caller can downcast it.
+        InputRefusal::Symbol(error) => DiagramError::data(error),
+        InputRefusal::Artifact(error) => DiagramError::data(error),
+    })?;
     for input in &record.inputs {
         fields.push((
             "originalInput".into(),

@@ -509,6 +509,8 @@ fn artifact_inputs_accept_repository_relative_paths_and_refuse_escapes() {
     for name in [
         "../outside.txt",
         "/etc/passwd",
+        "C:/Windows/log.txt",
+        "C:log.txt",
         "a/../../b",
         "a//b",
         "a/./b",

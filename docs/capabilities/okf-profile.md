@@ -614,7 +614,7 @@ A `symbol` input names a crate-root identifier or a path of identifiers joined b
 <!-- raf:tested-by raf_okf::test_crate::records::artifact_inputs_accept_repository_relative_paths_and_refuse_escapes -->
 
 An `artifact` input names a file by a repository-relative path of `/`-separated
-segments. An empty, `.` or `..` segment, a leading `/`, a trailing `/`, a backslash and
+segments. An empty, `.` or `..` segment, a leading `/`, a trailing `/`, a drive designator such as `C:`, a backslash and
 a control character are refused, so the name cannot leave the workspace root or
 name it. Only an Evidence record takes an `artifact` row; an Assessment or a Review
 that states one is `okf-bad-input-kind`. An older reader refuses a record that states

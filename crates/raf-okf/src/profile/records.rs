@@ -161,8 +161,13 @@ fn input_name_fits(doc_type: DocType, kind: InputKind, name: &str) -> bool {
     }
 }
 
+/// Whether `segment` starts with a Windows drive designator such as `C:`.
+fn is_drive_prefix(segment: &str) -> bool {
+    matches!(segment.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic())
+}
+
 /// A repository-relative file path: `/`-separated segments, none empty, `.` or
-/// `..`, and no backslash, control character or leading or trailing space, so
+/// `..`, and no backslash, control character, drive designator (`C:`) or leading or trailing space, so
 /// the path cannot leave the workspace root or name it.
 fn is_artifact_path(text: &str) -> bool {
     !text.is_empty()
@@ -170,6 +175,7 @@ fn is_artifact_path(text: &str) -> bool {
             !matches!(segment, "" | "." | "..")
                 && segment == segment.trim()
                 && !segment.chars().any(|c| c == '\\' || c.is_control())
+                && !is_drive_prefix(segment)
         })
 }
 

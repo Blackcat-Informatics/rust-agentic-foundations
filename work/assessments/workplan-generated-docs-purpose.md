@@ -58,7 +58,7 @@ inputs:
     digest: 8a211c7ec52d3269b07fa74baf161556c991c01a76eb43416eb4b311c3d934f4
   - kind: symbol
     name: raf_workplan::diagram
-    digest: 18d1c4396dc20fc58c0b12b381f9528522200454d7af7b846ffa496c38a8119e
+    digest: 43b64969a97a3c7e1348c234b85d79bef3b152b506295a6f58d98ba59a236438
   - kind: symbol
     name: raf_workplan::diagram::publication::publish_repository
     digest: 0942902b5d134460b2f4e0be0fbbe2574a5e82e6a8f7ab6ef6d36cc2390cfec6

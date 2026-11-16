@@ -31,7 +31,7 @@ inputs:
     digest: 706ee61e548a5ece7be9173a8c3e088cb4695c654d3df2292e605d79b63dd699
   - kind: symbol
     name: raf_source::DiskTree::capture_file
-    digest: 344fcdd262128a1124e4091edce268dd8fa8e8b24c3c3b2fee7929b18cd98c73
+    digest: 06d285dc6ea4f6c47e61493dd7043763925d8e0c232dab1b7319958efc71a70d
   - kind: symbol
     name: raf_source::DiskTree::capture_link
     digest: 0531e1b1124bf737d65aa4b4a34eb6bc0b0c3906afbdef7d526f359a24e47cd8
@@ -196,10 +196,10 @@ inputs:
     digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3
   - kind: symbol
     name: raf_source::tree
-    digest: 1e93dcd3d96aaa22c219f8aecd9938b779dec25fcee25104ea091302a3b8c6de
+    digest: 255e85bc99c310af2f0f02f685c6d6c192aab5b8c22204e76bf5259e1b8a1de0
   - kind: symbol
     name: raf_source::tree::disk
-    digest: 7ed16eaaaaff825fc76759cbdc3dd82b8edf3b2ca5ef727b24b4e0d09d7cfe37
+    digest: faa6d96e34bb963e9ce92b80011a735b72229f96383019987b696f56fb3217bc
 verdict: accepted
 by: agent
 ---
