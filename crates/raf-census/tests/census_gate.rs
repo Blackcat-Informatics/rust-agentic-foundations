@@ -3431,6 +3431,133 @@ fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
     assert!(error.to_string().contains("requires a home that declares"));
 }
 
+const HOST_HOME: &str = "/// Home.\npub mod home {#[wasm_bindgen(module = \"clock\")] extern \"C\" {pub fn now() -> f64;}}";
+const HOST_LINKED: &str =
+    "/// Home.\npub mod home {#[link(name = \"m\")] extern \"C\" {pub fn now() -> f64;}}";
+
+/// Each case is a home, a source the detector refuses, the text of its refusal, and a
+/// neighbouring source with the one fault corrected, which it accepts.
+fn refused_beside_neighbour(cases: &[(&str, &str, &str, &str)]) {
+    for &(home, refused, expected, accepted) in cases {
+        let tree = detector_fixture(detector_ledger("foreign-host-import"), home, refused);
+        let error = Gate::workspace(".")
+            .check_tree(&tree)
+            .err()
+            .unwrap_or_else(|| panic!("accepted: {refused}"));
+        assert!(error.to_string().contains(expected), "{refused}: {error}");
+        host_copies(home, accepted, &[]);
+    }
+}
+
+#[test]
+fn foreign_host_import_refuses_method_constructor_and_property_shapes_beside_a_valid_neighbour() {
+    const HOME: &str = HOST_HOME;
+    // Each case is as in `refused_beside_neighbour`.
+    let cases = [
+        (
+            HOME,
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(getter, setter)] fn now() -> f64;}",
+            "both a getter and a setter",
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(getter)] fn now() -> f64;}",
+        ),
+        (
+            HOME,
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(getter, getter)] fn now() -> f64;}",
+            "`getter` is written twice",
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(getter)] fn now() -> f64;}",
+        ),
+        (
+            HOME,
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(method)] fn now() -> f64;}",
+            "typed first parameter",
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(method)] fn now(this: &Date) -> f64;}",
+        ),
+        (
+            HOME,
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(method)] fn now(this: &[u8]) -> f64;}",
+            "receiver must be a named type",
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(method)] fn now(this: &Date) -> f64;}",
+        ),
+        (
+            HOME,
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(constructor)] fn new() -> ();}",
+            "return type must be a named type",
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(constructor)] fn new() -> Date;}",
+        ),
+        (
+            HOME,
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(constructor)] fn new();}",
+            "needs a return type",
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {#[wasm_bindgen(constructor)] fn new() -> Date;}",
+        ),
+    ];
+    refused_beside_neighbour(&cases);
+}
+
+#[test]
+fn foreign_host_import_refuses_arguments_it_cannot_place_beside_a_valid_neighbour() {
+    const HOME: &str = HOST_HOME;
+    const LINKED: &str = HOST_LINKED;
+    // Each case is as in `refused_beside_neighbour`.
+    let cases = [
+        (
+            HOME,
+            "#[wasm_bindgen(module = \"clock\", wasm_bindgen::catch)] extern \"C\" {fn now() -> f64;}",
+            "must be a plain name",
+            "#[wasm_bindgen(module = \"clock\", catch)] extern \"C\" {fn now() -> f64;}",
+        ),
+        (
+            HOME,
+            "#[wasm_bindgen(js_namespace = Date)] extern \"C\" {#[wasm_bindgen(js_namespace = Time)] fn now() -> f64;}",
+            "both an extern block and an item",
+            "#[wasm_bindgen(js_namespace = Date)] extern \"C\" {fn now() -> f64;}",
+        ),
+        (
+            HOME,
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn now() -> f64; declared!();}",
+            "macro invocation inside an extern block",
+            "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn now() -> f64;}",
+        ),
+        (
+            LINKED,
+            "#[link(name = \"m\", kind(static))] extern \"C\" {fn now() -> f64;}",
+            "does not take a parenthesized list",
+            "#[link(name = \"m\", kind = \"static\")] extern \"C\" {fn now() -> f64;}",
+        ),
+        (
+            LINKED,
+            "#[link(name = \"m\", cfg = true)] extern \"C\" {fn now() -> f64;}",
+            "value must be a string, a path or a list of paths",
+            "#[link(name = \"m\", cfg(target_os = \"linux\"))] extern \"C\" {fn now() -> f64;}",
+        ),
+        (
+            HOME,
+            "#[wasm_bindgen(module = \"clock\", catch(x))] extern \"C\" {fn now() -> f64;}",
+            "does not take a parenthesized list",
+            "#[wasm_bindgen(module = \"clock\", catch)] extern \"C\" {fn now() -> f64;}",
+        ),
+    ];
+    refused_beside_neighbour(&cases);
+    // The `cfg` predicate of `link` does not change which host function is imported.
+    assert_eq!(
+        host_copies(
+            LINKED,
+            "#[link(name = \"m\", cfg(target_os = \"linux\"))] extern \"C\" {fn now() -> f64;}",
+            &[]
+        ),
+        1
+    );
+    // A namespace on the block alone and on the item alone each place the import.
+    assert_eq!(
+        host_copies(
+            "/// Home.\npub mod home {#[wasm_bindgen(js_namespace = Date)] extern \"C\" {pub fn now() -> f64;}}",
+            "extern \"C\" {#[wasm_bindgen(js_namespace = Date)] fn now() -> f64;}",
+            &[]
+        ),
+        1
+    );
+}
+
 #[test]
 fn foreign_host_import_names_a_property_by_the_property_it_reads() {
     let copies = host_copies;
