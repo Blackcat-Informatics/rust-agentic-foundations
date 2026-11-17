@@ -1,0 +1,24 @@
+ghprsq structured squash audit metadata
+
+parent_hashes: 83534069bc8108497e6ed1ae21c66686af64fcc1
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 285
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/285
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 650b2aa6c52c3f494efafe9ca798bbe982e0c2f8
+GhpRsq-Head-Ref: paudley/276-census-harden-and-document-the-foreign
+GhpRsq-Head-OID: 83534069bc8108497e6ed1ae21c66686af64fcc1
+GhpRsq-Result-Tree: b402698bc28c0f57c9d3ad79e03fa2931e46d1f8
+GhpRsq-Result-Commit: 68847e6de612ef5b2f56d44e482a764c3d53b5b4
+GhpRsq-Parent-Hashes: 83534069bc8108497e6ed1ae21c66686af64fcc1
+GhpRsq-Squash-Notes-SHA256: 79c2d98fe9aa5be2cb004df3c43ecd56a902bc3b81838d73ee9ded1d06c2bf1b
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Tree: cff9b8b80630c5ee228d4e2bb226eb39c0d2bbb5
+GhpRsq-Stage-Commit: 7984190badd3a431d9d6af0a9bdc9d7d53b8fa52
+GhpRsq-Stage-Tag: refs/tags/ghprsq/artifacts/7984190badd3a431d9d6af0a9bdc9d7d53b8fa52
+GhpRsq-Stage-Ref: refs/ghprsq/pr/285/stage
+GhpRsq-Stage-Files: 2
+GhpRsq-Stage-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/tree/7984190badd3a431d9d6af0a9bdc9d7d53b8fa52
