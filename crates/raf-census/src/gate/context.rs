@@ -34,11 +34,7 @@ pub(super) fn collect<'a>(
     scope: &ResolvedJob,
     limits: &mut MatchLimits,
 ) -> Result<JobHits<'a>, Error> {
-    let mut result = JobHits {
-        shared: &collected.hits,
-        contextual: BTreeMap::new(),
-        names: BTreeSet::new(),
-    };
+    let mut result = structures(collected, row);
     let home_literal = enabled(row, "home-literal");
     let vocabulary = enabled(row, "vocabulary-literal");
     let sole = enabled(row, "sole-name");
@@ -261,4 +257,78 @@ fn foreign_imports(
     }
     result.contextual.insert(ID.to_owned(), kept);
     Ok(())
+}
+
+/// Whether a call written as `callee` reaches the declared symbol: the written
+/// segments are the tail of the symbol, and a leading `crate`, `self`, `super`
+/// or `Self` stands for whatever the symbol has there.
+fn reaches(callee: &str, symbol: &str) -> bool {
+    let callee: Vec<_> = callee.split("::").collect();
+    let symbol: Vec<_> = symbol.split("::").collect();
+    if callee.last() != symbol.last() {
+        return false;
+    }
+    for (written, declared) in callee.iter().rev().zip(symbol.iter().rev()).skip(1) {
+        if matches!(*written, "crate" | "self" | "super" | "Self") {
+            return true;
+        }
+        if written != declared {
+            return false;
+        }
+    }
+    callee.len() <= symbol.len()
+}
+
+/// The job's hits before its context detectors run, with the structure
+/// detectors already judged against its home and entry points.
+fn structures<'a>(collected: &'a Collected, row: &LedgerJob) -> JobHits<'a> {
+    let mut result = JobHits {
+        shared: &collected.hits,
+        contextual: BTreeMap::new(),
+        names: BTreeSet::new(),
+    };
+    for (id, delegated) in [("reifier-default-graph", true), ("rdf-list-walk", false)] {
+        if enabled(row, id) {
+            structure(&mut result, collected, row, (id, delegated));
+        }
+    }
+    result
+}
+
+/// Keep the candidates of a structure detector that stand in the right relation
+/// to the job's home and entry points: with `delegated`, a candidate that calls
+/// one of them is a hit (the reifier row is built through a declared
+/// constructor); without it, a candidate that calls none of them is a hit.
+fn structure(
+    result: &mut JobHits<'_>,
+    collected: &Collected,
+    row: &LedgerJob,
+    (id, delegated): (&'static str, bool),
+) {
+    let declared: Vec<_> = std::iter::once(&row.job.home)
+        .chain(&row.job.entry_points)
+        .collect();
+    let calls_declared = |calls: &[String]| {
+        calls
+            .iter()
+            .any(|call| declared.iter().any(|symbol| reaches(call, symbol)))
+    };
+    let mut kept = BTreeMap::new();
+    for (key, rows) in collected.hits.get(id).into_iter().flatten() {
+        let placed = collected
+            .offsets
+            .get(id)
+            .and_then(|offsets| offsets.get(key))
+            .map_or(&[][..], Vec::as_slice);
+        let rows: Vec<_> = rows
+            .iter()
+            .zip(placed)
+            .filter(|(_, placed)| calls_declared(&placed.calls) == delegated)
+            .map(|(hit, _)| hit.clone())
+            .collect();
+        if !rows.is_empty() {
+            kept.insert(key.clone(), rows);
+        }
+    }
+    result.contextual.insert(id.to_owned(), kept);
 }

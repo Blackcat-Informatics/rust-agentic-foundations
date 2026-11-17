@@ -76,7 +76,19 @@ macro_rules! visit_scopes {
             visit_item_type(ItemType, generics),
             visit_item_trait(ItemTrait, generics),
         }
-
+        $crate::detectors::names::visit_scopes!(@scopes);
+    };
+    (without_functions) => {
+        $crate::detectors::names::visit_generic_items! {
+            visit_item_impl(ItemImpl, generics),
+            visit_item_struct(ItemStruct, generics),
+            visit_item_union(ItemUnion, generics),
+            visit_item_type(ItemType, generics),
+            visit_item_trait(ItemTrait, generics),
+        }
+        $crate::detectors::names::visit_scopes!(@scopes);
+    };
+    (@scopes) => {
         fn visit_file(&mut self, node: &'ast syn::File) {
             self.file(node, |this| syn::visit::visit_file(this, node));
         }

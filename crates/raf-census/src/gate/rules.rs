@@ -21,6 +21,8 @@ pub(super) struct Placed {
     pub(super) byte: usize,
     pub(super) line: usize,
     pub(super) message: String,
+    /// The callees a job-scoped detector observed; empty for every other hit.
+    pub(super) calls: Vec<String>,
 }
 
 /// The first byte of the one-based `line` of `text`; the end of the text for a line past it.
@@ -51,6 +53,7 @@ pub(super) fn record_line(
             byte,
             line: hit.line,
             message: hit.message.clone(),
+            calls: Vec::new(),
         });
 }
 
@@ -59,6 +62,7 @@ pub(super) struct Hit<'a> {
     pub(super) byte: usize,
     pub(super) line: usize,
     pub(super) message: String,
+    pub(super) calls: Vec<String>,
 }
 
 pub(super) struct Subject {
@@ -333,6 +337,7 @@ fn builtin_hits(
                 byte: hit.byte,
                 line: hit.line,
                 message: hit.message,
+                calls: hit.calls,
             },
         )?;
     }
@@ -378,6 +383,7 @@ pub(super) fn record_hit(
                 byte: hit.byte,
                 line: hit.line,
                 message: hit.message.clone(),
+                calls: hit.calls,
             });
         collected
             .hits
@@ -460,6 +466,7 @@ fn source_hit(
             byte: hit.byte,
             line: hit.line,
             message: hit.message.clone(),
+            calls: hit.calls,
         });
     collected
         .hits

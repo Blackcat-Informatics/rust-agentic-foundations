@@ -7,7 +7,7 @@ subject: cap:census-cli#examples
 inputs:
   - kind: section
     name: cap:census-cli#examples
-    digest: 856a1d8c895feb8a4dcdc1b0f2248589ceb92915f81da9e25da1220f17707863
+    digest: 7b77ca94bb863420380f9a551156922cbea72499449c809d56583517c1fec2c2
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
     digest: 547c392073e81db5094db3d7c165ed15741c54c7a512bb6df2c4aca78e142d19
@@ -55,7 +55,7 @@ inputs:
     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
   - kind: symbol
     name: raf_census::selftest
-    digest: a8f4a7e4df293d2348f27cbda45719380e6910ac137e9bb1db1779650ae9ceee
+    digest: 49ca19687906a97838519680884949364838e7eadc25fa6e36cd5e0dc026c7bd
 verdict: accepted
 by: agent
 ---

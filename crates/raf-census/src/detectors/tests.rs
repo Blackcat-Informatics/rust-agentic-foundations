@@ -16,6 +16,10 @@ fn every_executable_detector_has_positive_and_negative_gate_fixtures() {
             fixtures::CONTEXTUAL
                 .map(|(id, _, positive, negative)| (id, positive.len(), negative.len())),
         )
+        .chain(
+            fixtures::STRUCTURE
+                .map(|(id, _, _, positive, negative)| (id, positive.len(), negative.len())),
+        )
         .chain(fixtures::RDF.map(|(id, _, _)| {
             let nested = fixtures::RDF_NESTED
                 .iter()

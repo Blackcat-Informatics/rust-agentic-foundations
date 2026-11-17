@@ -187,6 +187,60 @@ pub const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 3] = [
     ),
 ];
 
+/// An entry-point detector: id, home source, entry points, positive and negative consumers.
+pub type StructureFixture = (
+    &'static str,
+    &'static str,
+    &'static [&'static str],
+    &'static [&'static str],
+    &'static [&'static str],
+);
+
+/// Entry-point detectors: id, home source, the home's entry points, positive
+/// and negative consumers. The home declares the approved constructor and
+/// traversal; a consumer is judged by what it calls.
+///
+/// `reifier-default-graph` sides cover the known constant, the literal IRI and
+/// the triple-term object, a call through an import, an explicit graph, a
+/// non-reifier row, a constructor the job does not declare and a function with
+/// no named graph in sight. `rdf-list-walk` sides cover a loop, the literal
+/// IRIs and recursion, delegation to the declared traversal, one term alone
+/// and two terms without iteration.
+pub const STRUCTURE: [StructureFixture; 2] = [
+    (
+        "reifier-default-graph",
+        "/// Home.\npub fn home() {}\n/// Row.\npub fn quad(s:u8,p:u8,o:u8,g:Option<u8>) {}",
+        &["demo::quad"],
+        &[
+            "fn copy(graph:u8){demo::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(graph:u8){demo::quad(1,\"http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies\",2,None);}",
+            "fn copy(graph:u8){demo::quad(1,2,Term::Triple(3),None);}",
+            "use demo::quad as build; fn copy(graph:u8){build(1,RDF_REIFIES,2,None);}",
+        ],
+        &[
+            "fn copy(graph:u8){demo::quad(1,rdf::REIFIES,2,Some(graph));}",
+            "fn copy(graph:u8){demo::quad(1,rdf::TYPE,2,None);}",
+            "fn copy(graph:u8){other::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(){demo::quad(1,rdf::REIFIES,2,None);}",
+        ],
+    ),
+    (
+        "rdf-list-walk",
+        "/// Home.\npub fn home() {}\n/// Walk.\npub fn walk_list(list:u8) -> u8 {list}",
+        &["demo::walk_list"],
+        &[
+            "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n-=1;}}",
+            "fn copy(l:&[u8]){for _ in l {let _=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#first\";let _=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#rest\";}}",
+            "fn copy(n:u8){let _=RDF_FIRST;let _=RDF_REST;copy(n);}",
+        ],
+        &[
+            "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=demo::walk_list(n);}}",
+            "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;n-=1;}}",
+            "fn copy(){let _=rdf::FIRST;let _=rdf::REST;}",
+        ],
+    ),
+];
+
 pub const HASHER_ID: &str = "std-default-hasher";
 pub const SOLE_NAME_ID: &str = "sole-name";
 pub const SOLE_NAME_POSITIVE: [&str; 2] = ["fn copy(){}", "#[cfg(test)] mod oracle {fn copy(){}}"];

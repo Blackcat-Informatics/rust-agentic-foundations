@@ -23,6 +23,7 @@ bindings:
     - raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields
     - raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence
     - raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope
+    - raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points
     - raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function
     - raf_census::test_crate::census_gate::foreign_host_import_refuses_method_constructor_and_property_shapes_beside_a_valid_neighbour
     - raf_census::test_crate::census_gate::foreign_host_import_refuses_arguments_it_cannot_place_beside_a_valid_neighbour
@@ -77,6 +78,41 @@ recognizers, not proof of arbitrary semantic equivalence or RDF conformance.
 
 All three representation policies read shipping and nonshipping targets and
 have no ordinary-job home-package exemption.
+
+### RDF structure policies
+<!-- raf:tested-by raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points -->
+
+`reifier-default-graph` and `rdf-list-walk` judge a function against the home and
+entry points of the job that forbids them, so they apply only to a job that names
+them and cannot be required without a job. Both read shipping code only.
+
+`reifier-default-graph` reports a call, or a method call, that reaches the home or
+an entry point of the job, in a function that mentions a named graph, when it
+builds a row for the default graph and the row is a reifier row. A row is built
+for the default graph when the call has three arguments (a triple) or four
+arguments whose last is `None`, `DefaultGraph`, `DEFAULT_GRAPH` or a call of
+`default_graph` or `default` with no arguments. A row is a reifier row when an
+argument is `rdf:reifies`, spelled as `RDF_REIFIES`, as `REIFIES` under a path
+segment named `rdf` or as the literal IRI, or when an argument is a triple term,
+spelled as a call or struct whose last name is `Triple`, `TripleTerm`, `triple`,
+`triple_term`, `new_triple` or `from_triple`. A function mentions a named graph
+when an identifier in it contains `graph`, other than one that contains `default`.
+The same call with an explicit graph argument, with another predicate, to a
+callee the job does not declare, or in a function with no named graph is not
+reported.
+
+`rdf-list-walk` reports a function that names `rdf:first` and `rdf:rest` (as
+`RDF_FIRST` and `RDF_REST`, as `FIRST` and `REST` under a path segment named
+`rdf`, or as the literal IRIs), contains a `for`, `while` or `loop` expression or
+calls itself, and calls neither the home nor any entry point of the job. A
+function that delegates to a declared entry point, that names only one of the
+terms or that names both without iteration is not reported.
+
+A call is matched to a declared symbol by its written path after `use`
+resolution: the written segments must be the tail of the symbol, and a leading
+`crate`, `self`, `super` or `Self` matches whatever the symbol has there. A
+method call matches by its method name. Calls written inside macro bodies are not
+read. Both detectors name the home as the replacement, like the other built-ins.
 
 ### Source ownership and byte-layout recognition
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order -->
@@ -149,8 +185,9 @@ The census ships eighteen built-in detectors. Each reports hits as `rule:<id>`, 
 `forbiddenFingerprint`. A job may also name a detector in `ratchetedRule`, so that
 its hits are counted sites in the debt record instead of findings (see the
 [debt ratchet](./census-debt-ratchet.md)). Every detector except `home-literal`,
-`vocabulary-literal`, `sole-name` and `foreign-host-import` may be ratcheted; those
-four judge one job's home and context and the ledger refuses to ratchet them. A
+`vocabulary-literal`, `sole-name`, `foreign-host-import`, `reifier-default-graph` and
+`rdf-list-walk` may be ratcheted; those six judge one job's home and context and the
+ledger refuses to ratchet them. A
 syntax detector's site uses the byte of its hit; the fact detectors `hex-table` and
 `json-pointer-escape` state a line, and their site uses the start of that line
 inside the owning item.
@@ -175,15 +212,17 @@ inside the owning item.
 | `serde-json` | all | A written external JSON dependency path or alias. |
 | `rdf-text-writer` | all | A formatting macro whose literal spells the recognized RDF row shape. |
 | `rdf-term-model` | all | A local IRI, blank-node and literal enum without a triple-term alternative. |
+| `reifier-default-graph` | shipping | A reifier row built for the default graph through the home or an entry point, in a function that handles named graphs. |
+| `rdf-list-walk` | shipping | A function that names `rdf:first` and `rdf:rest`, iterates or recurses, and calls neither the home nor an entry point. |
 
 The detectors that read a job's home (`home-literal`, `sole-name`,
-`vocabulary-literal`, `foreign-host-import`) apply only to jobs that name them in `forbidden`. The census
+`vocabulary-literal`, `foreign-host-import`, `reifier-default-graph`, `rdf-list-walk`) apply only to jobs that name them in `forbidden`. The census
 walks shipping code and every test, bench and example target. The `Reads` column of
 the table names what each detector reads: `shipping` for shipping code only, and `all`
-for shipping code and every test, bench and example target. The nine `shipping`
+for shipping code and every test, bench and example target. The eleven `shipping`
 detectors are `hex-digit-radix`, `json-pointer-escape`, `length-prefix-frame`,
 `le-slice-int`, `align-up-mask`, `div-ceil-by-hand`, `xor-first-mismatch`,
-`home-literal` and `vocabulary-literal`; each marks itself so in its report. The nine
+`home-literal`, `vocabulary-literal`, `reifier-default-graph` and `rdf-list-walk`; each marks itself so in its report. The nine
 `all` detectors also include the three representation policies alongside
 `std-default-hasher`, `foreign-host-import`, `hex-format-loop`, `hex-pair-radix`,
 `hex-table` and `sole-name`. Apart from `sole-name`, `foreign-host-import` and the
@@ -443,6 +482,14 @@ required findings with neighbouring clean source.
 - A fixture per `shipping` detector shows it flags a positive source in shipping
   code and is silent on the same source in a test target, and a fixture per `all`
   detector shows it flags a positive source in both.
+- `reifier-default-graph` fixtures flag a default-graph row with `rdf:reifies` as a
+  constant, as the literal IRI and through an import, and a triple-term object, and
+  leave clean the same call with an explicit graph, another predicate, a callee the
+  job does not declare and a function with no named graph. `rdf-list-walk` fixtures
+  flag a loop and a recursion over the two terms, as constants and as literal IRIs,
+  and leave clean the same loop delegating to a declared entry point, one term alone
+  and both terms without iteration. Neither is reported in a test target, and a
+  job that does not declare the entry point sees the delegating function reported.
 - A fixture shows `home-literal`, `sole-name`, `vocabulary-literal` and
   `foreign-host-import` are silent for a job that does not name them.
 - `foreign-host-import` fixtures flag a repeated host function in another package,
@@ -488,4 +535,5 @@ required findings with neighbouring clean source.
 | `raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

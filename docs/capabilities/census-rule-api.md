@@ -299,7 +299,7 @@ impl Rule for NoStdSleep {
 `Gate::workspace(root).require_rules(["serde-json"]).assert_clean()` requires
 the selected detector even when the admitted ledger declares no jobs. A
 misspelled ID refuses rather than disabling the check. Job-dependent
-`home-literal`, `vocabulary-literal`, `sole-name` and `foreign-host-import` require ledger homes and
+`home-literal`, `vocabulary-literal`, `sole-name`, `foreign-host-import`, `reifier-default-graph` and `rdf-list-walk` require ledger homes and
 cannot be selected as unscoped requirements.
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
 

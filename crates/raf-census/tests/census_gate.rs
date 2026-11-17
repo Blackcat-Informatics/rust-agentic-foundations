@@ -3329,6 +3329,87 @@ fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
     assert_eq!(report.findings().len(), 1);
 }
 
+/// The copies a structure detector finds in a consumer when the job declares `entries`.
+fn structure_copies(id: &str, home: &str, entries: &[&str], consumer: &str) -> usize {
+    let mut graph = detector_ledger(id);
+    for entry in entries {
+        put(
+            &mut graph,
+            "#job",
+            "entryPoint",
+            Term::simple_literal(*entry),
+        );
+    }
+    let report = Gate::workspace(".")
+        .check_tree(&detector_fixture(graph, home, consumer))
+        .unwrap();
+    assert_eq!(
+        report.findings().len(),
+        report.jobs()[0].copies,
+        "{id}: {:?}",
+        report.findings()
+    );
+    report.jobs()[0].copies
+}
+
+/// A structure detector judges a function against the entry points its own job
+/// declares, never a fixed type name, and reads shipping code only.
+#[test]
+fn structure_detectors_judge_calls_against_the_jobs_declared_entry_points() {
+    for (id, home, entries, positives, negatives) in detector_fixtures::STRUCTURE {
+        for positive in positives {
+            assert_eq!(
+                structure_copies(id, home, entries, positive),
+                1,
+                "{id}: {positive}"
+            );
+            let test_only = format!("#[cfg(test)] mod oracle {{{positive}}}");
+            assert_eq!(
+                structure_copies(id, home, entries, &test_only),
+                0,
+                "{id}: {test_only}"
+            );
+        }
+        for negative in negatives {
+            assert_eq!(
+                structure_copies(id, home, entries, negative),
+                0,
+                "{id}: {negative}"
+            );
+        }
+    }
+    let [
+        (_, home, entries, positives, negatives),
+        (_, walk_home, walk_entries, walkers, delegators),
+    ] = detector_fixtures::STRUCTURE;
+    // The reifier constructor is a hit only when the job declares it.
+    assert_eq!(
+        structure_copies("reifier-default-graph", home, &[], positives[0]),
+        0
+    );
+    assert_eq!(
+        structure_copies("reifier-default-graph", home, entries, positives[0]),
+        1
+    );
+    assert_eq!(
+        structure_copies("reifier-default-graph", home, entries, negatives[0]),
+        0
+    );
+    // A traversal is delegated only when the job declares it.
+    assert_eq!(
+        structure_copies("rdf-list-walk", walk_home, &[], delegators[0]),
+        1
+    );
+    assert_eq!(
+        structure_copies("rdf-list-walk", walk_home, walk_entries, delegators[0]),
+        0
+    );
+    assert_eq!(
+        structure_copies("rdf-list-walk", walk_home, walk_entries, walkers[0]),
+        1
+    );
+}
+
 /// The copies a `foreign-host-import` job finds in a detector workspace.
 fn host_copies(home: &str, consumer: &str, extra: &[(&str, &str)]) -> usize {
     let tree = detector_fixture_with(

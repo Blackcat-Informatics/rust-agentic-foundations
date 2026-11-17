@@ -274,6 +274,7 @@ fn collect_patterns(
                 byte: found.byte,
                 line: found.line,
                 message: found.pattern.summary.clone(),
+                calls: Vec::new(),
             },
         )?;
     }

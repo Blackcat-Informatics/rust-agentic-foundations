@@ -245,7 +245,8 @@ built-in detector or registered rule that the same job forbids with a rule
 fingerprint. The ledger refuses a ratchetedRule that the job does not forbid,
 that names a pattern (a pattern states ratcheted itself), that belongs to an
 unenforced job, or that names a detector judging one job's home and context
-(home-literal, vocabulary-literal, sole-name, foreign-host-import), and refuses a
+(home-literal, vocabulary-literal, sole-name, foreign-host-import,
+reifier-default-graph, rdf-list-walk), and refuses a
 rule that one job ratchets while another job forbids it outright.
 
 An Extension owns its root and every subject reached by local object references,
