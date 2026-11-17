@@ -200,28 +200,42 @@ pub type StructureFixture = (
 /// and negative consumers. The home declares the approved constructor and
 /// traversal; a consumer is judged by what it calls.
 ///
-/// `reifier-default-graph` sides cover the known constant, the literal IRI and
-/// the triple-term object, a call through an import, an explicit graph, a
-/// non-reifier row, a constructor the job does not declare and a function with
-/// no named graph in sight. `rdf-list-walk` sides cover a loop, the literal
+/// `reifier-default-graph` sides cover the known constant (written in full,
+/// imported, or under `vocab`), the literal IRI and the triple-term object, a
+/// call through an import, a triple row and a method row in dataset code, and
+/// leave clean an explicit graph on a quad, a stored triple or a selected graph,
+/// a non-reifier row, a constructor the job does not declare, an unrelated
+/// constant, a plain graph, words that contain `graph` and a function with no
+/// dataset in sight. `rdf-list-walk` sides cover a loop, the literal
 /// IRIs and recursion, delegation to the declared traversal, one term alone
 /// and two terms without iteration.
 pub const STRUCTURE: [StructureFixture; 2] = [
     (
         "reifier-default-graph",
-        "/// Home.\npub fn home() {}\n/// Row.\npub fn quad(s:u8,p:u8,o:u8,g:Option<u8>) {}",
-        &["demo::quad"],
+        "/// Home.\npub fn home() {}\n/// Row.\npub fn quad(s:u8,p:u8,o:u8,g:Option<u8>) {}\n/// Triple.\npub fn triple(s:u8,p:u8,o:u8) -> u8 {s}\n/// Insert.\npub fn insert(s:u8,p:u8,o:u8) {}",
+        &["demo::quad", "demo::triple", "demo::insert"],
         &[
-            "fn copy(graph:u8){demo::quad(1,rdf::REIFIES,2,None);}",
-            "fn copy(graph:u8){demo::quad(1,\"http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies\",2,None);}",
-            "fn copy(graph:u8){demo::quad(1,2,Term::Triple(3),None);}",
-            "use demo::quad as build; fn copy(graph:u8){build(1,RDF_REIFIES,2,None);}",
+            "fn copy(d:&Dataset){demo::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(d:&Dataset){demo::quad(1,\"http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies\",2,None);}",
+            "fn copy(d:&Dataset){demo::quad(1,2,Term::Triple(3),None);}",
+            "use demo::quad as build; fn copy(d:&Dataset){build(1,RDF_REIFIES,2,None);}",
+            "fn copy(g:u8,d:&Dataset){demo::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(graph_name:u8){demo::triple(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut Dataset){d.insert(1,rdf::REIFIES,2);}",
+            "use purrdf_iri::vocab::rdf::REIFIES; fn copy(d:&Dataset){demo::quad(1,REIFIES,2,None);}",
+            "use raf_rdf::vocab; fn copy(d:&Dataset){demo::quad(1,vocab::REIFIES,2,None);}",
         ],
         &[
-            "fn copy(graph:u8){demo::quad(1,rdf::REIFIES,2,Some(graph));}",
-            "fn copy(graph:u8){demo::quad(1,rdf::TYPE,2,None);}",
-            "fn copy(graph:u8){other::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(d:&Dataset,graph:u8){demo::quad(1,rdf::REIFIES,2,Some(graph));}",
+            "fn copy(d:&Dataset){demo::quad(1,rdf::TYPE,2,None);}",
+            "fn copy(d:&Dataset){other::quad(1,rdf::REIFIES,2,None);}",
             "fn copy(){demo::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(store:&mut Store,d:&Dataset,graph:u8){store.insert(demo::triple(1,rdf::REIFIES,2),Some(graph));}",
+            "fn copy(d:&mut Dataset,name:u8){d.graph_mut(name).insert(1,rdf::REIFIES,2);}",
+            "fn copy(graph:&mut Graph){graph.insert(1,rdf::REIFIES,2);}",
+            "fn copy(paragraph:u8,grapheme:u8,graphql:u8){demo::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(d:&Dataset){demo::quad(1,REIFIES,2,None);}",
+            "use other::REIFIES; fn copy(d:&Dataset){demo::quad(1,REIFIES,2,None);}",
         ],
     ),
     (
@@ -232,11 +246,13 @@ pub const STRUCTURE: [StructureFixture; 2] = [
             "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n-=1;}}",
             "fn copy(l:&[u8]){for _ in l {let _=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#first\";let _=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#rest\";}}",
             "fn copy(n:u8){let _=RDF_FIRST;let _=RDF_REST;copy(n);}",
+            "use purrdf_iri::vocab::rdf::{FIRST, REST}; fn copy(mut n:u8){while n>0 {let _=FIRST;let _=REST;n-=1;}}",
         ],
         &[
             "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=demo::walk_list(n);}}",
             "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;n-=1;}}",
             "fn copy(){let _=rdf::FIRST;let _=rdf::REST;}",
+            "use other::{FIRST, REST}; fn copy(mut n:u8){while n>0 {let _=FIRST;let _=REST;n-=1;}}",
         ],
     ),
 ];

@@ -4,7 +4,7 @@
 type: Capability
 id: cap:census-detectors
 title: "Built-in census detectors"
-description: "Eighteen built-in detectors for recurring helpers and RDF representation, each with positive and negative fixtures."
+description: "Twenty built-in detectors for recurring helpers and RDF representation and structure, each with positive and negative fixtures."
 state: delivered
 bindings:
   code:
@@ -87,23 +87,40 @@ entry points of the job that forbids them, so they apply only to a job that name
 them and cannot be required without a job. Both read shipping code only.
 
 `reifier-default-graph` reports a call, or a method call, that reaches the home or
-an entry point of the job, in a function that mentions a named graph, when it
-builds a row for the default graph and the row is a reifier row. A row is built
-for the default graph when the call has three arguments (a triple) or four
-arguments whose last is `None`, `DefaultGraph`, `DEFAULT_GRAPH` or a call of
-`default_graph` or `default` with no arguments. A row is a reifier row when an
-argument is `rdf:reifies`, spelled as `RDF_REIFIES`, as `REIFIES` under a path
-segment named `rdf` or as the literal IRI, or when an argument is a triple term,
-spelled as a call or struct whose last name is `Triple`, `TripleTerm`, `triple`,
-`triple_term`, `new_triple` or `from_triple`. A function mentions a named graph
-when an identifier in it contains `graph`, other than one that contains `default`.
-The same call with an explicit graph argument, with another predicate, to a
-callee the job does not declare, or in a function with no named graph is not
+an entry point of the job, in a function that handles named graphs, when it
+builds a row for the default graph and the row is a reifier row.
+
+A row is built for the default graph when the call has four arguments whose last
+is `None`, `DefaultGraph`, `DEFAULT_GRAPH` or a call of `default_graph` or
+`default` with no arguments, or when it has three arguments (a triple) and no
+explicit graph reaches it. A graph is explicit for a triple when an enclosing call
+has a `Some(..)` argument, as in `store.insert(triple(..), Some(graph))`, or when
+the call is made on a receiver such as `dataset.graph_mut(name)`: a method whose
+name has the word `graph` and which is given an argument other than the default
+graph.
+
+A row is a reifier row when an argument is `rdf:reifies`, spelled as `RDF_REIFIES`,
+as `REIFIES` under a path segment named `rdf` (including an imported `REIFIES`,
+resolved through its `use`), as `vocab::REIFIES` or as the literal IRI, or when an
+argument is a triple term, spelled as a call or struct whose last name is
+`Triple`, `TripleTerm`, `triple`, `triple_term`, `new_triple` or `from_triple`.
+
+A function handles named graphs when a type written in it has the word `dataset`,
+`datasets`, `quad` or `quads`, or when an identifier in it has the words `named` and
+`graph`, or `graph` and `name`, in that order. Words are the parts of an identifier
+split at underscores and capital letters (`Dataset`, `QuadStore`, `GraphName`,
+`named_graph`). A plain `Graph` type, a variable called `graph`, a variable called
+`name` or `g`, a callee called `quad` and words that merely contain `graph`, such as
+`paragraph`, `grapheme` and `graphql`, are not evidence; dataset code that names its
+graph `name` or `g` counts through its `Dataset` or `Quad` type.
+
+The same call with an explicit graph, with another predicate, to a callee the job
+does not declare, or in a function that does not handle named graphs is not
 reported.
 
 `rdf-list-walk` reports a function that names `rdf:first` and `rdf:rest` (as
 `RDF_FIRST` and `RDF_REST`, as `FIRST` and `REST` under a path segment named
-`rdf`, or as the literal IRIs), contains a `for`, `while` or `loop` expression or
+`rdf` after `use` resolution, or as the literal IRIs), contains a `for`, `while` or `loop` expression or
 calls itself, and calls neither the home nor any entry point of the job. A
 function that delegates to a declared entry point, that names only one of the
 terms or that names both without iteration is not reported.
@@ -180,7 +197,7 @@ the body can be classified as a home.
 ### Detector identities and target eligibility
 <!-- raf:tested-by raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases,raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::fact_detectors_reuse_collected_values_and_keep_their_target_scope,raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields,raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions -->
 
-The census ships eighteen built-in detectors. Each reports hits as `rule:<id>`, where
+The census ships twenty built-in detectors. Each reports hits as `rule:<id>`, where
 `<id>` is the detector id, and a ledger job names the hit in
 `forbiddenFingerprint`. A job may also name a detector in `ratchetedRule`, so that
 its hits are counted sites in the debt record instead of findings (see the
@@ -429,9 +446,9 @@ delegation to a native provider.
 
 ## Explanation
 
-These eighteen detectors recognise recurring byte-level encodings, integer layout
-operations, literals, hash-collection defaults, host function imports and RDF
-representation syntax.
+These twenty detectors recognise recurring byte-level encodings, integer layout
+operations, literals, hash-collection defaults, host function imports, RDF
+representation syntax and hand-written RDF structure.
 The shared crate gives each
 consumer the same source ownership, target eligibility and ledger interpretation.
 Domain-specific rules stay in the consuming repository as `Rule` implementations,
@@ -485,7 +502,8 @@ required findings with neighbouring clean source.
 - `reifier-default-graph` fixtures flag a default-graph row with `rdf:reifies` as a
   constant, as the literal IRI and through an import, and a triple-term object, and
   leave clean the same call with an explicit graph, another predicate, a callee the
-  job does not declare and a function with no named graph. `rdf-list-walk` fixtures
+  job does not declare, an unrelated constant of the same name, a plain graph, words
+  that contain `graph` and a function with no dataset. `rdf-list-walk` fixtures
   flag a loop and a recursion over the two terms, as constants and as literal IRIs,
   and leave clean the same loop delegating to a declared entry point, one term alone
   and both terms without iteration. Neither is reported in a test target, and a

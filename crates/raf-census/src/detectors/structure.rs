@@ -61,18 +61,20 @@ impl Term {
             .find(|term| text.strip_prefix(RDF_NAMESPACE) == Some(term.local()))
     }
 
-    /// A known constant: `RDF_FIRST`, or `FIRST` under a segment named `rdf`.
-    fn of_path(path: &syn::Path) -> Option<Self> {
-        let mut parts = path.segments.iter().rev().map(|part| part.ident.unraw());
-        let last = parts.next()?.to_string();
-        let under_rdf = parts
-            .next()
-            .is_some_and(|part| part.to_string().eq_ignore_ascii_case("rdf"));
+    /// A known constant, written after `use` resolution: `RDF_FIRST`, or
+    /// `FIRST` under a segment named `rdf`; `REIFIES` also under `vocab`, the
+    /// spelling of the report vocabulary.
+    fn of_segments(path: &[String]) -> Option<Self> {
+        let (last, parents) = path.split_last()?;
+        let parent = parents.last().map(|part| part.to_ascii_lowercase());
         [Self::First, Self::Rest, Self::Reifies]
             .into_iter()
             .find(|term| {
                 let upper = term.local().to_ascii_uppercase();
-                last == format!("RDF_{upper}") || (under_rdf && last == upper)
+                *last == format!("RDF_{upper}")
+                    || (*last == upper
+                        && (parent.as_deref() == Some("rdf")
+                            || (*term == Self::Reifies && parent.as_deref() == Some("vocab"))))
             })
     }
 }
@@ -83,7 +85,9 @@ struct Frame {
     span: proc_macro2::Span,
     calls: Vec<String>,
     iterates: bool,
-    graph: bool,
+    named_graphs: bool,
+    /// Depth of enclosing calls that name the graph of what they store.
+    explicit: usize,
     terms: Vec<Term>,
     candidates: Vec<(proc_macro2::Span, String)>,
 }
@@ -108,7 +112,8 @@ impl Structure {
             span: ident.span(),
             calls: Vec::new(),
             iterates: false,
-            graph: false,
+            named_graphs: false,
+            explicit: 0,
             terms: Vec::new(),
             candidates: Vec::new(),
         });
@@ -126,7 +131,7 @@ impl Structure {
             hit.calls.clone_from(&frame.calls);
             self.hits.push(hit);
         }
-        if frame.graph {
+        if frame.named_graphs {
             for (span, callee) in frame.candidates {
                 let mut hit = RawHit::new(
                     REIFIER,
@@ -139,26 +144,69 @@ impl Structure {
         }
     }
 
-    fn call(&mut self, callee: &[String], span: proc_macro2::Span, arguments: &[&syn::Expr]) {
+    fn resolve(&self, path: &syn::Path) -> Vec<String> {
+        let written = path
+            .segments
+            .iter()
+            .map(|part| part.ident.unraw().to_string())
+            .collect();
+        self.names
+            .resolve_written(written, path.leading_colon.is_some())
+    }
+
+    fn reifies(&self, expression: &syn::Expr) -> bool {
+        match expression {
+            syn::Expr::Path(path) => {
+                Term::of_segments(&self.resolve(&path.path)) == Some(Term::Reifies)
+            }
+            syn::Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Str(text),
+                ..
+            }) => Term::of_iri(&text.value()) == Some(Term::Reifies),
+            other => unwrap(other).is_some_and(|inner| self.reifies(inner)),
+        }
+    }
+
+    /// Record a call; `selects` is true when the call itself names the graph
+    /// of what it stores. Returns whether its arguments are stored under an
+    /// explicit graph, so that a row built inside them is not a default row.
+    fn call(
+        &mut self,
+        (callee, span): (&[String], proc_macro2::Span),
+        arguments: &[&syn::Expr],
+        selects: bool,
+    ) -> bool {
         let text = callee.join("::");
+        let reifier = arguments
+            .iter()
+            .any(|argument| self.reifies(argument) || is_triple_term(argument));
         let Some(frame) = self.frames.last_mut() else {
-            return;
+            return false;
         };
         let local = callee.last().is_some_and(|last| *last == frame.name)
             && (callee.len() == 1
                 || matches!(callee[0].as_str(), "Self" | "self" | "crate" | "super"));
         frame.iterates |= local;
         frame.calls.push(text.clone());
-        let reifier = arguments
-            .iter()
-            .any(|argument| is_reifies(argument) || is_triple_term(argument));
+        let stores = selects || arguments.iter().any(|argument| is_some_graph(argument));
         let default_graph = match arguments {
-            [_, _, _] => true,
+            [_, _, _] => !stores && frame.explicit == 0,
             [_, _, _, graph] => is_default_graph(graph),
             _ => false,
         };
         if reifier && default_graph {
             frame.candidates.push((span, text));
+        }
+        stores
+    }
+
+    fn within(&mut self, stores: bool, walk: impl FnOnce(&mut Self)) {
+        if stores && let Some(frame) = self.frames.last_mut() {
+            frame.explicit += 1;
+        }
+        walk(self);
+        if stores && let Some(frame) = self.frames.last_mut() {
+            frame.explicit -= 1;
         }
     }
 }
@@ -191,25 +239,18 @@ impl<'ast> Visit<'ast> for Structure {
     }
 
     fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
-        if let syn::Expr::Path(callee) = &*node.func {
-            let written: Vec<_> = callee
-                .path
-                .segments
-                .iter()
-                .map(|part| part.ident.unraw().to_string())
-                .collect();
-            let resolved = self
-                .names
-                .resolve_written(written, callee.path.leading_colon.is_some());
-            if let Some(first) = callee.path.segments.first() {
-                self.call(
-                    &resolved,
-                    first.ident.span(),
-                    &node.args.iter().collect::<Vec<_>>(),
-                );
-            }
+        let mut stores = false;
+        if let syn::Expr::Path(callee) = &*node.func
+            && let Some(first) = callee.path.segments.first()
+        {
+            let resolved = self.resolve(&callee.path);
+            stores = self.call(
+                (&resolved, first.ident.span()),
+                &node.args.iter().collect::<Vec<_>>(),
+                false,
+            );
         }
-        syn::visit::visit_expr_call(self, node);
+        self.within(stores, |this| syn::visit::visit_expr_call(this, node));
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
@@ -220,12 +261,14 @@ impl<'ast> Visit<'ast> for Structure {
         } else {
             vec![name]
         };
-        self.call(
-            &call,
-            node.method.span(),
+        let stores = self.call(
+            (&call, node.method.span()),
             &node.args.iter().collect::<Vec<_>>(),
+            selects_graph(&node.receiver),
         );
-        syn::visit::visit_expr_method_call(self, node);
+        self.within(stores, |this| {
+            syn::visit::visit_expr_method_call(this, node);
+        });
     }
 
     fn visit_expr_for_loop(&mut self, node: &'ast syn::ExprForLoop) {
@@ -244,7 +287,7 @@ impl<'ast> Visit<'ast> for Structure {
     }
 
     fn visit_path(&mut self, node: &'ast syn::Path) {
-        self.term(Term::of_path(node));
+        self.term(Term::of_segments(&self.resolve(node)));
         syn::visit::visit_path(self, node);
     }
 
@@ -253,13 +296,24 @@ impl<'ast> Visit<'ast> for Structure {
     }
 
     fn visit_ident(&mut self, node: &'ast proc_macro2::Ident) {
-        let lower = node.unraw().to_string().to_ascii_lowercase();
         if let Some(frame) = self.frames.last_mut()
-            && lower.contains("graph")
-            && !lower.contains("default")
+            && names_graph(&words(&node.unraw().to_string()))
         {
-            frame.graph = true;
+            frame.named_graphs = true;
         }
+    }
+
+    fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
+        if let Some(frame) = self.frames.last_mut()
+            && node
+                .path
+                .segments
+                .iter()
+                .any(|part| names_dataset(&words(&part.ident.unraw().to_string())))
+        {
+            frame.named_graphs = true;
+        }
+        syn::visit::visit_type_path(self, node);
     }
 }
 
@@ -296,15 +350,66 @@ fn last_name(path: &syn::Path) -> Option<String> {
         .map(|part| part.ident.unraw().to_string())
 }
 
-/// The predicate `rdf:reifies`, as a known constant or the literal IRI.
-fn is_reifies(expression: &syn::Expr) -> bool {
-    match expression {
-        syn::Expr::Path(path) => Term::of_path(&path.path) == Some(Term::Reifies),
-        syn::Expr::Lit(syn::ExprLit {
-            lit: syn::Lit::Str(text),
-            ..
-        }) => Term::of_iri(&text.value()) == Some(Term::Reifies),
-        other => unwrap(other).is_some_and(is_reifies),
+/// The words of an identifier, lowercased: `GraphName` and `graph_name` are
+/// `graph` and `name`, and `paragraph` is one word.
+fn words(identifier: &str) -> Vec<String> {
+    let mut words: Vec<String> = Vec::new();
+    let mut previous_lower = false;
+    for character in identifier.chars() {
+        if character == '_' {
+            previous_lower = false;
+            words.push(String::new());
+            continue;
+        }
+        if character.is_uppercase() && previous_lower || words.is_empty() {
+            words.push(String::new());
+        }
+        if let Some(word) = words.last_mut() {
+            word.extend(character.to_lowercase());
+        }
+        previous_lower = character.is_lowercase() || character.is_ascii_digit();
+    }
+    words.retain(|word| !word.is_empty());
+    words
+}
+
+/// Whether a type names a dataset of quads.
+fn names_dataset(words: &[String]) -> bool {
+    words
+        .iter()
+        .any(|word| matches!(word.as_str(), "dataset" | "datasets" | "quad" | "quads"))
+}
+
+/// Whether an identifier names a named graph: `named_graph` or `graph_name`.
+/// A plain `graph`, or a word that merely contains it, does not.
+fn names_graph(words: &[String]) -> bool {
+    words.windows(2).any(|pair| {
+        matches!(
+            (pair[0].as_str(), pair[1].as_str()),
+            ("named", "graph" | "graphs") | ("graph", "name" | "names")
+        )
+    })
+}
+
+/// `Some(graph)`: an optional graph argument that is present.
+fn is_some_graph(expression: &syn::Expr) -> bool {
+    matches!(expression, syn::Expr::Call(call)
+        if call.args.len() == 1
+            && matches!(&*call.func, syn::Expr::Path(path) if path.path.is_ident("Some")))
+}
+
+/// A receiver such as `dataset.graph_mut(name)`: a call named for a graph that
+/// is given a graph, so what is stored through it has an explicit graph.
+fn selects_graph(receiver: &syn::Expr) -> bool {
+    match receiver {
+        syn::Expr::MethodCall(call) => {
+            words(&call.method.unraw().to_string())
+                .iter()
+                .any(|word| word == "graph")
+                && call.args.iter().any(|argument| !is_default_graph(argument))
+        }
+        syn::Expr::Paren(inner) => selects_graph(&inner.expr),
+        _ => false,
     }
 }
 
