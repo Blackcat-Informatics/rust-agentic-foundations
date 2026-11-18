@@ -145,7 +145,7 @@ fn imported_claims_refuse_unknown_profiles_impossible_ranges_and_invalid_support
  {
     let meter = Meter::new(100_000_000, 10_000_000);
     Claims::from_text(
-        &" ".repeat(MAX_INPUT_BYTES + 1),
+        &" ".repeat(MAX_REPORT_BYTES + 1),
         raf_rdf::Format::Turtle,
         &meter,
         |outcome| {
@@ -339,24 +339,8 @@ fn reminted_claims_cannot_alias_native_paths_exceed_the_source_or_bypass_the_mat
     );
 }
 
-/// INVARIANT: the limit helper accepts a length exactly at the limit and
-/// refuses one byte over it. This exercises the helper directly; the rendering
-/// path is covered by the test below.
-#[test]
-fn the_limit_helper_refuses_one_byte_over_beside_a_length_at_the_limit() {
-    let meter = Meter::new(1_000, 1_000);
-    assert!(within_limit(MAX_INPUT_BYTES, MAX_INPUT_BYTES, &meter).is_ok());
-    let Err(cause) = within_limit(MAX_INPUT_BYTES + 1, MAX_INPUT_BYTES, &meter) else {
-        panic!("an oversized rendering must refuse")
-    };
-    assert!(cause.to_string().contains("output byte limit"));
-}
-
-/// INVARIANT: the rendering path itself enforces the output byte limit. The
-/// same rendered report is accepted when its length equals the limit and
-/// refused when the limit is one byte below its length. The production
-/// constant is too large to render, so the test passes the rendered length
-/// itself as the limit.
+/// INVARIANT: the admitted renderer accepts a report at its output limit and
+/// refuses that same report when its length exceeds the limit by one byte.
 #[test]
 fn rendering_a_report_refuses_one_byte_over_the_limit_beside_the_same_report_at_it() {
     let workspace = load(false);
@@ -365,12 +349,14 @@ fn rendering_a_report_refuses_one_byte_over_the_limit_beside_the_same_report_at_
     Claims::produce(&matches, |outcome| {
         let claims = outcome.unwrap();
         let length =
-            claims.to_text_admitted(raf_rdf::Format::Turtle, meter, |text| text.unwrap().len());
+            claims.to_text_admitted(raf_rdf::Format::Turtle, MAX_REPORT_BYTES, meter, |text| {
+                text.unwrap().len()
+            });
         assert!(length > 0);
-        claims.to_text_within(raf_rdf::Format::Turtle, length, meter, |text| {
+        claims.to_text_admitted(raf_rdf::Format::Turtle, length, meter, |text| {
             assert_eq!(text.unwrap().len(), length);
         });
-        claims.to_text_within(raf_rdf::Format::Turtle, length - 1, meter, |text| {
+        claims.to_text_admitted(raf_rdf::Format::Turtle, length - 1, meter, |text| {
             let Err(cause) = text else {
                 panic!("a rendering one byte over the limit must refuse")
             };

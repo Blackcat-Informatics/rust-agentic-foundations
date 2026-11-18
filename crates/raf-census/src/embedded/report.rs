@@ -16,7 +16,7 @@ use crate::report::{ReportError as E, mint};
 pub(super) const VOCAB: &str = "https://blackcatinformatics.ca/raf/census/embedded/1#";
 const FORM: usize = 1;
 pub(super) const PRELUDE_PROFILE: &str = "rust-declared-prelude-values-v1";
-const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
+pub(super) const MAX_REPORT_BYTES: usize = 16 * 1024 * 1024;
 
 /// Imported shape-checked claims, not an Analysis, Matches or binding proof.
 pub(super) struct Claims<'m> {
@@ -48,7 +48,7 @@ impl<'m> Claims<'m> {
         meter: &'m Meter,
         observe: impl for<'f> FnOnce(Result<Self, OutputFailure<'f>>) -> R,
     ) -> R {
-        if text.len() > MAX_INPUT_BYTES {
+        if text.len() > MAX_REPORT_BYTES {
             let cause = Failure::report(
                 meter,
                 E::Value,
@@ -71,38 +71,22 @@ impl<'m> Claims<'m> {
     pub(super) fn to_text_admitted<R>(
         &self,
         format: raf_rdf::Format,
-        meter: &'m Meter,
-        observe: impl for<'f> FnOnce(Result<Text<'m>, OutputFailure<'f>>) -> R,
-    ) -> R {
-        self.to_text_within(format, MAX_INPUT_BYTES, meter, observe)
-    }
-    fn to_text_within<R>(
-        &self,
-        format: raf_rdf::Format,
-        limit: usize,
+        max_bytes: usize,
         meter: &'m Meter,
         observe: impl for<'f> FnOnce(Result<Text<'m>, OutputFailure<'f>>) -> R,
     ) -> R {
         Text::render_admitted(meter, &self.graph, format, |outcome| match outcome {
-            Ok(text) => match within_limit(text.len(), limit, meter) {
-                Ok(()) => observe(Ok(text)),
-                Err(cause) => observe(Err(OutputFailure::failure(&cause))),
-            },
-            Err(cause) => observe(Err(cause)),
+            Ok(text) if text.len() > max_bytes => {
+                let cause = Failure::report(
+                    meter,
+                    E::Value,
+                    &"embedded report exceeds its output byte limit",
+                );
+                observe(Err(OutputFailure::failure(&cause)))
+            }
+            result => observe(result),
         })
     }
-}
-
-/// A rendered report must stay within the limit its importer enforces.
-fn within_limit(len: usize, limit: usize, meter: &Meter) -> Result<(), Failure<'_>> {
-    if len > limit {
-        return Err(Failure::report(
-            meter,
-            E::Value,
-            &"embedded report exceeds its output byte limit",
-        ));
-    }
-    Ok(())
 }
 
 pub(super) fn key_with_memory<'a, S: purrdf_lex::allocation::Admission + ?Sized>(

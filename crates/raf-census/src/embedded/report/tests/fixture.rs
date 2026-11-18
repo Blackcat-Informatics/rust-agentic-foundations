@@ -3,7 +3,7 @@
 
 //! Editable RDF fixture data obtained through the actual admitted producer.
 
-use super::super::{Claims, OWNER_NUMBERS, OWNER_TEXT, VOCAB};
+use super::super::{Claims, MAX_REPORT_BYTES, OWNER_NUMBERS, OWNER_TEXT, VOCAB};
 use crate::embedded::{pairing, resource::Meter};
 use crate::report::shape;
 use raf_rdf::{Builder, Format, Graph, Node, TermValue as Term, Triple, Value};
@@ -20,11 +20,12 @@ pub(in crate::embedded) fn key(kind: &str, parts: &[String]) -> String {
 
 pub(in crate::embedded) fn graph(matches: &pairing::Matches<'_>) -> Graph {
     Claims::produce(matches, |outcome| {
-        outcome
-            .unwrap()
-            .to_text_admitted(Format::Turtle, matches.analysis.meter(), |text| {
-                Graph::from_text(&text.unwrap(), Format::Turtle).unwrap()
-            })
+        outcome.unwrap().to_text_admitted(
+            Format::Turtle,
+            MAX_REPORT_BYTES,
+            matches.analysis.meter(),
+            |text| Graph::from_text(&text.unwrap(), Format::Turtle).unwrap(),
+        )
     })
 }
 
@@ -50,9 +51,9 @@ pub(super) fn exhausted_report(matches: &pairing::Matches<'_>, limit: usize) {
 pub(super) fn roundtrip(text: &str, format: Format) -> Option<String> {
     let meter = Meter::new(100_000_000, 10_000_000);
     Claims::from_text(text, format, &meter, |outcome| match outcome {
-        Ok(claims) => {
-            claims.to_text_admitted(format, &meter, |text| Some(text.unwrap().to_string()))
-        }
+        Ok(claims) => claims.to_text_admitted(format, MAX_REPORT_BYTES, &meter, |text| {
+            Some(text.unwrap().to_string())
+        }),
         Err(cause) => {
             assert_eq!(
                 cause.kind(),
