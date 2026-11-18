@@ -7,6 +7,8 @@
 
 # RAF — Rust Agentic Foundations
 
+[![REUSE status](https://api.reuse.software/badge/github.com/Blackcat-Informatics/rust-agentic-foundations)](https://api.reuse.software/info/github.com/Blackcat-Informatics/rust-agentic-foundations)
+
 RAF is a set of dev-dependency libraries and cargo subcommands, not yet
 published, that keep Rust
 repositories free of duplicated helpers and keep their documentation an accurate,
