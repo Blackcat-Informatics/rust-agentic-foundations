@@ -187,7 +187,7 @@ fn workspace(home: &str, consumer: &str, ledger: String) -> MemoryTree {
         ),
         (
             "consumer/Cargo.toml",
-            "[package]\nname='consumer'\nversion='0.1.0'\nedition='2021'\n".to_owned(),
+            "[package]\nname='consumer'\nversion='0.1.0'\nedition='2021'\n[dependencies]\ndemo={path='../home'}\n".to_owned(),
         ),
         ("home/src/lib.rs", format!("{home}\npub use home as alias;")),
         ("consumer/src/lib.rs", consumer.to_owned()),

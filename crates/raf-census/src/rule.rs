@@ -28,6 +28,8 @@ pub(crate) const BUILTIN_RULE_IDS: &[&str] = &[
     "serde-json",
     "rdf-text-writer",
     "rdf-term-model",
+    "reifier-default-graph",
+    "rdf-list-walk",
     "isomorphic",
 ];
 

@@ -5,9 +5,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use raf_source::{Workspace, parse_source};
+use raf_source::{
+    CodeResolveError, CodeResolver, Item, ItemId, Namespace, ResolveError, SelfType, SymbolKind,
+    Workspace, parse_source,
+};
 
 use super::owners::{self, Owners};
+use crate::detectors::{ReceiverMode, SyntaxHits};
 use crate::{Census, Error, Ledger, Rule, RuleHit};
 
 pub(super) type UnitKey = (String, String, usize);
@@ -15,12 +19,16 @@ pub(super) type Hits = BTreeMap<String, BTreeMap<UnitKey, Vec<RuleHit>>>;
 /// The byte and line of every recorded hit, by rule and owning unit. The public
 /// `RuleHit` states a line only; the ratchet needs the byte.
 pub(super) type Offsets = BTreeMap<String, BTreeMap<UnitKey, Vec<Placed>>>;
+/// For one actual shipping reach, each call's complete set of possible callees.
+type ResolvedCalls = Vec<Vec<ItemId>>;
+type Receivers = BTreeMap<raf_source::RelPath, BTreeMap<usize, ReceiverMode>>;
 
 /// One recorded hit with the position the site key needs.
 pub(super) struct Placed {
     pub(super) byte: usize,
     pub(super) line: usize,
     pub(super) message: String,
+    pub(super) call_reaches: Vec<ResolvedCalls>,
 }
 
 /// The first byte of the one-based `line` of `text`; the end of the text for a line past it.
@@ -51,6 +59,7 @@ pub(super) fn record_line(
             byte,
             line: hit.line,
             message: hit.message.clone(),
+            call_reaches: Vec::new(),
         });
 }
 
@@ -59,10 +68,11 @@ pub(super) struct Hit<'a> {
     pub(super) byte: usize,
     pub(super) line: usize,
     pub(super) message: String,
+    pub(super) call_reaches: Vec<ResolvedCalls>,
 }
 
 pub(super) struct Subject {
-    pub(super) sites: BTreeSet<raf_source::ItemId>,
+    pub(super) sites: BTreeSet<ItemId>,
     pub(super) source_file: raf_source::RelPath,
     pub(super) symbol: String,
     pub(super) file: String,
@@ -115,7 +125,7 @@ impl JobHits<'_> {
 }
 
 pub(super) fn collect(
-    workspace: &Workspace,
+    (workspace, code): (&Workspace, &CodeResolver<'_>),
     census: &Census,
     selected: &Selected<'_>,
     owners: &Owners<'_>,
@@ -142,6 +152,8 @@ pub(super) fn collect(
     if rules.is_empty() && !builtin {
         return Ok(collected);
     }
+    let mut receivers = Receivers::new();
+    let mut pending = Vec::new();
     for source in workspace.files() {
         let Some(ctx) = census.source_context(&source.path) else {
             continue;
@@ -158,59 +170,94 @@ pub(super) fn collect(
             let builtins = if builtin {
                 crate::detectors::collect(syntax, &requested)
             } else {
-                Ok(Vec::new())
+                Ok(SyntaxHits::default())
             };
             (registered, builtins)
         })?;
-        let builtins = builtins.map_err(|refusal| {
+        let SyntaxHits {
+            hits,
+            receivers: declared,
+        } = builtins.map_err(|refusal| {
             refused(
                 refusal.rule,
                 &format!("{}:{}: {}", source.path, refusal.line, refusal.message),
             )
         })?;
-        builtin_hits(workspace, &source.path, owners, &mut collected, builtins)?;
-        for (id, hits) in found {
-            for mut hit in hits {
-                let resolved = workspace.resolve(&hit.symbol).map_err(|error| {
-                    refused(id, &format!("hit owner {:?}: {error}", hit.symbol))
-                })?;
-                let sites: BTreeSet<_> = resolved
-                    .sites
-                    .iter()
-                    .filter_map(|site| workspace.item(*site))
-                    .filter(|item| !workspace.same_source(item).is_empty())
-                    .filter(|item| item.file == source.path && item.span.lines.contains(&hit.line))
-                    .map(|item| item.span.start_byte)
-                    .collect();
-                let owners: Vec<_> = sites
-                    .iter()
-                    .filter_map(|start| owners.get(&(source.path.clone(), *start)))
-                    .collect();
-                if owners.len() != 1 || hit.message.trim().is_empty() {
-                    return Err(refused(
-                        id,
-                        &format!(
-                            "hit at {}:{} must name one containing census unit with a nonempty message",
-                            source.path, hit.line
-                        ),
-                    ));
-                }
-                let owner = owners[0];
-                hit.symbol.clone_from(&owner.symbol);
-                if tracked.contains(id) {
-                    record_line(&mut collected, (id, owners::key(owner)), &source.text, &hit);
-                }
-                collected
-                    .hits
-                    .get_mut(id)
-                    .expect("admitted rule")
-                    .entry(owners::key(owner))
-                    .or_default()
-                    .push(hit);
+        if !declared.is_empty() {
+            receivers.insert(source.path.clone(), declared.into_iter().collect());
+        }
+        for hit in hits {
+            if hit.call_evidence.is_some() {
+                pending.push((&source.path, hit));
+            } else {
+                builtin_hit(
+                    workspace,
+                    &source.path,
+                    owners,
+                    &mut collected,
+                    hit,
+                    Vec::new(),
+                )?;
             }
         }
+        registered_hits(workspace, source, owners, &tracked, &mut collected, found)?;
+    }
+    for (file, hit) in pending {
+        let reaches = source_calls((workspace, code, &receivers), file, &hit)?;
+        builtin_hit(workspace, file, owners, &mut collected, hit, reaches)?;
     }
     Ok(collected)
+}
+
+fn registered_hits(
+    workspace: &Workspace,
+    source: &raf_source::SourceFile,
+    owners: &Owners<'_>,
+    tracked: &BTreeSet<&str>,
+    collected: &mut Collected,
+    found: Vec<(&'static str, Vec<RuleHit>)>,
+) -> Result<(), Error> {
+    for (id, hits) in found {
+        for mut hit in hits {
+            let resolved = workspace
+                .resolve(&hit.symbol)
+                .map_err(|error| refused(id, &format!("hit owner {:?}: {error}", hit.symbol)))?;
+            let sites: BTreeSet<_> = resolved
+                .sites
+                .iter()
+                .filter_map(|site| workspace.item(*site))
+                .filter(|item| !workspace.same_source(item).is_empty())
+                .filter(|item| item.file == source.path && item.span.lines.contains(&hit.line))
+                .map(|item| item.span.start_byte)
+                .collect();
+            let owners: Vec<_> = sites
+                .iter()
+                .filter_map(|start| owners.get(&(source.path.clone(), *start)))
+                .collect();
+            if owners.len() != 1 || hit.message.trim().is_empty() {
+                return Err(refused(
+                    id,
+                    &format!(
+                        "hit at {}:{} must name one containing census unit with a nonempty message",
+                        source.path, hit.line
+                    ),
+                ));
+            }
+            let owner = owners[0];
+            hit.symbol.clone_from(&owner.symbol);
+            if tracked.contains(id) {
+                record_line(collected, (id, owners::key(owner)), &source.text, &hit);
+            }
+            collected
+                .hits
+                .get_mut(id)
+                .expect("admitted rule")
+                .entry(owners::key(owner))
+                .or_default()
+                .push(hit);
+        }
+    }
+    Ok(())
 }
 
 fn requested<'a>(
@@ -315,28 +362,238 @@ fn fact_hits(
     Ok(())
 }
 
-fn builtin_hits(
+fn builtin_hit(
     workspace: &Workspace,
     file: &raf_source::RelPath,
     owners: &Owners<'_>,
     collected: &mut Collected,
-    hits: Vec<crate::detectors::RawHit>,
+    hit: crate::detectors::RawHit,
+    call_reaches: Vec<ResolvedCalls>,
 ) -> Result<(), Error> {
-    for hit in hits {
-        record_hit(
-            workspace,
-            file,
-            owners,
-            collected,
-            Hit {
-                rule: hit.rule,
-                byte: hit.byte,
-                line: hit.line,
-                message: hit.message,
-            },
-        )?;
+    record_hit(
+        workspace,
+        file,
+        owners,
+        collected,
+        Hit {
+            rule: hit.rule,
+            byte: hit.byte,
+            line: hit.line,
+            message: hit.message,
+            call_reaches,
+        },
+    )
+}
+
+fn source_calls(
+    source: (&Workspace, &CodeResolver<'_>, &Receivers),
+    file: &raf_source::RelPath,
+    hit: &crate::detectors::RawHit,
+) -> Result<Vec<ResolvedCalls>, Error> {
+    use crate::detectors::CallEvidence;
+
+    let Some(evidence) = &hit.call_evidence else {
+        return Ok(Vec::new());
+    };
+    let (calls, needs_recursion) = match evidence {
+        CallEvidence::Reifier(call) => (std::slice::from_ref(call), false),
+        CallEvidence::List { calls, looped } => (calls.as_slice(), !looped),
+    };
+    let mut reaches = Vec::new();
+    for owner in source.0.item_at(file, hit.byte) {
+        if !source.0.is_shipping(owner) {
+            continue;
+        }
+        let mut proven = Vec::new();
+        for call in calls {
+            let sites = resolve_call(source, owner, call).map_err(|error| {
+                let path = match &call.path {
+                    crate::detectors::CallPath::Written(path)
+                    | crate::detectors::CallPath::Import(path)
+                    | crate::detectors::CallPath::SelfType(path) => path,
+                };
+                let candidates = match &error {
+                    CodeResolveError::Resolve(ResolveError::Ambiguous(ids)) => ids
+                        .iter()
+                        .filter_map(|id| source.0.item(*id))
+                        .map(|item| format!("{} ({:?}, {})", item.path, item.kind, item.file))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    _ => String::new(),
+                };
+                refused(
+                    hit.rule,
+                    &format!(
+                        "{file}:{}: call {path:?} from {}: {error}; candidates {candidates}",
+                        hit.line, owner.path
+                    ),
+                )
+            })?;
+            if !sites.is_empty() {
+                proven.push(sites);
+            }
+        }
+        if !needs_recursion
+            || proven
+                .iter()
+                .any(|sites| sites.iter().all(|id| *id == owner.id))
+        {
+            reaches.push(proven);
+        }
     }
-    Ok(())
+    Ok(reaches)
+}
+
+fn self_member(workspace: &Workspace, owner: &Item, member: &str) -> Option<String> {
+    if member.is_empty()
+        || owner.kind != SymbolKind::InherentMethod
+        || owner.self_key != Some(SelfType::Local)
+    {
+        return None;
+    }
+    let (self_path, _) = owner.path.as_str().rsplit_once("::")?;
+    let root = &workspace.target(owner.target)?.crate_path;
+    let nominal = self_path.strip_prefix(root)?.strip_prefix("::")?;
+    Some(format!("crate::{nominal}::{member}"))
+}
+
+fn resolve_call(
+    (workspace, code, receivers): (&Workspace, &CodeResolver<'_>, &Receivers),
+    owner: &Item,
+    call: &crate::detectors::Call,
+) -> Result<Vec<ItemId>, CodeResolveError> {
+    use crate::detectors::CallPath;
+
+    // A block import declared in an enclosing function has a different
+    // reading owner. Only origins within this exact indexed item are admitted.
+    if !(owner.span.start_byte..owner.span.end_byte).contains(&call.byte) {
+        return Ok(Vec::new());
+    }
+    let self_path;
+    let (path, import) = match &call.path {
+        CallPath::Written(path) => (path.as_str(), false),
+        CallPath::Import(path) => (path.as_str(), true),
+        CallPath::SelfType(member) => {
+            let Some(path) = self_member(workspace, owner, member) else {
+                return Ok(Vec::new());
+            };
+            self_path = path;
+            (self_path.as_str(), false)
+        }
+    };
+    let lookup = |path: &str, namespace| {
+        if import {
+            code.resolve_import_from_item_at(owner.id, call.byte, path, namespace)
+        } else {
+            code.resolve_from_item_at(owner.id, call.byte, path, namespace)
+        }
+    };
+    let sites = match lookup(path, Namespace::Value) {
+        Ok(resolved) if call.receiver.is_none() || resolved.type_aliases.is_empty() => {
+            resolved.sites
+        }
+        Ok(_)
+        | Err(
+            CodeResolveError::Resolve(ResolveError::NotFound(_) | ResolveError::UnresolvedSelf(_))
+            | CodeResolveError::AliasMember { .. },
+        ) => return Ok(Vec::new()),
+        Err(CodeResolveError::Resolve(ResolveError::Ambiguous(ids))) if call.receiver.is_some() => {
+            let Some(inherent) = inherent_candidate(workspace, path, &ids, |nominal| {
+                lookup(nominal, Namespace::Type)
+            })?
+            else {
+                return Err(CodeResolveError::Resolve(ResolveError::Ambiguous(ids)));
+            };
+            vec![inherent]
+        }
+        Err(error) => return Err(error),
+    };
+    for id in &sites {
+        let item = workspace
+            .item(*id)
+            .ok_or(CodeResolveError::UnknownItem(*id))?;
+        match item.kind {
+            SymbolKind::Fn if call.receiver.is_none() => {}
+            SymbolKind::InherentMethod
+                if call
+                    .receiver
+                    .is_none_or(|mode| exact_receiver(workspace, receivers, item, mode)) =>
+            {
+                match code.require_unconditional_inherent_method(*id) {
+                    Ok(()) => {}
+                    Err(CodeResolveError::MethodApplicability(_)) => return Ok(Vec::new()),
+                    Err(error) => return Err(error),
+                }
+            }
+            _ => return Ok(Vec::new()),
+        }
+    }
+    Ok(sites)
+}
+
+/// An inherent candidate can take precedence only when the native type lookup
+/// identifies one nominal definition and every candidate belongs to its member.
+fn inherent_candidate(
+    workspace: &Workspace,
+    path: &str,
+    candidates: &[ItemId],
+    lookup_type: impl FnOnce(&str) -> Result<raf_source::Resolution, CodeResolveError>,
+) -> Result<Option<ItemId>, CodeResolveError> {
+    let Some((prefix, member)) = path.rsplit_once("::") else {
+        return Ok(None);
+    };
+    let resolved = match lookup_type(prefix) {
+        Ok(resolved) => resolved,
+        Err(CodeResolveError::Resolve(ResolveError::NotFound(_) | ResolveError::Ambiguous(_))) => {
+            return Ok(None);
+        }
+        Err(error) => return Err(error),
+    };
+    let [id] = resolved.sites.as_slice() else {
+        return Ok(None);
+    };
+    let nominal = workspace
+        .item(*id)
+        .ok_or(CodeResolveError::UnknownItem(*id))?;
+    if !matches!(
+        nominal.kind,
+        SymbolKind::Struct | SymbolKind::Enum | SymbolKind::Union
+    ) {
+        return Ok(None);
+    }
+    let path = format!("{}::{member}", nominal.path);
+    let mut inherent = None;
+    for id in candidates {
+        let item = workspace
+            .item(*id)
+            .ok_or(CodeResolveError::UnknownItem(*id))?;
+        if item.path.as_str() != path || item.self_key != Some(SelfType::Local) {
+            return Ok(None);
+        }
+        match item.kind {
+            SymbolKind::InherentMethod if item.target == nominal.target && inherent.is_none() => {
+                inherent = Some(*id);
+            }
+            SymbolKind::TraitImplMethod => {}
+            _ => return Ok(None),
+        }
+    }
+    Ok(inherent)
+}
+
+fn exact_receiver(
+    workspace: &Workspace,
+    receivers: &Receivers,
+    item: &Item,
+    mode: ReceiverMode,
+) -> bool {
+    workspace
+        .target(item.target)
+        .is_some_and(|target| target.root == item.file)
+        && receivers
+            .get(&item.file)
+            .and_then(|definitions| definitions.get(&item.span.start_byte))
+            == Some(&mode)
 }
 
 pub(super) fn record_hit(
@@ -378,6 +635,7 @@ pub(super) fn record_hit(
                 byte: hit.byte,
                 line: hit.line,
                 message: hit.message.clone(),
+                call_reaches: hit.call_reaches,
             });
         collected
             .hits
@@ -460,6 +718,7 @@ fn source_hit(
             byte: hit.byte,
             line: hit.line,
             message: hit.message.clone(),
+            call_reaches: hit.call_reaches,
         });
     collected
         .hits

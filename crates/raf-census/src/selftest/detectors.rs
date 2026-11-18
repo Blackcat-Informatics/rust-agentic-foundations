@@ -152,6 +152,28 @@ fn family(id: &str) -> Option<Family> {
             negative: probes(negative),
         });
     }
+    if let Some((_, home, entries, positive, negative)) =
+        fixtures::STRUCTURE.iter().find(|row| row.0 == id)
+    {
+        let probes = |consumers: &[&'static str]| {
+            consumers
+                .iter()
+                .map(|consumer| Probe {
+                    home: (*home).into(),
+                    consumer,
+                    rows: entries
+                        .iter()
+                        .map(|entry| ("#job", "entryPoint", Term::simple_literal(*entry)))
+                        .collect(),
+                })
+                .collect()
+        };
+        return Some(Family {
+            selection: Selection::Job,
+            positive: probes(positive),
+            negative: probes(negative),
+        });
+    }
     if fixtures::RDF.iter().any(|row| row.0 == id) {
         let (positive, negative) = fixtures::RDF
             .iter()

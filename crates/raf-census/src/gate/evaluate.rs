@@ -26,7 +26,7 @@ pub(super) fn evaluate(
     let owners = owners::index(&census);
     let code = workspace.code_resolver()?;
     let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
-    let mut collected = rules::collect(workspace, &census, &selected, &owners, ledger)?;
+    let mut collected = rules::collect((workspace, &code), &census, &selected, &owners, ledger)?;
     collect_patterns(
         (ledger, &references.names),
         workspace,
@@ -274,6 +274,7 @@ fn collect_patterns(
                 byte: found.byte,
                 line: found.line,
                 message: found.pattern.summary.clone(),
+                call_reaches: Vec::new(),
             },
         )?;
     }
@@ -520,6 +521,16 @@ fn resolve_job(
         .collect::<Option<Vec<_>>>();
     Ok(match (home, entries) {
         (Some(mut home), Some(mut entries)) => {
+            if super::context::uses_structure(row)
+                && let Some(unindexed) = std::iter::once(&home)
+                    .chain(&entries)
+                    .find(|part| part.source_items.is_empty())
+            {
+                return Err(policy(&format!(
+                    "job {:?}: structure detectors need a home or entry point {:?} indexed in this workspace; load its sources in the workspace or select an indexed symbol",
+                    row.job.id, unindexed.path
+                )));
+            }
             if row.preferred_provider.is_some() {
                 for scope in std::iter::once(&mut home).chain(&mut entries) {
                     super::patterns::charge(

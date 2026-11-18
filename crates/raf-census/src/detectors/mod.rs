@@ -10,6 +10,7 @@ mod host_import;
 mod layout;
 mod names;
 mod rdf;
+mod structure;
 
 #[cfg(test)]
 mod tests;
@@ -22,6 +23,7 @@ pub(crate) fn ids() -> impl Iterator<Item = &'static str> {
         .chain(["home-literal", "sole-name", "vocabulary-literal"])
         .chain(["std-default-hasher", host_import::RULE])
         .chain(rdf::RULES)
+        .chain(structure::RULES)
 }
 
 pub(crate) fn implements(id: &str) -> bool {
@@ -33,7 +35,12 @@ pub(crate) fn implements(id: &str) -> bool {
 pub(crate) fn job_scoped(id: &str) -> bool {
     matches!(
         id,
-        "home-literal" | "vocabulary-literal" | "sole-name" | host_import::RULE
+        "home-literal"
+            | "vocabulary-literal"
+            | "sole-name"
+            | host_import::RULE
+            | structure::REIFIER
+            | structure::LIST_WALK
     )
 }
 
@@ -47,6 +54,7 @@ pub(crate) fn needs_syntax(id: &str) -> bool {
         || id == "std-default-hasher"
         || id == host_import::RULE
         || rdf::RULES.contains(&id)
+        || structure::RULES.contains(&id)
 }
 
 pub(crate) fn shipping_only(id: &str) -> bool {
@@ -73,6 +81,7 @@ pub(crate) fn facts(unit: &crate::Unit) -> Vec<RawHit> {
             rule: "hex-table",
             byte: unit.start_byte,
             line: unit.line,
+            call_evidence: None,
             message: format!(
                 "a {} digit table; use the approved base16 implementation",
                 table.name()
@@ -88,6 +97,7 @@ pub(crate) fn facts(unit: &crate::Unit) -> Vec<RawHit> {
                     rule: "json-pointer-escape",
                     byte: unit.start_byte,
                     line: literal.line,
+                    call_evidence: None,
                     message:
                         "a JSON Pointer escape written by hand; use the approved pointer encoder"
                             .into(),
@@ -98,21 +108,56 @@ pub(crate) fn facts(unit: &crate::Unit) -> Vec<RawHit> {
     hits
 }
 
+/// A call spelling at the byte where its lookup context is known.
+#[derive(Clone)]
+pub(crate) struct Call {
+    pub(crate) byte: usize,
+    pub(crate) path: CallPath,
+    pub(crate) receiver: Option<ReceiverMode>,
+}
+
+/// The unchanged receiver type at the first step of a dot-call lookup.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReceiverMode {
+    Value,
+    Shared,
+    Mutable,
+}
+
+#[derive(Clone)]
+pub(crate) enum CallPath {
+    Written(String),
+    Import(String),
+    SelfType(String),
+}
+
+pub(crate) enum CallEvidence {
+    Reifier(Call),
+    List { calls: Vec<Call>, looped: bool },
+}
+
 pub(crate) struct RawHit {
     pub(crate) rule: &'static str,
     pub(crate) byte: usize,
     pub(crate) line: usize,
     pub(crate) message: String,
+    /// Unresolved evidence for the job-scoped structure detectors.
+    pub(crate) call_evidence: Option<CallEvidence>,
 }
 
 impl RawHit {
-    fn push(hits: &mut Vec<Self>, rule: &'static str, span: proc_macro2::Span, message: &str) {
-        hits.push(Self {
+    fn new(rule: &'static str, span: proc_macro2::Span, message: &str) -> Self {
+        Self {
             rule,
             byte: span.byte_range().start,
             line: span.start().line,
             message: message.into(),
-        });
+            call_evidence: None,
+        }
+    }
+
+    fn push(hits: &mut Vec<Self>, rule: &'static str, span: proc_macro2::Span, message: &str) {
+        hits.push(Self::new(rule, span, message));
     }
 }
 
@@ -126,8 +171,9 @@ pub(crate) struct Refusal {
 pub(crate) fn collect(
     file: &syn::File,
     requested: &std::collections::BTreeSet<&str>,
-) -> Result<Vec<RawHit>, Refusal> {
+) -> Result<SyntaxHits, Refusal> {
     let mut hits = Vec::new();
+    let mut receivers = Vec::new();
     if layout::RULES.iter().any(|id| requested.contains(id)) {
         hits.extend(layout::collect(file));
     }
@@ -143,6 +189,16 @@ pub(crate) fn collect(
     if rdf::RULES.iter().any(|id| requested.contains(id)) {
         hits.extend(rdf::collect(file));
     }
+    if structure::RULES.iter().any(|id| requested.contains(id)) {
+        hits.extend(structure::collect(file));
+        receivers = structure::receivers(file);
+    }
     hits.retain(|hit| requested.contains(hit.rule));
-    Ok(hits)
+    Ok(SyntaxHits { hits, receivers })
+}
+
+#[derive(Default)]
+pub(crate) struct SyntaxHits {
+    pub(crate) hits: Vec<RawHit>,
+    pub(crate) receivers: Vec<(usize, ReceiverMode)>,
 }

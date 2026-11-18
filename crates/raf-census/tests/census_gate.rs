@@ -2818,7 +2818,7 @@ fn detector_fixture_with(
         ),
         (
             "consumer/Cargo.toml",
-            "[package]\nname='consumer'\nversion='0.1.0'\nedition='2021'\n".into(),
+            "[package]\nname='consumer'\nversion='0.1.0'\nedition='2021'\n[dependencies]\ndemo={path='../home'}\n".into(),
         ),
         ("home/src/lib.rs", format!("{home}\npub use home as alias;")),
         ("consumer/src/lib.rs", consumer.into()),
@@ -3327,6 +3327,138 @@ fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
         0
     );
     assert_eq!(report.findings().len(), 1);
+}
+
+fn structure_ledger(id: &str, entries: &[&str]) -> Builder {
+    let mut graph = detector_ledger(id);
+    for entry in entries {
+        put(
+            &mut graph,
+            "#job",
+            "entryPoint",
+            Term::simple_literal(*entry),
+        );
+    }
+    graph
+}
+
+/// The copies a structure detector finds in a consumer when the job declares `entries`.
+fn structure_copies(id: &str, home: &str, entries: &[&str], consumer: &str) -> usize {
+    let report = Gate::workspace(".")
+        .check_tree(&detector_fixture(
+            structure_ledger(id, entries),
+            home,
+            consumer,
+        ))
+        .unwrap_or_else(|error| panic!("{id}: {consumer}: {error}"));
+    let copies = report
+        .jobs()
+        .first()
+        .unwrap_or_else(|| panic!("{id}: {consumer}: {:?}", report.findings()))
+        .copies;
+    assert_eq!(
+        report.findings().len(),
+        copies,
+        "{id}: {:?}",
+        report.findings()
+    );
+    if consumer == detector_fixtures::EXPECT_ARGUMENT_ROW {
+        let [finding] = report.findings() else {
+            panic!("expected one nested row: {:?}", report.findings());
+        };
+        assert!(finding.contains("consumer/src/lib.rs:4:"), "{finding}");
+    }
+    copies
+}
+
+/// A structure detector judges a function against the entry points its own job
+/// declares, never a fixed type name, and reads shipping code only.
+#[test]
+fn structure_detectors_judge_calls_against_the_jobs_declared_entry_points() {
+    for (id, home, entries, positives, negatives) in detector_fixtures::STRUCTURE {
+        for positive in positives {
+            assert_eq!(
+                structure_copies(id, home, entries, positive),
+                1,
+                "{id}: {positive}"
+            );
+        }
+        for negative in negatives {
+            assert_eq!(
+                structure_copies(id, home, entries, negative),
+                0,
+                "{id}: {negative}"
+            );
+        }
+        let test_only = detector_fixture_with(
+            structure_ledger(id, entries),
+            home,
+            "",
+            &[("consumer/tests/oracle.rs", positives[0])],
+        );
+        let report = Gate::workspace(".").check_tree(&test_only).unwrap();
+        assert_eq!(report.jobs()[0].copies, 0, "{id}: {report:?}");
+    }
+    let [
+        (_, home, entries, positives, negatives),
+        (_, walk_home, walk_entries, walkers, delegators),
+    ] = detector_fixtures::STRUCTURE;
+    // The reifier constructor is a hit only when the job declares it.
+    assert_eq!(
+        structure_copies("reifier-default-graph", home, &[], positives[0]),
+        0
+    );
+    assert_eq!(
+        structure_copies(
+            "reifier-default-graph",
+            home,
+            &["demo"],
+            "trait Insert {fn insert(&mut self,s:u8,p:u8,o:u8);} impl Insert for demo::Dataset {fn insert(&mut self,s:u8,p:u8,o:u8){}} fn copy(d:&mut demo::Dataset){d.insert(1,rdf::REIFIES,2);}",
+        ),
+        1
+    );
+    assert_eq!(
+        structure_copies("reifier-default-graph", home, entries, negatives[0]),
+        0
+    );
+    // A traversal is delegated only when the job declares it.
+    let free_walk = &walk_entries[..1];
+    assert_eq!(
+        structure_copies("rdf-list-walk", walk_home, &[], delegators[0]),
+        1
+    );
+    assert_eq!(
+        structure_copies("rdf-list-walk", walk_home, free_walk, delegators[0]),
+        0
+    );
+    assert_eq!(
+        structure_copies("rdf-list-walk", walk_home, free_walk, walkers[0]),
+        1
+    );
+
+    // One physical function can reach different callees through two shipping
+    // modules. A delegated reach must not hide a manual reach of that source.
+    let tree = detector_fixture_with(
+        structure_ledger("rdf-list-walk", walk_entries),
+        walk_home,
+        "mod delegated; mod manual;",
+        &[
+            (
+                "consumer/src/delegated.rs",
+                "use demo::walk_list as walk; #[path=\"shared.rs\"] mod shared;",
+            ),
+            (
+                "consumer/src/manual.rs",
+                "fn walk(n:u8)->u8{n} #[path=\"shared.rs\"] mod shared;",
+            ),
+            (
+                "consumer/src/shared.rs",
+                "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=super::walk(n);}}",
+            ),
+        ],
+    );
+    let report = Gate::workspace(".").check_tree(&tree).unwrap();
+    assert_eq!(report.jobs()[0].copies, 1, "{report:?}");
 }
 
 /// The copies a `foreign-host-import` job finds in a detector workspace.
@@ -3838,6 +3970,10 @@ fn variant(file: &str) -> Builder {
 }
 
 fn variant_at(file: &str, symbol: &str) -> Builder {
+    variant_for(file, symbol, "copy-rule")
+}
+
+fn variant_for(file: &str, symbol: &str, detector: &str) -> Builder {
     let mut graph = job(true);
     put(&mut graph, "#job", "variant", Term::iri("#variant"));
     put(
@@ -3849,7 +3985,7 @@ fn variant_at(file: &str, symbol: &str) -> Builder {
     for (key, value) in [
         ("symbol", symbol),
         ("file", file),
-        ("detector", "copy-rule"),
+        ("detector", detector),
         ("criterion", "layering"),
         ("reason", "The other target has a separate implementation"),
     ] {
@@ -3862,6 +3998,26 @@ fn variant_at(file: &str, symbol: &str) -> Builder {
         Term::iri("urn:raf:code:demo::home"),
     );
     graph
+}
+
+/// A structure variant has to match in its job's context, including when the
+/// ledger names the detector only in the variant.
+#[test]
+fn structure_variants_require_the_job_scoped_detector() {
+    let (_, home, ..) = detector_fixtures::STRUCTURE[1];
+    for (iteration, matches) in [("", false), ("while n>0 {n-=1;}", true)] {
+        let source = format!("fn copy(mut n:u8){{let _=rdf::FIRST;let _=rdf::REST;{iteration}}}");
+        let policy = variant_for("consumer/src/lib.rs", "consumer::copy", "rdf-list-walk");
+        let report = Gate::workspace(".")
+            .check_tree(&detector_fixture(policy, home, &source))
+            .unwrap();
+        assert_eq!(report.is_clean(), matches, "{:?}", report.findings());
+        if !matches {
+            assert!(report.findings().iter().any(|finding| {
+                finding.contains("no longer matches detector \"rdf-list-walk\"")
+            }));
+        }
+    }
 }
 
 fn shared_tree(graph: Builder) -> MemoryTree {

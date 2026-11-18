@@ -140,8 +140,8 @@ line only, so its site is the owning item and the first string literal at or
 after the start of the hit's line inside that item, and two hits on one line
 count twice. A rule that two jobs forbid is held the same way by both, a rule the
 Gate requires cannot also be ratcheted, and a detector that judges one job's home
-and context (home-literal, vocabulary-literal, sole-name, foreign-host-import)
-cannot be ratcheted. The record format needs no new property for rules:
+and context (home-literal, vocabulary-literal, sole-name, foreign-host-import,
+reifier-default-graph, rdf-list-walk) cannot be ratcheted. The record format needs no new property for rules:
 ratchetedRule names rule ids of either kind. `RegisteredDebtWrite` states the
 site count only when it is positive.
 

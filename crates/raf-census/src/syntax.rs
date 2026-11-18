@@ -6,10 +6,100 @@
 use std::collections::BTreeMap;
 use syn::ext::IdentExt;
 
+/// Attributes that preserve the indexed declaration or expression.
+pub(crate) fn inert_attributes(attributes: &[syn::Attribute]) -> bool {
+    attributes.iter().all(|attribute| {
+        attribute.path().get_ident().is_some_and(|name| {
+            matches!(
+                name.to_string().as_str(),
+                "doc"
+                    | "allow"
+                    | "expect"
+                    | "warn"
+                    | "deny"
+                    | "forbid"
+                    | "inline"
+                    | "cold"
+                    | "must_use"
+                    | "deprecated"
+                    | "track_caller"
+            )
+        })
+    })
+}
+
+/// The empty disjunction is false under every configuration.
+pub(crate) fn definitely_excluded(attributes: &[syn::Attribute]) -> bool {
+    use proc_macro2::{Delimiter, TokenTree};
+
+    attributes.iter().any(|attribute| {
+        let syn::Meta::List(cfg) = &attribute.meta else {
+            return false;
+        };
+        if !cfg.path.is_ident("cfg") {
+            return false;
+        }
+        let mut tokens = cfg.tokens.clone().into_iter();
+        matches!(
+            (tokens.next(), tokens.next(), tokens.next()),
+            (Some(TokenTree::Ident(any)), Some(TokenTree::Group(group)), None)
+                if any == "any" && group.delimiter() == Delimiter::Parenthesis
+                    && group.stream().is_empty()
+        )
+    })
+}
+
+/// Attributes at this expression's own occurrence.
+pub(crate) fn expression_attributes(node: &syn::Expr) -> Option<&[syn::Attribute]> {
+    Some(match node {
+        syn::Expr::Array(n) => &n.attrs,
+        syn::Expr::Assign(n) => &n.attrs,
+        syn::Expr::Async(n) => &n.attrs,
+        syn::Expr::Await(n) => &n.attrs,
+        syn::Expr::Binary(n) => &n.attrs,
+        syn::Expr::Block(n) => &n.attrs,
+        syn::Expr::Break(n) => &n.attrs,
+        syn::Expr::Call(n) => &n.attrs,
+        syn::Expr::Cast(n) => &n.attrs,
+        syn::Expr::Closure(n) => &n.attrs,
+        syn::Expr::Const(n) => &n.attrs,
+        syn::Expr::Continue(n) => &n.attrs,
+        syn::Expr::Field(n) => &n.attrs,
+        syn::Expr::ForLoop(n) => &n.attrs,
+        syn::Expr::Group(n) => &n.attrs,
+        syn::Expr::If(n) => &n.attrs,
+        syn::Expr::Index(n) => &n.attrs,
+        syn::Expr::Infer(n) => &n.attrs,
+        syn::Expr::Let(n) => &n.attrs,
+        syn::Expr::Lit(n) => &n.attrs,
+        syn::Expr::Loop(n) => &n.attrs,
+        syn::Expr::Macro(n) => &n.attrs,
+        syn::Expr::Match(n) => &n.attrs,
+        syn::Expr::MethodCall(n) => &n.attrs,
+        syn::Expr::Paren(n) => &n.attrs,
+        syn::Expr::Path(n) => &n.attrs,
+        syn::Expr::Range(n) => &n.attrs,
+        syn::Expr::RawAddr(n) => &n.attrs,
+        syn::Expr::Reference(n) => &n.attrs,
+        syn::Expr::Repeat(n) => &n.attrs,
+        syn::Expr::Return(n) => &n.attrs,
+        syn::Expr::Struct(n) => &n.attrs,
+        syn::Expr::Try(n) => &n.attrs,
+        syn::Expr::TryBlock(n) => &n.attrs,
+        syn::Expr::Tuple(n) => &n.attrs,
+        syn::Expr::Unary(n) => &n.attrs,
+        syn::Expr::Unsafe(n) => &n.attrs,
+        syn::Expr::Verbatim(_) => &[],
+        syn::Expr::While(n) => &n.attrs,
+        syn::Expr::Yield(n) => &n.attrs,
+        _ => return None,
+    })
+}
+
 #[derive(Clone, Default)]
 pub(crate) struct Names {
     pub(crate) aliases: BTreeMap<String, Vec<Alias>>,
-    prelude: BTreeMap<String, Alias>,
+    prelude: BTreeMap<String, Vec<Alias>>,
     frame: usize,
 }
 
@@ -20,8 +110,28 @@ pub(crate) struct Alias {
     pub(crate) absolute: bool,
     pub(crate) source_byte: Option<usize>,
     pub(crate) external: bool,
+    pub(crate) attributes: AliasAttributes,
     /// The lexical declaration frame used by written-name observations.
     pub(crate) frame: usize,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AliasAttributes {
+    Inert,
+    Uncertain,
+    Excluded,
+}
+
+impl AliasAttributes {
+    fn of(attributes: &[syn::Attribute]) -> Self {
+        if inert_attributes(attributes) {
+            Self::Inert
+        } else if definitely_excluded(attributes) {
+            Self::Excluded
+        } else {
+            Self::Uncertain
+        }
+    }
 }
 
 pub(crate) fn path_text(path: &[String], absolute: bool) -> String {
@@ -37,7 +147,7 @@ impl Names {
                 let name = item.rename.as_ref().map_or(&item.ident, |(_, name)| name);
                 let name = name.unraw().to_string();
                 if let Some(alias) = names.aliases.get(&name).and_then(|aliases| aliases.last()) {
-                    names.prelude.insert(name, alias.clone());
+                    names.prelude.entry(name).or_default().push(alias.clone());
                 }
             }
         }
@@ -57,7 +167,12 @@ impl Names {
     }
 
     pub(crate) fn resolve_written(&self, path: Vec<String>, absolute: bool) -> Vec<String> {
-        self.resolve(path, absolute, self.frame, None)
+        self.resolve(path, absolute, self.frame, None, false)
+    }
+
+    /// A spelling supported only by declaration-preserving imports.
+    pub(crate) fn resolve_inert_written(&self, path: Vec<String>, absolute: bool) -> Vec<String> {
+        self.resolve(path, absolute, self.frame, None, true)
     }
 
     pub(crate) fn resolve_import(
@@ -75,7 +190,7 @@ impl Names {
                     .rev()
                     .find(|alias| alias.frame == self.frame && alias.source_byte == source_byte)
             });
-        self.resolve(path, absolute, self.frame, own)
+        self.resolve(path, absolute, self.frame, own, false)
     }
 
     fn resolve<'a>(
@@ -84,25 +199,39 @@ impl Names {
         absolute: bool,
         mut frame: usize,
         mut excluded: Option<&'a Alias>,
+        inert_only: bool,
     ) -> Vec<String> {
         let original = path.clone();
         let mut absolute = absolute;
         let mut active: Vec<&Alias> = Vec::new();
-        while let Some(alias) = path.first().and_then(|name| {
-            if absolute {
-                self.prelude.get(name)
-            } else {
-                self.aliases
-                    .get(name)
-                    .and_then(|aliases| {
-                        aliases.iter().rev().find(|alias| {
-                            alias.frame <= frame
-                                && !excluded.is_some_and(|own| std::ptr::eq(own, *alias))
-                        })
+        while let Some(name) = path.first() {
+            let select = |aliases: &'a [Alias]| {
+                aliases
+                    .iter()
+                    .rev()
+                    .find(|alias| {
+                        alias.frame <= frame
+                            && !excluded.is_some_and(|own| std::ptr::eq(own, *alias))
+                            && (!inert_only || alias.attributes != AliasAttributes::Excluded)
                     })
-                    .or_else(|| self.prelude.get(name))
+                    .map(|alias| (alias, aliases))
+            };
+            let Some((alias, alternatives)) = self
+                .aliases
+                .get(name)
+                .filter(|_| !absolute)
+                .and_then(|aliases| select(aliases))
+                .or_else(|| self.prelude.get(name).and_then(|aliases| select(aliases)))
+            else {
+                break;
+            };
+            if inert_only
+                && alternatives.iter().any(|other| {
+                    other.frame == alias.frame && other.attributes == AliasAttributes::Uncertain
+                })
+            {
+                return Vec::new();
             }
-        }) {
             if active.iter().any(|known| std::ptr::eq(*known, alias)) {
                 // Cyclic imports cannot establish a native identity. Retain
                 // the written observation instead of a partial expansion.
@@ -134,23 +263,26 @@ impl Names {
         absolute: bool,
         source_byte: Option<usize>,
         external: bool,
+        attributes: AliasAttributes,
     ) {
         self.aliases.entry(local).or_default().push(Alias {
             path,
             absolute,
             source_byte,
             external,
+            attributes,
             frame: self.frame,
         });
     }
 
     pub(crate) fn shadow(&mut self, name: String) {
-        self.alias(name, Vec::new(), false, None, false);
+        self.alias(name, Vec::new(), false, None, false, AliasAttributes::Inert);
     }
 
     pub(crate) fn item(&mut self, item: &syn::Item) {
-        match item {
+        let (shadow, attributes) = match item {
             syn::Item::Use(item) => {
+                let attributes = AliasAttributes::of(&item.attrs);
                 visit_import_paths(&item.tree, |path, alias| {
                     if let Some(alias) = alias {
                         self.alias(
@@ -159,9 +291,11 @@ impl Names {
                             item.leading_colon.is_some(),
                             path.first().map(|ident| ident.span().byte_range().start),
                             false,
+                            attributes,
                         );
                     }
                 });
+                return;
             }
             syn::Item::ExternCrate(item) => {
                 let name = item.rename.as_ref().map_or(&item.ident, |(_, name)| name);
@@ -171,17 +305,27 @@ impl Names {
                     true,
                     Some(item.ident.span().byte_range().start),
                     true,
+                    AliasAttributes::of(&item.attrs),
                 );
+                return;
             }
-            syn::Item::Struct(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::Enum(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::Type(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::Mod(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::Trait(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::TraitAlias(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::Union(item) => self.shadow(item.ident.unraw().to_string()),
-            _ => {}
-        }
+            syn::Item::Struct(item) => (&item.ident, &item.attrs),
+            syn::Item::Enum(item) => (&item.ident, &item.attrs),
+            syn::Item::Type(item) => (&item.ident, &item.attrs),
+            syn::Item::Mod(item) => (&item.ident, &item.attrs),
+            syn::Item::Trait(item) => (&item.ident, &item.attrs),
+            syn::Item::TraitAlias(item) => (&item.ident, &item.attrs),
+            syn::Item::Union(item) => (&item.ident, &item.attrs),
+            _ => return,
+        };
+        self.alias(
+            shadow.unraw().to_string(),
+            Vec::new(),
+            false,
+            None,
+            false,
+            AliasAttributes::of(attributes),
+        );
     }
 }
 

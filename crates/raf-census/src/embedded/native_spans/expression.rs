@@ -6,6 +6,7 @@
 use proc_macro2::Span;
 
 use super::{Coordinates, Ends, Refusal, outer};
+use crate::syntax::expression_attributes;
 
 enum Step<'a> {
     Token(Span),
@@ -33,7 +34,9 @@ pub(in crate::embedded) fn start(
 ) -> Result<Span, Refusal> {
     loop {
         source.work(1)?;
-        if let Some(span) = outer(attrs(node)?, source.meter())? {
+        let attributes = expression_attributes(node)
+            .ok_or(Refusal::Invariant("unknown pinned expression variant"))?;
+        if let Some(span) = outer(attributes, source.meter())? {
             return Ok(span);
         }
         match first(node, source)? {
@@ -54,52 +57,6 @@ pub(in crate::embedded) fn end(
             Step::Child(child) => node = child,
         }
     }
-}
-
-fn attrs(node: &syn::Expr) -> Result<&[syn::Attribute], Refusal> {
-    Ok(match node {
-        syn::Expr::Array(n) => &n.attrs,
-        syn::Expr::Assign(n) => &n.attrs,
-        syn::Expr::Async(n) => &n.attrs,
-        syn::Expr::Await(n) => &n.attrs,
-        syn::Expr::Binary(n) => &n.attrs,
-        syn::Expr::Block(n) => &n.attrs,
-        syn::Expr::Break(n) => &n.attrs,
-        syn::Expr::Call(n) => &n.attrs,
-        syn::Expr::Cast(n) => &n.attrs,
-        syn::Expr::Closure(n) => &n.attrs,
-        syn::Expr::Const(n) => &n.attrs,
-        syn::Expr::Continue(n) => &n.attrs,
-        syn::Expr::Field(n) => &n.attrs,
-        syn::Expr::ForLoop(n) => &n.attrs,
-        syn::Expr::Group(n) => &n.attrs,
-        syn::Expr::If(n) => &n.attrs,
-        syn::Expr::Index(n) => &n.attrs,
-        syn::Expr::Infer(n) => &n.attrs,
-        syn::Expr::Let(n) => &n.attrs,
-        syn::Expr::Lit(n) => &n.attrs,
-        syn::Expr::Loop(n) => &n.attrs,
-        syn::Expr::Macro(n) => &n.attrs,
-        syn::Expr::Match(n) => &n.attrs,
-        syn::Expr::MethodCall(n) => &n.attrs,
-        syn::Expr::Paren(n) => &n.attrs,
-        syn::Expr::Path(n) => &n.attrs,
-        syn::Expr::Range(n) => &n.attrs,
-        syn::Expr::RawAddr(n) => &n.attrs,
-        syn::Expr::Reference(n) => &n.attrs,
-        syn::Expr::Repeat(n) => &n.attrs,
-        syn::Expr::Return(n) => &n.attrs,
-        syn::Expr::Struct(n) => &n.attrs,
-        syn::Expr::Try(n) => &n.attrs,
-        syn::Expr::TryBlock(n) => &n.attrs,
-        syn::Expr::Tuple(n) => &n.attrs,
-        syn::Expr::Unary(n) => &n.attrs,
-        syn::Expr::Unsafe(n) => &n.attrs,
-        syn::Expr::Verbatim(_) => &[],
-        syn::Expr::While(n) => &n.attrs,
-        syn::Expr::Yield(n) => &n.attrs,
-        _ => return Err(Refusal::Invariant("unknown pinned expression variant")),
-    })
 }
 
 fn first<'a>(node: &'a syn::Expr, source: &Coordinates<'_, '_>) -> Result<Step<'a>, Refusal> {

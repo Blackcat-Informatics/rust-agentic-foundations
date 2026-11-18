@@ -187,6 +187,159 @@ pub const CONTEXTUAL: [(&str, &str, &[&str], &[&str]); 3] = [
     ),
 ];
 
+/// An entry-point detector: id, home source, entry points, positive and negative consumers.
+pub type StructureFixture = (
+    &'static str,
+    &'static str,
+    &'static [&'static str],
+    &'static [&'static str],
+    &'static [&'static str],
+);
+
+/// An `expect` argument constructs a distinct row on line four.
+pub const EXPECT_ARGUMENT_ROW: &str = "fn copy(d:&mut Dataset,graph:u8){
+    d.insert(
+        demo::triple(1,rdf::REIFIES,2).expect(note(
+            demo::triple(3,rdf::REIFIES,4)
+        )),graph);
+}";
+
+/// Entry-point detectors: id, home source, the home's entry points, positive
+/// and negative consumers. The home declares the approved constructor and
+/// traversal; a consumer is judged by what it calls.
+///
+/// `reifier-default-graph` sides cover the known constant (written in full,
+/// imported, or under `vocab`), the literal IRI and the triple-term object, a
+/// call through an import, a triple row and a method row in dataset code, and
+/// leave clean an explicit graph on a quad, a stored triple or a selected graph,
+/// as well as unrelated row terms and constructors. A graph supplied elsewhere
+/// and a shadowed, expired or reassigned handle leave a default row visible.
+/// `rdf-list-walk` sides cover a loop, the literal
+/// IRIs and recursion, delegation to the declared traversal, one term alone
+/// and two terms without iteration.
+pub const STRUCTURE: [StructureFixture; 2] = [
+    (
+        "reifier-default-graph",
+        "/// Home.\npub fn home() {}\n/// Row.\npub fn quad(s:u8,p:u8,o:u8,g:Option<u8>) {}\n/// Triple.\npub fn triple(s:u8,p:u8,o:u8) -> u8 {s}\n/// Insert.\npub fn insert(s:u8,p:u8,o:u8) {}\n/// A dataset.\npub struct Dataset;\nimpl Dataset {\n/// Insert a row.\npub fn insert(&mut self,s:u8,p:u8,o:u8) {}\n/// Construct a row.\npub fn construct(s:u8,p:u8,o:u8) {}\n/// Build a row.\npub fn build(s:u8,p:u8,o:u8) {}\n}",
+        &[
+            "demo::quad",
+            "demo::triple",
+            "demo::insert",
+            "demo::Dataset::insert",
+            "demo::Dataset::construct",
+        ],
+        &[
+            "fn copy(d:&Dataset){demo::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(d:&Dataset){demo::quad(1,\"http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies\",2,None);}",
+            "fn copy(d:&Dataset){demo::quad(1,2,Term::Triple(3),None);}",
+            "fn copy(d:&Dataset,b:&mut Builder){demo::quad(1,rdf::TYPE,b.intern_triple(1,2,3)?,None);}",
+            "use demo::quad as build; fn copy(d:&Dataset){build(1,RDF_REIFIES,2,None);}",
+            "fn copy(d:&Dataset){use demo::quad as build;build(1,Term::iri(RDF_REIFIES),2,None);}",
+            "struct Dataset; impl Dataset {fn copy(&mut self){demo::quad(1,rdf::REIFIES,2,None);}}",
+            "fn copy(g:u8,d:&Dataset){demo::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(graph_name:u8){demo::triple(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut demo::Dataset){d.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&demo::Dataset){demo::Dataset::construct(1,rdf::REIFIES,2);}",
+            "use demo::Dataset as Target; mod other {pub struct Dataset; impl Dataset {pub fn insert(&mut self,s:u8,p:u8,o:u8){}}} fn copy(d:&mut Target,named_graph:u8){{use crate::other::Dataset as Target;d.insert(1,rdf::REIFIES,2);}}",
+            "fn copy(store:&mut Store,d:&Dataset){store.insert(demo::triple(1,rdf::REIFIES,2),None);}",
+            "fn copy(d:&mut demo::Dataset,name:u8){let g:&mut demo::Dataset=d.other(name);g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut Dataset,count:u8){d.insert(demo::triple(1,rdf::REIFIES,2),count);}",
+            "fn copy(d:&Dataset,graph:u8){inspect(demo::triple(1,rdf::REIFIES,2),Some(graph));}",
+            "fn copy(d:&mut Dataset,graph:u8){d.insert(copy_of(demo::triple(1,rdf::REIFIES,2)),Some(graph));}",
+            "fn copy(d:&mut demo::Dataset,name:u8){let g:&mut demo::Dataset=d.graph_mut(name);{let g:&mut demo::Dataset=d.other();g.insert(1,rdf::REIFIES,2);}g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut demo::Dataset,name:u8,g:&mut demo::Dataset){{let g:&mut demo::Dataset=d.graph_mut(name);g.insert(1,rdf::REIFIES,2);}g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);g=d.other(name);g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);(g,_)=(fallback,());g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);for _ in 0..2 {g.insert(1,rdf::REIFIES,2);g=&mut *fallback;}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,mut left:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);while left>0 {g.insert(1,rdf::REIFIES,2);g=&mut *fallback;left-=1;}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,mut left:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);loop {g.insert(1,rdf::REIFIES,2);g=&mut *fallback;if left==0{break;}left-=1;}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,mut again:bool){let mut g:&mut demo::Dataset=d.graph_mut(name);loop {g.insert(1,rdf::REIFIES,2);g=&mut *fallback;if again{again=false;continue;}break;}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,mut again:bool){let mut g:&mut demo::Dataset=d.graph_mut(name);'entries: while {g.insert(1,rdf::REIFIES,2);if again{g=&mut *fallback;again=false;continue 'entries;}true} {break;}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);#[cfg(feature=\"optional\")] {g=fallback;}g.insert(1,rdf::REIFIES,2);}",
+            EXPECT_ARGUMENT_ROW,
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,stop:bool){let mut g:&mut demo::Dataset=d.graph_mut(name);loop {g.insert(1,rdf::REIFIES,2);if stop{g=fallback;break;}}g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);for _ in 0..2 {g.insert(1,rdf::REIFIES,2);loop {g=&mut *fallback;break;}}}",
+            "async fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);async {g=fallback;}.await;g.insert(1,rdf::REIFIES,2);}",
+            "use purrdf_iri::vocab::rdf::REIFIES; fn copy(d:&Dataset){demo::quad(1,REIFIES,2,None);}",
+            "use raf_rdf::vocab; fn copy(d:&Dataset){demo::quad(1,vocab::REIFIES,2,None);}",
+        ],
+        &[
+            "fn copy(d:&Dataset,graph:u8){demo::quad(1,rdf::REIFIES,2,Some(graph));}",
+            "fn copy(d:&Dataset){demo::quad(1,rdf::TYPE,2,None);}",
+            "fn copy(d:&Dataset){demo::quad(rdf::REIFIES,rdf::TYPE,2,None);demo::quad(Term::Triple(3),rdf::TYPE,2,None);}",
+            "fn copy(d:&Dataset,b:&mut Builder){demo::quad(1,rdf::TYPE,b.intern_pair(1,2,3)?,None);demo::quad(1,rdf::REIFIES.replace(\"reifies\",\"type\"),2,None);}",
+            "struct Other; impl Other {fn insert(&mut self,s:u8,p:u8,o:u8){}} fn copy(d:&Dataset,other:&mut Other){other.insert(1,rdf::REIFIES,2);}",
+            "trait Build {fn build(&mut self,s:u8,p:u8,o:u8);} impl Build for demo::Dataset {fn build(&mut self,s:u8,p:u8,o:u8){}} fn copy(d:&mut demo::Dataset){d.build(1,rdf::REIFIES,2);}",
+            "fn copy(d:&Dataset){other::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(){demo::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(#[cfg(any())] d:&Dataset){demo::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(store:&mut Store,d:&Dataset,graph:u8){store.insert(demo::triple(1,rdf::REIFIES,2),Some(graph));}",
+            "fn copy(d:&mut Dataset,name:u8){d.graph_mut(name).insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut Dataset,graph:u8){d.insert(demo::triple(1,rdf::REIFIES,2),graph);}",
+            "fn copy(d:&mut Dataset,name:u8){d.insert(demo::triple(1,rdf::REIFIES,2),GraphName::Named(name));}",
+            "fn copy(d:&mut Dataset,name:u8){d.insert(demo::triple(1,rdf::REIFIES,2),&name);}",
+            "fn copy(d:&mut demo::Dataset,name:u8){let g:&mut demo::Dataset=d.graph_mut(name);g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut Dataset,destination:&GraphName){d.insert(destination,demo::triple(1,rdf::REIFIES,2)?);}",
+            "fn copy(d:&mut Dataset,name:u8){d.graph_mut(name)?.insert(demo::triple(1,rdf::REIFIES,2));}",
+            "fn copy(d:&mut Dataset,graph:u8){d.insert(demo::triple(1,rdf::REIFIES,2).unwrap(),graph);d.insert(demo::triple(1,rdf::REIFIES,2).expect(\"row\"),graph);}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);#[cfg(any())] {g=fallback;}g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);match name {#[cfg(any())] 0=>{g=fallback;},_=>{}}g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);loop {g.insert(1,rdf::REIFIES,2);g=fallback;#[cfg(any())] {continue;}#[cfg(any())] absent!();break;}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);for _ in 0..2 {g.insert(1,rdf::REIFIES,2);g=fallback;break;}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);while name>0 {g.insert(1,rdf::REIFIES,2);g=fallback;break;}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,stop:bool){let mut g:&mut demo::Dataset=d.graph_mut(name);loop {g.insert(1,rdf::REIFIES,2);if stop{g=fallback;break;}}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);{let _unused=async {g=fallback;};}g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,values:&mut [u8]){let g:&mut demo::Dataset=d.graph_mut(name);for _ in 0..2 {{let mut g=&mut *fallback;g=&mut *fallback;}values[g.len()]=0;g.insert(1,rdf::REIFIES,2);}}",
+            "mod other {pub const REIFIES:u8=0;} use crate::other as terms; #[cfg(any())] use raf_rdf::vocab as terms; fn copy(d:&Dataset){demo::quad(1,terms::REIFIES,2,None);}",
+            "fn copy(graph:&mut Graph){graph.insert(1,rdf::REIFIES,2);}",
+            "fn copy(paragraph:u8,grapheme:u8,graphql:u8){demo::quad(1,rdf::REIFIES,2,None);}",
+            "fn copy(d:&Dataset){demo::quad(1,REIFIES,2,None);}",
+            "use other::REIFIES; fn copy(d:&Dataset){demo::quad(1,REIFIES,2,None);}",
+        ],
+    ),
+    (
+        "rdf-list-walk",
+        "/// Home.\npub fn home() {}\n/// Walk.\npub fn walk_list(list:u8) -> u8 {list}\n/// A dataset.\npub struct Dataset;\nimpl Dataset {\n/// Walk a collection.\npub fn walk_list(&mut self) {}\n}",
+        &["demo::walk_list", "demo"],
+        &[
+            "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n-=1;}}",
+            "fn copy(l:&[u8]){for _ in l {let _=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#first\";let _=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#rest\";}}",
+            "fn copy(n:u8){let _=RDF_FIRST;let _=RDF_REST;copy(n);}",
+            "struct Cursor; impl Cursor {fn next(&self){let _=rdf::FIRST;let _=rdf::REST;self.next();}}",
+            "struct Other; impl Other {fn walk_list(&self){}} fn copy(mut n:u8,other:&Other){while n>0 {let _=rdf::FIRST;let _=rdf::REST;other.walk_list();n-=1;}}",
+            "trait Walk {fn walk_list(&self);} impl Walk for demo::Dataset {fn walk_list(&self){}} fn copy(mut n:u8,mut d:demo::Dataset){while n>0 {let _=rdf::FIRST;let _=rdf::REST;d.walk_list();n-=1;}}",
+            "struct Other; impl Other {fn walk_list(&mut self){}} fn copy(mut n:u8,d:&mut Other){#[cfg(any())] let d:&mut demo::Dataset=unreachable!();while n>0 {let _=rdf::FIRST;let _=rdf::REST;d.walk_list();n-=1;}}",
+            "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;#[cfg(any())] demo::walk_list(n);n-=1;}}",
+            "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;#[cfg(any())] {demo::walk_list(n);}n-=1;}}",
+            "fn walk(n:u8)->u8{n} fn copy(mut n:u8){#[cfg(any())] use demo::walk_list as walk;while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=walk(n);}}",
+            "fn copy(mut n:u8){let unused=||demo::walk_list(n);while n>0 {let _=rdf::FIRST;let _=rdf::REST;n-=1;}}",
+            "fn copy(mut n:u8){let unused=async {demo::walk_list(n);};while n>0 {let _=rdf::FIRST;let _=rdf::REST;n-=1;}}",
+            "trait Walk {fn walk_list();} impl Walk for &demo::Dataset {fn walk_list(){}} fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;<&demo::Dataset>::walk_list();n-=1;}}",
+            "use demo::walk_list; fn copy(mut n:u8,walk_list:fn(u8)->u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=walk_list(n);}}",
+            "use purrdf_iri::vocab::rdf::{FIRST, REST}; fn copy(mut n:u8){while n>0 {let _=FIRST;let _=REST;n-=1;}}",
+            "mod other {pub const FIRST:u8=0;pub const REST:u8=0;} #[cfg(any())] use crate::other as terms; use purrdf_iri::vocab::rdf as terms; fn copy(mut n:u8){while n>0 {let _=terms::FIRST;let _=terms::REST;n-=1;}}",
+            "use purrdf_iri::vocab::rdf as terms; #[cfg(any())] mod terms {} fn copy(mut n:u8){while n>0 {let _=terms::FIRST;let _=terms::REST;n-=1;}}",
+            "use ::demo::walk_list as walk; #[cfg(feature=\"optional\")] use ::demo::home as walk; fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=walk(n);}}",
+        ],
+        &[
+            "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=demo::walk_list(n);}}",
+            "use ::demo::walk_list as walk; #[cfg(any())] use ::demo::home as walk; fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=walk(n);}}",
+            "fn copy(mut n:u8){use ::demo::walk_list as walk; #[cfg(any())] use ::demo::home as walk; #[cfg(any())] use ::demo::*; #[cfg(any())] fn walk(n:u8)->u8{n} while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=walk(n);}}",
+            "trait Walk {fn walk_list(&self);} impl Walk for demo::Dataset {fn walk_list(&self){}} fn copy(mut n:u8,d:&mut demo::Dataset){while n>0 {let _=rdf::FIRST;let _=rdf::REST;d.walk_list();n-=1;}}",
+            "fn copy(mut n:u8,mut d:demo::Dataset){while n>0 {let _=rdf::FIRST;let _=rdf::REST;demo::Dataset::walk_list(&mut d);n-=1;}}",
+            "fn copy(mut n:u8,mut d:demo::Dataset){while n>0 {let _=rdf::FIRST;let _=rdf::REST;<demo::Dataset>::walk_list(&mut d);n-=1;}}",
+            "struct State<const N:usize>; impl<const N:usize> State<N>{fn read()->usize{N}} type A=State<{1+2}>; fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;let _=A::read();n=demo::walk_list(n);}}",
+            "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;n-=1;}}",
+            "fn copy(){let _=rdf::FIRST;let _=rdf::REST;}",
+            "fn copy(){let _=rdf::FIRST;let _=rdf::REST;#[cfg(any())] loop {break;}}",
+            "struct Other; impl Other {fn next(&self){}} struct Cursor; impl Cursor {fn next(&self,other:&Other){let _=rdf::FIRST;let _=rdf::REST;other.next();}}",
+            "use other::{FIRST, REST}; fn copy(mut n:u8){while n>0 {let _=FIRST;let _=REST;n-=1;}}",
+            "mod other {pub const FIRST:u8=0;pub const REST:u8=0;} use crate::other as terms; #[cfg(any())] use purrdf_iri::vocab::rdf as terms; fn copy(mut n:u8){while n>0 {let _=terms::FIRST;let _=terms::REST;n-=1;}}",
+            "mod other {pub const FIRST:u8=0;pub const REST:u8=0;} #[cfg(feature=\"optional\")] use crate::other as terms; use purrdf_iri::vocab::rdf as terms; fn copy(mut n:u8){while n>0 {let _=terms::FIRST;let _=terms::REST;n-=1;}}",
+        ],
+    ),
+];
+
 pub const HASHER_ID: &str = "std-default-hasher";
 pub const SOLE_NAME_ID: &str = "sole-name";
 pub const SOLE_NAME_POSITIVE: [&str; 2] = ["fn copy(){}", "#[cfg(test)] mod oracle {fn copy(){}}"];

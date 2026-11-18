@@ -4,7 +4,7 @@
 type: Capability
 id: cap:census-detectors
 title: "Built-in census detectors"
-description: "Eighteen built-in detectors for recurring helpers and RDF representation, each with positive and negative fixtures."
+description: "Twenty built-in detectors for recurring helpers and RDF representation and structure, each with positive and negative fixtures."
 state: delivered
 bindings:
   code:
@@ -23,6 +23,8 @@ bindings:
     - raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields
     - raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence
     - raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope
+    - raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points
+    - raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector
     - raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function
     - raf_census::test_crate::census_gate::foreign_host_import_refuses_method_constructor_and_property_shapes_beside_a_valid_neighbour
     - raf_census::test_crate::census_gate::foreign_host_import_refuses_arguments_it_cannot_place_beside_a_valid_neighbour
@@ -77,6 +79,109 @@ recognizers, not proof of arbitrary semantic equivalence or RDF conformance.
 
 All three representation policies read shipping and nonshipping targets and
 have no ordinary-job home-package exemption.
+
+### RDF structure policies
+<!-- raf:tested-by raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points,raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector -->
+
+`reifier-default-graph` and `rdf-list-walk` judge a function against the home and
+entry points of the job that selects them. A job selects a detector to forbid
+matching code or to validate a variant. Both detectors require a job and read
+shipping code only.
+
+`reifier-default-graph` reports a call, or a method call, that reaches the home or
+an entry point of the job, in a function that handles named graphs, when it
+builds a row for the default graph and the row is a reifier row.
+
+A four-argument row is built for the default graph when the final argument
+spells `None`, `DefaultGraph`, `DEFAULT_GRAPH`, or a call of `default_graph` or
+`default` with no arguments. A three-argument row uses the default graph unless
+its receiver selects a graph or a call directly stores it in a graph.
+
+The storage call has a name containing the word `add`, `insert`, `push`, `store`
+or `write`. It takes the row alongside a graph argument, in either order, or
+takes the row as its only argument on a graph-selecting receiver. A graph argument
+names a variable or field spelled `g`, `name` or with the word `graph`, a variable
+declared with a `GraphName` or `NamedGraph` type spelling, a call such as
+`GraphName::Named(g)` with the word `graph` in its path, or `Some(graph)`. A
+default-graph spelling stays a default graph. The graph applies only to the
+directly stored row. References, parentheses, `?`, `unwrap` and `expect`
+can wrap the row or graph without losing that association.
+
+A receiver selects a graph when it calls a method named for a `graph` with one
+non-default argument, such as `dataset.graph_mut(name)`. A local initialized
+from such a call or another selected local carries the selection in its lexical
+scope until shadowed or reassigned, including in a destructuring assignment.
+A possible reassignment of an incoming handle also applies to later loop
+iterations. A terminal `break` limits the repeated region to one pass when
+its body and condition have no possible `continue`. A branch that ends in an
+unlabeled `break` to that loop and has no possible `continue` contributes its
+writes to the loop exit. An assignment excluded by `cfg(any())` contributes
+no write. A closure or async block used directly as the initializer of a
+wildcard or terminal `let` drops its writes when the initializer is discarded.
+These written-source rules derive the graph from recognizable storage syntax
+and binding declarations.
+
+A row is a reifier row when its predicate is `rdf:reifies`, spelled as `RDF_REIFIES`,
+as `REIFIES` under a path segment named `rdf` (including an imported `REIFIES`,
+resolved through a declaration-preserving `use` chain), as `vocab::REIFIES` or
+as the literal IRI, or when its object is a triple term. The predicate can sit
+inside a recognized IRI constructor such as `Term::iri` or `builder.intern_iri`.
+A triple-term object is a call, method call or struct whose last name is
+`Triple`, `TripleTerm`,
+`triple`, `triple_term`, `new_triple`, `from_triple` or `intern_triple`.
+The same value-preserving wrappers accepted for graph operands also work for
+reifier predicates and triple terms.
+
+A function handles named graphs when a type written in it or its enclosing impl
+has the word `dataset`, `datasets`, `quad` or `quads`, or when an identifier
+has the words `named` and `graph`, or `graph` and `name`, in that order. Words
+are the parts of an identifier split at underscores and capital letters
+(`Dataset`, `QuadStore`, `GraphName`, `named_graph`). Dataset code can name its
+graph `name` or `g` and obtain its evidence through the written type. Other
+words that happen to contain `graph`, such as `paragraph` and `graphql`, give
+no named-graph evidence.
+
+A row with another predicate and an object other than a triple term passes
+this rule. Explicit graphs, calls outside the job's declared entry points and
+functions without named-graph evidence also pass.
+
+`rdf-list-walk` reports a function that names `rdf:first` and `rdf:rest` (as
+`RDF_FIRST` and `RDF_REST`, as `FIRST` and `REST` under a path segment named
+`rdf` after declaration-preserving `use` resolution, or as the literal IRIs),
+contains a `for`, `while` or `loop` expression or calls itself, and calls
+neither the home nor any entry point of the job. A recursive call resolves to
+the function or method being examined. Calls and loops inside a closure or
+async block supply no evidence of delegation or iteration for the enclosing
+function. Delegating to a
+declared entry point, naming only one term or naming both without iteration
+leaves the function clean.
+
+The native source index matches calls by definition identity on each shipping
+reach. It reads direct function and associated paths, including indexed module
+imports, reexports and direct block imports with established lookup context.
+Local callable bindings shadow function names. A dot call can establish an
+inherent method when the receiver is a direct `self` in an inherent method or
+a binding with a written nominal type, and its first receiver candidate matches
+the method's plain `self`, `&self` or `&mut self` exactly. The definition is an
+inherent impl at the indexed crate root. Attributes on the binding and
+definition must preserve their declarations. An uncertain declaration shadows
+any earlier receiver evidence for its name. Calls, loops and RDF terms under
+attributes that may alter their source supply no evidence. Imports whose
+attributes may change their bindings supply no identity. RDF term lookup skips
+imports and lexical shadows excluded by `cfg(any())`. Block-level call lookup
+skips those absent bindings as well. When an absent module-level binding would
+obscure a single live rooted import, call lookup reads the target of that
+import. The lookup through a
+written type uses its declaration scope. Inherent precedence over trait
+candidates requires one nominal type and one exact inherent definition.
+Receiver adjustments, type aliases, dynamic dispatch and macro expansion
+supply no dot call identity. Reference-qualified self types and unsupported
+associated alias projections supply no call identity. Use an explicit
+associated path when the receiver would need an adjustment. Every definition
+a call may resolve to in that reach must be declared for the call to count as
+delegation. The job must name homes and entry points indexed in the workspace
+that is being checked. Both detectors
+name the home as the replacement.
 
 ### Source ownership and byte-layout recognition
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order -->
@@ -144,13 +249,14 @@ the body can be classified as a home.
 ### Detector identities and target eligibility
 <!-- raf:tested-by raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases,raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::fact_detectors_reuse_collected_values_and_keep_their_target_scope,raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields,raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions -->
 
-The census ships eighteen built-in detectors. Each reports hits as `rule:<id>`, where
+The census ships twenty built-in detectors. Each reports hits as `rule:<id>`, where
 `<id>` is the detector id, and a ledger job names the hit in
 `forbiddenFingerprint`. A job may also name a detector in `ratchetedRule`, so that
 its hits are counted sites in the debt record instead of findings (see the
 [debt ratchet](./census-debt-ratchet.md)). Every detector except `home-literal`,
-`vocabulary-literal`, `sole-name` and `foreign-host-import` may be ratcheted; those
-four judge one job's home and context and the ledger refuses to ratchet them. A
+`vocabulary-literal`, `sole-name`, `foreign-host-import`, `reifier-default-graph` and
+`rdf-list-walk` may be ratcheted; those six judge one job's home and context and the
+ledger refuses to ratchet them. A
 syntax detector's site uses the byte of its hit; the fact detectors `hex-table` and
 `json-pointer-escape` state a line, and their site uses the start of that line
 inside the owning item.
@@ -175,15 +281,17 @@ inside the owning item.
 | `serde-json` | all | A written external JSON dependency path or alias. |
 | `rdf-text-writer` | all | A formatting macro whose literal spells the recognized RDF row shape. |
 | `rdf-term-model` | all | A local IRI, blank-node and literal enum without a triple-term alternative. |
+| `reifier-default-graph` | shipping | A reifier row built for the default graph through the home or an entry point, in a function that handles named graphs. |
+| `rdf-list-walk` | shipping | A function that names `rdf:first` and `rdf:rest`, iterates or recurses, and calls neither the home nor an entry point. |
 
-The detectors that read a job's home (`home-literal`, `sole-name`,
-`vocabulary-literal`, `foreign-host-import`) apply only to jobs that name them in `forbidden`. The census
-walks shipping code and every test, bench and example target. The `Reads` column of
+The `home-literal`, `sole-name`, `vocabulary-literal` and `foreign-host-import`
+detectors apply to jobs that name them in `forbidden`. The census walks shipping
+code and every test, bench and example target. The `Reads` column of
 the table names what each detector reads: `shipping` for shipping code only, and `all`
-for shipping code and every test, bench and example target. The nine `shipping`
+for shipping code and every test, bench and example target. The eleven `shipping`
 detectors are `hex-digit-radix`, `json-pointer-escape`, `length-prefix-frame`,
 `le-slice-int`, `align-up-mask`, `div-ceil-by-hand`, `xor-first-mismatch`,
-`home-literal` and `vocabulary-literal`; each marks itself so in its report. The nine
+`home-literal`, `vocabulary-literal`, `reifier-default-graph` and `rdf-list-walk`; each marks itself so in its report. The nine
 `all` detectors also include the three representation policies alongside
 `std-default-hasher`, `foreign-host-import`, `hex-format-loop`, `hex-pair-radix`,
 `hex-table` and `sole-name`. Apart from `sole-name`, `foreign-host-import` and the
@@ -390,9 +498,9 @@ delegation to a native provider.
 
 ## Explanation
 
-These eighteen detectors recognise recurring byte-level encodings, integer layout
-operations, literals, hash-collection defaults, host function imports and RDF
-representation syntax.
+These twenty detectors recognise recurring byte-level encodings, integer layout
+operations, literals, hash-collection defaults, host function imports, RDF
+representation syntax and hand-written RDF structure.
 The shared crate gives each
 consumer the same source ownership, target eligibility and ledger interpretation.
 Domain-specific rules stay in the consuming repository as `Rule` implementations,
@@ -443,6 +551,17 @@ required findings with neighbouring clean source.
 - A fixture per `shipping` detector shows it flags a positive source in shipping
   code and is silent on the same source in a test target, and a fixture per `all`
   detector shows it flags a positive source in both.
+- `reifier-default-graph` fixtures flag a default-graph row with `rdf:reifies` as a
+  constant, as the literal IRI and through an import, and a triple-term object.
+  Default rows remain visible beside unrelated arguments, in nested calls and
+  after graph handles are shadowed, go out of scope or are reassigned. Fixtures
+  leave clean rows with explicit graphs and rows with reifier terms only in the
+  subject, as well as undeclared callees and functions without named-graph
+  evidence. `rdf-list-walk` fixtures
+  flag a loop and a recursion over the two terms, as constants and as literal IRIs,
+  and leave clean the same loop delegating to a declared entry point, one term alone
+  and both terms without iteration. Neither is reported in a test target, and a
+  job that does not declare the entry point sees the delegating function reported.
 - A fixture shows `home-literal`, `sole-name`, `vocabulary-literal` and
   `foreign-host-import` are silent for a job that does not name them.
 - `foreign-host-import` fixtures flag a repeated host function in another package,
@@ -488,4 +607,6 @@ required findings with neighbouring clean source.
 | `raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

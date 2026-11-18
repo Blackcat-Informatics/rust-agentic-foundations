@@ -34,11 +34,7 @@ pub(super) fn collect<'a>(
     scope: &ResolvedJob,
     limits: &mut MatchLimits,
 ) -> Result<JobHits<'a>, Error> {
-    let mut result = JobHits {
-        shared: &collected.hits,
-        contextual: BTreeMap::new(),
-        names: BTreeSet::new(),
-    };
+    let mut result = structures(collected, row, scope)?;
     let home_literal = enabled(row, "home-literal");
     let vocabulary = enabled(row, "vocabulary-literal");
     let sole = enabled(row, "sole-name");
@@ -260,5 +256,86 @@ fn foreign_imports(
         }
     }
     result.contextual.insert(ID.to_owned(), kept);
+    Ok(())
+}
+
+const STRUCTURE_RULES: [(&str, bool); 2] =
+    [("reifier-default-graph", true), ("rdf-list-walk", false)];
+
+pub(super) fn uses_structure(row: &LedgerJob) -> bool {
+    STRUCTURE_RULES
+        .iter()
+        .any(|(id, _)| uses_structure_rule(row, id))
+}
+
+fn uses_structure_rule(row: &LedgerJob, id: &str) -> bool {
+    enabled(row, id)
+        || row
+            .variants
+            .iter()
+            .any(|variant| variant.detector.as_str() == id)
+}
+
+/// The job's hits before its context detectors run, with the structure
+/// detectors already judged against its home and entry points.
+fn structures<'a>(
+    collected: &'a Collected,
+    row: &LedgerJob,
+    scope: &ResolvedJob,
+) -> Result<JobHits<'a>, Error> {
+    let mut result = JobHits {
+        shared: &collected.hits,
+        contextual: BTreeMap::new(),
+        names: BTreeSet::new(),
+    };
+    for (id, delegated) in STRUCTURE_RULES {
+        if uses_structure_rule(row, id) {
+            structure(&mut result, collected, scope, (id, delegated))?;
+        }
+    }
+    Ok(result)
+}
+
+/// Keep the candidates of a structure detector that stand in the right relation
+/// to the job's home and entry points: with `delegated`, a candidate that calls
+/// one of them is a hit (the reifier row is built through a declared
+/// constructor); without it, a candidate that calls none of them is a hit.
+fn structure(
+    result: &mut JobHits<'_>,
+    collected: &Collected,
+    scope: &ResolvedJob,
+    (id, delegated): (&'static str, bool),
+) -> Result<(), Error> {
+    let mut kept = BTreeMap::new();
+    for (key, rows) in collected.hits.get(id).into_iter().flatten() {
+        let placed = collected
+            .offsets
+            .get(id)
+            .and_then(|offsets| offsets.get(key))
+            .map_or(&[][..], Vec::as_slice);
+        if placed.len() != rows.len() {
+            return Err(super::rules::refused(
+                id,
+                "a structure hit has no unique recorded placement",
+            ));
+        }
+        let rows: Vec<_> = rows
+            .iter()
+            .zip(placed)
+            .filter(|(_, placed)| {
+                placed.call_reaches.iter().any(|calls| {
+                    calls
+                        .iter()
+                        .any(|sites| sites.iter().all(|id| scope.home_sources.contains(id)))
+                        == delegated
+                })
+            })
+            .map(|(hit, _)| hit.clone())
+            .collect();
+        if !rows.is_empty() {
+            kept.insert(key.clone(), rows);
+        }
+    }
+    result.contextual.insert(id.to_owned(), kept);
     Ok(())
 }

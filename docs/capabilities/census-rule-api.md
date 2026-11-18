@@ -299,7 +299,7 @@ impl Rule for NoStdSleep {
 `Gate::workspace(root).require_rules(["serde-json"]).assert_clean()` requires
 the selected detector even when the admitted ledger declares no jobs. A
 misspelled ID refuses rather than disabling the check. Job-dependent
-`home-literal`, `vocabulary-literal`, `sole-name` and `foreign-host-import` require ledger homes and
+`home-literal`, `vocabulary-literal`, `sole-name`, `foreign-host-import`, `reifier-default-graph` and `rdf-list-walk` require ledger homes and
 cannot be selected as unscoped requirements.
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
 
@@ -367,10 +367,10 @@ cannot be recorded by debt publication.
 
 ## Explanation
 
-The `Rule` trait is the escape hatch that keeps the shared crate generic. The old
-census copies carried rules about RDF structure and hash domains because there was
-no other place for them. With the trait, those rules live in the repository whose
-types they know, and the shared crate carries none of them.
+The `Rule` trait lets a repository enforce policies for its own RDF vocabulary,
+hash domains and types. Consumers can also select the shared representation and
+structure rules and declare which entry points their jobs recognize. See
+[built-in census detectors](./census-detectors.md).
 
 The negative-fixture requirement comes from the same lesson as the built-in
 detectors. A rule is only trusted when its authors showed what it must not flag.
