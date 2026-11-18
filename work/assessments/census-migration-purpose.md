@@ -9,14 +9,14 @@ inputs:
     name: cap:census-migration#purpose
     digest: ff2546f2d5b62e0b5b0c6df7503ce59056c8af732bf640f2cd28e293e133d132
   - kind: symbol
-    name: cargo_census::bin_crate::cargo_census::cli
-    digest: 547c392073e81db5094db3d7c165ed15741c54c7a512bb6df2c4aca78e142d19
-  - kind: symbol
-    name: cargo_census::bin_crate::cargo_census::command
-    digest: 813218ae31302e6226804f7465c5123d424cb94cef39ae9b212757bc296e2be4
-  - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
-    digest: a4871ea9cc74cb72b33d4d5a7e1651dae91ecbc96733d0f326a2f80bdefd4de2
+    digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
+  - kind: symbol
+    name: cargo_census::cli
+    digest: 3e96aa556400aef3652a1f0ec080b371603411975eeef2769dd1a3ea5d36e336
+  - kind: symbol
+    name: cargo_census::command
+    digest: 566e9fe0014975c32ba52b80aea8d70d3677c5063992810543a766e32d940b8f
   - kind: symbol
     name: raf_census::ForeignField
     digest: ebd6fd21ce8d57aa961b445fc5759723901623cfa75ea3b47d088a33eb223e79

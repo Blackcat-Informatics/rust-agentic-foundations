@@ -42,8 +42,7 @@ pub(super) fn evaluate(
     let mut reports = Vec::new();
     let mut copies = BTreeMap::new();
     for row in ledger.jobs() {
-        validate_dependencies(row, hits)?;
-        extension(ledger, row, extensions)?;
+        validate_job_registration(ledger, row, |id| hits.contains_key(id), extensions)?;
         evidence_links(tree, workspace, references, row, &mut findings)?;
         stale_matchers(&census, row, (hits, &sink), &mut findings);
         let Some(resolved) = resolve_job(
@@ -236,15 +235,12 @@ fn collect_patterns(
     collected: &mut rules::Collected,
     limits: &mut MatchLimits,
 ) -> Result<(), Error> {
-    for pattern in ledger.patterns() {
-        if collected.hits.contains_key(pattern.id.as_str()) {
-            return Err(policy(&format!(
-                "pattern {:?} conflicts with a registered rule id",
-                pattern.id
-            )));
-        }
-        collected.hits.insert(pattern.id.clone(), BTreeMap::new());
-    }
+    register_pattern_ids(ledger, |id| {
+        collected
+            .hits
+            .insert(id.to_owned(), BTreeMap::new())
+            .is_none()
+    })?;
     for found in super::patterns::collect(
         ledger.patterns(),
         workspace,
@@ -277,6 +273,21 @@ fn collect_patterns(
                 call_reaches: Vec::new(),
             },
         )?;
+    }
+    Ok(())
+}
+
+pub(super) fn register_pattern_ids<'a>(
+    ledger: &'a Ledger,
+    mut register: impl FnMut(&'a str) -> bool,
+) -> Result<(), Error> {
+    for pattern in ledger.patterns() {
+        if !register(&pattern.id) {
+            return Err(policy(&format!(
+                "pattern {:?} conflicts with a registered rule id",
+                pattern.id
+            )));
+        }
     }
     Ok(())
 }
@@ -662,10 +673,15 @@ fn has_hit(hits: &rules::JobHits<'_>, id: &str, unit: &Unit) -> bool {
     })
 }
 
-fn validate_dependencies(row: &LedgerJob, hits: &rules::Hits) -> Result<(), Error> {
+pub(super) fn validate_job_registration(
+    ledger: &Ledger,
+    row: &LedgerJob,
+    has_rule: impl Fn(&str) -> bool,
+    extensions: &[Box<dyn LedgerExtension>],
+) -> Result<(), Error> {
     for fingerprint in &row.job.forbidden.fingerprints {
         if let Fingerprint::Rule(id) = fingerprint
-            && !hits.contains_key(id.as_str())
+            && !has_rule(id.as_str())
         {
             return Err(Error::RegistrationRequired {
                 job: row.job.id.clone(),
@@ -677,7 +693,7 @@ fn validate_dependencies(row: &LedgerJob, hits: &rules::Hits) -> Result<(), Erro
         }
     }
     for variant in &row.variants {
-        if variant.detector != "isomorphic" && !hits.contains_key(variant.detector.as_str()) {
+        if variant.detector != "isomorphic" && !has_rule(variant.detector.as_str()) {
             return Err(Error::RegistrationRequired {
                 job: row.job.id.clone(),
                 component: format!(
@@ -687,7 +703,7 @@ fn validate_dependencies(row: &LedgerJob, hits: &rules::Hits) -> Result<(), Erro
             });
         }
     }
-    Ok(())
+    extension(ledger, row, extensions)
 }
 
 fn extension(

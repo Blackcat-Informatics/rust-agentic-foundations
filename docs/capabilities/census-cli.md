@@ -9,9 +9,11 @@ state: delivered
 bindings:
   code:
     - cargo_census::bin_crate::cargo_census::main
-    - cargo_census::bin_crate::cargo_census::cli
-    - cargo_census::bin_crate::cargo_census::command
-    - cargo_census::bin_crate::cargo_census::error
+    - cargo_census::run
+    - cargo_census::cli
+    - cargo_census::command
+    - cargo_census::error
+    - raf_census::Gate::validate_tree_registrations
     - raf_census::registered
     - raf_census::RegisteredCheck
     - raf_census::RegisteredDebtWrite
@@ -40,7 +42,8 @@ bindings:
     - cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy
     - cargo_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines
     - cargo_census::test_crate::delivery::self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist
-    - cargo_census::bin_crate::cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds
+    - cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds
+    - cargo_census::test_crate::delivery::registered_queries_share_cli_bytes_and_refuse_before_output
     - cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory
     - cargo_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict
     - cargo_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set
@@ -66,6 +69,13 @@ Expose native duplication and ledger data without building or executing reposito
 **Static contract.** `check` evaluates the native library Gate for the selected workspace. `index`, `job`, `count` and `fingerprint` derive complete native reports from that Gate. The CLI accepts no package/example executable selector and never invokes Cargo, tests, examples or custom repository binaries. Custom Rust registrations remain explicit library API operations performed by their caller; repository contents cannot instantiate them automatically.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
+A repository binary supplies a Gate configuration callback to `cargo_census::run`. The callback installs repository rules and ledger extension validators after the front end validates the arguments. `job`, `count` and `fingerprint` use the configured Gate and the same index queries and renderers as the stock binary.
+
+`baseline` in the registered binary validates the ledger's rule registrations and extensions before rendering with the default Census options. The registered checks cover rule fixtures and required rules. Job rule references resolve against built-in detectors, declarative patterns and registered rules. Source matching, reference selection and debt evaluation belong to the other Gate operations. The stock baseline requires only the workspace source.
+
+Both carriers preserve the stock report bytes when an accepted extension is the only ledger difference. A refused registration exits before the query writes a report to stdout or a file.
+<!-- raf:tested-by cargo_census::test_crate::delivery::registered_queries_share_cli_bytes_and_refuse_before_output -->
+
 `baseline` discovers structure through Census with default options without adopting debt. `dump-ledger` reads the selected native ledger. Reports use canonical RDF with explicit format selection and bounded complete index serialization. `--out` exclusively creates a new .ttl or .nt data file after serialization; existing files, source extensions and Git administration destinations refuse. Stdout mode writes no repository data.
 <!-- raf:tested-by cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration -->
 
@@ -82,7 +92,7 @@ Expose native duplication and ledger data without building or executing reposito
 <!-- raf:tested-by cargo_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry,cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour -->
 
 **Self-test.** `self-test` and the library call `Gate::self_test` run a fixed set of seeded in-memory workspaces through the same evaluation as `check`, and report one `pass ID` or `fail ID: reason` line per case, then a `N cases, M failed` line. The command needs no workspace and `--workspace` is ignored. It reads and writes no file, creates nothing and prints no path or clock reading, so two runs of one build print identical text. The exit status is 0 only when every case holds. The cases check the evaluation engine, each built-in detector, the sanction and ratchet logic and the two grouping behaviours of the normal form, all over in-memory sources; a census that finds nothing where a case seeds a copy fails that named case instead of passing. No case reads the on-disk tree backend or compares the running build with any other. Rules registered on the Gate join the run as one `rule/ID/fixtures` case each, from their own positive and negative fixtures; required rules, extensions and reference roots do not apply.
-<!-- raf:tested-by cargo_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines,cargo_census::test_crate::delivery::self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist,cargo_census::bin_crate::cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds,raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text -->
+<!-- raf:tested-by cargo_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines,cargo_census::test_crate::delivery::self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist,cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds,raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text -->
 
 The cases, in the order they run:
 
@@ -100,6 +110,25 @@ The cases, in the order they run:
 
 The documented data path is illustrated by `raf_census::example_crate::registered` and `rust_agentic_foundations::example_crate::repository_census`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
+To host the full front end, depend on `cargo-census` and return its status from
+your executable's `main`. Supply an `install_policy` function that accepts
+the selected `raf_census::Gate` and returns it with the repository's rules and
+validators.
+
+```rust
+fn main() -> std::process::ExitCode {
+    cargo_census::run(
+        std::env::args_os(),
+        Some(install_policy),
+        &mut std::io::stdout(),
+        &mut std::io::stderr(),
+    )
+}
+```
+
+The executable accepts `job ID`, `count ID`, `fingerprint SYMBOL` and
+`baseline` directly, with the standard workspace and output options.
+
 Select a workspace with `--workspace DIRECTORY`. Use `cargo census check`, `cargo census index`, `cargo census baseline`, `cargo census job ID`, `cargo census count ID` or `cargo census fingerprint SYMBOL`. Use `--max-index-bytes` for an explicit bounded index allowance. Seal registry dependencies with `cargo census check --seal-registry acme-core --registry-features acme-core=default,std` after `cargo fetch --locked`. Require module paths to stay in their package with `cargo census check --require-module-paths-in-package`, and pass the same option to `debt --write`. Compare with a sibling repository at a reviewed commit with `cargo census check --reference-repo ../upstream --reference-commit COMMIT`, or name the commit in a pin file with `--reference-pin-file pins.toml --reference-pin-key upstream.rev`. Run `cargo census self-test` in a consumer gate before `check` to prove the installed census still detects seeded copies; it needs no workspace. A library caller uses `Gate::self_test` and reads `SelfTest::passed`, `SelfTest::cases` and its `Display` text. Help describes native migration and explicit debt options.
 
 `cargo census embedded report|check` uses the separate source-region analysis.
@@ -109,7 +138,7 @@ for its syntax profile, resource-admission limits and shrink-only contract.
 
 ## Examples
 
-A repository may contain a build script, example and test whose bodies write a marker and panic. `index` reads their source and returns the same native index as the direct library call. None of those bodies executes and no target directory is created. Exporting to src/lib.rs refuses beside successful creation of report.ttl. `self-test` run in an empty directory prints `pass` lines for every case and `60 cases, 0 failed`, exits 0 and leaves the directory empty; a library report for a Gate with a registered rule whose positive fixture produces no hit fails and prints a `fail rule/ID/fixtures` line naming the refused fixture; the command itself never includes registered rules, and exits 1 when any of its own cases fail.
+A repository may contain a build script, example and test whose bodies write a marker and panic. `index` reads their source and returns the same native index as the direct library call. None of those bodies executes and no target directory is created. Exporting to src/lib.rs refuses beside successful creation of report.ttl. The stock `self-test` run in an empty directory prints `pass` lines for every case and `60 cases, 0 failed`, exits 0 and leaves the directory empty. A Gate with a registered rule whose positive fixture produces no hit reports a `fail rule/ID/fixtures` line naming the refused fixture. The registered front end includes the repository's rule cases and returns exit 1 when a case fails.
 
 ## Constraints
 
@@ -133,7 +162,7 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::bin_crate::cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds` | test | [Contract](#contract) |
+| `cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
@@ -145,6 +174,7 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::delivery::module_paths_in_package_are_required_by_the_flag_beside_a_clean_run_without_it` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::registered_queries_share_cli_bytes_and_refuse_before_output` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration` | test | [Contract](#contract) |

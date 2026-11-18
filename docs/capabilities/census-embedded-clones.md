@@ -16,7 +16,7 @@ bindings:
     - raf_census::embedded::error::InspectionError
     - raf_census::embedded::error::InspectionError::cause
     - raf_census::embedded::publication::write_debt
-    - cargo_census::bin_crate::cargo_census::embedded
+    - cargo_census::embedded
     - raf_census::embedded::analysis::Analysis
     - raf_census::embedded::run::Run::syntax_excesses
     - raf_census::embedded::analysis::SyntaxExcess

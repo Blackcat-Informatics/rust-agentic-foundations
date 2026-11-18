@@ -7,19 +7,22 @@ subject: cap:census-cli#examples
 inputs:
   - kind: section
     name: cap:census-cli#examples
-    digest: 7b77ca94bb863420380f9a551156922cbea72499449c809d56583517c1fec2c2
-  - kind: symbol
-    name: cargo_census::bin_crate::cargo_census::cli
-    digest: 547c392073e81db5094db3d7c165ed15741c54c7a512bb6df2c4aca78e142d19
-  - kind: symbol
-    name: cargo_census::bin_crate::cargo_census::command
-    digest: 813218ae31302e6226804f7465c5123d424cb94cef39ae9b212757bc296e2be4
-  - kind: symbol
-    name: cargo_census::bin_crate::cargo_census::error
-    digest: 331d8131efcf1a764775555b05c2124f98ed36e33df07eae42edb8cc197e4f56
+    digest: b626170b461eef615552dfd397f211c287e487988f9badea20fa458482fb1d88
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
-    digest: a4871ea9cc74cb72b33d4d5a7e1651dae91ecbc96733d0f326a2f80bdefd4de2
+    digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
+  - kind: symbol
+    name: cargo_census::cli
+    digest: 3e96aa556400aef3652a1f0ec080b371603411975eeef2769dd1a3ea5d36e336
+  - kind: symbol
+    name: cargo_census::command
+    digest: 566e9fe0014975c32ba52b80aea8d70d3677c5063992810543a766e32d940b8f
+  - kind: symbol
+    name: cargo_census::error
+    digest: b3fb5e6cd55bac3e256734f2500b73ca4260be411f757c05dde76f18f94e2294
+  - kind: symbol
+    name: cargo_census::run
+    digest: 94bf9a49cb1bb78ff050243e9a7dfe1fec46892fb2efde5644ba998f2946ee2f
   - kind: symbol
     name: raf_census::CHECK_PROTOCOL_VERSION
     digest: f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f
@@ -29,6 +32,9 @@ inputs:
   - kind: symbol
     name: raf_census::Gate::self_test
     digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86
+  - kind: symbol
+    name: raf_census::Gate::validate_tree_registrations
+    digest: 5f2ee6a929716b249130719f50eb9e64576534fb57f8e703f0901f4c93bb42f3
   - kind: symbol
     name: raf_census::MAX_CHECK_RESPONSE_BYTES
     digest: c8a061c28be622be14d14f7667e80cf9fa3c2b5f3bc44a9dcbc0a5b5561caa0c

@@ -5,14 +5,18 @@
 
 use raf_fixtures::{files, git_repo, layout};
 
-use raf_census::{Baseline, Census, CensusOptions, DebtRecord, Gate, Ledger, MAX_LEDGER_BYTES};
+use raf_census::{
+    Baseline, Census, CensusOptions, DebtRecord, Gate, Ledger, LedgerExtension,
+    LedgerExtensionGraph, MAX_LEDGER_BYTES,
+};
 use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
 use raf_source::DiskTree;
 use std::{
+    ffi::OsString,
     fmt::Write as _,
     fs,
     path::Path,
-    process::{Command, Output},
+    process::{Command, ExitCode, Output},
 };
 
 fn put(graph: &mut Builder, subject: &str, key: &str, object: Term) {
@@ -30,6 +34,14 @@ fn put(graph: &mut Builder, subject: &str, key: &str, object: Term) {
 }
 
 fn ledger(version: u32) -> String {
+    ledger_graph(version)
+        .finish()
+        .unwrap()
+        .to_text(Format::Turtle)
+        .unwrap()
+}
+
+fn ledger_graph(version: u32) -> Builder {
     let mut graph = Builder::new();
     put(
         &mut graph,
@@ -69,20 +81,24 @@ fn ledger(version: u32) -> String {
         "forbiddenConstant",
         Term::typed_literal("7", vocab::INTEGER),
     );
-    graph.finish().unwrap().to_text(Format::Turtle).unwrap()
+    graph
 }
 
 fn fixture() -> purrdf_testkit::TempDir {
     let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
-    fs::create_dir(scratch.path().join("src")).unwrap();
+    source_fixture(scratch.path());
+    fs::write(scratch.path().join("helpers-ledger.ttl"), ledger(1)).unwrap();
+    scratch
+}
+
+fn source_fixture(root: &Path) {
+    fs::create_dir(root.join("src")).unwrap();
     fs::write(
-        scratch.path().join("Cargo.toml"),
+        root.join("Cargo.toml"),
         "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n[workspace]\n",
     )
     .unwrap();
-    source(scratch.path(), 2);
-    fs::write(scratch.path().join("helpers-ledger.ttl"), ledger(1)).unwrap();
-    scratch
+    source(root, 2);
 }
 
 fn source(root: &Path, copies: usize) {
@@ -116,6 +132,161 @@ fn run(root: &Path, words: &[&str]) -> Output {
             .current_dir(root)
             .args(words),
     )
+}
+
+const OWNER: &str = "urn:example:query-owner";
+
+struct QueryOwner;
+
+impl LedgerExtension for QueryOwner {
+    fn validate(&self, _: &str, graph: LedgerExtensionGraph<'_>) -> Option<Result<(), String>> {
+        let node = graph.root();
+        let mut owners = node.values(OWNER);
+        let owner = owners.next()?;
+        Some(
+            if owner.literal() == Some(("demo", vocab::STRING)) && owners.next().is_none() {
+                Ok(())
+            } else {
+                Err("query owner must be demo".into())
+            },
+        )
+    }
+}
+
+fn query_ledger(owner: Option<&str>, max_file_bytes: Option<u32>) -> String {
+    let mut graph = ledger_graph(raf_census::NORMAL_FORM);
+    put(&mut graph, "", "minTokens", Term::integer(1));
+    put(&mut graph, "", "pattern", Term::iri("#pattern"));
+    put(
+        &mut graph,
+        "#pattern",
+        "type",
+        Term::iri(format!("{}Pattern", vocab::REPORT)),
+    );
+    for (key, value) in [
+        ("patternId", "literal-seven"),
+        ("summary", "Use the approved constant"),
+        ("tokens", "7"),
+    ] {
+        put(&mut graph, "#pattern", key, Term::simple_literal(value));
+    }
+    for (key, value) in [
+        ("forbiddenPattern", "literal-seven"),
+        ("forbiddenFingerprint", "rule:literal-seven"),
+    ] {
+        put(&mut graph, "#job", key, Term::simple_literal(value));
+    }
+    if let Some(limit) = max_file_bytes {
+        put(&mut graph, "", "maxFileBytes", Term::integer(limit));
+    }
+    if let Some(owner) = owner {
+        put(&mut graph, "#job", "extension", Term::iri("#owner"));
+        put(
+            &mut graph,
+            "#owner",
+            "type",
+            Term::iri(format!("{}Extension", vocab::REPORT)),
+        );
+        graph
+            .insert(Triple {
+                subject: Term::iri("#owner"),
+                predicate: Term::iri(OWNER),
+                object: Term::simple_literal(owner),
+            })
+            .unwrap();
+    }
+    graph.finish().unwrap().to_text(Format::Turtle).unwrap()
+}
+
+fn query_gate(gate: Gate) -> Gate {
+    gate.extensions([Box::new(QueryOwner) as Box<dyn LedgerExtension>])
+}
+
+fn registered_query(
+    root: &Path,
+    words: &[&str],
+    configure: impl FnOnce(Gate) -> Gate,
+) -> (ExitCode, Vec<u8>, String) {
+    let args = [
+        OsString::from("repository-census"),
+        OsString::from("--workspace"),
+        root.as_os_str().into(),
+    ]
+    .into_iter()
+    .chain(words.iter().copied().map(OsString::from));
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    let status = cargo_census::run(args, Some(configure), &mut stdout, &mut stderr);
+    (status, stdout, String::from_utf8(stderr).unwrap())
+}
+
+/// Registered queries keep the stock report bytes and require accepted policy
+/// before publishing a result. Argument refusal precedes Gate configuration.
+#[test]
+fn registered_queries_share_cli_bytes_and_refuse_before_output() {
+    let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
+    let root = scratch.path();
+    source_fixture(root);
+    let ledger = root.join(raf_census::LEDGER_FILE);
+    fs::write(&ledger, query_ledger(None, None)).unwrap();
+    let commands: &[&[&str]] = &[
+        &["job", "number"],
+        &["count", "number"],
+        &["fingerprint", "demo::home", "--format", "turtle"],
+        &["baseline"],
+    ];
+    let expected: Vec<_> = commands
+        .iter()
+        .map(|words| {
+            let result = run(root, words);
+            assert!(
+                result.status.success() && !result.stdout.is_empty(),
+                "{result:?}"
+            );
+            result.stdout
+        })
+        .collect();
+
+    fs::write(&ledger, query_ledger(Some("demo"), None)).unwrap();
+    for (words, expected) in commands.iter().zip(&expected) {
+        let (status, output, diagnostics) = registered_query(root, words, query_gate);
+        assert_eq!(status, ExitCode::SUCCESS, "{words:?}: {diagnostics}");
+        assert_eq!(&output, expected, "{words:?}");
+        assert_eq!(diagnostics, "");
+    }
+
+    let (status, output, diagnostics) =
+        registered_query(root, &["baseline"], std::convert::identity);
+    assert_eq!(status, ExitCode::from(2));
+    assert!(output.is_empty() && diagnostics.contains("unclaimed extension"));
+
+    // Ledger source limits belong to Gate evaluation. The registered
+    // baseline admits the same extension and still uses the Census defaults.
+    fs::write(&ledger, query_ledger(Some("demo"), Some(1))).unwrap();
+    assert!(query_gate(Gate::workspace(root)).check().is_err());
+    let (status, output, diagnostics) = registered_query(root, &["baseline"], query_gate);
+    assert_eq!(status, ExitCode::SUCCESS, "{diagnostics}");
+    assert_eq!(output, expected[3]);
+
+    fs::write(&ledger, query_ledger(Some("foreign"), None)).unwrap();
+    for words in commands {
+        let (status, output, diagnostics) = registered_query(root, words, query_gate);
+        assert_eq!(status, ExitCode::FAILURE, "{words:?}: {diagnostics}");
+        assert!(output.is_empty() && diagnostics.contains("query owner must be demo"));
+    }
+    let destination = root.join("refused.nt");
+    let args = ["baseline", "--out", destination.to_str().unwrap()];
+    let (status, output, diagnostics) = registered_query(root, &args, query_gate);
+    assert_eq!(status, ExitCode::FAILURE, "{diagnostics}");
+    assert!(output.is_empty() && !destination.exists());
+
+    let (status, output, diagnostics) =
+        registered_query(root, &["job", "number", "--unknown"], |_| {
+            panic!("invalid arguments reached Gate configuration")
+        });
+    assert_eq!(status, ExitCode::from(2));
+    assert!(output.is_empty() && diagnostics.contains("--unknown"));
 }
 
 #[test]

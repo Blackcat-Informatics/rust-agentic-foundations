@@ -260,7 +260,7 @@ fn registered_hits(
     Ok(())
 }
 
-fn requested<'a>(
+pub(super) fn requested<'a>(
     ledger: &'a Ledger,
     required: &'a [String],
     registered: &BTreeSet<&str>,
@@ -299,7 +299,7 @@ fn requested<'a>(
     Ok(requested)
 }
 
-fn admit(rules: &[Box<dyn Rule>]) -> Result<Vec<(&'static str, &dyn Rule)>, Error> {
+pub(super) fn admit(rules: &[Box<dyn Rule>]) -> Result<Vec<(&'static str, &dyn Rule)>, Error> {
     let mut ids = BTreeSet::new();
     let mut admitted = Vec::new();
     for rule in rules {

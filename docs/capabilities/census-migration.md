@@ -22,8 +22,8 @@ bindings:
     - raf_census::ReportKind::max_bytes
     - raf_census::upgrade_report_form
     - cargo_census::bin_crate::cargo_census::main
-    - cargo_census::bin_crate::cargo_census::cli
-    - cargo_census::bin_crate::cargo_census::command
+    - cargo_census::cli
+    - cargo_census::command
   tests:
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
     - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence

@@ -16,6 +16,7 @@ use std::{io::Write, path::Path};
 
 pub(crate) fn run(
     args: &Args,
+    configure: Option<impl FnOnce(Gate) -> Gate>,
     output: &mut dyn Write,
     diagnostics: &mut dyn Write,
 ) -> Result<u8, crate::error::Error> {
@@ -48,6 +49,10 @@ pub(crate) fn run(
         })?;
     }
     let gate = Gate::workspace(&args.workspace).external_references(external);
+    let (gate, registered) = match configure {
+        Some(configure) => (configure(gate), true),
+        None => (gate, false),
+    };
     match &args.command {
         Command::Embedded { command } => {
             crate::embedded::run(&gate.root()?, command, output, diagnostics)
@@ -58,7 +63,13 @@ pub(crate) fn run(
             Ok(0)
         }
         Command::Baseline { format, out } => {
-            baseline(&gate.root()?, *format, out.as_deref(), output)?;
+            baseline(
+                &gate.root()?,
+                registered.then_some(&gate),
+                *format,
+                out.as_deref(),
+                output,
+            )?;
             Ok(0)
         }
         Command::Check(policy) => {
@@ -324,6 +335,7 @@ fn dump_ledger(
 
 fn baseline(
     root: &Path,
+    registration: Option<&Gate>,
     format: RdfFormat,
     out: Option<&Path>,
     output: &mut dyn Write,
@@ -332,6 +344,9 @@ fn baseline(
         file: root.display().to_string(),
         source,
     })?;
+    if let Some(gate) = registration {
+        gate.validate_tree_registrations(&tree)?;
+    }
     let report = Census::load(&tree, &["."], &CensusOptions::default())?.baseline();
     let text = match format {
         RdfFormat::Ntriples => report.to_ntriples()?,
