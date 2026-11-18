@@ -43,7 +43,7 @@ pub(crate) enum Command {
         #[arg(long)]
         out: Option<PathBuf>,
     },
-    /// Discover structural duplication without evaluating or writing policy.
+    /// Discover structural duplication with the default Census options.
     Baseline {
         /// Native RDF 1.2 report carrier.
         #[arg(long, value_enum, default_value = "ntriples")]

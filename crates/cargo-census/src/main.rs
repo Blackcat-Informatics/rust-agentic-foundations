@@ -1,34 +1,17 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Registered checks, ledger migration and debt recording through the shared Gate.
+//! Cargo entry point for the Census command line.
 
-mod cli;
-mod command;
-mod embedded;
-mod error;
-
-use std::io::{self, Write as _};
+use raf_census::Gate;
+use std::io;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    let args = match cli::parse(std::env::args_os()) {
-        Ok(args) => args,
-        Err(error) => {
-            let status = u8::try_from(error.exit_code()).unwrap_or(2);
-            return if error.print().is_ok() {
-                ExitCode::from(status)
-            } else {
-                ExitCode::FAILURE
-            };
-        }
-    };
-    match command::run(&args, &mut io::stdout().lock(), &mut io::stderr().lock()) {
-        Ok(code) => ExitCode::from(code),
-        Err(error) => {
-            let code = error.exit_code();
-            let _ = writeln!(io::stderr().lock(), "cargo-census: {error}");
-            ExitCode::from(code)
-        }
-    }
+    cargo_census::run(
+        std::env::args_os(),
+        None::<fn(Gate) -> Gate>,
+        &mut io::stdout(),
+        &mut io::stderr(),
+    )
 }

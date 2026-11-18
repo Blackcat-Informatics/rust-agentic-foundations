@@ -9,8 +9,8 @@ inputs:
     name: cap:census-embedded-clones#purpose
     digest: 0e50bae57201f4cbeea4604ab35da07641ed6ef278cf6a47683aa576c0c1336e
   - kind: symbol
-    name: cargo_census::bin_crate::cargo_census::embedded
-    digest: a6a1dccbf353dc8e973e5eb26480a7cf11eaadc6596af48334949fb8ce546c21
+    name: cargo_census::embedded
+    digest: 466c7d52136e2ced24a8da3e510904c6a7b044844fc2f215970f1e87c59bd11f
   - kind: symbol
     name: raf_census::embedded
     digest: 4ece44eefb8209fcd850d4dd39e7ee5a34639f8fa0f27760f0fef91b5c824c78

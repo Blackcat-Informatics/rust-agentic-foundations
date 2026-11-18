@@ -250,6 +250,37 @@ impl Gate {
         self
     }
 
+    /// Validate the ledger's executable registrations in the supplied tree.
+    ///
+    /// Reads the workspace ledger, admits registered rule fixtures, and checks
+    /// required rules, job rule dependencies and extension validators. Source
+    /// matching, references and debt belong to the full Gate evaluation.
+    ///
+    /// # Errors
+    /// Refuses an unreadable or invalid ledger, unavailable or invalid rule
+    /// registrations, and extensions carrying data without exactly one
+    /// accepting validator.
+    pub fn validate_tree_registrations(&self, tree: &impl Tree) -> Result<(), Error> {
+        let ledger = read_ledger(tree)?;
+        let admitted = rules::admit(&self.rules)?;
+        let mut registered: std::collections::BTreeSet<&str> =
+            admitted.iter().map(|(id, _)| *id).collect();
+        rules::requested(&ledger, &self.required_rules, &registered)?;
+        for id in crate::detectors::ids() {
+            registered.insert(id);
+        }
+        evaluate::register_pattern_ids(&ledger, |id| registered.insert(id))?;
+        for row in ledger.jobs() {
+            evaluate::validate_job_registration(
+                &ledger,
+                row,
+                |id| registered.contains(id),
+                &self.extensions,
+            )?;
+        }
+        Ok(())
+    }
+
     /// Check the real workspace through bounded source-tree reads.
     ///
     /// # Errors
