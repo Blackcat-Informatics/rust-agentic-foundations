@@ -81,7 +81,7 @@ pub(crate) fn facts(unit: &crate::Unit) -> Vec<RawHit> {
             rule: "hex-table",
             byte: unit.start_byte,
             line: unit.line,
-            calls: Vec::new(),
+            call_evidence: None,
             message: format!(
                 "a {} digit table; use the approved base16 implementation",
                 table.name()
@@ -97,7 +97,7 @@ pub(crate) fn facts(unit: &crate::Unit) -> Vec<RawHit> {
                     rule: "json-pointer-escape",
                     byte: unit.start_byte,
                     line: literal.line,
-                    calls: Vec::new(),
+                    call_evidence: None,
                     message:
                         "a JSON Pointer escape written by hand; use the approved pointer encoder"
                             .into(),
@@ -108,14 +108,41 @@ pub(crate) fn facts(unit: &crate::Unit) -> Vec<RawHit> {
     hits
 }
 
+/// A call spelling at the byte where its lookup context is known.
+#[derive(Clone)]
+pub(crate) struct Call {
+    pub(crate) byte: usize,
+    pub(crate) path: CallPath,
+    pub(crate) receiver: Option<ReceiverMode>,
+}
+
+/// The unchanged receiver type at the first step of a dot-call lookup.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReceiverMode {
+    Value,
+    Shared,
+    Mutable,
+}
+
+#[derive(Clone)]
+pub(crate) enum CallPath {
+    Written(String),
+    Import(String),
+    SelfType(String),
+}
+
+pub(crate) enum CallEvidence {
+    Reifier(Call),
+    List { calls: Vec<Call>, looped: bool },
+}
+
 pub(crate) struct RawHit {
     pub(crate) rule: &'static str,
     pub(crate) byte: usize,
     pub(crate) line: usize,
     pub(crate) message: String,
-    /// The callees a job-scoped detector observed, for the gate to judge
-    /// against the entry points of each job; empty for every other detector.
-    pub(crate) calls: Vec<String>,
+    /// Unresolved evidence for the job-scoped structure detectors.
+    pub(crate) call_evidence: Option<CallEvidence>,
 }
 
 impl RawHit {
@@ -125,7 +152,7 @@ impl RawHit {
             byte: span.byte_range().start,
             line: span.start().line,
             message: message.into(),
-            calls: Vec::new(),
+            call_evidence: None,
         }
     }
 
@@ -144,8 +171,9 @@ pub(crate) struct Refusal {
 pub(crate) fn collect(
     file: &syn::File,
     requested: &std::collections::BTreeSet<&str>,
-) -> Result<Vec<RawHit>, Refusal> {
+) -> Result<SyntaxHits, Refusal> {
     let mut hits = Vec::new();
+    let mut receivers = Vec::new();
     if layout::RULES.iter().any(|id| requested.contains(id)) {
         hits.extend(layout::collect(file));
     }
@@ -163,7 +191,14 @@ pub(crate) fn collect(
     }
     if structure::RULES.iter().any(|id| requested.contains(id)) {
         hits.extend(structure::collect(file));
+        receivers = structure::receivers(file);
     }
     hits.retain(|hit| requested.contains(hit.rule));
-    Ok(hits)
+    Ok(SyntaxHits { hits, receivers })
+}
+
+#[derive(Default)]
+pub(crate) struct SyntaxHits {
+    pub(crate) hits: Vec<RawHit>,
+    pub(crate) receivers: Vec<(usize, ReceiverMode)>,
 }

@@ -9,26 +9,30 @@
 //! candidate with the callees it observed, and the gate keeps the candidates
 //! that stand in the wrong relation to the entry points of each job.
 
+use purrdf_iri::vocab::rdf;
 use syn::ext::IdentExt as _;
+use syn::spanned::Spanned as _;
 use syn::visit::Visit;
 
-use super::RawHit;
-use super::names::{ScopedNames, visit_scopes};
-use crate::syntax::Names;
+use super::names::{ScopedNames, call_path, visit_scopes};
+use super::{Call, CallEvidence, CallPath, RawHit, ReceiverMode};
+use crate::syntax::{
+    Names, expression_attributes, inert_attributes as inert_receiver_attributes, visit_import_paths,
+};
 
 pub(super) const REIFIER: &str = "reifier-default-graph";
 pub(super) const LIST_WALK: &str = "rdf-list-walk";
 pub(super) const RULES: [&str; 2] = [REIFIER, LIST_WALK];
 
-const RDF_NAMESPACE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 /// Names under which a triple term is written as a constructor or a type.
-const TRIPLE_TERMS: [&str; 6] = [
+const TRIPLE_TERMS: [&str; 7] = [
     "Triple",
     "TripleTerm",
     "triple",
     "triple_term",
     "new_triple",
     "from_triple",
+    "intern_triple",
 ];
 /// Names under which the default graph is written.
 const DEFAULT_GRAPH: [&str; 5] = [
@@ -56,9 +60,12 @@ impl Term {
     }
 
     fn of_iri(text: &str) -> Option<Self> {
-        [Self::First, Self::Rest, Self::Reifies]
-            .into_iter()
-            .find(|term| text.strip_prefix(RDF_NAMESPACE) == Some(term.local()))
+        match text {
+            rdf::FIRST => Some(Self::First),
+            rdf::REST => Some(Self::Rest),
+            rdf::REIFIES => Some(Self::Reifies),
+            _ => None,
+        }
     }
 
     /// A known constant, written after `use` resolution: `RDF_FIRST`, or
@@ -81,64 +88,121 @@ impl Term {
 
 /// What one function body shows.
 struct Frame {
-    name: String,
     span: proc_macro2::Span,
-    calls: Vec<String>,
-    iterates: bool,
+    receiver: Option<ReceiverMode>,
+    list: Option<ListBody>,
     named_graphs: bool,
-    /// Depth of enclosing calls that name the graph of what they store.
-    explicit: usize,
-    terms: Vec<Term>,
-    candidates: Vec<(proc_macro2::Span, String)>,
+    block_glob: bool,
+    bindings: Vec<Binding>,
+    candidates: Vec<(proc_macro2::Span, Call)>,
 }
 
 #[derive(Default)]
-struct Structure {
+struct ListBody {
+    calls: Vec<Call>,
+    terms: Vec<Term>,
+    looped: bool,
+}
+
+struct Binding {
+    name: syn::Ident,
+    graph: GraphBinding,
+    nominal: Option<Call>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GraphBinding {
+    Handle,
+    Value,
+    Unknown,
+}
+
+/// The one row operand whose enclosing call supplies its graph.
+#[derive(Clone, Copy)]
+enum ExplicitRow<'ast> {
+    Call(&'ast syn::ExprCall),
+    Method(&'ast syn::ExprMethodCall),
+}
+
+impl<'ast> ExplicitRow<'ast> {
+    fn of(expression: &'ast syn::Expr) -> Option<Self> {
+        match graph_operand(expression) {
+            syn::Expr::Call(call) if call.args.len() == 3 => Some(Self::Call(call)),
+            syn::Expr::MethodCall(call) if call.args.len() == 3 => Some(Self::Method(call)),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Default)]
+struct Structure<'ast> {
     names: Names,
     frames: Vec<Frame>,
     hits: Vec<RawHit>,
+    explicit_row: Option<ExplicitRow<'ast>>,
+    impl_graph: bool,
+    uncertain: bool,
 }
 
-impl ScopedNames for Structure {
+impl ScopedNames for Structure<'_> {
     fn names(&mut self) -> &mut Names {
         &mut self.names
     }
 }
 
-impl Structure {
-    fn function(&mut self, ident: &syn::Ident, walk: impl FnOnce(&mut Self)) {
+impl<'ast> Structure<'ast> {
+    fn function(&mut self, signature: &syn::Signature, walk: impl FnOnce(&mut Self)) {
+        if self.uncertain {
+            return;
+        }
+        let ident = &signature.ident;
         self.frames.push(Frame {
-            name: ident.unraw().to_string(),
             span: ident.span(),
-            calls: Vec::new(),
-            iterates: false,
+            receiver: receiver_mode(signature),
+            list: Some(ListBody::default()),
             named_graphs: false,
-            explicit: 0,
-            terms: Vec::new(),
+            block_glob: false,
+            bindings: Vec::new(),
             candidates: Vec::new(),
         });
+        for input in &signature.inputs {
+            if let syn::FnArg::Typed(input) = input {
+                self.bind(
+                    &input.pat,
+                    Some(&input.ty),
+                    GraphBinding::Unknown,
+                    &input.attrs,
+                );
+            }
+        }
         walk(self);
-        let Some(frame) = self.frames.pop() else {
-            return;
-        };
-        if frame.iterates && frame.terms.contains(&Term::First) && frame.terms.contains(&Term::Rest)
+        let frame = self
+            .frames
+            .pop()
+            .expect("INVARIANT: entered a detector frame");
+        if let Some(list) = frame.list
+            && list.terms.contains(&Term::First)
+            && list.terms.contains(&Term::Rest)
         {
             let mut hit = RawHit::new(
                 LIST_WALK,
                 frame.span,
                 "walk RDF collections through the approved list traversal instead of rdf:first and rdf:rest by hand",
             );
-            hit.calls.clone_from(&frame.calls);
+            hit.call_evidence = Some(CallEvidence::List {
+                calls: list.calls,
+                looped: list.looped,
+            });
             self.hits.push(hit);
         }
         if frame.named_graphs {
-            for (span, callee) in frame.candidates {
+            for (span, call) in frame.candidates {
                 let mut hit = RawHit::new(
                     REIFIER,
                     span,
                     "a reifier row is built for the default graph in code that handles named graphs; pass the graph of the reifier",
                 );
-                hit.calls = vec![callee];
+                hit.call_evidence = Some(CallEvidence::Reifier(call));
                 self.hits.push(hit);
             }
         }
@@ -155,7 +219,7 @@ impl Structure {
     }
 
     fn reifies(&self, expression: &syn::Expr) -> bool {
-        match expression {
+        match graph_operand(expression) {
             syn::Expr::Path(path) => {
                 Term::of_segments(&self.resolve(&path.path)) == Some(Term::Reifies)
             }
@@ -163,122 +227,491 @@ impl Structure {
                 lit: syn::Lit::Str(text),
                 ..
             }) => Term::of_iri(&text.value()) == Some(Term::Reifies),
-            other => unwrap(other).is_some_and(|inner| self.reifies(inner)),
+            syn::Expr::Call(call) if matches!(call.func.as_ref(), syn::Expr::Path(path) if iri_constructor(&path.path)) => {
+                call.args.len() == 1 && call.args.first().is_some_and(|value| self.reifies(value))
+            }
+            syn::Expr::MethodCall(call) if call.method == "intern_iri" => {
+                call.args.len() == 1 && call.args.first().is_some_and(|value| self.reifies(value))
+            }
+            _ => false,
         }
     }
 
-    /// Record a call; `selects` is true when the call itself names the graph
-    /// of what it stores. Returns whether its arguments are stored under an
-    /// explicit graph, so that a row built inside them is not a default row.
+    /// Record a call, with the explicit graph of a triple supplied by its
+    /// receiver or by the call that directly stores that triple.
     fn call(
         &mut self,
-        (callee, span): (&[String], proc_macro2::Span),
+        observed: Option<Call>,
+        span: proc_macro2::Span,
         arguments: &[&syn::Expr],
-        selects: bool,
-    ) -> bool {
-        let text = callee.join("::");
-        let reifier = arguments
-            .iter()
-            .any(|argument| self.reifies(argument) || is_triple_term(argument));
-        let Some(frame) = self.frames.last_mut() else {
-            return false;
+        explicit: bool,
+    ) {
+        if self.uncertain {
+            return;
+        }
+        let Some(observed) = observed else {
+            return;
         };
-        let local = callee.last().is_some_and(|last| *last == frame.name)
-            && (callee.len() == 1
-                || matches!(callee[0].as_str(), "Self" | "self" | "crate" | "super"));
-        frame.iterates |= local;
-        frame.calls.push(text.clone());
-        let stores = selects || arguments.iter().any(|argument| is_some_graph(argument));
+        let reifier = matches!(arguments, [_, predicate, object, ..]
+            if self.reifies(predicate) || is_triple_term(object));
+        let Some(frame) = self.frames.last_mut() else {
+            return;
+        };
         let default_graph = match arguments {
-            [_, _, _] => !stores && frame.explicit == 0,
+            [_, _, _] => !explicit,
             [_, _, _, graph] => is_default_graph(graph),
             _ => false,
         };
         if reifier && default_graph {
-            frame.candidates.push((span, text));
+            frame.candidates.push((span, observed.clone()));
         }
-        stores
+        if let Some(list) = &mut frame.list {
+            list.calls.push(observed);
+        }
     }
 
-    fn within(&mut self, stores: bool, walk: impl FnOnce(&mut Self)) {
-        if stores && let Some(frame) = self.frames.last_mut() {
-            frame.explicit += 1;
+    fn observed_path(&self, path: &syn::Path, member: Option<&syn::Ident>) -> Option<Call> {
+        let mut spelling: Vec<_> = path
+            .segments
+            .iter()
+            .map(|part| part.ident.unraw().to_string())
+            .collect();
+        let first = path.segments.first()?;
+        let frame = self.frames.last()?;
+        if member.is_none()
+            && let Some(local) = path.get_ident()
+            && self.binding(local).is_some()
+        {
+            return None;
         }
+        if let Some(member) = member {
+            spelling.push(member.unraw().to_string());
+        }
+        call_path(
+            &self.names,
+            &spelling,
+            path.leading_colon.is_some(),
+            first.ident.span().byte_range().start,
+            frame.block_glob,
+        )
+    }
+
+    fn method(&self, node: &syn::ExprMethodCall) -> Option<Call> {
+        let local = receiver_ident(&node.receiver)?;
+        let method = node.method.unraw().to_string();
+        if local == "self" {
+            return Some(Call {
+                byte: node.method.span().byte_range().start,
+                path: CallPath::SelfType(method),
+                receiver: Some(self.frames.last()?.receiver?),
+            });
+        }
+        let mut nominal = self.binding(local)?.nominal.clone()?;
+        match &mut nominal.path {
+            CallPath::Written(path) | CallPath::Import(path) => {
+                path.push_str("::");
+                path.push_str(&method);
+            }
+            CallPath::SelfType(member) => *member = method,
+        }
+        Some(nominal)
+    }
+
+    /// Whether a receiver selects a graph, inline or through a local handle.
+    fn selects(&self, receiver: &syn::Expr) -> bool {
+        if !written_expression(receiver) {
+            return false;
+        }
+        match graph_operand(receiver) {
+            syn::Expr::Path(path) => path
+                .path
+                .get_ident()
+                .and_then(|name| self.binding(name))
+                .is_some_and(|binding| binding.graph == GraphBinding::Handle),
+            syn::Expr::MethodCall(call) => {
+                words(&call.method.unraw().to_string())
+                    .iter()
+                    .any(|word| word == "graph")
+                    && call.args.len() == 1
+                    && call
+                        .args
+                        .first()
+                        .is_some_and(|argument| !is_default_graph(graph_operand(argument)))
+            }
+            _ => false,
+        }
+    }
+
+    fn with_row(&mut self, row: Option<ExplicitRow<'ast>>, walk: impl FnOnce(&mut Self)) {
+        let outer = std::mem::replace(&mut self.explicit_row, row);
         walk(self);
-        if stores && let Some(frame) = self.frames.last_mut() {
-            frame.explicit -= 1;
+        self.explicit_row = outer;
+    }
+
+    fn written_scope(&mut self, certain: bool, walk: impl FnOnce(&mut Self)) {
+        let outer = self.uncertain;
+        self.uncertain |= !certain;
+        walk(self);
+        self.uncertain = outer;
+    }
+
+    fn graph_scope(&mut self, walk: impl FnOnce(&mut Self)) {
+        let Some((len, block_glob)) = self
+            .frames
+            .last()
+            .map(|frame| (frame.bindings.len(), frame.block_glob))
+        else {
+            walk(self);
+            return;
+        };
+        walk(self);
+        let frame = self
+            .frames
+            .last_mut()
+            .expect("INVARIANT: scope kept its function");
+        frame.bindings.truncate(len);
+        frame.block_glob = block_glob;
+    }
+
+    fn binding(&self, name: &syn::Ident) -> Option<&Binding> {
+        let name = name.unraw();
+        self.frames
+            .last()?
+            .bindings
+            .iter()
+            .rev()
+            .find(|binding| binding.name == name)
+    }
+
+    fn bind(
+        &mut self,
+        pattern: &syn::Pat,
+        ty: Option<&syn::Type>,
+        kind: GraphBinding,
+        attributes: &[syn::Attribute],
+    ) {
+        let mut known = !self.uncertain && inert_receiver_attributes(attributes);
+        let (pattern, ty) = match pattern {
+            syn::Pat::Type(typed) => {
+                known &= inert_receiver_attributes(&typed.attrs);
+                (typed.pat.as_ref(), Some(typed.ty.as_ref()))
+            }
+            other => (other, ty),
+        };
+        if let syn::Pat::Ident(binding) = pattern {
+            known &= inert_receiver_attributes(&binding.attrs);
         }
+        let nominal = match pattern {
+            syn::Pat::Ident(binding)
+                if known && binding.by_ref.is_none() && binding.subpat.is_none() =>
+            {
+                ty.and_then(receiver_annotation).and_then(|(path, mode)| {
+                    let parts: Vec<_> = path
+                        .segments
+                        .iter()
+                        .map(|part| part.ident.unraw().to_string())
+                        .collect();
+                    let first = path.segments.first()?;
+                    let block_glob = self.frames.last()?.block_glob;
+                    let mut nominal = call_path(
+                        &self.names,
+                        &parts,
+                        path.leading_colon.is_some(),
+                        first.ident.span().byte_range().start,
+                        block_glob,
+                    )?;
+                    nominal.receiver = Some(mode);
+                    Some(nominal)
+                })
+            }
+            _ => None,
+        };
+        let kind = if !known {
+            GraphBinding::Unknown
+        } else if kind == GraphBinding::Handle {
+            kind
+        } else {
+            ty.map_or(GraphBinding::Unknown, graph_type)
+        };
+        let Some(frame) = self.frames.last_mut() else {
+            return;
+        };
+        let selected = match pattern {
+            syn::Pat::Ident(binding) => Some(binding.ident.unraw()),
+            _ => None,
+        };
+        raf_source::visit_pattern_bindings(pattern, |binding| {
+            let name = binding.unraw();
+            let (graph, nominal) = if selected.as_ref() == Some(&name) {
+                (kind, nominal.clone())
+            } else {
+                (GraphBinding::Unknown, None)
+            };
+            frame.bindings.push(Binding {
+                name,
+                graph,
+                nominal,
+            });
+        });
+    }
+
+    fn block_bindings(&mut self, block: &syn::Block) {
+        let Some(frame) = self.frames.last_mut() else {
+            return;
+        };
+        for statement in &block.stmts {
+            let syn::Stmt::Item(item) = statement else {
+                continue;
+            };
+            let name = match item {
+                syn::Item::Fn(item) => &item.sig.ident,
+                syn::Item::Const(item) => &item.ident,
+                syn::Item::Static(item) => &item.ident,
+                syn::Item::Use(item) => {
+                    visit_import_paths(&item.tree, |_, alias| frame.block_glob |= alias.is_none());
+                    continue;
+                }
+                _ => continue,
+            };
+            frame.bindings.push(Binding {
+                name: name.unraw(),
+                graph: GraphBinding::Unknown,
+                nominal: None,
+            });
+        }
+    }
+
+    fn initializer(&self, expression: &syn::Expr) -> GraphBinding {
+        if self.selects(expression) {
+            GraphBinding::Handle
+        } else {
+            GraphBinding::Unknown
+        }
+    }
+
+    /// A storage call either takes a row alongside its graph term or takes
+    /// the row on a receiver that already selects its graph. Only that direct
+    /// operand gets the graph, since nested calls may build other rows.
+    fn stored_row(
+        &self,
+        callee: &str,
+        arguments: &[&'ast syn::Expr],
+        selects: bool,
+    ) -> Option<ExplicitRow<'ast>> {
+        if !words(callee)
+            .iter()
+            .any(|word| matches!(word.as_str(), "add" | "insert" | "push" | "store" | "write"))
+        {
+            return None;
+        }
+        match arguments {
+            [row] if selects => ExplicitRow::of(row),
+            [first, second] => ExplicitRow::of(first)
+                .filter(|_| self.supplies_graph(second))
+                .or_else(|| ExplicitRow::of(second).filter(|_| self.supplies_graph(first))),
+            _ => None,
+        }
+    }
+
+    fn supplies_graph(&self, expression: &syn::Expr) -> bool {
+        if !written_expression(expression) {
+            return false;
+        }
+        let expression = graph_operand(expression);
+        (matches!(expression, syn::Expr::Path(path) if path.path.get_ident().and_then(|name|
+            self.binding(name)).is_some_and(|binding| binding.graph == GraphBinding::Value))
+            || names_graph_value(expression))
+            && !is_default_graph(expression)
+    }
+
+    /// Visit a conditional expression in order, with bindings from each
+    /// successful let operand visible to the following operand and body.
+    fn condition(&mut self, expression: &'ast syn::Expr) {
+        self.written_scope(written_expression(expression), |this| match expression {
+            syn::Expr::Binary(binary) if matches!(binary.op, syn::BinOp::And(_)) => {
+                this.condition(&binary.left);
+                this.condition(&binary.right);
+            }
+            syn::Expr::Let(binding) => {
+                let kind = this.initializer(&binding.expr);
+                this.visit_expr_let(binding);
+                this.bind(&binding.pat, None, kind, &binding.attrs);
+            }
+            _ => this.visit_expr(expression),
+        });
+    }
+
+    fn conditional_body(&mut self, condition: &'ast syn::Expr, body: &'ast syn::Block) {
+        self.graph_scope(|this| {
+            this.condition(condition);
+            this.visit_block(body);
+        });
     }
 }
 
-impl<'ast> Visit<'ast> for Structure {
-    visit_scopes!(without_functions);
+impl<'ast> Visit<'ast> for Structure<'ast> {
+    visit_scopes!(without_functions_blocks_or_impls);
+
+    fn visit_file(&mut self, node: &'ast syn::File) {
+        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+            this.file(node, |this| syn::visit::visit_file(this, node));
+        });
+    }
+
+    fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
+        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+            this.module(node, |this| syn::visit::visit_item_mod(this, node));
+        });
+    }
+
+    fn visit_expr(&mut self, node: &'ast syn::Expr) {
+        self.written_scope(written_expression(node), |this| {
+            syn::visit::visit_expr(this, node);
+        });
+    }
+
+    fn visit_block(&mut self, node: &'ast syn::Block) {
+        self.graph_scope(|this| {
+            this.block_bindings(node);
+            this.block(node, |this| syn::visit::visit_block(this, node));
+        });
+    }
+
+    fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
+        let named = nominal_path(&node.self_ty).is_some_and(|path| {
+            path.segments.iter().any(|part| {
+                let words = words(&part.ident.unraw().to_string());
+                names_dataset(&words) || names_graph(&words)
+            })
+        });
+        let outer = std::mem::replace(&mut self.impl_graph, named);
+        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+            this.generics(&node.generics, |this| {
+                syn::visit::visit_item_impl(this, node);
+            });
+        });
+        self.impl_graph = outer;
+    }
 
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
-        self.generics(&node.sig.generics, |this| {
-            this.function(&node.sig.ident, |this| {
-                syn::visit::visit_item_fn(this, node);
+        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+            this.generics(&node.sig.generics, |this| {
+                this.function(&node.sig, |this| {
+                    syn::visit::visit_item_fn(this, node);
+                });
             });
         });
     }
 
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
-        self.generics(&node.sig.generics, |this| {
-            this.function(&node.sig.ident, |this| {
-                syn::visit::visit_impl_item_fn(this, node);
+        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+            this.generics(&node.sig.generics, |this| {
+                this.function(&node.sig, |this| {
+                    this.frames
+                        .last_mut()
+                        .expect("INVARIANT: entered the method")
+                        .named_graphs = this.impl_graph;
+                    syn::visit::visit_impl_item_fn(this, node);
+                });
             });
         });
     }
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
-        self.generics(&node.sig.generics, |this| {
-            this.function(&node.sig.ident, |this| {
-                syn::visit::visit_trait_item_fn(this, node);
+        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+            this.generics(&node.sig.generics, |this| {
+                this.function(&node.sig, |this| {
+                    syn::visit::visit_trait_item_fn(this, node);
+                });
             });
         });
     }
 
     fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
-        let mut stores = false;
-        if let syn::Expr::Path(callee) = &*node.func
+        let mut row = None;
+        if let syn::Expr::Path(callee) = graph_operand(&node.func)
             && let Some(first) = callee.path.segments.first()
         {
             let resolved = self.resolve(&callee.path);
-            stores = self.call(
-                (&resolved, first.ident.span()),
-                &node.args.iter().collect::<Vec<_>>(),
-                false,
-            );
+            let arguments: Vec<_> = node.args.iter().collect();
+            let explicit = matches!(self.explicit_row, Some(ExplicitRow::Call(call))
+                if std::ptr::eq(call, node));
+            let observed = match &callee.qself {
+                None => self.observed_path(&callee.path, None),
+                Some(qualified) if qualified.position == 0 && callee.path.segments.len() == 1 => {
+                    nominal_path(&qualified.ty)
+                        .and_then(|path| self.observed_path(path, Some(&first.ident)))
+                }
+                _ => None,
+            };
+            self.call(observed, first.ident.span(), &arguments, explicit);
+            if let Some(name) = resolved.last() {
+                row = self.stored_row(name, &arguments, false);
+            }
         }
-        self.within(stores, |this| syn::visit::visit_expr_call(this, node));
+        self.with_row(row, |this| syn::visit::visit_expr_call(this, node));
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
         let name = node.method.unraw().to_string();
-        let own = matches!(&*node.receiver, syn::Expr::Path(path) if path.path.is_ident("self"));
-        let call = if own {
-            vec!["self".to_owned(), name]
-        } else {
-            vec![name]
-        };
-        let stores = self.call(
-            (&call, node.method.span()),
-            &node.args.iter().collect::<Vec<_>>(),
-            selects_graph(&node.receiver),
+        let selects = self.selects(&node.receiver);
+        let arguments: Vec<_> = node.args.iter().collect();
+        let row = self.stored_row(&name, &arguments, selects);
+        let explicit = matches!(self.explicit_row, Some(ExplicitRow::Method(call))
+            if std::ptr::eq(call, node));
+        self.call(
+            self.method(node),
+            node.method.span(),
+            &arguments,
+            selects || explicit,
         );
-        self.within(stores, |this| {
+        self.with_row(row, |this| {
             syn::visit::visit_expr_method_call(this, node);
         });
     }
 
     fn visit_expr_for_loop(&mut self, node: &'ast syn::ExprForLoop) {
         self.looped();
-        syn::visit::visit_expr_for_loop(self, node);
+        self.visit_expr(&node.expr);
+        self.graph_scope(|this| {
+            this.visit_pat(&node.pat);
+            this.bind(&node.pat, None, GraphBinding::Unknown, &node.attrs);
+            this.visit_block(&node.body);
+        });
     }
 
     fn visit_expr_while(&mut self, node: &'ast syn::ExprWhile) {
         self.looped();
-        syn::visit::visit_expr_while(self, node);
+        self.conditional_body(&node.cond, &node.body);
+    }
+
+    fn visit_expr_if(&mut self, node: &'ast syn::ExprIf) {
+        self.conditional_body(&node.cond, &node.then_branch);
+        if let Some((_, branch)) = &node.else_branch {
+            self.visit_expr(branch);
+        }
+    }
+
+    fn visit_expr_closure(&mut self, node: &'ast syn::ExprClosure) {
+        self.graph_scope(|this| {
+            let outer = this.frames.last_mut().and_then(|frame| frame.list.take());
+            for pattern in &node.inputs {
+                this.bind(pattern, None, GraphBinding::Unknown, &node.attrs);
+            }
+            syn::visit::visit_expr_closure(this, node);
+            if let Some(frame) = this.frames.last_mut() {
+                frame.list = outer;
+            }
+        });
+    }
+
+    fn visit_arm(&mut self, node: &'ast syn::Arm) {
+        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+            this.graph_scope(|this| {
+                this.bind(&node.pat, None, GraphBinding::Unknown, &node.attrs);
+                syn::visit::visit_arm(this, node);
+            });
+        });
     }
 
     fn visit_expr_loop(&mut self, node: &'ast syn::ExprLoop) {
@@ -296,15 +729,56 @@ impl<'ast> Visit<'ast> for Structure {
     }
 
     fn visit_ident(&mut self, node: &'ast proc_macro2::Ident) {
-        if let Some(frame) = self.frames.last_mut()
+        if !self.uncertain
+            && let Some(frame) = self.frames.last_mut()
             && names_graph(&words(&node.unraw().to_string()))
         {
             frame.named_graphs = true;
         }
     }
 
+    fn visit_local(&mut self, node: &'ast syn::Local) {
+        let kind = node
+            .init
+            .as_ref()
+            .map_or(GraphBinding::Unknown, |init| self.initializer(&init.expr));
+        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+            syn::visit::visit_local(this, node);
+        });
+        self.bind(&node.pat, None, kind, &node.attrs);
+    }
+
+    fn visit_pat_type(&mut self, node: &'ast syn::PatType) {
+        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+            syn::visit::visit_pat_type(this, node);
+        });
+    }
+
+    fn visit_receiver(&mut self, node: &'ast syn::Receiver) {
+        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+            syn::visit::visit_receiver(this, node);
+        });
+    }
+
+    fn visit_expr_assign(&mut self, node: &'ast syn::ExprAssign) {
+        syn::visit::visit_expr_assign(self, node);
+        if let syn::Expr::Path(path) = node.left.as_ref()
+            && let Some(name) = path.path.get_ident()
+            && let Some(frame) = self.frames.last_mut()
+            && let Some(binding) = frame
+                .bindings
+                .iter_mut()
+                .rev()
+                .find(|binding| name.unraw() == binding.name)
+            && binding.graph == GraphBinding::Handle
+        {
+            binding.graph = GraphBinding::Unknown;
+        }
+    }
+
     fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
-        if let Some(frame) = self.frames.last_mut()
+        if !self.uncertain
+            && let Some(frame) = self.frames.last_mut()
             && node
                 .path
                 .segments
@@ -317,30 +791,108 @@ impl<'ast> Visit<'ast> for Structure {
     }
 }
 
-impl Structure {
+impl Structure<'_> {
     fn looped(&mut self) {
-        if let Some(frame) = self.frames.last_mut() {
-            frame.iterates = true;
+        if !self.uncertain
+            && let Some(list) = self.frames.last_mut().and_then(|frame| frame.list.as_mut())
+        {
+            list.looped = true;
         }
     }
 
     fn term(&mut self, term: Option<Term>) {
-        if let (Some(frame), Some(term)) = (self.frames.last_mut(), term) {
-            frame.terms.push(term);
+        if !self.uncertain
+            && let (Some(list), Some(term)) = (
+                self.frames.last_mut().and_then(|frame| frame.list.as_mut()),
+                term,
+            )
+        {
+            list.terms.push(term);
         }
     }
 }
 
-/// One wrapper layer an argument can sit in without changing which term it is.
-fn unwrap(expression: &syn::Expr) -> Option<&syn::Expr> {
-    match expression {
-        syn::Expr::Paren(inner) => Some(&inner.expr),
-        syn::Expr::Group(inner) => Some(&inner.expr),
-        syn::Expr::Reference(inner) => Some(&inner.expr),
-        syn::Expr::Cast(inner) => Some(&inner.expr),
-        syn::Expr::MethodCall(call) => Some(&call.receiver),
-        syn::Expr::Call(call) if call.args.len() == 1 => call.args.first(),
+fn written_expression(expression: &syn::Expr) -> bool {
+    expression_attributes(expression).is_some_and(inert_receiver_attributes)
+}
+
+fn nominal_path(ty: &syn::Type) -> Option<&syn::Path> {
+    match ty {
+        syn::Type::Path(path) if path.qself.is_none() => Some(&path.path),
+        syn::Type::Reference(inner) => nominal_path(&inner.elem),
+        syn::Type::Paren(inner) => nominal_path(&inner.elem),
+        syn::Type::Group(inner) => nominal_path(&inner.elem),
         _ => None,
+    }
+}
+
+fn receiver_ident(expression: &syn::Expr) -> Option<&syn::Ident> {
+    match expression {
+        syn::Expr::Path(path) if path.qself.is_none() => path.path.get_ident(),
+        syn::Expr::Paren(inner) => receiver_ident(&inner.expr),
+        syn::Expr::Group(inner) => receiver_ident(&inner.expr),
+        _ => None,
+    }
+}
+
+fn bare_type(ty: &syn::Type) -> &syn::Type {
+    match ty {
+        syn::Type::Paren(inner) => bare_type(&inner.elem),
+        syn::Type::Group(inner) => bare_type(&inner.elem),
+        _ => ty,
+    }
+}
+
+fn borrow_mode(mutable: bool) -> ReceiverMode {
+    if mutable {
+        ReceiverMode::Mutable
+    } else {
+        ReceiverMode::Shared
+    }
+}
+
+fn receiver_annotation(ty: &syn::Type) -> Option<(&syn::Path, ReceiverMode)> {
+    let (nominal, mode) = match bare_type(ty) {
+        syn::Type::Reference(reference) => (
+            bare_type(&reference.elem),
+            borrow_mode(reference.mutability.is_some()),
+        ),
+        nominal => (nominal, ReceiverMode::Value),
+    };
+    let syn::Type::Path(path) = nominal else {
+        return None;
+    };
+    (path.qself.is_none()
+        && path
+            .path
+            .segments
+            .iter()
+            .all(|part| part.arguments.is_empty()))
+    .then_some((&path.path, mode))
+}
+
+fn receiver_mode(signature: &syn::Signature) -> Option<ReceiverMode> {
+    let syn::FnArg::Receiver(receiver) = signature.inputs.first()? else {
+        return None;
+    };
+    if !receiver.attrs.is_empty() {
+        return None;
+    }
+    Some(match &receiver.kind {
+        syn::ReceiverKind::Reference(_, _, mutable) => borrow_mode(mutable.is_some()),
+        syn::ReceiverKind::Value => ReceiverMode::Value,
+        _ => return None,
+    })
+}
+
+fn iri_constructor(path: &syn::Path) -> bool {
+    let mut names = path.segments.iter().rev().map(|part| &part.ident);
+    match (names.next(), names.next()) {
+        (Some(name), Some(owner)) => {
+            (name == "iri" && (owner == "Term" || owner == "TermValue"))
+                || ((name == "new" || name == "parse") && (owner == "Iri" || owner == "IriRef"))
+        }
+        _ => false,
     }
 }
 
@@ -391,24 +943,65 @@ fn names_graph(words: &[String]) -> bool {
     })
 }
 
-/// `Some(graph)`: an optional graph argument that is present.
-fn is_some_graph(expression: &syn::Expr) -> bool {
-    matches!(expression, syn::Expr::Call(call)
-        if call.args.len() == 1
-            && matches!(&*call.func, syn::Expr::Path(path) if path.path.is_ident("Some")))
+/// Unwrap syntax that carries the same row or graph value on success.
+fn graph_operand(expression: &syn::Expr) -> &syn::Expr {
+    match expression {
+        syn::Expr::Paren(inner) => graph_operand(&inner.expr),
+        syn::Expr::Group(inner) => graph_operand(&inner.expr),
+        syn::Expr::Reference(inner) => graph_operand(&inner.expr),
+        syn::Expr::Try(inner) => graph_operand(&inner.expr),
+        syn::Expr::MethodCall(call)
+            if (call.method == "unwrap" && call.args.is_empty())
+                || (call.method == "expect" && call.args.len() == 1) =>
+        {
+            graph_operand(&call.receiver)
+        }
+        _ => expression,
+    }
 }
 
-/// A receiver such as `dataset.graph_mut(name)`: a call named for a graph that
-/// is given a graph, so what is stored through it has an explicit graph.
-fn selects_graph(receiver: &syn::Expr) -> bool {
-    match receiver {
-        syn::Expr::MethodCall(call) => {
-            words(&call.method.unraw().to_string())
-                .iter()
-                .any(|word| word == "graph")
-                && call.args.iter().any(|argument| !is_default_graph(argument))
-        }
-        syn::Expr::Paren(inner) => selects_graph(&inner.expr),
+fn graph_value_name(name: &str) -> bool {
+    matches!(name, "g" | "name") || words(name).iter().any(|word| word == "graph")
+}
+
+fn graph_type(ty: &syn::Type) -> GraphBinding {
+    if nominal_path(ty)
+        .and_then(last_name)
+        .is_some_and(|name| names_graph(&words(&name)))
+    {
+        GraphBinding::Value
+    } else {
+        GraphBinding::Unknown
+    }
+}
+
+/// Written evidence that the sibling of a row is the supplied graph.
+fn names_graph_value(expression: &syn::Expr) -> bool {
+    match expression {
+        syn::Expr::Path(path) => last_name(&path.path).is_some_and(|name| graph_value_name(&name)),
+        syn::Expr::Field(field) => matches!(&field.member, syn::Member::Named(name)
+            if graph_value_name(&name.unraw().to_string())),
+        syn::Expr::Call(call) => match &*call.func {
+            syn::Expr::Path(path)
+                if path
+                    .path
+                    .segments
+                    .last()
+                    .is_some_and(|part| part.ident == "Some") =>
+            {
+                call.args.len() == 1
+                    && call
+                        .args
+                        .first()
+                        .is_some_and(|argument| !is_default_graph(graph_operand(argument)))
+            }
+            syn::Expr::Path(path) => path.path.segments.iter().any(|part| {
+                words(&part.ident.unraw().to_string())
+                    .iter()
+                    .any(|word| word == "graph")
+            }),
+            _ => false,
+        },
         _ => false,
     }
 }
@@ -418,12 +1011,15 @@ fn is_triple_term(expression: &syn::Expr) -> bool {
     let named = |path: &syn::Path| {
         last_name(path).is_some_and(|name| TRIPLE_TERMS.contains(&name.as_str()))
     };
-    match expression {
+    match graph_operand(expression) {
         syn::Expr::Call(call) if matches!(&*call.func, syn::Expr::Path(path) if named(&path.path)) => {
             true
         }
         syn::Expr::Struct(built) if named(&built.path) => true,
-        other => unwrap(other).is_some_and(is_triple_term),
+        syn::Expr::MethodCall(call) => {
+            TRIPLE_TERMS.contains(&call.method.unraw().to_string().as_str())
+        }
+        _ => false,
     }
 }
 
@@ -432,13 +1028,10 @@ fn is_default_graph(expression: &syn::Expr) -> bool {
     let default = |path: &syn::Path| {
         last_name(path).is_some_and(|name| DEFAULT_GRAPH.contains(&name.as_str()))
     };
-    match expression {
+    match graph_operand(expression) {
         syn::Expr::Path(path) => default(&path.path),
         syn::Expr::Call(call) if call.args.is_empty() => {
             matches!(&*call.func, syn::Expr::Path(path) if default(&path.path))
-        }
-        syn::Expr::Paren(_) | syn::Expr::Group(_) | syn::Expr::Reference(_) => {
-            unwrap(expression).is_some_and(is_default_graph)
         }
         _ => false,
     }
@@ -448,4 +1041,30 @@ pub(super) fn collect(file: &syn::File) -> Vec<RawHit> {
     let mut structure = Structure::default();
     structure.visit_file(file);
     structure.hits
+}
+
+/// Crate-root methods whose declarations neither change shape nor disappear
+/// through attributes. Source verifies the root and inherent definition.
+pub(super) fn receivers(file: &syn::File) -> Vec<(usize, ReceiverMode)> {
+    if !inert_receiver_attributes(&file.attrs) {
+        return Vec::new();
+    }
+    file.items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Impl(block)
+                if block.trait_.is_none() && inert_receiver_attributes(&block.attrs) =>
+            {
+                Some(block)
+            }
+            _ => None,
+        })
+        .flat_map(|block| &block.items)
+        .filter_map(|member| match member {
+            syn::ImplItem::Fn(method) if inert_receiver_attributes(&method.attrs) => {
+                receiver_mode(&method.sig).map(|mode| (member.span().byte_range().start, mode))
+            }
+            _ => None,
+        })
+        .collect()
 }

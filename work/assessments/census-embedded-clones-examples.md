@@ -13,7 +13,7 @@ inputs:
     digest: a6a1dccbf353dc8e973e5eb26480a7cf11eaadc6596af48334949fb8ce546c21
   - kind: symbol
     name: raf_census::embedded
-    digest: dea7c5672b1471c367798996d4393a06d83908f059550111f39aad1bfc5d27cc
+    digest: fe062e9b5e7496c57fdea01d50b914f87d364f809c604d806fb73bd6c0565c85
   - kind: symbol
     name: raf_census::embedded::analysis::Analysis
     digest: f4b3a6e4a11df3a07c9ea5dadafa8b9032c098efcdd6716be695a8a190a93cb7
@@ -46,7 +46,7 @@ inputs:
     digest: 82a9c6f5f539821441b047fe95b5dad10bc51aa9e7d53cbdc9d010997918ab93
   - kind: symbol
     name: raf_census::embedded::native_spans
-    digest: 462182a9f68b0ae3eb8fd86beb3887f803322bed2275ad8286f1420dc34a9c70
+    digest: 3cc55cc775791c115b28199498299e09f0c6b3a79dae26d5c8ed8a46f4b1cb7c
   - kind: symbol
     name: raf_census::embedded::options::Options
     digest: 5bbaf9b42eb28a92c2e73164da2b2ac3eaea95df65cf884bf14ff71793a5b86c

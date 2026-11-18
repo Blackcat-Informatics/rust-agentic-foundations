@@ -6,6 +6,75 @@
 use std::collections::BTreeMap;
 use syn::ext::IdentExt;
 
+/// Attributes that preserve the indexed declaration or expression.
+pub(crate) fn inert_attributes(attributes: &[syn::Attribute]) -> bool {
+    attributes.iter().all(|attribute| {
+        attribute.path().get_ident().is_some_and(|name| {
+            matches!(
+                name.to_string().as_str(),
+                "doc"
+                    | "allow"
+                    | "expect"
+                    | "warn"
+                    | "deny"
+                    | "forbid"
+                    | "inline"
+                    | "cold"
+                    | "must_use"
+                    | "deprecated"
+                    | "track_caller"
+            )
+        })
+    })
+}
+
+/// Attributes at this expression's own occurrence.
+pub(crate) fn expression_attributes(node: &syn::Expr) -> Option<&[syn::Attribute]> {
+    Some(match node {
+        syn::Expr::Array(n) => &n.attrs,
+        syn::Expr::Assign(n) => &n.attrs,
+        syn::Expr::Async(n) => &n.attrs,
+        syn::Expr::Await(n) => &n.attrs,
+        syn::Expr::Binary(n) => &n.attrs,
+        syn::Expr::Block(n) => &n.attrs,
+        syn::Expr::Break(n) => &n.attrs,
+        syn::Expr::Call(n) => &n.attrs,
+        syn::Expr::Cast(n) => &n.attrs,
+        syn::Expr::Closure(n) => &n.attrs,
+        syn::Expr::Const(n) => &n.attrs,
+        syn::Expr::Continue(n) => &n.attrs,
+        syn::Expr::Field(n) => &n.attrs,
+        syn::Expr::ForLoop(n) => &n.attrs,
+        syn::Expr::Group(n) => &n.attrs,
+        syn::Expr::If(n) => &n.attrs,
+        syn::Expr::Index(n) => &n.attrs,
+        syn::Expr::Infer(n) => &n.attrs,
+        syn::Expr::Let(n) => &n.attrs,
+        syn::Expr::Lit(n) => &n.attrs,
+        syn::Expr::Loop(n) => &n.attrs,
+        syn::Expr::Macro(n) => &n.attrs,
+        syn::Expr::Match(n) => &n.attrs,
+        syn::Expr::MethodCall(n) => &n.attrs,
+        syn::Expr::Paren(n) => &n.attrs,
+        syn::Expr::Path(n) => &n.attrs,
+        syn::Expr::Range(n) => &n.attrs,
+        syn::Expr::RawAddr(n) => &n.attrs,
+        syn::Expr::Reference(n) => &n.attrs,
+        syn::Expr::Repeat(n) => &n.attrs,
+        syn::Expr::Return(n) => &n.attrs,
+        syn::Expr::Struct(n) => &n.attrs,
+        syn::Expr::Try(n) => &n.attrs,
+        syn::Expr::TryBlock(n) => &n.attrs,
+        syn::Expr::Tuple(n) => &n.attrs,
+        syn::Expr::Unary(n) => &n.attrs,
+        syn::Expr::Unsafe(n) => &n.attrs,
+        syn::Expr::Verbatim(_) => &[],
+        syn::Expr::While(n) => &n.attrs,
+        syn::Expr::Yield(n) => &n.attrs,
+        _ => return None,
+    })
+}
+
 #[derive(Clone, Default)]
 pub(crate) struct Names {
     pub(crate) aliases: BTreeMap<String, Vec<Alias>>,
@@ -20,6 +89,7 @@ pub(crate) struct Alias {
     pub(crate) absolute: bool,
     pub(crate) source_byte: Option<usize>,
     pub(crate) external: bool,
+    pub(crate) inert_attributes: bool,
     /// The lexical declaration frame used by written-name observations.
     pub(crate) frame: usize,
 }
@@ -134,23 +204,26 @@ impl Names {
         absolute: bool,
         source_byte: Option<usize>,
         external: bool,
+        inert_attributes: bool,
     ) {
         self.aliases.entry(local).or_default().push(Alias {
             path,
             absolute,
             source_byte,
             external,
+            inert_attributes,
             frame: self.frame,
         });
     }
 
     pub(crate) fn shadow(&mut self, name: String) {
-        self.alias(name, Vec::new(), false, None, false);
+        self.alias(name, Vec::new(), false, None, false, true);
     }
 
     pub(crate) fn item(&mut self, item: &syn::Item) {
         match item {
             syn::Item::Use(item) => {
+                let inert = inert_attributes(&item.attrs);
                 visit_import_paths(&item.tree, |path, alias| {
                     if let Some(alias) = alias {
                         self.alias(
@@ -159,6 +232,7 @@ impl Names {
                             item.leading_colon.is_some(),
                             path.first().map(|ident| ident.span().byte_range().start),
                             false,
+                            inert,
                         );
                     }
                 });
@@ -171,6 +245,7 @@ impl Names {
                     true,
                     Some(item.ident.span().byte_range().start),
                     true,
+                    inert_attributes(&item.attrs),
                 );
             }
             syn::Item::Struct(item) => self.shadow(item.ident.unraw().to_string()),

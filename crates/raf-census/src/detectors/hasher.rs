@@ -76,7 +76,7 @@ impl Hasher {
                     byte: span.byte_range().start,
                     line: span.start().line,
                     message: "a standard hash collection leaves its hasher unspecified".into(),
-                    calls: Vec::new(),
+                    call_evidence: None,
                 });
             }
         }

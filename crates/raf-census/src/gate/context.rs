@@ -34,7 +34,7 @@ pub(super) fn collect<'a>(
     scope: &ResolvedJob,
     limits: &mut MatchLimits,
 ) -> Result<JobHits<'a>, Error> {
-    let mut result = structures(collected, row);
+    let mut result = structures(collected, row, scope)?;
     let home_literal = enabled(row, "home-literal");
     let vocabulary = enabled(row, "vocabulary-literal");
     let sole = enabled(row, "sole-name");
@@ -259,40 +259,31 @@ fn foreign_imports(
     Ok(())
 }
 
-/// Whether a call written as `callee` reaches the declared symbol: the written
-/// segments are the tail of the symbol, and a leading `crate`, `self`, `super`
-/// or `Self` stands for whatever the symbol has there.
-fn reaches(callee: &str, symbol: &str) -> bool {
-    let callee: Vec<_> = callee.split("::").collect();
-    let symbol: Vec<_> = symbol.split("::").collect();
-    if callee.last() != symbol.last() {
-        return false;
-    }
-    for (written, declared) in callee.iter().rev().zip(symbol.iter().rev()).skip(1) {
-        if matches!(*written, "crate" | "self" | "super" | "Self") {
-            return true;
-        }
-        if written != declared {
-            return false;
-        }
-    }
-    callee.len() <= symbol.len()
+const STRUCTURE_RULES: [(&str, bool); 2] =
+    [("reifier-default-graph", true), ("rdf-list-walk", false)];
+
+pub(super) fn uses_structure(row: &LedgerJob) -> bool {
+    STRUCTURE_RULES.iter().any(|(id, _)| enabled(row, id))
 }
 
 /// The job's hits before its context detectors run, with the structure
 /// detectors already judged against its home and entry points.
-fn structures<'a>(collected: &'a Collected, row: &LedgerJob) -> JobHits<'a> {
+fn structures<'a>(
+    collected: &'a Collected,
+    row: &LedgerJob,
+    scope: &ResolvedJob,
+) -> Result<JobHits<'a>, Error> {
     let mut result = JobHits {
         shared: &collected.hits,
         contextual: BTreeMap::new(),
         names: BTreeSet::new(),
     };
-    for (id, delegated) in [("reifier-default-graph", true), ("rdf-list-walk", false)] {
+    for (id, delegated) in STRUCTURE_RULES {
         if enabled(row, id) {
-            structure(&mut result, collected, row, (id, delegated));
+            structure(&mut result, collected, scope, (id, delegated))?;
         }
     }
-    result
+    Ok(result)
 }
 
 /// Keep the candidates of a structure detector that stand in the right relation
@@ -302,17 +293,9 @@ fn structures<'a>(collected: &'a Collected, row: &LedgerJob) -> JobHits<'a> {
 fn structure(
     result: &mut JobHits<'_>,
     collected: &Collected,
-    row: &LedgerJob,
+    scope: &ResolvedJob,
     (id, delegated): (&'static str, bool),
-) {
-    let declared: Vec<_> = std::iter::once(&row.job.home)
-        .chain(&row.job.entry_points)
-        .collect();
-    let calls_declared = |calls: &[String]| {
-        calls
-            .iter()
-            .any(|call| declared.iter().any(|symbol| reaches(call, symbol)))
-    };
+) -> Result<(), Error> {
     let mut kept = BTreeMap::new();
     for (key, rows) in collected.hits.get(id).into_iter().flatten() {
         let placed = collected
@@ -320,10 +303,23 @@ fn structure(
             .get(id)
             .and_then(|offsets| offsets.get(key))
             .map_or(&[][..], Vec::as_slice);
+        if placed.len() != rows.len() {
+            return Err(super::rules::refused(
+                id,
+                "a structure hit has no unique recorded placement",
+            ));
+        }
         let rows: Vec<_> = rows
             .iter()
             .zip(placed)
-            .filter(|(_, placed)| calls_declared(&placed.calls) == delegated)
+            .filter(|(_, placed)| {
+                placed.call_reaches.iter().any(|calls| {
+                    calls
+                        .iter()
+                        .any(|sites| sites.iter().all(|id| scope.home_sources.contains(id)))
+                        == delegated
+                })
+            })
             .map(|(hit, _)| hit.clone())
             .collect();
         if !rows.is_empty() {
@@ -331,4 +327,5 @@ fn structure(
         }
     }
     result.contextual.insert(id.to_owned(), kept);
+    Ok(())
 }

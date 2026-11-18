@@ -367,10 +367,10 @@ cannot be recorded by debt publication.
 
 ## Explanation
 
-The `Rule` trait is the escape hatch that keeps the shared crate generic. The old
-census copies carried rules about RDF structure and hash domains because there was
-no other place for them. With the trait, those rules live in the repository whose
-types they know, and the shared crate carries none of them.
+The `Rule` trait lets a repository enforce policies for its own RDF vocabulary,
+hash domains and types. Consumers can also select the shared representation and
+structure rules and declare which entry points their jobs recognize. See
+[built-in census detectors](./census-detectors.md).
 
 The negative-fixture requirement comes from the same lesson as the built-in
 detectors. A rule is only trusted when its authors showed what it must not flag.

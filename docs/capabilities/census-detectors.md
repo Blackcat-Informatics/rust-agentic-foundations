@@ -90,46 +90,80 @@ them and cannot be required without a job. Both read shipping code only.
 an entry point of the job, in a function that handles named graphs, when it
 builds a row for the default graph and the row is a reifier row.
 
-A row is built for the default graph when the call has four arguments whose last
-is `None`, `DefaultGraph`, `DEFAULT_GRAPH` or a call of `default_graph` or
-`default` with no arguments, or when it has three arguments (a triple) and no
-explicit graph reaches it. A graph is explicit for a triple when an enclosing call
-has a `Some(..)` argument, as in `store.insert(triple(..), Some(graph))`, or when
-the call is made on a receiver such as `dataset.graph_mut(name)`: a method whose
-name has the word `graph` and which is given an argument other than the default
-graph.
+A four-argument row is built for the default graph when the final argument
+spells `None`, `DefaultGraph`, `DEFAULT_GRAPH`, or a call of `default_graph` or
+`default` with no arguments. A three-argument row uses the default graph unless
+its receiver selects a graph or a call directly stores it in a graph.
 
-A row is a reifier row when an argument is `rdf:reifies`, spelled as `RDF_REIFIES`,
+The storage call has a name containing the word `add`, `insert`, `push`, `store`
+or `write`. It takes the row alongside a graph argument, in either order, or
+takes the row as its only argument on a graph-selecting receiver. A graph argument
+names a variable or field spelled `g`, `name` or with the word `graph`, a variable
+declared with a `GraphName` or `NamedGraph` type spelling, a call such as
+`GraphName::Named(g)` with the word `graph` in its path, or `Some(graph)`. A
+default-graph spelling stays a default graph. The graph applies only to the
+directly stored row. References, parentheses, `?`, `unwrap` and `expect`
+can wrap the row or graph without losing that association.
+
+A receiver selects a graph when it calls a method named for a `graph` with one
+non-default argument, such as `dataset.graph_mut(name)`. A local initialized
+from such a call or another selected local carries the selection in its lexical
+scope until shadowed or directly reassigned. These are written-source rules and
+derive the graph from recognizable storage syntax and binding declarations.
+
+A row is a reifier row when its predicate is `rdf:reifies`, spelled as `RDF_REIFIES`,
 as `REIFIES` under a path segment named `rdf` (including an imported `REIFIES`,
-resolved through its `use`), as `vocab::REIFIES` or as the literal IRI, or when an
-argument is a triple term, spelled as a call or struct whose last name is
-`Triple`, `TripleTerm`, `triple`, `triple_term`, `new_triple` or `from_triple`.
+resolved through its `use`), as `vocab::REIFIES` or as the literal IRI, or when its
+object is a triple term. The predicate can sit inside a recognized IRI
+constructor such as `Term::iri` or `builder.intern_iri`. A triple-term object is
+a call, method call or struct whose last name is `Triple`, `TripleTerm`,
+`triple`, `triple_term`, `new_triple`, `from_triple` or `intern_triple`.
+The same value-preserving wrappers accepted for graph operands also work for
+reifier predicates and triple terms.
 
-A function handles named graphs when a type written in it has the word `dataset`,
-`datasets`, `quad` or `quads`, or when an identifier in it has the words `named` and
-`graph`, or `graph` and `name`, in that order. Words are the parts of an identifier
-split at underscores and capital letters (`Dataset`, `QuadStore`, `GraphName`,
-`named_graph`). A plain `Graph` type, a variable called `graph`, a variable called
-`name` or `g`, a callee called `quad` and words that merely contain `graph`, such as
-`paragraph`, `grapheme` and `graphql`, are not evidence; dataset code that names its
-graph `name` or `g` counts through its `Dataset` or `Quad` type.
+A function handles named graphs when a type written in it or its enclosing impl
+has the word `dataset`, `datasets`, `quad` or `quads`, or when an identifier
+has the words `named` and `graph`, or `graph` and `name`, in that order. Words
+are the parts of an identifier split at underscores and capital letters
+(`Dataset`, `QuadStore`, `GraphName`, `named_graph`). Dataset code can name its
+graph `name` or `g` and obtain its evidence through the written type. Other
+words that happen to contain `graph`, such as `paragraph` and `graphql`, give
+no named-graph evidence.
 
-The same call with an explicit graph, with another predicate, to a callee the job
-does not declare, or in a function that does not handle named graphs is not
-reported.
+A row with another predicate and an object other than a triple term passes
+this rule. Explicit graphs, calls outside the job's declared entry points and
+functions without named-graph evidence also pass.
 
 `rdf-list-walk` reports a function that names `rdf:first` and `rdf:rest` (as
 `RDF_FIRST` and `RDF_REST`, as `FIRST` and `REST` under a path segment named
-`rdf` after `use` resolution, or as the literal IRIs), contains a `for`, `while` or `loop` expression or
-calls itself, and calls neither the home nor any entry point of the job. A
-function that delegates to a declared entry point, that names only one of the
-terms or that names both without iteration is not reported.
+`rdf` after `use` resolution, or as the literal IRIs), contains a `for`, `while`
+or `loop` expression or calls itself, and calls neither the home nor any entry
+point of the job. A recursive call resolves to the function or method being
+examined. A closure body supplies its own calls and loop structure and cannot
+establish delegation or iteration for its enclosing function. Delegating to a
+declared entry point, naming only one term or naming both without iteration
+leaves the function clean.
 
-A call is matched to a declared symbol by its written path after `use`
-resolution: the written segments must be the tail of the symbol, and a leading
-`crate`, `self`, `super` or `Self` matches whatever the symbol has there. A
-method call matches by its method name. Calls written inside macro bodies are not
-read. Both detectors name the home as the replacement, like the other built-ins.
+The native source index matches calls by definition identity on each shipping
+reach. It reads direct function and associated paths, including indexed module
+imports, reexports and direct block imports with established lookup context.
+Local callable bindings shadow function names. A dot call can establish an
+inherent method when the receiver is a direct `self` in an inherent method or
+a binding with a written nominal type, and its first receiver candidate matches
+the method's plain `self`, `&self` or `&mut self` exactly. The definition is an
+inherent impl at the indexed crate root. Attributes on the binding and
+definition must preserve their declarations. An uncertain declaration shadows
+any earlier receiver evidence for its name. Calls, loops and RDF terms under
+attributes that may alter their source supply no evidence. Imports whose
+attributes may change their bindings supply no identity. The lookup through a
+written type uses its declaration scope. Inherent precedence over trait
+candidates requires one nominal type and one exact inherent definition.
+Receiver adjustments, type aliases, dynamic dispatch and macro expansion
+supply no dot call identity. Use an explicit associated path when the receiver
+would need an adjustment. Every definition a call may resolve to in that reach
+must be declared for the call to count as delegation. The job must name homes
+and entry points indexed in the workspace that is being checked. Both detectors
+name the home as the replacement.
 
 ### Source ownership and byte-layout recognition
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order -->
@@ -500,10 +534,12 @@ required findings with neighbouring clean source.
   code and is silent on the same source in a test target, and a fixture per `all`
   detector shows it flags a positive source in both.
 - `reifier-default-graph` fixtures flag a default-graph row with `rdf:reifies` as a
-  constant, as the literal IRI and through an import, and a triple-term object, and
-  leave clean the same call with an explicit graph, another predicate, a callee the
-  job does not declare, an unrelated constant of the same name, a plain graph, words
-  that contain `graph` and a function with no dataset. `rdf-list-walk` fixtures
+  constant, as the literal IRI and through an import, and a triple-term object.
+  Default rows remain visible beside unrelated arguments, in nested calls and
+  after graph handles are shadowed, go out of scope or are reassigned. Fixtures
+  leave clean rows with explicit graphs and rows with reifier terms only in the
+  subject, as well as undeclared callees and functions without named-graph
+  evidence. `rdf-list-walk` fixtures
   flag a loop and a recursion over the two terms, as constants and as literal IRIs,
   and leave clean the same loop delegating to a declared entry point, one term alone
   and both terms without iteration. Neither is reported in a test target, and a

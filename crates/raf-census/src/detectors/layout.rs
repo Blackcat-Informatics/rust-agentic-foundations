@@ -268,7 +268,7 @@ impl Layout {
             byte: span.byte_range().start,
             line: span.start().line,
             message,
-            calls: Vec::new(),
+            call_evidence: None,
         });
     }
 

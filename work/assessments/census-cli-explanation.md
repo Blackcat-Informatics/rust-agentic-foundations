@@ -55,7 +55,7 @@ inputs:
     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
   - kind: symbol
     name: raf_census::selftest
-    digest: 0598b687e26f8800974ab74807a61e647b93d1669474ee033dbbe496213cb6f1
+    digest: ef8e98c835c11579c29b459363878a3bcf58ef6c6b7a9a198b3773d8b047d69f
 verdict: accepted
 by: agent
 ---
