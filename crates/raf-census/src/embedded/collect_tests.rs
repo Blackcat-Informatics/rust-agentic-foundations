@@ -205,10 +205,9 @@ fn shorthand_fields_keep_fixed_names_and_unadmitted_attributes_or_boundaries_ref
 }
 
 /// INVARIANT: a lone semicolon is a retained statement with its own span and no
-/// expression, and it does not refuse a function; a neighbouring unmodeled
-/// expression statement still refuses.
+/// expression. The collector refuses an async expression in a separate fixture.
 #[test]
-fn a_lone_semicolon_is_a_statement_without_an_expression_beside_a_refused_neighbour() {
+fn a_lone_semicolon_is_a_statement_and_a_separate_async_fixture_refuses() {
     let source = "#![no_implicit_prelude]\nfn helper(input: i32) { ; sink(input); }";
     inspect(source, |result| {
         let facts = result.unwrap();

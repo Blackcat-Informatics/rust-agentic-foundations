@@ -163,9 +163,10 @@ impl<'run> Evidence<'run> {
         format: raf_rdf::Format,
         observe: impl for<'f> FnOnce(Result<Serialized<'run>, OutputFailure<'f>>) -> R,
     ) -> R {
-        self.claims.to_text_admitted(format, self.meter, |result| {
-            observe(result.map(|text| Serialized { text }))
-        })
+        self.claims
+            .to_text_admitted(format, report::MAX_REPORT_BYTES, self.meter, |result| {
+                observe(result.map(|text| Serialized { text }))
+            })
     }
 }
 

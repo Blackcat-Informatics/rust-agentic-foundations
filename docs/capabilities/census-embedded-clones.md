@@ -111,8 +111,7 @@ bindings:
     - raf_census::embedded::scopes::tests::imports_conditionals_and_unexpanded_attributes_never_prove_binding_absence
     - raf_census::embedded::scopes::tests::local_activation_and_scope_exit_preserve_shadow_identity_and_raw_names
     - raf_census::embedded::scopes::tests::unmodeled_preludes_refuse_while_explicit_const_parameters_remain_fixed
-    - raf_census::embedded::collect::tests::a_lone_semicolon_is_a_statement_without_an_expression_beside_a_refused_neighbour
-    - raf_census::embedded::report::tests::the_limit_helper_refuses_one_byte_over_beside_a_length_at_the_limit
+    - raf_census::embedded::collect::tests::a_lone_semicolon_is_a_statement_and_a_separate_async_fixture_refuses
     - raf_census::embedded::report::tests::rendering_a_report_refuses_one_byte_over_the_limit_beside_the_same_report_at_it
     - raf_census::test_crate::embedded::copied_helper_pairs_with_larger_at_its_verified_spans
     - raf_census::test_crate::embedded::a_neighbouring_operator_change_yields_no_witness
@@ -743,10 +742,11 @@ native heap bound.
 
 Canonical rendering admits selection buffers, native term
 copies, ordering and digest work, and output growth before construction.
-Returned text retains its original grant until destruction; scratch and
-output overlap in the same aggregate limit. A rendering refusal exposes no
-partial text and preserves the original typed resource cause.
-<!-- raf:tested-by raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage -->
+Returned text retains its original grant until destruction. Scratch and
+output overlap in the same aggregate limit. Embedded evidence output uses
+the same sixteen MiB ceiling as its importer. A rendering refusal exposes
+no partial text and preserves the original typed resource cause.
+<!-- raf:tested-by raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage,raf_census::embedded::report::tests::rendering_a_report_refuses_one_byte_over_the_limit_beside_the_same_report_at_it -->
 Publication requires native Linux directory locking, hard-link creation for
 atomic initial adoption, and directory synchronization. Unsupported operations
 refuse without another protocol. Older file-lock writers do not coordinate with
