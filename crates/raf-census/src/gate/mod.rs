@@ -266,7 +266,9 @@ impl Gate {
         let mut registered: std::collections::BTreeSet<&str> =
             admitted.iter().map(|(id, _)| *id).collect();
         rules::requested(&ledger, &self.required_rules, &registered)?;
-        registered.extend(crate::detectors::ids());
+        for id in crate::detectors::ids() {
+            registered.insert(id);
+        }
         evaluate::register_pattern_ids(&ledger, |id| registered.insert(id))?;
         for row in ledger.jobs() {
             evaluate::validate_job_registration(

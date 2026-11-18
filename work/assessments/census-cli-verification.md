@@ -34,7 +34,7 @@ inputs:
     digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86
   - kind: symbol
     name: raf_census::Gate::validate_tree_registrations
-    digest: 5f2ee6a929716b249130719f50eb9e64576534fb57f8e703f0901f4c93bb42f3
+    digest: fb06b726fbf4cea861e4451b33c4baceb547f779b313b6ff9228baf3592914ca
   - kind: symbol
     name: raf_census::MAX_CHECK_RESPONSE_BYTES
     digest: c8a061c28be622be14d14f7667e80cf9fa3c2b5f3bc44a9dcbc0a5b5561caa0c
