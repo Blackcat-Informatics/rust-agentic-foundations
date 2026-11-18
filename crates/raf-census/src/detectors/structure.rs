@@ -17,7 +17,8 @@ use syn::visit::Visit;
 use super::names::{ScopedNames, call_path, visit_scopes};
 use super::{Call, CallEvidence, CallPath, RawHit, ReceiverMode};
 use crate::syntax::{
-    Names, expression_attributes, inert_attributes as inert_receiver_attributes, visit_import_paths,
+    Names, definitely_excluded, expression_attributes,
+    inert_attributes as inert_receiver_attributes, visit_import_paths,
 };
 
 pub(super) const REIFIER: &str = "reifier-default-graph";
@@ -142,6 +143,7 @@ struct Structure<'ast> {
     explicit_row: Option<ExplicitRow<'ast>>,
     impl_graph: bool,
     uncertain: bool,
+    probing_writes: bool,
 }
 
 impl ScopedNames for Structure<'_> {
@@ -151,8 +153,12 @@ impl ScopedNames for Structure<'_> {
 }
 
 impl<'ast> Structure<'ast> {
+    fn recording(&self) -> bool {
+        !self.uncertain && !self.probing_writes
+    }
+
     fn function(&mut self, signature: &syn::Signature, walk: impl FnOnce(&mut Self)) {
-        if self.uncertain {
+        if !self.recording() {
             return;
         }
         let ident = &signature.ident;
@@ -215,7 +221,7 @@ impl<'ast> Structure<'ast> {
             .map(|part| part.ident.unraw().to_string())
             .collect();
         self.names
-            .resolve_written(written, path.leading_colon.is_some())
+            .resolve_inert_written(written, path.leading_colon.is_some())
     }
 
     fn reifies(&self, expression: &syn::Expr) -> bool {
@@ -246,7 +252,7 @@ impl<'ast> Structure<'ast> {
         arguments: &[&syn::Expr],
         explicit: bool,
     ) {
-        if self.uncertain {
+        if !self.recording() {
             return;
         }
         let Some(observed) = observed else {
@@ -343,6 +349,7 @@ impl<'ast> Structure<'ast> {
     }
 
     fn with_row(&mut self, row: Option<ExplicitRow<'ast>>, walk: impl FnOnce(&mut Self)) {
+        let row = row.or(self.explicit_row);
         let outer = std::mem::replace(&mut self.explicit_row, row);
         walk(self);
         self.explicit_row = outer;
@@ -353,6 +360,53 @@ impl<'ast> Structure<'ast> {
         self.uncertain |= !certain;
         walk(self);
         self.uncertain = outer;
+    }
+
+    fn attributed_scope(&mut self, attributes: &[syn::Attribute], walk: impl FnOnce(&mut Self)) {
+        if !definitely_excluded(attributes) {
+            self.written_scope(inert_receiver_attributes(attributes), walk);
+        }
+    }
+
+    fn expression_scope(&mut self, expression: &syn::Expr, walk: impl FnOnce(&mut Self)) {
+        if let Some(attributes) = expression_attributes(expression) {
+            self.attributed_scope(attributes, walk);
+        } else {
+            self.written_scope(false, walk);
+        }
+    }
+
+    fn deferred(&mut self, walk: impl FnOnce(&mut Self)) {
+        let outer = self.frames.last_mut().and_then(|frame| frame.list.take());
+        walk(self);
+        if let Some(frame) = self.frames.last_mut() {
+            frame.list = outer;
+        }
+    }
+
+    /// Assignments can remove an incoming graph proof before another iteration.
+    /// This pass shares lexical binding scopes with the ordinary visit and
+    /// records no detector evidence or nested prepasses.
+    fn repeated(
+        &mut self,
+        body: &'ast syn::Block,
+        condition: Option<&'ast syn::Expr>,
+        walk: impl Fn(&mut Self),
+    ) {
+        if self.recording()
+            && self.frames.last().is_some_and(|frame| {
+                frame
+                    .bindings
+                    .iter()
+                    .any(|binding| binding.graph == GraphBinding::Handle)
+            })
+            && !single_pass(body, condition)
+        {
+            self.probing_writes = true;
+            self.graph_scope(&walk);
+            self.probing_writes = false;
+        }
+        walk(self);
     }
 
     fn graph_scope(&mut self, walk: impl FnOnce(&mut Self)) {
@@ -403,7 +457,10 @@ impl<'ast> Structure<'ast> {
         }
         let nominal = match pattern {
             syn::Pat::Ident(binding)
-                if known && binding.by_ref.is_none() && binding.subpat.is_none() =>
+                if known
+                    && !self.probing_writes
+                    && binding.by_ref.is_none()
+                    && binding.subpat.is_none() =>
             {
                 ty.and_then(receiver_annotation).and_then(|(path, mode)| {
                     let parts: Vec<_> = path
@@ -527,7 +584,7 @@ impl<'ast> Structure<'ast> {
     /// Visit a conditional expression in order, with bindings from each
     /// successful let operand visible to the following operand and body.
     fn condition(&mut self, expression: &'ast syn::Expr) {
-        self.written_scope(written_expression(expression), |this| match expression {
+        self.expression_scope(expression, |this| match expression {
             syn::Expr::Binary(binary) if matches!(binary.op, syn::BinOp::And(_)) => {
                 this.condition(&binary.left);
                 this.condition(&binary.right);
@@ -565,7 +622,7 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
     }
 
     fn visit_expr(&mut self, node: &'ast syn::Expr) {
-        self.written_scope(written_expression(node), |this| {
+        self.expression_scope(node, |this| {
             syn::visit::visit_expr(this, node);
         });
     }
@@ -628,6 +685,10 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
     }
 
     fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
+        if self.probing_writes {
+            syn::visit::visit_expr_call(self, node);
+            return;
+        }
         let mut row = None;
         if let syn::Expr::Path(callee) = graph_operand(&node.func)
             && let Some(first) = callee.path.segments.first()
@@ -638,9 +699,13 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
                 if std::ptr::eq(call, node));
             let observed = match &callee.qself {
                 None => self.observed_path(&callee.path, None),
-                Some(qualified) if qualified.position == 0 && callee.path.segments.len() == 1 => {
-                    nominal_path(&qualified.ty)
-                        .and_then(|path| self.observed_path(path, Some(&first.ident)))
+                Some(qualified)
+                    if qualified.position == 0
+                        && callee.path.segments.len() == 1
+                        && let syn::Type::Path(path) = bare_type(&qualified.ty)
+                        && path.qself.is_none() =>
+                {
+                    self.observed_path(&path.path, Some(&first.ident))
                 }
                 _ => None,
             };
@@ -653,6 +718,10 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
+        if self.probing_writes {
+            syn::visit::visit_expr_method_call(self, node);
+            return;
+        }
         let name = node.method.unraw().to_string();
         let selects = self.selects(&node.receiver);
         let arguments: Vec<_> = node.args.iter().collect();
@@ -673,16 +742,20 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
     fn visit_expr_for_loop(&mut self, node: &'ast syn::ExprForLoop) {
         self.looped();
         self.visit_expr(&node.expr);
-        self.graph_scope(|this| {
-            this.visit_pat(&node.pat);
-            this.bind(&node.pat, None, GraphBinding::Unknown, &node.attrs);
-            this.visit_block(&node.body);
+        self.repeated(&node.body, None, |this| {
+            this.graph_scope(|this| {
+                this.visit_pat(&node.pat);
+                this.bind(&node.pat, None, GraphBinding::Unknown, &node.attrs);
+                this.visit_block(&node.body);
+            });
         });
     }
 
     fn visit_expr_while(&mut self, node: &'ast syn::ExprWhile) {
         self.looped();
-        self.conditional_body(&node.cond, &node.body);
+        self.repeated(&node.body, Some(&node.cond), |this| {
+            this.conditional_body(&node.cond, &node.body);
+        });
     }
 
     fn visit_expr_if(&mut self, node: &'ast syn::ExprIf) {
@@ -694,19 +767,19 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
 
     fn visit_expr_closure(&mut self, node: &'ast syn::ExprClosure) {
         self.graph_scope(|this| {
-            let outer = this.frames.last_mut().and_then(|frame| frame.list.take());
             for pattern in &node.inputs {
                 this.bind(pattern, None, GraphBinding::Unknown, &node.attrs);
             }
-            syn::visit::visit_expr_closure(this, node);
-            if let Some(frame) = this.frames.last_mut() {
-                frame.list = outer;
-            }
+            this.deferred(|this| syn::visit::visit_expr_closure(this, node));
         });
     }
 
+    fn visit_expr_async(&mut self, node: &'ast syn::ExprAsync) {
+        self.deferred(|this| syn::visit::visit_expr_async(this, node));
+    }
+
     fn visit_arm(&mut self, node: &'ast syn::Arm) {
-        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+        self.attributed_scope(&node.attrs, |this| {
             this.graph_scope(|this| {
                 this.bind(&node.pat, None, GraphBinding::Unknown, &node.attrs);
                 syn::visit::visit_arm(this, node);
@@ -716,11 +789,15 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
 
     fn visit_expr_loop(&mut self, node: &'ast syn::ExprLoop) {
         self.looped();
-        syn::visit::visit_expr_loop(self, node);
+        self.repeated(&node.body, None, |this| {
+            syn::visit::visit_expr_loop(this, node);
+        });
     }
 
     fn visit_path(&mut self, node: &'ast syn::Path) {
-        self.term(Term::of_segments(&self.resolve(node)));
+        if self.recording() {
+            self.term(Term::of_segments(&self.resolve(node)));
+        }
         syn::visit::visit_path(self, node);
     }
 
@@ -729,7 +806,7 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
     }
 
     fn visit_ident(&mut self, node: &'ast proc_macro2::Ident) {
-        if !self.uncertain
+        if self.recording()
             && let Some(frame) = self.frames.last_mut()
             && names_graph(&words(&node.unraw().to_string()))
         {
@@ -742,10 +819,10 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
             .init
             .as_ref()
             .map_or(GraphBinding::Unknown, |init| self.initializer(&init.expr));
-        self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
+        self.attributed_scope(&node.attrs, |this| {
             syn::visit::visit_local(this, node);
+            this.bind(&node.pat, None, kind, &node.attrs);
         });
-        self.bind(&node.pat, None, kind, &node.attrs);
     }
 
     fn visit_pat_type(&mut self, node: &'ast syn::PatType) {
@@ -762,22 +839,23 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
 
     fn visit_expr_assign(&mut self, node: &'ast syn::ExprAssign) {
         syn::visit::visit_expr_assign(self, node);
-        if let syn::Expr::Path(path) = node.left.as_ref()
-            && let Some(name) = path.path.get_ident()
-            && let Some(frame) = self.frames.last_mut()
-            && let Some(binding) = frame
-                .bindings
-                .iter_mut()
-                .rev()
-                .find(|binding| name.unraw() == binding.name)
-            && binding.graph == GraphBinding::Handle
-        {
-            binding.graph = GraphBinding::Unknown;
+        if let Some(frame) = self.frames.last_mut() {
+            assignee_bindings(&node.left, &mut |name| {
+                if let Some(binding) = frame
+                    .bindings
+                    .iter_mut()
+                    .rev()
+                    .find(|binding| name.unraw() == binding.name)
+                    && binding.graph == GraphBinding::Handle
+                {
+                    binding.graph = GraphBinding::Unknown;
+                }
+            });
         }
     }
 
     fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
-        if !self.uncertain
+        if self.recording()
             && let Some(frame) = self.frames.last_mut()
             && node
                 .path
@@ -793,7 +871,7 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
 
 impl Structure<'_> {
     fn looped(&mut self) {
-        if !self.uncertain
+        if self.recording()
             && let Some(list) = self.frames.last_mut().and_then(|frame| frame.list.as_mut())
         {
             list.looped = true;
@@ -801,7 +879,7 @@ impl Structure<'_> {
     }
 
     fn term(&mut self, term: Option<Term>) {
-        if !self.uncertain
+        if self.recording()
             && let (Some(list), Some(term)) = (
                 self.frames.last_mut().and_then(|frame| frame.list.as_mut()),
                 term,
@@ -814,6 +892,102 @@ impl Structure<'_> {
 
 fn written_expression(expression: &syn::Expr) -> bool {
     expression_attributes(expression).is_some_and(inert_receiver_attributes)
+}
+
+/// A direct terminal break rules out a backedge if neither the condition nor
+/// the body can continue. Macros and uncertain attributes can introduce one.
+fn single_pass(body: &syn::Block, condition: Option<&syn::Expr>) -> bool {
+    #[derive(Default)]
+    struct CanContinue(bool);
+
+    impl<'ast> Visit<'ast> for CanContinue {
+        fn visit_expr(&mut self, node: &'ast syn::Expr) {
+            if self.0 {
+                return;
+            }
+            let Some(attributes) = expression_attributes(node) else {
+                self.0 = true;
+                return;
+            };
+            if !definitely_excluded(attributes) {
+                self.0 = matches!(node, syn::Expr::Verbatim(_));
+                syn::visit::visit_expr(self, node);
+            }
+        }
+
+        fn visit_local(&mut self, node: &'ast syn::Local) {
+            if !definitely_excluded(&node.attrs) {
+                syn::visit::visit_local(self, node);
+            }
+        }
+
+        fn visit_arm(&mut self, node: &'ast syn::Arm) {
+            if !definitely_excluded(&node.attrs) {
+                syn::visit::visit_arm(self, node);
+            }
+        }
+
+        fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
+            if !definitely_excluded(&node.attrs) {
+                syn::visit::visit_stmt_macro(self, node);
+            }
+        }
+
+        fn visit_expr_continue(&mut self, _: &'ast syn::ExprContinue) {
+            self.0 = true;
+        }
+
+        fn visit_macro(&mut self, _: &'ast syn::Macro) {
+            self.0 = true;
+        }
+
+        fn visit_attribute(&mut self, node: &'ast syn::Attribute) {
+            self.0 |= !inert_receiver_attributes(std::slice::from_ref(node));
+        }
+    }
+
+    if !matches!(body.stmts.last(), Some(syn::Stmt::Expr(syn::Expr::Break(exit), _))
+        if inert_receiver_attributes(&exit.attrs))
+    {
+        return false;
+    }
+    let mut can_continue = CanContinue::default();
+    if let Some(condition) = condition {
+        can_continue.visit_expr(condition);
+    }
+    can_continue.visit_block(body);
+    !can_continue.0
+}
+
+/// Visit the local bindings that an assignment replaces. Receivers,
+/// subscripts and tuple-struct names are reads, so their identifiers are skipped.
+fn assignee_bindings(expression: &syn::Expr, visit: &mut impl FnMut(&syn::Ident)) {
+    if expression_attributes(expression).is_some_and(definitely_excluded) {
+        return;
+    }
+    let targets = match expression {
+        syn::Expr::Path(path) if path.qself.is_none() => {
+            if let Some(name) = path.path.get_ident() {
+                visit(name);
+            }
+            return;
+        }
+        syn::Expr::Paren(inner) => return assignee_bindings(&inner.expr, visit),
+        syn::Expr::Group(inner) => return assignee_bindings(&inner.expr, visit),
+        syn::Expr::Tuple(tuple) => &tuple.elems,
+        syn::Expr::Array(array) => &array.elems,
+        syn::Expr::Call(call) if matches!(call.func.as_ref(), syn::Expr::Path(_)) => &call.args,
+        syn::Expr::Struct(structure) => {
+            for field in &structure.fields {
+                assignee_bindings(&field.expr, visit);
+            }
+            return;
+        }
+        _ => return,
+    };
+    for target in targets {
+        assignee_bindings(target, visit);
+    }
 }
 
 fn nominal_path(ty: &syn::Type) -> Option<&syn::Path> {

@@ -4,7 +4,7 @@
 //! Lexical scope traversal shared by written-name policies.
 
 use super::{Call, CallPath};
-use crate::syntax::{Names, path_text};
+use crate::syntax::{AliasAttributes, Names, path_text};
 use syn::ext::IdentExt as _;
 
 pub(super) trait ScopedNames: Sized {
@@ -147,11 +147,12 @@ pub(super) fn call_path(
     let Some(alias) = bindings.next() else {
         return (!block_glob).then(written);
     };
-    if !alias.inert_attributes {
+    if alias.attributes != AliasAttributes::Inert {
         return None;
     }
     if alias.frame == 0 {
-        return (!block_glob && !bindings.any(|other| !other.inert_attributes)).then(written);
+        return (!block_glob && !bindings.any(|other| other.attributes != AliasAttributes::Inert))
+            .then(written);
     }
     if bindings
         .next()

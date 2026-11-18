@@ -405,7 +405,7 @@ impl Scopes {
                                     absolute: expanded.absolute,
                                     source_byte: key.alias.source_byte,
                                     external: key.alias.external,
-                                    inert_attributes: key.alias.inert_attributes,
+                                    attributes: key.alias.attributes,
                                     frame: key.alias.frame,
                                 },
                                 key.namespace,

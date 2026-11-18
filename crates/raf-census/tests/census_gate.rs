@@ -3964,6 +3964,10 @@ fn variant(file: &str) -> Builder {
 }
 
 fn variant_at(file: &str, symbol: &str) -> Builder {
+    variant_for(file, symbol, "copy-rule")
+}
+
+fn variant_for(file: &str, symbol: &str, detector: &str) -> Builder {
     let mut graph = job(true);
     put(&mut graph, "#job", "variant", Term::iri("#variant"));
     put(
@@ -3975,7 +3979,7 @@ fn variant_at(file: &str, symbol: &str) -> Builder {
     for (key, value) in [
         ("symbol", symbol),
         ("file", file),
-        ("detector", "copy-rule"),
+        ("detector", detector),
         ("criterion", "layering"),
         ("reason", "The other target has a separate implementation"),
     ] {
@@ -3988,6 +3992,26 @@ fn variant_at(file: &str, symbol: &str) -> Builder {
         Term::iri("urn:raf:code:demo::home"),
     );
     graph
+}
+
+/// A structure variant has to match in its job's context, including when the
+/// ledger names the detector only in the variant.
+#[test]
+fn structure_variants_require_the_job_scoped_detector() {
+    let (_, home, ..) = detector_fixtures::STRUCTURE[1];
+    for (iteration, matches) in [("", false), ("while n>0 {n-=1;}", true)] {
+        let source = format!("fn copy(mut n:u8){{let _=rdf::FIRST;let _=rdf::REST;{iteration}}}");
+        let policy = variant_for("consumer/src/lib.rs", "consumer::copy", "rdf-list-walk");
+        let report = Gate::workspace(".")
+            .check_tree(&detector_fixture(policy, home, &source))
+            .unwrap();
+        assert_eq!(report.is_clean(), matches, "{:?}", report.findings());
+        if !matches {
+            assert!(report.findings().iter().any(|finding| {
+                finding.contains("no longer matches detector \"rdf-list-walk\"")
+            }));
+        }
+    }
 }
 
 fn shared_tree(graph: Builder) -> MemoryTree {

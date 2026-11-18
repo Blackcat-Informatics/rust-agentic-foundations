@@ -5439,7 +5439,7 @@ mod tests {
             });
             if limit == 17 {
                 assert_eq!(result.expect("exact budget"), Some(0));
-                assert!(pending.queue.is_empty());
+                assert_eq!(pending.queue, VecDeque::new());
                 assert_eq!(meter.usage().work, 17);
                 assert_eq!(tally.get(Work::SettleSteps), 17);
             } else {

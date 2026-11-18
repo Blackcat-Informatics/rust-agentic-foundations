@@ -493,12 +493,10 @@ fn resolve_call(
             resolved.sites
         }
         Ok(_)
-        | Err(CodeResolveError::Resolve(
-            ResolveError::NotFound(_) | ResolveError::UnresolvedSelf(_),
-        )) => return Ok(Vec::new()),
-        Err(CodeResolveError::AliasMember { .. }) if call.receiver.is_some() => {
-            return Ok(Vec::new());
-        }
+        | Err(
+            CodeResolveError::Resolve(ResolveError::NotFound(_) | ResolveError::UnresolvedSelf(_))
+            | CodeResolveError::AliasMember { .. },
+        ) => return Ok(Vec::new()),
         Err(CodeResolveError::Resolve(ResolveError::Ambiguous(ids))) if call.receiver.is_some() => {
             let Some(inherent) = inherent_candidate(workspace, path, &ids, |nominal| {
                 lookup(nominal, Namespace::Type)

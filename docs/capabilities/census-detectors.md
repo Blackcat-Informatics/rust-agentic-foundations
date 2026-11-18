@@ -24,6 +24,7 @@ bindings:
     - raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence
     - raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope
     - raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points
+    - raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector
     - raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function
     - raf_census::test_crate::census_gate::foreign_host_import_refuses_method_constructor_and_property_shapes_beside_a_valid_neighbour
     - raf_census::test_crate::census_gate::foreign_host_import_refuses_arguments_it_cannot_place_beside_a_valid_neighbour
@@ -80,11 +81,12 @@ All three representation policies read shipping and nonshipping targets and
 have no ordinary-job home-package exemption.
 
 ### RDF structure policies
-<!-- raf:tested-by raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points,raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector -->
 
 `reifier-default-graph` and `rdf-list-walk` judge a function against the home and
-entry points of the job that forbids them, so they apply only to a job that names
-them and cannot be required without a job. Both read shipping code only.
+entry points of the job that selects them. A job selects a detector to forbid
+matching code or to validate a variant. Both detectors require a job and read
+shipping code only.
 
 `reifier-default-graph` reports a call, or a method call, that reaches the home or
 an entry point of the job, in a function that handles named graphs, when it
@@ -108,15 +110,21 @@ can wrap the row or graph without losing that association.
 A receiver selects a graph when it calls a method named for a `graph` with one
 non-default argument, such as `dataset.graph_mut(name)`. A local initialized
 from such a call or another selected local carries the selection in its lexical
-scope until shadowed or directly reassigned. These are written-source rules and
-derive the graph from recognizable storage syntax and binding declarations.
+scope until shadowed or reassigned, including in a destructuring assignment.
+A possible reassignment of an incoming handle also applies to later loop
+iterations. A terminal `break` limits the repeated region to one pass when
+its body and condition have no possible `continue`. An assignment excluded by
+`cfg(any())` contributes no write.
+These written-source rules derive the graph from recognizable storage syntax
+and binding declarations.
 
 A row is a reifier row when its predicate is `rdf:reifies`, spelled as `RDF_REIFIES`,
 as `REIFIES` under a path segment named `rdf` (including an imported `REIFIES`,
-resolved through its `use`), as `vocab::REIFIES` or as the literal IRI, or when its
-object is a triple term. The predicate can sit inside a recognized IRI
-constructor such as `Term::iri` or `builder.intern_iri`. A triple-term object is
-a call, method call or struct whose last name is `Triple`, `TripleTerm`,
+resolved through a declaration-preserving `use` chain), as `vocab::REIFIES` or
+as the literal IRI, or when its object is a triple term. The predicate can sit
+inside a recognized IRI constructor such as `Term::iri` or `builder.intern_iri`.
+A triple-term object is a call, method call or struct whose last name is
+`Triple`, `TripleTerm`,
 `triple`, `triple_term`, `new_triple`, `from_triple` or `intern_triple`.
 The same value-preserving wrappers accepted for graph operands also work for
 reifier predicates and triple terms.
@@ -136,11 +144,12 @@ functions without named-graph evidence also pass.
 
 `rdf-list-walk` reports a function that names `rdf:first` and `rdf:rest` (as
 `RDF_FIRST` and `RDF_REST`, as `FIRST` and `REST` under a path segment named
-`rdf` after `use` resolution, or as the literal IRIs), contains a `for`, `while`
-or `loop` expression or calls itself, and calls neither the home nor any entry
-point of the job. A recursive call resolves to the function or method being
-examined. A closure body supplies its own calls and loop structure and cannot
-establish delegation or iteration for its enclosing function. Delegating to a
+`rdf` after declaration-preserving `use` resolution, or as the literal IRIs),
+contains a `for`, `while` or `loop` expression or calls itself, and calls
+neither the home nor any entry point of the job. A recursive call resolves to
+the function or method being examined. Calls and loops inside a closure or
+async block supply no evidence of delegation or iteration for the enclosing
+function. Delegating to a
 declared entry point, naming only one term or naming both without iteration
 leaves the function clean.
 
@@ -155,14 +164,17 @@ inherent impl at the indexed crate root. Attributes on the binding and
 definition must preserve their declarations. An uncertain declaration shadows
 any earlier receiver evidence for its name. Calls, loops and RDF terms under
 attributes that may alter their source supply no evidence. Imports whose
-attributes may change their bindings supply no identity. The lookup through a
+attributes may change their bindings supply no identity. RDF term lookup skips
+imports excluded by `cfg(any())`. The lookup through a
 written type uses its declaration scope. Inherent precedence over trait
 candidates requires one nominal type and one exact inherent definition.
 Receiver adjustments, type aliases, dynamic dispatch and macro expansion
-supply no dot call identity. Use an explicit associated path when the receiver
-would need an adjustment. Every definition a call may resolve to in that reach
-must be declared for the call to count as delegation. The job must name homes
-and entry points indexed in the workspace that is being checked. Both detectors
+supply no dot call identity. Reference-qualified self types and unsupported
+associated alias projections supply no call identity. Use an explicit
+associated path when the receiver would need an adjustment. Every definition
+a call may resolve to in that reach must be declared for the call to count as
+delegation. The job must name homes and entry points indexed in the workspace
+that is being checked. Both detectors
 name the home as the replacement.
 
 ### Source ownership and byte-layout recognition
@@ -590,4 +602,5 @@ required findings with neighbouring clean source.
 | `raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

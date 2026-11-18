@@ -263,7 +263,17 @@ const STRUCTURE_RULES: [(&str, bool); 2] =
     [("reifier-default-graph", true), ("rdf-list-walk", false)];
 
 pub(super) fn uses_structure(row: &LedgerJob) -> bool {
-    STRUCTURE_RULES.iter().any(|(id, _)| enabled(row, id))
+    STRUCTURE_RULES
+        .iter()
+        .any(|(id, _)| uses_structure_rule(row, id))
+}
+
+fn uses_structure_rule(row: &LedgerJob, id: &str) -> bool {
+    enabled(row, id)
+        || row
+            .variants
+            .iter()
+            .any(|variant| variant.detector.as_str() == id)
 }
 
 /// The job's hits before its context detectors run, with the structure
@@ -279,7 +289,7 @@ fn structures<'a>(
         names: BTreeSet::new(),
     };
     for (id, delegated) in STRUCTURE_RULES {
-        if enabled(row, id) {
+        if uses_structure_rule(row, id) {
             structure(&mut result, collected, scope, (id, delegated))?;
         }
     }
