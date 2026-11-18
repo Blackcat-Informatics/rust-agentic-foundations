@@ -278,9 +278,9 @@ inside the owning item.
 | `reifier-default-graph` | shipping | A reifier row built for the default graph through the home or an entry point, in a function that handles named graphs. |
 | `rdf-list-walk` | shipping | A function that names `rdf:first` and `rdf:rest`, iterates or recurses, and calls neither the home nor an entry point. |
 
-The detectors that read a job's home (`home-literal`, `sole-name`,
-`vocabulary-literal`, `foreign-host-import`, `reifier-default-graph`, `rdf-list-walk`) apply only to jobs that name them in `forbidden`. The census
-walks shipping code and every test, bench and example target. The `Reads` column of
+The `home-literal`, `sole-name`, `vocabulary-literal` and `foreign-host-import`
+detectors apply to jobs that name them in `forbidden`. The census walks shipping
+code and every test, bench and example target. The `Reads` column of
 the table names what each detector reads: `shipping` for shipping code only, and `all`
 for shipping code and every test, bench and example target. The eleven `shipping`
 detectors are `hex-digit-radix`, `json-pointer-escape`, `length-prefix-frame`,

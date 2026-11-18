@@ -7,7 +7,7 @@ subject: cap:census-detectors#contract
 inputs:
   - kind: section
     name: cap:census-detectors#contract
-    digest: 4c755f2b5cb2a07e5b8d9544fae2c90555eea247f0dc043c2f07f54fe76bb7e6
+    digest: e854cd262991448b3d3f880b40aeda4e1807c8f83a5464e70f6fd2e4c0c6b135
   - kind: symbol
     name: raf_census::Unit::string_initializer
     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
