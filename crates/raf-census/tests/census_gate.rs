@@ -3362,6 +3362,12 @@ fn structure_copies(id: &str, home: &str, entries: &[&str], consumer: &str) -> u
         "{id}: {:?}",
         report.findings()
     );
+    if consumer == detector_fixtures::EXPECT_ARGUMENT_ROW {
+        let [finding] = report.findings() else {
+            panic!("expected one nested row: {:?}", report.findings());
+        };
+        assert!(finding.contains("consumer/src/lib.rs:4:"), "{finding}");
+    }
     copies
 }
 

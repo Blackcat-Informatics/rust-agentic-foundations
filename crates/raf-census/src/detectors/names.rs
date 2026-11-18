@@ -143,26 +143,49 @@ pub(super) fn call_path(
             receiver: None,
         });
     }
-    let mut bindings = names.aliases.get(head).into_iter().flatten().rev();
-    let Some(alias) = bindings.next() else {
+    let Some(aliases) = names.aliases.get(head) else {
         return (!block_glob).then(written);
+    };
+    let mut bindings = aliases
+        .iter()
+        .rev()
+        .filter(|alias| alias.attributes != AliasAttributes::Excluded);
+    let Some(alias) = bindings.next() else {
+        return (!block_glob && !aliases.iter().any(|alias| alias.frame == 0)).then(written);
     };
     if alias.attributes != AliasAttributes::Inert {
         return None;
     }
+    let target = alias.path.first();
+    let rooted = alias.absolute
+        || target.is_some_and(|target| matches!(target.as_str(), "crate" | "self" | "super"));
     if alias.frame == 0 {
-        return (!block_glob && !bindings.any(|other| other.attributes != AliasAttributes::Inert))
-            .then(written);
-    }
-    if bindings
+        if block_glob
+            || bindings
+                .clone()
+                .any(|other| other.attributes != AliasAttributes::Inert)
+        {
+            return None;
+        }
+        if !aliases
+            .iter()
+            .any(|other| other.frame == 0 && other.attributes == AliasAttributes::Excluded)
+        {
+            return Some(written());
+        }
+        // Source's structural index can retain the excluded competitor. A
+        // single rooted import can be checked from the same reading module.
+        if !rooted || alias.external || bindings.next().is_some() {
+            return None;
+        }
+    } else if bindings
         .next()
         .is_some_and(|other| other.frame == alias.frame)
     {
         return None;
     }
-    let target = alias.path.first()?;
-    if !alias.absolute
-        && !matches!(target.as_str(), "crate" | "self" | "super")
+    let target = target?;
+    if !rooted
         && (block_glob
             || names
                 .aliases
@@ -170,7 +193,10 @@ pub(super) fn call_path(
                 .into_iter()
                 .flatten()
                 .any(|other| {
-                    other.frame > 0 && other.frame <= alias.frame && !std::ptr::eq(alias, other)
+                    other.frame > 0
+                        && other.frame <= alias.frame
+                        && other.attributes != AliasAttributes::Excluded
+                        && !std::ptr::eq(alias, other)
                 }))
     {
         return None;
@@ -178,7 +204,11 @@ pub(super) fn call_path(
     let mut expanded = alias.path.clone();
     expanded.extend_from_slice(tail);
     Some(Call {
-        byte: alias.source_byte?,
+        byte: if alias.frame == 0 {
+            byte
+        } else {
+            alias.source_byte?
+        },
         path: CallPath::Import(path_text(&expanded, alias.absolute)),
         receiver: None,
     })

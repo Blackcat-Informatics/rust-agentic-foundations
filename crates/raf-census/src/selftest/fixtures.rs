@@ -196,6 +196,14 @@ pub type StructureFixture = (
     &'static [&'static str],
 );
 
+/// An `expect` argument constructs a distinct row on line four.
+pub const EXPECT_ARGUMENT_ROW: &str = "fn copy(d:&mut Dataset,graph:u8){
+    d.insert(
+        demo::triple(1,rdf::REIFIES,2).expect(note(
+            demo::triple(3,rdf::REIFIES,4)
+        )),graph);
+}";
+
 /// Entry-point detectors: id, home source, the home's entry points, positive
 /// and negative consumers. The home declares the approved constructor and
 /// traversal; a consumer is judged by what it calls.
@@ -248,7 +256,10 @@ pub const STRUCTURE: [StructureFixture; 2] = [
             "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,mut again:bool){let mut g:&mut demo::Dataset=d.graph_mut(name);loop {g.insert(1,rdf::REIFIES,2);g=&mut *fallback;if again{again=false;continue;}break;}}",
             "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,mut again:bool){let mut g:&mut demo::Dataset=d.graph_mut(name);'entries: while {g.insert(1,rdf::REIFIES,2);if again{g=&mut *fallback;again=false;continue 'entries;}true} {break;}}",
             "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);#[cfg(feature=\"optional\")] {g=fallback;}g.insert(1,rdf::REIFIES,2);}",
-            "fn copy(d:&mut Dataset,graph:u8){d.insert(demo::triple(1,rdf::REIFIES,2).expect(note(demo::triple(3,rdf::REIFIES,4))),graph);}",
+            EXPECT_ARGUMENT_ROW,
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,stop:bool){let mut g:&mut demo::Dataset=d.graph_mut(name);loop {g.insert(1,rdf::REIFIES,2);if stop{g=fallback;break;}}g.insert(1,rdf::REIFIES,2);}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);for _ in 0..2 {g.insert(1,rdf::REIFIES,2);loop {g=&mut *fallback;break;}}}",
+            "async fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);async {g=fallback;}.await;g.insert(1,rdf::REIFIES,2);}",
             "use purrdf_iri::vocab::rdf::REIFIES; fn copy(d:&Dataset){demo::quad(1,REIFIES,2,None);}",
             "use raf_rdf::vocab; fn copy(d:&Dataset){demo::quad(1,vocab::REIFIES,2,None);}",
         ],
@@ -276,6 +287,8 @@ pub const STRUCTURE: [StructureFixture; 2] = [
             "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);loop {g.insert(1,rdf::REIFIES,2);g=fallback;#[cfg(any())] {continue;}#[cfg(any())] absent!();break;}}",
             "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);for _ in 0..2 {g.insert(1,rdf::REIFIES,2);g=fallback;break;}}",
             "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);while name>0 {g.insert(1,rdf::REIFIES,2);g=fallback;break;}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,stop:bool){let mut g:&mut demo::Dataset=d.graph_mut(name);loop {g.insert(1,rdf::REIFIES,2);if stop{g=fallback;break;}}}",
+            "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8){let mut g:&mut demo::Dataset=d.graph_mut(name);{let _unused=async {g=fallback;};}g.insert(1,rdf::REIFIES,2);}",
             "fn copy(d:&mut demo::Dataset,fallback:&mut demo::Dataset,name:u8,values:&mut [u8]){let g:&mut demo::Dataset=d.graph_mut(name);for _ in 0..2 {{let mut g=&mut *fallback;g=&mut *fallback;}values[g.len()]=0;g.insert(1,rdf::REIFIES,2);}}",
             "mod other {pub const REIFIES:u8=0;} use crate::other as terms; #[cfg(any())] use raf_rdf::vocab as terms; fn copy(d:&Dataset){demo::quad(1,terms::REIFIES,2,None);}",
             "fn copy(graph:&mut Graph){graph.insert(1,rdf::REIFIES,2);}",
@@ -305,9 +318,13 @@ pub const STRUCTURE: [StructureFixture; 2] = [
             "use demo::walk_list; fn copy(mut n:u8,walk_list:fn(u8)->u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=walk_list(n);}}",
             "use purrdf_iri::vocab::rdf::{FIRST, REST}; fn copy(mut n:u8){while n>0 {let _=FIRST;let _=REST;n-=1;}}",
             "mod other {pub const FIRST:u8=0;pub const REST:u8=0;} #[cfg(any())] use crate::other as terms; use purrdf_iri::vocab::rdf as terms; fn copy(mut n:u8){while n>0 {let _=terms::FIRST;let _=terms::REST;n-=1;}}",
+            "use purrdf_iri::vocab::rdf as terms; #[cfg(any())] mod terms {} fn copy(mut n:u8){while n>0 {let _=terms::FIRST;let _=terms::REST;n-=1;}}",
+            "use ::demo::walk_list as walk; #[cfg(feature=\"optional\")] use ::demo::home as walk; fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=walk(n);}}",
         ],
         &[
             "fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=demo::walk_list(n);}}",
+            "use ::demo::walk_list as walk; #[cfg(any())] use ::demo::home as walk; fn copy(mut n:u8){while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=walk(n);}}",
+            "fn copy(mut n:u8){use ::demo::walk_list as walk; #[cfg(any())] use ::demo::home as walk; #[cfg(any())] use ::demo::*; #[cfg(any())] fn walk(n:u8)->u8{n} while n>0 {let _=rdf::FIRST;let _=rdf::REST;n=walk(n);}}",
             "trait Walk {fn walk_list(&self);} impl Walk for demo::Dataset {fn walk_list(&self){}} fn copy(mut n:u8,d:&mut demo::Dataset){while n>0 {let _=rdf::FIRST;let _=rdf::REST;d.walk_list();n-=1;}}",
             "fn copy(mut n:u8,mut d:demo::Dataset){while n>0 {let _=rdf::FIRST;let _=rdf::REST;demo::Dataset::walk_list(&mut d);n-=1;}}",
             "fn copy(mut n:u8,mut d:demo::Dataset){while n>0 {let _=rdf::FIRST;let _=rdf::REST;<demo::Dataset>::walk_list(&mut d);n-=1;}}",

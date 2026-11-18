@@ -280,7 +280,7 @@ impl Names {
     }
 
     pub(crate) fn item(&mut self, item: &syn::Item) {
-        match item {
+        let (shadow, attributes) = match item {
             syn::Item::Use(item) => {
                 let attributes = AliasAttributes::of(&item.attrs);
                 visit_import_paths(&item.tree, |path, alias| {
@@ -295,6 +295,7 @@ impl Names {
                         );
                     }
                 });
+                return;
             }
             syn::Item::ExternCrate(item) => {
                 let name = item.rename.as_ref().map_or(&item.ident, |(_, name)| name);
@@ -306,16 +307,25 @@ impl Names {
                     true,
                     AliasAttributes::of(&item.attrs),
                 );
+                return;
             }
-            syn::Item::Struct(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::Enum(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::Type(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::Mod(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::Trait(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::TraitAlias(item) => self.shadow(item.ident.unraw().to_string()),
-            syn::Item::Union(item) => self.shadow(item.ident.unraw().to_string()),
-            _ => {}
-        }
+            syn::Item::Struct(item) => (&item.ident, &item.attrs),
+            syn::Item::Enum(item) => (&item.ident, &item.attrs),
+            syn::Item::Type(item) => (&item.ident, &item.attrs),
+            syn::Item::Mod(item) => (&item.ident, &item.attrs),
+            syn::Item::Trait(item) => (&item.ident, &item.attrs),
+            syn::Item::TraitAlias(item) => (&item.ident, &item.attrs),
+            syn::Item::Union(item) => (&item.ident, &item.attrs),
+            _ => return,
+        };
+        self.alias(
+            shadow.unraw().to_string(),
+            Vec::new(),
+            false,
+            None,
+            false,
+            AliasAttributes::of(attributes),
+        );
     }
 }
 

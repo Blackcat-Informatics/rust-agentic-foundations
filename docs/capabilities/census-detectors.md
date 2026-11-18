@@ -113,8 +113,11 @@ from such a call or another selected local carries the selection in its lexical
 scope until shadowed or reassigned, including in a destructuring assignment.
 A possible reassignment of an incoming handle also applies to later loop
 iterations. A terminal `break` limits the repeated region to one pass when
-its body and condition have no possible `continue`. An assignment excluded by
-`cfg(any())` contributes no write.
+its body and condition have no possible `continue`. A branch that ends in an
+unlabeled `break` to that loop and has no possible `continue` contributes its
+writes to the loop exit. An assignment excluded by `cfg(any())` contributes
+no write. A closure or async block used directly as the initializer of a
+wildcard or terminal `let` drops its writes when the initializer is discarded.
 These written-source rules derive the graph from recognizable storage syntax
 and binding declarations.
 
@@ -165,7 +168,10 @@ definition must preserve their declarations. An uncertain declaration shadows
 any earlier receiver evidence for its name. Calls, loops and RDF terms under
 attributes that may alter their source supply no evidence. Imports whose
 attributes may change their bindings supply no identity. RDF term lookup skips
-imports excluded by `cfg(any())`. The lookup through a
+imports and lexical shadows excluded by `cfg(any())`. Block-level call lookup
+skips those absent bindings as well. When an absent module-level binding would
+obscure a single live rooted import, call lookup reads the target of that
+import. The lookup through a
 written type uses its declaration scope. Inherent precedence over trait
 candidates requires one nominal type and one exact inherent definition.
 Receiver adjustments, type aliases, dynamic dispatch and macro expansion

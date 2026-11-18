@@ -118,6 +118,14 @@ enum GraphBinding {
     Unknown,
 }
 
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum WriteProbe {
+    #[default]
+    Inactive,
+    Header,
+    Nested,
+}
+
 /// The one row operand whose enclosing call supplies its graph.
 #[derive(Clone, Copy)]
 enum ExplicitRow<'ast> {
@@ -143,7 +151,8 @@ struct Structure<'ast> {
     explicit_row: Option<ExplicitRow<'ast>>,
     impl_graph: bool,
     uncertain: bool,
-    probing_writes: bool,
+    write_probe: WriteProbe,
+    tail_local: Option<&'ast syn::Local>,
 }
 
 impl ScopedNames for Structure<'_> {
@@ -154,7 +163,11 @@ impl ScopedNames for Structure<'_> {
 
 impl<'ast> Structure<'ast> {
     fn recording(&self) -> bool {
-        !self.uncertain && !self.probing_writes
+        !self.uncertain && !self.probing_writes()
+    }
+
+    fn probing_writes(&self) -> bool {
+        self.write_probe != WriteProbe::Inactive
     }
 
     fn function(&mut self, signature: &syn::Signature, walk: impl FnOnce(&mut Self)) {
@@ -393,6 +406,10 @@ impl<'ast> Structure<'ast> {
         condition: Option<&'ast syn::Expr>,
         walk: impl Fn(&mut Self),
     ) {
+        if self.probing_writes() {
+            self.nested_repeat(walk);
+            return;
+        }
         if self.recording()
             && self.frames.last().is_some_and(|frame| {
                 frame
@@ -402,11 +419,20 @@ impl<'ast> Structure<'ast> {
             })
             && !single_pass(body, condition)
         {
-            self.probing_writes = true;
+            self.write_probe = WriteProbe::Header;
             self.graph_scope(&walk);
-            self.probing_writes = false;
+            self.write_probe = WriteProbe::Inactive;
         }
         walk(self);
+    }
+
+    fn nested_repeat(&mut self, walk: impl FnOnce(&mut Self)) {
+        let outer = self.write_probe;
+        if self.probing_writes() {
+            self.write_probe = WriteProbe::Nested;
+        }
+        walk(self);
+        self.write_probe = outer;
     }
 
     fn graph_scope(&mut self, walk: impl FnOnce(&mut Self)) {
@@ -458,7 +484,7 @@ impl<'ast> Structure<'ast> {
         let nominal = match pattern {
             syn::Pat::Ident(binding)
                 if known
-                    && !self.probing_writes
+                    && !self.probing_writes()
                     && binding.by_ref.is_none()
                     && binding.subpat.is_none() =>
             {
@@ -521,10 +547,10 @@ impl<'ast> Structure<'ast> {
                 continue;
             };
             let name = match item {
-                syn::Item::Fn(item) => &item.sig.ident,
-                syn::Item::Const(item) => &item.ident,
-                syn::Item::Static(item) => &item.ident,
-                syn::Item::Use(item) => {
+                syn::Item::Fn(item) if !definitely_excluded(&item.attrs) => &item.sig.ident,
+                syn::Item::Const(item) if !definitely_excluded(&item.attrs) => &item.ident,
+                syn::Item::Static(item) if !definitely_excluded(&item.attrs) => &item.ident,
+                syn::Item::Use(item) if !definitely_excluded(&item.attrs) => {
                     visit_import_paths(&item.tree, |_, alias| frame.block_glob |= alias.is_none());
                     continue;
                 }
@@ -628,10 +654,25 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
     }
 
     fn visit_block(&mut self, node: &'ast syn::Block) {
+        // A break here targets the probed loop only outside nested loops.
+        // The ordinary visit still carries these writes out of the loop.
+        if self.write_probe == WriteProbe::Header
+            && !self.uncertain
+            && terminal_break(node).is_some_and(|exit| exit.label.is_none())
+            && !can_continue(node, None)
+        {
+            return;
+        }
+        let tail = match node.stmts.last() {
+            Some(syn::Stmt::Local(local)) => Some(local),
+            _ => None,
+        };
+        let outer = std::mem::replace(&mut self.tail_local, tail);
         self.graph_scope(|this| {
             this.block_bindings(node);
             this.block(node, |this| syn::visit::visit_block(this, node));
         });
+        self.tail_local = outer;
     }
 
     fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
@@ -685,7 +726,7 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
     }
 
     fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
-        if self.probing_writes {
+        if self.probing_writes() {
             syn::visit::visit_expr_call(self, node);
             return;
         }
@@ -718,7 +759,7 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
-        if self.probing_writes {
+        if self.probing_writes() {
             syn::visit::visit_expr_method_call(self, node);
             return;
         }
@@ -741,7 +782,7 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
 
     fn visit_expr_for_loop(&mut self, node: &'ast syn::ExprForLoop) {
         self.looped();
-        self.visit_expr(&node.expr);
+        self.nested_repeat(|this| this.visit_expr(&node.expr));
         self.repeated(&node.body, None, |this| {
             this.graph_scope(|this| {
                 this.visit_pat(&node.pat);
@@ -820,7 +861,31 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
             .as_ref()
             .map_or(GraphBinding::Unknown, |init| self.initializer(&init.expr));
         self.attributed_scope(&node.attrs, |this| {
+            let discarded = !this.uncertain
+                && (matches!(node.pat, syn::Pat::Wild(_))
+                    || this.tail_local.is_some_and(|tail| std::ptr::eq(tail, node)))
+                && node.init.as_ref().is_some_and(|init| {
+                    matches!(*init.expr, syn::Expr::Async(_) | syn::Expr::Closure(_))
+                        && written_expression(&init.expr)
+                });
+            let mut handles = Vec::new();
+            if discarded && let Some(frame) = this.frames.last() {
+                handles.extend(
+                    frame
+                        .bindings
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, binding)| {
+                            (binding.graph == GraphBinding::Handle).then_some(index)
+                        }),
+                );
+            }
             syn::visit::visit_local(this, node);
+            if let Some(frame) = this.frames.last_mut() {
+                for index in handles {
+                    frame.bindings[index].graph = GraphBinding::Handle;
+                }
+            }
             this.bind(&node.pat, None, kind, &node.attrs);
         });
     }
@@ -897,6 +962,19 @@ fn written_expression(expression: &syn::Expr) -> bool {
 /// A direct terminal break rules out a backedge if neither the condition nor
 /// the body can continue. Macros and uncertain attributes can introduce one.
 fn single_pass(body: &syn::Block, condition: Option<&syn::Expr>) -> bool {
+    terminal_break(body).is_some() && !can_continue(body, condition)
+}
+
+fn terminal_break(body: &syn::Block) -> Option<&syn::ExprBreak> {
+    match body.stmts.last()? {
+        syn::Stmt::Expr(syn::Expr::Break(exit), _) if inert_receiver_attributes(&exit.attrs) => {
+            Some(exit)
+        }
+        _ => None,
+    }
+}
+
+fn can_continue(body: &syn::Block, condition: Option<&syn::Expr>) -> bool {
     #[derive(Default)]
     struct CanContinue(bool);
 
@@ -946,17 +1024,12 @@ fn single_pass(body: &syn::Block, condition: Option<&syn::Expr>) -> bool {
         }
     }
 
-    if !matches!(body.stmts.last(), Some(syn::Stmt::Expr(syn::Expr::Break(exit), _))
-        if inert_receiver_attributes(&exit.attrs))
-    {
-        return false;
-    }
     let mut can_continue = CanContinue::default();
     if let Some(condition) = condition {
         can_continue.visit_expr(condition);
     }
     can_continue.visit_block(body);
-    !can_continue.0
+    can_continue.0
 }
 
 /// Visit the local bindings that an assignment replaces. Receivers,
