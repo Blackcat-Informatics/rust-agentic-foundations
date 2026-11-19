@@ -149,11 +149,11 @@ impl<'ast> Visit<'ast> for Policy {
     visit_scopes!();
 
     fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
-        visit_import_paths(&node.tree, |path, local| {
+        visit_import_paths(&node.tree, |path, leaf| {
             let written = self.names.resolve_import(
                 path.iter().map(|part| part.unraw().to_string()).collect(),
                 node.leading_colon.is_some(),
-                local,
+                leaf.alias(),
                 path.first().map(|part| part.span().byte_range().start),
             );
             if let Some(first) = path.first()

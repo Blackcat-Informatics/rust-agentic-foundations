@@ -97,7 +97,7 @@ inputs:
     digest: 42c47c5cb754e9d6284eb089c8ee9aa14bfaa04b41194c50f9416bcbd4b4a34c
   - kind: symbol
     name: raf_census::gate::providers
-    digest: 042e52bfcc94421723e93aba659428e970fa6d6d4f98708d94681a7c1b6c5c08
+    digest: 0f8af14c407068df501a54e54eb4a91e5bb1d20bdf923076c55825261d7afd2f
   - kind: symbol
     name: raf_census::report::ledger
     digest: f12bfe2a2c1f524a5ebc3e087bed217d2968439ddfb3f84a964f5f8a8c181d35

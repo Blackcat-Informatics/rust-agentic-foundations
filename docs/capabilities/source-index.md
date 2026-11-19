@@ -2748,8 +2748,8 @@ of it, brings in nothing.
 
 An import never resolves through its own binding: the
 path of `use x;` does not look at the `x` it binds, and the import never waits on
-itself. Where its path reads the name it binds in its own module, the explicit imports
-of that name, its own among them, are not there for it: they are alternatives under
+itself. Where its path reads a name it binds in its own module, the explicit imports
+of that name in the same namespace, including its own, are not there for it: they are alternatives under
 `cfg`, as rustc refuses two imports of one name, so `use shared::inner as shared;`
 reads the crate `shared` and binds `shared::inner`. From edition 2018 on, a single-segment import of a crate of the extern prelude
 (`use x;`, `use x::{self};`, `use x::{self as y};`, `use ::x;`) is an alias of that
@@ -2758,6 +2758,14 @@ crate. For a library of the workspace it binds the library's crate root item, so
 index, a dependency outside the workspace or a sysroot crate, it binds nothing in the
 index: a path through it, directly or through another import of it, is `NotFound`,
 never `Cyclic`, and a trait key through it is the crate's absolute path.
+
+Grouped `self` imports, including `path::{self as name}`, read and bind only
+the Type namespace. An independent Value or Macro binding of the same name
+can still come from another declaration or glob. An ordinary named leaf can
+bind every namespace supplied by its target. `IndexedImport::path` reports
+the namespaces in which to read the terminal path. A glob prefix is read in
+Type, and its admitted members retain their own namespaces.
+<!-- raf:tested-by raf_source::test_crate::use_resolution::use_with_only_self_is_an_error_and_use_path_self_imports_the_module -->
 
 ### Crate-head glob ambiguity
 <!-- raf:tested-by raf_source::test_crate::use_resolution::a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous,raf_source::test_crate::use_resolution::a_no_std_crate_does_not_name_std_without_an_extern_crate_item,raf_source::test_crate::use_resolution::a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate,raf_source::test_crate::use_resolution::a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order -->
@@ -6205,7 +6213,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::use_resolution::trait_impls_on_foreign_types_are_keyed_by_the_canonical_trait_path_in_every_spelling` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::two_globs_that_bring_in_different_items_are_ambiguous_beside_two_that_bring_in_one` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::use_with_only_self_is_an_error_and_use_path_self_imports_the_module` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::use_with_only_self_is_an_error_and_use_path_self_imports_the_module` | test | [Contract](#contract) |
 | `raf_source::test_crate::walk_stack::a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::walk_stack::a_disk_chain_of_directories_is_refused_typed_on_a_two_mib_thread` | test | [Contract](#contract) |
 | `raf_source::test_crate::walk_stack::a_member_pattern_at_the_depth_limit_expands_and_one_deeper_is_refused_typed` | test | [Contract](#contract) |

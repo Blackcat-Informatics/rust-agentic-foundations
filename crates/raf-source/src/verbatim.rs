@@ -68,6 +68,22 @@ pub(crate) fn item(tokens: &TokenStream) -> Option<Verbatim> {
     }
 }
 
+/// Read the members of a grouped import represented by syn as verbatim tokens.
+/// The visitor receives the original attributes and spans, with an independent
+/// leading-colon flag for every member. Other token shapes return `false`.
+pub fn visit_grouped_import(
+    tokens: &TokenStream,
+    mut visitor: impl FnMut(&[Attribute], bool, &UseTree),
+) -> bool {
+    let Ok(group) = split_use_group.parse2(tokens.clone()) else {
+        return false;
+    };
+    for member in &group.members {
+        visitor(&group.attrs, member.leading_colon, &member.tree);
+    }
+    true
+}
+
 /// Read the tokens of a verbatim member of an impl block, which holds no
 /// `use`, or `None` for a shape that is not read.
 pub(crate) fn member(tokens: &TokenStream) -> Option<Bodiless> {

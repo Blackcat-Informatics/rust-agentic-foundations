@@ -466,14 +466,6 @@ impl ResolveError {
     }
 }
 
-/// The places a walk read, once each by module and name, in order.
-pub(crate) fn places(reads: Vec<Source>) -> BTreeSet<(usize, String)> {
-    reads
-        .into_iter()
-        .map(|source| (source.module, source.name))
-        .collect()
-}
-
 /// Add the place `name` in `module` in `ns` to the places a walk read, when
 /// they are noted.
 fn note(
@@ -1254,49 +1246,39 @@ impl Index {
         })
     }
 
-    /// The named imports that bind `name` in `module` and are not resolved
-    /// (`resolved_mode`) or not settled yet.
-    pub(crate) fn unresolved_uses(
-        &self,
+    /// The unresolved named imports that can bind `name` in `namespace`.
+    fn unresolved_uses<'a>(
+        &'a self,
         module: usize,
         name: &str,
-        resolved_mode: bool,
-    ) -> Vec<usize> {
+        namespace: Namespace,
+    ) -> impl Iterator<Item = usize> + use<'a> {
         self.imports_of(module, name)
             .iter()
             .copied()
-            .filter(|position| {
-                !(if resolved_mode {
-                    self.use_resolved[*position]
-                } else {
-                    self.use_settled[*position]
-                })
+            .filter(move |&position| {
+                !self.use_resolved[position]
+                    && self.uses[position]
+                        .kind
+                        .terminal_namespaces()
+                        .contains(&namespace)
             })
-            .collect()
     }
 
-    /// The walks of the path of the named import at `position`, in every name
-    /// space, read as a `use` path that does not consult its own binding: the
-    /// other imports it waits on (unresolved ones in `resolved_mode`, else
-    /// unsettled ones), which bind a name the walks looked up, the items of
-    /// an ambiguous first segment, and the places the walks read.
+    /// Walk a named import in its terminal namespaces without its own binding.
+    /// Collect unresolved peers, ambiguous first-segment items and read places.
     ///
     /// # Errors
     ///
     /// Preserves storage and work refusals from every namespace walk.
-    fn import_walks(
-        &self,
-        position: usize,
-        resolved_mode: bool,
-        steps: Steps<'_>,
-    ) -> Result<ImportWalks, ResolveError> {
+    fn import_walks(&self, position: usize, steps: Steps<'_>) -> Result<ImportWalks, ResolveError> {
         let decl = &self.uses[position];
         let UseKind::Named { segs, .. } = &decl.kind else {
             return Ok(ImportWalks::default());
         };
         let mut reads = Vec::new();
         let mut ambiguous = BTreeSet::new();
-        for ns in Namespace::ALL {
+        for &ns in decl.kind.terminal_namespaces() {
             match self.walk_noting(
                 decl.module,
                 segs,
@@ -1316,12 +1298,26 @@ impl Index {
                 | Err(Fail::Missing(_) | Fail::SuperAboveRoot | Fail::SeveralCrates { .. }) => {}
             }
         }
-        let mut blockers = BTreeSet::new();
-        for (module, name) in places(reads.clone()) {
+        let mut places = BTreeMap::new();
+        for source in &reads {
             // The path never reads the imports of the name it binds.
-            if !self.binds_name(position, module, &name) {
-                blockers.extend(self.unresolved_uses(module, &name, resolved_mode));
+            if !self.binds_name(position, source.module, source.ns, &source.name) {
+                let sees_type = places
+                    .entry((source.module, source.name.as_str()))
+                    .or_insert(false);
+                *sees_type |= source.ns == Namespace::Type;
             }
+        }
+        let mut blockers = BTreeSet::new();
+        for ((module, name), sees_type) in places {
+            // Ordinary imports can bind in all namespaces. A grouped `self`
+            // can bind only in Type, so one scan suffices for all these reads.
+            let namespace = if sees_type {
+                Namespace::Type
+            } else {
+                Namespace::Value
+            };
+            blockers.extend(self.unresolved_uses(module, name, namespace));
         }
         // The import's own binding is never a way its path goes.
         blockers.remove(&position);
@@ -1412,7 +1408,7 @@ impl Index {
         let mut seen: BTreeSet<usize> = BTreeSet::new();
         let mut work = WorkList::<_, 8>::new();
         for source in missing {
-            for position in self.unresolved_uses(source.module, &source.name, true) {
+            for position in self.unresolved_uses(source.module, &source.name, source.ns) {
                 if let Err(error) = push_work(&mut work, position, stack_steps) {
                     return ResolveError::storage(error);
                 }
@@ -1428,7 +1424,7 @@ impl Index {
                 blockers: following,
                 ambiguous: items,
                 reads,
-            } = match self.import_walks(position, true, steps) {
+            } = match self.import_walks(position, steps) {
                 Ok(walks) => walks,
                 Err(error) => return error,
             };

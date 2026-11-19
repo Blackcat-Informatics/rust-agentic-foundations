@@ -264,6 +264,25 @@ impl Workspace {
         Self::load_meter(tree, roots, options, &meter, None)
     }
 
+    /// Load the declared members at one selected Cargo workspace root.
+    ///
+    /// The membership walk applies Cargo's members, exclusions and local path
+    /// dependency membership rules. A standalone package selects itself.
+    ///
+    /// # Errors
+    /// Refuses missing or malformed member manifests and the ordinary
+    /// workspace load's source, resolution and resource failures.
+    pub fn load_members(
+        tree: &dyn Tree,
+        root: &RelPath,
+        options: &LoadOptions,
+    ) -> Result<Self, LoadError> {
+        let meter = Meter::new(options);
+        meter.items(LOAD_BASE_BYTES, root, None)?;
+        let selected = crate::discovery::workspace_members(tree, root, &meter)?;
+        Self::build_discovered(tree, options, &meter, None, &selected, None)
+    }
+
     fn load_meter(
         tree: &dyn Tree,
         roots: &[RelPath],
@@ -526,6 +545,27 @@ impl Workspace {
     /// The ids of the targets, in the order of [`Workspace::targets`].
     pub fn target_ids(&self) -> impl Iterator<Item = TargetId> {
         (0..self.targets.len()).map(TargetId)
+    }
+
+    /// Borrow the indexed dependencies in a library's non-test extern prelude.
+    ///
+    /// An ordinary structural load exposes its normal dependency edges.
+    /// A configured load uses its admitted target context. A package can appear
+    /// under multiple aliases. An unknown or nonlibrary target returns `None`.
+    pub fn library_prelude_dependencies(
+        &self,
+        library: TargetId,
+    ) -> Option<impl Iterator<Item = PackageId> + '_> {
+        self.target(library)
+            .filter(|target| target.kind == TargetKind::Lib)?;
+        Some(
+            self.index.preludes[library.index()]
+                .values()
+                .flat_map(|name| name.roots(false))
+                .map(move |module| {
+                    self.targets[self.index.modules[module].target.index()].package_id
+                }),
+        )
     }
 
     /// Every source file, once, sorted by path.
@@ -952,6 +992,15 @@ impl Workspace {
     /// ```
     pub fn impls(&self) -> impl Iterator<Item = &ImplBlock> {
         self.index.impl_blocks.iter()
+    }
+
+    /// The impl blocks of this file in source order, once per reading context.
+    #[must_use]
+    pub fn impls_in(&self, file: &RelPath) -> &[ImplBlock] {
+        let blocks = &self.index.impl_blocks;
+        let start = blocks.partition_point(|block| &block.file < file);
+        let end = blocks.partition_point(|block| &block.file <= file);
+        &blocks[start..end]
     }
 
     /// One impl block by id.

@@ -322,7 +322,14 @@ impl Index {
                     .storage_work((source.name.len() + 1).saturating_mul(
                         4 * (self.named_imports.len().max(1).ilog2() as usize + 1),
                     ))?;
-                if !self.imports_of(source.module, &source.name).is_empty() {
+                let imports = self.imports_of(source.module, &source.name);
+                steps.storage_work(imports.len())?;
+                if imports.iter().any(|position| {
+                    self.uses[*position]
+                        .kind
+                        .terminal_namespaces()
+                        .contains(&source.ns)
+                }) {
                     scratch.queue(unknown, *glob)?;
                 }
                 let memory = steps.temporary();

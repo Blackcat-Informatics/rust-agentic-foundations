@@ -7,19 +7,19 @@ subject: cap:census-patterns#contract
 inputs:
   - kind: section
     name: cap:census-patterns#contract
-    digest: 15a7ca8ded4aeac60504d30cf1349ce34304d2ef089727c5f5ec4eee86df2b33
+    digest: fb9d1e1f00a1771b83ef19a913a7eb2066abcb6f464ff245e8377042de5d9993
   - kind: symbol
     name: raf_census::Gate::matching_limits
     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
   - kind: symbol
     name: raf_census::gate::patterns
-    digest: 4cba2cd90ddcd4e9fe48c0e07e2aab118443b1472a7f90205bdfd77c9778948a
+    digest: a6d4ba3781f561eb14d7a5c5d9faee2b32268a7f6636bad6750bd2823d20ab88
   - kind: symbol
     name: raf_census::gate::ratchet
     digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
   - kind: symbol
     name: raf_census::syntax
-    digest: cdb7a49b6f789194428ba5ded73501436dcaeb0b440fff6e612a9a1d5d606f6e
+    digest: 1e3311e91420652c35b52c217776923396a90dbe1a9a78827112f5689cac0830
 verdict: accepted
 by: agent
 ---

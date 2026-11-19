@@ -156,6 +156,63 @@ pub enum Error {
         /// The original census or native-adapter failure.
         source: Box<Error>,
     },
+    /// A visibility report could not establish its source evidence.
+    Visibility(VisibilityError),
+}
+
+/// A source query that prevents a whole-workspace visibility report.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum VisibilityError {
+    /// A written path could not be resolved.
+    Path {
+        /// The source file.
+        file: String,
+        /// The one-based source line.
+        line: usize,
+        /// The written name that the query could not establish.
+        path: String,
+        /// The original reading-context or resolver refusal.
+        source: Box<raf_source::CodeResolveError>,
+    },
+    /// A library's root-reachable definitions could not be established.
+    Export {
+        /// The library's Cargo manifest.
+        manifest: String,
+        /// The original Source export error.
+        source: Box<raf_source::ExportError>,
+    },
+}
+
+impl fmt::Display for VisibilityError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Path {
+                file,
+                line,
+                path,
+                source,
+            } => {
+                write!(f, "{file}:{line}: visibility path {path:?}: {source}")
+            }
+            Self::Export { manifest, source } => {
+                write!(
+                    f,
+                    "{}: visibility exports: {source}",
+                    manifest.escape_debug()
+                )
+            }
+        }
+    }
+}
+
+impl StdError for VisibilityError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::Path { source, .. } => Some(source.as_ref()),
+            Self::Export { source, .. } => Some(source.as_ref()),
+        }
+    }
 }
 
 impl fmt::Display for Error {
@@ -245,16 +302,14 @@ impl fmt::Display for Error {
                 write!(f, "{primary}; additionally: {secondary}")
             }
             Self::Input { file, source } => write!(f, "{}: {source}", file.escape_debug()),
+            Self::Visibility(error) => error.fmt(f),
             Self::RegistrationRequired { job, component } => write!(
                 f,
                 "job {job:?}: {component}; use the repository's registered Gate and Gate::write_debt"
             ),
-            Self::Findings(findings) => {
-                for finding in findings {
-                    writeln!(f, "{finding}")?;
-                }
-                Ok(())
-            }
+            Self::Findings(findings) => findings
+                .iter()
+                .try_for_each(|finding| writeln!(f, "{finding}")),
         }
     }
 }
@@ -286,6 +341,7 @@ impl StdError for Error {
                 primary: source, ..
             }
             | Self::Input { source, .. } => Some(source.as_ref()),
+            Self::Visibility(error) => Some(error),
             _ => None,
         }
     }

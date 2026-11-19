@@ -6,17 +6,74 @@
 use super::super::{charge, failure};
 use crate::Error;
 use purrdf_jsonschema::ecma::MatchLimits;
-use purrdf_lex::allocation::{Admission, Memory, OrderedTable, StorageError};
+use purrdf_lex::allocation::{Admission, Memory, OrderedTable, Resident, StorageError};
 use raf_source::{Item, SourceFile, Workspace};
 
 #[derive(Default)]
 pub(super) struct OwnerCache<'w> {
+    spans: Option<Vec<OwnerSpan<'w>>>,
     entries: OrderedTable<usize, Vec<&'w Item>>,
     // Includes spare reference cells in the native query vectors.
     retained: usize,
     // Exact physical admission covers the ordered slot arena only.
     bytes: usize,
     unit: usize,
+    latest: Option<(usize, Vec<&'w Item>)>,
+    latest_only: bool,
+}
+
+struct OwnerSpan<'w> {
+    item: &'w Item,
+    synthetic: bool,
+    max_end: usize,
+}
+
+impl OwnerSpan<'_> {
+    fn rank(&self) -> (usize, bool) {
+        let span = &self.item.span;
+        (span.end_byte - span.start_byte, self.synthetic)
+    }
+
+    // The source index provides start order, including the order of equal spans.
+    // Each midpoint stores the latest end of its balanced subtree.
+    fn index(spans: &mut [Self]) -> usize {
+        let middle = spans.len() / 2;
+        let (left, right) = spans.split_at_mut(middle);
+        let Some((node, right)) = right.split_first_mut() else {
+            return 0;
+        };
+        node.max_end = node
+            .item
+            .span
+            .end_byte
+            .max(Self::index(left))
+            .max(Self::index(right));
+        node.max_end
+    }
+
+    fn visit_at<'w>(
+        spans: &[OwnerSpan<'w>],
+        byte: usize,
+        limits: &mut MatchLimits,
+        visit: &mut impl FnMut(&OwnerSpan<'w>),
+    ) -> Result<(), Error> {
+        let (left, right) = spans.split_at(spans.len() / 2);
+        let Some((node, right)) = right.split_first() else {
+            return Ok(());
+        };
+        charge("paths", limits, 1)?;
+        if node.max_end <= byte {
+            return Ok(());
+        }
+        Self::visit_at(left, byte, limits, visit)?;
+        if node.item.span.start_byte <= byte {
+            if byte < node.item.span.end_byte {
+                visit(node);
+            }
+            Self::visit_at(right, byte, limits, visit)?;
+        }
+        Ok(())
+    }
 }
 
 // An AVL tree has height below twice the key count's bit length. The extra
@@ -26,6 +83,13 @@ fn height_bound(entries: usize) -> u64 {
 }
 
 impl<'w> OwnerCache<'w> {
+    pub(super) fn one_occurrence() -> Self {
+        Self {
+            latest_only: true,
+            ..Self::default()
+        }
+    }
+
     pub(super) fn get(
         &mut self,
         workspace: &'w Workspace,
@@ -33,6 +97,19 @@ impl<'w> OwnerCache<'w> {
         byte: usize,
         limits: &mut MatchLimits,
     ) -> Result<&[&'w Item], Error> {
+        if self.latest_only {
+            charge("paths", limits, 1)?;
+            if self.latest.as_ref().is_none_or(|(known, _)| *known != byte) {
+                self.latest = None;
+                let owners = self.read(workspace, file, byte, limits)?;
+                self.latest = Some((byte, owners));
+            }
+            return Ok(&self
+                .latest
+                .as_ref()
+                .expect("INVARIANT: the current owner lookup stores an entry before returning")
+                .1);
+        }
         charge("paths", limits, height_bound(self.entries.len()))?;
         if self.entries.get(&byte).is_none() {
             self.load(workspace, file, byte, limits)?;
@@ -48,23 +125,8 @@ impl<'w> OwnerCache<'w> {
         byte: usize,
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
-        let candidates = workspace.item_count_in(&file.path);
-        let work = candidates.saturating_mul(file.path.as_str().len().saturating_add(4));
-        charge("paths", limits, work.try_into().unwrap_or(u64::MAX))?;
-        self.admit(candidates, limits)?;
-        let mut owners = workspace.item_at(&file.path, byte);
-        let mut real = 0;
-        for index in 0..owners.len() {
-            if !workspace.same_source(owners[index]).is_empty() {
-                owners.swap(real, index);
-                real += 1;
-            }
-        }
-        if real != 0 {
-            owners.truncate(real);
-        }
+        let owners = self.read(workspace, file, byte, limits)?;
         let retained = owners.capacity();
-        self.admit(retained, limits)?;
         // Precharge the native search and AVL parent/height/link edits, with
         // 32 primitive operations per possible level. Array growth is charged
         // separately by the native producer's exact layout callback.
@@ -101,11 +163,76 @@ impl<'w> OwnerCache<'w> {
         Ok(())
     }
 
+    fn read(
+        &mut self,
+        workspace: &'w Workspace,
+        file: &SourceFile,
+        byte: usize,
+        limits: &mut MatchLimits,
+    ) -> Result<Vec<&'w Item>, Error> {
+        if self.spans.is_none() {
+            let candidates = workspace.item_count_in(&file.path);
+            self.admit(candidates, limits)?;
+            let work = candidates.saturating_mul(
+                file.path
+                    .as_str()
+                    .len()
+                    .saturating_add(size_of::<OwnerSpan<'_>>() + 4),
+            );
+            charge("paths", limits, work.try_into().unwrap_or(u64::MAX))?;
+            let mut spans = Vec::new();
+            Memory::new(&mut Resident)
+                .reserve(&mut spans, candidates)
+                .map_err(|source| Error::PatternIndexStorage { source })?;
+            self.admit(spans.capacity(), limits)?;
+            spans.extend(workspace.items_in(&file.path).map(|item| OwnerSpan {
+                item,
+                synthetic: workspace.same_source(item).is_empty(),
+                max_end: 0,
+            }));
+            OwnerSpan::index(&mut spans);
+            self.spans = Some(spans);
+        }
+        let spans = self
+            .spans
+            .as_deref()
+            .expect("INVARIANT: an owner lookup installs the file span index first");
+        let mut rank = (usize::MAX, true);
+        let mut count = 0;
+        OwnerSpan::visit_at(spans, byte, limits, &mut |span| {
+            let candidate = span.rank();
+            if candidate < rank {
+                rank = candidate;
+                count = 0;
+            }
+            if candidate == rank {
+                count += 1;
+            }
+        })?;
+        self.admit(count, limits)?;
+        let mut owners = Vec::new();
+        Memory::new(&mut Resident)
+            .reserve(&mut owners, count)
+            .map_err(|source| Error::PatternIndexStorage { source })?;
+        self.admit(owners.capacity(), limits)?;
+        if count != 0 {
+            OwnerSpan::visit_at(spans, byte, limits, &mut |span| {
+                if span.rank() == rank {
+                    owners.push(span.item);
+                }
+            })?;
+        }
+        Ok(owners)
+    }
+
     fn admit(&self, references: usize, limits: &MatchLimits) -> Result<(), Error> {
         if limits
             .states
             .checked_sub(self.entries.len())
             .and_then(|remaining| remaining.checked_sub(self.retained))
+            .and_then(|remaining| {
+                remaining.checked_sub(self.spans.as_ref().map_or(0, Vec::capacity))
+            })
             .and_then(|remaining| remaining.checked_sub(references))
             .and_then(|remaining| remaining.checked_sub(1))
             .is_none()

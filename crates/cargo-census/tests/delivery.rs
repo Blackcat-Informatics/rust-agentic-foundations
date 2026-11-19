@@ -134,6 +134,584 @@ fn run(root: &Path, words: &[&str]) -> Output {
     )
 }
 
+fn visibility_nodes<'a>(
+    graph: &'a raf_rdf::Graph,
+    from: raf_rdf::Node<'a>,
+    key: &str,
+) -> impl Iterator<Item = raf_rdf::Node<'a>> {
+    from.values(&format!("{}{key}", vocab::REPORT))
+        .map(move |value| graph.get(value.iri().unwrap()).unwrap())
+}
+
+fn visibility_value<'a>(node: raf_rdf::Node<'a>, key: &str) -> &'a str {
+    node.values(&format!("{}{key}", vocab::REPORT))
+        .next()
+        .unwrap()
+        .literal()
+        .unwrap()
+        .0
+}
+
+/// Count distinct definitions and attribute written paths to their owner
+/// library, including a definition reached only through a member re-export.
+#[test]
+fn visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers() {
+    let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
+    let root = scratch.path();
+    let base_manifest = "[package]\nname='base'\nversion='0.1.0'\nedition='2024'\n";
+    files::write(
+        root,
+        &[
+            (
+                "Cargo.toml",
+                "[workspace]\nmembers=['base','bridge','client']\nexclude=['excluded']\n",
+            ),
+            ("base/Cargo.toml", base_manifest),
+            (
+                "base/src/lib.rs",
+                "mod implementation { pub fn used() {} pub fn internal_only() {} }\n\
+                 pub use implementation::{internal_only, used as api, used as other_alias};\n\
+                 pub fn local() { implementation::internal_only(); }\n\
+                 pub fn spare() {}\n#[doc(hidden)] pub fn hidden() {}\n\
+                 pub struct Data { pub number: u32 }\n\
+                 pub fn only_in_import() {}\npub fn dev_only() {}\npub trait Marker {}\n\
+                 pub mod glob_symbols {\n\
+                     pub const LIMIT: u8 = 3;\n\
+                     pub fn via_glob() {} pub fn shadowed() {}\n\
+                     pub mod branch { pub mod leaf { pub fn via_chain() {} pub fn via_direct() {} } }\n\
+                 }",
+            ),
+            (
+                "bridge/Cargo.toml",
+                "[package]\nname='bridge'\nversion='0.1.0'\nedition='2024'\n\
+                 [dependencies]\nupstream={path='../base',package='base'}\n",
+            ),
+            (
+                "bridge/src/lib.rs",
+                "pub use upstream::{api as facade, glob_symbols, only_in_import, Marker};\n\
+                 pub fn unused_bridge() {}\n\
+                 #[macro_export] macro_rules! emitted { () => { () } }\n\
+                 pub mod macro_api { pub use crate::emitted as emit; }",
+            ),
+            (
+                "client/Cargo.toml",
+                "[package]\nname='client'\nversion='0.1.0'\nedition='2024'\n\
+                 [dependencies]\nbridge={path='../bridge'}\n\
+                 [dev-dependencies]\ndev={path='../base',package='base'}\n",
+            ),
+            (
+                "client/src/lib.rs",
+                "mod loose;\nstruct Local;\nimpl bridge::Marker for Local {}\n\
+                 pub fn call(value: u8) {\n\
+                     use { ::bridge::facade as chosen };\n\
+                     use bridge::glob_symbols::*;\n\
+                     fn shadowed() {}\n\
+                     chosen();\n\
+                     via_glob();\n\
+                     shadowed();\n\
+                     match value { LIMIT => (), _ => () }\n\
+                     { use leaf::*; use branch::*; via_chain(); }\n\
+                     { use bridge::glob_symbols::branch::leaf::*; via_direct(); }\n\
+                     bridge::macro_api::emit!();\n\
+                 }",
+            ),
+            (
+                "client/src/loose.rs",
+                "use { ::bridge::only_in_import };\n#[cfg(test)] use dev::dev_only;",
+            ),
+            (
+                "client/build.rs",
+                "fn main() { std::fs::write(\"consumer-executed\", b\"bad\").unwrap(); panic!(\"static data\"); }",
+            ),
+            (
+                "excluded/Cargo.toml",
+                "[package]\nname='excluded'\nversion='0.1.0'\nedition='2024'\n",
+            ),
+            ("excluded/src/lib.rs", "this source must remain unparsed"),
+        ],
+    );
+    let first = run(root, &["visibility"]);
+    assert!(first.status.success(), "{first:?}");
+    assert_eq!(
+        run(&root.join("client"), &["visibility"]).stdout,
+        first.stdout
+    );
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&first.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    assert_visibility_report(&graph);
+    assert!(!root.join("client/consumer-executed").exists());
+    assert!(!root.join("target").exists());
+
+    assert_block_glob_scope(root);
+    assert_visibility_item_scopes(root);
+    fs::write(
+        root.join("base/Cargo.toml"),
+        format!("{base_manifest}[dependencies]\nclient={{path='../client'}}\n"),
+    )
+    .unwrap();
+    let cycle = run(root, &["visibility"]);
+    assert_eq!(cycle.status.code(), Some(1));
+    assert_eq!(cycle.stdout, Vec::<u8>::new());
+    assert!(String::from_utf8_lossy(&cycle.stderr).contains("normal library dependency cycle"));
+}
+
+fn assert_block_glob_scope(root: &Path) {
+    fs::write(
+        root.join("client/src/loose.rs"),
+        "fn call() { use std::io::*; { use ::bridge::glob_symbols::branch::leaf::*; via_direct(); } }",
+    )
+    .unwrap();
+    let branch = run(root, &["visibility"]);
+    assert!(branch.status.success(), "{branch:?}");
+
+    for globs in [
+        "use std::io::*;",
+        "use first::second::*; use second::first::*;",
+    ] {
+        fs::write(
+            root.join("client/src/loose.rs"),
+            format!("use bridge::facade;\nfn call() {{ {globs} facade(); }}"),
+        )
+        .unwrap();
+        let branch = run(root, &["visibility"]);
+        assert_eq!(branch.status.code(), Some(1));
+        assert_eq!(branch.stdout, Vec::<u8>::new());
+        assert!(String::from_utf8_lossy(&branch.stderr).contains("unindexed block glob"));
+    }
+
+    fs::write(
+        root.join("client/src/loose.rs"),
+        "mod branch {}\nfn call() { use ::bridge::glob_symbols::*; use branch::*; }",
+    )
+    .unwrap();
+    let ambiguous = run(root, &["visibility"]);
+    assert_eq!(ambiguous.status.code(), Some(1));
+    assert_eq!(ambiguous.stdout, Vec::<u8>::new());
+    assert!(
+        String::from_utf8_lossy(&ambiguous.stderr).contains("distinct glob and outer bindings")
+    );
+}
+
+fn assert_visibility_item_scopes(root: &Path) {
+    let bridge = root.join("bridge/src/lib.rs");
+    let mut source = fs::read_to_string(&bridge).unwrap();
+    source.push_str(
+        "\npub enum Empty { Spare } impl Empty { pub fn fallback() {} }\n\
+        pub enum Tuple { concealed(()) } impl Tuple { pub fn concealed() {} }\n\
+        pub enum Brace { named { value: u8 } }\n\
+         #[cfg(unix)] pub enum Branched { divergent(()) }\n\
+         #[cfg(windows)] pub enum Branched { Spare }\n\
+         pub fn fallback() {} pub fn concealed() {} pub fn named() {} pub fn divergent(_: ()) {}",
+    );
+    fs::write(bridge, source).unwrap();
+    fs::write(
+        root.join("client/src/loose.rs"),
+        "use bridge::{fallback, concealed, named};\n\
+        fn calls() {\n\
+            { use bridge::Empty::*; fallback(); bridge::Empty::fallback(); }\n\
+            { use bridge::Tuple::*; let _ = concealed(()); }\n\
+            { use bridge::Brace::*; named(); }\n\
+            use bridge::facade as nested_call;\n\
+            fn inner() { nested_call(); }\n\
+            let nested_call = || ();\n\
+            use bridge::facade as captured_call; let captured_call = || ();\n\
+            let _ = || captured_call();\n\
+        }\n\
+        fn alias_chain() {\n\
+            use bridge::glob_symbols::*; use branch as local; use local::*;\n\
+            leaf::via_chain();\n\
+        }",
+    )
+    .unwrap();
+    let output = run(root, &["visibility"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&output.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    for (package, symbol, written, expected) in [
+        ("bridge", "bridge::fallback", "fallback", true),
+        ("bridge", "bridge::Empty::fallback", "fallback", false),
+        (
+            "bridge",
+            "bridge::Empty::fallback",
+            "bridge::Empty::fallback",
+            true,
+        ),
+        ("bridge", "bridge::concealed", "concealed", false),
+        ("bridge", "bridge::Tuple::concealed", "concealed", false),
+        ("bridge", "bridge::named", "named", true),
+        ("base", "base::implementation::used", "nested_call", true),
+        ("base", "base::implementation::used", "captured_call", false),
+        ("base", "base::glob_symbols::branch", "local::*", true),
+        (
+            "base",
+            "base::glob_symbols::branch::leaf::via_chain",
+            "leaf::via_chain",
+            true,
+        ),
+    ] {
+        let library = visibility_nodes(&graph, graph.get("").unwrap(), "library")
+            .find(|node| visibility_value(*node, "package") == package)
+            .unwrap();
+        let observed = visibility_nodes(&graph, library, "use").any(|row| {
+            visibility_value(row, "symbol") == symbol
+                && visibility_value(row, "consumer") == "client"
+                && row
+                    .values(&format!("{}writtenPath", vocab::REPORT))
+                    .any(|value| value.literal().unwrap().0 == written)
+        });
+        assert_eq!(observed, expected, "written path {written} for {symbol}");
+    }
+
+    fs::write(
+        root.join("client/src/loose.rs"),
+        "use bridge::divergent; fn call() { use bridge::Branched::*; let _ = divergent(()); }",
+    )
+    .unwrap();
+    let ambiguous = run(root, &["visibility"]);
+    assert_eq!(ambiguous.status.code(), Some(1));
+    assert_eq!(ambiguous.stdout, Vec::<u8>::new());
+    assert!(
+        String::from_utf8_lossy(&ambiguous.stderr).contains("differs across indexed declarations")
+    );
+    assert_visibility_glob_namespaces(root);
+}
+
+fn assert_visibility_glob_namespaces(root: &Path) {
+    let bridge = root.join("bridge/src/lib.rs");
+    let mut source = fs::read_to_string(&bridge).unwrap();
+    source.push_str(
+        "\npub fn ping() {}\n\
+         pub mod types { pub struct Record { pub value: u8 } pub struct GenericOnly; #[derive(Clone, Copy)] pub struct Used; }\n\
+         pub mod left { pub mod branch { pub fn run() {} pub use crate::ping as same; } }\n\
+         pub mod right { pub mod branch { pub fn run() {} pub use crate::ping as same; } }\n\
+         pub enum First { Ready } pub enum Second { Ready } pub use First as Same;\n\
+         pub mod api { pub mod entry { pub fn member() {} } pub fn entry() {} }\n\
+         #[macro_export] macro_rules! stamp { () => {} }\n\
+         #[macro_export] macro_rules! early_stamp { () => {} }",
+    );
+    fs::write(bridge, source).unwrap();
+    let report = |source: &str| {
+        fs::write(root.join("client/src/loose.rs"), source).unwrap();
+        run(root, &["visibility"])
+    };
+    let output = report(
+        "use bridge::ping as picked; use bridge::left::branch;\n\
+         fn split() { use bridge::types::*; use Record as picked; picked(); let _: Option<picked> = None; }\n\
+         fn union_fields() { use bridge::types::*; union Generic<GenericOnly: Copy> { field: GenericOnly } union Ordinary { field: Used } }\n\
+         fn qualified() { use bridge::right::*; branch::run(); }\n\
+         fn coincident() { use bridge::left::*; use branch::run as chosen; chosen(); }\n\
+         fn coincident_block() { use bridge::right::*; use bridge::left::branch; { use bridge::left::*; use branch::run as chosen_in_block; chosen_in_block(); } }\n\
+         fn coincident_glob() { use bridge::left::branch; { use bridge::left::*; use branch::*; run(); } }\n\
+         fn explicit_glob() { use bridge::left::branch; { use bridge::right::*; use bridge::left::branch::*; run(); } }\n\
+         fn repeated() { use bridge::First::*; use bridge::Same::*; let _ = Ready; }",
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&output.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    let bridge = visibility_nodes(&graph, graph.get("").unwrap(), "library")
+        .find(|node| visibility_value(*node, "package") == "bridge")
+        .unwrap();
+    for (symbol, written, expected) in [
+        ("bridge::ping", "picked", true),
+        ("bridge::types::Record", "picked", true),
+        ("bridge::types::GenericOnly", "GenericOnly", false),
+        ("bridge::types::Used", "Used", true),
+        ("bridge::right::branch::run", "branch::run", true),
+        ("bridge::left::branch::run", "chosen", true),
+        ("bridge::left::branch::run", "chosen_in_block", true),
+        ("bridge::left::branch", "branch::*", true),
+        ("bridge::left::branch", "bridge::left::branch::*", true),
+    ] {
+        assert_eq!(
+            visibility_nodes(&graph, bridge, "use").any(|row| {
+                visibility_value(row, "symbol") == symbol
+                    && visibility_value(row, "consumer") == "client"
+                    && row
+                        .values(&format!("{}writtenPath", vocab::REPORT))
+                        .any(|value| value.literal().unwrap().0 == written)
+            }),
+            expected,
+            "written path {written} for {symbol}"
+        );
+    }
+    assert_visibility_glob_refusals(&report);
+    assert_visibility_grouped_self_and_macros(&report);
+}
+
+fn assert_visibility_glob_refusals(report: &impl Fn(&str) -> Output) {
+    for (source, reason) in [
+        (
+            "use bridge::left::branch; fn call() { use bridge::right::*; use branch::run as chosen; chosen(); }",
+            "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { use bridge::left::*; { use bridge::right::*; use branch::run as chosen; chosen(); } }",
+            "competing block glob bindings",
+        ),
+        (
+            "fn call() { use bridge::left::branch; { use bridge::right::*; use branch::same as chosen; chosen(); } }",
+            "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { use bridge::left::branch; { use bridge::right::*; use branch::*; run(); } }",
+            "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { macro_rules! stamp { () => {} } { use bridge::*; stamp!(); } }",
+            "competing textual and path-based bindings",
+        ),
+        (
+            "fn call() { use bridge::left::branch; { use bridge::right::branch; { use bridge::right::*; use branch::same as chosen; chosen(); } } }",
+            "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { use bridge::left::*; { use bridge::right::branch; { use bridge::right::*; use branch::same as chosen; chosen(); } } }",
+            "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { use bridge::First::*; use bridge::Second::*; let _ = Ready; }",
+            "competing block glob bindings",
+        ),
+    ] {
+        let ambiguous = report(source);
+        assert_eq!(ambiguous.status.code(), Some(1));
+        assert_eq!(ambiguous.stdout, Vec::<u8>::new());
+        let stderr = String::from_utf8_lossy(&ambiguous.stderr);
+        assert!(stderr.contains(reason), "{stderr}");
+    }
+    let internal = report(
+        "enum First { Ready } enum Second { Ready } fn call() { use self::First::*; use self::Second::*; let _ = Ready; }",
+    );
+    assert!(
+        internal.status.success(),
+        "{}",
+        String::from_utf8_lossy(&internal.stderr)
+    );
+}
+
+fn assert_visibility_grouped_self_and_macros(report: &impl Fn(&str) -> Output) {
+    let output = report(
+        "use bridge::api::entry::{self as grouped}; use bridge::ping as grouped;\n\
+         use bridge::api as ordinary_api; use ordinary_api::entry as ordinary;\n\
+         use bridge::ping as local_module;\n\
+         fn grouped_paths() { grouped(); grouped::member(); ordinary(); ordinary::member();\n\
+             use bridge::api as api_block; use api_block::entry::{self as local_module};\n\
+             local_module(); local_module::member(); }\n\
+         fn macros() { use bridge::*; early_stamp!(); macro_rules! early_stamp { () => {} }\n\
+             macro_rules! stamp { () => {} } stamp!(); bridge::stamp!(); }",
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&output.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    let bridge = visibility_nodes(&graph, graph.get("").unwrap(), "library")
+        .find(|node| visibility_value(*node, "package") == "bridge")
+        .unwrap();
+    for (symbol, kind, written, expected) in [
+        ("bridge::api::entry", "module", "bridge::api::entry", true),
+        (
+            "bridge::api::entry",
+            "function",
+            "bridge::api::entry",
+            false,
+        ),
+        ("bridge::api::entry", "module", "api_block::entry", true),
+        ("bridge::api::entry", "function", "api_block::entry", false),
+        ("bridge::api::entry", "module", "ordinary_api::entry", true),
+        (
+            "bridge::api::entry",
+            "function",
+            "ordinary_api::entry",
+            true,
+        ),
+        ("bridge::api::entry", "function", "ordinary", true),
+        ("bridge::api::entry", "function", "local_module", false),
+        (
+            "bridge::api::entry::member",
+            "function",
+            "grouped::member",
+            true,
+        ),
+        (
+            "bridge::api::entry::member",
+            "function",
+            "local_module::member",
+            true,
+        ),
+        ("bridge::ping", "function", "grouped", true),
+        ("bridge::ping", "function", "local_module", true),
+        ("bridge::stamp", "macro-rules", "stamp", false),
+        ("bridge::stamp", "macro-rules", "bridge::stamp", true),
+        ("bridge::early_stamp", "macro-rules", "early_stamp", true),
+    ] {
+        let declaration = (symbol == "bridge::api::entry").then(|| {
+            visibility_nodes(&graph, bridge, "declaration")
+                .find(|row| {
+                    visibility_value(*row, "symbol") == symbol
+                        && visibility_value(*row, "kind") == kind
+                })
+                .expect("public definition in the selected namespace")
+        });
+        assert_eq!(
+            visibility_nodes(&graph, bridge, "use").any(|row| {
+                visibility_value(row, "symbol") == symbol
+                    && declaration.is_none_or(|declaration| {
+                        visibility_value(row, "startByte")
+                            == visibility_value(declaration, "startByte")
+                    })
+                    && visibility_value(row, "consumer") == "client"
+                    && row
+                        .values(&format!("{}writtenPath", vocab::REPORT))
+                        .any(|value| value.literal().unwrap().0 == written)
+            }),
+            expected,
+            "written path {written} for {symbol} ({kind})"
+        );
+    }
+}
+
+fn assert_visibility_report(graph: &raf_rdf::Graph) {
+    let root = graph.get("").unwrap();
+    let libraries: std::collections::BTreeMap<_, _> = visibility_nodes(graph, root, "library")
+        .map(|library| (visibility_value(library, "package"), library))
+        .collect();
+    assert_eq!(libraries.len(), 3);
+    for (package, tier) in [("base", "0"), ("bridge", "1"), ("client", "2")] {
+        assert_eq!(visibility_value(libraries[package], "tier"), tier);
+    }
+    let base = libraries["base"];
+    assert_eq!(visibility_value(base, "publicCount"), "17");
+    assert_eq!(visibility_value(base, "exportedCount"), "17");
+    assert_eq!(visibility_value(base, "usedExportedCount"), "11");
+    assert_eq!(visibility_value(base, "writtenPathCount"), "19");
+    let counts: std::collections::BTreeMap<_, _> = visibility_nodes(graph, base, "kindCount")
+        .map(|row| {
+            (
+                visibility_value(row, "kind"),
+                visibility_value(row, "count"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        counts,
+        std::collections::BTreeMap::from([
+            ("constant", "1"),
+            ("function", "11"),
+            ("module", "3"),
+            ("struct", "1"),
+            ("trait", "1")
+        ])
+    );
+    let unused: std::collections::BTreeSet<_> = visibility_nodes(graph, base, "unusedDeclaration")
+        .map(|row| visibility_value(row, "symbol"))
+        .collect();
+    assert!(unused.contains("base::implementation::internal_only"));
+    assert!(!unused.contains("base::implementation::used"));
+    assert!(unused.contains("base::glob_symbols::shadowed"));
+    assert!(!unused.contains("base::glob_symbols::LIMIT"));
+    assert_visibility_paths(graph, base, libraries["bridge"]);
+}
+
+fn assert_visibility_paths(
+    graph: &raf_rdf::Graph,
+    base: raf_rdf::Node<'_>,
+    bridge: raf_rdf::Node<'_>,
+) {
+    for (definition, written) in [
+        ("bridge::macro_api", "bridge::macro_api"),
+        ("bridge::emitted", "bridge::macro_api::emit"),
+    ] {
+        assert!(
+            visibility_nodes(graph, bridge, "use").any(|row| {
+                visibility_value(row, "symbol") == definition
+                    && visibility_value(row, "consumer") == "client"
+                    && visibility_value(row, "writtenPath") == written
+            }),
+            "missing {definition} through {written}"
+        );
+    }
+    let client_uses: std::collections::BTreeMap<_, _> = visibility_nodes(graph, base, "use")
+        .filter(|row| visibility_value(*row, "consumer") == "client")
+        .map(|row| {
+            let written: std::collections::BTreeSet<_> = row
+                .values(&format!("{}writtenPath", vocab::REPORT))
+                .map(|value| value.literal().unwrap().0)
+                .collect();
+            (visibility_value(row, "symbol"), written)
+        })
+        .collect();
+    assert_eq!(
+        client_uses,
+        std::collections::BTreeMap::from([
+            ("base::Marker", ["bridge::Marker"].into_iter().collect()),
+            ("base::dev_only", ["dev::dev_only"].into_iter().collect()),
+            (
+                "base::glob_symbols",
+                ["bridge::glob_symbols", "bridge::glob_symbols::*"]
+                    .into_iter()
+                    .collect()
+            ),
+            ("base::glob_symbols::LIMIT", ["LIMIT"].into_iter().collect()),
+            (
+                "base::glob_symbols::branch",
+                ["branch::*", "bridge::glob_symbols::branch"]
+                    .into_iter()
+                    .collect()
+            ),
+            (
+                "base::glob_symbols::branch::leaf",
+                ["bridge::glob_symbols::branch::leaf::*", "leaf::*"]
+                    .into_iter()
+                    .collect()
+            ),
+            (
+                "base::glob_symbols::branch::leaf::via_chain",
+                ["via_chain"].into_iter().collect()
+            ),
+            (
+                "base::glob_symbols::branch::leaf::via_direct",
+                ["via_direct"].into_iter().collect()
+            ),
+            (
+                "base::glob_symbols::via_glob",
+                ["via_glob"].into_iter().collect()
+            ),
+            (
+                "base::implementation::used",
+                ["::bridge::facade", "chosen"].into_iter().collect()
+            ),
+            (
+                "base::only_in_import",
+                ["::bridge::only_in_import"].into_iter().collect()
+            ),
+        ])
+    );
+}
+
 const OWNER: &str = "urn:example:query-owner";
 
 struct QueryOwner;

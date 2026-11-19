@@ -3,10 +3,15 @@
 
 //! Bounded source syntax traversal with explicit lexical scopes.
 
-use super::{Compiled, Found, Role, Scopes, Site, matches};
-use crate::{Error, syntax::visit_import_paths};
+use super::{
+    Compiled, CrossPackagePaths, Found, Role, Scopes, Site, VISIBILITY, cross_package_uses, matches,
+};
+use crate::{
+    Error,
+    syntax::{ImportLeaf, visit_import_paths},
+};
 use purrdf_jsonschema::ecma::MatchLimits;
-use raf_source::{CodeResolver, Namespace, SourceFile, Workspace};
+use raf_source::{CodeResolver, ImplBlock, Namespace, SourceFile, Workspace};
 use std::collections::BTreeSet;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
@@ -58,6 +63,8 @@ pub(in crate::gate) fn functions(
         error: None,
         seen: BTreeSet::new(),
         observer: Some(observer),
+        path_uses: None,
+        impl_blocks: &[],
         owners: super::OwnerCache::default(),
     };
     visitor.visit_file(syntax);
@@ -99,6 +106,8 @@ pub(super) fn collect<'p, 'w>(
         error: None,
         seen: BTreeSet::new(),
         observer: None,
+        path_uses: None,
+        impl_blocks: &[],
         owners: super::OwnerCache::default(),
     };
     visitor.visit_file(syntax);
@@ -106,6 +115,33 @@ pub(super) fn collect<'p, 'w>(
         return Err(error);
     }
     Ok(visitor.found)
+}
+
+pub(in crate::gate) fn references(
+    workspace: &Workspace,
+    code: &CodeResolver<'_>,
+    file: &SourceFile,
+    syntax: &syn::File,
+    limits: &mut MatchLimits,
+    paths: &mut CrossPackagePaths,
+) -> Result<(), Error> {
+    let mut visitor = Paths {
+        compiled: &[],
+        workspace,
+        code,
+        file,
+        limits,
+        scopes: Scopes::default(),
+        found: Vec::new(),
+        error: None,
+        seen: BTreeSet::new(),
+        observer: None,
+        path_uses: Some(paths),
+        impl_blocks: &[],
+        owners: super::OwnerCache::one_occurrence(),
+    };
+    visitor.visit_file(syntax);
+    visitor.error.map_or(Ok(()), Err)
 }
 
 struct Paths<'a, 'p, 'w, 'c> {
@@ -119,6 +155,8 @@ struct Paths<'a, 'p, 'w, 'c> {
     error: Option<Error>,
     seen: BTreeSet<(&'p str, usize)>,
     observer: Option<&'a mut dyn FunctionObserver>,
+    path_uses: Option<&'a mut CrossPackagePaths>,
+    impl_blocks: &'w [ImplBlock],
     owners: super::OwnerCache<'w>,
 }
 
@@ -184,7 +222,10 @@ impl Paths<'_, '_, '_, '_> {
         if self.error.is_some() {
             return;
         }
-        if let Err(error) = self.scopes.enter(module, items, self.limits) {
+        if let Err(error) = self
+            .scopes
+            .enter(module, self.path_uses.is_some(), items, self.limits)
+        {
             self.error = Some(error);
             return;
         }
@@ -217,13 +258,38 @@ impl Paths<'_, '_, '_, '_> {
         if self.error.is_some() {
             return;
         }
-        let id = self
-            .compiled
-            .first()
-            .map_or("preferred-provider", |compiled| {
-                compiled.pattern.id.as_str()
-            });
-        let result = self.scopes.bind(pattern, |name| {
+        let id = self.compiled.first().map_or(
+            if self.path_uses.is_some() {
+                VISIBILITY
+            } else {
+                "preferred-provider"
+            },
+            |compiled| compiled.pattern.id.as_str(),
+        );
+        let result = self.scopes.bind(pattern, |scopes, name| {
+            if let Some(paths) = self.path_uses.as_deref_mut() {
+                let site = Site::at(
+                    self.file,
+                    name.span(),
+                    Role::Pattern,
+                    Namespace::Value,
+                    scopes.in_file_module(),
+                );
+                return cross_package_uses(
+                    self.workspace,
+                    self.code,
+                    (
+                        self.owners
+                            .get(self.workspace, self.file, site.byte, self.limits)?,
+                        self.impl_blocks,
+                    ),
+                    scopes,
+                    &syn::Path::from(name.clone()),
+                    &site,
+                    (paths, self.limits),
+                )
+                .map(|constant| !constant);
+            }
             super::constant(
                 self.workspace,
                 self.code,
@@ -247,27 +313,40 @@ impl Paths<'_, '_, '_, '_> {
         let Some(first) = path.segments.first() else {
             return;
         };
-        let span = first.ident.span();
-        let site = Site {
-            file: self.file,
-            byte: span.byte_range().start,
-            line: span.start().line,
-            namespace,
-            import: role == Role::Import,
-        };
-        if !self.compiled.iter().any(|expected| expected.selects(role)) {
+        if self.path_uses.is_some() && first.ident == "Self" {
             return;
         }
-        let owners = match self
-            .owners
-            .get(self.workspace, self.file, site.byte, self.limits)
+        let site = Site::at(
+            self.file,
+            first.ident.span(),
+            role,
+            namespace,
+            self.scopes.in_file_module(),
+        );
+        if self.path_uses.is_none() && !self.compiled.iter().any(|expected| expected.selects(role))
         {
-            Ok(owners) => owners,
-            Err(error) => {
-                self.error = Some(error);
-                return;
-            }
+            return;
+        }
+        let owners = self
+            .owners
+            .get(self.workspace, self.file, site.byte, self.limits);
+        let Ok(owners) = owners else {
+            self.error = owners.err();
+            return;
         };
+        if let Some(paths) = self.path_uses.as_deref_mut() {
+            self.error = cross_package_uses(
+                self.workspace,
+                self.code,
+                (owners, self.impl_blocks),
+                &self.scopes,
+                path,
+                &site,
+                (paths, self.limits),
+            )
+            .err();
+            return;
+        }
         for expected in self.compiled {
             if !expected.selects(role)
                 || self
@@ -369,13 +448,18 @@ impl Paths<'_, '_, '_, '_> {
     }
 
     fn type_prefixes(&mut self, path: &syn::Path) {
-        if !self
-            .compiled
-            .iter()
-            .any(|pattern| pattern.role == Role::Type || pattern.role == Role::Path)
+        if self.path_uses.is_none()
+            && !self
+                .compiled
+                .iter()
+                .any(|pattern| pattern.role == Role::Type || pattern.role == Role::Path)
         {
             return;
         }
+        self.prefixes(path, Role::Type);
+    }
+
+    fn prefixes(&mut self, path: &syn::Path, role: Role) {
         let mut prefix = syn::Path {
             leading_colon: path
                 .leading_colon
@@ -391,7 +475,45 @@ impl Paths<'_, '_, '_, '_> {
             prefix
                 .segments
                 .push(syn::PathSegment::from(segment.ident.clone()));
-            self.path(&prefix, Role::Type, Namespace::Type);
+            self.path(&prefix, role, Namespace::Type);
+        }
+    }
+
+    fn imports(&mut self, attributes: &[syn::Attribute], absolute: bool, tree: &syn::UseTree) {
+        for attribute in attributes {
+            self.visit_attribute(attribute);
+        }
+        if self.path_uses.is_some() && self.scopes.in_module() {
+            return;
+        }
+        visit_import_paths(tree, |parts, leaf| {
+            let path = syn::Path {
+                leading_colon: absolute.then(syn::token::PathSep::default),
+                segments: parts.iter().cloned().map(syn::PathSegment::from).collect(),
+            };
+            let role = if self.path_uses.is_some() && matches!(leaf, ImportLeaf::Glob) {
+                Role::Glob
+            } else {
+                Role::Import
+            };
+            let namespaces = if role == Role::Glob || matches!(leaf, ImportLeaf::SelfType(_)) {
+                &[Namespace::Type][..]
+            } else {
+                &Namespace::ALL[..]
+            };
+            for &namespace in namespaces {
+                self.path(&path, role, namespace);
+            }
+            if self.path_uses.is_some() {
+                self.prefixes(&path, Role::Import);
+            }
+        });
+    }
+
+    fn constructor(&mut self, path: &syn::Path, qself: Option<&syn::QSelf>, namespace: Namespace) {
+        if self.path_uses.is_some() {
+            self.qualified(path, qself, Role::Path, namespace);
+            self.type_prefixes(path);
         }
     }
 
@@ -413,7 +535,11 @@ impl Paths<'_, '_, '_, '_> {
     fn arm_pattern(&mut self, pattern: &syn::Pat) {
         if let syn::Pat::Guard(guard) = pattern {
             self.arm_pattern(&guard.pat);
-            self.visit_expr(&guard.guard);
+            if self.path_uses.is_some() {
+                self.condition(&guard.guard);
+            } else {
+                self.visit_expr(&guard.guard);
+            }
         } else {
             self.visit_pat(pattern);
             self.bind(pattern);
@@ -452,21 +578,18 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
-        for attribute in &node.attrs {
-            self.visit_attribute(attribute);
+        self.imports(&node.attrs, node.leading_colon.is_some(), &node.tree);
+    }
+
+    fn visit_item(&mut self, node: &'ast syn::Item) {
+        if self.path_uses.is_some()
+            && let syn::Item::Verbatim(tokens) = node
+        {
+            raf_source::visit_grouped_import(tokens, |attributes, absolute, tree| {
+                self.imports(attributes, absolute, tree);
+            });
         }
-        visit_import_paths(&node.tree, |parts, _| {
-            let path = syn::Path {
-                leading_colon: node
-                    .leading_colon
-                    .is_some()
-                    .then(syn::token::PathSep::default),
-                segments: parts.iter().cloned().map(syn::PathSegment::from).collect(),
-            };
-            for namespace in Namespace::ALL {
-                self.path(&path, Role::Import, namespace);
-            }
-        });
+        syn::visit::visit_item(self, node);
     }
 
     fn visit_block(&mut self, node: &'ast syn::Block) {
@@ -528,7 +651,20 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             return;
         }
         self.generic_scope(&node.generics, true, |this| {
+            let previous = this.impl_blocks;
+            if this.path_uses.is_some() {
+                let blocks = this.workspace.impls_in(&this.file.path);
+                let start = node.span().byte_range().start;
+                let first = blocks.partition_point(|block| block.span.start_byte < start);
+                let end = blocks.partition_point(|block| block.span.start_byte <= start);
+                this.impl_blocks = &blocks[first..end];
+                if let Some((path, _)) = &node.trait_ {
+                    this.path(path, Role::Type, Namespace::Type);
+                    this.type_prefixes(path);
+                }
+            }
             syn::visit::visit_item_impl(this, node);
+            this.impl_blocks = previous;
         });
     }
 
@@ -584,7 +720,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         ) {
             return;
         }
-        syn::visit::visit_item_union(self, node);
+        self.generic_scope(&node.generics, false, |this| {
+            syn::visit::visit_item_union(this, node);
+        });
     }
 
     fn visit_local(&mut self, node: &'ast syn::Local) {
@@ -609,6 +747,11 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
 
     fn visit_arm(&mut self, node: &'ast syn::Arm) {
         self.scope(false, std::iter::empty(), |this| {
+            if this.path_uses.is_some() {
+                for attribute in &node.attrs {
+                    this.visit_attribute(attribute);
+                }
+            }
             this.arm_pattern(&node.pat);
             this.visit_expr(&node.body);
         });
@@ -669,16 +812,15 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             .iter()
             .any(|pattern| pattern.role == Role::Path)
         {
-            let declaration = self
+            let label = self
                 .compiled
                 .first()
-                .expect("nonempty path pattern set")
-                .pattern;
+                .map_or(VISIBILITY, |compiled| compiled.pattern.id.as_str());
             match super::constant(
                 self.workspace,
                 self.code,
                 self.file,
-                &declaration.id,
+                label,
                 &node.ident,
                 &mut self.owners,
                 self.limits,
@@ -707,6 +849,21 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         );
         self.type_prefixes(&node.path);
         syn::visit::visit_expr_path(self, node);
+    }
+
+    fn visit_expr_struct(&mut self, node: &'ast syn::ExprStruct) {
+        self.constructor(&node.path, node.qself.as_ref(), Namespace::Type);
+        syn::visit::visit_expr_struct(self, node);
+    }
+
+    fn visit_pat_struct(&mut self, node: &'ast syn::PatStruct) {
+        self.constructor(&node.path, node.qself.as_ref(), Namespace::Type);
+        syn::visit::visit_pat_struct(self, node);
+    }
+
+    fn visit_pat_tuple_struct(&mut self, node: &'ast syn::PatTupleStruct) {
+        self.constructor(&node.path, node.qself.as_ref(), Namespace::Value);
+        syn::visit::visit_pat_tuple_struct(self, node);
     }
 
     fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
@@ -740,6 +897,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_macro(&mut self, node: &'ast syn::Macro) {
+        if self.path_uses.is_some() {
+            self.type_prefixes(&node.path);
+        }
         self.path(&node.path, Role::Macro, Namespace::Macro);
         // This observes written expression-list arguments, never expansion or
         // the meaning of a macro's non-expression language.

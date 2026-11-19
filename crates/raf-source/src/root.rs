@@ -74,7 +74,7 @@ fn owns(
     Ok(false)
 }
 
-fn directory(tree: &dyn Tree, path: &RelPath) -> Result<RelPath, LoadError> {
+pub(crate) fn directory(tree: &dyn Tree, path: &RelPath) -> Result<RelPath, LoadError> {
     let path =
         tidy(tree, path).map_err(|error| LoadError::tree(path, None, &Origin::Discovery, error))?;
     let mut prefix = path.clone();

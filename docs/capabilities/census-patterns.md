@@ -131,6 +131,10 @@ actual definition sites. Source retains the owner's reading module and target;
 code and import lookup preserve their different edition rules. Syntactic lexical
 scopes account for parameters, generic bindings, local declarations and imports,
 initializer-before-binding order, closures, conditional bindings and match arms.
+Nested function items can use enclosing imports visible at their declaration.
+A local or generic shadow at that declaration suppresses attribution to the
+import. Closures can capture enclosing bindings. Union fields are read in the
+union's generic scope.
 Known constant patterns retain their Source identity instead of becoming locals.
 Qualified path heads use the Type namespace; bare values and macros use their
 own namespaces. Indexed imports retain each applicable namespace binding, so
@@ -141,6 +145,8 @@ module shadows remain authoritative.
 
 Import namespaces are checked after their target's block aliases have expanded
 in their declaration frames; younger scopes cannot change an imported target.
+Grouped `self` aliases supply Type bindings. Ordinary named imports retain the
+namespaces their targets supply.
 Direct occurrences still observe their own lexical shadows.
 An unrelated module with the same written prefix cannot suppress a real match.
 Namespace dependencies use the same bounded expansion engine without recursive
@@ -231,13 +237,14 @@ refuse with a remedy. Structural navigation never supplies configured provider
 proof, and reference files do not become first-party rule subjects.
 <!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
 
-Source ownership queries reuse the native index once per file and byte across
-patterns and constant observations. Candidate scans spend the matching step
-grant before lookup. The native ordered table charges logarithmic lookup and
-update bounds, and exact arena growth layouts before allocation under the same
-original grant. Cache associations and retained reference-vector capacity,
-including spare cells, spend the state grant. The exact arena admission does
-not cover Source's existing query scratch or the indexed items it lends.
+Source ownership queries index the file's start-ordered spans once. Subtrees
+whose spans end before the query byte can be skipped. The file index and each
+examined node spend the matching step grant. The native ordered table reuses
+the owners of each byte across patterns and constant observations. It charges
+logarithmic lookup and update bounds and exact arena growth layouts before
+allocation under the same grant. File span slots, cache associations and
+retained reference-vector capacity, including spare cells, spend the state
+grant. The arena admission covers the ordered table storage.
 Native index allocation/layout failures retain their typed cause. Generous
 state ceilings do not fail merely because a derived allowance exceeds the
 address space; actual unrepresentable allocation layouts still refuse.

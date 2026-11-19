@@ -206,7 +206,7 @@ fn retain<'p, 'w>(
     Ok(())
 }
 
-pub(super) fn charge(id: &str, limits: &mut MatchLimits, work: u64) -> Result<(), Error> {
+pub(in crate::gate) fn charge(id: &str, limits: &mut MatchLimits, work: u64) -> Result<(), Error> {
     limits.steps = limits.steps.checked_sub(work).ok_or_else(|| {
         failure(id, "matching step limit exhausted; narrow the pattern/roots or raise the explicit matching grant")
     })?;

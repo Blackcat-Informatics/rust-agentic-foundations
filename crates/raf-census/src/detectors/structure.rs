@@ -551,7 +551,9 @@ impl<'ast> Structure<'ast> {
                 syn::Item::Const(item) if !definitely_excluded(&item.attrs) => &item.ident,
                 syn::Item::Static(item) if !definitely_excluded(&item.attrs) => &item.ident,
                 syn::Item::Use(item) if !definitely_excluded(&item.attrs) => {
-                    visit_import_paths(&item.tree, |_, alias| frame.block_glob |= alias.is_none());
+                    visit_import_paths(&item.tree, |_, leaf| {
+                        frame.block_glob |= matches!(leaf, crate::syntax::ImportLeaf::Glob);
+                    });
                     continue;
                 }
                 _ => continue,
