@@ -556,7 +556,7 @@ inputs:
     digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
-    digest: 2307161520087d00d219629d8d064b93e85c40a40ddcb16b6ce9765dca0d987b
+    digest: 0517ea9725a6dc09b5e4a1d4cb9a1b01e8b10d500dcac8e5194040a30486a920
   - kind: symbol
     name: raf_source::settle
     digest: 6b87bfd9278a93bdf6976def510880204b8acc565e7cc9d53fddbfcd145b5623

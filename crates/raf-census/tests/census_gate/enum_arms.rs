@@ -8,7 +8,7 @@ use super::{Gate, Term, base, detector_fixtures, job, put, tree};
 const ENUM_USAGE_FIXTURE: &str = r#"
         pub enum State { Unit, Tuple(u8), Named { value: u8 }, Idle }
         mod names { pub use crate::State::Tuple as New; }
-        #[replace_enum] enum Unrelated { Value }
+        #[replace_enum] enum Unrelated { Value = { let _ = State::Idle; 0 } }
         fn unrelated() -> Unrelated { Unrelated::Value }
         mod opaque_names {
             #[replace_enum] pub enum Generated { Other }
@@ -36,6 +36,7 @@ const ENUM_USAGE_FIXTURE: &str = r#"
         #[test] fn test_only() { let _ = State::Idle; }
         #[cfg(any())] mod disabled;
         #[cfg(test)] #[path = "const_use.rs"] mod test_const_use;
+        #[derive(Clone)]
         enum Marker {
             #[cfg(test)] Probe = { let _ = State::Idle; 1 },
             Present = 2,
@@ -43,6 +44,8 @@ const ENUM_USAGE_FIXTURE: &str = r#"
         struct Header {
             #[cfg(test)] field: [u8; { let _ = State::Idle; 0 }],
         }
+        #[derive(Clone)]
+        struct GenericProbe<#[cfg(test)] const N: usize = { let _ = State::Idle; 0 }>;
         fn configured_input(#[cfg(test)] _: [u8; { let _ = State::Idle; 0 }]) {}
         pub mod fast_route { pub use crate::State as Selected; }
         mod fallback {
@@ -113,6 +116,8 @@ fn designated_enum_requires_shipping_values_and_current_retentions() {
         "mod outer { pub mod delivery { pub use crate::State::Idle as Current; } }
         fn imported() -> State { use outer::*; use delivery::Current as Rest; Rest }",
         "mod const_use;",
+        "#[derive(Clone)] #[repr(u8)]
+        enum UsesIdle { #[non_exhaustive] Present = { let _ = State::Idle; 0 } }",
         "use crate as here; fn imported() -> State { here::State::Idle }",
     ] {
         let verdict = check(&format!("{source}\n{route}"), &[]).unwrap();

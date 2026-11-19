@@ -109,7 +109,7 @@ inputs:
     digest: 56820f7a2c8dfe74a54889085db72458faf088b2c522d0292f8e6b1f5940e95a
   - kind: symbol
     name: raf_source::resolve
-    digest: 2307161520087d00d219629d8d064b93e85c40a40ddcb16b6ce9765dca0d987b
+    digest: 0517ea9725a6dc09b5e4a1d4cb9a1b01e8b10d500dcac8e5194040a30486a920
   - kind: symbol
     name: raf_source::tree
     digest: 7f0bae00e8e8eb5fd6417a4a33d9430ae20549ed415702e92e64d58cd4599309

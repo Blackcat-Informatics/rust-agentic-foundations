@@ -8,9 +8,9 @@ use std::collections::BTreeSet;
 use purrdf_lex::walk::WorkList;
 
 use super::{Fail, Heads, Index, Source, Steps, strip_raw, valid_code_segment};
-use crate::cost::{btree_entry, vec_slot};
+use crate::cost::vec_slot;
 use crate::facts::ConfigurationDependence;
-use crate::glob_scope::push_work;
+use crate::glob_scope::{push_work, set_bytes};
 use crate::index::UseKind;
 use crate::{ItemId, Namespace, ResolveError, SymbolKind};
 
@@ -713,7 +713,7 @@ fn insert<T: Ord>(set: &mut BTreeSet<T>, value: T, steps: Steps<'_>) -> Result<b
         return Ok(false);
     }
     steps
-        .reserve(btree_entry::<T, ()>())
+        .reserve(set_bytes::<T>(set.is_empty()))
         .map_err(ResolveError::storage)?;
     Ok(set.insert(value))
 }

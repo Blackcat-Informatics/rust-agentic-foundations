@@ -1044,7 +1044,17 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
                 anonymous && inventory.usage.observes(),
             )
         });
-        self.with_enum_attributes(attributes, |this| syn::visit::visit_item(this, node));
+        if matches!(
+            node,
+            syn::Item::Enum(_) | syn::Item::Struct(_) | syn::Item::Union(_)
+        ) && crate::syntax::inert_attributes_with(
+            attributes,
+            &["derive", "repr", "non_exhaustive"],
+        ) {
+            syn::visit::visit_item(self, node);
+        } else {
+            self.with_enum_attributes(attributes, |this| syn::visit::visit_item(this, node));
+        }
         if let Some(inventory) = &mut self.enum_hits {
             inventory.self_path = previous_self;
             inventory.anonymous_file_constant = previous_anonymous;
@@ -1224,8 +1234,26 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_variant(&mut self, node: &'ast syn::Variant) {
-        if !self.excludes_from_inventory(&node.attrs) {
+        if self.excludes_from_inventory(&node.attrs) {
+            return;
+        }
+        if crate::syntax::inert_attributes_with(&node.attrs, &["non_exhaustive"]) {
+            syn::visit::visit_variant(self, node);
+        } else {
             self.with_enum_attributes(&node.attrs, |this| syn::visit::visit_variant(this, node));
+        }
+    }
+
+    fn visit_generic_param(&mut self, node: &'ast syn::GenericParam) {
+        let attributes = match node {
+            syn::GenericParam::Lifetime(parameter) => &parameter.attrs,
+            syn::GenericParam::Type(parameter) => &parameter.attrs,
+            syn::GenericParam::Const(parameter) => &parameter.attrs,
+        };
+        if !self.excludes_from_inventory(attributes) {
+            self.with_enum_attributes(attributes, |this| {
+                syn::visit::visit_generic_param(this, node);
+            });
         }
     }
 
