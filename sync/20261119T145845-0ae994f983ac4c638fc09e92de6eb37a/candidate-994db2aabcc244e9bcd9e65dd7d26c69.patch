@@ -1,0 +1,867 @@
+diff --git crates/raf-source/src/facts.rs crates/raf-source/src/facts.rs
+index fa4ab638..b534b1f7 100644
+--- crates/raf-source/src/facts.rs
++++ crates/raf-source/src/facts.rs
+@@ -437,6 +437,8 @@ pub(crate) struct ModBody {
+     pub(crate) impls: Vec<ImplFact>,
+     /// Item-producing macro invocations, without generated definitions.
+     pub(crate) unexpanded: Vec<UnexpandedFact>,
++    /// Opaque declarations proved disabled for every configuration.
++    pub(crate) disabled: Vec<SpanFact>,
+ }
+ 
+ impl ModFact {
+@@ -1155,7 +1157,8 @@ impl Extractor<'_> {
+             + slack(&mut body.blocks)
+             + slack(&mut body.uses)
+             + slack(&mut body.impls)
+-            + slack(&mut body.unexpanded);
++            + slack(&mut body.unexpanded)
++            + slack(&mut body.disabled);
+         self.meter.charge(room, line)?;
+         Ok(body)
+     }
+@@ -1222,21 +1225,23 @@ impl Extractor<'_> {
+         t: &syn::ItemTrait,
+         whole: proc_macro2::Span,
+         inherited: TestRole,
+-        unexpanded: &mut Vec<UnexpandedFact>,
++        body: &mut ModBody,
+     ) -> Found<ItemFact> {
+         let own = summarize(&t.attrs, &FactMeter::scratch())?;
+         let inside = role(own.own_test, inherited);
+         let mut members = Vec::new();
+         for member in &t.items {
+-            if let syn::TraitItem::Macro(invocation) = member {
+-                unexpanded.push(self.unexpanded(
++            match member {
++                syn::TraitItem::Macro(invocation) => body.unexpanded.push(self.unexpanded(
+                     &invocation.attrs,
+                     &invocation.mac,
+                     member.span(),
+                     inside,
+-                )?);
+-            } else {
+-                members.push(self.trait_member(member, inside)?);
++                )?),
++                syn::TraitItem::Verbatim(tokens) if verbatim::definitely_disabled(tokens) => {
++                    self.record_disabled(member.span(), body)?;
++                }
++                _ => members.push(self.trait_member(member, inside)?),
+             }
+         }
+         self.meter
+@@ -1258,7 +1263,7 @@ impl Extractor<'_> {
+         &self,
+         item: &Item,
+         inherited: TestRole,
+-        unexpanded: &mut Vec<UnexpandedFact>,
++        body: &mut ModBody,
+     ) -> Found<Option<ItemFact>> {
+         let whole = item.span();
+         let fact = match item {
+@@ -1290,7 +1295,7 @@ impl Extractor<'_> {
+                 self.with_nominal(fact, &e.generics)?
+             }
+             Item::Union(u) => self.union_fact(u, whole, inherited)?,
+-            Item::Trait(t) => self.trait_fact(t, whole, inherited, unexpanded)?,
++            Item::Trait(t) => self.trait_fact(t, whole, inherited, body)?,
+             Item::Type(t) => {
+                 let mut fact = self.item(
+                     &t.ident,
+@@ -1361,7 +1366,7 @@ impl Extractor<'_> {
+ 
+     fn one(&self, item: &Item, inherited: TestRole, body: &mut ModBody) -> Found<()> {
+         self.blocks(item, inherited, &mut body.blocks)?;
+-        if let Some(fact) = self.named(item, inherited, &mut body.unexpanded)? {
++        if let Some(fact) = self.named(item, inherited, body)? {
+             body.items.push(fact);
+             return Ok(());
+         }
+@@ -1410,9 +1415,10 @@ impl Extractor<'_> {
+                 }
+             }
+             Item::Mod(m) => body.mods.push(self.module_fact(m, inherited)?),
+-            Item::Impl(i) => body
+-                .impls
+-                .push(self.impl_fact(i, inherited, &mut body.unexpanded)?),
++            Item::Impl(i) => {
++                let implementation = self.impl_fact(i, inherited, body)?;
++                body.impls.push(implementation);
++            }
+             Item::Use(u) => {
+                 let role = use_role(&u.attrs, inherited)?;
+                 body.uses.push(self.use_fact(
+@@ -1445,6 +1451,9 @@ impl Extractor<'_> {
+                     body.items
+                         .push(self.bodiless(&read, whole, inherited, false)?);
+                 }
++                None if verbatim::definitely_disabled(tokens) => {
++                    self.record_disabled(whole, body)?;
++                }
+                 None => return Err(unsupported(item)),
+             },
+             other => return Err(unsupported(other)),
+@@ -1452,6 +1461,13 @@ impl Extractor<'_> {
+         Ok(())
+     }
+ 
++    fn record_disabled(&self, whole: proc_macro2::Span, body: &mut ModBody) -> Found<()> {
++        let span = self.positions.span(whole)?;
++        self.meter.charge(size_of::<SpanFact>(), span.lines.start)?;
++        body.disabled.push(span);
++        Ok(())
++    }
++
+     /// Observe item syntax without claiming the invocation's generated names.
+     fn unexpanded(
+         &self,
+@@ -1660,7 +1676,12 @@ impl Extractor<'_> {
+         }
+     }
+ 
+-    fn impl_member(&self, member: &syn::ImplItem, inherited: TestRole) -> Found<ItemFact> {
++    fn impl_member(
++        &self,
++        member: &syn::ImplItem,
++        inherited: TestRole,
++        body: &mut ModBody,
++    ) -> Found<Option<ItemFact>> {
+         let whole = member.span();
+         let fact = match member {
+             syn::ImplItem::Fn(f) => {
+@@ -1701,18 +1722,22 @@ impl Extractor<'_> {
+             )?,
+             syn::ImplItem::Verbatim(tokens) => match verbatim::member(tokens) {
+                 Some(read) => self.bodiless(&read, whole, inherited, true)?,
++                None if verbatim::definitely_disabled(tokens) => {
++                    self.record_disabled(whole, body)?;
++                    return Ok(None);
++                }
+                 None => return Err(unsupported(member)),
+             },
+             other => return Err(unsupported(other)),
+         };
+-        Ok(fact)
++        Ok(Some(fact))
+     }
+ 
+     fn impl_fact(
+         &self,
+         block: &syn::ItemImpl,
+         inherited: TestRole,
+-        unexpanded: &mut Vec<UnexpandedFact>,
++        body: &mut ModBody,
+     ) -> Found<ImplFact> {
+         let whole = block.span();
+         let line = block.impl_token.span.start().line;
+@@ -1721,14 +1746,14 @@ impl Extractor<'_> {
+         let mut items = Vec::new();
+         for member in &block.items {
+             if let syn::ImplItem::Macro(invocation) = member {
+-                unexpanded.push(self.unexpanded(
++                body.unexpanded.push(self.unexpanded(
+                     &invocation.attrs,
+                     &invocation.mac,
+                     member.span(),
+                     test,
+                 )?);
+-            } else {
+-                items.push(self.impl_member(member, test)?);
++            } else if let Some(fact) = self.impl_member(member, test, body)? {
++                items.push(fact);
+             }
+         }
+         let written_path = self_path_of(&block.self_ty);
+diff --git crates/raf-source/src/index.rs crates/raf-source/src/index.rs
+index 4c31b72a..8ef1a953 100644
+--- crates/raf-source/src/index.rs
++++ crates/raf-source/src/index.rs
+@@ -29,8 +29,8 @@ use crate::facts::{
+ use crate::glob_scope::{GlobTables, ImportReach};
+ use crate::intern::Interner;
+ use crate::item::{
+-    ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
+-    Unexpanded, UnresolvedImpl,
++    DisabledSyntax, ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind,
++    TraitKey, Unexpanded, UnresolvedImpl,
+ };
+ use crate::manifest::DependencyKind;
+ use crate::meter::{ItemAdmission, LookupCount, Meter, NativeAdmission, Steps, push_item_work};
+@@ -336,6 +336,7 @@ pub(crate) struct Module {
+ pub(crate) struct Index {
+     pub(crate) items: Vec<Item>,
+     pub(crate) unexpanded: Vec<Unexpanded>,
++    pub(crate) disabled_syntax: Vec<DisabledSyntax>,
+     /// The items in the order of [`crate::Workspace::items`].
+     pub(crate) order: Vec<ItemId>,
+     pub(crate) modules: Vec<Module>,
+@@ -914,6 +915,7 @@ impl<'a> Builder<'a> {
+                             identifiers,
+                         });
+                     }
++                    self.disabled_syntax(&body.disabled, module, cx)?;
+                     push(&mut stack, Emit::Rest(body, module), line)?;
+                     push(&mut stack, Emit::Mods(body, module, 0), line)?;
+                 }
+@@ -945,6 +947,34 @@ impl<'a> Builder<'a> {
+         Ok(())
+     }
+ 
++    fn disabled_syntax(
++        &mut self,
++        spans: &[SpanFact],
++        module: usize,
++        cx: &Cx<'_>,
++    ) -> Result<(), LoadError> {
++        let Some(first) = spans.first() else {
++            return Ok(());
++        };
++        let line = Some(first.lines.start);
++        let records = &mut self.index.disabled_syntax;
++        self.store.reserve_items(
++            records,
++            records.len().saturating_add(spans.len()),
++            cx.file,
++            line,
++        )?;
++        self.store.meter.work(spans.len(), cx.file, line)?;
++        let module = &self.index.modules[module].path;
++        records.extend(spans.iter().cloned().map(|span| DisabledSyntax {
++            file: cx.file.clone(),
++            span,
++            module: module.clone(),
++            target: cx.target,
++        }));
++        Ok(())
++    }
++
+     /// The module of a declaration inside a block. It has no item and no name
+     /// in any module scope, because no path written in source reaches it: its
+     /// items are indexed under the module path of [`ModFact::block_segment`].
+@@ -1076,12 +1106,45 @@ enum Emit<'a> {
+     Rest(&'a ModBody, usize),
+ }
+ 
++type ObservationPosition<'a> = (&'a RelPath, &'a SpanFact, &'a SharedStr, TargetId);
++
++fn sort_observations<T>(
++    meter: &Meter,
++    observations: &mut [T],
++    position: impl Fn(&T) -> ObservationPosition<'_>,
++) -> Result<(), LoadError> {
++    purrdf_lex::walk::try_sort_unstable_by(observations, |left, right| {
++        let (left_file, left_span, left_module, left_target) = position(left);
++        let (right_file, right_span, right_module, right_target) = position(right);
++        meter.work(
++            left_file
++                .as_str()
++                .len()
++                .saturating_add(right_file.as_str().len())
++                .saturating_add(left_module.len())
++                .saturating_add(right_module.len())
++                .saturating_add(1),
++            left_file,
++            Some(left_span.lines.start),
++        )?;
++        Ok(
++            (left_file, left_span.start_byte, left_module, left_target).cmp(&(
++                right_file,
++                right_span.start_byte,
++                right_module,
++                right_target,
++            )),
++        )
++    })
++}
++
+ impl Index {
+     /// An index of `targets` that holds nothing yet.
+     fn empty(targets: &[Target]) -> Self {
+         Self {
+             items: Vec::new(),
+             unexpanded: Vec::new(),
++            disabled_syntax: Vec::new(),
+             order: Vec::new(),
+             modules: Vec::new(),
+             module_by_path: BTreeMap::new(),
+@@ -1223,24 +1286,11 @@ impl Index {
+         index.build_scopes();
+         index.settle_agreed(store.meter)?;
+         index.attach_impls(impls, &mut store)?;
+-        purrdf_lex::walk::try_sort_unstable_by(&mut index.unexpanded, |a, b| {
+-            store.meter.work(
+-                a.file
+-                    .as_str()
+-                    .len()
+-                    .saturating_add(b.file.as_str().len())
+-                    .saturating_add(a.module.len())
+-                    .saturating_add(b.module.len())
+-                    .saturating_add(1),
+-                &a.file,
+-                Some(a.span.lines.start),
+-            )?;
+-            Ok::<_, LoadError>((&a.file, a.span.start_byte, &a.module, a.target).cmp(&(
+-                &b.file,
+-                b.span.start_byte,
+-                &b.module,
+-                b.target,
+-            )))
++        sort_observations(store.meter, &mut index.unexpanded, |row| {
++            (&row.file, &row.span, &row.module, row.target)
++        })?;
++        sort_observations(store.meter, &mut index.disabled_syntax, |row| {
++            (&row.file, &row.span, &row.module, row.target)
+         })?;
+         index.finish();
+         index.settle_glob_facts(store.meter)?;
+diff --git crates/raf-source/src/item.rs crates/raf-source/src/item.rs
+index 5b37378e..07f826e5 100644
+--- crates/raf-source/src/item.rs
++++ crates/raf-source/src/item.rs
+@@ -215,6 +215,20 @@ pub struct Unexpanded {
+     pub identifiers: Vec<SharedStr>,
+ }
+ 
++/// An opaque declaration proved disabled for every configuration.
++#[derive(Debug, Clone, PartialEq, Eq)]
++#[non_exhaustive]
++pub struct DisabledSyntax {
++    /// The source file, relative to the workspace root.
++    pub file: RelPath,
++    /// The whole declaration, including its attributes.
++    pub span: SpanFact,
++    /// The enclosing module path for this reach.
++    pub module: SharedStr,
++    /// The target whose module tree contains the declaration.
++    pub target: TargetId,
++}
++
+ impl ItemId {
+     /// The number of the item.
+     #[must_use]
+diff --git crates/raf-source/src/lib.rs crates/raf-source/src/lib.rs
+index 8c8a8db9..2c00b888 100644
+--- crates/raf-source/src/lib.rs
++++ crates/raf-source/src/lib.rs
+@@ -203,8 +203,8 @@ pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport};
+ pub use facts::visit_pattern_bindings;
+ pub use facts::{FieldShape, SpanFact, TestRole, Vis};
+ pub use item::{
+-    ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
+-    Unexpanded, UnresolvedImpl,
++    DisabledSyntax, ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind,
++    TraitKey, Unexpanded, UnresolvedImpl,
+ };
+ pub use locked::{
+     LockedCatalog, LockedGitReference, LockedPackage, LockedPackageId, LockedSource,
+diff --git crates/raf-source/src/verbatim.rs crates/raf-source/src/verbatim.rs
+index 68e38d9b..2fc268c0 100644
+--- crates/raf-source/src/verbatim.rs
++++ crates/raf-source/src/verbatim.rs
+@@ -14,7 +14,8 @@
+ //!   the input of an attribute macro, at item level or in an impl block;
+ //! * a type with no definition (`#[ty] type bool;`), likewise.
+ //!
+-//! Every other verbatim shape is not read, and the caller refuses it.
++//! Other shapes can supply a disabled-syntax observation when an outer
++//! `cfg(any())` proves they have no active declaration.
+ //!
+ //! The tokens of one item are parsed again after the parse of its file, which
+ //! built and dropped the same nodes before it kept the tokens, so what the
+@@ -23,7 +24,10 @@
+ 
+ use proc_macro2::TokenStream;
+ use syn::parse::{ParseStream, Parser as _};
+-use syn::{Attribute, ForeignItemFn, ForeignItemType, Token, UseTree, Visibility, braced, token};
++use syn::{
++    Attribute, ForeignItemFn, ForeignItemType, MacroDelimiter, Meta, Token, UseTree, Visibility,
++    braced, token,
++};
+ 
+ /// A verbatim item of a module that the index reads.
+ pub(crate) enum Verbatim {
+@@ -95,6 +99,27 @@ pub(crate) fn member(tokens: &TokenStream) -> Option<Bodiless> {
+         .map(|t| Bodiless::Type(Box::new(t)))
+ }
+ 
++/// Read only the outer configuration proof of an opaque declaration.
++pub(crate) fn definitely_disabled(tokens: &TokenStream) -> bool {
++    let parse = |input: ParseStream<'_>| {
++        let attributes = input.call(Attribute::parse_outer)?;
++        let _: TokenStream = input.parse()?;
++        Ok(attributes.iter().any(|attribute| {
++            matches!(
++                &attribute.meta,
++                Meta::List(cfg) if cfg.path.is_ident("cfg")
++                    && matches!(cfg.delimiter, MacroDelimiter::Paren(_))
++            ) && matches!(
++                attribute.parse_args::<Meta>(),
++                Ok(Meta::List(any)) if any.path.is_ident("any")
++                    && matches!(any.delimiter, MacroDelimiter::Paren(_))
++                    && any.tokens.is_empty()
++            )
++        }))
++    };
++    parse.parse2(tokens.clone()).unwrap_or(false)
++}
++
+ /// `#[attrs] vis use { member, ... };`, each member an optional leading `::`
+ /// and a use tree, or a braced group of such members, which binds what its
+ /// members bind. A group under a path is read by syn as usual, so a leading
+diff --git crates/raf-source/src/workspace.rs crates/raf-source/src/workspace.rs
+index 9c44655b..3ab56206 100644
+--- crates/raf-source/src/workspace.rs
++++ crates/raf-source/src/workspace.rs
+@@ -176,9 +176,10 @@ impl Workspace {
+     ///
+     /// Of the items that syn has no node for, a `use` group with a member that
+     /// starts with `::`, a function with no body and a type with no definition
+-    /// are indexed; any other, such as a constant with no value or a type with
+-    /// bounds and no definition, is a [`LoadErrorKind::UnsupportedItem`]
+-    /// naming the file and the first line of the item.
++    /// are indexed. Other opaque module or associated declarations qualify
++    /// for [`Self::disabled_syntax`] when an outer `cfg(any())` proves them
++    /// disabled. Otherwise they return [`LoadErrorKind::UnsupportedItem`]
++    /// with the file and the first line of the item.
+     pub fn load_with(
+         tree: &dyn Tree,
+         roots: &[&str],
+@@ -600,6 +601,13 @@ impl Workspace {
+         &self.index.unexpanded
+     }
+ 
++    /// Opaque declarations under an outer `cfg(any())`, sorted by file,
++    /// byte position, module and target. These observations bind no names.
++    #[must_use]
++    pub fn disabled_syntax(&self) -> &[crate::DisabledSyntax] {
++        &self.index.disabled_syntax
++    }
++
+     /// The items at `prefix` or below it, in the order of [`Workspace::items`].
+     /// The prefix matches whole path segments: `demo::a` selects `demo::a` and
+     /// `demo::a::b`, not `demo::ab`. An empty prefix selects every item.
+diff --git crates/raf-source/tests/configured_sources.rs crates/raf-source/tests/configured_sources.rs
+index 0c12782a..7676cddb 100644
+--- crates/raf-source/tests/configured_sources.rs
++++ crates/raf-source/tests/configured_sources.rs
+@@ -239,7 +239,9 @@ fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
+          #[cfg(test)] mod tests { make_test!(); }\n\
+          trait Api { #[cfg(feature=\"native\")] trait_native!(); #[cfg(not(feature=\"native\"))] trait_portable!(); }\n\
+          impl Api for () { #[cfg(feature=\"native\")] impl_native!(); #[cfg(not(feature=\"native\"))] impl_portable!(); }\n\
+-         extern \"C\" { #[cfg(feature=\"native\")] foreign_native!(); #[cfg(not(feature=\"native\"))] foreign_portable!(); }",
++         extern \"C\" { #[cfg(feature=\"native\")] foreign_native!(); #[cfg(not(feature=\"native\"))] foreign_portable!(); }\n\
++         pub mod opaque { #[cfg(any())] const HIDDEN: u8; pub fn kept() {} }\n\
++         pub struct Owner; impl Owner { #[cfg(any())] const HIDDEN: u8; }",
+     );
+     for enabled in [false, true] {
+         let source = load(
+@@ -250,6 +252,23 @@ fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
+             &LoadOptions::default(),
+         )
+         .expect("declared syntax");
++        let disabled = source.disabled_syntax();
++        assert_eq!(
++            disabled
++                .iter()
++                .map(|record| record.module.as_str())
++                .collect::<Vec<_>>(),
++            ["consumer::opaque", "consumer"]
++        );
++        for record in disabled {
++            assert_eq!(record.file.as_str(), "consumer/src/lib.rs");
++            let text = source.source(&record.file).expect("recorded file");
++            assert_eq!(
++                &text[record.span.start_byte..record.span.end_byte],
++                "#[cfg(any())] const HIDDEN: u8;"
++            );
++        }
++        assert!(source.resolve("consumer::opaque::kept").is_ok());
+         let actual: Vec<_> = source
+             .unexpanded()
+             .iter()
+@@ -276,6 +295,20 @@ fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
+             }
+         );
+     }
++    let active = fixture(MANIFEST, "pub fn kept() {}\nconst ACTIVE: u8;");
++    let error = load(
++        &active,
++        Some(context(&[], "consumer")),
++        Some(context(&["api"], "provider")),
++        "",
++        &LoadOptions::default(),
++    )
++    .expect_err("active opaque declaration");
++    assert!(matches!(error.kind, LoadErrorKind::UnsupportedItem { .. }));
++    assert_eq!(
++        (error.file.as_str(), error.line),
++        ("consumer/src/lib.rs", Some(2))
++    );
+ }
+ 
+ fn load(
+diff --git crates/raf-source/tests/symbol_index.rs crates/raf-source/tests/symbol_index.rs
+index 723b8e49..fe4b2732 100644
+--- crates/raf-source/tests/symbol_index.rs
++++ crates/raf-source/tests/symbol_index.rs
+@@ -106,7 +106,8 @@ fn unexpanded_payloads_obey_original_fact_and_item_allowances() {
+             "generate!((one two) [three four] {five six});\n\
+              trait T { generate!((seven eight)); }\n\
+              impl T for () { generate!([nine ten]); }\n\
+-             extern \"C\" { generate!({eleven twelve}); }",
++             extern \"C\" { generate!({eleven twelve}); }\n\
++             #[cfg(any())] const OPAQUE: u8;",
+         ),
+     ]);
+     let usage = Workspace::load(&tree, &["."])
+@@ -128,13 +129,9 @@ fn unexpanded_payloads_obey_original_fact_and_item_allowances() {
+             }
+             let loaded = Workspace::load_with(&tree, &["."], &options);
+             if admitted {
+-                assert_eq!(
+-                    loaded
+-                        .expect("exact allowance retains the occurrence")
+-                        .unexpanded()
+-                        .len(),
+-                    4
+-                );
++                let loaded = loaded.expect("exact allowance retains the observations");
++                assert_eq!(loaded.unexpanded().len(), 4);
++                assert_eq!(loaded.disabled_syntax().len(), 1);
+             } else {
+                 assert!(
+                     matches!(loaded.expect_err("one byte below the original allowance").kind,
+@@ -1226,17 +1223,81 @@ fn bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_w
+     ));
+ }
+ 
++/// A disabled opaque declaration has a location in each reach and binds no
++/// name. A declaration without the same proof retains the typed refusal.
+ #[test]
+-fn a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line() {
+-    // rustc parses each of these (they compile under `#[cfg(any())]`); syn
+-    // has no node for them and the index does not read them.
++fn disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse() {
++    let text = "pub fn kept() {}\n\
++        #[cfg(any())] const C: u8;\n\
++        pub struct S;\n\
++        impl S { #[cfg(any())] const K: u8; }\n\
++        #[cfg(any())] type T: Bound;\n";
++    let tree = MemoryTree::from([
++        ("Cargo.toml", DEMO),
++        ("src/lib.rs", "pub mod common;"),
++        ("src/main.rs", "mod common;"),
++        ("src/common.rs", text),
++    ]);
++    let options = raf_source::LoadOptions::default();
++    let loaded = Workspace::load_with(&tree, &["."], &options).expect("structural load");
++    let records = loaded.disabled_syntax();
++    #[cfg(target_os = "linux")]
++    {
++        let parallel = Workspace::par_load(
++            &tree,
++            &["."],
++            &options,
++            &raf_source::ParallelOptions::default(),
++        )
++        .expect("parallel structural load");
++        assert_eq!(parallel.disabled_syntax(), records);
++        assert_eq!(parallel.usage(), loaded.usage());
++    }
++    assert_eq!(records.len(), 6);
++    for target in loaded.targets() {
++        let module = format!("{}::common", target.crate_path);
++        for (line, declaration) in [
++            (2, "#[cfg(any())] const C: u8;"),
++            (4, "#[cfg(any())] const K: u8;"),
++            (5, "#[cfg(any())] type T: Bound;"),
++        ] {
++            let record = records
++                .iter()
++                .find(|record| record.module.as_str() == module && record.span.lines.start == line)
++                .expect("each reading module observes the original declaration");
++            assert_eq!(record.file.as_str(), "src/common.rs");
++            assert_eq!(
++                loaded
++                    .target(record.target)
++                    .expect("recorded target")
++                    .crate_path,
++                target.crate_path
++            );
++            assert_eq!(
++                &text[record.span.start_byte..record.span.end_byte],
++                declaration
++            );
++        }
++    }
++    assert!(loaded.resolve("demo::common::kept").is_ok());
++    assert!(
++        loaded
++            .items()
++            .all(|item| !matches!(item.name.as_str(), "C" | "K" | "T"))
++    );
++
+     for (text, line) in [
+-        ("pub fn ok() {}\n#[cfg(any())]\nconst C: u8;\n", 2),
++        ("pub fn ok() {}\nconst C: u8;\n", 2),
++        ("pub fn ok() {}\n#[cfg(any[])] const C: u8;\n", 2),
++        ("pub fn ok() {}\n#[cfg[any()]] const C: u8;\n", 2),
+         (
+-            "pub struct S;\nimpl S {\n    #[cfg(any())]\n    const K: u8;\n}\n",
++            "pub struct S;\nimpl S {\n    #[cfg(test)]\n    const K: u8;\n}\n",
+             3,
+         ),
+-        ("pub fn ok() {}\n#[cfg(any())]\ntype T: Bound;\n", 2),
++        (
++            "pub fn ok() {}\n#[cfg_attr(test, cfg(any()))]\ntype T: Bound;\n",
++            2,
++        ),
+     ] {
+         let error = load(&[("src/lib.rs", text)]).expect_err(text);
+         assert!(
+@@ -1249,8 +1310,10 @@ fn a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_
+             "{text}"
+         );
+     }
+-    // The bodiless function beside them loads.
+-    assert!(load(&[("src/lib.rs", "#[cfg(any())]\nfn f();\n")]).is_ok());
++    // The existing decoder still models this bodiless function as written.
++    let supported = lib("#[cfg(any())]\nfn f();\n");
++    assert!(supported.resolve("demo::f").is_ok());
++    assert_eq!(supported.disabled_syntax(), []);
+ }
+ 
+ /// What the tests of `Workspace::impls` read of each block, as a line: its
+diff --git docs/capabilities/source-index.md docs/capabilities/source-index.md
+index dba522c8..79128a0a 100644
+--- docs/capabilities/source-index.md
++++ docs/capabilities/source-index.md
+@@ -11,6 +11,8 @@ bindings:
+     - raf_source::git
+     - raf_source::Unexpanded
+     - raf_source::Workspace::unexpanded
++    - raf_source::DisabledSyntax
++    - raf_source::Workspace::disabled_syntax
+     - raf_source::cargo_version
+     - raf_source::resolve
+     - raf_source::Tree
+@@ -721,7 +723,7 @@ bindings:
+     - raf_source::test_crate::use_resolution::a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015
+     - raf_source::test_crate::use_resolution::a_crate_root_inside_a_group_under_a_path_is_a_syntax_error
+     - raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written
+-    - raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line
++    - raf_source::test_crate::symbol_index::disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse
+     - raf_source::test_crate::load_budgets::a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms
+     - raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not
+     - raf_source::test_crate::exported_items::a_pub_item_of_a_private_module_is_exported_only_through_a_pub_use_and_under_its_rename
+@@ -2462,10 +2464,24 @@ bool;`) is a type alias whose alias target is `None`, so no path is followed thr
+ Both are indexed as written: what the macro makes of them (kept, renamed, dropped, or an
+ item of another kind) is not seen, as for any other item an attribute macro rewrites. The third
+ shape syn returns as tokens, a `use` group with a member that starts with `::`, is read
+-by the use-alias index below. Every other item that syn returns as tokens fails the load
+-with `UnsupportedItem`, naming the file and the first line of the item: a constant with
+-no value (`const C: u8;`, in a module or an impl block), a type with bounds and no
+-definition (`type T: Bound;`), a trait alias, and any other form.
++by the use-alias index below. A remaining opaque declaration without proof of
++disabling fails with `UnsupportedItem`, naming its file and first line.
++
++### Disabled opaque declarations
++<!-- raf:tested-by raf_source::test_crate::symbol_index::disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse,raf_source::test_crate::configured_sources::unexpanded_occurrences_follow_the_exact_declared_syntax,raf_source::test_crate::symbol_index::unexpanded_payloads_obey_original_fact_and_item_allowances -->
++
++`Workspace::disabled_syntax()` records opaque declarations in a module,
++trait or implementation when their written outer `#[cfg(any())]` evaluates
++false for every target. Structural and configured loads record the exact
++span including attributes, the file, and the actual module and target of
++each reach. The inventory binds no names and sorts by file, starting byte,
++module and target.
++
++Source first applies its existing verbatim decoders. An opaque item must
++carry the direct empty disjunction to qualify. Other configuration
++expressions or a `cfg_attr` alone leave the typed `UnsupportedItem`
++refusal in place. Observation storage and sorting spend the original
++fact, item and work allowances.
+ 
+ Every target's crate root is also an item of the module kind, at the target's crate
+ path in the type name space: its file is the target's root file, its line is 1, its
+@@ -4146,10 +4162,12 @@ delegates to that library or enforce preferred-provider policy.
+   level is no item's, so a block there is never reached. An impl block inside a module
+   declared in a block is in `impls()` under that module's path.
+ - An item that syn returns as tokens is indexed only in the three shapes the Contract
+-  <!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written,raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line,raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do -->
++  <!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written,raf_source::test_crate::symbol_index::disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse,raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do -->
+   names: a `use` group with a member that starts with `::`, a function with no body and
+-  a type with no definition. Any other, such as `const C: u8;` written as the input of an
+-  attribute macro, fails the whole load with `UnsupportedItem`, naming the file and line.
++  a type with no definition. Other opaque module or associated declarations
++  require the disabling proof to be recorded. A declaration such as
++  `const C: u8;` supplied to an attribute macro without that proof fails with
++  `UnsupportedItem`, naming the file and line.
+ - An import whose namespace proof remains indeterminate cannot publish an apparently settled peer through a named copy, glob, exported surface or reachability edge. A cyclic or indeterminate-import disagreement with the compiler fails the differential oracle; it is not a tolerated class.
+   <!-- raf:tested-by raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other,raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes -->
+ - For some glob ambiguities rustc's own answer depends on the order of the declarations, the first binding of the name that reaches a module deciding; the index gives one fixed answer, the same in every order, which is the ambiguity for some shapes and the item for others, and which rustc gives in some of its orders and not in the others.
+@@ -4788,8 +4806,9 @@ one-byte-short refusal.
+   role and visibility of the whole declaration. `a::{::b}` is a `Syntax` error naming the
+   file and line. A bodiless function at item level, a bodiless method in an impl block
+   and `type bool;` are indexed with their kind, name line, span and attributes, and no
+-  `body`; `const C: u8;`, a bodiless `const` in an impl block and `type T: Bound;` are
+-  `UnsupportedItem` naming the file and line. A group of 6000 members under a
++  `body`. An opaque constant or type under `#[cfg(any())]` is recorded at its
++  original span. The refusal cases report `UnsupportedItem` with the file and
++  line when the declaration lacks that proof. A group of 6000 members under a
+   `cfg` predicate of 6000 names reads that attribute once, counted as one attribute read for
+   the whole declaration, each member's fact carrying the test role,
+   visibility, span and tree it would have alone. A group and a bodiless method are charged
+@@ -6001,7 +6020,6 @@ one-byte-short refusal.
+ | `raf_source::test_crate::spawn_limit::a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file` | test | [Contract](#contract) |
+ | `raf_source::test_crate::spawn_limit::child_main` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::a_bitflags_style_macro_type_with_an_impl_loads_with_its_members_marked_unresolved` | test | [Verification](#verification) |
+-| `raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line` | test | [Constraints](#constraints) |
+ | `raf_source::test_crate::symbol_index::a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order` | test | [Contract](#contract) |
+ | `raf_source::test_crate::symbol_index::a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed` | test | [Verification](#verification) |
+@@ -6021,6 +6039,7 @@ one-byte-short refusal.
+ | `raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_source::test_crate::symbol_index::cfg_twins_are_one_symbol_with_two_sorted_sites` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero` | test | [Contract](#contract) |
++| `raf_source::test_crate::symbol_index::disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_source::test_crate::symbol_index::documentation_counts_text_and_include_str_but_not_hidden_or_blank_comments` | test | [Contract](#contract) |
+ | `raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members` | test | [Contract](#contract) |
+ | `raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility` | test | [Contract](#contract) |
+diff --git work/assessments/source-index-constraints.md work/assessments/source-index-constraints.md
+index e2a4b0d5..fd641f0f 100644
+--- work/assessments/source-index-constraints.md
++++ work/assessments/source-index-constraints.md
+@@ -7,7 +7,7 @@ subject: cap:source-index#constraints
+ inputs:
+   - kind: section
+     name: cap:source-index#constraints
+-    digest: 8b7fac25f1032cc7f3209799fa11ea01d0fa6a0b0e5977b51a586d69c8fa6b0b
++    digest: 2f0649fa9b1bbc085955f6643be9df8021e20efc3cf6af1aa6a5b8a3b54f5efe
+   - kind: symbol
+     name: raf_source::DiskTree
+     digest: 5496855041cec7a22d2303a3eb9049dbcafa368c7a19589c040d0e13f752702f
+diff --git work/assessments/source-index-contract.md work/assessments/source-index-contract.md
+index da618868..a5aa310f 100644
+--- work/assessments/source-index-contract.md
++++ work/assessments/source-index-contract.md
+@@ -7,7 +7,7 @@ subject: cap:source-index#contract
+ inputs:
+   - kind: section
+     name: cap:source-index#contract
+-    digest: 51447f0b40898d2dda6be05c52d37dd3fa1ea5286101748792395d65e3e3a2ad
++    digest: 0640fa9d1e29726066e095f79bc1b54052b84cc0ecbfc2c2e793d3bf9bfcb5bd
+   - kind: symbol
+     name: raf_source::Budget
+     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
+@@ -302,6 +302,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::dependency_declarations
+     digest: 722a7cb773d1344927f226068f461ef618ac4373d130d5c9d540057ada529b32
++  - kind: symbol
++    name: raf_source::Workspace::disabled_syntax
++    digest: ab72010e1c2aec08ee2d0dbf24676b9b69f855bcaeb5587c81bb8f5f91a63bcf
+   - kind: symbol
+     name: raf_source::Workspace::exported_items
+     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
+@@ -376,7 +379,7 @@ inputs:
+     digest: decf25b8720addc5994dca976c46ea7f846dbd6c1321f82887c7990c29ab9c7f
+   - kind: symbol
+     name: raf_source::item
+-    digest: ad09f5dc9cc8bbcf01296985c4d4bda792ebe123255366e365c623c2e1117d1b
++    digest: 3f221f04736dc6516eedcfd8c5f836faff93d8a350f8f94eeb6c22babd6f6c24
+   - kind: symbol
+     name: raf_source::library_target_name
+     digest: e2573ec72c0e8ae40a9c8eae5609e3397bf0df6cfbf286e2a64b8f3404b27794
+diff --git work/assessments/source-index-explanation.md work/assessments/source-index-explanation.md
+index e8c2a4fc..d30fb59d 100644
+--- work/assessments/source-index-explanation.md
++++ work/assessments/source-index-explanation.md
+@@ -77,6 +77,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::DependencySpec
+     digest: b03f60727b64eb7013cb9dc1284ee27270ac3c4433042bcc6d7cb5b34f6f64f1
++  - kind: symbol
++    name: raf_source::DisabledSyntax
++    digest: d6f6836e4fa43d556b8ec0479953d81b1d80ec704ba07a13fbffcd6f4f7ad68f
+   - kind: symbol
+     name: raf_source::DiskTree
+     digest: 5496855041cec7a22d2303a3eb9049dbcafa368c7a19589c040d0e13f752702f
+@@ -419,6 +422,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::dependency_declarations
+     digest: 722a7cb773d1344927f226068f461ef618ac4373d130d5c9d540057ada529b32
++  - kind: symbol
++    name: raf_source::Workspace::disabled_syntax
++    digest: ab72010e1c2aec08ee2d0dbf24676b9b69f855bcaeb5587c81bb8f5f91a63bcf
+   - kind: symbol
+     name: raf_source::Workspace::exported_items
+     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
+@@ -502,7 +508,7 @@ inputs:
+     digest: 4c604e45e3e78c4721ba4f923ca58ad579fd3e384fb3db424369fe1747775ed3
+   - kind: symbol
+     name: raf_source::item
+-    digest: ad09f5dc9cc8bbcf01296985c4d4bda792ebe123255366e365c623c2e1117d1b
++    digest: 3f221f04736dc6516eedcfd8c5f836faff93d8a350f8f94eeb6c22babd6f6c24
+   - kind: symbol
+     name: raf_source::library_target_name
+     digest: e2573ec72c0e8ae40a9c8eae5609e3397bf0df6cfbf286e2a64b8f3404b27794
+diff --git work/assessments/source-index-purpose.md work/assessments/source-index-purpose.md
+index 196d3b3e..88126b3f 100644
+--- work/assessments/source-index-purpose.md
++++ work/assessments/source-index-purpose.md
+@@ -77,6 +77,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::DependencySpec
+     digest: b03f60727b64eb7013cb9dc1284ee27270ac3c4433042bcc6d7cb5b34f6f64f1
++  - kind: symbol
++    name: raf_source::DisabledSyntax
++    digest: d6f6836e4fa43d556b8ec0479953d81b1d80ec704ba07a13fbffcd6f4f7ad68f
+   - kind: symbol
+     name: raf_source::DiskTree
+     digest: 5496855041cec7a22d2303a3eb9049dbcafa368c7a19589c040d0e13f752702f
+@@ -419,6 +422,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::dependency_declarations
+     digest: 722a7cb773d1344927f226068f461ef618ac4373d130d5c9d540057ada529b32
++  - kind: symbol
++    name: raf_source::Workspace::disabled_syntax
++    digest: ab72010e1c2aec08ee2d0dbf24676b9b69f855bcaeb5587c81bb8f5f91a63bcf
+   - kind: symbol
+     name: raf_source::Workspace::exported_items
+     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
+@@ -502,7 +508,7 @@ inputs:
+     digest: 4c604e45e3e78c4721ba4f923ca58ad579fd3e384fb3db424369fe1747775ed3
+   - kind: symbol
+     name: raf_source::item
+-    digest: ad09f5dc9cc8bbcf01296985c4d4bda792ebe123255366e365c623c2e1117d1b
++    digest: 3f221f04736dc6516eedcfd8c5f836faff93d8a350f8f94eeb6c22babd6f6c24
+   - kind: symbol
+     name: raf_source::library_target_name
+     digest: e2573ec72c0e8ae40a9c8eae5609e3397bf0df6cfbf286e2a64b8f3404b27794
+diff --git work/assessments/source-index-usage.md work/assessments/source-index-usage.md
+index 5d700070..d9cdc5b7 100644
+--- work/assessments/source-index-usage.md
++++ work/assessments/source-index-usage.md
+@@ -178,7 +178,7 @@ inputs:
+     digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
+   - kind: symbol
+     name: raf_source::item
+-    digest: ad09f5dc9cc8bbcf01296985c4d4bda792ebe123255366e365c623c2e1117d1b
++    digest: 3f221f04736dc6516eedcfd8c5f836faff93d8a350f8f94eeb6c22babd6f6c24
+   - kind: symbol
+     name: raf_source::parse_source
+     digest: 56820f7a2c8dfe74a54889085db72458faf088b2c522d0292f8e6b1f5940e95a
+diff --git work/assessments/source-index-verification.md work/assessments/source-index-verification.md
+index 56a285af..5341db49 100644
+--- work/assessments/source-index-verification.md
++++ work/assessments/source-index-verification.md
+@@ -7,7 +7,7 @@ subject: cap:source-index#verification
+ inputs:
+   - kind: section
+     name: cap:source-index#verification
+-    digest: f191a70b14949082a8344009b186cdac4244eaed8341939c61e06418d8bf2129
++    digest: 67f23ea374d8efced7236466a41e695979089b5ff0242a76e3b7132062f6e06c
+   - kind: symbol
+     name: raf_source::Budget
+     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7

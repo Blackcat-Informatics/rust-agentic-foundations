@@ -1,0 +1,562 @@
+{
+  "crates/raf-census/src/gate/evaluate.rs": [
+    {
+      "mode": "100644",
+      "oid": "b2ab5166cbdb969b9e87621dcf4d76312fb6a204",
+      "stage": 1,
+      "content": "inputs/0-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "5fb6f7912bba5275e60077ba6b2340ea7b3d47df",
+      "stage": 2,
+      "content": "inputs/0-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "b4cf34e9e12d8a23aa841f11eb93321f1278b411",
+      "stage": 3,
+      "content": "inputs/0-3.bin"
+    }
+  ],
+  "crates/raf-census/src/gate/patterns/paths/visit.rs": [
+    {
+      "mode": "100644",
+      "oid": "881fcb5ff4c996d134c8c398cf84d5375723d787",
+      "stage": 1,
+      "content": "inputs/1-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "aa6e994bd638bd487fca9d13cec208d60560030d",
+      "stage": 2,
+      "content": "inputs/1-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "cae708308433b2a1eb0682a9f8567abe81b0b3b2",
+      "stage": 3,
+      "content": "inputs/1-3.bin"
+    }
+  ],
+  "crates/raf-census/src/gate/rules.rs": [
+    {
+      "mode": "100644",
+      "oid": "4dc8c4210e6715c000c2af4696f270cb87ba99a0",
+      "stage": 1,
+      "content": "inputs/2-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "a33ec64936e29defe19fcea8c551ee891c95f628",
+      "stage": 2,
+      "content": "inputs/2-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "427a70d3a249b318298655952e13ef057c693feb",
+      "stage": 3,
+      "content": "inputs/2-3.bin"
+    }
+  ],
+  "work/assessments/census-detectors-constraints.md": [
+    {
+      "mode": "100644",
+      "oid": "92d8c6f2c238454a217afdccdaf673320c249a79",
+      "stage": 1,
+      "content": "inputs/3-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "53d5809c34b03868464faaacf9162bc21b41f8c1",
+      "stage": 2,
+      "content": "inputs/3-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "d0486b03eb08af65d8c25f140bec1d6afb43e81f",
+      "stage": 3,
+      "content": "inputs/3-3.bin"
+    }
+  ],
+  "work/assessments/census-detectors-contract.md": [
+    {
+      "mode": "100644",
+      "oid": "7f8a47c4a3fe6ca5cf906178472ec1065e32d5bd",
+      "stage": 1,
+      "content": "inputs/4-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "aae9fc173fe554650fe90ba821d723c7ac326b20",
+      "stage": 2,
+      "content": "inputs/4-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "61390ee4141c4f43644752e3c6b2215c6c2239c8",
+      "stage": 3,
+      "content": "inputs/4-3.bin"
+    }
+  ],
+  "work/assessments/census-detectors-examples.md": [
+    {
+      "mode": "100644",
+      "oid": "fd209aa69841c1edb54463d0888507ca9f8ee2d8",
+      "stage": 1,
+      "content": "inputs/5-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "8f8cdb0794c7757a1dc648008dc129f24273ae24",
+      "stage": 2,
+      "content": "inputs/5-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "80b22c069a4123b9053d4c30e1e4511524682b7d",
+      "stage": 3,
+      "content": "inputs/5-3.bin"
+    }
+  ],
+  "work/assessments/census-detectors-explanation.md": [
+    {
+      "mode": "100644",
+      "oid": "29ad5ff4860ac8eecabefc7b14fee85c2cf315f9",
+      "stage": 1,
+      "content": "inputs/6-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "aaed30828f47e6219b79b815861c5b0df72706c8",
+      "stage": 2,
+      "content": "inputs/6-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "cedc50a91531891bd90892677b91917bc3d5318e",
+      "stage": 3,
+      "content": "inputs/6-3.bin"
+    }
+  ],
+  "work/assessments/census-detectors-purpose.md": [
+    {
+      "mode": "100644",
+      "oid": "af44aae40e0f031334dfc32d871cf8cb3109dfdb",
+      "stage": 1,
+      "content": "inputs/7-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "32f7b0cd37b05e715bcbe817490ed63cef081a7a",
+      "stage": 2,
+      "content": "inputs/7-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "f6451401649eb9a722d05da75cfe29d7e696079a",
+      "stage": 3,
+      "content": "inputs/7-3.bin"
+    }
+  ],
+  "work/assessments/census-detectors-usage.md": [
+    {
+      "mode": "100644",
+      "oid": "fbf8f6ff6ba3b4efba0bf6c50d898a4359467097",
+      "stage": 1,
+      "content": "inputs/8-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "dd33b4996800efbdd836f04f39acfe8e11cc728f",
+      "stage": 2,
+      "content": "inputs/8-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "420fe0a6df17e148810298315844da2b32c7c1f3",
+      "stage": 3,
+      "content": "inputs/8-3.bin"
+    }
+  ],
+  "work/assessments/census-detectors-verification.md": [
+    {
+      "mode": "100644",
+      "oid": "72882d5be257982c98bb9fdd1b2772a6d90a7144",
+      "stage": 1,
+      "content": "inputs/9-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "020b33ed99de24edaf43ca26f51f2f20fccdafa6",
+      "stage": 2,
+      "content": "inputs/9-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "67713a1ca7ed25ef540e37bb3f9d4a7bf7d1eb6d",
+      "stage": 3,
+      "content": "inputs/9-3.bin"
+    }
+  ],
+  "work/assessments/census-ledger-constraints.md": [
+    {
+      "mode": "100644",
+      "oid": "22c217b553a8ffb1e844bceedc26a43aaea73c60",
+      "stage": 1,
+      "content": "inputs/10-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "f9e0d7d655fa10720c3be065f4ddfd0366d19f8d",
+      "stage": 2,
+      "content": "inputs/10-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "4be0175b7f28b86a8efc247e78052f30a78e959b",
+      "stage": 3,
+      "content": "inputs/10-3.bin"
+    }
+  ],
+  "work/assessments/census-ledger-examples.md": [
+    {
+      "mode": "100644",
+      "oid": "aee6cb91f9a78bebb1653e82665fbc49eac11002",
+      "stage": 1,
+      "content": "inputs/11-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "a32eb964bac24e654cdb37402eaf3d500c210aaf",
+      "stage": 2,
+      "content": "inputs/11-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "02d77ab441a52a38f499b678c170b7fcfa14534d",
+      "stage": 3,
+      "content": "inputs/11-3.bin"
+    }
+  ],
+  "work/assessments/census-ledger-explanation.md": [
+    {
+      "mode": "100644",
+      "oid": "d813fc822045afb8bd4c4b1662fbd668d516808f",
+      "stage": 1,
+      "content": "inputs/12-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "9a9d56eee77c1b6ae9bb12fa634ca1cc527f9a69",
+      "stage": 2,
+      "content": "inputs/12-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "04d8a2dbbaf403ea691a1123af76fa0cfab6aff9",
+      "stage": 3,
+      "content": "inputs/12-3.bin"
+    }
+  ],
+  "work/assessments/census-ledger-purpose.md": [
+    {
+      "mode": "100644",
+      "oid": "4462cb7db71fd40e567947e1c617e9d23fe42ee7",
+      "stage": 1,
+      "content": "inputs/13-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "1cadd25e660c4874a17998e637f28873348554e3",
+      "stage": 2,
+      "content": "inputs/13-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "59133b5fb5249fa213b7235a6bc1f1759be6f72b",
+      "stage": 3,
+      "content": "inputs/13-3.bin"
+    }
+  ],
+  "work/assessments/census-ledger-verification.md": [
+    {
+      "mode": "100644",
+      "oid": "4a08db2f996398998ef6e36bb67130c7af3b53a9",
+      "stage": 1,
+      "content": "inputs/14-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "21380c4a12dc75434d7043f72b4eeeab8ac0c3e3",
+      "stage": 2,
+      "content": "inputs/14-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "4f5a110bf88210400c4fbb120798787269f1660d",
+      "stage": 3,
+      "content": "inputs/14-3.bin"
+    }
+  ],
+  "work/assessments/census-patterns-constraints.md": [
+    {
+      "mode": "100644",
+      "oid": "eb72f72f8be2dbd4138d004a857acd47f3c36a77",
+      "stage": 1,
+      "content": "inputs/15-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "b3c46dda5e362f25120412410014196ba4ba4f31",
+      "stage": 2,
+      "content": "inputs/15-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "d96b66ac0ed98ef718716d9647e95801c3fe3fc2",
+      "stage": 3,
+      "content": "inputs/15-3.bin"
+    }
+  ],
+  "work/assessments/census-patterns-contract.md": [
+    {
+      "mode": "100644",
+      "oid": "8fa7e42c1d95c87865b7624c807035cf487583b9",
+      "stage": 1,
+      "content": "inputs/16-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "8cf2286f7035250c887f480f49b346ef3caad755",
+      "stage": 2,
+      "content": "inputs/16-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "1c45390eb95c8cf3f46831a415c9d562f8728415",
+      "stage": 3,
+      "content": "inputs/16-3.bin"
+    }
+  ],
+  "work/assessments/census-patterns-examples.md": [
+    {
+      "mode": "100644",
+      "oid": "8efe106194dd8736458b813411e10282d32a4eda",
+      "stage": 1,
+      "content": "inputs/17-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "a6ebdca88c15bb6a3f942cd22f987fb5455eb9df",
+      "stage": 2,
+      "content": "inputs/17-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "a3185bd2e02c6730eeafc1a443f2b5e5391f2c43",
+      "stage": 3,
+      "content": "inputs/17-3.bin"
+    }
+  ],
+  "work/assessments/census-patterns-explanation.md": [
+    {
+      "mode": "100644",
+      "oid": "73a754f8be85f73ed17fd59cf0686b7b15bfdd23",
+      "stage": 1,
+      "content": "inputs/18-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "54d304a180ef53fcc91d01f78bae861166b0a486",
+      "stage": 2,
+      "content": "inputs/18-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "9491d2bdf7abaa42b0c2726e698f0a2bd9fa2d1c",
+      "stage": 3,
+      "content": "inputs/18-3.bin"
+    }
+  ],
+  "work/assessments/census-patterns-purpose.md": [
+    {
+      "mode": "100644",
+      "oid": "a7d5b4a68e0ee9644a9604f7410bc0ede800a0c4",
+      "stage": 1,
+      "content": "inputs/19-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "1ed50d16f9272cc111554e95ad0b59e2b6282189",
+      "stage": 2,
+      "content": "inputs/19-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "baf7d75f1a5fff1493df38628f3c96812d68d12f",
+      "stage": 3,
+      "content": "inputs/19-3.bin"
+    }
+  ],
+  "work/assessments/census-patterns-usage.md": [
+    {
+      "mode": "100644",
+      "oid": "9103c402c330e8233d3515a8f02e945f0d172928",
+      "stage": 1,
+      "content": "inputs/20-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "1ce2d9bb7e25d9e55d969e1201a0cc6223afc722",
+      "stage": 2,
+      "content": "inputs/20-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "3a15e1d320e4a75db54fe868112e3e70369dae5c",
+      "stage": 3,
+      "content": "inputs/20-3.bin"
+    }
+  ],
+  "work/assessments/census-patterns-verification.md": [
+    {
+      "mode": "100644",
+      "oid": "07d42edd96a4d3653ca65b3d5035249c7200f550",
+      "stage": 1,
+      "content": "inputs/21-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "b3393760f3bce0f869ce6e1c119b39e7c402e118",
+      "stage": 2,
+      "content": "inputs/21-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "ad8dcd3a208ca60c50b07958072e2c1622136c91",
+      "stage": 3,
+      "content": "inputs/21-3.bin"
+    }
+  ],
+  "work/assessments/census-rule-api-constraints.md": [
+    {
+      "mode": "100644",
+      "oid": "003ca04073812f275065715dc208938dbd87e7a6",
+      "stage": 1,
+      "content": "inputs/22-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "fb684da379b3efef89cd6f8fed64b836599db7d9",
+      "stage": 2,
+      "content": "inputs/22-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "27c3420c0b62797ad54c616bb3e5ea97df0a1094",
+      "stage": 3,
+      "content": "inputs/22-3.bin"
+    }
+  ],
+  "work/assessments/census-rule-api-contract.md": [
+    {
+      "mode": "100644",
+      "oid": "04512260299f230d70cd4388aac5076203fac41b",
+      "stage": 1,
+      "content": "inputs/23-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "508786849b54b3e70dc688bc0d2a60155975bda6",
+      "stage": 2,
+      "content": "inputs/23-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "8accb7ff18ba97bb4f060b61950d62de9cb101cc",
+      "stage": 3,
+      "content": "inputs/23-3.bin"
+    }
+  ],
+  "work/assessments/census-rule-api-explanation.md": [
+    {
+      "mode": "100644",
+      "oid": "aaac1b80dae6acc2d8a2cbed03cf5e9dea47b419",
+      "stage": 1,
+      "content": "inputs/24-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "fe14f9b0eb6e10349ecc2f427bd38d27d0865f07",
+      "stage": 2,
+      "content": "inputs/24-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "387b3bbb9cf2b542b82eb3cd002ce2fb10129f1e",
+      "stage": 3,
+      "content": "inputs/24-3.bin"
+    }
+  ],
+  "work/assessments/census-rule-api-purpose.md": [
+    {
+      "mode": "100644",
+      "oid": "2f9ddf4182344ace3e3a6f63f7f15253b94d68c2",
+      "stage": 1,
+      "content": "inputs/25-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "cd1d4ba45a39ba2edef0d4d59f3c02fbd94c3352",
+      "stage": 2,
+      "content": "inputs/25-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "fef21c4aa6a8deddaf1129c796bef88f3f59d7e3",
+      "stage": 3,
+      "content": "inputs/25-3.bin"
+    }
+  ],
+  "work/assessments/census-rule-api-usage.md": [
+    {
+      "mode": "100644",
+      "oid": "113e6645e33566ad09ab040ef5e4f541260ccf01",
+      "stage": 1,
+      "content": "inputs/26-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "4b224d9231cf2e3b0d08af62f97d9c2976a20fa2",
+      "stage": 2,
+      "content": "inputs/26-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "c8d479a528c1b7c30b42d86428f4b1f539fc6382",
+      "stage": 3,
+      "content": "inputs/26-3.bin"
+    }
+  ],
+  "work/assessments/census-rule-api-verification.md": [
+    {
+      "mode": "100644",
+      "oid": "7f48f24751915289aff2526a9607bae554640bc4",
+      "stage": 1,
+      "content": "inputs/27-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "1abbb864f3f9533b11ac5ce470c46834ab22f89e",
+      "stage": 2,
+      "content": "inputs/27-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "08a490a4d0e18694aa6e3637ee707e1309c1860c",
+      "stage": 3,
+      "content": "inputs/27-3.bin"
+    }
+  ]
+}

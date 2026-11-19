@@ -1,0 +1,170 @@
+[
+  {
+    "path": "crates/raf-census/src/gate/evaluate.rs",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/0.bin"
+  },
+  {
+    "path": "crates/raf-census/src/gate/patterns/paths/visit.rs",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/1.bin"
+  },
+  {
+    "path": "crates/raf-census/src/gate/rules.rs",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/2.bin"
+  },
+  {
+    "path": "work/assessments/census-detectors-constraints.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/3.bin"
+  },
+  {
+    "path": "work/assessments/census-detectors-contract.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/4.bin"
+  },
+  {
+    "path": "work/assessments/census-detectors-examples.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/5.bin"
+  },
+  {
+    "path": "work/assessments/census-detectors-explanation.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/6.bin"
+  },
+  {
+    "path": "work/assessments/census-detectors-purpose.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/7.bin"
+  },
+  {
+    "path": "work/assessments/census-detectors-usage.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/8.bin"
+  },
+  {
+    "path": "work/assessments/census-detectors-verification.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/9.bin"
+  },
+  {
+    "path": "work/assessments/census-ledger-constraints.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/10.bin"
+  },
+  {
+    "path": "work/assessments/census-ledger-examples.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/11.bin"
+  },
+  {
+    "path": "work/assessments/census-ledger-explanation.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/12.bin"
+  },
+  {
+    "path": "work/assessments/census-ledger-purpose.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/13.bin"
+  },
+  {
+    "path": "work/assessments/census-ledger-verification.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/14.bin"
+  },
+  {
+    "path": "work/assessments/census-patterns-constraints.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/15.bin"
+  },
+  {
+    "path": "work/assessments/census-patterns-contract.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/16.bin"
+  },
+  {
+    "path": "work/assessments/census-patterns-examples.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/17.bin"
+  },
+  {
+    "path": "work/assessments/census-patterns-explanation.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/18.bin"
+  },
+  {
+    "path": "work/assessments/census-patterns-purpose.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/19.bin"
+  },
+  {
+    "path": "work/assessments/census-patterns-usage.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/20.bin"
+  },
+  {
+    "path": "work/assessments/census-patterns-verification.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/21.bin"
+  },
+  {
+    "path": "work/assessments/census-rule-api-constraints.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/22.bin"
+  },
+  {
+    "path": "work/assessments/census-rule-api-contract.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/23.bin"
+  },
+  {
+    "path": "work/assessments/census-rule-api-explanation.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/24.bin"
+  },
+  {
+    "path": "work/assessments/census-rule-api-purpose.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/25.bin"
+  },
+  {
+    "path": "work/assessments/census-rule-api-usage.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/26.bin"
+  },
+  {
+    "path": "work/assessments/census-rule-api-verification.md",
+    "kind": "file",
+    "executable": false,
+    "content": "proposed/27.bin"
+  }
+]

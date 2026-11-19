@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/213-census-inventory-of-wildcard-match-arms",
+  "branch": "paudley/213-census-inventory-of-wildcard-match-arms",
+  "base_ref": "bb9b9e0d5a5cbb9161b22d8fda73cabf37cec2f1",
+  "head": "591c79dd07a268acdf9330906422ee7f316d5a9c",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/213-census-inventory-of-wildcard-match-arms/.stage/census-inventory-of-wildcard-match-arms/sync/20261119T145845-0ae994f983ac4c638fc09e92de6eb37a",
+  "conflicts": [],
+  "status": "completed",
+  "base": "bb9b9e0d5a5cbb9161b22d8fda73cabf37cec2f1",
+  "merge_bases": [
+    "7214d4706bae853a9cd32dab4bfb475c85e2a764"
+  ],
+  "merge_index": "dfc085abb075444012c89f0cb49a3ac592d6c18854874b7a5ea74033cb6bc65a",
+  "candidate_tree": "03915493019f75f760293b2136bc2ce3a4031f76",
+  "candidate_patch": "candidate-994db2aabcc244e9bcd9e65dd7d26c69.patch",
+  "stdout_log": "commit-994db2aabcc244e9bcd9e65dd7d26c69.stdout.log",
+  "stderr_log": "commit-994db2aabcc244e9bcd9e65dd7d26c69.stderr.log",
+  "validation_records": [],
+  "commit_duration_seconds": 357.6300429030016,
+  "commit": "2fde1686bfe97964dace513bd2998fe4d6c86e9e",
+  "tree": "03915493019f75f760293b2136bc2ce3a4031f76",
+  "exit_code": 0
+}

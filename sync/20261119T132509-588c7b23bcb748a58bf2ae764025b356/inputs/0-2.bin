@@ -1,0 +1,866 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! Ledger resolution, staleness, extended matching and exact present debt.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use purrdf_jsonschema::ecma::MatchLimits;
+use raf_source::{RelPath, TestRole, Tree, TreeError, Workspace};
+
+use super::{GateReport, LedgerExtension, SYMBOL_ANCHOR_PREFIX, owners, ratchet, rules};
+use crate::{
+    Census, DebtGroup, DebtRecord, Error, Fingerprint, Job, JobReport, Ledger, LedgerJob,
+    MatchClass, NORMAL_FORM, Unit,
+};
+
+pub(super) fn evaluate(
+    ledger: &Ledger,
+    (workspace, tree): (&Workspace, &dyn Tree),
+    census: Census,
+    selected: rules::Selected<'_>,
+    extensions: &[Box<dyn LedgerExtension>],
+    mut limits: MatchLimits,
+    references: &super::reference::References<'_>,
+) -> Result<GateReport, Error> {
+    let owners = owners::index(&census);
+    let code = workspace.code_resolver()?;
+    let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
+    let lookup = (workspace, &code);
+    let mut collected = rules::collect(lookup, &census, &selected, &owners, ledger, &mut limits)?;
+    collect_patterns(
+        (ledger, &references.names),
+        workspace,
+        &census,
+        &code,
+        &owners,
+        &mut collected,
+        &mut limits,
+    )?;
+    let hits = &collected.hits;
+    let mut sink = ratchet::Sink::new(ledger, &collected.offsets);
+    let mut findings = selected.findings(hits);
+    let mut reports = Vec::new();
+    let mut copies = BTreeMap::new();
+    for row in ledger.jobs() {
+        validate_job_registration(ledger, row, |id| hits.contains_key(id), extensions)?;
+        evidence_links(tree, workspace, references, row, &mut findings)?;
+        stale_matchers(&census, row, (hits, &sink), &mut findings);
+        let Some(resolved) = resolve_job(
+            (workspace, &code),
+            &owners,
+            row,
+            &providers,
+            &mut limits,
+            &mut findings,
+            references,
+        )?
+        else {
+            continue;
+        };
+        let hits = super::context::collect(&collected, &census, row, &resolved, &mut limits)?;
+        let ResolvedJob {
+            mut job,
+            homes,
+            home_packages,
+            home_sources,
+            ..
+        } = resolved;
+        // A native adapter does not authorize competing implementations in
+        // the rest of its package. Ordinary home jobs retain their exemption.
+        let no_exempt_packages = BTreeSet::new();
+        let detector_exempt_packages = if row.preferred_provider.is_some() {
+            &no_exempt_packages
+        } else {
+            &home_packages
+        };
+        let variants = resolve_variants(
+            workspace,
+            &owners,
+            row,
+            &hits,
+            &collected.subjects,
+            &mut findings,
+        )?;
+        // Legacy in-memory jobs classify symbol-wide variants. The ledger's
+        // narrower sanction must include the declared source file as well.
+        job.variants.clear();
+        let matched = matching_units(&census, &job, row, &hits, detector_exempt_packages);
+        let mut report = collect_report(&job, matched, &homes, &variants);
+        append_reference_homes(&census, &homes, &mut report);
+        super::subjects::append(
+            row,
+            &hits,
+            &collected.subjects,
+            detector_exempt_packages,
+            &home_sources,
+            &variants,
+            &mut report,
+        );
+        report_copies(
+            row,
+            &report,
+            &hits,
+            &owners,
+            detector_exempt_packages,
+            &mut sink,
+            &mut findings,
+        );
+        if !row.enforced && report.copies > 0 {
+            copies.insert(job.id.clone(), report.copies);
+        }
+        reports.push(report);
+    }
+    findings.extend(super::reference::References::unclassified(
+        &census, &reports,
+    )?);
+    let (debt, sites) = collect_debt(
+        (ledger, workspace, &owners, &census),
+        copies,
+        (&sink, &mut limits),
+        &mut findings,
+    )?;
+    Ok(GateReport {
+        census,
+        jobs: reports,
+        findings,
+        debt,
+        sites,
+    })
+}
+
+fn append_reference_homes(
+    census: &Census,
+    homes: &BTreeSet<rules::UnitKey>,
+    report: &mut JobReport,
+) {
+    for unit in &census.reference_raw_units {
+        if homes.contains(&owners::key(unit)) {
+            report.matches.push(crate::JobMatch {
+                symbol: unit.symbol.clone(),
+                file: unit.file.clone(),
+                line: unit.line,
+                start_byte: unit.start_byte,
+                class: MatchClass::Home,
+            });
+        }
+    }
+    report.matches.sort_by(|a, b| {
+        (&a.symbol, &a.file, a.line, a.start_byte).cmp(&(&b.symbol, &b.file, b.line, b.start_byte))
+    });
+}
+
+fn collect_debt(
+    (ledger, workspace, owners, census): (&Ledger, &Workspace, &owners::Owners<'_>, &Census),
+    copies: BTreeMap<String, usize>,
+    (sink, limits): (&ratchet::Sink<'_>, &mut MatchLimits),
+    findings: &mut Vec<String>,
+) -> Result<(DebtRecord, BTreeMap<crate::DebtSite, Vec<String>>), Error> {
+    let sanctioned = resolve_distinct(ledger, workspace, owners, findings)?;
+    let groups = debt_groups(census)?;
+    for row in &sanctioned {
+        if !groups.contains(row) {
+            findings.push(format!(
+                "distinct {:?} {:?} equals no current group",
+                row.kind(),
+                row.members()
+            ));
+        }
+    }
+    let counted = sink.count(workspace, limits)?;
+    let record = DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)?
+        .scoped(census.options().scope.clone())
+        .with_ratchet(sink.rules().map(str::to_owned), counted.counts)?;
+    Ok((record, counted.locations))
+}
+
+fn debt_groups(census: &Census) -> Result<BTreeSet<DebtGroup>, Error> {
+    census
+        .groups()
+        .iter()
+        .map(|group| {
+            let mut counts = BTreeMap::new();
+            for symbol in group.member_symbols() {
+                *counts.entry(symbol.to_owned()).or_default() += 1;
+            }
+            DebtGroup::with_counts(group.kind, counts)
+        })
+        .collect()
+}
+
+fn collect_report(
+    job: &Job,
+    matched: Vec<&Unit>,
+    homes: &BTreeSet<rules::UnitKey>,
+    variants: &BTreeSet<rules::UnitKey>,
+) -> JobReport {
+    JobReport::collect(job, matched, |unit| {
+        if homes.contains(&owners::key(unit)) {
+            MatchClass::Home
+        } else if variants.contains(&owners::key(unit)) {
+            MatchClass::Variant
+        } else {
+            MatchClass::Copy
+        }
+    })
+}
+
+fn matching_units<'a>(
+    census: &'a Census,
+    job: &Job,
+    row: &LedgerJob,
+    hits: &rules::JobHits<'_>,
+    home_packages: &BTreeSet<String>,
+) -> Vec<&'a Unit> {
+    census
+        .units()
+        .iter()
+        .filter(|unit| {
+            job.matches(unit)
+                || hits.names.contains(&owners::key(unit))
+                || row.referenced().any(|id| {
+                    has_hit(hits, id, unit)
+                        && (!crate::detectors::home_exempt(id)
+                            || !home_packages.contains(unit.package.as_str()))
+                })
+        })
+        .collect()
+}
+
+fn collect_patterns(
+    (ledger, references): (&Ledger, &[String]),
+    workspace: &Workspace,
+    census: &Census,
+    code: &raf_source::CodeResolver<'_>,
+    owners: &owners::Owners<'_>,
+    collected: &mut rules::Collected,
+    limits: &mut MatchLimits,
+) -> Result<(), Error> {
+    register_pattern_ids(ledger, |id| {
+        collected
+            .hits
+            .insert(id.to_owned(), BTreeMap::new())
+            .is_none()
+    })?;
+    for found in super::patterns::collect(
+        ledger.patterns(),
+        workspace,
+        census,
+        code,
+        owners,
+        references,
+        limits,
+    )? {
+        if !in_scope(
+            found.pattern,
+            found.file,
+            found.byte,
+            found.owners.as_deref(),
+            workspace,
+            census,
+        ) {
+            continue;
+        }
+        rules::record_hit(
+            workspace,
+            found.file,
+            owners,
+            collected,
+            rules::Hit {
+                rule: &found.pattern.id,
+                byte: found.byte,
+                line: found.line,
+                message: found.pattern.summary.clone(),
+                call_reaches: Vec::new(),
+            },
+        )?;
+    }
+    Ok(())
+}
+
+pub(super) fn register_pattern_ids<'a>(
+    ledger: &'a Ledger,
+    mut register: impl FnMut(&'a str) -> bool,
+) -> Result<(), Error> {
+    for pattern in ledger.patterns() {
+        if !register(&pattern.id) {
+            return Err(policy(&format!(
+                "pattern {:?} conflicts with a registered rule id",
+                pattern.id
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn resolve_distinct(
+    ledger: &Ledger,
+    workspace: &Workspace,
+    owners: &owners::Owners<'_>,
+    findings: &mut Vec<String>,
+) -> Result<BTreeSet<DebtGroup>, Error> {
+    let mut sanctioned = BTreeSet::new();
+    for row in ledger.distinct() {
+        documented(workspace, &row.anchor, findings);
+        let mut counts = BTreeMap::new();
+        let mut physical = BTreeSet::new();
+        let mut valid = true;
+        for (symbol, expected) in row.group.members() {
+            let Some(units) = resolve(workspace, owners, symbol, findings) else {
+                valid = false;
+                continue;
+            };
+            if units.len() != *expected {
+                findings.push(format!(
+                    "distinct member {symbol:?}: declared {expected} source units, found {}",
+                    units.len()
+                ));
+                valid = false;
+            }
+            for unit in units {
+                if !physical.insert(owners::key(unit)) {
+                    findings.push(format!("distinct member {symbol:?} repeats one physical source unit through an alias"));
+                    valid = false;
+                }
+                *counts.entry(unit.symbol.clone()).or_default() += 1;
+            }
+        }
+        if valid {
+            sanctioned.insert(DebtGroup::with_counts(row.group.kind(), counts)?);
+        }
+    }
+    Ok(sanctioned)
+}
+
+fn resolve_variants(
+    workspace: &Workspace,
+    owners: &owners::Owners<'_>,
+    row: &LedgerJob,
+    hits: &rules::JobHits<'_>,
+    subjects: &BTreeMap<rules::UnitKey, rules::Subject>,
+    findings: &mut Vec<String>,
+) -> Result<BTreeSet<rules::UnitKey>, Error> {
+    let mut variants = BTreeSet::new();
+    let mut probe = row.job.clone();
+    probe.forbidden.constants.clear();
+    probe
+        .forbidden
+        .fingerprints
+        .retain(|fingerprint| matches!(fingerprint, Fingerprint::Body(_) | Fingerprint::Shim(_)));
+    for variant in &row.variants {
+        documented(workspace, &variant.anchor, findings);
+        if variant.detector != "isomorphic" {
+            match super::subjects::variant(variant, workspace, owners, hits, subjects) {
+                Ok(keys) => variants.extend(keys),
+                Err(error) => findings.push(format!("job {:?} variant: {error}", row.job.id)),
+            }
+            continue;
+        }
+        let Some(resolved) = resolve(workspace, owners, &variant.symbol, findings) else {
+            continue;
+        };
+        let file = RelPath::new(&variant.file)
+            .map_err(|error| policy(&format!("job {:?} variant file: {error}", row.job.id)))?
+            .to_string();
+        let units: Vec<_> = resolved
+            .into_iter()
+            .filter(|unit| unit.file == file)
+            .collect();
+        if units.is_empty() {
+            findings.push(format!(
+                "job {:?}: variant {} does not exist in {file}",
+                row.job.id, variant.symbol
+            ));
+        }
+        for unit in units {
+            let selected = if variant.detector == "isomorphic" {
+                probe.matches(unit)
+            } else {
+                has_hit(hits, &variant.detector, unit)
+            };
+            if selected {
+                variants.insert(owners::key(unit));
+            } else {
+                findings.push(format!(
+                    "job {:?}: variant {} in {file} at byte {} no longer matches detector {:?}",
+                    row.job.id, variant.symbol, unit.start_byte, variant.detector
+                ));
+            }
+        }
+    }
+    Ok(variants)
+}
+
+fn report_copies(
+    row: &LedgerJob,
+    report: &JobReport,
+    hits: &rules::JobHits<'_>,
+    owners: &owners::Owners<'_>,
+    home_packages: &BTreeSet<String>,
+    sink: &mut ratchet::Sink<'_>,
+    findings: &mut Vec<String>,
+) {
+    let job = &row.job;
+    let exempt: BTreeSet<_> = owners
+        .values()
+        .filter(|unit| home_packages.contains(unit.package.as_str()))
+        .map(|unit| owners::key(unit))
+        .collect();
+    if !row.enforced && report.copies == 0 {
+        findings.push(format!(
+            "job {:?} has no copies; set enforced to true",
+            job.id
+        ));
+    }
+    for found in report
+        .matches
+        .iter()
+        .filter(|found| found.class == MatchClass::Copy)
+    {
+        let key = (found.symbol.clone(), found.file.clone(), found.start_byte);
+        let mut rule_copy = false;
+        let mut ratcheted_hit = false;
+        for id in row.referenced() {
+            if crate::detectors::home_exempt(id) && exempt.contains(&key) {
+                continue;
+            }
+            if sink.is_ratcheted(id) {
+                // A ratcheted hit is debt, not a finding; the generic COPY
+                // finding is suppressed because the pattern alone explains the match; any other cause keeps it.
+                if hits.get(id).is_some_and(|units| units.contains_key(&key)) {
+                    ratcheted_hit = true;
+                    sink.divert(id, &key);
+                }
+                continue;
+            }
+            if let Some(matches) = hits.get(id).and_then(|units| units.get(&key)) {
+                rule_copy = true;
+                for hit in matches {
+                    findings.push(format!(
+                        "{}:{}: job {:?}, rule {}: {}; use {}",
+                        found.file, hit.line, job.id, id, hit.message, job.home
+                    ));
+                }
+            }
+        }
+        // A ratcheted hit explains the COPY only when nothing else does: a
+        // forbidden constant or fingerprint, or a context name, is reported
+        // solely by the generic finding.
+        // The owner scan runs only when a ratcheted hit could be the sole cause.
+        let reported = row.enforced
+            && !rule_copy
+            && (!ratcheted_hit
+                || hits.names.contains(&key)
+                || owners
+                    .values()
+                    .any(|unit| owners::key(unit) == key && job.matches(unit)));
+        if reported {
+            findings.push(format!(
+                "{}:{}: job {:?}: {} is a COPY; use {}",
+                found.file, found.line, job.id, found.symbol, job.home
+            ));
+        }
+    }
+}
+
+fn resolve<'a>(
+    workspace: &Workspace,
+    owners: &owners::Owners<'a>,
+    symbol: &str,
+    findings: &mut Vec<String>,
+) -> Option<Vec<&'a Unit>> {
+    match owners::resolve(workspace, owners, symbol) {
+        Ok(units) => Some(units),
+        Err(error) => {
+            findings.push(format!("stale ledger path {symbol:?}: {error}"));
+            None
+        }
+    }
+}
+
+pub(super) struct ResolvedJob {
+    pub(super) home_sources: BTreeSet<raf_source::ItemId>,
+    pub(super) job: Job,
+    pub(super) homes: BTreeSet<rules::UnitKey>,
+    pub(super) home_units: BTreeSet<rules::UnitKey>,
+    pub(super) home_packages: BTreeSet<String>,
+}
+
+fn resolve_home<'a>(
+    workspace: &Workspace,
+    code: &raf_source::CodeResolver<'_>,
+    owners: &owners::Owners<'a>,
+    symbol: &str,
+    findings: &mut Vec<String>,
+) -> Option<owners::Home<'a>> {
+    match owners::home(workspace, code, owners, symbol) {
+        Ok(home) => Some(home),
+        Err(error) => {
+            findings.push(format!("stale ledger path {symbol:?}: {error}"));
+            None
+        }
+    }
+}
+
+fn resolve_job(
+    source: (&Workspace, &raf_source::CodeResolver<'_>),
+    owners: &owners::Owners<'_>,
+    row: &LedgerJob,
+    providers: &super::providers::Providers<'_>,
+    limits: &mut MatchLimits,
+    findings: &mut Vec<String>,
+    references: &super::reference::References<'_>,
+) -> Result<Option<ResolvedJob>, Error> {
+    let (workspace, code) = source;
+    let provider_homes = providers.home_sites(row, limits)?;
+    let mut resolve = |symbol: &str| -> Result<_, Error> {
+        Ok(match providers.api_home(owners, row, symbol, limits)? {
+            Some(home) => Some(home),
+            None => match references.home(symbol)? {
+                Some(home) => Some(home),
+                None => resolve_home(workspace, code, owners, symbol, findings),
+            },
+        })
+    };
+    let home = resolve(&row.job.home)?;
+    let entries = row
+        .job
+        .entry_points
+        .iter()
+        .map(|entry| resolve(entry))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .collect::<Option<Vec<_>>>();
+    Ok(match (home, entries) {
+        (Some(mut home), Some(mut entries)) => {
+            if super::context::uses_structure(row)
+                && let Some(unindexed) = std::iter::once(&home)
+                    .chain(&entries)
+                    .find(|part| part.source_items.is_empty())
+            {
+                return Err(policy(&format!(
+                    "job {:?}: structure detectors need a home or entry point {:?} indexed in this workspace; load its sources in the workspace or select an indexed symbol",
+                    row.job.id, unindexed.path
+                )));
+            }
+            if row.preferred_provider.is_some() {
+                for scope in std::iter::once(&mut home).chain(&mut entries) {
+                    super::patterns::charge(
+                        &row.job.id,
+                        limits,
+                        (scope.source_items.len() as u64).saturating_mul(2)
+                            + scope.units.len() as u64,
+                    )?;
+                    scope
+                        .source_items
+                        .retain(|site| provider_homes.get(site).is_some());
+                    let physical: BTreeSet<_> = scope
+                        .source_items
+                        .iter()
+                        .filter_map(|site| workspace.item(*site))
+                        .map(|item| (&item.file, item.span.start_byte))
+                        .collect();
+                    scope
+                        .units
+                        .retain(|unit| physical.contains(&(&unit.source_file, unit.start_byte)));
+                    if scope.source_items.is_empty() {
+                        findings.push(format!("job {:?}: home or entry point {:?} contains no proved consumer or provider API", row.job.id, scope.path));
+                        return Ok(None);
+                    }
+                }
+            }
+            let home_sources = home
+                .source_items
+                .iter()
+                .copied()
+                .chain(
+                    entries
+                        .iter()
+                        .flat_map(|entry| entry.source_items.iter().copied()),
+                )
+                .collect();
+            let mut job = row.job.clone();
+            for unit in home
+                .units
+                .iter()
+                .chain(entries.iter().flat_map(|entry| &entry.units))
+            {
+                if unit.file.starts_with("reference:") {
+                    job.forbidden
+                        .fingerprints
+                        .extend(unit.print.as_ref().and_then(|print| print.body.clone()));
+                    job.forbidden.fingerprints.extend(unit.shim_key.clone());
+                }
+            }
+            job.home = home.path;
+            job.entry_points = entries.iter().map(|entry| entry.path.clone()).collect();
+            let home_units = home.units.iter().copied().map(owners::key).collect();
+            let homes = home
+                .units
+                .into_iter()
+                .chain(entries.into_iter().flat_map(|entry| entry.units))
+                .map(owners::key)
+                .collect();
+            Some(ResolvedJob {
+                home_sources,
+                job,
+                homes,
+                home_packages: home.packages,
+                home_units,
+            })
+        }
+        _ => None,
+    })
+}
+
+fn documented(workspace: &Workspace, anchor: &str, findings: &mut Vec<String>) {
+    let Some(encoded) = anchor.strip_prefix(SYMBOL_ANCHOR_PREFIX) else {
+        findings.push(format!("anchor {anchor:?}: use {SYMBOL_ANCHOR_PREFIX} followed by an encoded documented source path"));
+        return;
+    };
+    let Ok(symbol) = purrdf_lex::percent::decode(encoded) else {
+        findings.push(format!("anchor {anchor:?}: invalid encoded source path"));
+        return;
+    };
+    match workspace.resolve(&symbol) {
+        Ok(resolution)
+            if resolution
+                .sites
+                .iter()
+                .all(|id| workspace.item(*id).is_some_and(|item| item.documented)) => {}
+        _ => findings.push(format!(
+            "anchor {anchor:?} does not resolve to a documented source item"
+        )),
+    }
+}
+
+fn stale_matchers(
+    census: &Census,
+    row: &LedgerJob,
+    (hits, sink): (&rules::Hits, &ratchet::Sink<'_>),
+    findings: &mut Vec<String>,
+) {
+    for id in &row.patterns {
+        // A burned-down ratcheted pattern with no hits stays a guard.
+        if row.enforced && !sink.is_ratcheted(id) && hits.get(id).is_some_and(BTreeMap::is_empty) {
+            findings.push(format!(
+                "job {:?}: pattern {id:?} matches no source item",
+                row.job.id
+            ));
+        }
+    }
+    for fingerprint in &row.job.forbidden.fingerprints {
+        if matches!(fingerprint, Fingerprint::Body(_) | Fingerprint::Shim(_)) {
+            let mut probe = Job::new("fingerprint", "");
+            probe.forbidden.fingerprints.push(fingerprint.clone());
+            if !census
+                .units()
+                .iter()
+                .chain(&census.reference_raw_units)
+                .any(|unit| probe.matches(unit))
+            {
+                findings.push(format!(
+                    "job {:?}: fingerprint {fingerprint} matches no unit",
+                    row.job.id
+                ));
+            }
+        }
+    }
+}
+
+fn has_hit(hits: &rules::JobHits<'_>, id: &str, unit: &Unit) -> bool {
+    hits.get(id).is_some_and(|units| {
+        units.contains_key(&(unit.symbol.clone(), unit.file.clone(), unit.start_byte))
+    })
+}
+
+pub(super) fn validate_job_registration(
+    ledger: &Ledger,
+    row: &LedgerJob,
+    has_rule: impl Fn(&str) -> bool,
+    extensions: &[Box<dyn LedgerExtension>],
+) -> Result<(), Error> {
+    for fingerprint in &row.job.forbidden.fingerprints {
+        if let Fingerprint::Rule(id) = fingerprint
+            && !has_rule(id.as_str())
+        {
+            return Err(Error::RegistrationRequired {
+                job: row.job.id.clone(),
+                component: format!(
+                    "unknown rule id {:?}; register its executable Rule on Gate",
+                    id.as_str()
+                ),
+            });
+        }
+    }
+    for variant in &row.variants {
+        if variant.detector != "isomorphic" && !has_rule(variant.detector.as_str()) {
+            return Err(Error::RegistrationRequired {
+                job: row.job.id.clone(),
+                component: format!(
+                    "unknown variant detector {:?}; register its executable Rule on Gate",
+                    variant.detector
+                ),
+            });
+        }
+    }
+    extension(ledger, row, extensions)
+}
+
+fn extension(
+    ledger: &Ledger,
+    job: &LedgerJob,
+    extensions: &[Box<dyn LedgerExtension>],
+) -> Result<(), Error> {
+    let Some(id) = &job.extension else {
+        return Ok(());
+    };
+    let graph = ledger.extension(id).expect("validated extension closure");
+    if graph
+        .root()
+        .properties()
+        .all(|property| property == raf_rdf::vocab::TYPE)
+    {
+        return Ok(());
+    }
+    let mut claimed = false;
+    for extension in extensions {
+        if let Some(result) = extension.validate(&job.job.id, graph) {
+            if claimed {
+                return Err(policy(&format!(
+                    "job {:?}: more than one LedgerExtension claims {id}",
+                    job.job.id
+                )));
+            }
+            result.map_err(|reason| {
+                policy(&format!("job {:?}: extension {id}: {reason}", job.job.id))
+            })?;
+            claimed = true;
+        }
+    }
+    if !claimed {
+        return Err(Error::RegistrationRequired {
+            job: job.job.id.clone(),
+            component: format!("unclaimed extension {id}; register a LedgerExtension on Gate"),
+        });
+    }
+    Ok(())
+}
+
+pub(super) fn policy(reason: &str) -> Error {
+    Error::Source {
+        file: "helpers-ledger.ttl".into(),
+        line: 1,
+        reason: reason.into(),
+    }
+}
+
+/// Check a job's declared test vectors and bench targets against the workspace.
+///
+/// A missing vector or bench target is a finding naming the job and the link.
+/// A vector the tree refuses to open from inside the root, and any link on a
+/// job homed in a reference dependency, refuse. Files are only identified,
+/// never read or run.
+fn evidence_links(
+    tree: &dyn Tree,
+    workspace: &Workspace,
+    references: &super::reference::References<'_>,
+    row: &LedgerJob,
+    findings: &mut Vec<String>,
+) -> Result<(), Error> {
+    if row.vectors.is_empty() && row.benches.is_empty() {
+        return Ok(());
+    }
+    let job = &row.job.id;
+    if references.home(&row.job.home)?.is_some() {
+        return Err(policy(&format!(
+            "job {job:?}: home {:?} is in a reference dependency, which cannot declare local test vectors or bench targets",
+            row.job.home
+        )));
+    }
+    for vector in &row.vectors {
+        let path = RelPath::new(vector)
+            .map_err(|error| policy(&format!("job {job:?} vectorPath {vector:?}: {error}")))?;
+        match tree.identity(&path) {
+            Ok(_) => {}
+            Err(TreeError::NotFound { .. }) => findings.push(format!(
+                "job {job:?}: test vector {vector:?} does not exist in the workspace"
+            )),
+            Err(TreeError::NotRegular { .. }) => findings.push(format!(
+                "job {job:?}: test vector {vector:?} is not a regular file"
+            )),
+            Err(TreeError::OutsideRoot { .. }) => {
+                return Err(policy(&format!(
+                    "job {job:?}: test vector {vector:?} leads out of the workspace root"
+                )));
+            }
+            Err(source) => {
+                return Err(Error::Tree {
+                    file: vector.clone(),
+                    source,
+                });
+            }
+        }
+    }
+    for bench in &row.benches {
+        let found = workspace.targets().any(|target| {
+            target.kind == raf_source::TargetKind::Bench
+                && target.package == bench.package
+                && target.name == bench.target
+                && references.consumers.contains(&target.package_id)
+                && workspace.package(target.package_id).is_some_and(|package| {
+                    package.manifest.authority() == raf_source::SourceAuthorityId::FIRST_PARTY
+                })
+        });
+        if !found {
+            findings.push(format!(
+                "job {job:?}: bench target {bench} is not a bench target of a first-party package"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// True when the pattern's declared scope admits the hit. An unscoped pattern
+/// admits every hit. A file outside the selected packages has no context and
+/// is never scoped in.
+fn in_scope(
+    pattern: &crate::LedgerPattern,
+    file: &RelPath,
+    byte: usize,
+    owners: Option<&[raf_source::ItemId]>,
+    workspace: &Workspace,
+    census: &Census,
+) -> bool {
+    let scope = &pattern.scope;
+    if scope.is_unscoped() {
+        return true;
+    }
+    let Some(context) = census.source_context(file) else {
+        return false;
+    };
+    if !scope.admits_file(context, file) {
+        return false;
+    }
+    let spans = workspace.unexpanded().iter().filter(|record| {
+        record.file == *file && record.span.start_byte <= byte && byte < record.span.end_byte
+    });
+    let mut invocations = spans.peekable();
+    if invocations.peek().is_some() {
+        return invocations.any(|record| {
+            workspace
+                .target(record.target)
+                .is_some_and(|target| scope.admits_item(target.kind, record.test == TestRole::None))
+        });
+    }
+    let items = workspace.item_at(file, byte);
+    items.is_empty()
+        || items
+            .iter()
+            .filter(|item| owners.is_none_or(|ids| ids.contains(&item.id)))
+            .any(|item| {
+                workspace.target(item.target).is_some_and(|target| {
+                    scope.admits_item(target.kind, workspace.is_shipping(item))
+                })
+            })
+}

@@ -1,0 +1,3906 @@
+diff --git crates/raf-census/src/detectors/mod.rs crates/raf-census/src/detectors/mod.rs
+index f3320643..63708661 100644
+--- crates/raf-census/src/detectors/mod.rs
++++ crates/raf-census/src/detectors/mod.rs
+@@ -11,6 +11,7 @@ mod layout;
+ mod names;
+ mod rdf;
+ mod structure;
++pub(crate) use structure::receiver_mode;
+ 
+ #[cfg(test)]
+ mod tests;
+diff --git crates/raf-census/src/detectors/structure.rs crates/raf-census/src/detectors/structure.rs
+index fa3e6900..f9ce7a13 100644
+--- crates/raf-census/src/detectors/structure.rs
++++ crates/raf-census/src/detectors/structure.rs
+@@ -1120,7 +1120,7 @@ fn receiver_annotation(ty: &syn::Type) -> Option<(&syn::Path, ReceiverMode)> {
+     .then_some((&path.path, mode))
+ }
+ 
+-fn receiver_mode(signature: &syn::Signature) -> Option<ReceiverMode> {
++pub(crate) fn receiver_mode(signature: &syn::Signature) -> Option<ReceiverMode> {
+     let syn::FnArg::Receiver(receiver) = signature.inputs.first()? else {
+         return None;
+     };
+diff --git crates/raf-census/src/gate/bounds.rs crates/raf-census/src/gate/bounds.rs
+new file mode 100644
+index 00000000..d9c527b6
+--- /dev/null
++++ crates/raf-census/src/gate/bounds.rs
+@@ -0,0 +1,420 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! Physical numeric bound inventory, independent of job homes and variants.
++
++pub(in crate::gate) mod syntax;
++
++use std::collections::{BTreeMap, BTreeSet};
++use std::ops::Range;
++
++use proc_macro2::Span;
++use purrdf_jsonschema::ecma::MatchLimits;
++use raf_source::{CodeResolver, ItemId, RelPath, SourceFile, Workspace};
++use syn::spanned::Spanned;
++
++use super::{patterns, ratchet};
++use crate::detectors::ReceiverMode;
++use crate::report::bounds::{BoundRegistry, REFUSING, TRUNCATING, UNCLASSIFIED};
++use crate::{DebtSite, Error, SiteKey};
++
++pub use crate::report::bounds::BoundClassification;
++
++/// The syntactic evidence for how a numeric bound is used.
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub enum BoundRole {
++    /// A numeric constant or static with a limit name.
++    Named,
++    /// A comparison against a length or count.
++    Comparison,
++    /// A call argument in a limiting operation.
++    Limiter,
++    /// A literal passed to an indexed size-named parameter.
++    SizeArgument,
++}
++
++impl BoundRole {
++    fn label(self) -> &'static str {
++        match self {
++            Self::Named => "named limit",
++            Self::Comparison => "length or count comparison",
++            Self::Limiter => "limiting operation",
++            Self::SizeArgument => "size argument",
++        }
++    }
++
++    fn debt_rule(self) -> Option<&'static str> {
++        match self {
++            Self::Comparison => Some(REFUSING),
++            Self::Limiter => Some(TRUNCATING),
++            Self::Named | Self::SizeArgument => None,
++        }
++    }
++}
++
++/// A distinct numeric bound and its ledger classification, when declared.
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct NumericBound {
++    /// The canonical file to use in a ledger row.
++    pub file: RelPath,
++    /// The exact site key to use in a ledger row.
++    pub key: SiteKey,
++    /// The one-based line of the identifier or literal.
++    pub line: usize,
++    /// The zero-based byte offset of the identifier or literal.
++    pub start_byte: usize,
++    /// The evidence recognized at this position.
++    pub roles: BTreeSet<BoundRole>,
++    /// The declared classification, if the ledger supplies one.
++    pub classification: Option<BoundClassification>,
++}
++
++#[derive(Default)]
++pub(super) struct Scan {
++    signatures: BTreeMap<(RelPath, usize), syntax::Slots>,
++    sites: BTreeMap<(RelPath, usize), Pending>,
++    calls: Vec<Call>,
++    declarations: BTreeMap<(RelPath, usize), usize>,
++    uses: Vec<(BoundRole, Vec<Option<ItemId>>)>,
++    retained: usize,
++}
++
++struct Pending {
++    line: usize,
++    context: Range<usize>,
++    roles: BTreeSet<BoundRole>,
++}
++
++#[derive(Clone, Copy)]
++struct Token {
++    byte: usize,
++    line: usize,
++}
++
++impl From<Span> for Token {
++    fn from(span: Span) -> Self {
++        Self {
++            byte: span.byte_range().start,
++            line: span.start().line,
++        }
++    }
++}
++
++struct Call {
++    file: RelPath,
++    context: Range<usize>,
++    arguments: Vec<(usize, Token)>,
++    definitions: Vec<Option<ItemId>>,
++    arity: usize,
++    receiver: Option<ReceiverMode>,
++}
++
++impl Scan {
++    pub(super) fn file(
++        &mut self,
++        (workspace, code): (&Workspace, &CodeResolver<'_>),
++        file: &SourceFile,
++        syntax: &syn::File,
++        limits: &mut MatchLimits,
++    ) -> Result<(), Error> {
++        syntax::collect(self, file, syntax, limits)?;
++        patterns::paths::visit::numeric_calls(workspace, code, file, syntax, limits, self)
++    }
++
++    fn retain(&mut self, amount: usize, limits: &MatchLimits) -> Result<(), Error> {
++        let Some(retained) = self
++            .retained
++            .checked_add(amount)
++            .filter(|total| *total <= limits.states)
++        else {
++            return Err(patterns::failure(
++                UNCLASSIFIED,
++                "numeric bounds inventory state limit exhausted; narrow the roots or raise the explicit matching grant",
++            ));
++        };
++        self.retained = retained;
++        Ok(())
++    }
++
++    fn site(
++        &mut self,
++        file: &RelPath,
++        token: Token,
++        context: Range<usize>,
++        role: BoundRole,
++        limits: &MatchLimits,
++    ) -> Result<(), Error> {
++        let byte = token.byte;
++        if let Some(site) = self.sites.get_mut(&(file.clone(), byte)) {
++            site.roles.insert(role);
++            return Ok(());
++        }
++        self.retain(1, limits)?;
++        self.sites.insert(
++            (file.clone(), byte),
++            Pending {
++                line: token.line,
++                context,
++                roles: BTreeSet::from([role]),
++            },
++        );
++        Ok(())
++    }
++
++    pub(in crate::gate) fn literal(
++        &mut self,
++        file: &RelPath,
++        token: Span,
++        context: Span,
++        role: BoundRole,
++        limits: &MatchLimits,
++    ) -> Result<(), Error> {
++        self.site(file, token.into(), context.byte_range(), role, limits)
++    }
++
++    pub(in crate::gate) fn call(
++        &mut self,
++        file: &RelPath,
++        call: &syn::ExprCall,
++        limits: &mut MatchLimits,
++        resolve: impl FnOnce(&mut MatchLimits) -> Result<Vec<Option<ItemId>>, Error>,
++    ) -> Result<(), Error> {
++        self.queue_call(
++            file,
++            call.span().byte_range(),
++            &call.args,
++            None,
++            limits,
++            resolve,
++        )
++    }
++
++    pub(in crate::gate) fn method(
++        &mut self,
++        file: &RelPath,
++        call: &syn::ExprMethodCall,
++        receiver: ReceiverMode,
++        limits: &mut MatchLimits,
++        resolve: impl FnOnce(&mut MatchLimits) -> Result<Vec<Option<ItemId>>, Error>,
++    ) -> Result<(), Error> {
++        self.queue_call(
++            file,
++            call.span().byte_range(),
++            &call.args,
++            Some(receiver),
++            limits,
++            resolve,
++        )
++    }
++
++    fn queue_call(
++        &mut self,
++        file: &RelPath,
++        context: Range<usize>,
++        arguments: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
++        receiver: Option<ReceiverMode>,
++        limits: &mut MatchLimits,
++        resolve: impl FnOnce(&mut MatchLimits) -> Result<Vec<Option<ItemId>>, Error>,
++    ) -> Result<(), Error> {
++        let literals: Vec<_> = arguments
++            .iter()
++            .enumerate()
++            .filter_map(|(index, argument)| {
++                syntax::integer(argument).map(|span| (index, Token::from(span)))
++            })
++            .collect();
++        if literals.is_empty() {
++            return Ok(());
++        }
++        let definitions = resolve(limits)?;
++        if definitions.iter().any(Option::is_some) {
++            self.retain(
++                1usize
++                    .saturating_add(literals.len())
++                    .saturating_add(definitions.len()),
++                limits,
++            )?;
++            self.calls.push(Call {
++                file: file.clone(),
++                context,
++                arguments: literals,
++                definitions,
++                arity: arguments.len(),
++                receiver,
++            });
++        }
++        Ok(())
++    }
++
++    fn classify_arguments(
++        &mut self,
++        workspace: &Workspace,
++        limits: &mut MatchLimits,
++    ) -> Result<(), Error> {
++        let signatures = std::mem::take(&mut self.signatures);
++        for call in std::mem::take(&mut self.calls) {
++            let slots: Vec<_> = call
++                .definitions
++                .iter()
++                .map(|id| {
++                    let item = workspace.item((*id)?)?;
++                    signatures.get(&(item.file.clone(), item.span.start_byte))
++                })
++                .collect();
++            for (index, token) in call.arguments {
++                self.retained -= 1;
++                patterns::charge(
++                    UNCLASSIFIED,
++                    limits,
++                    slots.len().try_into().unwrap_or(u64::MAX),
++                )?;
++                let sits_in_size_slot = |slot: Option<&syntax::Slots>| {
++                    slot.is_some_and(|slots| slots.accepts(call.receiver, call.arity, index))
++                };
++                if slots.iter().copied().any(sits_in_size_slot) {
++                    if !slots.iter().copied().all(sits_in_size_slot) {
++                        return Err(patterns::failure(
++                            UNCLASSIFIED,
++                            &format!(
++                                "{}:{}: size-parameter evidence for argument {} changes across source definitions; use a callable with a consistent signature in every reach",
++                                call.file,
++                                token.line,
++                                index + 1
++                            ),
++                        ));
++                    }
++                    self.site(
++                        &call.file,
++                        token,
++                        call.context.clone(),
++                        BoundRole::SizeArgument,
++                        limits,
++                    )?;
++                }
++            }
++            self.retained -= 1 + call.definitions.len();
++        }
++        self.retained -= signatures
++            .values()
++            .map(syntax::Slots::states)
++            .sum::<usize>();
++        Ok(())
++    }
++
++    pub(super) fn evaluate(
++        mut self,
++        workspace: &Workspace,
++        registry: &BoundRegistry,
++        limits: &mut MatchLimits,
++        findings: &mut Vec<String>,
++    ) -> Result<(Vec<NumericBound>, ratchet::Counted), Error> {
++        self.classify_arguments(workspace, limits)?;
++        self.classify_named_uses(workspace, limits)?;
++        let mut inventory = Vec::new();
++        let mut counted = ratchet::Counted::default();
++        let mut live = BTreeSet::new();
++        for ((file, start_byte), hit) in self.sites {
++            let text = workspace
++                .source(&file)
++                .and_then(|source| source.get(hit.context))
++                .ok_or_else(|| {
++                    patterns::failure(
++                        UNCLASSIFIED,
++                        &format!("{file}:{}: bound context lies outside source", hit.line),
++                    )
++                })?;
++            patterns::charge(
++                UNCLASSIFIED,
++                limits,
++                text.len().try_into().unwrap_or(u64::MAX),
++            )?;
++            let key = SiteKey::numeric_bound(start_byte, text);
++            let file_text = file.to_string();
++            let site = (file.clone(), key);
++            let classification = registry.rows.get(&site).cloned();
++            let roles = hit
++                .roles
++                .iter()
++                .map(|role| role.label())
++                .collect::<Vec<_>>()
++                .join(", ");
++            let location = format!(
++                "{file}:{}: byte {start_byte}: {roles}; siteKey {}",
++                hit.line,
++                key.to_hex()
++            );
++            if let Some(BoundClassification::Sanctioned { anchor, .. }) = &classification {
++                super::evaluate::documented(workspace, anchor, findings);
++            }
++            if classification.is_none() && !registry.ratcheted {
++                findings.push(format!(
++                    "{location}: unclassified numeric bound; add a ledger classification"
++                ));
++            }
++            if registry.ratcheted {
++                let debt_key = SiteKey::digest(&file_text, None);
++                let guards = hit
++                    .roles
++                    .iter()
++                    .filter_map(|role| role.debt_rule())
++                    .chain(classification.is_none().then_some(UNCLASSIFIED));
++                for rule in guards {
++                    let site = DebtSite::new(&file_text, rule, debt_key)?;
++                    counted.record(site, location.clone());
++                }
++            }
++            live.insert(site);
++            inventory.push(NumericBound {
++                file,
++                key,
++                line: hit.line,
++                start_byte,
++                roles: hit.roles,
++                classification,
++            });
++        }
++        for (file, key) in registry.rows.keys().filter(|site| !live.contains(*site)) {
++            findings.push(format!("{file}: stale numeric bound siteKey {}; remove the classification or update it to a current site", key.to_hex()));
++        }
++        Ok((inventory, counted))
++    }
++
++    pub(in crate::gate) fn named_use(
++        &mut self,
++        role: BoundRole,
++        definitions: Vec<Option<ItemId>>,
++        limits: &MatchLimits,
++    ) -> Result<(), Error> {
++        if definitions.iter().any(Option::is_some) {
++            self.retain(1usize.saturating_add(definitions.len()), limits)?;
++            self.uses.push((role, definitions));
++        }
++        Ok(())
++    }
++
++    fn classify_named_uses(
++        &mut self,
++        workspace: &Workspace,
++        limits: &mut MatchLimits,
++    ) -> Result<(), Error> {
++        for (role, definitions) in std::mem::take(&mut self.uses) {
++            self.retained -= 1 + definitions.len();
++            patterns::charge(
++                UNCLASSIFIED,
++                limits,
++                definitions.len().try_into().unwrap_or(u64::MAX),
++            )?;
++            for id in definitions.into_iter().flatten() {
++                if let Some(item) = workspace.item(id)
++                    && let Some(byte) = self
++                        .declarations
++                        .get(&(item.file.clone(), item.span.start_byte))
++                    && let Some(pending) = self.sites.get_mut(&(item.file.clone(), *byte))
++                {
++                    pending.roles.insert(role);
++                }
++            }
++        }
++        Ok(())
++    }
++}
+diff --git crates/raf-census/src/gate/bounds/syntax.rs crates/raf-census/src/gate/bounds/syntax.rs
+new file mode 100644
+index 00000000..1bc3eef4
+--- /dev/null
++++ crates/raf-census/src/gate/bounds/syntax.rs
+@@ -0,0 +1,318 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! The source syntax that can establish an inventory observation.
++
++use proc_macro2::{Ident, Span};
++use purrdf_jsonschema::ecma::MatchLimits;
++use raf_source::SourceFile;
++use syn::ext::IdentExt;
++use syn::{BinOp, Expr, FnArg, Lit, Pat, Signature, Type, spanned::Spanned, visit::Visit};
++
++use super::{BoundRole, Scan, UNCLASSIFIED, patterns};
++use crate::Error;
++use crate::detectors::{ReceiverMode, receiver_mode};
++
++pub(super) struct Slots {
++    size: Vec<bool>,
++    receiver: Option<ReceiverMode>,
++}
++
++impl Slots {
++    pub(super) fn accepts(
++        &self,
++        receiver: Option<ReceiverMode>,
++        arity: usize,
++        index: usize,
++    ) -> bool {
++        let offset = usize::from(receiver.is_some());
++        (receiver.is_none() || self.receiver == receiver)
++            && arity.saturating_add(offset) == self.size.len()
++            && self.size.get(index + offset) == Some(&true)
++    }
++
++    pub(super) fn states(&self) -> usize {
++        1usize.saturating_add(self.size.len())
++    }
++}
++
++pub(super) fn collect(
++    scan: &mut Scan,
++    file: &SourceFile,
++    syntax: &syn::File,
++    limits: &mut MatchLimits,
++) -> Result<(), Error> {
++    patterns::charge(
++        UNCLASSIFIED,
++        limits,
++        file.text.len().try_into().unwrap_or(u64::MAX),
++    )?;
++    let mut visitor = Syntax {
++        scan,
++        file,
++        limits,
++        error: None,
++    };
++    visitor.visit_file(syntax);
++    visitor.error.map_or(Ok(()), Err)
++}
++
++struct Syntax<'a> {
++    scan: &'a mut Scan,
++    file: &'a SourceFile,
++    limits: &'a mut MatchLimits,
++    error: Option<Error>,
++}
++
++impl Syntax<'_> {
++    fn record(&mut self, token: Span, context: Span, role: BoundRole) {
++        if self.error.is_none() {
++            self.error = self
++                .scan
++                .site(
++                    &self.file.path,
++                    token.into(),
++                    context.byte_range(),
++                    role,
++                    self.limits,
++                )
++                .err();
++        }
++    }
++
++    fn named(&mut self, name: &Ident, ty: &Type, value: Option<&Expr>, context: Span) {
++        if has_word(name, LIMIT_WORDS) && (number_type(ty) || value.is_some_and(number)) {
++            self.record(name.span(), context, BoundRole::Named);
++            if self.error.is_none()
++                && let Err(error) = self.scan.retain(1, self.limits)
++            {
++                self.error = Some(error);
++            }
++            if self.error.is_none() {
++                self.scan.declarations.insert(
++                    (self.file.path.clone(), context.byte_range().start),
++                    name.span().byte_range().start,
++                );
++            }
++        }
++    }
++
++    fn signature(&mut self, item: Span, signature: &Signature) {
++        if self.error.is_some() || signature.variadic.is_some() {
++            return;
++        }
++        let mut size = Vec::with_capacity(signature.inputs.len());
++        for argument in &signature.inputs {
++            let (attributes, named) = match argument {
++                FnArg::Receiver(receiver) => (&receiver.attrs, false),
++                FnArg::Typed(typed) => (
++                    &typed.attrs,
++                    matches!(typed.pat.as_ref(), Pat::Ident(binding) if binding.subpat.is_none() && size_name(&binding.ident)),
++                ),
++            };
++            if attributes.iter().any(conditional) {
++                return;
++            }
++            size.push(named);
++        }
++        if !size.contains(&true) {
++            return;
++        }
++        let slots = Slots {
++            size,
++            receiver: receiver_mode(signature),
++        };
++        if let Err(error) = self.scan.retain(slots.states(), self.limits) {
++            self.error = Some(error);
++            return;
++        }
++        self.scan
++            .signatures
++            .insert((self.file.path.clone(), item.byte_range().start), slots);
++    }
++}
++
++impl<'ast> Visit<'ast> for Syntax<'_> {
++    fn visit_item_const(&mut self, node: &'ast syn::ItemConst) {
++        self.named(&node.ident, &node.ty, Some(&node.expr), node.span());
++        syn::visit::visit_item_const(self, node);
++    }
++
++    fn visit_item_static(&mut self, node: &'ast syn::ItemStatic) {
++        self.named(&node.ident, &node.ty, Some(&node.expr), node.span());
++        syn::visit::visit_item_static(self, node);
++    }
++
++    fn visit_impl_item_const(&mut self, node: &'ast syn::ImplItemConst) {
++        self.named(&node.ident, &node.ty, Some(&node.expr), node.span());
++        syn::visit::visit_impl_item_const(self, node);
++    }
++
++    fn visit_trait_item_const(&mut self, node: &'ast syn::TraitItemConst) {
++        self.named(
++            &node.ident,
++            &node.ty,
++            node.default.as_ref().map(|(_, expr)| expr),
++            node.span(),
++        );
++        syn::visit::visit_trait_item_const(self, node);
++    }
++
++    fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
++        self.signature(node.span(), &node.sig);
++        syn::visit::visit_item_fn(self, node);
++    }
++
++    fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
++        self.signature(node.span(), &node.sig);
++        syn::visit::visit_impl_item_fn(self, node);
++    }
++
++    fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
++        self.signature(node.span(), &node.sig);
++        syn::visit::visit_trait_item_fn(self, node);
++    }
++
++    fn visit_foreign_item_fn(&mut self, node: &'ast syn::ForeignItemFn) {
++        self.signature(node.span(), &node.sig);
++        syn::visit::visit_foreign_item_fn(self, node);
++    }
++}
++
++pub(in crate::gate) fn comparisons(node: &syn::ExprBinary) -> impl Iterator<Item = &Expr> {
++    let compares = matches!(
++        node.op,
++        BinOp::Eq(_) | BinOp::Ne(_) | BinOp::Lt(_) | BinOp::Le(_) | BinOp::Gt(_) | BinOp::Ge(_)
++    );
++    [(&*node.left, &*node.right), (&*node.right, &*node.left)]
++        .into_iter()
++        .filter_map(move |(measure, bound)| (compares && length_or_count(measure)).then_some(bound))
++}
++
++pub(in crate::gate) fn limiting_method(node: &syn::ExprMethodCall) -> impl Iterator<Item = &Expr> {
++    let name = node.method.unraw().to_string();
++    let supported = matches!(
++        (name.as_str(), node.args.len()),
++        ("truncate" | "take" | "min", 1) | ("clamp", 2)
++    );
++    node.args.iter().filter(move |_| supported)
++}
++
++pub(in crate::gate) fn limiting_call(node: &syn::ExprCall) -> impl Iterator<Item = &Expr> {
++    let first = match ungroup(&node.func) {
++        Expr::Path(path) => path.path.segments.last().map_or(node.args.len(), |member| {
++            match (member.ident.unraw().to_string().as_str(), node.args.len()) {
++                ("min", 2) | ("truncate" | "take", 1) => 0,
++                ("clamp", 3) => 1,
++                ("truncate" | "take", 2)
++                    if path.path.segments.len() > 1 || path.qself.is_some() =>
++                {
++                    1
++                }
++                _ => node.args.len(),
++            }
++        }),
++        _ => node.args.len(),
++    };
++    node.args.iter().skip(first)
++}
++
++const LIMIT_WORDS: &[&str] = &["max", "limit", "cap", "budget", "bound", "capacity"];
++const SIZE_WORDS: &[&str] = &[
++    "size", "len", "length", "count", "capacity", "limit", "max", "cap", "budget", "bound",
++];
++const MEASURE_WORDS: &[&str] = &["len", "length", "count"];
++
++fn has_word(name: &Ident, words: &[&str]) -> bool {
++    let name = name.to_string();
++    name.strip_prefix("r#")
++        .unwrap_or(&name)
++        .split('_')
++        .any(|part| words.iter().any(|word| part.eq_ignore_ascii_case(word)))
++}
++
++fn size_name(name: &Ident) -> bool {
++    has_word(name, SIZE_WORDS)
++}
++
++fn conditional(attribute: &syn::Attribute) -> bool {
++    attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
++}
++
++fn number_type(ty: &Type) -> bool {
++    const NUMBERS: &[&str] = &[
++        "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize",
++        "f32", "f64",
++    ];
++    match ty {
++        Type::Group(group) => number_type(&group.elem),
++        Type::Paren(paren) => number_type(&paren.elem),
++        Type::Path(path) if path.qself.is_none() => {
++            let mut segments = path.path.segments.iter();
++            match (
++                segments.next(),
++                segments.next(),
++                segments.next(),
++                segments.next(),
++            ) {
++                (Some(last), None, None, None) | (Some(_), Some(_), Some(last), None)
++                    if (path.path.segments.len() == 1
++                        || (path.path.segments[1].ident == "primitive"
++                            && (path.path.segments[0].ident == "core"
++                                || path.path.segments[0].ident == "std"))) =>
++                {
++                    NUMBERS.iter().any(|name| last.ident == *name)
++                }
++                _ => false,
++            }
++        }
++        _ => false,
++    }
++}
++
++fn number(expr: &Expr) -> bool {
++    integer(expr).is_some()
++        || matches!(ungroup(expr), Expr::Lit(literal) if matches!(literal.lit, Lit::Float(_)))
++}
++
++pub(in crate::gate) fn integer(expr: &Expr) -> Option<Span> {
++    let expr = ungroup(expr);
++    match expr {
++        Expr::Lit(literal) if matches!(literal.lit, Lit::Int(_)) => Some(expr.span()),
++        Expr::Unary(unary)
++            if matches!(unary.op, syn::UnOp::Neg(_))
++                && matches!(ungroup(&unary.expr), Expr::Lit(literal) if matches!(literal.lit, Lit::Int(_))) =>
++        {
++            Some(expr.span())
++        }
++        _ => None,
++    }
++}
++
++pub(in crate::gate) fn ungroup(mut expr: &Expr) -> &Expr {
++    loop {
++        expr = match expr {
++            Expr::Paren(paren) => &paren.expr,
++            Expr::Group(group) => &group.expr,
++            _ => return expr,
++        };
++    }
++}
++
++fn length_or_count(expr: &Expr) -> bool {
++    match ungroup(expr) {
++        Expr::MethodCall(call) => call.args.is_empty() && has_word(&call.method, MEASURE_WORDS),
++        Expr::Field(field) => {
++            matches!(&field.member, syn::Member::Named(name) if has_word(name, MEASURE_WORDS))
++        }
++        Expr::Path(path) => path
++            .path
++            .segments
++            .last()
++            .is_some_and(|part| has_word(&part.ident, MEASURE_WORDS)),
++        Expr::Call(call) => {
++            matches!(ungroup(&call.func), Expr::Path(path) if path.path.segments.last().is_some_and(|part| has_word(&part.ident, MEASURE_WORDS)))
++        }
++        _ => false,
++    }
++}
+diff --git crates/raf-census/src/gate/evaluate.rs crates/raf-census/src/gate/evaluate.rs
+index 5fb6f791..b4cf34e9 100644
+--- crates/raf-census/src/gate/evaluate.rs
++++ crates/raf-census/src/gate/evaluate.rs
+@@ -26,8 +26,14 @@ pub(super) fn evaluate(
+     let owners = owners::index(&census);
+     let code = workspace.code_resolver()?;
+     let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
+-    let lookup = (workspace, &code);
+-    let mut collected = rules::collect(lookup, &census, &selected, &owners, ledger, &mut limits)?;
++    let mut collected = rules::collect(
++        (workspace, &code),
++        &census,
++        &selected,
++        &owners,
++        ledger,
++        &mut limits,
++    )?;
+     collect_patterns(
+         (ledger, &references.names),
+         workspace,
+@@ -40,6 +46,16 @@ pub(super) fn evaluate(
+     let hits = &collected.hits;
+     let mut sink = ratchet::Sink::new(ledger, &collected.offsets);
+     let mut findings = selected.findings(hits);
++    let (numeric_bounds, numeric_debt) = if let Some(registry) = &ledger.numeric_bounds {
++        std::mem::take(&mut collected.bounds).evaluate(
++            workspace,
++            registry,
++            &mut limits,
++            &mut findings,
++        )?
++    } else {
++        (Vec::new(), ratchet::Counted::default())
++    };
+     let mut reports = Vec::new();
+     let mut copies = BTreeMap::new();
+     for row in ledger.jobs() {
+@@ -58,56 +74,15 @@ pub(super) fn evaluate(
+         else {
+             continue;
+         };
+-        let hits = super::context::collect(&collected, &census, row, &resolved, &mut limits)?;
+-        let ResolvedJob {
+-            mut job,
+-            homes,
+-            home_packages,
+-            home_sources,
+-            ..
+-        } = resolved;
+-        // A native adapter does not authorize competing implementations in
+-        // the rest of its package. Ordinary home jobs retain their exemption.
+-        let no_exempt_packages = BTreeSet::new();
+-        let detector_exempt_packages = if row.preferred_provider.is_some() {
+-            &no_exempt_packages
+-        } else {
+-            &home_packages
+-        };
+-        let variants = resolve_variants(
+-            workspace,
+-            &owners,
++        let report = report_job(
++            (workspace, &census, &owners),
++            &collected,
+             row,
+-            &hits,
+-            &collected.subjects,
+-            &mut findings,
++            resolved,
++            (&mut sink, &mut limits, &mut findings),
+         )?;
+-        // Legacy in-memory jobs classify symbol-wide variants. The ledger's
+-        // narrower sanction must include the declared source file as well.
+-        job.variants.clear();
+-        let matched = matching_units(&census, &job, row, &hits, detector_exempt_packages);
+-        let mut report = collect_report(&job, matched, &homes, &variants);
+-        append_reference_homes(&census, &homes, &mut report);
+-        super::subjects::append(
+-            row,
+-            &hits,
+-            &collected.subjects,
+-            detector_exempt_packages,
+-            &home_sources,
+-            &variants,
+-            &mut report,
+-        );
+-        report_copies(
+-            row,
+-            &report,
+-            &hits,
+-            &owners,
+-            detector_exempt_packages,
+-            &mut sink,
+-            &mut findings,
+-        );
+         if !row.enforced && report.copies > 0 {
+-            copies.insert(job.id.clone(), report.copies);
++            copies.insert(report.id.clone(), report.copies);
+         }
+         reports.push(report);
+     }
+@@ -117,6 +92,7 @@ pub(super) fn evaluate(
+     let (debt, sites) = collect_debt(
+         (ledger, workspace, &owners, &census),
+         copies,
++        numeric_debt,
+         (&sink, &mut limits),
+         &mut findings,
+     )?;
+@@ -126,9 +102,61 @@ pub(super) fn evaluate(
+         findings,
+         debt,
+         sites,
++        numeric_bounds,
+     })
+ }
+ 
++fn report_job(
++    (workspace, census, owners): (&Workspace, &Census, &owners::Owners<'_>),
++    collected: &rules::Collected,
++    row: &LedgerJob,
++    resolved: ResolvedJob,
++    (sink, limits, findings): (&mut ratchet::Sink<'_>, &mut MatchLimits, &mut Vec<String>),
++) -> Result<JobReport, Error> {
++    let hits = super::context::collect(collected, census, row, &resolved, limits)?;
++    let ResolvedJob {
++        mut job,
++        homes,
++        home_packages,
++        home_sources,
++        ..
++    } = resolved;
++    // A native adapter does not authorize competing implementations in
++    // the rest of its package. Ordinary home jobs retain their exemption.
++    let no_exempt_packages = BTreeSet::new();
++    let detector_exempt_packages = if row.preferred_provider.is_some() {
++        &no_exempt_packages
++    } else {
++        &home_packages
++    };
++    let variants = resolve_variants(workspace, owners, row, &hits, &collected.subjects, findings)?;
++    // Legacy in-memory jobs classify symbol-wide variants. The ledger's
++    // narrower sanction must include the declared source file as well.
++    job.variants.clear();
++    let matched = matching_units(census, &job, row, &hits, detector_exempt_packages);
++    let mut report = collect_report(&job, matched, &homes, &variants);
++    append_reference_homes(census, &homes, &mut report);
++    super::subjects::append(
++        row,
++        &hits,
++        &collected.subjects,
++        detector_exempt_packages,
++        &home_sources,
++        &variants,
++        &mut report,
++    );
++    report_copies(
++        row,
++        &report,
++        &hits,
++        owners,
++        detector_exempt_packages,
++        sink,
++        findings,
++    );
++    Ok(report)
++}
++
+ fn append_reference_homes(
+     census: &Census,
+     homes: &BTreeSet<rules::UnitKey>,
+@@ -153,6 +181,7 @@ fn append_reference_homes(
+ fn collect_debt(
+     (ledger, workspace, owners, census): (&Ledger, &Workspace, &owners::Owners<'_>, &Census),
+     copies: BTreeMap<String, usize>,
++    numeric_debt: ratchet::Counted,
+     (sink, limits): (&ratchet::Sink<'_>, &mut MatchLimits),
+     findings: &mut Vec<String>,
+ ) -> Result<(DebtRecord, BTreeMap<crate::DebtSite, Vec<String>>), Error> {
+@@ -167,10 +196,19 @@ fn collect_debt(
+             ));
+         }
+     }
+-    let counted = sink.count(workspace, limits)?;
++    let mut counted = sink.count(workspace, limits)?;
++    counted.merge(numeric_debt);
++    let numeric_rules = ledger
++        .numeric_bounds
++        .iter()
++        .filter(|registry| registry.ratcheted)
++        .flat_map(|_| crate::report::bounds::IDS);
+     let record = DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)?
+         .scoped(census.options().scope.clone())
+-        .with_ratchet(sink.rules().map(str::to_owned), counted.counts)?;
++        .with_ratchet(
++            sink.rules().chain(numeric_rules).map(str::to_owned),
++            counted.counts,
++        )?;
+     Ok((record, counted.locations))
+ }
+ 
+@@ -613,7 +651,7 @@ fn resolve_job(
+     })
+ }
+ 
+-fn documented(workspace: &Workspace, anchor: &str, findings: &mut Vec<String>) {
++pub(super) fn documented(workspace: &Workspace, anchor: &str, findings: &mut Vec<String>) {
+     let Some(encoded) = anchor.strip_prefix(SYMBOL_ANCHOR_PREFIX) else {
+         findings.push(format!("anchor {anchor:?}: use {SYMBOL_ANCHOR_PREFIX} followed by an encoded documented source path"));
+         return;
+diff --git crates/raf-census/src/gate/mod.rs crates/raf-census/src/gate/mod.rs
+index 896260d4..6436a2f9 100644
+--- crates/raf-census/src/gate/mod.rs
++++ crates/raf-census/src/gate/mod.rs
+@@ -3,7 +3,9 @@
+ 
+ //! One production gate over the ledger, source workspace, rules and exact debt.
+ 
++mod bounds;
+ mod context;
++pub use bounds::{BoundClassification, BoundRole, NumericBound};
+ mod evaluate;
+ mod migrate;
+ mod module_paths;
+@@ -95,10 +97,16 @@ pub struct GateReport {
+     jobs: Vec<JobReport>,
+     findings: Vec<String>,
+     debt: DebtRecord,
++    numeric_bounds: Vec<NumericBound>,
+     sites: std::collections::BTreeMap<crate::DebtSite, Vec<String>>,
+ }
+ 
+ impl GateReport {
++    /// The physical numeric bounds observed when the ledger enables their inventory.
++    #[must_use]
++    pub fn numeric_bounds(&self) -> &[NumericBound] {
++        &self.numeric_bounds
++    }
+     /// The collected workspace units and groups.
+     #[must_use]
+     pub const fn census(&self) -> &Census {
+diff --git crates/raf-census/src/gate/patterns/paths.rs crates/raf-census/src/gate/patterns/paths.rs
+index be4c5286..3d211503 100644
+--- crates/raf-census/src/gate/patterns/paths.rs
++++ crates/raf-census/src/gate/patterns/paths.rs
+@@ -1205,12 +1205,12 @@ impl Lookup<'_, '_> {
+                     attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
+                 })
+             };
++            let conditional_declaration = enum_scan && has_cfg(&declaration.attrs);
+             for variant in &declaration.variants {
+                 if enum_scan && crate::syntax::definitely_excluded(&variant.attrs) {
+                     continue;
+                 }
+-                let conditional =
+-                    enum_scan && (has_cfg(&declaration.attrs) || has_cfg(&variant.attrs));
++                let conditional = conditional_declaration || enum_scan && has_cfg(&variant.attrs);
+                 let name = variant.ident.unraw().to_string();
+                 if let Some(known) = members.get_mut(&name) {
+                     known.forms.observe(&variant.fields);
+@@ -1995,6 +1995,41 @@ fn matches(
+     Ok(false)
+ }
+ 
++fn numeric_definitions(
++    lookup: &Lookup<'_, '_>,
++    scopes: &Scopes,
++    path: &syn::Path,
++    limits: &mut MatchLimits,
++) -> Result<Vec<ItemId>, Error> {
++    let written = segments(path);
++    let absolute = path.leading_colon.is_some();
++    let raw = path_text(&written, absolute);
++    let LexicalPath::Accessible(expanded) = lookup.lexical(scopes, &written, absolute, limits)?
++    else {
++        return Ok(Vec::new());
++    };
++    // A module declaration is resolved by Source; only a block shadow
++    // prevents reading the indexed path.
++    if expanded
++        .as_ref()
++        .is_some_and(|path| path.shadowed && path.block)
++    {
++        return Ok(Vec::new());
++    }
++    let glob = lookup.glob_occurrence(scopes, &written, absolute, expanded.as_ref(), limits)?;
++    if glob.opaque.is_some() {
++        return Ok(Vec::new());
++    }
++    let definition = match glob.definition {
++        Some(definition) => definition,
++        None => lookup.resolve(&raw, expanded.as_ref(), limits)?,
++    };
++    Ok(match definition {
++        PathDefinition::Written(actual) | PathDefinition::Expanded(actual) => actual,
++        PathDefinition::Missing | PathDefinition::Unverified(_) => Vec::new(),
++    })
++}
++
+ #[cfg(test)]
+ mod tests {
+     use std::fmt::Write as _;
+diff --git crates/raf-census/src/gate/patterns/paths/visit.rs crates/raf-census/src/gate/patterns/paths/visit.rs
+index aa6e994b..94cff14d 100644
+--- crates/raf-census/src/gate/patterns/paths/visit.rs
++++ crates/raf-census/src/gate/patterns/paths/visit.rs
+@@ -6,14 +6,18 @@
+ use super::{
+     Compiled, CrossPackagePaths, Found, Role, Scopes, Site, VISIBILITY, cross_package_uses, matches,
+ };
++use crate::detectors::{ReceiverMode, receiver_mode};
++use crate::gate::bounds::{BoundRole, Scan, syntax};
++use crate::report::bounds::UNCLASSIFIED;
+ use crate::{
+     Error,
+     detectors::{ENUM_CATCH_ALL, RawHit},
+     syntax::{ImportLeaf, visit_import_paths},
+ };
+ use purrdf_jsonschema::ecma::MatchLimits;
+-use raf_source::{CodeResolver, ImplBlock, Namespace, SourceFile, Workspace};
++use raf_source::{CodeResolver, ImplBlock, ItemId, Namespace, SourceFile, SymbolKind, Workspace};
+ use std::collections::BTreeSet;
++use syn::ext::IdentExt;
+ use syn::spanned::Spanned;
+ use syn::visit::Visit;
+ 
+@@ -64,6 +68,8 @@ pub(in crate::gate) fn functions(
+         error: None,
+         seen: BTreeSet::new(),
+         observer: Some(observer),
++        numeric: None,
++        numeric_receiver: None,
+         path_uses: None,
+         enum_hits: None,
+         impl_blocks: &[],
+@@ -108,6 +114,8 @@ pub(super) fn collect<'p, 'w>(
+         error: None,
+         seen: BTreeSet::new(),
+         observer: None,
++        numeric: None,
++        numeric_receiver: None,
+         path_uses: None,
+         enum_hits: None,
+         impl_blocks: &[],
+@@ -139,6 +147,8 @@ pub(in crate::gate) fn references(
+         error: None,
+         seen: BTreeSet::new(),
+         observer: None,
++        numeric: None,
++        numeric_receiver: None,
+         path_uses: Some(paths),
+         enum_hits: None,
+         impl_blocks: &[],
+@@ -173,6 +183,8 @@ pub(in crate::gate) fn enum_arms(
+         error: None,
+         seen: BTreeSet::new(),
+         observer: None,
++        numeric: None,
++        numeric_receiver: None,
+         path_uses: None,
+         enum_hits: Some(EnumInventory {
+             found: &mut hits,
+@@ -223,6 +235,8 @@ struct Paths<'a, 'p, 'w, 'c> {
+     error: Option<Error>,
+     seen: BTreeSet<(&'p str, usize)>,
+     observer: Option<&'a mut dyn FunctionObserver>,
++    numeric: Option<&'a mut Scan>,
++    numeric_receiver: Option<ReceiverMode>,
+     path_uses: Option<&'a mut CrossPackagePaths>,
+     enum_hits: Option<EnumInventory<'a>>,
+     impl_blocks: &'w [ImplBlock],
+@@ -349,7 +363,7 @@ impl Paths<'_, '_, '_, '_> {
+         }
+         if let Err(error) = self.scopes.enter(
+             module,
+-            self.path_uses.is_some() || self.enum_hits.is_some(),
++            self.path_uses.is_some() || self.numeric.is_some() || self.enum_hits.is_some(),
+             items,
+             self.limits,
+         ) {
+@@ -413,6 +427,32 @@ impl Paths<'_, '_, '_, '_> {
+                 }
+                 return Ok(!owners.is_empty());
+             }
++            if self.numeric.is_some() {
++                let site = Site::at(
++                    self.file,
++                    name.span(),
++                    Role::Pattern,
++                    Namespace::Value,
++                    false,
++                );
++                let owners = self
++                    .owners
++                    .get(self.workspace, self.file, site.byte, self.limits)?;
++                let mut classified = None;
++                for owner in owners {
++                    let lookup = numeric_lookup(self.workspace, self.code, &site, owner)?;
++                    let path = syn::Path::from(name.clone());
++                    let actual = super::numeric_definitions(&lookup, scopes, &path, self.limits)?;
++                    super::classify_pattern(
++                        self.workspace,
++                        UNCLASSIFIED,
++                        &actual,
++                        false,
++                        &mut classified,
++                    )?;
++                }
++                return Ok(!classified.unwrap_or_default());
++            }
+             if let Some(paths) = self.path_uses.as_deref_mut() {
+                 let site = Site::at(
+                     self.file,
+@@ -681,7 +721,7 @@ impl Paths<'_, '_, '_, '_> {
+     fn arm_pattern(&mut self, pattern: &syn::Pat) {
+         if let syn::Pat::Guard(guard) = pattern {
+             self.arm_pattern(&guard.pat);
+-            if self.path_uses.is_some() {
++            if self.path_uses.is_some() || self.numeric.is_some() {
+                 self.condition(&guard.guard);
+             } else {
+                 self.visit_expr(&guard.guard);
+@@ -759,24 +799,43 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
+         if self.ignores_function(&node.sig) {
+             return;
+         }
++        let previous = self.numeric_receiver.take();
+         self.generic_scope(&node.sig.generics, false, |this| {
+             this.inputs(&node.sig.inputs);
+             if !this.observe_function(&node.sig, &node.attrs, &node.block) {
+                 syn::visit::visit_item_fn(this, node);
+             }
+         });
++        self.numeric_receiver = previous;
++    }
++
++    fn visit_impl_item_const(&mut self, node: &'ast syn::ImplItemConst) {
++        if !self.excludes_from_inventory(&node.attrs) {
++            syn::visit::visit_impl_item_const(self, node);
++        }
+     }
+ 
+     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
+         if self.ignores_function(&node.sig) || self.excludes_from_inventory(&node.attrs) {
+             return;
+         }
++        let previous = self.numeric_receiver;
++        if self.numeric.is_some() {
++            self.numeric_receiver = receiver_mode(&node.sig);
++        }
+         self.generic_scope(&node.sig.generics, false, |this| {
+             this.inputs(&node.sig.inputs);
+             if !this.observe_function(&node.sig, &node.attrs, &node.block) {
+                 syn::visit::visit_impl_item_fn(this, node);
+             }
+         });
++        self.numeric_receiver = previous;
++    }
++
++    fn visit_trait_item_const(&mut self, node: &'ast syn::TraitItemConst) {
++        if !self.excludes_from_inventory(&node.attrs) {
++            syn::visit::visit_trait_item_const(self, node);
++        }
+     }
+ 
+     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
+@@ -875,6 +934,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
+     }
+ 
+     fn visit_local(&mut self, node: &'ast syn::Local) {
++        if self.excludes_from_inventory(&node.attrs) {
++            return;
++        }
+         self.visit_pat(&node.pat);
+         if let Some(initializer) = &node.init {
+             self.visit_expr(&initializer.expr);
+@@ -956,6 +1018,10 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
+     }
+ 
+     fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
++        if self.numeric.is_some() {
++            self.numeric_uses(BoundRole::Limiter, node.span(), syntax::limiting_call(node));
++            self.numeric_call(node);
++        }
+         let mut function = node.func.as_ref();
+         loop {
+             match function {
+@@ -975,6 +1041,29 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
+         syn::visit::visit_expr_call(self, node);
+     }
+ 
++    fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
++        if self.numeric.is_some() {
++            self.numeric_uses(
++                BoundRole::Limiter,
++                node.span(),
++                syntax::limiting_method(node),
++            );
++            self.numeric_method(node);
++        }
++        syn::visit::visit_expr_method_call(self, node);
++    }
++
++    fn visit_expr_binary(&mut self, node: &'ast syn::ExprBinary) {
++        if self.numeric.is_some() {
++            self.numeric_uses(
++                BoundRole::Comparison,
++                node.span(),
++                syntax::comparisons(node),
++            );
++        }
++        syn::visit::visit_expr_binary(self, node);
++    }
++
+     fn visit_pat_ident(&mut self, node: &'ast syn::PatIdent) {
+         if self.error.is_some() {
+             return;
+@@ -1115,7 +1204,7 @@ fn matching_owners(
+     path: &syn::Path,
+     site: &Site<'_>,
+     limits: &mut MatchLimits,
+-) -> Result<Vec<raf_source::ItemId>, Error> {
++) -> Result<Vec<ItemId>, Error> {
+     let mut ids = Vec::new();
+     for owner in owners {
+         if matches(
+@@ -1132,3 +1221,272 @@ fn matching_owners(
+     }
+     Ok(ids)
+ }
++
++pub(in crate::gate) fn numeric_calls(
++    workspace: &Workspace,
++    code: &CodeResolver<'_>,
++    file: &SourceFile,
++    syntax: &syn::File,
++    limits: &mut MatchLimits,
++    scan: &mut Scan,
++) -> Result<(), Error> {
++    let mut visitor = Paths {
++        compiled: &[],
++        workspace,
++        code,
++        file,
++        limits,
++        scopes: Scopes::default(),
++        found: Vec::new(),
++        error: None,
++        seen: BTreeSet::new(),
++        observer: None,
++        numeric: Some(scan),
++        numeric_receiver: None,
++        path_uses: None,
++        enum_hits: None,
++        impl_blocks: &[],
++        owners: super::OwnerCache::one_occurrence(),
++    };
++    visitor.visit_file(syntax);
++    visitor.error.map_or(Ok(()), Err)
++}
++
++impl Paths<'_, '_, '_, '_> {
++    fn numeric_uses<'a>(
++        &mut self,
++        role: BoundRole,
++        context: proc_macro2::Span,
++        operands: impl Iterator<Item = &'a syn::Expr>,
++    ) {
++        if self.error.is_some() {
++            return;
++        }
++        let Some(scan) = self.numeric.take() else {
++            return;
++        };
++        for operand in operands {
++            let result = (|| {
++                if let Some(token) = syntax::integer(operand) {
++                    return scan.literal(&self.file.path, token, context, role, self.limits);
++                }
++                let syn::Expr::Path(path) = syntax::ungroup(operand) else {
++                    return Ok(());
++                };
++                let site = Site::at(self.file, path.span(), Role::Path, Namespace::Value, false);
++                let owners = self
++                    .owners
++                    .get(self.workspace, self.file, site.byte, self.limits)?;
++                let actual = numeric_targets(
++                    (self.workspace, self.code),
++                    &site,
++                    owners,
++                    self.limits,
++                    NumericKind::Bound,
++                    |lookup, limits| numeric_path(lookup, &self.scopes, path, limits),
++                )?;
++                scan.named_use(role, actual, self.limits)
++            })();
++            if let Err(error) = result {
++                self.error = Some(error);
++                break;
++            }
++        }
++        self.numeric = Some(scan);
++    }
++
++    fn numeric_call(&mut self, node: &syn::ExprCall) {
++        if self.error.is_some() {
++            return;
++        }
++        let Some(scan) = self.numeric.take() else {
++            return;
++        };
++        if let syn::Expr::Path(path) = syntax::ungroup(&node.func) {
++            self.error = scan
++                .call(&self.file.path, node, self.limits, |limits| {
++                    let site =
++                        Site::at(self.file, path.span(), Role::Call, Namespace::Value, false);
++                    let owners = self
++                        .owners
++                        .get(self.workspace, self.file, site.byte, limits)?;
++                    numeric_targets(
++                        (self.workspace, self.code),
++                        &site,
++                        owners,
++                        limits,
++                        NumericKind::Call,
++                        |lookup, limits| numeric_path(lookup, &self.scopes, path, limits),
++                    )
++                })
++                .err();
++        }
++        self.numeric = Some(scan);
++    }
++
++    fn numeric_method(&mut self, node: &syn::ExprMethodCall) {
++        if self.error.is_some()
++            || !matches!(syntax::ungroup(&node.receiver), syn::Expr::Path(path) if path.qself.is_none() && path.path.is_ident("self"))
++        {
++            return;
++        }
++        let (Some(receiver), Some(scan)) = (self.numeric_receiver, self.numeric.as_deref_mut())
++        else {
++            return;
++        };
++        self.error = scan
++            .method(&self.file.path, node, receiver, self.limits, |limits| {
++                let site = Site::at(
++                    self.file,
++                    node.method.span(),
++                    Role::Call,
++                    Namespace::Value,
++                    false,
++                );
++                let owners = self
++                    .owners
++                    .get(self.workspace, self.file, site.byte, limits)?;
++                numeric_targets(
++                    (self.workspace, self.code),
++                    &site,
++                    owners,
++                    limits,
++                    NumericKind::Dot,
++                    |lookup, _| numeric_self(lookup, &node.method.unraw().to_string()),
++                )
++            })
++            .err();
++    }
++}
++
++#[derive(Clone, Copy)]
++enum NumericKind {
++    Call,
++    Dot,
++    Bound,
++}
++
++fn numeric_lookup<'a, 'w>(
++    workspace: &'a Workspace,
++    code: &'a CodeResolver<'w>,
++    site: &'a Site<'a>,
++    owner: &raf_source::Item,
++) -> Result<super::Lookup<'a, 'w>, Error> {
++    let package = workspace
++        .target(owner.target)
++        .ok_or_else(|| super::failure(UNCLASSIFIED, "path site has no consuming target"))?
++        .package_id;
++    Ok(super::Lookup {
++        code,
++        owner: super::PathOwner::Item(owner.id),
++        site,
++        label: UNCLASSIFIED,
++        visibility: Some((workspace, package)),
++    })
++}
++
++fn numeric_self(lookup: &super::Lookup<'_, '_>, member: &str) -> Result<Vec<ItemId>, Error> {
++    let (super::PathOwner::Item(owner), Some((workspace, _))) = (lookup.owner, lookup.visibility)
++    else {
++        return Ok(Vec::new());
++    };
++    let owner = workspace
++        .item(owner)
++        .ok_or_else(|| super::failure(UNCLASSIFIED, "self path has no indexed owner"))?;
++    let Some(name) = super::super::super::rules::self_member(workspace, owner, member) else {
++        return Ok(Vec::new());
++    };
++    lookup.indexed(&name, false).map(Option::unwrap_or_default)
++}
++
++fn numeric_path(
++    lookup: &super::Lookup<'_, '_>,
++    scopes: &Scopes,
++    path: &syn::ExprPath,
++    limits: &mut MatchLimits,
++) -> Result<Vec<ItemId>, Error> {
++    let joined;
++    let name = match &path.qself {
++        Some(qself) if qself.position == 0 => {
++            let syn::Type::Path(nominal) = qself.ty.as_ref() else {
++                return Ok(Vec::new());
++            };
++            if nominal.qself.is_some() {
++                return Ok(Vec::new());
++            }
++            let mut name = bare_path(&nominal.path);
++            name.segments.extend(bare_path(&path.path).segments);
++            joined = name;
++            &joined
++        }
++        _ => &path.path,
++    };
++    if name.segments.len() == 2
++        && name
++            .segments
++            .first()
++            .is_some_and(|part| part.ident == "Self")
++        && let Some(member) = name.segments.last()
++    {
++        return numeric_self(lookup, &member.ident.unraw().to_string());
++    }
++    super::numeric_definitions(lookup, scopes, name, limits)
++}
++
++fn numeric_targets(
++    (workspace, code): (&Workspace, &CodeResolver<'_>),
++    site: &Site<'_>,
++    owners: &[&raf_source::Item],
++    limits: &mut MatchLimits,
++    kind: NumericKind,
++    mut resolve: impl FnMut(&super::Lookup<'_, '_>, &mut MatchLimits) -> Result<Vec<ItemId>, Error>,
++) -> Result<Vec<Option<ItemId>>, Error> {
++    let mut definitions = BTreeSet::new();
++    let mut retain = |definition, limits: &mut MatchLimits| -> Result<(), Error> {
++        super::charge(UNCLASSIFIED, limits, 1)?;
++        if definitions.len() >= limits.states && !definitions.contains(&definition) {
++            return Err(super::failure(
++                UNCLASSIFIED,
++                "numeric definition state limit exhausted",
++            ));
++        }
++        definitions.insert(definition);
++        Ok(())
++    };
++    for owner in owners {
++        let lookup = numeric_lookup(workspace, code, site, owner)?;
++        let actual = resolve(&lookup, limits)?;
++        if actual.is_empty() {
++            retain(None, limits)?;
++        }
++        for id in actual {
++            let item = workspace.item(id).ok_or_else(|| {
++                super::failure(UNCLASSIFIED, "resolved path has no indexed source item")
++            })?;
++            let admitted = match (kind, item.kind) {
++                (
++                    NumericKind::Bound,
++                    SymbolKind::Const | SymbolKind::Static | SymbolKind::AssocConst,
++                )
++                | (
++                    NumericKind::Call,
++                    SymbolKind::Fn
++                    | SymbolKind::ForeignFn
++                    | SymbolKind::TraitDefaultMethod
++                    | SymbolKind::TraitRequiredMethod,
++                ) => true,
++                (NumericKind::Call | NumericKind::Dot, SymbolKind::InherentMethod) => {
++                    match code.require_unconditional_inherent_method(id) {
++                        Ok(()) => true,
++                        Err(raf_source::CodeResolveError::MethodApplicability(_)) => false,
++                        Err(error) => return Err(lookup.error(item.path.as_str(), error)),
++                    }
++                }
++                _ => false,
++            }
++            .then_some(id);
++            retain(admitted, limits)?;
++        }
++    }
++    Ok(definitions.into_iter().collect())
++}
+diff --git crates/raf-census/src/gate/ratchet.rs crates/raf-census/src/gate/ratchet.rs
+index 5462614b..ca79a113 100644
+--- crates/raf-census/src/gate/ratchet.rs
++++ crates/raf-census/src/gate/ratchet.rs
+@@ -87,6 +87,21 @@ pub(super) struct Counted {
+     pub(super) locations: BTreeMap<DebtSite, Vec<String>>,
+ }
+ 
++impl Counted {
++    pub(super) fn record(&mut self, site: DebtSite, location: String) {
++        *self.counts.entry(site.clone()).or_default() += 1;
++        self.locations.entry(site).or_default().push(location);
++    }
++
++    pub(super) fn merge(&mut self, other: Self) {
++        for (site, locations) in other.locations {
++            for location in locations {
++                self.record(site.clone(), location);
++            }
++        }
++    }
++}
++
+ type Row<'a> = (&'a str, &'a str, usize, usize, &'a str);
+ 
+ fn count_sites(
+@@ -123,12 +138,7 @@ fn count_sites(
+                 .filter(|literal| literal.start < end)
+                 .map(|literal| literal.value.as_str());
+             let site = DebtSite::new(file, rule, SiteKey::digest(symbol, literal))?;
+-            *counted.counts.entry(site.clone()).or_default() += 1;
+-            counted
+-                .locations
+-                .entry(site)
+-                .or_default()
+-                .push(format!("{file}:{line}: {symbol}: {message}"));
++            counted.record(site, format!("{file}:{line}: {symbol}: {message}"));
+         }
+     }
+     Ok(counted)
+diff --git crates/raf-census/src/gate/rules.rs crates/raf-census/src/gate/rules.rs
+index a33ec649..88ee8b7a 100644
+--- crates/raf-census/src/gate/rules.rs
++++ crates/raf-census/src/gate/rules.rs
+@@ -86,6 +86,7 @@ pub(super) struct Collected {
+     pub(super) hits: Hits,
+     pub(super) subjects: BTreeMap<UnitKey, Subject>,
+     pub(super) offsets: Offsets,
++    pub(super) bounds: super::bounds::Scan,
+ }
+ 
+ pub(super) struct JobHits<'a> {
+@@ -150,9 +151,10 @@ pub(super) fn collect(
+             .collect(),
+         subjects: BTreeMap::new(),
+         offsets: BTreeMap::new(),
++        bounds: super::bounds::Scan::default(),
+     };
+     fact_hits(workspace, census, (&requested, &tracked), &mut collected)?;
+-    if rules.is_empty() && !builtin {
++    if rules.is_empty() && !builtin && ledger.numeric_bounds.is_none() {
+         return Ok(collected);
+     }
+     let mut receivers = Receivers::new();
+@@ -163,6 +165,11 @@ pub(super) fn collect(
+             continue;
+         };
+         let (found, builtins) = parse_source(&source.path, &source.text, |syntax| {
++            if ledger.numeric_bounds.is_some() {
++                collected
++                    .bounds
++                    .file((workspace, code), source, syntax, limits)?;
++            }
+             let registered = admitted
+                 .iter()
+                 .map(|(id, rule)| {
+@@ -282,6 +289,17 @@ pub(super) fn requested<'a>(
+     registered: &BTreeSet<&str>,
+ ) -> Result<BTreeSet<&'a str>, Error> {
+     let mut requested: BTreeSet<_> = ledger.jobs().iter().flat_map(job_rule_ids).collect();
++    if let Some(id) = requested
++        .iter()
++        .copied()
++        .chain(required.iter().map(String::as_str))
++        .find(|id| crate::report::bounds::IDS.contains(id))
++    {
++        return Err(refused(
++            id,
++            "numeric bounds guard ids are reserved; configure numericBounds on the ledger",
++        ));
++    }
+     let ratcheted = ledger.ratcheted_rules();
+     let mut required_ids = BTreeSet::new();
+     for id in required {
+@@ -325,6 +343,7 @@ pub(super) fn admit(rules: &[Box<dyn Rule>]) -> Result<Vec<(&'static str, &dyn R
+                     .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+         }) || !ids.insert(id)
+             || crate::rule::BUILTIN_RULE_IDS.contains(&id)
++            || crate::report::bounds::IDS.contains(&id)
+         {
+             return Err(refused(
+                 id,
+@@ -458,7 +477,7 @@ fn source_calls(
+     Ok(reaches)
+ }
+ 
+-fn self_member(workspace: &Workspace, owner: &Item, member: &str) -> Option<String> {
++pub(super) fn self_member(workspace: &Workspace, owner: &Item, member: &str) -> Option<String> {
+     if member.is_empty()
+         || owner.kind != SymbolKind::InherentMethod
+         || owner.self_key != Some(SelfType::Local)
+diff --git crates/raf-census/src/lib.rs crates/raf-census/src/lib.rs
+index 510bdca4..f0fc14fe 100644
+--- crates/raf-census/src/lib.rs
++++ crates/raf-census/src/lib.rs
+@@ -69,10 +69,11 @@ mod version;
+ pub use census::{Census, FileCtx};
+ pub use error::{Error, VisibilityError};
+ pub use gate::{
+-    ArchiveCache, DEBT_FILE, DebtWrite, ExternalReference, ForeignField, ForeignLedgerAdapter,
+-    Gate, GateReport, LEDGER_FILE, LedgerExtension, LockedRegistry, MAX_INDEX_BYTES, Migration,
+-    MigrationInput, ReferenceRoot, SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index,
+-    migrate_legacy, migrate_legacy_with_extensions, visibility,
++    ArchiveCache, BoundClassification, BoundRole, DEBT_FILE, DebtWrite, ExternalReference,
++    ForeignField, ForeignLedgerAdapter, Gate, GateReport, LEDGER_FILE, LedgerExtension,
++    LockedRegistry, MAX_INDEX_BYTES, Migration, MigrationInput, NumericBound, ReferenceRoot,
++    SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index, migrate_legacy,
++    migrate_legacy_with_extensions, visibility,
+ };
+ pub use group::{Group, GroupKind, HexTable, Member, SharedConstant};
+ pub use job::{Job, JobForbidden, JobMatch, JobReport, MatchClass};
+diff --git crates/raf-census/src/report/ledger.rs crates/raf-census/src/report/ledger.rs
+index 75ca60bd..56b6967c 100644
+--- crates/raf-census/src/report/ledger.rs
++++ crates/raf-census/src/report/ledger.rs
+@@ -3,6 +3,7 @@
+ 
+ //! The census policy model over a closed native RDF graph.
+ 
++pub(crate) mod bounds;
+ mod declarations;
+ mod extensions;
+ mod flag;
+@@ -160,6 +161,7 @@ pub struct Ledger {
+     /// Sanctioned exact member sets.
+     distinct: Vec<LedgerDistinct>,
+     patterns: Vec<LedgerPattern>,
++    pub(crate) numeric_bounds: Option<bounds::BoundRegistry>,
+     extensions: BTreeMap<String, BTreeSet<String>>,
+ }
+ 
+@@ -366,6 +368,7 @@ impl Ledger {
+                 reason: required_text(&node, "reason")?,
+             });
+         }
++        let numeric_bounds = bounds::read(&graph, &root, &mut reached)?;
+         let extensions = extensions::collect(&graph, &jobs, &reached)?;
+         Ok(Self {
+             graph,
+@@ -375,6 +378,7 @@ impl Ledger {
+             jobs,
+             distinct,
+             patterns,
++            numeric_bounds,
+             extensions,
+         })
+     }
+diff --git crates/raf-census/src/report/ledger/bounds.rs crates/raf-census/src/report/ledger/bounds.rs
+new file mode 100644
+index 00000000..1ac766bd
+--- /dev/null
++++ crates/raf-census/src/report/ledger/bounds.rs
+@@ -0,0 +1,123 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! Closed declarations for the repository-wide numeric bounds inventory.
++
++use std::collections::{BTreeMap, BTreeSet};
++
++use raf_rdf::{Graph, Node};
++use raf_source::RelPath;
++
++use super::{E, Error, anchor, fields, node_at, required_text, shape, targets};
++use crate::SiteKey;
++
++pub(crate) const UNCLASSIFIED: &str = "numeric-bound-unclassified";
++pub(crate) const REFUSING: &str = "numeric-bound-refusing";
++pub(crate) const TRUNCATING: &str = "numeric-bound-truncating";
++pub(crate) const IDS: [&str; 3] = [REFUSING, TRUNCATING, UNCLASSIFIED];
++
++/// A ledger's justification for one numeric bound.
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub enum BoundClassification {
++    /// The limit is fixed by a format or protocol.
++    Structural,
++    /// The limit is a documented policy choice.
++    Sanctioned {
++        /// The reason for the policy choice.
++        reason: String,
++        /// Absolute IRI of its documented source item.
++        anchor: String,
++    },
++    /// The limit belongs to an experiment.
++    Experimental,
++}
++
++#[derive(Clone, Debug)]
++pub(crate) struct BoundRegistry {
++    pub(crate) ratcheted: bool,
++    pub(crate) rows: BTreeMap<(RelPath, SiteKey), BoundClassification>,
++}
++
++pub(super) fn read(
++    graph: &Graph,
++    root: &Node<'_>,
++    reached: &mut BTreeSet<String>,
++) -> Result<Option<BoundRegistry>, Error> {
++    let ids = targets(root, "numericBounds")?;
++    let id = match ids.as_slice() {
++        [] => return Ok(None),
++        [id] => id,
++        _ => return Err(E::Repeated("ledger numericBounds".into()).into()),
++    };
++    let node = owned(graph, id, "NumericBounds", reached)?;
++    let ratcheted = match required_text(&node, "mode")?.as_str() {
++        "strict" => false,
++        "ratcheted" => true,
++        mode => {
++            return Err(E::Value(format!(
++                "{id}: numericBounds mode {mode:?}; use strict or ratcheted"
++            ))
++            .into());
++        }
++    };
++    let mut rows = BTreeMap::new();
++    for id in targets(&node, "bound")? {
++        let row = owned(graph, &id, "NumericBound", reached)?;
++        let file = required_text(&row, "file")?;
++        let key = required_text(&row, "siteKey")?;
++        let key = SiteKey::from_hex(&key).ok_or_else(|| {
++            E::Value(format!(
++                "{id}: siteKey must contain 64 lowercase hexadecimal digits"
++            ))
++        })?;
++        let path = RelPath::new(&file)
++            .map_err(|error| E::Value(format!("{id}: numeric bound file {file:?}: {error}")))?;
++        if path.is_root() || path.to_string() != file {
++            return Err(E::Value(format!("{id}: use a canonical workspace-relative file")).into());
++        }
++        let site = (path, key);
++        if rows.insert(site, classification(&row, &id)?).is_some() {
++            return Err(E::Repeated(format!("{id}: numeric bound {file}:{}", key.to_hex())).into());
++        }
++    }
++    Ok(Some(BoundRegistry { ratcheted, rows }))
++}
++
++fn owned<'a>(
++    graph: &'a Graph,
++    id: &str,
++    class: &str,
++    reached: &mut BTreeSet<String>,
++) -> Result<Node<'a>, E> {
++    if !reached.insert(id.to_owned()) {
++        return Err(E::Repeated(format!("ledger node {id}")));
++    }
++    let node = node_at(graph, id, class)?;
++    fields(&node, class)?;
++    Ok(node)
++}
++
++fn classification(node: &Node<'_>, id: &str) -> Result<BoundClassification, E> {
++    let value = required_text(node, "classification")?;
++    if value == "sanctioned" {
++        return Ok(BoundClassification::Sanctioned {
++            reason: required_text(node, "reason")?,
++            anchor: anchor(node)?,
++        });
++    }
++    if ["reason", "anchor"]
++        .iter()
++        .any(|key| node.values(&shape::property(key)).next().is_some())
++    {
++        return Err(E::Value(format!(
++            "{id}: only sanctioned numeric bounds admit reason and anchor"
++        )));
++    }
++    match value.as_str() {
++        "structural" => Ok(BoundClassification::Structural),
++        "experimental" => Ok(BoundClassification::Experimental),
++        _ => Err(E::Value(format!(
++            "{id}: numeric bound classification {value:?}; use structural, sanctioned or experimental"
++        ))),
++    }
++}
+diff --git crates/raf-census/src/report/ledger/declarations.rs crates/raf-census/src/report/ledger/declarations.rs
+index bfab0729..37057ec2 100644
+--- crates/raf-census/src/report/ledger/declarations.rs
++++ crates/raf-census/src/report/ledger/declarations.rs
+@@ -104,7 +104,10 @@ pub(super) fn patterns(
+         fields(&node, "Pattern")?;
+         let id = required_text(&node, "patternId")?;
+         crate::RuleId::new(&id).map_err(|error| E::Value(error.to_string()))?;
+-        if !ids.insert(id.clone()) || crate::rule::BUILTIN_RULE_IDS.contains(&id.as_str()) {
++        if !ids.insert(id.clone())
++            || crate::rule::BUILTIN_RULE_IDS.contains(&id.as_str())
++            || super::bounds::IDS.contains(&id.as_str())
++        {
+             return Err(E::Value(format!(
+                 "pattern {id:?}: id must be unique and must not replace a built-in"
+             ))
+diff --git crates/raf-census/src/report/mod.rs crates/raf-census/src/report/mod.rs
+index 5fe8bbbd..05de3bc5 100644
+--- crates/raf-census/src/report/mod.rs
++++ crates/raf-census/src/report/mod.rs
+@@ -6,6 +6,7 @@
+ mod debt;
+ mod error;
+ mod ledger;
++pub(crate) use ledger::bounds;
+ pub(crate) mod mint;
+ mod query;
+ mod read;
+diff --git crates/raf-census/src/report/site.rs crates/raf-census/src/report/site.rs
+index ef89756d..3cb65261 100644
+--- crates/raf-census/src/report/site.rs
++++ crates/raf-census/src/report/site.rs
+@@ -10,22 +10,22 @@ use raf_source::RelPath;
+ use super::ReportError as E;
+ use crate::{Error, RuleId};
+ 
+-/// The domain of every site-key preimage.
++/// The domain of counted debt site keys.
+ const DOMAIN: Domain = Domain::new(b"raf-census/debt-site/v1");
+ 
+-/// A stable per-site key: the BLAKE3-256 digest of the enclosing item's symbol
+-/// and the first string literal at or after the site inside that item.
+-///
+-/// The preimage is the domain bytes, the symbol framed by `purrdf-hash` (a
+-/// little-endian `u64` length and its bytes), one presence byte, and when the
+-/// literal is present its frame in the same encoding. Line numbers and byte
+-/// offsets are never hashed, so inserting lines above a site leaves its key
+-/// unchanged.
++/// A canonical BLAKE3-256 key for a counted site or an exact numeric bound.
+ #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+ pub struct SiteKey(Digest32);
+ 
+ impl SiteKey {
+-    /// The key of a site in the item `symbol` whose first string literal is `literal`.
++    /// The key of a counted site with an optional string witness.
++    ///
++    /// The stable owner is a symbol for pattern and job-rule debt, or a canonical
++    /// file path for numeric debt.
++    ///
++    /// The preimage holds the domain, the symbol framed by `purrdf-hash`, one
++    /// presence byte and the framed literal when present. Positions are excluded,
++    /// so inserting lines above the site preserves the key.
+     #[must_use]
+     pub fn digest(symbol: &str, literal: Option<&str>) -> Self {
+         let mut hasher = blake3::Hasher::new();
+@@ -43,6 +43,17 @@ impl SiteKey {
+         Self(Digest32::new(*hasher.finalize().as_bytes()))
+     }
+ 
++    /// The exact ledger locator for one written numeric bound.
++    #[must_use]
++    pub(crate) fn numeric_bound(byte: usize, text: &str) -> Self {
++        let domain = Domain::new(b"raf-census/numeric-bound/v1");
++        let mut hasher = blake3::Hasher::new();
++        hasher.update(domain.as_bytes());
++        frame_le_into(&mut hasher, &(byte as u128).to_le_bytes());
++        frame_le_into(&mut hasher, text.as_bytes());
++        Self(Digest32::new(*hasher.finalize().as_bytes()))
++    }
++
+     /// The canonical rendering: 64 lowercase hexadecimal digits.
+     #[must_use]
+     pub fn to_hex(&self) -> String {
+diff --git crates/raf-census/src/report/vocab.rs crates/raf-census/src/report/vocab.rs
+index ef4de5f4..d21c269f 100644
+--- crates/raf-census/src/report/vocab.rs
++++ crates/raf-census/src/report/vocab.rs
+@@ -169,6 +169,7 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
+             "job",
+             "distinct",
+             "pattern",
++            "numericBounds",
+         ],
+     ),
+     (
+@@ -214,6 +215,11 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
+             "reason",
+         ],
+     ),
++    ("NumericBounds", &["mode", "bound"]),
++    (
++        "NumericBound",
++        &["file", "siteKey", "classification", "reason", "anchor"],
++    ),
+     ("MemberMultiplicity", &["symbol", "copies"]),
+     ("PreferredProvider", &["package", "entryPoint", "consumer"]),
+     (
+diff --git crates/raf-census/src/selftest/fixtures.rs crates/raf-census/src/selftest/fixtures.rs
+index 54046c0f..d93247dd 100644
+--- crates/raf-census/src/selftest/fixtures.rs
++++ crates/raf-census/src/selftest/fixtures.rs
+@@ -25,6 +25,7 @@ pub const ENUM_MATCH: (&str, &[&str], &[&str]) = (
+         "enum State { #[cfg(any())] Ready, Busy } use State::*; fn copy(n: u8) { match n { Ready => (), _ => () } }",
+         "enum State { Ready } fn copy(n: u8, state: State) { match n { #[cfg(any())] State::Ready => (), _ => () }; match state { State::Ready => (), #[cfg(any())] _ => () } }",
+         "enum State { Ready, Busy } struct Scope; impl Scope { #[cfg(any())] fn absent(state: State) { match state { State::Ready => (), _ => () } } } fn copy(state: State) { #[cfg(any())] { match state { State::Ready => (), _ => () } } }",
++        "enum State { Ready, Busy } struct Scope; impl Scope { #[cfg(any())] const ITEM: () = match State::Ready { State::Ready => (), _ => () }; } trait Policy { #[cfg(any())] const ITEM: () = match State::Ready { State::Ready => (), _ => () }; } fn copy(state: State) { #[cfg(any())] let _ = match state { State::Ready => (), _ => () }; }",
+         "#[derive(PartialEq, Eq)] enum State { Ready, Busy } const FIRST: State = State::Ready; fn copy(state: State) { match state { FIRST => (), State::Busy => () } }",
+     ],
+ );
+diff --git crates/raf-census/tests/census_gate.rs crates/raf-census/tests/census_gate.rs
+index 4f422bb1..f918f895 100644
+--- crates/raf-census/tests/census_gate.rs
++++ crates/raf-census/tests/census_gate.rs
+@@ -11,6 +11,8 @@ use raf_census::detector_fixtures;
+ use raf_fixtures::layout;
+ #[path = "census_gate/native_provider.rs"]
+ mod native_provider;
++#[path = "census_gate/numeric_bounds.rs"]
++mod numeric_bounds;
+ #[path = "census_gate/ratchet.rs"]
+ mod ratchet;
+ #[path = "support/vocabulary.rs"]
+@@ -390,6 +392,7 @@ fn ledger_vocabulary_matches_validated_graphs() {
+         .map(|matcher| declared_pattern(Some(matcher), true)),
+     );
+     builders.push(ratchet::ratcheted_declaration());
++    builders.push(numeric_bounds::vocabulary());
+     let reports = builders.into_iter().flat_map(|builder| {
+         let graph = builder.finish().unwrap();
+         [Format::Turtle, Format::NTriples].map(|format| {
+diff --git crates/raf-census/tests/census_gate/enum_arms.rs crates/raf-census/tests/census_gate/enum_arms.rs
+index 3ea6bb90..1bd3362e 100644
+--- crates/raf-census/tests/census_gate/enum_arms.rs
++++ crates/raf-census/tests/census_gate/enum_arms.rs
+@@ -5,7 +5,8 @@
+ 
+ use super::{Gate, Term, base, detector_fixtures, job, put, tree};
+ 
+-/// Job-home scope leaves this inventory active, and the ratchet counts each arm.
++/// The required inventory coexists with numeric bounds, and job policy counts
++/// both arms in the home package.
+ #[test]
+ fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
+     let id = detector_fixtures::ENUM_MATCH.0;
+@@ -18,15 +19,27 @@ fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
+             match value { State::Ready => (), _ => () }
+             match next { State::Busy => (), remainder => () }
+         }
++        const WORK_LIMIT: usize = 9;
++        fn exceeds_limit(items: &[u8]) -> bool { items.len() > WORK_LIMIT }
+     ";
++    let numeric = super::numeric_bounds::registry(base(), "strict");
+     let required = Gate::workspace(".")
+         .require_rules([id])
+-        .check_tree(&tree(source, base(), 0))
++        .check_tree(&tree(source, numeric, 0))
+         .unwrap();
+     let findings = required.findings();
+-    assert_eq!(findings.len(), 2, "{findings:?}");
++    assert_eq!(findings.len(), 3, "{findings:?}");
+     assert!(findings[0].contains("src/lib.rs:7:"));
+     assert!(findings[1].contains("src/lib.rs:8:"));
++    assert!(findings[2].contains("unclassified numeric bound"));
++    let [limit] = required.numeric_bounds() else {
++        panic!(
++            "expected one numeric bound: {:?}",
++            required.numeric_bounds()
++        );
++    };
++    assert!(source[limit.start_byte..].starts_with("WORK_LIMIT"));
++    assert!(limit.roles.contains(&raf_census::BoundRole::Comparison));
+ 
+     let policy = || {
+         let mut graph = job(true);
+diff --git crates/raf-census/tests/census_gate/numeric_bounds.rs crates/raf-census/tests/census_gate/numeric_bounds.rs
+new file mode 100644
+index 00000000..d327ef3e
+--- /dev/null
++++ crates/raf-census/tests/census_gate/numeric_bounds.rs
+@@ -0,0 +1,390 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! Numeric limit recognition and classification through the production gate.
++
++use raf_census::{BoundClassification, BoundRole, GateReport};
++
++use super::{Builder, Format, Gate, Ledger, MemoryTree, Term, base, job, put, vocab};
++
++pub(super) fn registry(mut graph: Builder, mode: &str) -> Builder {
++    put(&mut graph, "", "numericBounds", Term::iri("#bounds"));
++    kind(&mut graph, "#bounds", "NumericBounds");
++    put(&mut graph, "#bounds", "mode", Term::simple_literal(mode));
++    graph
++}
++
++fn kind(graph: &mut Builder, node: &str, class: &str) {
++    put(
++        graph,
++        node,
++        "type",
++        Term::iri(format!("{}{class}", vocab::REPORT)),
++    );
++}
++
++fn row(graph: &mut Builder, id: &str, key: &str, class: &str) {
++    put(graph, "#bounds", "bound", Term::iri(id));
++    kind(graph, id, "NumericBound");
++    for (predicate, value) in [
++        ("file", "src/lib.rs"),
++        ("siteKey", key),
++        ("classification", class),
++    ] {
++        put(graph, id, predicate, Term::simple_literal(value));
++    }
++}
++
++fn sanction(graph: &mut Builder, id: &str, anchor: &str) {
++    put(
++        graph,
++        id,
++        "reason",
++        Term::simple_literal("The intake contract sets the quantity."),
++    );
++    put(graph, id, "anchor", Term::iri(anchor));
++}
++
++pub(super) fn vocabulary() -> Builder {
++    let mut graph = registry(base(), "strict");
++    row(&mut graph, "#one", &"a".repeat(64), "sanctioned");
++    sanction(&mut graph, "#one", "urn:raf:code:demo%3A%3Aintake");
++    graph
++}
++
++fn check(source: &str, graph: Builder, record: Option<&str>) -> GateReport {
++    let ledger = graph.finish().unwrap().to_text(Format::Turtle).unwrap();
++    let mut entries = vec![
++        (
++            "Cargo.toml",
++            "[package]\nname='demo'\nversion='0.1.0'\nedition='2024'\n",
++        ),
++        ("src/lib.rs", source),
++        ("helpers-ledger.ttl", &ledger),
++    ];
++    if let Some(record) = record {
++        entries.push(("census-debt.ttl", record));
++    }
++    Gate::workspace(".")
++        .check_tree(&MemoryTree::from_iter(entries))
++        .unwrap()
++}
++
++const SOURCE: &str = r#"
++    /// The intake count is fixed by the wire format.
++    pub fn intake(mut items: Vec<u8>) {
++        if items.len() > MAX_ITEMS { return; }
++        let count = items.len();
++        let _ = 13 > count;
++        items.r#truncate(11); items.truncate(12);
++        Vec::r#truncate(&mut items, 26);
++        let _ = (0..10).take(14);
++        let _ = count.clamp(15, 16);
++        let _ = core::cmp::min(count, 17);
++        let _ = count + 99;
++        let _ = items.len() + 98;
++        let _ = count.max(97);
++        let _ = 96 > 95;
++        assert!(items.len() <= 24);
++        dbg!(items.len() + 25);
++        Throttle.truncate(65, 66);
++        use crate::sink::configure as apply;
++        {
++            use crate::sink::configure as binding;
++            let binding = |_: (usize, usize), _: usize, _: usize| {};
++            binding((61, 62), 63, 64);
++        }
++        apply((91, 92), 18, 93);
++        {
++            use crate::sink::*;
++            configure((81, 82), 19, 83);
++        }
++        let apply = |_: (usize, usize), _: usize, _: usize| {};
++        apply((71, 72), 73, 74);
++        Throttle.apply_limit(75);
++        Throttle::apply_limit(&Throttle, 27);
++        let _ = items.len() > Throttle::MAX_ITEMS;
++        {
++            struct Throttle;
++            impl Throttle { fn apply_limit(&self, index: usize) {} }
++            Throttle::apply_limit(&Throttle, 28);
++        }
++    }
++    pub const MAX_ITEMS: usize = 8 + 2;
++    pub static CAPACITY: u64 = 20;
++    pub const CAPTION: usize = 100;
++    pub const binding: usize = 101;
++    pub const LIMIT_LABEL: &str = "long";
++    mod sink {
++        pub fn configure((_, _): (usize, usize), max_items: usize, _: usize) {}
++    }
++    trait Route { fn adjust(self, input: usize); }
++    impl Route for &Throttle { fn adjust(self, input: usize) {} }
++    struct Throttle;
++    impl Throttle {
++        const MAX_ITEMS: usize = 31;
++        fn apply_limit(&self, size: usize) {}
++        fn truncate(&self, left: usize, right: usize) {}
++        fn adjust(self, size: usize) {}
++        fn local(&self) { self.r#apply_limit(21); Self::r#apply_limit(self, 22); self.adjust(23); }
++    }
++"#;
++
++/// Every written occurrence has its own classification, even on the same line.
++/// A spelling look-alike, arithmetic, wrong argument slot or shadow does not qualify.
++#[test]
++fn numeric_inventory_classifies_physical_sites_before_jobs() {
++    let observed = check(SOURCE, registry(base(), "strict"), None);
++    let sites = observed.numeric_bounds();
++    let expected = [
++        ("13", BoundRole::Comparison),
++        ("11", BoundRole::Limiter),
++        ("12", BoundRole::Limiter),
++        ("26", BoundRole::Limiter),
++        ("14", BoundRole::Limiter),
++        ("15", BoundRole::Limiter),
++        ("16", BoundRole::Limiter),
++        ("17", BoundRole::Limiter),
++        ("24", BoundRole::Comparison),
++        ("18", BoundRole::SizeArgument),
++        ("19", BoundRole::SizeArgument),
++        ("27", BoundRole::SizeArgument),
++        ("MAX_ITEMS", BoundRole::Named),
++        ("CAPACITY", BoundRole::Named),
++        ("MAX_ITEMS", BoundRole::Named),
++        ("21", BoundRole::SizeArgument),
++        ("22", BoundRole::SizeArgument),
++    ];
++    let starts: Vec<_> = sites.iter().map(|bound| bound.start_byte).collect();
++    assert_eq!(
++        sites.len(),
++        expected.len(),
++        "{starts:?}\n{:?}",
++        observed.findings()
++    );
++    for (site, (text, role)) in sites.iter().zip(expected) {
++        assert!(SOURCE[site.start_byte..].starts_with(text), "{site:?}");
++        let roles = if text == "MAX_ITEMS" {
++            vec![role, BoundRole::Comparison]
++        } else {
++            vec![role]
++        };
++        assert_eq!(site.roles.iter().copied().collect::<Vec<_>>(), roles);
++        assert_eq!(site.classification, None);
++    }
++    assert_eq!(observed.findings().len(), sites.len());
++    assert_ne!(sites[1].key, sites[2].key);
++    assert_eq!(sites[1].line, sites[2].line);
++    assert_eq!(check(SOURCE, base(), None).numeric_bounds(), []);
++    let with_home = check(
++        &format!("{SOURCE}\npub use intake as alias;"),
++        registry(job(true), "strict"),
++        None,
++    );
++    assert_eq!(with_home.numeric_bounds(), sites);
++    assert_eq!(with_home.findings(), observed.findings());
++
++    let classified = |anchor| {
++        let mut graph = registry(base(), "strict");
++        for (index, site) in sites.iter().enumerate() {
++            let id = format!("#bound-{index}");
++            let class = match index {
++                0 => "sanctioned",
++                1 => "experimental",
++                _ => "structural",
++            };
++            row(&mut graph, &id, &site.key.to_hex(), class);
++            if class == "sanctioned" {
++                sanction(&mut graph, &id, anchor);
++            }
++        }
++        graph
++    };
++    let anchor = "urn:raf:code:demo%3A%3Aintake";
++    let clean = check(SOURCE, classified(anchor), None);
++    assert!(clean.is_clean(), "{:?}", clean.findings());
++    assert!(matches!(
++        clean.numeric_bounds()[0].classification,
++        Some(BoundClassification::Sanctioned { .. })
++    ));
++    let wrong_anchor = check(SOURCE, classified("urn:raf:code:demo%3A%3ACAPACITY"), None);
++    assert_eq!(wrong_anchor.findings().len(), 1);
++    assert!(wrong_anchor.findings()[0].contains("documented source item"));
++    let removed = SOURCE.replace("items.truncate(12)", "items.capacity()  ");
++    let stale = check(&removed, classified(anchor), None);
++    assert_eq!(stale.findings().len(), 1, "{:?}", stale.findings());
++    assert!(stale.findings()[0].contains(&format!(
++        "stale numeric bound siteKey {}",
++        sites[2].key.to_hex()
++    )));
++}
++
++/// Counted roles live independently of their exact ledger keys and job exemptions.
++#[test]
++fn numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_movement() {
++    let graph = || registry(base(), "ratcheted");
++    let source =
++        "pub fn cap(items: &mut Vec<u8>) { if items.len() > 5 { return; } items.truncate(7); }";
++    let adopted = check(source, graph(), None);
++    assert_eq!(adopted.debt().ratcheted().len(), 3);
++    assert!(
++        adopted
++            .findings()
++            .iter()
++            .any(|finding| finding.contains("adopt the newly ratcheted rule"))
++    );
++    let record = adopted.debt().to_turtle().unwrap();
++    let moved = check(&format!("\n{source}"), graph(), Some(&record));
++    assert!(moved.is_clean(), "{:?}", moved.findings());
++    assert_eq!(moved.debt().to_turtle().unwrap(), record);
++    assert_ne!(
++        moved.numeric_bounds()[0].key,
++        adopted.numeric_bounds()[0].key
++    );
++    assert_eq!(adopted.debt().sites().values().copied().sum::<usize>(), 4);
++    let growth = source.replace("truncate(7);", "truncate(7); items.truncate(7);");
++    let growth = check(&growth, graph(), Some(&record));
++    assert_eq!(growth.findings().len(), 2, "{:?}", growth.findings());
++    assert!(
++        growth
++            .findings()
++            .iter()
++            .all(|row| row.contains("growth cannot be recorded"))
++    );
++    let mut classified = graph();
++    row(
++        &mut classified,
++        "#one",
++        &adopted.numeric_bounds()[0].key.to_hex(),
++        "structural",
++    );
++    let shrink = check(source, classified, Some(&record));
++    assert_eq!(shrink.findings().len(), 1, "{:?}", shrink.findings());
++    assert!(shrink.findings()[0].contains("numeric-bound-unclassified"));
++    assert_eq!(shrink.debt().sites().values().copied().sum::<usize>(), 3);
++
++    let comparison_only = source.replace("items.truncate(7);", "");
++    let no_truncation = check(&comparison_only, graph(), None);
++    assert!(
++        no_truncation
++            .debt()
++            .ratcheted()
++            .contains("numeric-bound-truncating")
++    );
++    assert!(
++        !no_truncation
++            .debt()
++            .sites()
++            .keys()
++            .any(|site| site.rule().as_str() == "numeric-bound-truncating")
++    );
++    let dormant_record = no_truncation.debt().to_turtle().unwrap();
++    let new_truncation = check(source, graph(), Some(&dormant_record));
++    assert!(new_truncation.findings().iter().any(|finding| {
++        finding.contains("numeric-bound-truncating")
++            && finding.contains("growth cannot be recorded")
++    }));
++}
++
++/// A registry may authorize only one well-formed classification at each physical key.
++#[test]
++fn numeric_registry_refuses_duplicate_sites_and_incomplete_justification() {
++    let parse = |graph: Builder| {
++        Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())
++    };
++    assert!(parse(vocabulary()).is_ok());
++    let mut duplicate = vocabulary();
++    row(&mut duplicate, "#again", &"a".repeat(64), "structural");
++    assert!(
++        parse(duplicate)
++            .unwrap_err()
++            .to_string()
++            .contains("numeric bound")
++    );
++    let mut ungrounded = registry(base(), "strict");
++    row(&mut ungrounded, "#one", &"a".repeat(64), "sanctioned");
++    put(
++        &mut ungrounded,
++        "#one",
++        "reason",
++        Term::simple_literal("Policy limit"),
++    );
++    assert!(
++        parse(ungrounded)
++            .unwrap_err()
++            .to_string()
++            .contains("anchor")
++    );
++}
++
++/// A shared source literal counts once, while named operands retain every proved declaration.
++#[test]
++fn numeric_size_arguments_require_agreement_at_shared_physical_sites() {
++    let ledger = registry(base(), "strict")
++        .finish()
++        .unwrap()
++        .to_text(Format::Turtle)
++        .unwrap();
++    let check = |right| {
++        let tree = MemoryTree::from([
++            (
++                "Cargo.toml",
++                "[package]\nname='demo'\nversion='0.1.0'\nedition='2024'\n",
++            ),
++            ("src/lib.rs", "mod left; mod right;"),
++            (
++                "src/left.rs",
++                "#[path=\"shared.rs\"] mod shared; fn configure(size: usize) {} const MAX_ITEMS: usize = 3;",
++            ),
++            ("src/right.rs", right),
++            (
++                "src/shared.rs",
++                "pub fn intake(count: usize) { let _ = count > super::MAX_ITEMS; super::configure(67); }",
++            ),
++            ("helpers-ledger.ttl", ledger.as_str()),
++        ]);
++        Gate::workspace(".").check_tree(&tree)
++    };
++    let agreed = check("#[path=\"shared.rs\"] mod shared; fn configure(limit: usize) {} const MAX_ITEMS: usize = 7;").unwrap();
++    assert_eq!(agreed.numeric_bounds().len(), 3, "{:?}", agreed.findings());
++    assert_eq!(
++        agreed
++            .numeric_bounds()
++            .iter()
++            .filter(|site| site.roles.contains(&BoundRole::Comparison))
++            .count(),
++        2
++    );
++    let conflict =
++        check("#[path=\"shared.rs\"] mod shared; fn configure(index: usize) {} const MAX_ITEMS: usize = 7;").unwrap_err();
++    assert!(
++        conflict
++            .to_string()
++            .contains("changes across source definitions"),
++        "{conflict}"
++    );
++}
++
++/// Retained argument slots spend the matching grant even without call hits.
++#[test]
++fn numeric_inventory_refuses_a_signature_beyond_the_state_grant() {
++    let source = "pub fn configure(a: usize, b: usize, c: usize, d: usize, size: usize) {}";
++    let check = |source, states| {
++        Gate::workspace(".")
++            .matching_limits(purrdf_jsonschema::ecma::MatchLimits {
++                states,
++                ..Default::default()
++            })
++            .check_tree(&super::tree(source, registry(base(), "strict"), 0))
++    };
++    let refused = check(source, 5).unwrap_err();
++    assert!(
++        refused
++            .to_string()
++            .contains("numeric bounds inventory state limit exhausted"),
++        "{refused}"
++    );
++    assert!(check(source, 6).unwrap().is_clean());
++    let ordinary = source.replace("size:", "label:");
++    assert!(check(&ordinary, 5).unwrap().is_clean());
++}
+diff --git crates/raf-census/tests/reports.rs crates/raf-census/tests/reports.rs
+index bbad243d..06ff29c4 100644
+--- crates/raf-census/tests/reports.rs
++++ crates/raf-census/tests/reports.rs
+@@ -1125,24 +1125,13 @@ fn an_absolute_directory_reports_the_same_as_the_relative_spelling() {
+     );
+ }
+ 
+-/// A ledger with one node of every engine-owned Ledger class and a grouping
+-/// scope on its root. The job's extension root reaches one consumer node.
+-fn declared_ledger() -> String {
++/// Two ledgers cover every engine-owned class. The legacy layout neighbor
++/// retains its grouping scope and consumer-owned extension.
++fn declared_ledgers() -> [String; 2] {
+     let text = TermValue::simple_literal;
+     let link = TermValue::iri;
+     let consumer = |name: &str| format!("https://consumer.example/{name}");
+-    let facts = [
+-        ("", "type", property("Ledger")),
+-        (
+-            "",
+-            "normalForm",
+-            TermValue::integer(i128::from(raf_census::NORMAL_FORM)),
+-        ),
+-        (
+-            "",
+-            "reportForm",
+-            TermValue::integer(i128::from(raf_census::REPORT_FORM)),
+-        ),
++    let prior = [
+         ("", "excludeTestItems", TermValue::boolean(true)),
+         ("", "excludeDir", text("generated")),
+         ("", "job", link("#job")),
+@@ -1203,8 +1192,39 @@ fn declared_ledger() -> String {
+         ("#distinct/a", "symbol", text("demo::a")),
+         ("#distinct/a", "copies", TermValue::integer(2)),
+     ];
++    let numeric = [
++        ("", "numericBounds", link("#bounds")),
++        ("#bounds", "type", property("NumericBounds")),
++        ("#bounds", "mode", text("strict")),
++        ("#bounds", "bound", link("#limit")),
++        ("#limit", "type", property("NumericBound")),
++        ("#limit", "file", text("src/lib.rs")),
++        (
++            "#limit",
++            "siteKey",
++            text("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
++        ),
++        ("#limit", "classification", text("structural")),
++    ];
++    [ledger_from_facts(prior), ledger_from_facts(numeric)]
++}
++
++fn ledger_from_facts<'a>(facts: impl IntoIterator<Item = (&'a str, &'a str, TermValue)>) -> String {
++    let header = [
++        ("", "type", property("Ledger")),
++        (
++            "",
++            "normalForm",
++            TermValue::integer(i128::from(raf_census::NORMAL_FORM)),
++        ),
++        (
++            "",
++            "reportForm",
++            TermValue::integer(i128::from(raf_census::REPORT_FORM)),
++        ),
++    ];
+     let mut graph = Builder::new();
+-    for (node, key, object) in facts {
++    for (node, key, object) in header.into_iter().chain(facts) {
+         let predicate = match key {
+             "type" => TermValue::iri(vocab::TYPE),
+             _ if key.starts_with("https:") => TermValue::iri(key),
+@@ -1386,7 +1406,7 @@ fn every_report_reader_refuses_a_property_outside_its_vocabulary_by_name() {
+     let unknown = [(added.as_str(), "excludeVendoredItems"), (foreign, foreign)];
+     let mut records = census_vocabulary_reports();
+     records.extend(reference_queries());
+-    records.push(declared_ledger());
++    records.extend(declared_ledgers());
+     let mut per_format = Vec::new();
+     for format in [Format::Turtle, Format::NTriples] {
+         // One injection per reader and node class, and one layout conversion
+diff --git docs/architecture/normal-form.md docs/architecture/normal-form.md
+index dddcf556..0f7d2c9c 100644
+--- docs/architecture/normal-form.md
++++ docs/architecture/normal-form.md
+@@ -505,10 +505,18 @@ same framing of the first ordinary or raw string literal that starts at or after
+ the site inside that item. Line numbers and byte offsets are never hashed.
+ The node name is `#site/<rule>/<key>@<file>`, and the reader recomputes it. A
+ record with no ratcheted rule writes neither a `ratchetedRule` nor a `SiteDebt`. A rule
+-id names a ratcheted pattern, built-in detector or registered rule alike, so rules add
+-no property to the record. A registered or fact-detector hit states a line, and its
++id names a ratcheted pattern, built-in detector, registered rule or numeric
++guard. A registered or fact-detector hit states a line, and its
+ site uses the first literal at or after the start of that line inside the item.
+ 
++Numeric guards frame the canonical file path in place of the enclosing symbol
++and leave the literal absent. Each file and rule therefore retains a count
++across line movement and added module reaches. The Ledger's optional numeric
++bounds registry uses an exact locator in a separate BLAKE3 domain. Its key
++hashes `raf-census/numeric-bound/v1`, the framed byte offset as a little-endian
++unsigned 128-bit integer, and the framed written source context. The registry
++and numeric guards leave the earlier report bytes intact when absent.
++
+ ## Version-bump rule
+ 
+ The current Census report form is 5. The explicit native layout conversion
+diff --git docs/capabilities/census-debt-ratchet.md docs/capabilities/census-debt-ratchet.md
+index 3590862c..7225bf2e 100644
+--- docs/capabilities/census-debt-ratchet.md
++++ docs/capabilities/census-debt-ratchet.md
+@@ -24,6 +24,7 @@ bindings:
+     - raf_census::gate::ratchet
+     - raf_census::DEBT_FILE
+     - raf_census::MAX_DEBT_BYTES
++    - raf_census::gate::bounds
+   tests:
+     - raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures
+     - cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target
+@@ -52,6 +53,7 @@ bindings:
+     - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
+     - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
+     - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
++    - raf_census::test_crate::census_gate::numeric_bounds::numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_movement
+   examples:
+     - raf_census::example_crate::debt
+ depends: [cap:census-normal-form, cap:census-ledger, cap:rdf-report-profile]
+@@ -120,7 +122,7 @@ number of hits that share it. The record names every ratcheted rule in
+ ratchetedRule, so a rule whose hits are all burned down stays recorded and a new
+ hit of it is growth. A `DebtSite` names the file, the rule and a `SiteKey`.
+ 
+-The site key is a BLAKE3-256 digest of the symbol of the enclosing source item
++For a pattern or job rule, the site key is a BLAKE3-256 digest of the enclosing source symbol
+ and the first ordinary or raw string literal at or after the hit inside that item
+ (none when no literal follows the hit in that item). Line numbers and byte offsets are never
+ hashed, so inserting lines above a recorded site leaves the record
+@@ -132,6 +134,19 @@ case the key does not separate: they may swap places with no change to the recor
+ scan shares the lexical walk of literalRegex and is charged to the same matching
+ grant; exceeding a bound refuses and never truncates.
+ 
++The Ledger's ratcheted numeric bounds inventory contributes three independent
++guards through the same counted record. The numeric-bound-refusing guard
++counts distinct sites observed in comparisons against length or count. The
++numeric-bound-truncating guard counts distinct sites observed in limiting
++operations. The numeric-bound-unclassified guard counts sites without a
++classification row. A named declaration can have several roles and counts
++once for each role. Comparison and limiting roles count in every classification.
++Numeric debt keys use the canonical source file and leave the literal absent.
++They retain counts by rule across additional reaches and line movement.
++Exact ledger locators remain tied to the written occurrence.
++<!-- raf:tested-by raf_census::test_crate::census_gate::numeric_bounds::numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_movement -->
++
++
+ A ratcheted rule is a built-in detector or a registered rule that the same
+ enforced job forbids with a rule fingerprint and names in ratchetedRule. It is
+ held by the same record, keys and comparisons as a pattern. Built-in syntax
+@@ -157,8 +172,9 @@ record carries no unused allowance. A forbidden rule or pattern keeps its hard
+ failure and cannot be adopted as debt. A record with no ratcheted rule writes no
+ ratchetedRule and no SiteDebt, so its bytes are unchanged. `DebtWrite` reports
+ the number of distinct recorded site rows, and its summary line names them only
+-when there are any. Growth findings name the file, line, enclosing symbol and summary
+-of the hit.
++when there are any. Growth findings for patterns and job rules name the file,
++line, enclosing symbol and summary. Numeric growth findings name the file,
++line, byte offset, roles and exact ledger site key.
+ 
+ ### Exclusive writer coordination
+ <!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records,cargo_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records -->
+@@ -196,7 +212,9 @@ Gate::write_debt and cargo census debt --write use ordinary evaluation;
+ Gate::write_debt_locked uses configured locked evaluation. Both Gate writers
+ share one ratchet and publication path. Non-debt findings prevent every write. Registered rules or nonempty
+ extensions require a repository's registered Gate; the built-in CLI exits 2
+-naming Gate::write_debt rather than skipping them. Required callbacks cannot be omitted from the debt evaluation. A current-version record can only stay equal or shrink.
++naming Gate::write_debt. Required callbacks remain part of the debt evaluation.
++An existing record can adopt a newly ratcheted rule. Once adopted, its counted
++sites can only stay equal or shrink.
+ 
+ 
+ Registered policy is supplied directly to the library Gate through its rule and
+@@ -386,6 +404,7 @@ or execution of an external native implementation.
+ | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+ | `raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |
++| `raf_census::test_crate::census_gate::numeric_bounds::numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_movement` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
+ | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
+diff --git docs/capabilities/census-detectors.md docs/capabilities/census-detectors.md
+index 6bfb9d12..475f0024 100644
+--- docs/capabilities/census-detectors.md
++++ docs/capabilities/census-detectors.md
+@@ -12,6 +12,8 @@ bindings:
+     - raf_census::gate::context
+     - raf_census::gate::subjects
+     - raf_census::Unit::string_initializer
++    - raf_census::gate::bounds
++    - raf_census::BoundRole
+   tests:
+     - raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures
+     - raf_census::test_crate::census_gate::enum_arms::enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes
+@@ -37,6 +39,9 @@ bindings:
+     - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
+     - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
+     - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
++    - raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs
++    - raf_census::test_crate::census_gate::numeric_bounds::numeric_size_arguments_require_agreement_at_shared_physical_sites
++    - raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_refuses_a_signature_beyond_the_state_grant
+   examples:
+     - raf_census::example_crate::providers
+ depends: [cap:census-normal-form]
+@@ -61,6 +66,49 @@ registry and behavioral cases must agree before the suite can pass.
+ 
+ ## Contract
+ 
++### Numeric bounds inventory
++
++A Ledger with a [numeric bounds registry](./census-ledger.md#numeric-bounds-classification)
++inventories physical sites in the first-party files selected for Census. Jobs,
++homes, variants and grouping exclusions leave those sites in the inventory.
++The detector reads written Rust and counts each qualifying token once, even
++when several source contexts reach it.
++
++- A numeric const, static or associated const qualifies when its name contains
++  one of the underscore-separated words max, limit, cap, budget, bound or
++  capacity, ignoring ASCII case. A written primitive numeric type or a
++  numeric literal initializer supplies the numeric evidence.
++- A direct integer operand qualifies in a comparison against an expression
++  named with len, length or count. The measure can be a path, a field, a path
++  call or a zero-argument method call. Arithmetic around the operand leaves it
++  outside this comparison rule.
++- A direct integer operand qualifies in an argument position that limits
++  truncate, take, min or clamp. The rule reads method calls and calls with the
++  corresponding written path and argument count. It reads both extrema of
++  clamp and both arguments to a two-argument min call.
++- A direct integer argument qualifies for a parameter whose name has size, len,
++  length, count, capacity, limit, max, cap, budget or bound as a word. The
++  parameter must be one simple binding in an indexed signature. Receivers,
++  wildcards and destructured arguments retain their slots. Variadic signatures
++  and conditionally compiled parameters supply no size evidence. Each reading
++  context must establish a callable signature and agree that the actual
++  argument occupies a size-named slot. Lexical bindings can shadow callables.
++  Indexed function and associated paths can supply the evidence, including
++  resolved imports. An inherent dot call on self can also supply it when the
++  written receiver modes agree.
++
++Parentheses and signed integer literals are admitted.
++A positively resolved named operand adds the observed comparison or limiter
++role to its existing declaration. A call whose reading contexts disagree on
++a literal size slot fails with the argument number and source location.
++An unresolved callable or dynamic dispatch
++supplies no size-parameter evidence. Comparison and limiter observations
++describe written syntax. They supply no control-flow or method type proof.
++The scanner reads macro arguments that parse as an expression list or a
++statement list. Macro expansion provides no evidence.
++The gate uses the shared source and matching limits and refuses exhaustion.
++<!-- raf:tested-by raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs,raf_census::test_crate::census_gate::numeric_bounds::numeric_size_arguments_require_agreement_at_shared_physical_sites,raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_refuses_a_signature_beyond_the_state_grant -->
++
+ ### Required representation policies
+ <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
+ 
+@@ -390,23 +438,19 @@ self-Census makes this selection for the real snapshot and its mutation
+ fixtures. Other detectors retain their documented source eligibility.
+ <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
+ 
+-A job forbids a detector by listing its fingerprint. Serialize its graph with
+-the [native report writer](./rdf-report-profile.md), which computes the snapshot
+-BASE and canonical bytes. This complete ledger is native writer output:
++A job forbids a detector by listing its fingerprint. Add the selection to the
++job's node in the ledger graph and serialize the graph with the
++[native report writer](./rdf-report-profile.md) to compute the snapshot BASE
++and canonical bytes. The following job selects the ceiling-division detector.
+ 
+ ```turtle
+-VERSION "1.2"
+-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/30b0289c5affe30deea1d0581eed949178d1fc783e0d9ce69a3b19b6e1543140>
+-<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
+-<> <https://blackcatinformatics.ca/raf/report/1#job> <#ceil-div> .
+-<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<#ceil-div> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LedgerJob> .
+-<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#enforced> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+-<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#forbiddenFingerprint> "rule:div-ceil-by-hand" .
+-<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#homeSymbol> "demo_util::math::ceil_div" .
+-<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#jobId> "ceil-div" .
+-<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#summary> "Ceiling division." .
++PREFIX raf: <https://blackcatinformatics.ca/raf/report/1#>
++<#ceil-div> a raf:LedgerJob ;
++    raf:jobId "ceil-div" ;
++    raf:summary "Ceiling division." ;
++    raf:enforced true ;
++    raf:homeSymbol "demo_util::math::ceil_div" ;
++    raf:forbiddenFingerprint "rule:div-ceil-by-hand" .
+ ```
+ 
+ The native ledger is read by `Gate::workspace(directory).check()` or by
+@@ -639,6 +683,9 @@ required findings with neighbouring clean source.
+ | `raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+ | `raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order` | test | [Contract](#contract) |
++| `raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs` | test | [Contract](#contract) |
++| `raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_refuses_a_signature_beyond_the_state_grant` | test | [Contract](#contract) |
++| `raf_census::test_crate::census_gate::numeric_bounds::numeric_size_arguments_require_agreement_at_shared_physical_sites` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector` | test | [Contract](#contract) |
+diff --git docs/capabilities/census-ledger.md docs/capabilities/census-ledger.md
+index 0ecfa64a..e55fdcfc 100644
+--- docs/capabilities/census-ledger.md
++++ docs/capabilities/census-ledger.md
+@@ -39,6 +39,9 @@ bindings:
+     - raf_census::MAX_LEDGER_BYTES
+     - raf_census::LEDGER_FILE
+     - raf_census::SYMBOL_ANCHOR_PREFIX
++    - raf_census::NumericBound
++    - raf_census::BoundClassification
++    - raf_census::GateReport::numeric_bounds
+   tests:
+     - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
+ 
+@@ -87,6 +90,8 @@ bindings:
+     - raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt
+     - raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner
+     - raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension
++    - raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs
++    - raf_census::test_crate::census_gate::numeric_bounds::numeric_registry_refuses_duplicate_sites_and_incomplete_justification
+   examples:
+     - raf_census::example_crate::debt
+     - raf_census::example_crate::providers
+@@ -196,6 +201,34 @@ refuses before job interpretation.
+ Unknown core properties, wrong classes, missing required values, invalid
+ cardinalities and unowned nodes refuse. Input is at most one MiB.
+ 
++### Numeric bounds classification
++
++The optional Ledger property `numericBounds` links one owned `NumericBounds`
++node. Its mode string is required and is either strict or ratcheted. It links
++zero or more owned `NumericBound` nodes through `bound`. Each row requires a
++canonical workspace-relative file, a siteKey of 64 lowercase hexadecimal
++digits and one classification string. The classifications are structural for
++a format or protocol requirement, sanctioned for a justified policy choice,
++and experimental for an experiment. Only sanctioned requires and admits a
++nonblank reason and a documented source anchor IRI. Duplicate physical keys
++and unowned or unexpected properties fail ledger validation.
++
++The [detector](./census-detectors.md#numeric-bounds-inventory) counts physical
++sites independently of jobs. `GateReport::numeric_bounds` exposes each site's
++classification, role evidence and exact locator. In strict mode, each site
++without a row is a finding that prints its file, line, byte offset and siteKey.
++Use its file and siteKey to author the classification row. The exact key
++identifies the token's byte offset and its written declaration, comparison or
++call. Editing that evidence or moving the site can require replacing its row.
++A row with no surviving site or a sanctioned row whose anchor fails to resolve
++is a finding in either mode. In ratcheted mode, the
++[debt record](./census-debt-ratchet.md#contract) holds unclassified counts and
++the observed comparison and limiting roles. Omit numericBounds to leave the
++inventory disabled.
++The three numeric guard IDs are reserved for this registry. Job matchers,
++variants, patterns and required or registered rules use other IDs.
++<!-- raf:tested-by raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs,raf_census::test_crate::census_gate::numeric_bounds::numeric_registry_refuses_duplicate_sites_and_incomplete_justification -->
++
+ ### Source classification and exact sanctions
+ <!-- raf:tested-by raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once,raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package,raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it,raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction,raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor -->
+ 
+@@ -538,6 +571,8 @@ the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise de
+ | `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path` | test | [Contract](#contract) |
++| `raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs` | test | [Contract](#contract) |
++| `raf_census::test_crate::census_gate::numeric_bounds::numeric_registry_refuses_duplicate_sites_and_incomplete_justification` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
+diff --git docs/capabilities/census-patterns.md docs/capabilities/census-patterns.md
+index 1ee05d05..1b468da0 100644
+--- docs/capabilities/census-patterns.md
++++ docs/capabilities/census-patterns.md
+@@ -84,7 +84,8 @@ first-party scope.
+ <!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
+ 
+ **Closed declarations.** A ledger links each Pattern through raf:pattern. A declaration has a unique
+-raf:patternId, one-line raf:summary and exactly one matcher:
++raf:patternId, one-line raf:summary and exactly one matcher. The numeric
++inventory reserves its three guard IDs for the Ledger's numeric bounds registry.
+ 
+ | Matcher | Observation |
+ | --- | --- |
+@@ -108,8 +109,8 @@ bench, an example and a build script are silent. A module-level macro invocation
+ unscoped pattern reports exactly as before. Unknown kind names, a kind both included and excluded,
+ a scope that admits no target kind, an include prefix inside an exclude prefix, a path that is
+ absolute, above the root or the root itself, and raf:shippingOnly stated as false refuse at ledger
+-load with the property to change. A referenced pattern whose every occurrence is out of scope is
+-stale for an enforced job.
++load with the property to change. A referenced pattern whose every occurrence
++is out of scope is stale for an enforced job unless the pattern is ratcheted.
+ <!-- raf:tested-by raf_census::test_crate::census_gate::ratchet::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts,raf_census::test_crate::census_gate::ratchet::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits,raf_census::test_crate::census_gate::ratchet::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it,raf_census::test_crate::census_gate::ratchet::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour,raf_census::test_crate::census_gate::ratchet::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation,raf_census::test_crate::census_gate::ratchet::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched -->
+ 
+ Documentation comments are prose, not written string literals; literal matching
+@@ -117,7 +118,7 @@ excludes their desugared leaves. Explicit `#[doc = "..."]` attributes remain
+ ordinary string literals.
+ <!-- raf:tested-by raf_census::test_crate::census_gate::literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes -->
+ 
+-**Ratcheted patterns.** A pattern may state raf:ratcheted, only as true. Its hits are then not findings: each is recorded in the debt record as a counted site keyed by file, rule and a site key (see the debt ratchet), and the generic copy finding for the matched unit is suppressed only when the ratcheted pattern alone explains the match; a unit that is also a copy through a forbidden constant, a forbidden structural fingerprint or a non-ratcheted rule still fails. A ratcheted pattern with no hit stays a recorded guard rather than going stale. Every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; `ratcheted` stated as false, stated twice or stated for a pattern whose job is unenforced refuses at ledger load, and a pattern that does not state it is forbidden and keeps its hard failure. A literalRegex hit is keyed on its own literal. A job may hold a built-in detector or registered rule to the same record through ratchetedRule (see the ledger and rule-API capabilities); that is the only way to ratchet a rule, and a pattern never uses it.
++**Ratcheted patterns.** A pattern may state raf:ratcheted, only as true. Its hits are then not findings: each is recorded in the debt record as a counted site keyed by file, rule and a site key (see the debt ratchet), and the generic copy finding for the matched unit is suppressed only when the ratcheted pattern alone explains the match; a unit that is also a copy through a forbidden constant, a forbidden structural fingerprint or a non-ratcheted rule still fails. A ratcheted pattern with no hit stays a recorded guard rather than going stale. Every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; `ratcheted` stated as false, stated twice or stated for a pattern whose job is unenforced refuses at ledger load, and a pattern that does not state it is forbidden and keeps its hard failure. A literalRegex hit is keyed on its own literal. A job may hold a built-in detector or registered rule to the same record through ratchetedRule (see the ledger and rule-API capabilities). The property selects a rule forbidden by that job.
+ <!-- raf:tested-by raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence -->
+ 
+ **Validated references.** Patterns share the RuleId namespace with built-ins and registered rules. Missing,
+diff --git docs/capabilities/rdf-report-profile.md docs/capabilities/rdf-report-profile.md
+index 36067992..636e4c84 100644
+--- docs/capabilities/rdf-report-profile.md
++++ docs/capabilities/rdf-report-profile.md
+@@ -204,11 +204,13 @@ unchanged to the consumer's validator, so they carry no engine vocabulary.
+ 
+ | Census Ledger class | Properties and object types |
+ |---|---|
+-| `Ledger` | `normalForm`, `reportForm` version integers; optional `minTokens` positive integer and `maxFileBytes` nonnegative integer; optional `excludeTestItems` boolean, stated only as true; repeated `excludeDir` directory-name strings, which leave excluded units out of body and shim grouping only; repeated `root`, `reference` strings; `job`, `distinct`, `pattern` links to owned declarations |
++| `Ledger` | `normalForm`, `reportForm` version integers; optional `minTokens` positive integer and `maxFileBytes` nonnegative integer; optional `excludeTestItems` boolean, stated only as true; repeated `excludeDir` directory-name strings, which leave excluded units out of body and shim grouping only; repeated `root`, `reference` strings; `job`, `distinct`, `pattern` links to owned declarations and optional `numericBounds` link to one owned registry |
+ | `LedgerJob` | `jobId`, `summary`, `homeSymbol` strings; `enforced` boolean; repeated `entryPoint`, `forbiddenName`, `forbiddenFingerprint`, `forbiddenPattern`, `ratchetedRule`, `vectorPath` and `benchTarget` strings, one optional `specRef` string, and `forbiddenConstant` unsigned integer values; `variant`, `extension`, `preferredProvider` links to owned declarations |
+ | `Variant` | `symbol`, `file`, `detector`, `criterion`, `reason` strings; `anchor` documentation IRI |
+ | `Distinct` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members; `kind` string body or shim; `criterion`, `reason` strings; `anchor` documentation IRI |
+ | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
++| `NumericBounds` | `mode` string strict or ratcheted; repeated `bound` links to owned rows |
++| `NumericBound` | `file`, `siteKey`, `classification` strings; sanctioned rows require a `reason` string and `anchor` documentation IRI |
+ | `Pattern` | `patternId`, `summary` strings; exactly one matcher string: `call`, `path`, `macro`, `typePath`, `literalRegex` or `tokens`; optional scope: repeated `targetKind`, `excludeTargetKind` strings (lib, bin, test, bench, example or buildScript), repeated `includePath`, `excludePath` workspace-relative path strings, `shippingOnly` stated only as boolean true; and optional `ratcheted`, stated only as boolean true |
+ | `PreferredProvider` | `package` string; repeated nonempty `entryPoint`, `consumer` strings |
+ | `Extension` | Consumer-owned content; no additional engine-owned properties |
+diff --git work/assessments/census-cli-constraints.md work/assessments/census-cli-constraints.md
+index 4450a323..83d043bd 100644
+--- work/assessments/census-cli-constraints.md
++++ work/assessments/census-cli-constraints.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
+   - kind: symbol
+     name: raf_census::selftest
+-    digest: 4fa8c93a24c432c7d4ec2677195e5981fce32c504853c5b24347ef6c959fa812
++    digest: a1508e92b1f2082e3f988cbcc3a21bac5b74e30908ea72c62552539f77f18f75
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-cli-examples.md work/assessments/census-cli-examples.md
+index 12eeed8c..0c9a02fe 100644
+--- work/assessments/census-cli-examples.md
++++ work/assessments/census-cli-examples.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
+   - kind: symbol
+     name: raf_census::selftest
+-    digest: 4fa8c93a24c432c7d4ec2677195e5981fce32c504853c5b24347ef6c959fa812
++    digest: a1508e92b1f2082e3f988cbcc3a21bac5b74e30908ea72c62552539f77f18f75
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-cli-explanation.md work/assessments/census-cli-explanation.md
+index 76753bf8..bda661e9 100644
+--- work/assessments/census-cli-explanation.md
++++ work/assessments/census-cli-explanation.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
+   - kind: symbol
+     name: raf_census::selftest
+-    digest: 4fa8c93a24c432c7d4ec2677195e5981fce32c504853c5b24347ef6c959fa812
++    digest: a1508e92b1f2082e3f988cbcc3a21bac5b74e30908ea72c62552539f77f18f75
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-cli-purpose.md work/assessments/census-cli-purpose.md
+index b5534395..d7f0b417 100644
+--- work/assessments/census-cli-purpose.md
++++ work/assessments/census-cli-purpose.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
+   - kind: symbol
+     name: raf_census::selftest
+-    digest: 4fa8c93a24c432c7d4ec2677195e5981fce32c504853c5b24347ef6c959fa812
++    digest: a1508e92b1f2082e3f988cbcc3a21bac5b74e30908ea72c62552539f77f18f75
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-cli-verification.md work/assessments/census-cli-verification.md
+index 39b6c298..cd358324 100644
+--- work/assessments/census-cli-verification.md
++++ work/assessments/census-cli-verification.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
+   - kind: symbol
+     name: raf_census::selftest
+-    digest: 4fa8c93a24c432c7d4ec2677195e5981fce32c504853c5b24347ef6c959fa812
++    digest: a1508e92b1f2082e3f988cbcc3a21bac5b74e30908ea72c62552539f77f18f75
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-debt-ratchet-constraints.md work/assessments/census-debt-ratchet-constraints.md
+index 2b3f54f6..d72b9599 100644
+--- work/assessments/census-debt-ratchet-constraints.md
++++ work/assessments/census-debt-ratchet-constraints.md
+@@ -37,16 +37,19 @@ inputs:
+     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
+   - kind: symbol
+     name: raf_census::SiteKey
+-    digest: 1de89ed80944c05d8deb51b94d07b08da613a475900dc1d20a2f1f68b74ec5bd
++    digest: 57710d01b243fe79234cfd79cd29bc0454c829e4101fe398e05cad605add2519
+   - kind: symbol
+     name: raf_census::gate::Gate::evaluate_locked
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::Gate::write_debt_with
+     digest: cc3320f0acdf6398ea6ecb2e75be7a907ae578cfd63c2023370041617718c93c
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::gate::read_debt
+     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
+diff --git work/assessments/census-debt-ratchet-contract.md work/assessments/census-debt-ratchet-contract.md
+index 9ef8d750..7328a7e6 100644
+--- work/assessments/census-debt-ratchet-contract.md
++++ work/assessments/census-debt-ratchet-contract.md
+@@ -7,7 +7,7 @@ subject: cap:census-debt-ratchet#contract
+ inputs:
+   - kind: section
+     name: cap:census-debt-ratchet#contract
+-    digest: e2e051eb23c3c95c093b2ef05c09ff18df8513eab5a246d70e10ad1ab0c5c5ad
++    digest: 44d7c30aa23bb1144b20779f7f234bf1ced19210279ce312602178279c1d1ab6
+   - kind: symbol
+     name: raf_census::DEBT_FILE
+     digest: 12ca19be3fbb9901282949df239635101deb59bd25e6d5092aa5492478c3ccbb
+@@ -37,16 +37,19 @@ inputs:
+     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
+   - kind: symbol
+     name: raf_census::SiteKey
+-    digest: 1de89ed80944c05d8deb51b94d07b08da613a475900dc1d20a2f1f68b74ec5bd
++    digest: 57710d01b243fe79234cfd79cd29bc0454c829e4101fe398e05cad605add2519
+   - kind: symbol
+     name: raf_census::gate::Gate::evaluate_locked
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::Gate::write_debt_with
+     digest: cc3320f0acdf6398ea6ecb2e75be7a907ae578cfd63c2023370041617718c93c
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::gate::read_debt
+     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
+diff --git work/assessments/census-debt-ratchet-examples.md work/assessments/census-debt-ratchet-examples.md
+index e9da0ad5..0f5538b5 100644
+--- work/assessments/census-debt-ratchet-examples.md
++++ work/assessments/census-debt-ratchet-examples.md
+@@ -37,16 +37,19 @@ inputs:
+     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
+   - kind: symbol
+     name: raf_census::SiteKey
+-    digest: 1de89ed80944c05d8deb51b94d07b08da613a475900dc1d20a2f1f68b74ec5bd
++    digest: 57710d01b243fe79234cfd79cd29bc0454c829e4101fe398e05cad605add2519
+   - kind: symbol
+     name: raf_census::gate::Gate::evaluate_locked
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::Gate::write_debt_with
+     digest: cc3320f0acdf6398ea6ecb2e75be7a907ae578cfd63c2023370041617718c93c
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::gate::read_debt
+     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
+diff --git work/assessments/census-debt-ratchet-explanation.md work/assessments/census-debt-ratchet-explanation.md
+index 7f08b13f..3f999e3a 100644
+--- work/assessments/census-debt-ratchet-explanation.md
++++ work/assessments/census-debt-ratchet-explanation.md
+@@ -37,16 +37,19 @@ inputs:
+     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
+   - kind: symbol
+     name: raf_census::SiteKey
+-    digest: 1de89ed80944c05d8deb51b94d07b08da613a475900dc1d20a2f1f68b74ec5bd
++    digest: 57710d01b243fe79234cfd79cd29bc0454c829e4101fe398e05cad605add2519
+   - kind: symbol
+     name: raf_census::gate::Gate::evaluate_locked
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::Gate::write_debt_with
+     digest: cc3320f0acdf6398ea6ecb2e75be7a907ae578cfd63c2023370041617718c93c
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::gate::read_debt
+     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
+diff --git work/assessments/census-debt-ratchet-purpose.md work/assessments/census-debt-ratchet-purpose.md
+index 01eb46e4..08a9b7c4 100644
+--- work/assessments/census-debt-ratchet-purpose.md
++++ work/assessments/census-debt-ratchet-purpose.md
+@@ -37,16 +37,19 @@ inputs:
+     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
+   - kind: symbol
+     name: raf_census::SiteKey
+-    digest: 1de89ed80944c05d8deb51b94d07b08da613a475900dc1d20a2f1f68b74ec5bd
++    digest: 57710d01b243fe79234cfd79cd29bc0454c829e4101fe398e05cad605add2519
+   - kind: symbol
+     name: raf_census::gate::Gate::evaluate_locked
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::Gate::write_debt_with
+     digest: cc3320f0acdf6398ea6ecb2e75be7a907ae578cfd63c2023370041617718c93c
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::gate::read_debt
+     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
+diff --git work/assessments/census-debt-ratchet-usage.md work/assessments/census-debt-ratchet-usage.md
+index 864b460f..d7eeb71e 100644
+--- work/assessments/census-debt-ratchet-usage.md
++++ work/assessments/census-debt-ratchet-usage.md
+@@ -37,16 +37,19 @@ inputs:
+     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
+   - kind: symbol
+     name: raf_census::SiteKey
+-    digest: 1de89ed80944c05d8deb51b94d07b08da613a475900dc1d20a2f1f68b74ec5bd
++    digest: 57710d01b243fe79234cfd79cd29bc0454c829e4101fe398e05cad605add2519
+   - kind: symbol
+     name: raf_census::gate::Gate::evaluate_locked
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::Gate::write_debt_with
+     digest: cc3320f0acdf6398ea6ecb2e75be7a907ae578cfd63c2023370041617718c93c
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::gate::read_debt
+     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
+diff --git work/assessments/census-debt-ratchet-verification.md work/assessments/census-debt-ratchet-verification.md
+index f38ff451..74b2d201 100644
+--- work/assessments/census-debt-ratchet-verification.md
++++ work/assessments/census-debt-ratchet-verification.md
+@@ -37,16 +37,19 @@ inputs:
+     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
+   - kind: symbol
+     name: raf_census::SiteKey
+-    digest: 1de89ed80944c05d8deb51b94d07b08da613a475900dc1d20a2f1f68b74ec5bd
++    digest: 57710d01b243fe79234cfd79cd29bc0454c829e4101fe398e05cad605add2519
+   - kind: symbol
+     name: raf_census::gate::Gate::evaluate_locked
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::Gate::write_debt_with
+     digest: cc3320f0acdf6398ea6ecb2e75be7a907ae578cfd63c2023370041617718c93c
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::gate::read_debt
+     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
+diff --git work/assessments/census-detectors-constraints.md work/assessments/census-detectors-constraints.md
+index 53d5809c..1803d481 100644
+--- work/assessments/census-detectors-constraints.md
++++ work/assessments/census-detectors-constraints.md
+@@ -8,12 +8,18 @@ inputs:
+   - kind: section
+     name: cap:census-detectors#constraints
+     digest: e1f7720f7942e7f0b28e3a7260a5b3a8e3e949472980547a238cb332563ef59e
++  - kind: symbol
++    name: raf_census::BoundRole
++    digest: d2fc1891daf1c9c75eb5144fcd301c1d24d31386c2f916f0a87f7ba5647d835c
+   - kind: symbol
+     name: raf_census::Unit::string_initializer
+     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
+   - kind: symbol
+     name: raf_census::detectors
+-    digest: f445d57fa0f65c4c8ee66ae595bc8b8541d09b255140ee05660f06c235ec1cea
++    digest: 3dae062dd6fa959e7c65f4be2dc9f77c4190ab4869372d0a997347f4ead160f7
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::context
+     digest: 1368fca0d384735849e01b30768e2e62d5b30b9a978c77ced2c60e274eda9ca8
+diff --git work/assessments/census-detectors-contract.md work/assessments/census-detectors-contract.md
+index aae9fc17..89dd185b 100644
+--- work/assessments/census-detectors-contract.md
++++ work/assessments/census-detectors-contract.md
+@@ -7,13 +7,19 @@ subject: cap:census-detectors#contract
+ inputs:
+   - kind: section
+     name: cap:census-detectors#contract
+-    digest: f4cc4e884f308960535463824b6dc8e8c8c0b87c5adb6791a903b315d839a738
++    digest: e8ddc80f8345c7929e343ab9a558dcfa4f63403f65af61dca1145eb65207b88a
++  - kind: symbol
++    name: raf_census::BoundRole
++    digest: d2fc1891daf1c9c75eb5144fcd301c1d24d31386c2f916f0a87f7ba5647d835c
+   - kind: symbol
+     name: raf_census::Unit::string_initializer
+     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
+   - kind: symbol
+     name: raf_census::detectors
+-    digest: f445d57fa0f65c4c8ee66ae595bc8b8541d09b255140ee05660f06c235ec1cea
++    digest: 3dae062dd6fa959e7c65f4be2dc9f77c4190ab4869372d0a997347f4ead160f7
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::context
+     digest: 1368fca0d384735849e01b30768e2e62d5b30b9a978c77ced2c60e274eda9ca8
+diff --git work/assessments/census-detectors-examples.md work/assessments/census-detectors-examples.md
+index 8f8cdb07..ec80d281 100644
+--- work/assessments/census-detectors-examples.md
++++ work/assessments/census-detectors-examples.md
+@@ -8,12 +8,18 @@ inputs:
+   - kind: section
+     name: cap:census-detectors#examples
+     digest: dce5c640dd7ecb010fc819609f6af4912e849f12462b4e12f1003775816bb7f6
++  - kind: symbol
++    name: raf_census::BoundRole
++    digest: d2fc1891daf1c9c75eb5144fcd301c1d24d31386c2f916f0a87f7ba5647d835c
+   - kind: symbol
+     name: raf_census::Unit::string_initializer
+     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
+   - kind: symbol
+     name: raf_census::detectors
+-    digest: f445d57fa0f65c4c8ee66ae595bc8b8541d09b255140ee05660f06c235ec1cea
++    digest: 3dae062dd6fa959e7c65f4be2dc9f77c4190ab4869372d0a997347f4ead160f7
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::context
+     digest: 1368fca0d384735849e01b30768e2e62d5b30b9a978c77ced2c60e274eda9ca8
+diff --git work/assessments/census-detectors-explanation.md work/assessments/census-detectors-explanation.md
+index aaed3082..54ccc291 100644
+--- work/assessments/census-detectors-explanation.md
++++ work/assessments/census-detectors-explanation.md
+@@ -8,12 +8,18 @@ inputs:
+   - kind: section
+     name: cap:census-detectors#explanation
+     digest: 0d7d5e6b8084239a6ead935b5f3aa8a2e7ef8515de86d31202e9cb513f4d39aa
++  - kind: symbol
++    name: raf_census::BoundRole
++    digest: d2fc1891daf1c9c75eb5144fcd301c1d24d31386c2f916f0a87f7ba5647d835c
+   - kind: symbol
+     name: raf_census::Unit::string_initializer
+     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
+   - kind: symbol
+     name: raf_census::detectors
+-    digest: f445d57fa0f65c4c8ee66ae595bc8b8541d09b255140ee05660f06c235ec1cea
++    digest: 3dae062dd6fa959e7c65f4be2dc9f77c4190ab4869372d0a997347f4ead160f7
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::context
+     digest: 1368fca0d384735849e01b30768e2e62d5b30b9a978c77ced2c60e274eda9ca8
+diff --git work/assessments/census-detectors-purpose.md work/assessments/census-detectors-purpose.md
+index 32f7b0cd..564537a4 100644
+--- work/assessments/census-detectors-purpose.md
++++ work/assessments/census-detectors-purpose.md
+@@ -8,12 +8,18 @@ inputs:
+   - kind: section
+     name: cap:census-detectors#purpose
+     digest: f1f06e0518bc3b61ca7282e8beb3bd6900cd76589a0da6505d716abedc5b5a9d
++  - kind: symbol
++    name: raf_census::BoundRole
++    digest: d2fc1891daf1c9c75eb5144fcd301c1d24d31386c2f916f0a87f7ba5647d835c
+   - kind: symbol
+     name: raf_census::Unit::string_initializer
+     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
+   - kind: symbol
+     name: raf_census::detectors
+-    digest: f445d57fa0f65c4c8ee66ae595bc8b8541d09b255140ee05660f06c235ec1cea
++    digest: 3dae062dd6fa959e7c65f4be2dc9f77c4190ab4869372d0a997347f4ead160f7
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::context
+     digest: 1368fca0d384735849e01b30768e2e62d5b30b9a978c77ced2c60e274eda9ca8
+diff --git work/assessments/census-detectors-usage.md work/assessments/census-detectors-usage.md
+index dd33b499..bea8c89d 100644
+--- work/assessments/census-detectors-usage.md
++++ work/assessments/census-detectors-usage.md
+@@ -7,13 +7,19 @@ subject: cap:census-detectors#usage
+ inputs:
+   - kind: section
+     name: cap:census-detectors#usage
+-    digest: 33345f89d2d790ef4ca6093415e8bd806328f601ec40556c7b9c2b85412ace5b
++    digest: bea4411be542f53dfb824a2401d6e30210bdf86600fd1b7876e92d01b8ad45d6
++  - kind: symbol
++    name: raf_census::BoundRole
++    digest: d2fc1891daf1c9c75eb5144fcd301c1d24d31386c2f916f0a87f7ba5647d835c
+   - kind: symbol
+     name: raf_census::Unit::string_initializer
+     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
+   - kind: symbol
+     name: raf_census::detectors
+-    digest: f445d57fa0f65c4c8ee66ae595bc8b8541d09b255140ee05660f06c235ec1cea
++    digest: 3dae062dd6fa959e7c65f4be2dc9f77c4190ab4869372d0a997347f4ead160f7
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::context
+     digest: 1368fca0d384735849e01b30768e2e62d5b30b9a978c77ced2c60e274eda9ca8
+diff --git work/assessments/census-detectors-verification.md work/assessments/census-detectors-verification.md
+index 020b33ed..0d9a25e8 100644
+--- work/assessments/census-detectors-verification.md
++++ work/assessments/census-detectors-verification.md
+@@ -8,12 +8,18 @@ inputs:
+   - kind: section
+     name: cap:census-detectors#verification
+     digest: d14f4450fc83d67d2c4a1834478a15fe03fbd0f69636508c73478b079fa8807d
++  - kind: symbol
++    name: raf_census::BoundRole
++    digest: d2fc1891daf1c9c75eb5144fcd301c1d24d31386c2f916f0a87f7ba5647d835c
+   - kind: symbol
+     name: raf_census::Unit::string_initializer
+     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
+   - kind: symbol
+     name: raf_census::detectors
+-    digest: f445d57fa0f65c4c8ee66ae595bc8b8541d09b255140ee05660f06c235ec1cea
++    digest: 3dae062dd6fa959e7c65f4be2dc9f77c4190ab4869372d0a997347f4ead160f7
++  - kind: symbol
++    name: raf_census::gate::bounds
++    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+   - kind: symbol
+     name: raf_census::gate::context
+     digest: 1368fca0d384735849e01b30768e2e62d5b30b9a978c77ced2c60e274eda9ca8
+diff --git work/assessments/census-ledger-constraints.md work/assessments/census-ledger-constraints.md
+index f9e0d7d6..4be0175b 100644
+--- work/assessments/census-ledger-constraints.md
++++ work/assessments/census-ledger-constraints.md
+@@ -11,6 +11,9 @@ inputs:
+   - kind: symbol
+     name: raf_census::BenchLink
+     digest: 0cfb32481d48d75a47a6aa9abb72aa76a9a48fa4a0e495b3a8fdf364da325853
++  - kind: symbol
++    name: raf_census::BoundClassification
++    digest: fb0402bd1164583f60458fb3dad86986e6871e34e1fad7807309c63e4168497f
+   - kind: symbol
+     name: raf_census::Gate
+     digest: 8e019eb5a094a1bcac8ef88df54a7a87debd9f18fd92501806df57f088656dfc
+@@ -43,13 +46,16 @@ inputs:
+     digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
+   - kind: symbol
+     name: raf_census::GateReport
+-    digest: c0a348306ca5bc8c50bd87731e19f1658f16f4872de642b8b5fe689fcaf7ba7c
++    digest: d8bfe3d580285225c7aba0461f6b7554bbd8e5441843ae111dfa6ef808d3b58a
++  - kind: symbol
++    name: raf_census::GateReport::numeric_bounds
++    digest: b112f8fc7f364d687e1d810ac34b6f3a5ac1f1644819ef6ad88a08d4db634904
+   - kind: symbol
+     name: raf_census::LEDGER_FILE
+     digest: 13d0555b019cbfab0a0fb80e1a7d761d1adda926a620d160fa26e28390592aba
+   - kind: symbol
+     name: raf_census::Ledger
+-    digest: 85ee530392f33bb026b718d4c8b6f8da33bff13bfaf9911b7f48be98e8f79286
++    digest: 44962e7fe203871e8f6e7a32c4f396d043f09f3b776a84a74597c033d6efb4ba
+   - kind: symbol
+     name: raf_census::LedgerDistinct
+     digest: 17457f169b7261f1ddddabbf2a133314281331a298f382ee1d392ad9313475af
+@@ -74,6 +80,9 @@ inputs:
+   - kind: symbol
+     name: raf_census::NamePattern
+     digest: 0c66e2a102cab95c5ca79473885359fa986216c057da61d0deebaaae9d6b93ac
++  - kind: symbol
++    name: raf_census::NumericBound
++    digest: 7c34fed66afb06aab1a3b11cf3481ce6bd5b6809ec9addd1b005164d404ea8a5
+   - kind: symbol
+     name: raf_census::PatternMatcher
+     digest: 30a735bbbb30412ca5c41fe77b015dbaf13dc3b741ceb087d73a18ea016f144a
+@@ -91,7 +100,7 @@ inputs:
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::evaluate
+-    digest: 48e9489150e76b56f2158a1ebfb3ae0277bba79bf59a540c98f0f8003d33f644
++    digest: 86dc4574c25aa42e21378064c968a9dcf4990286a50803bfdab478a9a65cd4c5
+   - kind: symbol
+     name: raf_census::gate::owners
+     digest: 42c47c5cb754e9d6284eb089c8ee9aa14bfaa04b41194c50f9416bcbd4b4a34c
+@@ -100,7 +109,7 @@ inputs:
+     digest: 0f8af14c407068df501a54e54eb4a91e5bb1d20bdf923076c55825261d7afd2f
+   - kind: symbol
+     name: raf_census::report::ledger
+-    digest: f12bfe2a2c1f524a5ebc3e087bed217d2968439ddfb3f84a964f5f8a8c181d35
++    digest: fe2683f9cd650dc732a2983d892e02350d757296159d9774a870b51491151a8b
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-ledger-contract.md work/assessments/census-ledger-contract.md
+index 5fe2802c..d5588d6e 100644
+--- work/assessments/census-ledger-contract.md
++++ work/assessments/census-ledger-contract.md
+@@ -7,7 +7,7 @@ subject: cap:census-ledger#contract
+ inputs:
+   - kind: section
+     name: cap:census-ledger#contract
+-    digest: a9cdb8fd0d8b8f3a4b70043ead244f1bf3aa32dc97096a6afa8d158ae0f5c06f
++    digest: cd894dbc2c8c40f5be74c6697ff4d8611aae78136345514f849b92c4a02e1970
+   - kind: symbol
+     name: raf_census::Gate::check_locked
+     digest: a4750e277e048278a9b17432a57648744d2600f56e22bea9924017b788206b2d
+@@ -17,9 +17,15 @@ inputs:
+   - kind: symbol
+     name: raf_census::Gate::write_debt_locked
+     digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
++  - kind: symbol
++    name: raf_census::GateReport::numeric_bounds
++    digest: b112f8fc7f364d687e1d810ac34b6f3a5ac1f1644819ef6ad88a08d4db634904
+   - kind: symbol
+     name: raf_census::LedgerExtensionGraph
+     digest: bb829e6f568456dd6a5be2efc1bbb11079625c5c56c5d24f0dd652f6a424fefe
++  - kind: symbol
++    name: raf_census::NumericBound
++    digest: 7c34fed66afb06aab1a3b11cf3481ce6bd5b6809ec9addd1b005164d404ea8a5
+   - kind: symbol
+     name: raf_census::gate::Gate::evaluate_locked
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+diff --git work/assessments/census-ledger-examples.md work/assessments/census-ledger-examples.md
+index a32eb964..02d77ab4 100644
+--- work/assessments/census-ledger-examples.md
++++ work/assessments/census-ledger-examples.md
+@@ -11,6 +11,9 @@ inputs:
+   - kind: symbol
+     name: raf_census::BenchLink
+     digest: 0cfb32481d48d75a47a6aa9abb72aa76a9a48fa4a0e495b3a8fdf364da325853
++  - kind: symbol
++    name: raf_census::BoundClassification
++    digest: fb0402bd1164583f60458fb3dad86986e6871e34e1fad7807309c63e4168497f
+   - kind: symbol
+     name: raf_census::Gate
+     digest: 8e019eb5a094a1bcac8ef88df54a7a87debd9f18fd92501806df57f088656dfc
+@@ -43,13 +46,16 @@ inputs:
+     digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
+   - kind: symbol
+     name: raf_census::GateReport
+-    digest: c0a348306ca5bc8c50bd87731e19f1658f16f4872de642b8b5fe689fcaf7ba7c
++    digest: d8bfe3d580285225c7aba0461f6b7554bbd8e5441843ae111dfa6ef808d3b58a
++  - kind: symbol
++    name: raf_census::GateReport::numeric_bounds
++    digest: b112f8fc7f364d687e1d810ac34b6f3a5ac1f1644819ef6ad88a08d4db634904
+   - kind: symbol
+     name: raf_census::LEDGER_FILE
+     digest: 13d0555b019cbfab0a0fb80e1a7d761d1adda926a620d160fa26e28390592aba
+   - kind: symbol
+     name: raf_census::Ledger
+-    digest: 85ee530392f33bb026b718d4c8b6f8da33bff13bfaf9911b7f48be98e8f79286
++    digest: 44962e7fe203871e8f6e7a32c4f396d043f09f3b776a84a74597c033d6efb4ba
+   - kind: symbol
+     name: raf_census::LedgerDistinct
+     digest: 17457f169b7261f1ddddabbf2a133314281331a298f382ee1d392ad9313475af
+@@ -74,6 +80,9 @@ inputs:
+   - kind: symbol
+     name: raf_census::NamePattern
+     digest: 0c66e2a102cab95c5ca79473885359fa986216c057da61d0deebaaae9d6b93ac
++  - kind: symbol
++    name: raf_census::NumericBound
++    digest: 7c34fed66afb06aab1a3b11cf3481ce6bd5b6809ec9addd1b005164d404ea8a5
+   - kind: symbol
+     name: raf_census::PatternMatcher
+     digest: 30a735bbbb30412ca5c41fe77b015dbaf13dc3b741ceb087d73a18ea016f144a
+@@ -91,7 +100,7 @@ inputs:
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::evaluate
+-    digest: 48e9489150e76b56f2158a1ebfb3ae0277bba79bf59a540c98f0f8003d33f644
++    digest: 86dc4574c25aa42e21378064c968a9dcf4990286a50803bfdab478a9a65cd4c5
+   - kind: symbol
+     name: raf_census::gate::owners
+     digest: 42c47c5cb754e9d6284eb089c8ee9aa14bfaa04b41194c50f9416bcbd4b4a34c
+@@ -100,7 +109,7 @@ inputs:
+     digest: 0f8af14c407068df501a54e54eb4a91e5bb1d20bdf923076c55825261d7afd2f
+   - kind: symbol
+     name: raf_census::report::ledger
+-    digest: f12bfe2a2c1f524a5ebc3e087bed217d2968439ddfb3f84a964f5f8a8c181d35
++    digest: fe2683f9cd650dc732a2983d892e02350d757296159d9774a870b51491151a8b
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-ledger-explanation.md work/assessments/census-ledger-explanation.md
+index 9a9d56ee..dcefa7aa 100644
+--- work/assessments/census-ledger-explanation.md
++++ work/assessments/census-ledger-explanation.md
+@@ -11,6 +11,9 @@ inputs:
+   - kind: symbol
+     name: raf_census::BenchLink
+     digest: 0cfb32481d48d75a47a6aa9abb72aa76a9a48fa4a0e495b3a8fdf364da325853
++  - kind: symbol
++    name: raf_census::BoundClassification
++    digest: fb0402bd1164583f60458fb3dad86986e6871e34e1fad7807309c63e4168497f
+   - kind: symbol
+     name: raf_census::Gate
+     digest: 8e019eb5a094a1bcac8ef88df54a7a87debd9f18fd92501806df57f088656dfc
+@@ -43,13 +46,16 @@ inputs:
+     digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
+   - kind: symbol
+     name: raf_census::GateReport
+-    digest: c0a348306ca5bc8c50bd87731e19f1658f16f4872de642b8b5fe689fcaf7ba7c
++    digest: d8bfe3d580285225c7aba0461f6b7554bbd8e5441843ae111dfa6ef808d3b58a
++  - kind: symbol
++    name: raf_census::GateReport::numeric_bounds
++    digest: b112f8fc7f364d687e1d810ac34b6f3a5ac1f1644819ef6ad88a08d4db634904
+   - kind: symbol
+     name: raf_census::LEDGER_FILE
+     digest: 13d0555b019cbfab0a0fb80e1a7d761d1adda926a620d160fa26e28390592aba
+   - kind: symbol
+     name: raf_census::Ledger
+-    digest: 85ee530392f33bb026b718d4c8b6f8da33bff13bfaf9911b7f48be98e8f79286
++    digest: 44962e7fe203871e8f6e7a32c4f396d043f09f3b776a84a74597c033d6efb4ba
+   - kind: symbol
+     name: raf_census::LedgerDistinct
+     digest: 17457f169b7261f1ddddabbf2a133314281331a298f382ee1d392ad9313475af
+@@ -74,6 +80,9 @@ inputs:
+   - kind: symbol
+     name: raf_census::NamePattern
+     digest: 0c66e2a102cab95c5ca79473885359fa986216c057da61d0deebaaae9d6b93ac
++  - kind: symbol
++    name: raf_census::NumericBound
++    digest: 7c34fed66afb06aab1a3b11cf3481ce6bd5b6809ec9addd1b005164d404ea8a5
+   - kind: symbol
+     name: raf_census::PatternMatcher
+     digest: 30a735bbbb30412ca5c41fe77b015dbaf13dc3b741ceb087d73a18ea016f144a
+@@ -91,7 +100,7 @@ inputs:
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::evaluate
+-    digest: 48e9489150e76b56f2158a1ebfb3ae0277bba79bf59a540c98f0f8003d33f644
++    digest: 86dc4574c25aa42e21378064c968a9dcf4990286a50803bfdab478a9a65cd4c5
+   - kind: symbol
+     name: raf_census::gate::owners
+     digest: 42c47c5cb754e9d6284eb089c8ee9aa14bfaa04b41194c50f9416bcbd4b4a34c
+@@ -100,7 +109,7 @@ inputs:
+     digest: 0f8af14c407068df501a54e54eb4a91e5bb1d20bdf923076c55825261d7afd2f
+   - kind: symbol
+     name: raf_census::report::ledger
+-    digest: f12bfe2a2c1f524a5ebc3e087bed217d2968439ddfb3f84a964f5f8a8c181d35
++    digest: fe2683f9cd650dc732a2983d892e02350d757296159d9774a870b51491151a8b
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-ledger-purpose.md work/assessments/census-ledger-purpose.md
+index 1cadd25e..59133b5f 100644
+--- work/assessments/census-ledger-purpose.md
++++ work/assessments/census-ledger-purpose.md
+@@ -11,6 +11,9 @@ inputs:
+   - kind: symbol
+     name: raf_census::BenchLink
+     digest: 0cfb32481d48d75a47a6aa9abb72aa76a9a48fa4a0e495b3a8fdf364da325853
++  - kind: symbol
++    name: raf_census::BoundClassification
++    digest: fb0402bd1164583f60458fb3dad86986e6871e34e1fad7807309c63e4168497f
+   - kind: symbol
+     name: raf_census::Gate
+     digest: 8e019eb5a094a1bcac8ef88df54a7a87debd9f18fd92501806df57f088656dfc
+@@ -43,13 +46,16 @@ inputs:
+     digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
+   - kind: symbol
+     name: raf_census::GateReport
+-    digest: c0a348306ca5bc8c50bd87731e19f1658f16f4872de642b8b5fe689fcaf7ba7c
++    digest: d8bfe3d580285225c7aba0461f6b7554bbd8e5441843ae111dfa6ef808d3b58a
++  - kind: symbol
++    name: raf_census::GateReport::numeric_bounds
++    digest: b112f8fc7f364d687e1d810ac34b6f3a5ac1f1644819ef6ad88a08d4db634904
+   - kind: symbol
+     name: raf_census::LEDGER_FILE
+     digest: 13d0555b019cbfab0a0fb80e1a7d761d1adda926a620d160fa26e28390592aba
+   - kind: symbol
+     name: raf_census::Ledger
+-    digest: 85ee530392f33bb026b718d4c8b6f8da33bff13bfaf9911b7f48be98e8f79286
++    digest: 44962e7fe203871e8f6e7a32c4f396d043f09f3b776a84a74597c033d6efb4ba
+   - kind: symbol
+     name: raf_census::LedgerDistinct
+     digest: 17457f169b7261f1ddddabbf2a133314281331a298f382ee1d392ad9313475af
+@@ -74,6 +80,9 @@ inputs:
+   - kind: symbol
+     name: raf_census::NamePattern
+     digest: 0c66e2a102cab95c5ca79473885359fa986216c057da61d0deebaaae9d6b93ac
++  - kind: symbol
++    name: raf_census::NumericBound
++    digest: 7c34fed66afb06aab1a3b11cf3481ce6bd5b6809ec9addd1b005164d404ea8a5
+   - kind: symbol
+     name: raf_census::PatternMatcher
+     digest: 30a735bbbb30412ca5c41fe77b015dbaf13dc3b741ceb087d73a18ea016f144a
+@@ -91,7 +100,7 @@ inputs:
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::evaluate
+-    digest: 48e9489150e76b56f2158a1ebfb3ae0277bba79bf59a540c98f0f8003d33f644
++    digest: 86dc4574c25aa42e21378064c968a9dcf4990286a50803bfdab478a9a65cd4c5
+   - kind: symbol
+     name: raf_census::gate::owners
+     digest: 42c47c5cb754e9d6284eb089c8ee9aa14bfaa04b41194c50f9416bcbd4b4a34c
+@@ -100,7 +109,7 @@ inputs:
+     digest: 0f8af14c407068df501a54e54eb4a91e5bb1d20bdf923076c55825261d7afd2f
+   - kind: symbol
+     name: raf_census::report::ledger
+-    digest: f12bfe2a2c1f524a5ebc3e087bed217d2968439ddfb3f84a964f5f8a8c181d35
++    digest: fe2683f9cd650dc732a2983d892e02350d757296159d9774a870b51491151a8b
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-ledger-verification.md work/assessments/census-ledger-verification.md
+index 21380c4a..4f5a110b 100644
+--- work/assessments/census-ledger-verification.md
++++ work/assessments/census-ledger-verification.md
+@@ -11,6 +11,9 @@ inputs:
+   - kind: symbol
+     name: raf_census::BenchLink
+     digest: 0cfb32481d48d75a47a6aa9abb72aa76a9a48fa4a0e495b3a8fdf364da325853
++  - kind: symbol
++    name: raf_census::BoundClassification
++    digest: fb0402bd1164583f60458fb3dad86986e6871e34e1fad7807309c63e4168497f
+   - kind: symbol
+     name: raf_census::Gate
+     digest: 8e019eb5a094a1bcac8ef88df54a7a87debd9f18fd92501806df57f088656dfc
+@@ -43,13 +46,16 @@ inputs:
+     digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
+   - kind: symbol
+     name: raf_census::GateReport
+-    digest: c0a348306ca5bc8c50bd87731e19f1658f16f4872de642b8b5fe689fcaf7ba7c
++    digest: d8bfe3d580285225c7aba0461f6b7554bbd8e5441843ae111dfa6ef808d3b58a
++  - kind: symbol
++    name: raf_census::GateReport::numeric_bounds
++    digest: b112f8fc7f364d687e1d810ac34b6f3a5ac1f1644819ef6ad88a08d4db634904
+   - kind: symbol
+     name: raf_census::LEDGER_FILE
+     digest: 13d0555b019cbfab0a0fb80e1a7d761d1adda926a620d160fa26e28390592aba
+   - kind: symbol
+     name: raf_census::Ledger
+-    digest: 85ee530392f33bb026b718d4c8b6f8da33bff13bfaf9911b7f48be98e8f79286
++    digest: 44962e7fe203871e8f6e7a32c4f396d043f09f3b776a84a74597c033d6efb4ba
+   - kind: symbol
+     name: raf_census::LedgerDistinct
+     digest: 17457f169b7261f1ddddabbf2a133314281331a298f382ee1d392ad9313475af
+@@ -74,6 +80,9 @@ inputs:
+   - kind: symbol
+     name: raf_census::NamePattern
+     digest: 0c66e2a102cab95c5ca79473885359fa986216c057da61d0deebaaae9d6b93ac
++  - kind: symbol
++    name: raf_census::NumericBound
++    digest: 7c34fed66afb06aab1a3b11cf3481ce6bd5b6809ec9addd1b005164d404ea8a5
+   - kind: symbol
+     name: raf_census::PatternMatcher
+     digest: 30a735bbbb30412ca5c41fe77b015dbaf13dc3b741ceb087d73a18ea016f144a
+@@ -91,7 +100,7 @@ inputs:
+     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
+   - kind: symbol
+     name: raf_census::gate::evaluate
+-    digest: 48e9489150e76b56f2158a1ebfb3ae0277bba79bf59a540c98f0f8003d33f644
++    digest: 86dc4574c25aa42e21378064c968a9dcf4990286a50803bfdab478a9a65cd4c5
+   - kind: symbol
+     name: raf_census::gate::owners
+     digest: 42c47c5cb754e9d6284eb089c8ee9aa14bfaa04b41194c50f9416bcbd4b4a34c
+@@ -100,7 +109,7 @@ inputs:
+     digest: 0f8af14c407068df501a54e54eb4a91e5bb1d20bdf923076c55825261d7afd2f
+   - kind: symbol
+     name: raf_census::report::ledger
+-    digest: f12bfe2a2c1f524a5ebc3e087bed217d2968439ddfb3f84a964f5f8a8c181d35
++    digest: fe2683f9cd650dc732a2983d892e02350d757296159d9774a870b51491151a8b
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-normal-form-examples.md work/assessments/census-normal-form-examples.md
+index 4c96ba48..76c9adf6 100644
+--- work/assessments/census-normal-form-examples.md
++++ work/assessments/census-normal-form-examples.md
+@@ -397,10 +397,10 @@ inputs:
+     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
+   - kind: symbol
+     name: raf_census::report
+-    digest: 373da30eba391fd8e4bce85dde16508b695a5fe5dae1227cd5d3e42e6f568ead
++    digest: 6fd731bf3ac1a9d26a777bcf9ff0903e254447d08796171118fcb291041d8547
+   - kind: symbol
+     name: raf_census::report::vocab
+-    digest: c91f183296db99f162937f7847e0c144bae6473b3a4e84b3d705538946942133
++    digest: 645cf649dc49e314986b8ae4e9f656699fc997552ed35d688fc9ed898098ab2f
+   - kind: symbol
+     name: raf_source_fuzz::bin_crate::census_normalize::exercise
+     digest: 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941
+diff --git work/assessments/census-normal-form-purpose.md work/assessments/census-normal-form-purpose.md
+index 8da68a7d..62038e47 100644
+--- work/assessments/census-normal-form-purpose.md
++++ work/assessments/census-normal-form-purpose.md
+@@ -397,10 +397,10 @@ inputs:
+     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
+   - kind: symbol
+     name: raf_census::report
+-    digest: 373da30eba391fd8e4bce85dde16508b695a5fe5dae1227cd5d3e42e6f568ead
++    digest: 6fd731bf3ac1a9d26a777bcf9ff0903e254447d08796171118fcb291041d8547
+   - kind: symbol
+     name: raf_census::report::vocab
+-    digest: c91f183296db99f162937f7847e0c144bae6473b3a4e84b3d705538946942133
++    digest: 645cf649dc49e314986b8ae4e9f656699fc997552ed35d688fc9ed898098ab2f
+   - kind: symbol
+     name: raf_source_fuzz::bin_crate::census_normalize::exercise
+     digest: 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941
+diff --git work/assessments/census-normal-form-verification.md work/assessments/census-normal-form-verification.md
+index a8ad6e22..4da2e40c 100644
+--- work/assessments/census-normal-form-verification.md
++++ work/assessments/census-normal-form-verification.md
+@@ -397,10 +397,10 @@ inputs:
+     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
+   - kind: symbol
+     name: raf_census::report
+-    digest: 373da30eba391fd8e4bce85dde16508b695a5fe5dae1227cd5d3e42e6f568ead
++    digest: 6fd731bf3ac1a9d26a777bcf9ff0903e254447d08796171118fcb291041d8547
+   - kind: symbol
+     name: raf_census::report::vocab
+-    digest: c91f183296db99f162937f7847e0c144bae6473b3a4e84b3d705538946942133
++    digest: 645cf649dc49e314986b8ae4e9f656699fc997552ed35d688fc9ed898098ab2f
+   - kind: symbol
+     name: raf_source_fuzz::bin_crate::census_normalize::exercise
+     digest: 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941
+diff --git work/assessments/census-patterns-constraints.md work/assessments/census-patterns-constraints.md
+index b3c46dda..6e48045e 100644
+--- work/assessments/census-patterns-constraints.md
++++ work/assessments/census-patterns-constraints.md
+@@ -13,10 +13,10 @@ inputs:
+     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
+   - kind: symbol
+     name: raf_census::gate::patterns
+-    digest: ad2fc42478226f37bc6e61b0fb6c3b5bd47f8389f56ce6fb9428266d6b86c0b7
++    digest: '0b0009dee7786d389a9da978c13a5e6069b441b4ccbd6f93215da9be04b9d7e4'
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::syntax
+     digest: 6ab960cded2c1597480fa878db97553b0ab3f7b993f6b6b4d00405d779759e0e
+diff --git work/assessments/census-patterns-contract.md work/assessments/census-patterns-contract.md
+index 8cf2286f..927d85c1 100644
+--- work/assessments/census-patterns-contract.md
++++ work/assessments/census-patterns-contract.md
+@@ -7,16 +7,16 @@ subject: cap:census-patterns#contract
+ inputs:
+   - kind: section
+     name: cap:census-patterns#contract
+-    digest: fb9d1e1f00a1771b83ef19a913a7eb2066abcb6f464ff245e8377042de5d9993
++    digest: 88998149c667e7caa13c62d343e2fdaf478bc4a3c8364aeb6b5de476979b2c3a
+   - kind: symbol
+     name: raf_census::Gate::matching_limits
+     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
+   - kind: symbol
+     name: raf_census::gate::patterns
+-    digest: ad2fc42478226f37bc6e61b0fb6c3b5bd47f8389f56ce6fb9428266d6b86c0b7
++    digest: '0b0009dee7786d389a9da978c13a5e6069b441b4ccbd6f93215da9be04b9d7e4'
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::syntax
+     digest: 6ab960cded2c1597480fa878db97553b0ab3f7b993f6b6b4d00405d779759e0e
+diff --git work/assessments/census-patterns-examples.md work/assessments/census-patterns-examples.md
+index a6ebdca8..419d427a 100644
+--- work/assessments/census-patterns-examples.md
++++ work/assessments/census-patterns-examples.md
+@@ -13,10 +13,10 @@ inputs:
+     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
+   - kind: symbol
+     name: raf_census::gate::patterns
+-    digest: ad2fc42478226f37bc6e61b0fb6c3b5bd47f8389f56ce6fb9428266d6b86c0b7
++    digest: '0b0009dee7786d389a9da978c13a5e6069b441b4ccbd6f93215da9be04b9d7e4'
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::syntax
+     digest: 6ab960cded2c1597480fa878db97553b0ab3f7b993f6b6b4d00405d779759e0e
+diff --git work/assessments/census-patterns-explanation.md work/assessments/census-patterns-explanation.md
+index 54d304a1..0193eea9 100644
+--- work/assessments/census-patterns-explanation.md
++++ work/assessments/census-patterns-explanation.md
+@@ -13,10 +13,10 @@ inputs:
+     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
+   - kind: symbol
+     name: raf_census::gate::patterns
+-    digest: ad2fc42478226f37bc6e61b0fb6c3b5bd47f8389f56ce6fb9428266d6b86c0b7
++    digest: '0b0009dee7786d389a9da978c13a5e6069b441b4ccbd6f93215da9be04b9d7e4'
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::syntax
+     digest: 6ab960cded2c1597480fa878db97553b0ab3f7b993f6b6b4d00405d779759e0e
+diff --git work/assessments/census-patterns-purpose.md work/assessments/census-patterns-purpose.md
+index 1ed50d16..321f7fbf 100644
+--- work/assessments/census-patterns-purpose.md
++++ work/assessments/census-patterns-purpose.md
+@@ -13,10 +13,10 @@ inputs:
+     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
+   - kind: symbol
+     name: raf_census::gate::patterns
+-    digest: ad2fc42478226f37bc6e61b0fb6c3b5bd47f8389f56ce6fb9428266d6b86c0b7
++    digest: '0b0009dee7786d389a9da978c13a5e6069b441b4ccbd6f93215da9be04b9d7e4'
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::syntax
+     digest: 6ab960cded2c1597480fa878db97553b0ab3f7b993f6b6b4d00405d779759e0e
+diff --git work/assessments/census-patterns-usage.md work/assessments/census-patterns-usage.md
+index 1ce2d9bb..692b1892 100644
+--- work/assessments/census-patterns-usage.md
++++ work/assessments/census-patterns-usage.md
+@@ -13,10 +13,10 @@ inputs:
+     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
+   - kind: symbol
+     name: raf_census::gate::patterns
+-    digest: ad2fc42478226f37bc6e61b0fb6c3b5bd47f8389f56ce6fb9428266d6b86c0b7
++    digest: '0b0009dee7786d389a9da978c13a5e6069b441b4ccbd6f93215da9be04b9d7e4'
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::syntax
+     digest: 6ab960cded2c1597480fa878db97553b0ab3f7b993f6b6b4d00405d779759e0e
+diff --git work/assessments/census-patterns-verification.md work/assessments/census-patterns-verification.md
+index b3393760..921ed153 100644
+--- work/assessments/census-patterns-verification.md
++++ work/assessments/census-patterns-verification.md
+@@ -13,10 +13,10 @@ inputs:
+     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
+   - kind: symbol
+     name: raf_census::gate::patterns
+-    digest: ad2fc42478226f37bc6e61b0fb6c3b5bd47f8389f56ce6fb9428266d6b86c0b7
++    digest: '0b0009dee7786d389a9da978c13a5e6069b441b4ccbd6f93215da9be04b9d7e4'
+   - kind: symbol
+     name: raf_census::gate::ratchet
+-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
++    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
+   - kind: symbol
+     name: raf_census::syntax
+     digest: 6ab960cded2c1597480fa878db97553b0ab3f7b993f6b6b4d00405d779759e0e
+diff --git work/assessments/census-rule-api-constraints.md work/assessments/census-rule-api-constraints.md
+index fb684da3..c2172ab2 100644
+--- work/assessments/census-rule-api-constraints.md
++++ work/assessments/census-rule-api-constraints.md
+@@ -34,7 +34,7 @@ inputs:
+     digest: 555ba10ab2f0f84ce48c296b5d50840bb632b0462be969692e8eef99b25b8fc7
+   - kind: symbol
+     name: raf_census::gate::rules
+-    digest: 90e05ecd5c9caf5f25c3a29d94d680e7aba003911bd7b858234376c42f71b7c8
++    digest: 77ecd669cbf624320c67ed386fe90f178f010466bf81c4537fe2832fae2437f7
+   - kind: symbol
+     name: raf_census::rule
+     digest: cd623ae43036600b4791b82d9442d7f6305472d959d8329aef8eeeeb80d67c3c
+diff --git work/assessments/census-rule-api-contract.md work/assessments/census-rule-api-contract.md
+index 50878684..0fd4bb3f 100644
+--- work/assessments/census-rule-api-contract.md
++++ work/assessments/census-rule-api-contract.md
+@@ -31,7 +31,7 @@ inputs:
+     digest: ee73f3e1b34baee6fe1444c47168271822b40aa62a586a43e5f2a752bad1e91a
+   - kind: symbol
+     name: raf_census::gate::rules
+-    digest: 90e05ecd5c9caf5f25c3a29d94d680e7aba003911bd7b858234376c42f71b7c8
++    digest: 77ecd669cbf624320c67ed386fe90f178f010466bf81c4537fe2832fae2437f7
+   - kind: symbol
+     name: raf_census::rule
+     digest: cd623ae43036600b4791b82d9442d7f6305472d959d8329aef8eeeeb80d67c3c
+diff --git work/assessments/census-rule-api-explanation.md work/assessments/census-rule-api-explanation.md
+index fe14f9b0..713dbddd 100644
+--- work/assessments/census-rule-api-explanation.md
++++ work/assessments/census-rule-api-explanation.md
+@@ -34,7 +34,7 @@ inputs:
+     digest: 555ba10ab2f0f84ce48c296b5d50840bb632b0462be969692e8eef99b25b8fc7
+   - kind: symbol
+     name: raf_census::gate::rules
+-    digest: 90e05ecd5c9caf5f25c3a29d94d680e7aba003911bd7b858234376c42f71b7c8
++    digest: 77ecd669cbf624320c67ed386fe90f178f010466bf81c4537fe2832fae2437f7
+   - kind: symbol
+     name: raf_census::rule
+     digest: cd623ae43036600b4791b82d9442d7f6305472d959d8329aef8eeeeb80d67c3c
+diff --git work/assessments/census-rule-api-purpose.md work/assessments/census-rule-api-purpose.md
+index cd1d4ba4..0e06ee62 100644
+--- work/assessments/census-rule-api-purpose.md
++++ work/assessments/census-rule-api-purpose.md
+@@ -34,7 +34,7 @@ inputs:
+     digest: 555ba10ab2f0f84ce48c296b5d50840bb632b0462be969692e8eef99b25b8fc7
+   - kind: symbol
+     name: raf_census::gate::rules
+-    digest: 90e05ecd5c9caf5f25c3a29d94d680e7aba003911bd7b858234376c42f71b7c8
++    digest: 77ecd669cbf624320c67ed386fe90f178f010466bf81c4537fe2832fae2437f7
+   - kind: symbol
+     name: raf_census::rule
+     digest: cd623ae43036600b4791b82d9442d7f6305472d959d8329aef8eeeeb80d67c3c
+diff --git work/assessments/census-rule-api-usage.md work/assessments/census-rule-api-usage.md
+index 4b224d92..1eeee9c4 100644
+--- work/assessments/census-rule-api-usage.md
++++ work/assessments/census-rule-api-usage.md
+@@ -28,7 +28,7 @@ inputs:
+     digest: ee73f3e1b34baee6fe1444c47168271822b40aa62a586a43e5f2a752bad1e91a
+   - kind: symbol
+     name: raf_census::gate::rules
+-    digest: 90e05ecd5c9caf5f25c3a29d94d680e7aba003911bd7b858234376c42f71b7c8
++    digest: 77ecd669cbf624320c67ed386fe90f178f010466bf81c4537fe2832fae2437f7
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/census-rule-api-verification.md work/assessments/census-rule-api-verification.md
+index 1abbb864..452984fc 100644
+--- work/assessments/census-rule-api-verification.md
++++ work/assessments/census-rule-api-verification.md
+@@ -34,7 +34,7 @@ inputs:
+     digest: 555ba10ab2f0f84ce48c296b5d50840bb632b0462be969692e8eef99b25b8fc7
+   - kind: symbol
+     name: raf_census::gate::rules
+-    digest: 90e05ecd5c9caf5f25c3a29d94d680e7aba003911bd7b858234376c42f71b7c8
++    digest: 77ecd669cbf624320c67ed386fe90f178f010466bf81c4537fe2832fae2437f7
+   - kind: symbol
+     name: raf_census::rule
+     digest: cd623ae43036600b4791b82d9442d7f6305472d959d8329aef8eeeeb80d67c3c
+diff --git work/assessments/rdf-report-profile-contract.md work/assessments/rdf-report-profile-contract.md
+index dc568366..e7b09900 100644
+--- work/assessments/rdf-report-profile-contract.md
++++ work/assessments/rdf-report-profile-contract.md
+@@ -7,7 +7,7 @@ subject: cap:rdf-report-profile#contract
+ inputs:
+   - kind: section
+     name: cap:rdf-report-profile#contract
+-    digest: 9c67a0d0ba52f1f9682b9ce31caecd0493b05cc7a6a68f478969de1dface64c8
++    digest: 1abb8a8f41d59d93d621fa1b3d5b48f512d262b97c1378e3d799d28db0a4160c
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result
+     digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
