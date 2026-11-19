@@ -13,6 +13,10 @@ pub const ENUM_MATCH: (&str, &[&str], &[&str]) = (
         "enum State { Ready, Busy, Idle } use State::*; fn copy(state: State) { match state { Ready => (), Busy => (), rest => () } }",
         "enum State { Ready, Busy, Idle } fn copy(state: State) { use crate::State::Ready as First; match state { First => (), State::Busy => (), _ => () } }",
         "mod types {} use types as rest; enum State { Ready, Busy } use State::*; #[cfg(any())] const Ready: u8 = 0; fn copy(state: State) { match state { Ready => (), rest => () } }",
+        "enum State { #[cfg(all())] Ready(u8), #[cfg(not(all()))] Ready, Busy, Idle } use self::State::*; fn copy(state: State) { match state { Ready(..) => (), Busy => (), _ => () } }",
+        "#[allow(non_camel_case_types)] enum State { Ready, #[cfg(feature=\"extra\")] rest { value: u8 }, Busy } use self::State::*; fn copy(state: State) { match state { State::Ready => (), rest => () } }",
+        "enum State { Ready, #[cfg(all())] Named { value: u8 }, Busy } use self::State::*; fn copy(state: State) { use Named as rest; match state { State::Ready => (), rest => () } }",
+        "mod first { pub enum State { A, B, C } } mod second { pub enum State { A, B, C } } fn copy(state: first::State) { #[cfg(all())] use crate::first::State as Choice; #[cfg(not(all()))] use crate::second::State as Choice; match state { Choice::A => (), crate::first::State::B => (), _ => () } }",
     ],
     &[
         "fn copy(number: u32, text: &str) { match number { 0 => (), _ => () }; match text { \"ready\" => (), _ => () } }",
@@ -23,9 +27,11 @@ pub const ENUM_MATCH: (&str, &[&str], &[&str]) = (
         "enum State { Ready, Busy } use State::*; const Ready: u8 = 0; fn copy(n: u8) { match n { Ready => (), _ => () } }",
         "enum State { Ready, Busy } #[cfg(any())] use State::*; fn copy(n: u8) { match n { Ready => (), _ => () } }",
         "enum State { #[cfg(any())] Ready, Busy } use State::*; fn copy(n: u8) { match n { Ready => (), _ => () } }",
+        "enum State { #[cfg(all())] Ready, #[cfg(not(all()))] Ready(u8), Busy } use self::State::*; fn copy(state: State) { match state { Ready => (), State::Busy => () } }",
+        "mod first { pub enum State { A, B } } mod second { pub enum State { A, B } } fn copy(state: first::State) { #[cfg(all())] use crate::first::State as Choice; #[cfg(not(all()))] use crate::second::State as Choice; use Choice as Chained; match state { Chained::A => (), _ => () } }",
         "enum State { Ready } fn copy(n: u8, state: State) { match n { #[cfg(any())] State::Ready => (), _ => () }; match state { State::Ready => (), #[cfg(any())] _ => () } }",
         "enum State { Ready, Busy } struct Scope; impl Scope { #[cfg(any())] fn absent(state: State) { match state { State::Ready => (), _ => () } } } fn copy(state: State) { #[cfg(any())] { match state { State::Ready => (), _ => () } } }",
-        "enum State { Ready, Busy } struct Scope; impl Scope { #[cfg(any())] const ITEM: () = match State::Ready { State::Ready => (), _ => () }; } trait Policy { #[cfg(any())] const ITEM: () = match State::Ready { State::Ready => (), _ => () }; } fn copy(state: State) { #[cfg(any())] let _ = match state { State::Ready => (), _ => () }; }",
+        "enum State { Ready, Busy } struct Scope; impl Scope { #[cfg(any())] const ITEM: () = match State::Ready { State::Ready => (), _ => () }; } trait Policy { #[cfg(any())] const ITEM: () = match State::Ready { State::Ready => (), _ => () }; } fn copy(state: State) { #[cfg(any())] let _ = match state { State::Ready => (), _ => () }; #[cfg(any())] assert!(match state { State::Ready => true, _ => false }); } enum Code { Live = 0, #[cfg(any())] Disabled = match State::Ready { State::Ready => 1, _ => 2 } }",
         "#[derive(PartialEq, Eq)] enum State { Ready, Busy } const FIRST: State = State::Ready; fn copy(state: State) { match state { FIRST => (), State::Busy => () } }",
     ],
 );

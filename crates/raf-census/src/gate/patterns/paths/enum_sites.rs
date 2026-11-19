@@ -17,14 +17,14 @@ use crate::detectors::{ENUM_CATCH_ALL, RawHit};
 enum Form {
     Unit,
     Tuple,
-    Record,
+    Braced,
 }
 
 impl Form {
     const fn namespace(self) -> Namespace {
         match self {
             Self::Unit | Self::Tuple => Namespace::Value,
-            Self::Record => Namespace::Type,
+            Self::Braced => Namespace::Type,
         }
     }
 
@@ -32,7 +32,10 @@ impl Form {
         match self {
             Self::Unit => forms.unit && !forms.tuple && !forms.named,
             Self::Tuple => forms.tuple && !forms.unit && !forms.named,
-            Self::Record => forms.named && !forms.unit && !forms.tuple,
+            Self::Braced => matches!(
+                (forms.unit, forms.tuple, forms.named),
+                (true, false, false) | (false, true, false) | (false, false, true)
+            ),
         }
     }
 }
@@ -57,7 +60,7 @@ struct VariantPath<'a> {
 }
 
 pub(super) fn has_candidate(node: &syn::ExprMatch) -> bool {
-    node.arms.iter().any(|arm| match strip_parens(&arm.pat) {
+    node.arms.iter().any(|arm| match unwrap_pattern(&arm.pat) {
         syn::Pat::Wild(_) => true,
         syn::Pat::Ident(ident) => ident.subpat.is_none(),
         _ => false,
@@ -90,7 +93,7 @@ pub(super) fn catch_alls(
         if !crate::syntax::inert_attributes(&arm.attrs) {
             continue;
         }
-        let (pattern, guarded) = match strip_parens(&arm.pat) {
+        let (pattern, guarded) = match unwrap_pattern(&arm.pat) {
             syn::Pat::Guard(guard) => (guard.pat.as_ref(), true),
             pattern => (pattern, false),
         };
@@ -143,7 +146,7 @@ fn classify(
     scopes: &Scopes,
     limits: &mut MatchLimits,
 ) -> Result<Arm, Error> {
-    let pattern = strip_parens(pattern);
+    let pattern = unwrap_pattern(pattern);
     let (path, form) = match pattern {
         syn::Pat::Wild(_) => return Ok(Arm::CatchAll),
         syn::Pat::Or(or) => return alternatives(&or.cases, lookup, scopes, limits),
@@ -156,7 +159,7 @@ fn classify(
         }
         syn::Pat::Path(path) if path.qself.is_none() => (&path.path, Form::Unit),
         syn::Pat::TupleStruct(path) if path.qself.is_none() => (&path.path, Form::Tuple),
-        syn::Pat::Struct(path) if path.qself.is_none() => (&path.path, Form::Record),
+        syn::Pat::Struct(path) if path.qself.is_none() => (&path.path, Form::Braced),
         _ => return Ok(Arm::Other),
     };
     path_arm(path, form, false, lookup, scopes, limits)
@@ -199,11 +202,17 @@ fn alternatives(
     })
 }
 
-fn strip_parens(mut pattern: &syn::Pat) -> &syn::Pat {
-    while let syn::Pat::Paren(paren) = pattern {
-        pattern = &paren.pat;
+fn unwrap_pattern(mut pattern: &syn::Pat) -> &syn::Pat {
+    loop {
+        pattern = match pattern {
+            syn::Pat::Paren(paren) => &paren.pat,
+            syn::Pat::Or(or) if or.leading_vert.is_some() && or.cases.len() == 1 => or
+                .cases
+                .first()
+                .expect("INVARIANT: a single-alternative pattern has a first case"),
+            _ => return pattern,
+        };
     }
-    pattern
 }
 
 fn expand_variant_path(
@@ -278,7 +287,7 @@ fn path_arm(
         return Ok(if binding { Arm::CatchAll } else { Arm::Other });
     }
     let glob = lookup.glob_occurrence(scopes, &written, absolute, expanded.as_ref(), limits)?;
-    if glob.opaque.is_some() {
+    if glob.opaque.is_some() || glob.conditional_variant {
         return Ok(Arm::Other);
     }
     if let Some(candidate) = glob.variant {
@@ -408,7 +417,7 @@ fn enum_prefix(
                 limits,
             )?
         };
-        if glob.opaque.is_some() {
+        if glob.opaque.is_some() || glob.conditional_variant {
             return Ok(Vec::new());
         }
         if let Some(actual) = glob.definition {
@@ -428,7 +437,7 @@ fn enum_prefix(
             return Ok(Vec::new());
         }
         let glob = lookup.glob_occurrence(scopes, prefix, absolute, expanded.as_ref(), limits)?;
-        if glob.opaque.is_some() {
+        if glob.opaque.is_some() || glob.conditional_variant {
             return Ok(Vec::new());
         }
         match glob.definition {

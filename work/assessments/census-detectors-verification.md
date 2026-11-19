@@ -7,7 +7,7 @@ subject: cap:census-detectors#verification
 inputs:
   - kind: section
     name: cap:census-detectors#verification
-    digest: d14f4450fc83d67d2c4a1834478a15fe03fbd0f69636508c73478b079fa8807d
+    digest: 9d0bc6ef943cbf04d2be50d5f6973781f0935b10a951e74e704a88a881daeb28
   - kind: symbol
     name: raf_census::BoundRole
     digest: d2fc1891daf1c9c75eb5144fcd301c1d24d31386c2f916f0a87f7ba5647d835c

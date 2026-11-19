@@ -614,9 +614,9 @@ required findings with neighbouring clean source.
 
 - Each detector has a positive fixture that yields exactly one hit with the right
   `rule:<id>`, and a negative fixture that yields none.
-- A fixture shows that a detector other than `sole-name` and `foreign-host-import`
-  reports no hit inside the home package of an ordinary job that forbids it, except
-  the three representation policies, which do not exempt home packages. A second
+- Fixtures cover the home-package exemption for detectors forbidden by an
+  ordinary job. The exemption excludes `sole-name`, `foreign-host-import`,
+  `enum-catch-all` and the three representation policies. A second
   module of the home package that repeats the home's host import is reported.
 - A preferred-provider fixture reports unlisted competing functions and structs
   in the adapter package, including a helper containing a discarded native call,

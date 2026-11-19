@@ -14,10 +14,10 @@ fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
         /// The job's approved home.
         pub fn home() {}
         pub use home as alias;
-        enum State { Ready, Busy, Idle }
+        enum State { Ready(u8), Busy, Idle }
         pub fn inspect(value: State, next: State) {
-            match value { State::Ready => (), _ => () }
-            match next { State::Busy => (), remainder => () }
+            match value { State::Ready { 0: _ } => (), | _ => () }
+            assert!(match next { State::Busy {} => true, remainder => true });
         }
         const WORK_LIMIT: usize = 9;
         fn exceeds_limit(items: &[u8]) -> bool { items.len() > WORK_LIMIT }

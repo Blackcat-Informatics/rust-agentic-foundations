@@ -795,6 +795,12 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         );
     }
 
+    fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
+        if !self.excludes_from_inventory(&node.attrs) {
+            syn::visit::visit_stmt_macro(self, node);
+        }
+    }
+
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
         if self.ignores_function(&node.sig) {
             return;
@@ -907,6 +913,12 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         self.generic_scope(&node.generics, false, |this| {
             syn::visit::visit_item_enum(this, node);
         });
+    }
+
+    fn visit_variant(&mut self, node: &'ast syn::Variant) {
+        if !self.excludes_from_inventory(&node.attrs) {
+            syn::visit::visit_variant(self, node);
+        }
     }
 
     fn visit_item_type(&mut self, node: &'ast syn::ItemType) {

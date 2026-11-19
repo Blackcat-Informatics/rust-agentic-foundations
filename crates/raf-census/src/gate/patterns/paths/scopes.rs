@@ -7,7 +7,7 @@ use super::super::{charge, failure, push};
 use super::{EnumMembers, GlobCache};
 use crate::{
     Error,
-    syntax::{Alias, ImportLeaf, Names, path_text},
+    syntax::{Alias, AliasAttributes, ImportLeaf, Names, path_text},
 };
 use purrdf_jsonschema::ecma::MatchLimits;
 use purrdf_lex::walk::WorkList;
@@ -114,15 +114,22 @@ fn cached<'a>(
         .ok_or(LookupError::Pending(key))
 }
 
+enum WrittenBinding<'a> {
+    Certain(&'a Alias),
+    Uncertain,
+}
+
 fn binding<'a>(
     (index, frame): (usize, &'a Frame),
     head: &str,
     namespace: Namespace,
     own: Option<&Alias>,
+    enum_patterns: bool,
     limits: &mut MatchLimits,
     eligible: &mut impl FnMut(Key<'a>, &mut MatchLimits) -> Result<bool, LookupError<'a>>,
-) -> Result<Option<&'a Alias>, LookupError<'a>> {
+) -> Result<Option<WrittenBinding<'a>>, LookupError<'a>> {
     let mut selected: Option<&Alias> = None;
+    let mut uncertain = false;
     for alias in frame.names.aliases.get(head).into_iter().flatten() {
         if own.is_some_and(|own| std::ptr::eq(own, alias))
             || alias.type_only && namespace != Namespace::Type
@@ -139,6 +146,16 @@ fn binding<'a>(
                 .try_into()
                 .unwrap_or(u64::MAX),
         )?;
+        if enum_patterns {
+            match alias.attributes {
+                AliasAttributes::Excluded => continue,
+                AliasAttributes::Uncertain => {
+                    uncertain = true;
+                    continue;
+                }
+                AliasAttributes::Inert => {}
+            }
+        }
         let applicable = if alias.path.is_empty() {
             namespace == Namespace::Type
         } else {
@@ -166,7 +183,11 @@ fn binding<'a>(
         }
         selected = Some(alias);
     }
-    Ok(selected)
+    Ok(if uncertain {
+        Some(WrittenBinding::Uncertain)
+    } else {
+        selected.map(WrittenBinding::Certain)
+    })
 }
 
 pub(in crate::gate) struct Expanded {
@@ -174,14 +195,14 @@ pub(in crate::gate) struct Expanded {
     absolute: bool,
     pub(in crate::gate) block: bool,
     pub(in crate::gate) shadowed: bool,
-    alias_attributes: crate::syntax::AliasAttributes,
+    alias_attributes: AliasAttributes,
     first_frame: Option<usize>,
     alias_frame: Option<usize>,
 }
 
 impl Expanded {
     pub(super) fn has_uncertain_alias(&self) -> bool {
-        self.alias_attributes != crate::syntax::AliasAttributes::Inert
+        self.alias_attributes != AliasAttributes::Inert
     }
 
     pub(in crate::gate) fn text(&self) -> String {
@@ -487,7 +508,16 @@ impl Scopes {
                 return Ok(true);
             }
             if frame.module
-                || binding((index, frame), head, namespace, None, limits, eligible)?.is_some()
+                || binding(
+                    (index, frame),
+                    head,
+                    namespace,
+                    None,
+                    self.module_globs,
+                    limits,
+                    eligible,
+                )?
+                .is_some()
             {
                 break;
             }
@@ -509,7 +539,7 @@ impl Scopes {
             absolute,
             block: false,
             shadowed: false,
-            alias_attributes: crate::syntax::AliasAttributes::Inert,
+            alias_attributes: AliasAttributes::Inert,
             first_frame: None,
             alias_frame: None,
         };
@@ -532,9 +562,15 @@ impl Scopes {
                     expanded.block = !frame.module || !self.module_globs;
                     return Ok(Some(expanded));
                 }
-                if let Some(alias) =
-                    binding((index, frame), head, namespace, own, limits, eligible)?
-                {
+                if let Some(alias) = binding(
+                    (index, frame),
+                    head,
+                    namespace,
+                    own,
+                    self.module_globs,
+                    limits,
+                    eligible,
+                )? {
                     selected = Some((alias, !frame.module, index + 1));
                     break;
                 }
@@ -546,15 +582,16 @@ impl Scopes {
                 break;
             };
             expanded.first_frame.get_or_insert(declaration_limit - 1);
+            let WrittenBinding::Certain(alias) = alias else {
+                expanded.alias_attributes = AliasAttributes::Uncertain;
+                return Ok(Some(expanded));
+            };
             if alias.path.is_empty() {
                 expanded.shadowed = true;
                 expanded.block |= block;
                 return Ok(Some(expanded));
             }
             expanded.alias_frame = Some(declaration_limit - 1);
-            if self.module_globs && alias.attributes != crate::syntax::AliasAttributes::Inert {
-                expanded.alias_attributes = alias.attributes;
-            }
             let mut next = alias.path.clone();
             next.extend(expanded.segments.iter().skip(1).cloned());
             if next == expanded.segments {
@@ -602,7 +639,7 @@ impl Scopes {
             ) {
                 Ok(expanded) => {
                     let value = if let Some(expanded) = expanded {
-                        if expanded.shadowed && expanded.block {
+                        if expanded.has_uncertain_alias() || expanded.shadowed && expanded.block {
                             true
                         } else {
                             eligible(
