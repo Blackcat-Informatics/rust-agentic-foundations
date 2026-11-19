@@ -247,6 +247,7 @@ fn visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers() {
     assert!(!root.join("target").exists());
 
     assert_block_glob_scope(root);
+    assert_visibility_item_scopes(root);
     fs::write(
         root.join("base/Cargo.toml"),
         format!("{base_manifest}[dependencies]\nclient={{path='../client'}}\n"),
@@ -292,6 +293,95 @@ fn assert_block_glob_scope(root: &Path) {
     assert_eq!(ambiguous.stdout, Vec::<u8>::new());
     assert!(
         String::from_utf8_lossy(&ambiguous.stderr).contains("distinct glob and outer bindings")
+    );
+}
+
+fn assert_visibility_item_scopes(root: &Path) {
+    let bridge = root.join("bridge/src/lib.rs");
+    let mut source = fs::read_to_string(&bridge).unwrap();
+    source.push_str(
+        "\npub enum Empty { Spare } impl Empty { pub fn fallback() {} }\n\
+        pub enum Tuple { concealed(()) } impl Tuple { pub fn concealed() {} }\n\
+        pub enum Brace { named { value: u8 } }\n\
+         #[cfg(unix)] pub enum Branched { divergent(()) }\n\
+         #[cfg(windows)] pub enum Branched { Spare }\n\
+         pub fn fallback() {} pub fn concealed() {} pub fn named() {} pub fn divergent(_: ()) {}",
+    );
+    fs::write(bridge, source).unwrap();
+    fs::write(
+        root.join("client/src/loose.rs"),
+        "use bridge::{fallback, concealed, named};\n\
+        fn calls() {\n\
+            { use bridge::Empty::*; fallback(); bridge::Empty::fallback(); }\n\
+            { use bridge::Tuple::*; let _ = concealed(()); }\n\
+            { use bridge::Brace::*; named(); }\n\
+            use bridge::facade as nested_call; let nested_call = || ();\n\
+            use bridge::facade as captured_call; let captured_call = || ();\n\
+            fn inner() { nested_call(); }\n\
+            let _ = || captured_call();\n\
+        }\n\
+        fn alias_chain() {\n\
+            use bridge::glob_symbols::*; use branch as local; use local::*;\n\
+            leaf::via_chain();\n\
+        }",
+    )
+    .unwrap();
+    let output = run(root, &["visibility"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&output.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    for (package, symbol, written, expected) in [
+        ("bridge", "bridge::fallback", "fallback", true),
+        ("bridge", "bridge::Empty::fallback", "fallback", false),
+        (
+            "bridge",
+            "bridge::Empty::fallback",
+            "bridge::Empty::fallback",
+            true,
+        ),
+        ("bridge", "bridge::concealed", "concealed", false),
+        ("bridge", "bridge::Tuple::concealed", "concealed", false),
+        ("bridge", "bridge::named", "named", true),
+        ("base", "base::implementation::used", "nested_call", true),
+        ("base", "base::implementation::used", "captured_call", false),
+        ("base", "base::glob_symbols::branch", "local::*", true),
+        (
+            "base",
+            "base::glob_symbols::branch::leaf::via_chain",
+            "leaf::via_chain",
+            true,
+        ),
+    ] {
+        let library = visibility_nodes(&graph, graph.get("").unwrap(), "library")
+            .find(|node| visibility_value(*node, "package") == package)
+            .unwrap();
+        let observed = visibility_nodes(&graph, library, "use").any(|row| {
+            visibility_value(row, "symbol") == symbol
+                && visibility_value(row, "consumer") == "client"
+                && row
+                    .values(&format!("{}writtenPath", vocab::REPORT))
+                    .any(|value| value.literal().unwrap().0 == written)
+        });
+        assert_eq!(observed, expected, "written path {written} for {symbol}");
+    }
+
+    fs::write(
+        root.join("client/src/loose.rs"),
+        "use bridge::divergent; fn call() { use bridge::Branched::*; let _ = divergent(()); }",
+    )
+    .unwrap();
+    let ambiguous = run(root, &["visibility"]);
+    assert_eq!(ambiguous.status.code(), Some(1));
+    assert_eq!(ambiguous.stdout, Vec::<u8>::new());
+    assert!(
+        String::from_utf8_lossy(&ambiguous.stderr).contains("differs across indexed declarations")
     );
 }
 

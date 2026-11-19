@@ -4,14 +4,17 @@
 //! Lexical syntax observations; workspace definition lookup stays in Source.
 
 use super::super::{charge, failure, push};
+use super::{EnumMembers, GlobCache};
 use crate::{
     Error,
     syntax::{Alias, Names, path_text},
 };
 use purrdf_jsonschema::ecma::MatchLimits;
 use purrdf_lex::walk::WorkList;
-use raf_source::Namespace;
-use std::collections::BTreeSet;
+use raf_source::{ItemId, Namespace};
+use std::cell::{Cell, RefCell};
+use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
 use syn::ext::IdentExt;
 
 #[derive(Default)]
@@ -21,6 +24,10 @@ struct Frame {
     values: BTreeSet<String>,
     types: BTreeSet<String>,
     macros: BTreeSet<String>,
+    local_values: BTreeSet<String>,
+    generic_types: BTreeSet<String>,
+    function: bool,
+    settled: RefCell<GlobCache>,
     module: bool,
 }
 
@@ -43,10 +50,14 @@ impl Frame {
         });
     }
 
-    fn local(&self, head: &str, namespace: Namespace) -> bool {
+    fn local(&self, head: &str, namespace: Namespace, runtime: bool) -> bool {
         match namespace {
-            Namespace::Type => self.types.contains(head),
-            Namespace::Value => self.values.contains(head),
+            Namespace::Type => {
+                self.types.contains(head) || runtime && self.generic_types.contains(head)
+            }
+            Namespace::Value => {
+                self.values.contains(head) || runtime && self.local_values.contains(head)
+            }
             Namespace::Macro => self.macros.contains(head),
             _ => unreachable!("syntax classification passes only known namespaces"),
         }
@@ -161,6 +172,7 @@ pub(in crate::gate) struct Expanded {
     pub(in crate::gate) block: bool,
     pub(in crate::gate) shadowed: bool,
     first_frame: Option<usize>,
+    alias_frame: Option<usize>,
 }
 
 impl Expanded {
@@ -175,17 +187,28 @@ impl Expanded {
     pub(super) fn is_absolute(&self) -> bool {
         self.absolute
     }
+
+    pub(super) fn alias_frame(&self) -> Option<usize> {
+        self.alias_frame
+    }
+
+    pub(super) fn sees_target_glob(&self, frame: usize) -> bool {
+        self.alias_frame
+            .map_or_else(|| self.sees_glob(frame), |target| frame <= target)
+    }
 }
 
 #[derive(Default)]
 pub(in crate::gate) struct Scopes {
     frames: WorkList<Frame, 8>,
+    pub(super) enums: RefCell<BTreeMap<ItemId, Rc<EnumMembers>>>,
+    glob_states: Cell<usize>,
 }
 
 #[derive(Clone, Copy)]
 enum Query<'a> {
     Local(&'a [String], Namespace),
-    Expand(&'a [String], bool, Namespace, usize),
+    Expand(&'a [String], bool, Namespace, usize, bool),
 }
 
 enum Answer {
@@ -255,7 +278,30 @@ impl Scopes {
     }
 
     pub(in crate::gate) fn leave(&mut self) {
-        self.frames.pop();
+        if let Some(frame) = self.frames.pop() {
+            self.glob_states
+                .set(self.glob_states.get() - frame.settled.into_inner().retained);
+        }
+    }
+
+    pub(super) fn retain_glob_states(
+        &self,
+        count: usize,
+        limits: &MatchLimits,
+    ) -> Result<(), Error> {
+        let total = self.glob_states.get().saturating_add(count);
+        if total > limits.states {
+            return Err(failure(
+                "visibility",
+                "block glob cache state limit exhausted",
+            ));
+        }
+        self.glob_states.set(total);
+        Ok(())
+    }
+
+    pub(super) fn remaining_glob_states(&self, limits: &MatchLimits) -> usize {
+        limits.states.saturating_sub(self.glob_states.get())
     }
 
     pub(super) fn in_module(&self) -> bool {
@@ -267,6 +313,13 @@ impl Scopes {
 
     pub(super) fn in_file_module(&self) -> bool {
         self.frames.len() == 1
+    }
+
+    pub(super) fn function_boundary(&mut self) {
+        self.frames
+            .top_mut()
+            .expect("entered lexical scope")
+            .function = true;
     }
 
     pub(in crate::gate) fn bind(
@@ -284,7 +337,7 @@ impl Scopes {
                     self.frames
                         .top_mut()
                         .expect("entered lexical scope")
-                        .values
+                        .local_values
                         .insert(name.unraw().to_string());
                 }
                 Ok(false) => {}
@@ -298,7 +351,7 @@ impl Scopes {
         self.frames
             .top_mut()
             .expect("entered lexical scope")
-            .values
+            .local_values
             .insert("self".into());
     }
 
@@ -313,15 +366,15 @@ impl Scopes {
     pub(in crate::gate) fn generics(&mut self, generics: &syn::Generics, self_type: bool) {
         let frame = self.frames.top_mut().expect("entered lexical scope");
         if self_type {
-            frame.types.insert("Self".into());
+            frame.generic_types.insert("Self".into());
         }
         for parameter in &generics.params {
             match parameter {
                 syn::GenericParam::Type(ty) => {
-                    frame.types.insert(ty.ident.unraw().to_string());
+                    frame.generic_types.insert(ty.ident.unraw().to_string());
                 }
                 syn::GenericParam::Const(value) => {
-                    frame.values.insert(value.ident.unraw().to_string());
+                    frame.local_values.insert(value.ident.unraw().to_string());
                 }
                 syn::GenericParam::Lifetime(_) => {}
             }
@@ -339,11 +392,13 @@ impl Scopes {
             return Ok(false);
         };
         let namespace = head_namespace(path, namespace);
+        let mut runtime = true;
         for (index, frame) in (0..self.frames.len()).rev().zip(self.frames.iter().rev()) {
             charge("paths", limits, 1)?;
-            if frame.local(head, namespace) {
+            if frame.local(head, namespace, runtime) {
                 return Ok(true);
             }
+            runtime &= !frame.function;
             if frame.module
                 || binding((index, frame), head, namespace, None, limits, eligible)?.is_some()
             {
@@ -358,7 +413,7 @@ impl Scopes {
         path: &[String],
         absolute: bool,
         namespace: Namespace,
-        (initial_own, mut frame_limit): (Option<&'a Alias>, usize),
+        (initial_own, mut frame_limit, mut runtime): (Option<&'a Alias>, usize, bool),
         limits: &mut MatchLimits,
         eligible: &mut impl FnMut(Key<'a>, &mut MatchLimits) -> Result<bool, LookupError<'a>>,
     ) -> Result<Option<Expanded>, LookupError<'a>> {
@@ -368,6 +423,7 @@ impl Scopes {
             block: false,
             shadowed: false,
             first_frame: None,
+            alias_frame: None,
         };
         let mut seen = WorkList::<&Alias, 8>::new();
         while !expanded.absolute {
@@ -377,17 +433,19 @@ impl Scopes {
             let namespace = head_namespace(&expanded.segments, namespace);
             let own = seen.iter().last().copied().or(initial_own);
             let mut selected = None;
+            let mut see_runtime = runtime;
             for (index, frame) in (0..self.frames.len()).rev().zip(self.frames.iter().rev()) {
                 charge("paths", limits, 1)?;
                 if index >= frame_limit {
                     continue;
                 }
-                if frame.local(head, namespace) {
+                if frame.local(head, namespace, see_runtime) {
                     expanded.first_frame.get_or_insert(index);
                     expanded.shadowed = true;
                     expanded.block = true;
                     return Ok(Some(expanded));
                 }
+                see_runtime &= !frame.function;
                 if let Some(alias) =
                     binding((index, frame), head, namespace, own, limits, eligible)?
                 {
@@ -407,6 +465,7 @@ impl Scopes {
                 expanded.block |= block;
                 return Ok(Some(expanded));
             }
+            expanded.alias_frame = Some(declaration_limit - 1);
             let mut next = alias.path.clone();
             next.extend(expanded.segments.iter().skip(1).cloned());
             if next == expanded.segments {
@@ -425,6 +484,7 @@ impl Scopes {
             expanded.absolute = alias.absolute;
             expanded.block |= block;
             frame_limit = declaration_limit;
+            runtime = false;
         }
         Ok(Some(expanded))
     }
@@ -447,7 +507,7 @@ impl Scopes {
                 &key.alias.path,
                 key.alias.absolute,
                 key.namespace,
-                (Some(key.alias), key.frame + 1),
+                (Some(key.alias), key.frame + 1, false),
                 limits,
                 &mut check,
             ) {
@@ -507,12 +567,12 @@ impl Scopes {
                 Query::Local(path, namespace) => self
                     .local_with(path, namespace, limits, &mut check)
                     .map(Answer::Local),
-                Query::Expand(path, absolute, namespace, frame_limit) => self
+                Query::Expand(path, absolute, namespace, frame_limit, runtime) => self
                     .expand_with(
                         path,
                         absolute,
                         namespace,
-                        (None, frame_limit),
+                        (None, frame_limit, runtime),
                         limits,
                         &mut check,
                     )
@@ -549,41 +609,50 @@ impl Scopes {
         limits: &mut MatchLimits,
         eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
     ) -> Result<Option<Expanded>, Error> {
-        self.expand_from(
-            path,
-            absolute,
-            namespace,
-            self.frames.len(),
+        self.expansion(
+            Query::Expand(path, absolute, namespace, self.frames.len(), true),
             limits,
             eligible,
         )
     }
 
-    pub(super) fn expand_from(
+    pub(super) fn expand_import(
         &self,
         path: &[String],
         absolute: bool,
         namespace: Namespace,
-        frame_limit: usize,
+        frame_limit: Option<usize>,
         limits: &mut MatchLimits,
         eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
     ) -> Result<Option<Expanded>, Error> {
-        match self.resolve(
-            Query::Expand(path, absolute, namespace, frame_limit),
+        let frame_limit = frame_limit.unwrap_or(self.frames.len());
+        self.expansion(
+            Query::Expand(path, absolute, namespace, frame_limit, false),
             limits,
             eligible,
-        )? {
+        )
+    }
+
+    fn expansion(
+        &self,
+        query: Query<'_>,
+        limits: &mut MatchLimits,
+        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+    ) -> Result<Option<Expanded>, Error> {
+        match self.resolve(query, limits, eligible)? {
             Answer::Expanded(value) => Ok(value),
             Answer::Local(_) => unreachable!("an expansion query returns an expansion answer"),
         }
     }
 
-    pub(super) fn block_globs(&self) -> impl Iterator<Item = (usize, &[Glob])> {
+    pub(super) fn block_globs(
+        &self,
+    ) -> impl Iterator<Item = (usize, &[Glob], &RefCell<GlobCache>)> {
         (0..self.frames.len())
             .rev()
             .zip(self.frames.iter().rev())
             .take_while(|(_, frame)| !frame.module)
             .filter(|(_, frame)| !frame.globs.is_empty())
-            .map(|(index, frame)| (index, frame.globs.as_slice()))
+            .map(|(index, frame)| (index, frame.globs.as_slice(), &frame.settled))
     }
 }

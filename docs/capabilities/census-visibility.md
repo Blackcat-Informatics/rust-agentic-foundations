@@ -17,6 +17,7 @@ bindings:
     - cargo_census::command::visibility
   tests:
     - cargo_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers
+    - raf_census::gate::patterns::paths::tests::repeated_glob_paths_reuse_work_without_merging_distinct_source_reaches
     - raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches
   examples:
     - raf_census::visibility
@@ -92,7 +93,12 @@ unused by other packages.
   constructors, patterns, types and macros named in source. It covers type or
   module prefixes that resolve in their written namespace, including prefixes
   of qualified macro calls. A block glob can resolve through another block glob
-  visible from its declaration. If the glob prefix could name separate
+  visible from its declaration, including through a named import whose target
+  resolves in that import's declaration scope. Module globs supply indexed
+  member definitions. Enum globs can shadow an outer binding with a variant
+  in the applicable namespace. Inherent functions require a qualified path.
+  If indexed enum alternatives disagree about a variant name in that
+  namespace, qualify the path. If the glob prefix could name separate
   definitions through a glob and an outer scope, qualify the import. An identity
   that remains ambiguous across packages refuses the report when it can affect
   a public declaration. A block glob outside the index can likewise prevent
@@ -110,13 +116,19 @@ through a re-export. Declaration identity connects that use to the library
 that owns the definition. Source spans distinguish declarations that share a
 path, and synthetic crate roots are outside the declaration inventory.
 
+A lexical frame retains settled block glob prefixes for each Source reading
+context and reuses head lookups for ordinary occurrences. Each import excludes
+its own declaration during lookup.
+<!-- raf:tested-by raf_census::gate::patterns::paths::tests::repeated_glob_paths_reuse_work_without_merging_distinct_source_reaches -->
+
 ## Verification
 
 The CLI fixture checks the three library tiers, re-export attribution, the
 import in an out-of-line module, the test-only dependency, trait and block
-scope resolution, a constant pattern reached through a block glob, chained
-and direct block glob prefixes, and a module named only through a qualified
-macro call. It checks the exact union of written path spellings, compares
+scope resolution, a constant pattern reached through a block glob, direct
+and chained glob prefixes through named imports, enum glob membership,
+nested function and closure scopes, and a module named only through a
+qualified macro call. It checks the exact union of written path spellings, compares
 report bytes across entry directories and checks that a normal dependency
 cycle and a potentially shadowing unindexed block glob refuse before output.
 An excluded package and an inert build script exercise the static input
@@ -130,6 +142,7 @@ across module reaches and a neighbour with consistent meanings.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::gate::patterns::paths::tests::repeated_glob_paths_reuse_work_without_merging_distinct_source_reaches` | test | [Explanation](#explanation) |
 | `raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches` | test | [Constraints](#constraints) |
 | `raf_census::visibility` | doctest | [Usage](#usage) |
 <!-- raf:generated:end -->

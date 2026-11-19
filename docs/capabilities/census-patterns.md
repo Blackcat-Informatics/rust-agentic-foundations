@@ -131,6 +131,8 @@ actual definition sites. Source retains the owner's reading module and target;
 code and import lookup preserve their different edition rules. Syntactic lexical
 scopes account for parameters, generic bindings, local declarations and imports,
 initializer-before-binding order, closures, conditional bindings and match arms.
+Nested function items retain enclosing item imports and use their own local
+and generic bindings. Closures can capture enclosing bindings.
 Known constant patterns retain their Source identity instead of becoming locals.
 Qualified path heads use the Type namespace; bare values and macros use their
 own namespaces. Indexed imports retain each applicable namespace binding, so

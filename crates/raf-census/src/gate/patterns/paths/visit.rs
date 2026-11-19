@@ -608,6 +608,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             return;
         }
         self.generic_scope(&node.sig.generics, false, |this| {
+            this.scopes.function_boundary();
             this.inputs(&node.sig.inputs);
             if !this.observe_function(&node.sig, &node.attrs, &node.block) {
                 syn::visit::visit_item_fn(this, node);

@@ -9,13 +9,15 @@ pub(in crate::gate) mod visit;
 
 use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
 
 use purrdf_jsonschema::ecma::MatchLimits;
 use purrdf_lex::walk::WorkList;
 use raf_source::{
     CodeResolveError, CodeResolver, ImplBlock, ItemId, Namespace, PackageId, Resolution,
-    ResolutionAttempt, ResolveError, SourceFile, TargetKind, Workspace,
+    ResolutionAttempt, ResolveError, SourceFile, SymbolKind, TargetId, TargetKind, Workspace,
 };
+use syn::Fields;
 use syn::ext::IdentExt;
 
 use super::{Found, charge, failure, push};
@@ -236,8 +238,8 @@ struct ScopedGlob<'a> {
     frame: usize,
     expanded: Expanded,
     text: String,
-    direct: bool,
-    chained: OnceCell<GlobRoute>,
+    direct: Option<GlobProvider>,
+    chained: OnceCell<(GlobRoute, GlobProvider)>,
 }
 
 type GlobPrefixes<'a> = WorkList<ScopedGlob<'a>, 8>;
@@ -246,7 +248,13 @@ impl ScopedGlob<'_> {
     fn prefix(&self) -> &str {
         self.chained
             .get()
-            .map_or(self.text.as_str(), |route| route.path.as_str())
+            .map_or(self.text.as_str(), |(route, _)| route.path.as_str())
+    }
+
+    fn provider(&self) -> Option<&GlobProvider> {
+        self.direct
+            .as_ref()
+            .or_else(|| self.chained.get().map(|(_, provider)| provider))
     }
 
     fn has_prefix(&self) -> bool {
@@ -255,7 +263,7 @@ impl ScopedGlob<'_> {
     }
 
     fn unresolved_relative(&self) -> bool {
-        !self.direct && self.chained.get().is_none() && self.relative_prefix().is_some()
+        self.provider().is_none() && self.relative_prefix().is_some()
     }
 
     fn relative_prefix(&self) -> Option<(&str, &[String])> {
@@ -268,9 +276,92 @@ impl ScopedGlob<'_> {
     }
 }
 
+#[derive(Clone)]
 struct GlobRoute {
     path: String,
     sites: Vec<ItemId>,
+}
+
+#[derive(Clone)]
+enum GlobProvider {
+    Module,
+    Enum(Rc<WorkList<Rc<EnumMembers>, 2>>),
+    Other,
+}
+
+type EnumMembers = BTreeMap<String, bool>;
+
+impl GlobProvider {
+    fn retained_states(&self) -> usize {
+        match self {
+            Self::Enum(enums) => enums.len(),
+            Self::Module | Self::Other => 0,
+        }
+    }
+
+    fn variant(
+        &self,
+        head: &str,
+        namespace: Namespace,
+        limits: &mut MatchLimits,
+    ) -> Result<bool, Error> {
+        let Self::Enum(enums) = self else {
+            return Ok(false);
+        };
+        if !matches!(namespace, Namespace::Type | Namespace::Value) {
+            return Ok(false);
+        }
+        let mut present = None;
+        for members in enums.iter() {
+            charge(VISIBILITY, limits, u64::from(members.len().bit_width()) + 1)?;
+            let found = members
+                .get(head)
+                .is_some_and(|value| namespace == Namespace::Type || *value);
+            if present
+                .replace(found)
+                .is_some_and(|previous| previous != found)
+            {
+                return Err(failure(
+                    VISIBILITY,
+                    &format!(
+                        "enum glob head {head:?} differs across indexed declarations; qualify the path"
+                    ),
+                ));
+            }
+        }
+        Ok(present.unwrap_or(false))
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum ReadingContext {
+    Item(ItemId, String),
+    Impl(raf_source::ImplId),
+    File(TargetId, String, bool),
+}
+
+#[derive(Default)]
+struct GlobCache {
+    contexts: BTreeMap<ReadingContext, SettledFrame>,
+    retained: usize,
+}
+
+struct SettledFrame {
+    prefixes: WorkList<SettledGlob, 8>,
+    heads: BTreeMap<Namespace, BTreeMap<String, GlobHead>>,
+}
+
+struct SettledGlob {
+    source_byte: Option<usize>,
+    prefix: String,
+    provider: Option<GlobProvider>,
+}
+
+#[derive(Clone, Default)]
+struct GlobHead {
+    route: Option<GlobRoute>,
+    opaque: Option<String>,
+    variant: bool,
 }
 
 struct Lookup<'a, 'w> {
@@ -305,6 +396,10 @@ impl Lookup<'_, '_> {
         if self.site.is_import() && alias.source_byte == Some(self.site.byte) {
             return Ok(false);
         }
+        self.eligible_declaration(alias, namespace)
+    }
+
+    fn eligible_declaration(&self, alias: &Alias, namespace: Namespace) -> Result<bool, Error> {
         let text = path_text(&alias.path, alias.absolute);
         eligible_namespace(namespace, |space| match self.query(&text, space, true) {
             Ok(_) => Ok(true),
@@ -336,15 +431,25 @@ impl Lookup<'_, '_> {
         {
             return Ok(LexicalPath::Local);
         }
-        scopes
-            .expand(
+        let expanded = if self.site.is_import() {
+            scopes.expand_import(
+                written,
+                absolute,
+                self.site.namespace,
+                None,
+                limits,
+                &mut eligible,
+            )
+        } else {
+            scopes.expand(
                 written,
                 absolute,
                 self.site.namespace,
                 limits,
                 &mut eligible,
             )
-            .map(LexicalPath::Accessible)
+        };
+        expanded.map(LexicalPath::Accessible)
     }
 
     fn indexed(&self, written: &str, import: bool) -> Result<Option<Vec<ItemId>>, Error> {
@@ -402,7 +507,7 @@ impl Lookup<'_, '_> {
         &self,
         scopes: &Scopes,
         written: &[String],
-        expanded: Option<&Expanded>,
+        visible: impl Fn(usize) -> bool,
         limits: &mut MatchLimits,
     ) -> Result<GlobLookup, Error> {
         let Some(head) = written.first() else {
@@ -417,34 +522,40 @@ impl Lookup<'_, '_> {
             self.site.namespace
         };
         let mut glob_lookup = GlobLookup::default();
-        let own = |glob: &Glob| self.site.is_import() && glob.source_byte == Some(self.site.byte);
-        for (frame, declarations) in scopes
-            .block_globs()
-            .take_while(|(frame, _)| expanded.is_none_or(|path| path.sees_glob(*frame)))
+        let exclusion = self.site.is_import().then_some(self.site.byte);
+        let mut context = None;
+        for (frame, declarations, cache) in
+            scopes.block_globs().filter(|(frame, _, _)| visible(*frame))
         {
-            if declarations.iter().all(own) {
+            if exclusion.is_some_and(|byte| {
+                declarations
+                    .iter()
+                    .all(|glob| glob.source_byte == Some(byte))
+            }) {
                 continue;
             }
-            let mut selected = None;
-            let globs = self.resolve_block_globs(scopes, frame, limits)?;
-            for glob in globs.iter().take_while(|glob| glob.frame == frame) {
-                if own(glob.declaration) {
-                    continue;
-                }
-                if !glob.has_prefix() {
-                    glob_lookup.opaque.get_or_insert_with(|| {
-                        path_text(&glob.declaration.path, glob.declaration.absolute)
-                    });
-                    continue;
-                }
-                let prefix = glob.prefix();
-                if let Some(route) = self.glob_member(prefix, head, namespace, limits)? {
-                    self.select_glob(&mut selected, route, head)?;
-                } else if !glob.direct && glob.chained.get().is_none() {
-                    glob_lookup.opaque.get_or_insert_with(|| prefix.to_owned());
-                }
+            if context.is_none() {
+                context = Some(self.reading_context()?);
             }
-            if let Some(route) = selected {
+            let context = context
+                .as_ref()
+                .expect("INVARIANT: a glob lookup establishes its Source context");
+            let selected = self.cached_glob_head(
+                scopes,
+                frame,
+                &mut cache.borrow_mut(),
+                context,
+                (head, namespace, exclusion),
+                limits,
+            )?;
+            if glob_lookup.opaque.is_none() {
+                glob_lookup.opaque = selected.opaque;
+            }
+            if selected.variant {
+                glob_lookup.definition = Some(PathDefinition::Missing);
+                break;
+            }
+            if let Some(route) = selected.route {
                 glob_lookup.definition = Some(if written.len() == 1 {
                     PathDefinition::Written(route.sites)
                 } else {
@@ -463,6 +574,277 @@ impl Lookup<'_, '_> {
         Ok(glob_lookup)
     }
 
+    fn glob_occurrence(
+        &self,
+        scopes: &Scopes,
+        written: &[String],
+        absolute: bool,
+        expanded: Option<&Expanded>,
+        limits: &mut MatchLimits,
+    ) -> Result<GlobLookup, Error> {
+        if absolute {
+            return Ok(GlobLookup::default());
+        }
+        let mut glob = self.through_block_glob(
+            scopes,
+            written,
+            |frame| expanded.is_none_or(|path| path.sees_glob(frame)),
+            limits,
+        )?;
+        if glob.definition.is_none()
+            && let Some(alias) = expanded.filter(|path| {
+                !path.is_absolute() && !path.shadowed && path.alias_frame().is_some()
+            })
+        {
+            let target = self.through_block_glob(
+                scopes,
+                &alias.segments,
+                |frame| alias.sees_target_glob(frame),
+                limits,
+            )?;
+            glob.definition = target.definition;
+            glob.opaque = glob.opaque.or(target.opaque);
+        }
+        Ok(glob)
+    }
+
+    fn reading_context(&self) -> Result<ReadingContext, Error> {
+        Ok(match self.owner {
+            PathOwner::Item(item) => ReadingContext::Item(
+                item,
+                self.code
+                    .reading_module(item, self.site.byte)
+                    .map_err(|error| self.error("block glob", error))?
+                    .to_owned(),
+            ),
+            PathOwner::Impl(id) => ReadingContext::Impl(id),
+            PathOwner::File(reach) => {
+                ReadingContext::File(reach.target, reach.module_path.to_string(), reach.test)
+            }
+        })
+    }
+
+    fn cached_glob_head(
+        &self,
+        scopes: &Scopes,
+        frame: usize,
+        cache: &mut GlobCache,
+        context: &ReadingContext,
+        (head, namespace, exclusion): (&str, Namespace, Option<usize>),
+        limits: &mut MatchLimits,
+    ) -> Result<GlobHead, Error> {
+        charge(
+            self.label,
+            limits,
+            u64::from(cache.contexts.len().bit_width()) + 1,
+        )?;
+        if !cache.contexts.contains_key(context) {
+            let globs = self.resolve_block_globs(scopes, frame, limits)?;
+            let frame_globs = || globs.iter().take_while(move |glob| glob.frame == frame);
+            let retained = frame_globs().fold(1usize, |total, glob| {
+                total
+                    .saturating_add(1)
+                    .saturating_add(glob.provider().map_or(0, GlobProvider::retained_states))
+            });
+            if retained > scopes.remaining_glob_states(limits) {
+                return Err(failure(
+                    self.label,
+                    "block glob cache state limit exhausted",
+                ));
+            }
+            let mut prefixes = WorkList::new();
+            for glob in frame_globs() {
+                let prefix = if glob.has_prefix() {
+                    glob.prefix().to_owned()
+                } else {
+                    path_text(&glob.declaration.path, glob.declaration.absolute)
+                };
+                push(
+                    self.label,
+                    &mut prefixes,
+                    SettledGlob {
+                        source_byte: glob.declaration.source_byte,
+                        prefix,
+                        provider: glob.provider().cloned(),
+                    },
+                    0,
+                    limits,
+                )?;
+            }
+            scopes.retain_glob_states(retained, limits)?;
+            cache.retained += retained;
+            cache.contexts.insert(
+                context.clone(),
+                SettledFrame {
+                    prefixes,
+                    heads: BTreeMap::new(),
+                },
+            );
+        }
+        let settled = cache
+            .contexts
+            .get_mut(context)
+            .expect("INVARIANT: the exact Source context has settled prefixes");
+        if exclusion.is_some() {
+            return self.lookup_glob_head(settled, head, namespace, exclusion, limits);
+        }
+        let heads = settled.heads.get(&namespace);
+        charge(
+            self.label,
+            limits,
+            u64::from(heads.map_or(0, BTreeMap::len).bit_width()) + 1,
+        )?;
+        if let Some(result) = heads.and_then(|heads| heads.get(head)) {
+            return Ok(result.clone());
+        }
+        let result = self.lookup_glob_head(settled, head, namespace, None, limits)?;
+        let retained = usize::from(heads.is_none())
+            + result
+                .route
+                .as_ref()
+                .map_or(1, |route| route.sites.capacity() + 1);
+        scopes.retain_glob_states(retained, limits)?;
+        cache.retained += retained;
+        settled
+            .heads
+            .entry(namespace)
+            .or_default()
+            .insert(head.to_owned(), result.clone());
+        Ok(result)
+    }
+
+    fn lookup_glob_head(
+        &self,
+        settled: &SettledFrame,
+        head: &str,
+        namespace: Namespace,
+        exclusion: Option<usize>,
+        limits: &mut MatchLimits,
+    ) -> Result<GlobHead, Error> {
+        let mut found = GlobHead::default();
+        for glob in settled.prefixes.iter() {
+            charge(self.label, limits, 1)?;
+            if exclusion.is_some_and(|byte| glob.source_byte == Some(byte)) {
+                continue;
+            }
+            match &glob.provider {
+                Some(GlobProvider::Module) => {
+                    if let Some(route) = self.glob_member(&glob.prefix, head, namespace, limits)? {
+                        self.select_glob(&mut found.route, route, head)?;
+                    }
+                }
+                Some(provider) => found.variant |= provider.variant(head, namespace, limits)?,
+                None => {
+                    found.opaque.get_or_insert_with(|| glob.prefix.clone());
+                }
+            }
+        }
+        if found.variant && found.route.is_some() {
+            return Err(failure(
+                self.label,
+                &format!("written path head {head:?} has competing block glob bindings"),
+            ));
+        }
+        Ok(found)
+    }
+
+    fn glob_provider(
+        &self,
+        scopes: &Scopes,
+        sites: &[ItemId],
+        limits: &mut MatchLimits,
+    ) -> Result<GlobProvider, Error> {
+        let (workspace, _) = self
+            .visibility
+            .expect("INVARIANT: block globs are collected for visibility");
+        let mut enums = WorkList::new();
+        let mut modules = 0;
+        for &id in sites {
+            charge(self.label, limits, 1)?;
+            let item = workspace.item(id).ok_or_else(|| {
+                failure(self.label, "block glob prefix has no indexed declaration")
+            })?;
+            match item.kind {
+                SymbolKind::Mod => modules += 1,
+                SymbolKind::Enum => push(
+                    self.label,
+                    &mut enums,
+                    self.enum_members(scopes, workspace, item, limits)?,
+                    0,
+                    limits,
+                )?,
+                _ => {}
+            }
+        }
+        if modules == sites.len() {
+            Ok(GlobProvider::Module)
+        } else if enums.len() == sites.len() {
+            Ok(GlobProvider::Enum(Rc::new(enums)))
+        } else if modules == 0 && enums.is_empty() {
+            Ok(GlobProvider::Other)
+        } else {
+            Err(failure(
+                self.label,
+                "block glob prefix has competing declaration kinds; qualify the import",
+            ))
+        }
+    }
+
+    fn enum_members(
+        &self,
+        scopes: &Scopes,
+        workspace: &Workspace,
+        item: &raf_source::Item,
+        limits: &mut MatchLimits,
+    ) -> Result<Rc<EnumMembers>, Error> {
+        let mut enums = scopes.enums.borrow_mut();
+        if let Some(members) = enums.get(&item.id) {
+            return Ok(Rc::clone(members));
+        }
+        let source = workspace
+            .source(&item.file)
+            .and_then(|source| source.get(item.span.start_byte..item.span.end_byte))
+            .ok_or_else(|| failure(self.label, "indexed enum source span is unavailable"))?;
+        charge(
+            self.label,
+            limits,
+            source.len().try_into().unwrap_or(u64::MAX),
+        )?;
+        let capacity = scopes
+            .remaining_glob_states(limits)
+            .checked_sub(1)
+            .ok_or_else(|| failure(self.label, "enum glob roster state limit exhausted"))?;
+        let members = raf_source::parse_source(&item.file, source, |syntax| {
+            let [syn::Item::Enum(declaration)] = syntax.items.as_slice() else {
+                return Err(failure(
+                    self.label,
+                    "indexed enum span does not name an enum declaration",
+                ));
+            };
+            let mut members = EnumMembers::new();
+            for variant in &declaration.variants {
+                let name = variant.ident.unraw().to_string();
+                let value = !matches!(variant.fields, Fields::Named(_));
+                if let Some(known) = members.get_mut(&name) {
+                    *known |= value;
+                } else {
+                    if members.len() >= capacity {
+                        return Err(failure(
+                            self.label,
+                            "enum glob roster state limit exhausted",
+                        ));
+                    }
+                    members.insert(name, value);
+                }
+            }
+            Ok(members)
+        })??;
+        scopes.retain_glob_states(members.len() + 1, limits)?;
+        let members = Rc::new(members);
+        enums.insert(item.id, Rc::clone(&members));
+        Ok(members)
+    }
+
     fn resolve_block_globs<'s>(
         &self,
         scopes: &'s Scopes,
@@ -470,16 +852,20 @@ impl Lookup<'_, '_> {
         limits: &mut MatchLimits,
     ) -> Result<GlobPrefixes<'s>, Error> {
         let mut globs = WorkList::new();
-        for (frame, declarations) in scopes
+        for (frame, declarations, _) in scopes
             .block_globs()
-            .skip_while(|(frame, _)| *frame > wanted_frame)
+            .skip_while(|(frame, _, _)| *frame > wanted_frame)
         {
             self.prepare_glob_frame(scopes, frame, declarations, &mut globs, limits)?;
-            self.settle_globs(&globs, limits)?;
+            self.settle_globs(scopes, &globs, limits)?;
             if !globs
                 .iter()
                 .take_while(|glob| glob.frame == wanted_frame)
-                .any(|glob| glob.relative_prefix().is_some() && glob.expanded.sees_glob(frame))
+                .any(|glob| {
+                    glob.relative_prefix().is_some()
+                        && (glob.expanded.sees_target_glob(frame)
+                            || glob.expanded.alias_frame().is_some())
+                })
             {
                 break;
             }
@@ -488,9 +874,9 @@ impl Lookup<'_, '_> {
         // declaration scope. Recheck each inferred prefix against that scope.
         for glob in globs.iter().filter(|glob| glob.relative_prefix().is_some()) {
             let settled = self.chain_glob(glob, &globs, limits)?;
-            if !glob.direct
+            if glob.direct.is_none()
                 && settled.as_ref().map(|route| &route.sites)
-                    != glob.chained.get().map(|route| &route.sites)
+                    != glob.chained.get().map(|(route, _)| &route.sites)
             {
                 return Err(failure(
                     self.label,
@@ -510,12 +896,13 @@ impl Lookup<'_, '_> {
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
         for declaration in declarations {
-            let mut eligible = |alias: &Alias, namespace| self.eligible(alias, namespace);
-            let Some(expanded) = scopes.expand_from(
+            let mut eligible =
+                |alias: &Alias, namespace| self.eligible_declaration(alias, namespace);
+            let Some(expanded) = scopes.expand_import(
                 &declaration.path,
                 declaration.absolute,
                 Namespace::Type,
-                frame + 1,
+                Some(frame + 1),
                 limits,
                 &mut eligible,
             )?
@@ -533,13 +920,14 @@ impl Lookup<'_, '_> {
                 frame,
                 expanded,
                 text,
-                direct: false,
+                direct: None,
                 chained: OnceCell::new(),
             };
-            prefix.direct = prefix.has_prefix()
-                && self
-                    .indexed_in(&prefix.text, Namespace::Type, true)?
-                    .is_some();
+            if prefix.has_prefix()
+                && let Some(sites) = self.indexed_in(&prefix.text, Namespace::Type, true)?
+            {
+                prefix.direct = Some(self.glob_provider(scopes, &sites, limits)?);
+            }
             push(self.label, globs, prefix, 0, limits)?;
         }
         Ok(())
@@ -547,6 +935,7 @@ impl Lookup<'_, '_> {
 
     fn settle_globs(
         &self,
+        scopes: &Scopes,
         globs: &GlobPrefixes<'_>,
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
@@ -559,7 +948,8 @@ impl Lookup<'_, '_> {
                 if glob.unresolved_relative()
                     && let Some(route) = self.chain_glob(glob, globs, limits)?
                 {
-                    glob.chained.set(route).map_err(|_| {
+                    let provider = self.glob_provider(scopes, &route.sites, limits)?;
+                    glob.chained.set((route, provider)).map_err(|_| {
                         failure(self.label, "block glob prefix already has a settled route")
                     })?;
                     changed = true;
@@ -582,24 +972,36 @@ impl Lookup<'_, '_> {
             return Ok(None);
         };
         let mut selected = None;
+        let mut variant = false;
         for candidate in globs.iter() {
             charge(self.label, limits, 1)?;
             if candidate.frame > glob.frame
-                || !glob.expanded.sees_glob(candidate.frame)
+                || !glob.expanded.sees_target_glob(candidate.frame)
                 || std::ptr::eq(candidate.declaration, glob.declaration)
-                || (!candidate.direct && candidate.chained.get().is_none())
             {
                 continue;
             }
-            if let Some(route) =
-                self.glob_member(candidate.prefix(), head, Namespace::Type, limits)?
-            {
-                self.select_glob(&mut selected, route, head)?;
+            match candidate.provider() {
+                Some(GlobProvider::Module) => {
+                    if let Some(route) =
+                        self.glob_member(candidate.prefix(), head, Namespace::Type, limits)?
+                    {
+                        self.select_glob(&mut selected, route, head)?;
+                    }
+                }
+                Some(provider) => variant |= provider.variant(head, Namespace::Type, limits)?,
+                None => {}
             }
         }
         let Some(route) = selected else {
             return Ok(None);
         };
+        if variant {
+            return Err(failure(
+                self.label,
+                &format!("written path head {head:?} has competing block glob bindings"),
+            ));
+        }
         // Imports cannot select a glob binding over a distinct outer candidate.
         if self.conflicting_outer_glob(head, &route.sites)? {
             return Err(failure(
@@ -749,12 +1151,12 @@ pub(in crate::gate) fn visibility_resolution(
                     item.visibility != raf_source::Vis::Public
                         && matches!(
                             item.kind,
-                            raf_source::SymbolKind::InherentMethod
-                                | raf_source::SymbolKind::TraitImplMethod
-                                | raf_source::SymbolKind::TraitDefaultMethod
-                                | raf_source::SymbolKind::TraitRequiredMethod
-                                | raf_source::SymbolKind::AssocType
-                                | raf_source::SymbolKind::AssocConst
+                            SymbolKind::InherentMethod
+                                | SymbolKind::TraitImplMethod
+                                | SymbolKind::TraitDefaultMethod
+                                | SymbolKind::TraitRequiredMethod
+                                | SymbolKind::AssocType
+                                | SymbolKind::AssocConst
                         )
                 })
             }) =>
@@ -872,8 +1274,7 @@ fn cross_package_uses(
     } else {
         raw.clone()
     };
-    let in_impl =
-        |owner: &&raf_source::Item| blocks.is_empty() || owner.kind != raf_source::SymbolKind::Mod;
+    let in_impl = |owner: &&raf_source::Item| blocks.is_empty() || owner.kind != SymbolKind::Mod;
     let owner_contexts = owners
         .iter()
         .copied()
@@ -923,11 +1324,7 @@ fn cross_package_uses(
         else {
             continue;
         };
-        let glob = if absolute {
-            GlobLookup::default()
-        } else {
-            lookup.through_block_glob(scopes, &written, expanded.as_ref(), limits)?
-        };
+        let glob = lookup.glob_occurrence(scopes, &written, absolute, expanded.as_ref(), limits)?;
         let definition = match glob.definition {
             Some(definition) => definition,
             None => lookup.resolve(&raw, expanded.as_ref(), limits)?,
@@ -961,7 +1358,7 @@ fn classify_pattern(
     sites: &[ItemId],
     classified: &mut Option<bool>,
 ) -> Result<bool, Error> {
-    use raf_source::{FieldShape, SymbolKind};
+    use raf_source::FieldShape;
 
     let mut kind = None;
     for &site in sites {
@@ -1130,9 +1527,83 @@ fn matches(
 mod tests {
     use std::fmt::Write as _;
 
-    use super::OwnerCache;
+    use super::{CrossPackagePaths, OwnerCache, visit};
     use purrdf_jsonschema::ecma::MatchLimits;
-    use raf_source::{MemoryTree, Workspace};
+    use raf_source::{LoadOptions, MemoryTree, RelPath, Workspace};
+
+    #[test]
+    fn repeated_glob_paths_reuse_work_without_merging_distinct_source_reaches() {
+        // The two reaches use different actual providers of the same head.
+        // Repeated calls fit the work grant only with retained declaration work.
+        let mut definitions = String::from(
+            "pub mod scope_0 { pub fn hit() {} }\npub mod scope_1 { pub fn hit() {} }\n",
+        );
+        let mut consumer = String::from("fn observe() { use super::provider::*;\n");
+        for index in 2..30 {
+            writeln!(definitions, "pub mod scope_{index} {{}}").unwrap();
+            writeln!(consumer, "use dep::scope_{index}::*;").unwrap();
+        }
+        for _ in 0..500 {
+            consumer.push_str("hit();\n");
+        }
+        consumer.push('}');
+        let tree = MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[workspace]\nmembers=['dep','client']\nresolver='2'\n",
+            ),
+            (
+                "dep/Cargo.toml",
+                "[package]\nname='dep'\nversion='0.1.0'\nedition='2024'\n",
+            ),
+            ("dep/src/lib.rs", definitions.as_str()),
+            (
+                "client/Cargo.toml",
+                "[package]\nname='client'\nversion='0.1.0'\nedition='2024'\n[dependencies]\ndep={path='../dep'}\n",
+            ),
+            ("client/src/lib.rs", "mod a; mod b;"),
+            (
+                "client/src/a.rs",
+                "pub use dep::scope_0 as provider; #[path=\"shared.rs\"] mod shared;",
+            ),
+            (
+                "client/src/b.rs",
+                "pub use dep::scope_1 as provider; #[path=\"shared.rs\"] mod shared;",
+            ),
+            ("client/src/shared.rs", consumer.as_str()),
+        ]);
+        let workspace =
+            Workspace::load_members(&tree, &RelPath::root(), &LoadOptions::default()).unwrap();
+        let file = workspace
+            .file(&RelPath::new("client/src/shared.rs").unwrap())
+            .unwrap();
+        let code = workspace.code_resolver().unwrap();
+        let observe = |steps| {
+            let mut paths = CrossPackagePaths::default();
+            let mut limits = MatchLimits {
+                steps,
+                states: 4_096,
+            };
+            raf_source::parse_source(&file.path, &file.text, |syntax| {
+                visit::references(&workspace, &code, file, syntax, &mut limits, &mut paths)
+            })
+            .unwrap()?;
+            Ok::<_, crate::Error>(paths)
+        };
+        let paths = observe(250_000).unwrap();
+        for symbol in ["dep::scope_0::hit", "dep::scope_1::hit"] {
+            let sites = workspace.resolve(symbol).unwrap().sites;
+            assert!(
+                sites
+                    .iter()
+                    .any(|id| paths.by_item.get(id).is_some_and(|uses| {
+                        uses.values().any(|written| written.contains("hit"))
+                    })),
+                "missing {symbol}"
+            );
+        }
+        assert!(matches!(observe(4_096), Err(error) if error.to_string().contains("step limit")));
+    }
 
     #[test]
     fn ownership_scans_spend_the_grant_once_per_byte_and_bound_retention() {

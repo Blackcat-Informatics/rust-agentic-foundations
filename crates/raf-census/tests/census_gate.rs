@@ -1622,6 +1622,18 @@ fn call_patterns_follow_written_imports_and_respect_parameters_locals_and_closur
         ("pub fn other(){let release=|_:u32|{}; release(2);}", 0),
         ("pub fn other(){let _=|release:fn(u32)| release(2);}", 0),
         ("pub fn other(){let release=release::<u32>; release(2);}", 0),
+        (
+            "pub fn other(){let release=|_:u32|{}; fn inner(){release(2);} inner(); let _=||release(2);}",
+            1,
+        ),
+        (
+            "pub fn other(){let release=|_:u32|{}; fn inner(release:fn(u32)){release(2);} let _=||release(2);}",
+            0,
+        ),
+        (
+            "pub fn other(){let release=|_:u32|{}; use std::mem::drop as imported; let imported=release; fn inner(){imported(2);} inner();}",
+            1,
+        ),
         ("pub fn other(){let _=std::mem::drop::<u32>;}", 0),
     ] {
         let source = format!(
@@ -1650,6 +1662,8 @@ fn type_patterns_follow_aliases_without_capturing_generic_or_module_shadows() {
     for (other, copies) in [
         ("pub fn other(_:Lock<u32>){}", 1),
         ("pub fn other<Lock>(_:Lock){}", 0),
+        ("pub fn other<Lock>(){fn inner(_:Lock<u32>){} }", 1),
+        ("pub fn other<Lock>(){fn inner<Lock>(_:Lock){} }", 0),
         ("pub fn other<std>(){let _:std::sync::Mutex<u32>;}", 0),
         (
             "pub mod nested {pub mod std {pub mod sync {pub struct Mutex<T>(T);}} pub fn other(_:std::sync::Mutex<u32>){}}",
