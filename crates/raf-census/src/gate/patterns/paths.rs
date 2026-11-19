@@ -1979,7 +1979,12 @@ fn numeric_definitions(
     else {
         return Ok(Vec::new());
     };
-    if expanded.as_ref().is_some_and(|path| path.shadowed) {
+    // A module declaration is resolved by Source; only a block shadow
+    // prevents reading the indexed path.
+    if expanded
+        .as_ref()
+        .is_some_and(|path| path.shadowed && path.block)
+    {
         return Ok(Vec::new());
     }
     let glob = lookup.glob_occurrence(scopes, &written, absolute, expanded.as_ref(), limits)?;

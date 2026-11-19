@@ -102,6 +102,13 @@ const SOURCE: &str = r#"
         let apply = |_: (usize, usize), _: usize, _: usize| {};
         apply((71, 72), 73, 74);
         Throttle.apply_limit(75);
+        Throttle::apply_limit(&Throttle, 27);
+        let _ = items.len() > Throttle::MAX_ITEMS;
+        {
+            struct Throttle;
+            impl Throttle { fn apply_limit(&self, index: usize) {} }
+            Throttle::apply_limit(&Throttle, 28);
+        }
     }
     pub const MAX_ITEMS: usize = 8 + 2;
     pub static CAPACITY: u64 = 20;
@@ -115,6 +122,7 @@ const SOURCE: &str = r#"
     impl Route for &Throttle { fn adjust(self, input: usize) {} }
     struct Throttle;
     impl Throttle {
+        const MAX_ITEMS: usize = 31;
         fn apply_limit(&self, size: usize) {}
         fn truncate(&self, left: usize, right: usize) {}
         fn adjust(self, size: usize) {}
@@ -140,8 +148,10 @@ fn numeric_inventory_classifies_physical_sites_before_jobs() {
         ("24", BoundRole::Comparison),
         ("18", BoundRole::SizeArgument),
         ("19", BoundRole::SizeArgument),
+        ("27", BoundRole::SizeArgument),
         ("MAX_ITEMS", BoundRole::Named),
         ("CAPACITY", BoundRole::Named),
+        ("MAX_ITEMS", BoundRole::Named),
         ("21", BoundRole::SizeArgument),
         ("22", BoundRole::SizeArgument),
     ];
