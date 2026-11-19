@@ -196,18 +196,89 @@ fn deep_group_findings_refuse_as_a_whole_above_the_payload_limit() {
     assert!(matches!(check(384), Err(Error::FindingLimit)));
 }
 
+#[derive(Clone, Copy)]
+enum Enclosing {
+    File,
+    MissingEntry,
+    DuplicateEntry,
+    Orphan,
+}
+
+const REQUIRED_MARKER: TypeId = TypeId(0xe914_47cf_636b_013a);
+
+fn required_descriptor(
+    value: Option<bool>,
+    enclosing: Enclosing,
+    declared_marker: bool,
+) -> Vec<u8> {
+    const FILE: TypeId = TypeId(0xa7c2_bc02_a14a_f2d0);
+    let mut message = Builder::new_default();
+    let request = message.init_root::<code_generator_request::Builder<'_>>();
+    let mut nodes = request.init_nodes(4);
+    let mut declaration = nodes.reborrow().get(0);
+    declaration.set_id(REQUIRED_MARKER.0);
+    declaration.set_scope_id(FILE.0);
+    let mut declaration = declaration.init_annotation();
+    declaration.set_targets_field(true);
+    declaration.init_type().set_void(());
+
+    let mut file = nodes.reborrow().get(1);
+    file.set_id(FILE.0);
+    file.set_file(());
+    let entries = match enclosing {
+        Enclosing::File => 1,
+        Enclosing::DuplicateEntry => 2,
+        Enclosing::MissingEntry | Enclosing::Orphan => 0,
+    };
+    let mut nested = file.init_nested_nodes(entries + u32::from(declared_marker));
+    if declared_marker {
+        let mut child = nested.reborrow().get(0);
+        child.set_id(REQUIRED_MARKER.0);
+        child.set_name("required");
+    }
+    for (index, name) in (0..entries).zip(["Record", "Duplicate"]) {
+        let mut child = nested.reborrow().get(index + u32::from(declared_marker));
+        child.set_id(ROOT.0);
+        child.set_name(name);
+    }
+
+    let mut orphan = nodes.reborrow().get(3);
+    orphan.set_id(MISSING.0);
+    let _ = orphan.reborrow().init_struct();
+    let mut child = orphan.init_nested_nodes(1).get(0);
+    child.set_id(ROOT.0);
+    child.set_name("Record");
+
+    let mut structure = nodes.get(2);
+    structure.set_id(ROOT.0);
+    let scope = if matches!(enclosing, Enclosing::Orphan) {
+        MISSING
+    } else {
+        FILE
+    };
+    structure.set_scope_id(scope.0);
+    let mut structure = structure.init_struct();
+    structure.set_pointer_count(1);
+    let mut field = structure.init_fields(1).get(0);
+    field.set_name("label");
+    field.reborrow().get_ordinal().set_explicit(0);
+    let mut slot = field.reborrow().init_slot();
+    slot.reborrow().init_type().set_text(());
+    slot.init_default_value().set_text("");
+    let mut annotation = field.init_annotations(1).get(0);
+    annotation.set_id(REQUIRED_MARKER.0);
+    match value {
+        Some(true) => annotation.init_value().set_void(()),
+        Some(false) => annotation.init_value().set_bool(true),
+        None => {}
+    }
+    serialize::write_message_to_words(&message)
+}
+
 /// A Void marker needs a present value and an ordinary declaration that can
 /// be traced through its enclosing schema nodes to a file.
 #[test]
 fn required_annotation_refuses_invalid_values_and_undeclared_structs() {
-    enum Enclosing {
-        File,
-        MissingEntry,
-        DuplicateEntry,
-        Orphan,
-    }
-    const FILE: TypeId = TypeId(0xa7c2_bc02_a14a_f2d0);
-    const MARKER: TypeId = TypeId(0xe914_47cf_636b_013a);
     let roots = BTreeSet::from([ROOT]);
     for (value, enclosing, declared_marker, diagnostic) in [
         (Some(true), Enclosing::File, true, None),
@@ -248,68 +319,8 @@ fn required_annotation_refuses_invalid_values_and_undeclared_structs() {
             Some("must belong to a declared schema scope"),
         ),
     ] {
-        let mut message = Builder::new_default();
-        let request = message.init_root::<code_generator_request::Builder<'_>>();
-        let mut nodes = request.init_nodes(4);
-        let mut declaration = nodes.reborrow().get(0);
-        declaration.set_id(MARKER.0);
-        declaration.set_scope_id(FILE.0);
-        let mut declaration = declaration.init_annotation();
-        declaration.set_targets_field(true);
-        declaration.init_type().set_void(());
-
-        let mut file = nodes.reborrow().get(1);
-        file.set_id(FILE.0);
-        file.set_file(());
-        let entries = match enclosing {
-            Enclosing::File => 1,
-            Enclosing::DuplicateEntry => 2,
-            Enclosing::MissingEntry | Enclosing::Orphan => 0,
-        };
-        let mut nested = file.init_nested_nodes(entries + u32::from(declared_marker));
-        if declared_marker {
-            let mut child = nested.reborrow().get(0);
-            child.set_id(MARKER.0);
-            child.set_name("required");
-        }
-        for (index, name) in (0..entries).zip(["Record", "Duplicate"]) {
-            let mut child = nested.reborrow().get(index + u32::from(declared_marker));
-            child.set_id(ROOT.0);
-            child.set_name(name);
-        }
-
-        let mut orphan = nodes.reborrow().get(3);
-        orphan.set_id(MISSING.0);
-        let _ = orphan.reborrow().init_struct();
-        let mut child = orphan.init_nested_nodes(1).get(0);
-        child.set_id(ROOT.0);
-        child.set_name("Record");
-
-        let mut structure = nodes.get(2);
-        structure.set_id(ROOT.0);
-        let scope = if matches!(enclosing, Enclosing::Orphan) {
-            MISSING
-        } else {
-            FILE
-        };
-        structure.set_scope_id(scope.0);
-        let mut structure = structure.init_struct();
-        structure.set_pointer_count(1);
-        let mut field = structure.init_fields(1).get(0);
-        field.set_name("label");
-        field.reborrow().get_ordinal().set_explicit(0);
-        let mut slot = field.reborrow().init_slot();
-        slot.reborrow().init_type().set_text(());
-        slot.init_default_value().set_text("");
-        let mut annotation = field.init_annotations(1).get(0);
-        annotation.set_id(MARKER.0);
-        match value {
-            Some(true) => annotation.init_value().set_void(()),
-            Some(false) => annotation.init_value().set_bool(true),
-            None => {}
-        }
-        let bytes = serialize::write_message_to_words(&message);
-        let read = descriptor::read(&bytes, &roots, Some(MARKER), true);
+        let bytes = required_descriptor(value, enclosing, declared_marker);
+        let read = descriptor::read(&bytes, &roots, Some(REQUIRED_MARKER), true);
         if let Some(diagnostic) = diagnostic {
             assert!(matches!(
                 read,
