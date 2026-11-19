@@ -55,7 +55,7 @@ inputs:
     digest: 13d0555b019cbfab0a0fb80e1a7d761d1adda926a620d160fa26e28390592aba
   - kind: symbol
     name: raf_census::Ledger
-    digest: 44962e7fe203871e8f6e7a32c4f396d043f09f3b776a84a74597c033d6efb4ba
+    digest: a829022b54891ec5201afa5db36a4dd012fea1e7ad1a705a05cd8bd0ae5a74f9
   - kind: symbol
     name: raf_census::LedgerDistinct
     digest: 17457f169b7261f1ddddabbf2a133314281331a298f382ee1d392ad9313475af
@@ -100,7 +100,7 @@ inputs:
     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
   - kind: symbol
     name: raf_census::gate::evaluate
-    digest: 86dc4574c25aa42e21378064c968a9dcf4990286a50803bfdab478a9a65cd4c5
+    digest: 2c8b2446ff5698e2a69c6f361db5b4cb3d19db6d9e41580514fc2d9d34e61729
   - kind: symbol
     name: raf_census::gate::owners
     digest: 42c47c5cb754e9d6284eb089c8ee9aa14bfaa04b41194c50f9416bcbd4b4a34c
@@ -109,7 +109,7 @@ inputs:
     digest: 0f8af14c407068df501a54e54eb4a91e5bb1d20bdf923076c55825261d7afd2f
   - kind: symbol
     name: raf_census::report::ledger
-    digest: fe2683f9cd650dc732a2983d892e02350d757296159d9774a870b51491151a8b
+    digest: a873668c74e4f54aa8cec1cbba8d8c0eb4e9f2e02faa56b1724e3065e13fbda7
 verdict: accepted
 by: agent
 ---

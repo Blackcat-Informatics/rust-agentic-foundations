@@ -261,7 +261,7 @@ impl Index {
                         found.insert(*id);
                     }
                     SymbolKind::TypeAlias => {
-                        if let Some((home, alias)) = self.aliases.get(id) {
+                        if let Some((home, alias, _)) = self.aliases.get(id) {
                             push(&mut pending, *home, &alias.segments, alias.leading_colon)?;
                         }
                     }

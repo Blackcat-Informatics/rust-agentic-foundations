@@ -37,6 +37,55 @@ fn budget(error: crate::LoadError) -> CodeResolveError {
 }
 
 impl CodeResolver<'_> {
+    /// Resolve a plain type alias to its enum through unconditional named paths.
+    /// The query admits the same bounded const argument forms as associated
+    /// member lookup. Other nominal types supply no enum identity.
+    ///
+    /// # Errors
+    /// Refuses an absent alias, an uncertain or unsupported alias chain and
+    /// exhausted query resources.
+    pub fn unconditional_enum_alias(
+        &self,
+        alias: ItemId,
+    ) -> Result<Option<ItemId>, CodeResolveError> {
+        let item = self
+            .index
+            .items
+            .get(alias.index())
+            .ok_or(CodeResolveError::UnknownItem(alias))?;
+        if item.kind != SymbolKind::TypeAlias {
+            return Ok(None);
+        }
+        let meter = Meter::resume_query(
+            self.options,
+            Usage {
+                item_bytes: self.usage.item_bytes,
+                ..Usage::default()
+            },
+        );
+        let steps = Steps::QueryItems {
+            meter: &meter,
+            file: &item.file,
+            line: Some(item.name_line),
+        };
+        let mut admission = ItemAdmission::new(&meter, &item.file);
+        let result = self.alias_nominal(
+            alias,
+            "enum",
+            &meter,
+            &mut Memory::new(&mut admission),
+            steps,
+            true,
+        );
+        match result {
+            Ok((id, _, _)) => {
+                Ok((self.index.items[id.index()].kind == SymbolKind::Enum).then_some(id))
+            }
+            Err(Failure::Code(error)) => Err(error),
+            Err(Failure::Storage(error)) => Err(budget(admission.error(error))),
+        }
+    }
+
     /// Require a method whose self type applies without generic inference.
     ///
     /// Admits direct nominal types with no parameters, or the exact forwarding
@@ -185,7 +234,7 @@ impl CodeResolver<'_> {
         steps: Steps<'_>,
     ) -> Result<Resolution, Failure> {
         let (nominal, aliases, carried) =
-            self.alias_nominal(first, member, meter, memory, steps)?;
+            self.alias_nominal(first, member, meter, memory, steps, false)?;
         let item = &self.index.items[nominal.index()];
         let home = self.homes[nominal.index()]
             .module()
@@ -229,6 +278,7 @@ impl CodeResolver<'_> {
         meter: &Meter,
         memory: &mut Memory<'_, S>,
         steps: Steps<'_>,
+        unconditional: bool,
     ) -> Result<(ItemId, Vec<ItemId>, bool), Failure> {
         let mut current = first;
         let mut aliases = Vec::new();
@@ -245,7 +295,7 @@ impl CodeResolver<'_> {
                 );
             }
             let arguments = item.detail.as_ref().and_then(|detail| detail.alias_const_arity).ok_or_else(|| unsupported(current, member, "supply a zero-parameter plain alias with literal const arguments; general alias substitution is not modeled"))?;
-            let (home, rhs) = self
+            let (home, rhs, configuration) = self
                 .index
                 .aliases
                 .get(&current)
@@ -262,17 +312,12 @@ impl CodeResolver<'_> {
                 memory.push_str(&mut path, segment)?;
             }
             meter.work(path.len(), &item.file, None).map_err(budget)?;
+            let heads = Heads::Code {
+                test: item.test != TestRole::None,
+            };
             let resolution = self
                 .index
-                .resolve_at(
-                    *home,
-                    &path,
-                    Some(Namespace::Type),
-                    Heads::Code {
-                        test: item.test != TestRole::None,
-                    },
-                    steps,
-                )
+                .resolve_at(*home, &path, Some(Namespace::Type), heads, steps)
                 .map_err(CodeResolveError::Resolve)?;
             if resolution.sites.len() != 1 {
                 return Err(
@@ -281,6 +326,25 @@ impl CodeResolver<'_> {
             }
             carried |= resolution.via_glob;
             current = resolution.sites[0];
+            if unconditional
+                && (*configuration == crate::facts::ConfigurationDependence::Conditional
+                    || !self
+                        .index
+                        .module_is_unconditional(*home, steps)
+                        .map_err(CodeResolveError::Resolve)?
+                    || self
+                        .index
+                        .unconditional_type_path(*home, &path, heads, steps)
+                        .map_err(CodeResolveError::Resolve)?
+                        != Some(current))
+            {
+                return Err(unsupported(
+                    declared,
+                    member,
+                    "alias route is not unconditionally selected",
+                )
+                .into());
+            }
             let target = &self.index.items[current.index()];
             if target.kind == SymbolKind::TypeAlias {
                 if arguments != 0 {

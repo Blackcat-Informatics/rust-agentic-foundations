@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: ed1e70ce209a32b3acfb7a38f2005eceeb3069788decb623df5d4b5cce5b655d
+    digest: 8e8fb799a8fdb3737bffa29bf6fa3754e8f45debecda22deee72ad0009ba3b6e
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -21,11 +21,23 @@ inputs:
     name: raf_source::CapturedLink
     digest: c0726fb76019d83443f3af9a91288f50914445e49906122c58f38462d026ca46
   - kind: symbol
+    name: raf_source::CodeResolver::enum_member_imports_from_item_at
+    digest: 0dc91f0aca226ee749393d505a889d3f52295b5fd51bd509b9bea47a4d167882
+  - kind: symbol
     name: raf_source::CodeResolver::extern_libraries_at
     digest: ccf7d8ddbd4d7ebbbe395615b508aab0b15d044ea583729560f42f4cc6d8a9eb
   - kind: symbol
+    name: raf_source::CodeResolver::has_unconditional_reading_module
+    digest: 60745905a9f1e1130cbdbb44d23ec80b2c773bf68b66193d86db4bd16a8bae63
+  - kind: symbol
     name: raf_source::CodeResolver::require_unconditional_inherent_method
     digest: 16d434d5f5097cfb1bd87978c7ec00fd7c747cade1363709099e3979b7feb561
+  - kind: symbol
+    name: raf_source::CodeResolver::unconditional_enum_alias
+    digest: 609c568fab4b31a7808e82c81c7682d9ce8fcd67189f6d6e968bc2ee52a694c7
+  - kind: symbol
+    name: raf_source::CodeResolver::unconditional_type_from_item_at
+    digest: 344dbd59cc21528226abeba62aabb82a7b2d7a75224b4e1952bec798cb281691
   - kind: symbol
     name: raf_source::CodeResolver::with_configured_syntax
     digest: 35c9a85662ee7b6c80838931cd9c4c57e8dc7da7146eefbd67d8ab6858226258
@@ -400,7 +412,7 @@ inputs:
     digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
-    digest: 789360434129cd25ec5a4dca9529f56d3d650c709e54ff5d4a4cce494c1a832d
+    digest: 6b32896b8d63882dc70430350ad647f27bb9b79d576542ed51e3414a18ddef33
   - kind: symbol
     name: raf_source::syntax_storage::syntax_held
     digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b

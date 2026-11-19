@@ -23,8 +23,8 @@ use purrdf_lex::allocation::Memory;
 use crate::cost::{btree_entry, btree_map, hash_entry, hash_map, shared_text, vec_first, vec_slot};
 use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::{
-    FieldShape, ImplFact, ItemFact, ItemKind, ModBody, ModFact, PathFact, SpanFact, TestRole,
-    UseTree, Vis,
+    ConfigurationDependence, FieldShape, ImplFact, ItemFact, ItemKind, ModBody, ModFact, PathFact,
+    SpanFact, TestRole, UseTree, Vis,
 };
 use crate::glob_scope::{GlobTables, ImportReach};
 use crate::intern::Interner;
@@ -213,6 +213,7 @@ pub(crate) struct UseDecl {
     pub(crate) test: bool,
     /// True when the declaration has `#[doc(hidden)]`.
     pub(crate) doc_hidden: bool,
+    pub(crate) configuration: ConfigurationDependence,
     pub(crate) kind: UseKind,
 }
 
@@ -266,6 +267,13 @@ impl ExternName {
 }
 
 impl UseDecl {
+    pub(crate) const fn heads(&self, position: usize) -> crate::resolve::Heads {
+        crate::resolve::Heads::Use {
+            test: self.test,
+            own: Some(position),
+        }
+    }
+
     /// Owned strings and path-vector storage copied with one import.
     pub(crate) fn clone_bytes(&self) -> usize {
         let path = match &self.kind {
@@ -329,6 +337,7 @@ pub(crate) struct Module {
     /// The target whose crate the module is in.
     pub(crate) target: TargetId,
     pub(crate) defs: Vec<ItemId>,
+    pub(crate) configuration: ConfigurationDependence,
 }
 
 /// The index of a workspace.
@@ -454,7 +463,7 @@ pub(crate) struct Index {
     /// The aliased path of each type alias, with the module it is written in.
     /// The path of a file's alias is shared by every module path that reaches
     /// the file.
-    pub(crate) aliases: BTreeMap<ItemId, (usize, Arc<PathFact>)>,
+    pub(crate) aliases: BTreeMap<ItemId, (usize, Arc<PathFact>, ConfigurationDependence)>,
 }
 
 /// Where the index puts its strings while it is built, and what it charges.
@@ -670,6 +679,7 @@ impl<'a> Builder<'a> {
             root,
             target: self.index.modules[parent].target,
             defs: Vec::new(),
+            configuration: ConfigurationDependence::Unconditional,
         });
         self.index.module_by_path.insert(key, idx);
         Ok(idx)
@@ -801,11 +811,12 @@ impl<'a> Builder<'a> {
         if let Some(alias) = &fact.alias {
             let shared = self.shared_alias(alias, cx, fact.name_line)?;
             self.store.charge(
-                btree_entry::<ItemId, (usize, Arc<PathFact>)>(),
+                btree_entry::<ItemId, (usize, Arc<PathFact>, ConfigurationDependence)>(),
                 cx.file,
                 Some(fact.name_line),
             )?;
-            self.index.aliases.insert(id, (home, shared));
+            let configuration = ConfigurationDependence::of(&fact.attrs);
+            self.index.aliases.insert(id, (home, shared, configuration));
         }
         if fact.kind == ItemKind::ExternCrate {
             let crate_name = fact.renamed_from.as_deref().unwrap_or(&fact.name);
@@ -990,6 +1001,7 @@ impl<'a> Builder<'a> {
             decl.block_segment()
         );
         let child = self.declare(&path, module, cx.file, decl.name_line)?;
+        self.note_module_configuration(child, ConfigurationDependence::of(&decl.attrs));
         // One record for each declaring file: files that one module path merges
         // (the alternatives of a `cfg_attr` path) can declare the same child
         // at the same offset, and each file's items need their own site.
@@ -1013,6 +1025,7 @@ impl<'a> Builder<'a> {
     ) -> Result<usize, LoadError> {
         let path = format!("{}::{}", self.index.modules[module].path, decl.name);
         let child = self.declare(&path, module, cx.file, decl.name_line)?;
+        self.note_module_configuration(child, ConfigurationDependence::of(&decl.attrs));
         let file_docs = self
             .files_at
             .get(&(cx.target, path.as_str()))
@@ -1052,6 +1065,12 @@ impl<'a> Builder<'a> {
         Ok(child)
     }
 
+    fn note_module_configuration(&mut self, module: usize, configuration: ConfigurationDependence) {
+        if configuration == ConfigurationDependence::Conditional {
+            self.index.modules[module].configuration = configuration;
+        }
+    }
+
     /// The `use` declarations and the impl blocks of one body.
     fn uses_and_impls(
         &mut self,
@@ -1077,6 +1096,7 @@ impl<'a> Builder<'a> {
                     vis: decl.vis.clone(),
                     test: decl.test != TestRole::None || cx.reach_test,
                     doc_hidden: decl.doc_hidden,
+                    configuration: decl.configuration,
                     kind,
                 };
                 self.store.charge(entry.bytes(), cx.file, Some(decl.line))?;
@@ -1268,6 +1288,11 @@ impl Index {
                         reach.module_path
                     ))
                 })?;
+            builder
+                .note_module_configuration(module, ConfigurationDependence::of(&file.facts.attrs));
+            if reach.predicate.is_some() {
+                builder.note_module_configuration(module, ConfigurationDependence::Conditional);
+            }
             let cx = Cx {
                 file: &file.path,
                 target: reach.target,
@@ -1820,6 +1845,7 @@ impl Builder<'_> {
             root: idx,
             target: id,
             defs: Vec::new(),
+            configuration: ConfigurationDependence::Unconditional,
         });
         self.index.module_by_path.insert((idx, shared), idx);
         self.index

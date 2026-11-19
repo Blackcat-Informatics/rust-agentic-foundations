@@ -12,6 +12,7 @@ use raf_source::{
 };
 
 use super::owners::{self, Owners};
+use super::patterns::paths::EnumUsage;
 use crate::detectors::{ReceiverMode, SyntaxHits};
 use crate::{Census, Error, Ledger, Rule, RuleHit};
 
@@ -82,11 +83,13 @@ pub(super) struct Subject {
     pub(super) package: String,
 }
 
+#[derive(Default)]
 pub(super) struct Collected {
     pub(super) hits: Hits,
     pub(super) subjects: BTreeMap<UnitKey, Subject>,
     pub(super) offsets: Offsets,
     pub(super) bounds: super::bounds::Scan,
+    pub(super) enum_usage: Vec<String>,
 }
 
 pub(super) struct JobHits<'a> {
@@ -128,7 +131,7 @@ impl JobHits<'_> {
 
 pub(super) fn collect(
     (workspace, code): (&Workspace, &CodeResolver<'_>),
-    census: &Census,
+    (census, consumers): (&Census, &BTreeSet<raf_source::PackageId>),
     selected: &Selected<'_>,
     owners: &Owners<'_>,
     ledger: &Ledger,
@@ -149,14 +152,14 @@ pub(super) fn collect(
             .into_iter()
             .map(|id| (id.to_owned(), BTreeMap::new()))
             .collect(),
-        subjects: BTreeMap::new(),
-        offsets: BTreeMap::new(),
-        bounds: super::bounds::Scan::default(),
+        ..Collected::default()
     };
     fact_hits(workspace, census, (&requested, &tracked), &mut collected)?;
-    if rules.is_empty() && !builtin && ledger.numeric_bounds.is_none() {
+    let enum_policy = !ledger.enum_usage.is_empty();
+    if rules.is_empty() && !builtin && ledger.numeric_bounds.is_none() && !enum_policy {
         return Ok(collected);
     }
+    let mut usage = EnumUsage::select(ledger, (workspace, code), (census, consumers), limits)?;
     let mut receivers = Receivers::new();
     let mut pending = Vec::new();
     let mut enum_retained = 0;
@@ -183,16 +186,17 @@ pub(super) fn collect(
             } else {
                 Ok(SyntaxHits::default())
             };
-            if enum_inventory && let Ok(observed) = &mut builtins {
+            if (enum_inventory || enum_policy)
+                && let Ok(observed) = &mut builtins
+            {
                 observed
                     .hits
-                    .extend(super::patterns::paths::visit::enum_arms(
-                        workspace,
-                        code,
-                        source,
-                        syntax,
+                    .extend(super::patterns::paths::visit::enum_inventory(
+                        (workspace, code),
+                        (source, syntax),
                         limits,
-                        &mut enum_retained,
+                        enum_inventory.then_some(&mut enum_retained),
+                        &mut usage,
                     )?);
             }
             Ok::<_, Error>((registered, builtins))
@@ -229,6 +233,7 @@ pub(super) fn collect(
         let reaches = source_calls((workspace, code, &receivers), file, &hit)?;
         builtin_hit(workspace, file, owners, &mut collected, hit, reaches)?;
     }
+    collected.enum_usage = usage.findings();
     Ok(collected)
 }
 

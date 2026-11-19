@@ -36,6 +36,97 @@ fn query_budget(error: &CodeResolveError) -> Option<Budget> {
     }
 }
 
+/// A route carries the defining enum through each import's own module.
+#[test]
+fn enum_member_imports_require_unique_visible_routes() {
+    let files = MemoryTree::from([
+        ("Cargo.toml", "[workspace]\nmembers=['consumer','provider']"),
+        (
+            "consumer/Cargo.toml",
+            "[package]\nname='consumer'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nrenamed={package='provider',path='../provider'}",
+        ),
+        ("consumer/src/lib.rs", "pub fn reader() {}"),
+        (
+            "provider/Cargo.toml",
+            "[package]\nname='provider'\nversion='1.0.0'\nedition='2024'",
+        ),
+        (
+            "provider/src/lib.rs",
+            r#"
+                mod origin { pub enum State { Ready, Busy } }
+                mod glob_provider { pub use crate::origin::State::*; }
+                pub mod glob_facade { pub use crate::glob_provider::*; }
+                pub mod facade {
+                    use crate::origin::State as Local;
+                    pub use self::Local::Ready as Direct;
+                    pub use self::Direct as Chained;
+                    use self::Local::Ready as Private;
+                    mod concealed { pub use crate::origin::State::Ready as Hidden; }
+                    #[cfg(feature = "models")]
+                    pub mod conditional {
+                        pub use crate::origin::State::Ready as ModuleUse;
+                        pub fn inside() {}
+                    }
+                    #[cfg(all())] pub use self::Local::Ready as Conditional;
+                    #[cfg(not(all()))] pub use self::Local::Busy as Conditional;
+                    pub const Ordinary: u8 = 0;
+                }
+            "#,
+        ),
+    ]);
+    let workspace = Workspace::load(&files, &["."]).unwrap();
+    let reader = owner(&workspace, "consumer::reader");
+    let byte = workspace.item(reader).unwrap().span.start_byte;
+    let state = workspace
+        .resolve_in("provider::origin::State", Namespace::Type)
+        .unwrap()
+        .sites[0];
+    let code = workspace.code_resolver().unwrap();
+    assert!(code.has_unconditional_reading_module(reader, byte).unwrap());
+    let conditional = owner(&workspace, "provider::facade::conditional::inside");
+    let conditional_byte = workspace.item(conditional).unwrap().span.start_byte;
+    assert!(
+        !code
+            .has_unconditional_reading_module(conditional, conditional_byte)
+            .unwrap()
+    );
+    let lookup = |path, namespace| {
+        code.enum_member_imports_from_item_at(reader, byte, path, namespace, false)
+            .unwrap()
+    };
+    for path in [
+        "renamed::facade::Direct",
+        "renamed::facade::Chained",
+        "renamed::glob_facade::Ready",
+    ] {
+        assert_eq!(
+            lookup(path, Namespace::Value),
+            vec![(state, "Ready".into())],
+            "{path}"
+        );
+    }
+    for path in [
+        "renamed::facade::Private",
+        "renamed::facade::concealed::Hidden",
+        "renamed::facade::conditional::ModuleUse",
+        "renamed::facade::Conditional",
+        "renamed::facade::Ordinary",
+        "renamed::other::Direct",
+    ] {
+        assert!(lookup(path, Namespace::Value).is_empty(), "{path}");
+    }
+    assert_eq!(
+        lookup("renamed::facade::Direct", Namespace::Macro),
+        Vec::new()
+    );
+    assert_eq!(
+        code.resolve_from_item_at(reader, byte, "renamed::facade::Ordinary", Namespace::Value)
+            .unwrap()
+            .path,
+        "provider::facade::Ordinary"
+    );
+}
+
 #[test]
 fn external_library_query_scratch_uses_the_original_native_grants() {
     let files = MemoryTree::from([

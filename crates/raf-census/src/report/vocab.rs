@@ -170,6 +170,7 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
             "distinct",
             "pattern",
             "numericBounds",
+            "enumUsage",
         ],
     ),
     (
@@ -216,6 +217,8 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
         ],
     ),
     ("NumericBounds", &["mode", "bound"]),
+    ("EnumUsage", &["symbol", "retainedVariant"]),
+    ("EnumVariantRetention", &["variantName", "reason"]),
     (
         "NumericBound",
         &["file", "siteKey", "classification", "reason", "anchor"],

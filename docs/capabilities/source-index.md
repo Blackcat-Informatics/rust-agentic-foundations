@@ -48,6 +48,10 @@ bindings:
     - raf_source::CodeResolver::extern_libraries_at
     - raf_source::CodeResolver::with_configured_syntax
     - raf_source::CodeResolver::require_unconditional_inherent_method
+    - raf_source::CodeResolver::enum_member_imports_from_item_at
+    - raf_source::CodeResolver::has_unconditional_reading_module
+    - raf_source::CodeResolver::unconditional_enum_alias
+    - raf_source::CodeResolver::unconditional_type_from_item_at
     - raf_source::ExternLibrary
     - raf_source::ExternRouteKind
     - raf_source::Workspace::load_locked_sources_under
@@ -360,6 +364,7 @@ bindings:
     - raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root
     - raf_source::test_crate::code_paths::external_library_query_scratch_uses_the_original_native_grants
     - raf_source::test_crate::code_paths::code_associated_calls_prefer_inherent_methods_without_erasing_symbol_inventory
+    - raf_source::test_crate::code_paths::enum_member_imports_require_unique_visible_routes
     - raf_source::test_crate::code_paths::inherent_method_applicability_is_local_to_the_selected_signature
     - raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants
     - raf_source::test_crate::code_paths::complete_module_paths_return_actual_type_sites_without_becoming_values
@@ -1348,6 +1353,21 @@ still refuse.
 <!-- raf:tested-by raf_source::test_crate::code_paths::inherent_method_applicability_is_local_to_the_selected_signature -->
 Canonical symbol-inventory queries preserve their original ambiguity. Alias and
 public-surface work compose with the original query allowance.
+
+### Enum member imports
+<!-- raf:tested-by raf_source::test_crate::code_paths::enum_member_imports_require_unique_visible_routes -->
+
+`enum_member_imports_from_item_at` follows visible named imports and glob
+reexports. It returns candidate enum identities and member names using each
+import's declaration scope and edition. Conditional or unresolved routes
+furnish no proof. A caller checks each name against the variant roster and
+constructor form, requires a unique surviving definition, and accounts for
+lexical shadowing at the occurrence. `unconditional_type_from_item_at` checks the
+named type route itself. `unconditional_enum_alias` follows the admitted
+plain alias forms to their defining enum through unconditional named paths.
+`has_unconditional_reading_module` checks the indexed module and ancestor
+declarations and file reaches. A caller checks local syntax separately.
+The queries retain the native resource limits.
 
 ### Selected target syntax inspection
 <!-- raf:tested-by raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes,raf_source::test_crate::configured_targets::missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection,raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection,raf_source::test_crate::configured_targets::development_edges_require_a_real_development_or_declared_test_context,raf_source::test_crate::configured_targets::conditional_and_optional_edges_keep_each_targets_actual_activation,raf_source::test_crate::configured_targets::retained_target_lists_and_configuration_queries_spend_the_original_grants -->
@@ -5554,6 +5574,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::code_paths::code_context_tables_spend_only_the_original_load_allowance_and_preserve_usage` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_source::test_crate::code_paths::complete_module_paths_return_actual_type_sites_without_becoming_values` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::enum_member_imports_require_unique_visible_routes` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::exported_macros_keep_their_lexical_module_beside_their_crate_root_export` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::external_library_query_scratch_uses_the_original_native_grants` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_source::test_crate::code_paths::external_library_receipts_keep_actual_names_exports_and_definition_identity` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |

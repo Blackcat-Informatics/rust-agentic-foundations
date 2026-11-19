@@ -5,6 +5,7 @@
 
 mod cache;
 mod enum_sites;
+mod enum_usage;
 pub(in crate::gate) mod scopes;
 pub(in crate::gate) mod visit;
 
@@ -26,6 +27,12 @@ use crate::syntax::{Alias, path_text};
 use crate::{Census, Error, LedgerPattern, PatternMatcher, VisibilityError};
 use cache::OwnerCache;
 use scopes::{AliasTarget, Expanded, Glob, Scopes};
+
+pub(in crate::gate) use enum_usage::EnumUsage;
+
+fn enum_evidence(label: &str) -> bool {
+    matches!(label, crate::detectors::ENUM_CATCH_ALL | enum_usage::RULE)
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Role {
@@ -297,6 +304,61 @@ enum GlobProvider {
 
 type EnumMembers = BTreeMap<String, VariantMember>;
 
+fn read_enum_members(
+    workspace: &Workspace,
+    item: &raf_source::Item,
+    label: &str,
+    capacity: usize,
+    limits: &mut MatchLimits,
+) -> Result<Option<EnumMembers>, Error> {
+    let source = workspace
+        .source(&item.file)
+        .and_then(|source| source.get(item.span.start_byte..item.span.end_byte))
+        .ok_or_else(|| failure(label, "indexed enum source span is unavailable"))?;
+    charge(label, limits, source.len().try_into().unwrap_or(u64::MAX))?;
+    raf_source::parse_source(&item.file, source, |syntax| {
+        let [syn::Item::Enum(declaration)] = syntax.items.as_slice() else {
+            return Err(failure(
+                label,
+                "indexed enum span does not name an enum declaration",
+            ));
+        };
+        let mut members = EnumMembers::new();
+        let scan = enum_evidence(label);
+        if scan && crate::syntax::definitely_excluded(&declaration.attrs) {
+            return Ok(None);
+        }
+        let has_cfg = |attributes: &[syn::Attribute]| {
+            attributes.iter().any(|attribute| {
+                attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
+            })
+        };
+        let conditional_declaration = scan && has_cfg(&declaration.attrs);
+        for variant in &declaration.variants {
+            if scan && crate::syntax::definitely_excluded(&variant.attrs) {
+                continue;
+            }
+            let conditional = conditional_declaration || scan && has_cfg(&variant.attrs);
+            let name = variant.ident.unraw().to_string();
+            if let Some(known) = members.get_mut(&name) {
+                known.forms.observe(&variant.fields);
+                known.conditional |= conditional;
+            } else {
+                if members.len() >= capacity {
+                    return Err(failure(label, "enum glob roster state limit exhausted"));
+                }
+                let mut known = VariantMember {
+                    conditional,
+                    ..VariantMember::default()
+                };
+                known.forms.observe(&variant.fields);
+                members.insert(name, known);
+            }
+        }
+        Ok(Some(members))
+    })?
+}
+
 struct EnumAlternative {
     id: ItemId,
     members: Rc<EnumMembers>,
@@ -432,7 +494,7 @@ enum ReadingContext {
 
 #[derive(Default)]
 struct GlobCache {
-    contexts: BTreeMap<ReadingContext, SettledFrame>,
+    contexts: BTreeMap<(bool, ReadingContext), SettledFrame>,
     retained: usize,
 }
 
@@ -810,7 +872,13 @@ impl Lookup<'_, '_> {
         limits: &mut MatchLimits,
     ) -> Result<PathDefinition<'static>, Error> {
         if tail.is_empty() {
-            return Ok(PathDefinition::Written(route.sites));
+            return Ok(
+                if self.proved_glob_types(namespace, &route.path, &route.sites)? {
+                    PathDefinition::Written(route.sites)
+                } else {
+                    PathDefinition::Missing
+                },
+            );
         }
         let path = format!("{}::{}", route.path, path_text(tail, false));
         charge(
@@ -818,9 +886,36 @@ impl Lookup<'_, '_> {
             limits,
             path.len().try_into().unwrap_or(u64::MAX),
         )?;
-        Ok(self
-            .indexed_in(&path, namespace, true)?
-            .map_or(PathDefinition::Missing, PathDefinition::Written))
+        let Some(sites) = self.indexed_in(&path, namespace, true)? else {
+            return Ok(PathDefinition::Missing);
+        };
+        Ok(if self.proved_glob_types(namespace, &path, &sites)? {
+            PathDefinition::Written(sites)
+        } else {
+            PathDefinition::Missing
+        })
+    }
+
+    fn proved_glob_types(
+        &self,
+        namespace: Namespace,
+        path: &str,
+        sites: &[ItemId],
+    ) -> Result<bool, Error> {
+        if self.label != enum_usage::RULE || namespace != Namespace::Type {
+            return Ok(true);
+        }
+        let (workspace, _) = self
+            .visibility
+            .expect("INVARIANT: enum glob proof has a source workspace");
+        if sites.iter().any(|id| {
+            workspace
+                .item(*id)
+                .is_some_and(|item| matches!(item.kind, SymbolKind::Enum | SymbolKind::TypeAlias))
+        }) {
+            return Ok(enum_sites::named_type(self, path, true)?.as_slice() == sites);
+        }
+        Ok(true)
     }
 
     fn glob_occurrence(
@@ -1043,7 +1138,8 @@ impl Lookup<'_, '_> {
             limits,
             u64::from(cache.contexts.len().bit_width()) + 1,
         )?;
-        if !cache.contexts.contains_key(context) {
+        let key = (self.label == enum_usage::RULE, context.clone());
+        if !cache.contexts.contains_key(&key) {
             let globs = self.resolve_block_globs(scopes, frame, limits)?;
             let frame_globs = || globs.iter().take_while(move |glob| glob.frame == frame);
             let retained = frame_globs().fold(1usize, |total, glob| {
@@ -1079,7 +1175,7 @@ impl Lookup<'_, '_> {
             scopes.retain_glob_states(retained, limits)?;
             cache.retained += retained;
             cache.contexts.insert(
-                context.clone(),
+                key.clone(),
                 SettledFrame {
                     prefixes,
                     heads: BTreeMap::new(),
@@ -1088,10 +1184,10 @@ impl Lookup<'_, '_> {
         }
         let settled = cache
             .contexts
-            .get_mut(context)
+            .get_mut(&key)
             .expect("INVARIANT: the exact Source context has settled prefixes");
         if exclusion.is_some() {
-            return self.lookup_glob_head(settled, head, namespace, exclusion, limits);
+            return self.lookup_glob_head(scopes, settled, head, namespace, exclusion, limits);
         }
         let heads = settled.heads.get(&namespace);
         charge(
@@ -1102,7 +1198,7 @@ impl Lookup<'_, '_> {
         if let Some(result) = heads.and_then(|heads| heads.get(head)) {
             return Ok(result.clone());
         }
-        let result = self.lookup_glob_head(settled, head, namespace, None, limits)?;
+        let result = self.lookup_glob_head(scopes, settled, head, namespace, None, limits)?;
         let retained = usize::from(heads.is_none())
             + result
                 .binding
@@ -1120,6 +1216,7 @@ impl Lookup<'_, '_> {
 
     fn lookup_glob_head(
         &self,
+        scopes: &Scopes,
         settled: &SettledFrame,
         head: &str,
         namespace: Namespace,
@@ -1141,6 +1238,14 @@ impl Lookup<'_, '_> {
                             head,
                             limits,
                         )?;
+                    } else if self.label == enum_usage::RULE {
+                        self.merge_module_variant(
+                            scopes,
+                            &mut found,
+                            (&glob.prefix, head),
+                            namespace,
+                            limits,
+                        )?;
                     }
                 }
                 Some(provider) => {
@@ -1154,6 +1259,46 @@ impl Lookup<'_, '_> {
         Ok(found)
     }
 
+    fn merge_module_variant(
+        &self,
+        scopes: &Scopes,
+        found: &mut GlobHead,
+        (prefix, head): (&str, &str),
+        namespace: Namespace,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        let path = format!("{prefix}::{head}");
+        let candidates =
+            enum_sites::imported_variants_from_path(self, &path, namespace, true, limits)?;
+        let (workspace, _) = self
+            .visibility
+            .expect("INVARIANT: enum glob proof has a source workspace");
+        for (id, member) in candidates {
+            let item = workspace
+                .item(id)
+                .ok_or_else(|| failure(self.label, "imported enum has no indexed declaration"))?;
+            let mut enums = WorkList::new();
+            push(
+                self.label,
+                &mut enums,
+                EnumAlternative {
+                    id,
+                    members: self.enum_members(scopes, workspace, item, limits)?,
+                },
+                0,
+                limits,
+            )?;
+            self.merge_glob_variant(
+                found,
+                &GlobProvider::Enum(Rc::new(enums)),
+                &member,
+                namespace,
+                limits,
+            )?;
+        }
+        Ok(())
+    }
+
     fn merge_glob_variant(
         &self,
         found: &mut GlobHead,
@@ -1162,7 +1307,7 @@ impl Lookup<'_, '_> {
         namespace: Namespace,
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
-        let enum_inventory = self.label == crate::detectors::ENUM_CATCH_ALL;
+        let enum_inventory = enum_evidence(self.label);
         match provider.variant(head, namespace, enum_inventory, limits)? {
             VariantLookup::Conditional => {
                 found.conditional_variant = true;
@@ -1231,63 +1376,12 @@ impl Lookup<'_, '_> {
         if let Some(members) = enums.get(&item.id) {
             return Ok(Rc::clone(members));
         }
-        let source = workspace
-            .source(&item.file)
-            .and_then(|source| source.get(item.span.start_byte..item.span.end_byte))
-            .ok_or_else(|| failure(self.label, "indexed enum source span is unavailable"))?;
-        charge(
-            self.label,
-            limits,
-            source.len().try_into().unwrap_or(u64::MAX),
-        )?;
         let capacity = scopes
             .remaining_glob_states(limits)
             .checked_sub(1)
             .ok_or_else(|| failure(self.label, "enum glob roster state limit exhausted"))?;
-        let members = raf_source::parse_source(&item.file, source, |syntax| {
-            let [syn::Item::Enum(declaration)] = syntax.items.as_slice() else {
-                return Err(failure(
-                    self.label,
-                    "indexed enum span does not name an enum declaration",
-                ));
-            };
-            let mut members = EnumMembers::new();
-            let enum_scan = self.label == crate::detectors::ENUM_CATCH_ALL;
-            if enum_scan && crate::syntax::definitely_excluded(&declaration.attrs) {
-                return Ok(members);
-            }
-            let has_cfg = |attributes: &[syn::Attribute]| {
-                attributes.iter().any(|attribute| {
-                    attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
-                })
-            };
-            let conditional_declaration = enum_scan && has_cfg(&declaration.attrs);
-            for variant in &declaration.variants {
-                if enum_scan && crate::syntax::definitely_excluded(&variant.attrs) {
-                    continue;
-                }
-                let conditional = conditional_declaration || enum_scan && has_cfg(&variant.attrs);
-                let name = variant.ident.unraw().to_string();
-                if let Some(known) = members.get_mut(&name) {
-                    known.forms.observe(&variant.fields);
-                    known.conditional |= conditional;
-                } else {
-                    if members.len() >= capacity {
-                        return Err(failure(
-                            self.label,
-                            "enum glob roster state limit exhausted",
-                        ));
-                    }
-                    let mut known = VariantMember {
-                        conditional,
-                        ..VariantMember::default()
-                    };
-                    known.forms.observe(&variant.fields);
-                    members.insert(name, known);
-                }
-            }
-            Ok(members)
-        })??;
+        let members =
+            read_enum_members(workspace, item, self.label, capacity, limits)?.unwrap_or_default();
         scopes.retain_glob_states(members.len() + 1, limits)?;
         let members = Rc::new(members);
         enums.insert(item.id, Rc::clone(&members));
@@ -1374,6 +1468,7 @@ impl Lookup<'_, '_> {
             };
             if prefix.has_prefix()
                 && let Some(sites) = self.indexed_in(&prefix.text, Namespace::Type, true)?
+                && self.proved_glob_types(Namespace::Type, &prefix.text, &sites)?
             {
                 prefix.direct = Some(self.glob_provider(scopes, &sites, limits)?);
             }
@@ -1468,18 +1563,23 @@ impl Lookup<'_, '_> {
         let GlobBinding::Item(route) = binding else {
             return Ok(None);
         };
-        if tail.is_empty() {
-            return Ok(Some(route));
-        }
-        let path = format!("{}::{}", route.path, path_text(tail, false));
-        charge(
-            self.label,
-            limits,
-            path.len().try_into().unwrap_or(u64::MAX),
-        )?;
+        let route = if tail.is_empty() {
+            route
+        } else {
+            let path = format!("{}::{}", route.path, path_text(tail, false));
+            charge(
+                self.label,
+                limits,
+                path.len().try_into().unwrap_or(u64::MAX),
+            )?;
+            let Some(sites) = self.indexed_in(&path, Namespace::Type, true)? else {
+                return Ok(None);
+            };
+            GlobRoute { path, sites }
+        };
         Ok(self
-            .indexed_in(&path, Namespace::Type, true)?
-            .map(|sites| GlobRoute { path, sites }))
+            .proved_glob_types(Namespace::Type, &route.path, &route.sites)?
+            .then_some(route))
     }
 
     fn conflicting_outer_glob(

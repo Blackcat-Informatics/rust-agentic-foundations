@@ -187,12 +187,13 @@ impl IndexedImport<'_, '_> {
         namespace: Namespace,
     ) -> Result<Resolution, CodeResolveError> {
         let declaration = &self.code.index.uses[self.position];
-        let heads = Heads::Use {
-            test: declaration.test,
-            own: Some(self.position),
-        };
         self.code
-            .resolve_code_at(declaration.module, path, namespace, heads)
+            .resolve_code_at(
+                declaration.module,
+                path,
+                namespace,
+                declaration.heads(self.position),
+            )
             .map(|(resolution, _)| resolution)
     }
 }
@@ -340,6 +341,25 @@ impl<'a> CodeResolver<'a> {
         Ok(self.index.modules[self.module(owner, byte)?].path.as_str())
     }
 
+    /// Whether an owner's reading module and its ancestors have no indexed
+    /// configuration-dependent declarations or file reaches.
+    ///
+    /// This classifies the module route. The caller still checks the syntax
+    /// of the occurrence and its enclosing items.
+    ///
+    /// # Errors
+    /// Refuses an absent owner, outside byte, missing context or exceeded query grant.
+    pub fn has_unconditional_reading_module(
+        &self,
+        owner: ItemId,
+        byte: usize,
+    ) -> Result<bool, CodeResolveError> {
+        let module = self.module(owner, byte)?;
+        self.owner_query(owner, |index, steps| {
+            index.module_is_unconditional(module, steps)
+        })
+    }
+
     /// Whether an indexed item is defined in this actual module or a descendant.
     /// A relocated export and an impl member keep their lexical defining module.
     /// Distinct targets never share scope merely because their paths agree.
@@ -425,6 +445,76 @@ impl<'a> CodeResolver<'a> {
         self.resolve_owned(owner, byte, path, namespace, true)
     }
 
+    /// Follow visible imports to candidate members of indexed enums.
+    ///
+    /// Each candidate carries an enum identity and the terminal spelling in
+    /// the import. The caller validates the declaration and constructor form
+    /// and requires a unique surviving definition. Classify lexical shadowing before
+    /// asking this module-level query. Set `import` when the spelling was
+    /// written in an import declaration, to preserve its edition rules.
+    ///
+    /// Existing definitions and inconclusive or conditional import routes
+    /// yield no enum member evidence.
+    ///
+    /// # Errors
+    /// Refuses missing owner context, invalid paths and native
+    /// resource exhaustion.
+    pub fn enum_member_imports_from_item_at(
+        &self,
+        owner: ItemId,
+        byte: usize,
+        path: &str,
+        namespace: Namespace,
+        import: bool,
+    ) -> Result<Vec<(ItemId, String)>, CodeResolveError> {
+        let (module, heads) = self.owned_context(owner, byte, import)?;
+        self.owner_query(owner, |index, steps| {
+            index.enum_member_import(module, path, namespace, heads, steps)
+        })
+    }
+
+    /// Find a single named type whose module and import route is unconditional.
+    /// Lexical bindings inside blocks and type alias substitution belong to the caller.
+    ///
+    /// # Errors
+    /// Refuses an invalid reading context or path and native resource exhaustion.
+    pub fn unconditional_type_from_item_at(
+        &self,
+        owner: ItemId,
+        byte: usize,
+        path: &str,
+        import: bool,
+    ) -> Result<Option<ItemId>, CodeResolveError> {
+        let (module, heads) = self.owned_context(owner, byte, import)?;
+        self.owner_query(owner, |index, steps| {
+            index.unconditional_type_path(module, path, heads, steps)
+        })
+    }
+
+    fn owner_query<T>(
+        &self,
+        owner: ItemId,
+        query: impl FnOnce(&'a Index, crate::meter::Steps<'_>) -> Result<T, ResolveError>,
+    ) -> Result<T, CodeResolveError> {
+        let item = &self.index.items[owner.index()];
+        let meter = Meter::resume_query(
+            self.options,
+            Usage {
+                item_bytes: self.usage.item_bytes,
+                ..Usage::default()
+            },
+        );
+        let steps = crate::meter::Steps::QueryItems {
+            meter: &meter,
+            file: &item.file,
+            line: Some(item.name_line),
+        };
+        let answer = query(self.index, steps);
+        Index::query_refusal(steps)
+            .map_err(|refused| CodeResolveError::Resolve(self.index.refused(refused)))?;
+        answer.map_err(CodeResolveError::Resolve)
+    }
+
     fn resolve_owned(
         &self,
         owner: ItemId,
@@ -433,6 +523,17 @@ impl<'a> CodeResolver<'a> {
         namespace: Namespace,
         import: bool,
     ) -> Result<Resolution, CodeResolveError> {
+        let (module, heads) = self.owned_context(owner, byte, import)?;
+        self.resolve_code_at(module, path, namespace, heads)
+            .map(|(resolution, _)| resolution)
+    }
+
+    fn owned_context(
+        &self,
+        owner: ItemId,
+        byte: usize,
+        import: bool,
+    ) -> Result<(usize, Heads), CodeResolveError> {
         let module = self.module(owner, byte)?;
         let item = &self.index.items[owner.index()];
         if item.kind == SymbolKind::MacroRules
@@ -449,7 +550,6 @@ impl<'a> CodeResolver<'a> {
         } else {
             Heads::Code { test }
         };
-        self.resolve_code_at(module, path, namespace, heads)
-            .map(|(resolution, _)| resolution)
+        Ok((module, heads))
     }
 }

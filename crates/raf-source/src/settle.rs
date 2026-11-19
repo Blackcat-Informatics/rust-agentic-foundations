@@ -4150,7 +4150,7 @@ impl Index {
             .expect("nonretained binding reads reserve no import storage")
     }
 
-    fn read_binds(
+    pub(crate) fn read_binds(
         &self,
         ns: Namespace,
         walk: Result<Walked, Fail>,

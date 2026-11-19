@@ -193,7 +193,7 @@ inputs:
     digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
-    digest: 789360434129cd25ec5a4dca9529f56d3d650c709e54ff5d4a4cce494c1a832d
+    digest: 6b32896b8d63882dc70430350ad647f27bb9b79d576542ed51e3414a18ddef33
   - kind: symbol
     name: raf_source::tree
     digest: 7f0bae00e8e8eb5fd6417a4a33d9430ae20549ed415702e92e64d58cd4599309

@@ -297,6 +297,27 @@ pub(crate) struct UseFact {
     pub(crate) test: TestRole,
     /// True when the declaration has `#[doc(hidden)]`.
     pub(crate) doc_hidden: bool,
+    /// Configuration can change whether this declaration is present.
+    pub(crate) configuration: ConfigurationDependence,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ConfigurationDependence {
+    Unconditional,
+    Conditional,
+}
+
+impl ConfigurationDependence {
+    pub(crate) fn of(attrs: &[AttrFact]) -> Self {
+        if attrs
+            .iter()
+            .any(|attr| matches!(attr.path.as_str(), "cfg" | "cfg_attr"))
+        {
+            Self::Conditional
+        } else {
+            Self::Unconditional
+        }
+    }
 }
 
 /// An `impl` block header and its items.
@@ -1028,6 +1049,7 @@ fn use_role(attrs: &[Attribute], inherited: TestRole) -> Found<UseRole> {
     Ok(UseRole {
         test: role(summary.own_test, inherited),
         doc_hidden: summary.doc_hidden,
+        configuration: ConfigurationDependence::of(&summary.facts),
     })
 }
 
@@ -1036,6 +1058,7 @@ fn use_role(attrs: &[Attribute], inherited: TestRole) -> Found<UseRole> {
 struct UseRole {
     test: TestRole,
     doc_hidden: bool,
+    configuration: ConfigurationDependence,
 }
 
 struct Extractor<'t> {
@@ -1542,6 +1565,7 @@ impl Extractor<'_> {
             tree: self.use_tree(tree, line)?,
             test: role.test,
             doc_hidden: role.doc_hidden,
+            configuration: role.configuration,
         })
     }
 

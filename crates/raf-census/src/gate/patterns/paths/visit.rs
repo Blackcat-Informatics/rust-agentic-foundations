@@ -95,6 +95,22 @@ fn bare_path(path: &syn::Path) -> syn::Path {
     }
 }
 
+fn nominal_path(path: &syn::Path, qualification: &syn::QSelf) -> Option<syn::Path> {
+    let syn::Type::Path(ty) = qualification.ty.as_ref() else {
+        return None;
+    };
+    if qualification.position != 0 || ty.qself.is_some() {
+        return None;
+    }
+    let mut joined = bare_path(&ty.path);
+    joined.segments.extend(
+        path.segments
+            .iter()
+            .map(|segment| syn::PathSegment::from(segment.ident.clone())),
+    );
+    Some(joined)
+}
+
 pub(super) fn collect<'p, 'w>(
     compiled: &[Compiled<'p>],
     workspace: &'w Workspace,
@@ -158,16 +174,19 @@ pub(in crate::gate) fn references(
     visitor.error.map_or(Ok(()), Err)
 }
 
-pub(in crate::gate) fn enum_arms(
-    workspace: &Workspace,
-    code: &CodeResolver<'_>,
-    file: &SourceFile,
-    syntax: &syn::File,
+pub(in crate::gate) fn enum_inventory<'w>(
+    (workspace, code): (&'w Workspace, &CodeResolver<'_>),
+    (file, syntax): (&'w SourceFile, &syn::File),
     limits: &mut MatchLimits,
-    retained: &mut usize,
+    retained: Option<&mut usize>,
+    usage: &mut super::EnumUsage<'w>,
 ) -> Result<Vec<RawHit>, Error> {
     super::charge(
-        ENUM_CATCH_ALL,
+        if retained.is_some() {
+            ENUM_CATCH_ALL
+        } else {
+            super::enum_usage::RULE
+        },
         limits,
         file.text.len().try_into().unwrap_or(u64::MAX),
     )?;
@@ -187,8 +206,9 @@ pub(in crate::gate) fn enum_arms(
         numeric_receiver: None,
         path_uses: None,
         enum_hits: Some(EnumInventory {
-            found: &mut hits,
-            retained: *retained,
+            arms: retained.as_deref().map(|&count| (&mut hits, count)),
+            usage,
+            suppress_usage: false,
             file_impls: None,
             self_path: None,
         }),
@@ -199,13 +219,16 @@ pub(in crate::gate) fn enum_arms(
     if let Some(error) = visitor.error {
         return Err(error);
     }
-    *retained += hits.len();
+    if let Some(retained) = retained {
+        *retained += hits.len();
+    }
     Ok(hits)
 }
 
 struct EnumInventory<'a, 'w> {
-    found: &'a mut Vec<RawHit>,
-    retained: usize,
+    arms: Option<(&'a mut Vec<RawHit>, usize)>,
+    usage: &'a mut super::EnumUsage<'w>,
+    suppress_usage: bool,
     file_impls: Option<&'w [ImplBlock]>,
     self_path: Option<String>,
 }
@@ -260,16 +283,16 @@ fn enum_lookup<'a, 'w>(
     code: &'a CodeResolver<'w>,
     site: &'a Site<'a>,
     owner: &raf_source::Item,
-    enum_impl: Option<(&'a str, &'a [ImplBlock])>,
+    (label, enum_impl): (&'a str, Option<(&'a str, &'a [ImplBlock])>),
 ) -> Result<super::Lookup<'a, 'w>, Error> {
     let target = workspace
         .target(owner.target)
-        .ok_or_else(|| super::failure(ENUM_CATCH_ALL, "enum pattern has no consuming target"))?;
+        .ok_or_else(|| super::failure(label, "enum occurrence has no consuming target"))?;
     Ok(super::Lookup {
         code,
         owner: super::PathOwner::Item(owner.id),
         site,
-        label: ENUM_CATCH_ALL,
+        label,
         visibility: Some((workspace, target.package_id)),
         enum_impl,
     })
@@ -303,6 +326,9 @@ impl Paths<'_, '_, '_, '_> {
         let Some(inventory) = self.enum_hits.as_mut() else {
             return Ok(());
         };
+        let Some((hits, retained)) = &mut inventory.arms else {
+            return Ok(());
+        };
         super::charge(
             ENUM_CATCH_ALL,
             self.limits,
@@ -327,7 +353,13 @@ impl Paths<'_, '_, '_, '_> {
                 .self_path
                 .as_deref()
                 .map(|path| (path, self.impl_blocks));
-            let lookup = enum_lookup(self.workspace, self.code, &site, owner, enum_impl)?;
+            let lookup = enum_lookup(
+                self.workspace,
+                self.code,
+                &site,
+                owner,
+                (ENUM_CATCH_ALL, enum_impl),
+            )?;
             let found = super::enum_sites::catch_alls(node, &lookup, &self.scopes, self.limits)?;
             if let Some(survivors) = &mut qualified {
                 survivors.retain(|arm| found.contains(arm));
@@ -336,9 +368,8 @@ impl Paths<'_, '_, '_, '_> {
             }
         }
         if let Some(qualified) = qualified {
-            let total = inventory
-                .retained
-                .saturating_add(inventory.found.len())
+            let total = retained
+                .saturating_add(hits.len())
                 .saturating_add(qualified.len());
             if total > self.limits.states {
                 return Err(super::failure(
@@ -346,13 +377,132 @@ impl Paths<'_, '_, '_, '_> {
                     "catch-all arm state limit exhausted",
                 ));
             }
-            inventory.found.extend(
+            hits.extend(
                 qualified
                     .into_iter()
                     .map(|index| super::enum_sites::hit(&node.arms[index])),
             );
         }
         Ok(())
+    }
+
+    fn collect_enum_use(&mut self, expression: &syn::Expr) -> Result<(), Error> {
+        use super::enum_sites::Form;
+        let Some(inventory) = self
+            .enum_hits
+            .as_mut()
+            .filter(|inventory| inventory.usage.observes() && !inventory.suppress_usage)
+        else {
+            return Ok(());
+        };
+        if !self.file.shipping {
+            return Ok(());
+        }
+        let (written, qualification, form) = match expression {
+            syn::Expr::Path(node) => (&node.path, node.qself.as_ref(), Form::Value),
+            syn::Expr::Struct(node) => (&node.path, node.qself.as_ref(), Form::Braced),
+            _ => return Ok(()),
+        };
+        let qualified;
+        let path = if let Some(qualification) = qualification {
+            let Some(joined) = nominal_path(written, qualification) else {
+                return Ok(());
+            };
+            qualified = joined;
+            &qualified
+        } else {
+            written
+        };
+        let site = Site::at(
+            self.file,
+            written.span(),
+            Role::Path,
+            form.namespace(),
+            true,
+        );
+        let owners = self
+            .owners
+            .get(self.workspace, self.file, site.byte, self.limits)?;
+        for owner in owners {
+            if !inventory.usage.shipping(self.workspace, owner) {
+                continue;
+            }
+            let enum_impl = inventory
+                .self_path
+                .as_deref()
+                .map(|path| (path, self.impl_blocks));
+            let lookup = enum_lookup(
+                self.workspace,
+                self.code,
+                &site,
+                owner,
+                (super::enum_usage::RULE, enum_impl),
+            )?;
+            if let Some((enumeration, member)) =
+                super::enum_sites::value_use(path, form, &lookup, &self.scopes, self.limits)?
+                && self
+                    .code
+                    .has_unconditional_reading_module(owner.id, site.byte)
+                    .map_err(|error| lookup.error("enum value use", error))?
+            {
+                inventory.usage.record(enumeration, &member, self.limits)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn without_enum_uses(&mut self, visit: impl FnOnce(&mut Self)) {
+        let previous = self
+            .enum_hits
+            .as_mut()
+            .is_some_and(|inventory| std::mem::replace(&mut inventory.suppress_usage, true));
+        visit(self);
+        if let Some(inventory) = &mut self.enum_hits {
+            inventory.suppress_usage = previous;
+        }
+    }
+
+    fn with_enum_attributes(
+        &mut self,
+        attributes: &[syn::Attribute],
+        visit: impl FnOnce(&mut Self),
+    ) {
+        if self.enum_hits.is_some() && !crate::syntax::inert_attributes(attributes) {
+            self.without_enum_uses(visit);
+        } else {
+            visit(self);
+        }
+    }
+
+    fn visit_enum_assignee(&mut self, expression: &syn::Expr) {
+        let attributes = crate::syntax::expression_attributes(expression).unwrap_or(&[]);
+        if crate::syntax::definitely_excluded(attributes) {
+            return;
+        }
+        self.with_enum_attributes(attributes, |this| {
+            let parts = match expression {
+                syn::Expr::Array(node) => &node.elems,
+                syn::Expr::Call(node) => &node.args,
+                syn::Expr::Tuple(node) => &node.elems,
+                syn::Expr::Group(node) => return this.visit_enum_assignee(&node.expr),
+                syn::Expr::Paren(node) => return this.visit_enum_assignee(&node.expr),
+                syn::Expr::Path(_) => return,
+                syn::Expr::Struct(node) => {
+                    for field in &node.fields {
+                        if !this.excludes_from_inventory(&field.attrs) {
+                            this.with_enum_attributes(&field.attrs, |this| {
+                                this.visit_enum_assignee(&field.expr);
+                            });
+                        }
+                    }
+                    return;
+                }
+                _ => return this.visit_expr(expression),
+            };
+            for part in parts {
+                this.visit_enum_assignee(part);
+            }
+        });
     }
 
     fn container(&mut self, container: Container, attributes: &[syn::Attribute]) -> bool {
@@ -466,7 +616,12 @@ impl Paths<'_, '_, '_, '_> {
             |compiled| compiled.pattern.id.as_str(),
         );
         let result = self.scopes.bind(pattern, |scopes, name| {
-            if self.enum_hits.is_some() {
+            if let Some(inventory) = &self.enum_hits {
+                let label = if inventory.usage.observes() {
+                    super::enum_usage::RULE
+                } else {
+                    ENUM_CATCH_ALL
+                };
                 let site = Site::at(
                     self.file,
                     name.span(),
@@ -478,7 +633,8 @@ impl Paths<'_, '_, '_, '_> {
                     .owners
                     .get(self.workspace, self.file, site.byte, self.limits)?;
                 for owner in owners {
-                    let lookup = enum_lookup(self.workspace, self.code, &site, owner, None)?;
+                    let lookup =
+                        enum_lookup(self.workspace, self.code, &site, owner, (label, None))?;
                     if !super::enum_sites::bare_binding(name, &lookup, scopes, self.limits)? {
                         return Ok(false);
                     }
@@ -665,15 +821,7 @@ impl Paths<'_, '_, '_, '_> {
         };
         if qself.position > 0 {
             self.path(path, role, namespace);
-        } else if let syn::Type::Path(ty) = qself.ty.as_ref()
-            && ty.qself.is_none()
-        {
-            let mut joined = bare_path(&ty.path);
-            joined.segments.extend(
-                path.segments
-                    .iter()
-                    .map(|segment| syn::PathSegment::from(segment.ident.clone())),
-            );
+        } else if let Some(joined) = nominal_path(path, qself) {
             self.path(&joined, role, namespace);
         } else if self.compiled.iter().any(|pattern| {
             pattern.selects(role)
@@ -826,7 +974,8 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_item(&mut self, node: &'ast syn::Item) {
-        if self.excludes_from_inventory(crate::syntax::item_attributes(node)) {
+        let attributes = crate::syntax::item_attributes(node);
+        if self.excludes_from_inventory(attributes) {
             return;
         }
         if self.path_uses.is_some()
@@ -842,7 +991,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             .enum_hits
             .as_mut()
             .and_then(|inventory| inventory.self_path.take());
-        syn::visit::visit_item(self, node);
+        self.with_enum_attributes(attributes, |this| syn::visit::visit_item(this, node));
         if let Some(inventory) = &mut self.enum_hits {
             inventory.self_path = previous_self;
         }
@@ -884,8 +1033,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_fn_arg(&mut self, node: &'ast syn::FnArg) {
-        if !self.excludes_from_inventory(argument_attributes(node)) {
-            syn::visit::visit_fn_arg(self, node);
+        let attributes = argument_attributes(node);
+        if !self.excludes_from_inventory(attributes) {
+            self.with_enum_attributes(attributes, |this| syn::visit::visit_fn_arg(this, node));
         }
     }
 
@@ -898,7 +1048,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             _ => &[],
         };
         if !self.excludes_from_inventory(attributes) {
-            syn::visit::visit_impl_item(self, node);
+            self.with_enum_attributes(attributes, |this| syn::visit::visit_impl_item(this, node));
         }
     }
 
@@ -928,7 +1078,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             _ => &[],
         };
         if !self.excludes_from_inventory(attributes) {
-            syn::visit::visit_trait_item(self, node);
+            self.with_enum_attributes(attributes, |this| syn::visit::visit_trait_item(this, node));
         }
     }
 
@@ -958,7 +1108,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             if let Some(inventory) = &mut this.enum_hits {
                 if let syn::Type::Path(path) = node.self_ty.as_ref()
                     && path.qself.is_none()
-                    && node.trait_.is_none()
+                    && (node.trait_.is_none() || inventory.usage.observes())
                 {
                     inventory.self_path = Some(super::path_text(
                         &super::segments(&path.path),
@@ -1021,19 +1171,21 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
 
     fn visit_variant(&mut self, node: &'ast syn::Variant) {
         if !self.excludes_from_inventory(&node.attrs) {
-            syn::visit::visit_variant(self, node);
+            self.with_enum_attributes(&node.attrs, |this| syn::visit::visit_variant(this, node));
         }
     }
 
     fn visit_field(&mut self, node: &'ast syn::Field) {
         if !self.excludes_from_inventory(&node.attrs) {
-            syn::visit::visit_field(self, node);
+            self.with_enum_attributes(&node.attrs, |this| syn::visit::visit_field(this, node));
         }
     }
 
     fn visit_field_value(&mut self, node: &'ast syn::FieldValue) {
         if !self.excludes_from_inventory(&node.attrs) {
-            syn::visit::visit_field_value(self, node);
+            self.with_enum_attributes(&node.attrs, |this| {
+                syn::visit::visit_field_value(this, node);
+            });
         }
     }
 
@@ -1066,12 +1218,14 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             return;
         }
         self.visit_pat(&node.pat);
-        if let Some(initializer) = &node.init {
-            self.visit_expr(&initializer.expr);
-            if let Some((_, otherwise)) = &initializer.diverge {
-                self.visit_expr(otherwise);
+        self.with_enum_attributes(&node.attrs, |this| {
+            if let Some(initializer) = &node.init {
+                this.visit_expr(&initializer.expr);
+                if let Some((_, otherwise)) = &initializer.diverge {
+                    this.visit_expr(otherwise);
+                }
             }
-        }
+        });
         self.bind(&node.pat);
     }
 
@@ -1100,13 +1254,20 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_expr(&mut self, node: &'ast syn::Expr) {
-        if self.enum_hits.is_some()
-            && crate::syntax::expression_attributes(node)
-                .is_some_and(crate::syntax::definitely_excluded)
-        {
+        if self.enum_hits.is_none() {
+            syn::visit::visit_expr(self, node);
             return;
         }
-        syn::visit::visit_expr(self, node);
+        let attributes = crate::syntax::expression_attributes(node).unwrap_or(&[]);
+        if crate::syntax::definitely_excluded(attributes) {
+            return;
+        }
+        self.with_enum_attributes(attributes, |this| {
+            if this.error.is_none() {
+                this.error = this.collect_enum_use(node).err();
+            }
+            syn::visit::visit_expr(this, node);
+        });
     }
 
     fn visit_expr_match(&mut self, node: &'ast syn::ExprMatch) {
@@ -1169,6 +1330,21 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         syn::visit::visit_expr_call(self, node);
     }
 
+    fn visit_expr_assign(&mut self, node: &'ast syn::ExprAssign) {
+        if self
+            .enum_hits
+            .as_ref()
+            .is_some_and(|inventory| inventory.usage.observes() && !inventory.suppress_usage)
+        {
+            // Destructuring heads use expression syntax. Places within the
+            // assignee can still evaluate a value, such as an array index.
+            self.visit_enum_assignee(&node.left);
+            self.visit_expr(&node.right);
+        } else {
+            syn::visit::visit_expr_assign(self, node);
+        }
+    }
+
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
         if self.numeric.is_some() {
             self.numeric_uses(
@@ -1190,6 +1366,10 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             );
         }
         syn::visit::visit_expr_binary(self, node);
+    }
+
+    fn visit_pat(&mut self, node: &'ast syn::Pat) {
+        self.without_enum_uses(|this| syn::visit::visit_pat(this, node));
     }
 
     fn visit_pat_ident(&mut self, node: &'ast syn::PatIdent) {
@@ -1269,7 +1449,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
 
     fn visit_attribute(&mut self, node: &'ast syn::Attribute) {
         self.path(node.path(), Role::Attribute, Namespace::Macro);
-        syn::visit::visit_attribute(self, node);
+        self.without_enum_uses(|this| syn::visit::visit_attribute(this, node));
     }
 
     fn visit_item_macro(&mut self, node: &'ast syn::ItemMacro) {
@@ -1290,34 +1470,35 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             self.type_prefixes(&node.path);
         }
         self.path(&node.path, Role::Macro, Namespace::Macro);
-        // This observes written expression-list arguments, never expansion or
-        // the meaning of a macro's non-expression language.
-        if let Ok(expressions) = node.parse_body_with(
-            syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated,
-        ) {
-            for expression in &expressions {
-                self.visit_expr(expression);
+        self.without_enum_uses(|this| {
+            // Parsed argument syntax is sufficient for some path policies.
+            // Opaque macros cannot establish a shipping enum value use.
+            if let Ok(expressions) = node.parse_body_with(
+                syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated,
+            ) {
+                for expression in &expressions {
+                    this.visit_expr(expression);
+                }
+            } else if let Ok(statements) = node.parse_body_with(syn::Block::parse_within) {
+                // Statement-shaped arguments retain their original spans.
+                this.scope(
+                    false,
+                    statements.iter().filter_map(|statement| {
+                        if let syn::Stmt::Item(item) = statement {
+                            Some(item)
+                        } else {
+                            None
+                        }
+                    }),
+                    |this| {
+                        for statement in &statements {
+                            this.visit_stmt(statement);
+                        }
+                    },
+                );
             }
-        } else if let Ok(statements) = node.parse_body_with(syn::Block::parse_within) {
-            // Statement/repetition-shaped arguments retain their original spans.
-            // Other macro languages remain token syntax, never expansion proof.
-            self.scope(
-                false,
-                statements.iter().filter_map(|statement| {
-                    if let syn::Stmt::Item(item) = statement {
-                        Some(item)
-                    } else {
-                        None
-                    }
-                }),
-                |this| {
-                    for statement in &statements {
-                        this.visit_stmt(statement);
-                    }
-                },
-            );
-        }
-        syn::visit::visit_macro(self, node);
+            syn::visit::visit_macro(this, node);
+        });
     }
 }
 
