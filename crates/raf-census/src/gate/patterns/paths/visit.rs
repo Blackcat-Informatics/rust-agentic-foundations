@@ -6,12 +6,15 @@
 use super::{
     Compiled, CrossPackagePaths, Found, Role, Scopes, Site, VISIBILITY, cross_package_uses, matches,
 };
+use crate::detectors::{ReceiverMode, receiver_mode};
+use crate::gate::bounds::{BoundRole, Scan, syntax};
+use crate::report::bounds::UNCLASSIFIED;
 use crate::{
     Error,
     syntax::{ImportLeaf, visit_import_paths},
 };
 use purrdf_jsonschema::ecma::MatchLimits;
-use raf_source::{CodeResolver, ImplBlock, Namespace, SourceFile, Workspace};
+use raf_source::{CodeResolver, ImplBlock, ItemId, Namespace, SourceFile, SymbolKind, Workspace};
 use std::collections::BTreeSet;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
@@ -63,6 +66,8 @@ pub(in crate::gate) fn functions(
         error: None,
         seen: BTreeSet::new(),
         observer: Some(observer),
+        numeric: None,
+        numeric_receiver: None,
         path_uses: None,
         impl_blocks: &[],
         owners: super::OwnerCache::default(),
@@ -106,6 +111,8 @@ pub(super) fn collect<'p, 'w>(
         error: None,
         seen: BTreeSet::new(),
         observer: None,
+        numeric: None,
+        numeric_receiver: None,
         path_uses: None,
         impl_blocks: &[],
         owners: super::OwnerCache::default(),
@@ -136,6 +143,8 @@ pub(in crate::gate) fn references(
         error: None,
         seen: BTreeSet::new(),
         observer: None,
+        numeric: None,
+        numeric_receiver: None,
         path_uses: Some(paths),
         impl_blocks: &[],
         owners: super::OwnerCache::one_occurrence(),
@@ -155,6 +164,8 @@ struct Paths<'a, 'p, 'w, 'c> {
     error: Option<Error>,
     seen: BTreeSet<(&'p str, usize)>,
     observer: Option<&'a mut dyn FunctionObserver>,
+    numeric: Option<&'a mut Scan>,
+    numeric_receiver: Option<ReceiverMode>,
     path_uses: Option<&'a mut CrossPackagePaths>,
     impl_blocks: &'w [ImplBlock],
     owners: super::OwnerCache<'w>,
@@ -222,10 +233,12 @@ impl Paths<'_, '_, '_, '_> {
         if self.error.is_some() {
             return;
         }
-        if let Err(error) = self
-            .scopes
-            .enter(module, self.path_uses.is_some(), items, self.limits)
-        {
+        if let Err(error) = self.scopes.enter(
+            module,
+            self.path_uses.is_some() || self.numeric.is_some(),
+            items,
+            self.limits,
+        ) {
             self.error = Some(error);
             return;
         }
@@ -267,6 +280,32 @@ impl Paths<'_, '_, '_, '_> {
             |compiled| compiled.pattern.id.as_str(),
         );
         let result = self.scopes.bind(pattern, |scopes, name| {
+            if self.numeric.is_some() {
+                let site = Site::at(
+                    self.file,
+                    name.span(),
+                    Role::Pattern,
+                    Namespace::Value,
+                    false,
+                );
+                let owners = self
+                    .owners
+                    .get(self.workspace, self.file, site.byte, self.limits)?;
+                let mut classified = None;
+                for owner in owners {
+                    let lookup = numeric_lookup(self.workspace, self.code, &site, owner)?;
+                    let path = syn::Path::from(name.clone());
+                    let actual = super::numeric_definitions(&lookup, scopes, &path, self.limits)?;
+                    super::classify_pattern(
+                        self.workspace,
+                        UNCLASSIFIED,
+                        &actual,
+                        false,
+                        &mut classified,
+                    )?;
+                }
+                return Ok(!classified.unwrap_or_default());
+            }
             if let Some(paths) = self.path_uses.as_deref_mut() {
                 let site = Site::at(
                     self.file,
@@ -535,7 +574,7 @@ impl Paths<'_, '_, '_, '_> {
     fn arm_pattern(&mut self, pattern: &syn::Pat) {
         if let syn::Pat::Guard(guard) = pattern {
             self.arm_pattern(&guard.pat);
-            if self.path_uses.is_some() {
+            if self.path_uses.is_some() || self.numeric.is_some() {
                 self.condition(&guard.guard);
             } else {
                 self.visit_expr(&guard.guard);
@@ -610,17 +649,23 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         if self.ignores_function(&node.sig) {
             return;
         }
+        let previous = self.numeric_receiver.take();
         self.generic_scope(&node.sig.generics, false, |this| {
             this.inputs(&node.sig.inputs);
             if !this.observe_function(&node.sig, &node.attrs, &node.block) {
                 syn::visit::visit_item_fn(this, node);
             }
         });
+        self.numeric_receiver = previous;
     }
 
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
         if self.ignores_function(&node.sig) {
             return;
+        }
+        let previous = self.numeric_receiver;
+        if self.numeric.is_some() {
+            self.numeric_receiver = receiver_mode(&node.sig);
         }
         self.generic_scope(&node.sig.generics, false, |this| {
             this.inputs(&node.sig.inputs);
@@ -628,6 +673,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
                 syn::visit::visit_impl_item_fn(this, node);
             }
         });
+        self.numeric_receiver = previous;
     }
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
@@ -784,6 +830,10 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
+        if self.numeric.is_some() {
+            self.numeric_uses(BoundRole::Limiter, node.span(), syntax::limiting_call(node));
+            self.numeric_call(node);
+        }
         let mut function = node.func.as_ref();
         loop {
             match function {
@@ -801,6 +851,29 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             );
         }
         syn::visit::visit_expr_call(self, node);
+    }
+
+    fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
+        if self.numeric.is_some() {
+            self.numeric_uses(
+                BoundRole::Limiter,
+                node.span(),
+                syntax::limiting_method(node),
+            );
+            self.numeric_method(node);
+        }
+        syn::visit::visit_expr_method_call(self, node);
+    }
+
+    fn visit_expr_binary(&mut self, node: &'ast syn::ExprBinary) {
+        if self.numeric.is_some() {
+            self.numeric_uses(
+                BoundRole::Comparison,
+                node.span(),
+                syntax::comparisons(node),
+            );
+        }
+        syn::visit::visit_expr_binary(self, node);
     }
 
     fn visit_pat_ident(&mut self, node: &'ast syn::PatIdent) {
@@ -943,7 +1016,7 @@ fn matching_owners(
     path: &syn::Path,
     site: &Site<'_>,
     limits: &mut MatchLimits,
-) -> Result<Vec<raf_source::ItemId>, Error> {
+) -> Result<Vec<ItemId>, Error> {
     let mut ids = Vec::new();
     for owner in owners {
         if matches(
@@ -959,4 +1032,272 @@ fn matching_owners(
         }
     }
     Ok(ids)
+}
+
+pub(in crate::gate) fn numeric_calls(
+    workspace: &Workspace,
+    code: &CodeResolver<'_>,
+    file: &SourceFile,
+    syntax: &syn::File,
+    limits: &mut MatchLimits,
+    scan: &mut Scan,
+) -> Result<(), Error> {
+    let mut visitor = Paths {
+        compiled: &[],
+        workspace,
+        code,
+        file,
+        limits,
+        scopes: Scopes::default(),
+        found: Vec::new(),
+        error: None,
+        seen: BTreeSet::new(),
+        observer: None,
+        numeric: Some(scan),
+        numeric_receiver: None,
+        path_uses: None,
+        impl_blocks: &[],
+        owners: super::OwnerCache::one_occurrence(),
+    };
+    visitor.visit_file(syntax);
+    visitor.error.map_or(Ok(()), Err)
+}
+
+impl Paths<'_, '_, '_, '_> {
+    fn numeric_uses<'a>(
+        &mut self,
+        role: BoundRole,
+        context: proc_macro2::Span,
+        operands: impl Iterator<Item = &'a syn::Expr>,
+    ) {
+        if self.error.is_some() {
+            return;
+        }
+        let Some(scan) = self.numeric.take() else {
+            return;
+        };
+        for operand in operands {
+            let result = (|| {
+                if let Some(token) = syntax::integer(operand) {
+                    return scan.literal(&self.file.path, token, context, role, self.limits);
+                }
+                let syn::Expr::Path(path) = syntax::ungroup(operand) else {
+                    return Ok(());
+                };
+                let site = Site::at(self.file, path.span(), Role::Path, Namespace::Value, false);
+                let owners = self
+                    .owners
+                    .get(self.workspace, self.file, site.byte, self.limits)?;
+                let actual = numeric_targets(
+                    (self.workspace, self.code),
+                    &site,
+                    owners,
+                    self.limits,
+                    NumericKind::Bound,
+                    |lookup, limits| numeric_path(lookup, &self.scopes, path, limits),
+                )?;
+                scan.named_use(role, actual, self.limits)
+            })();
+            if let Err(error) = result {
+                self.error = Some(error);
+                break;
+            }
+        }
+        self.numeric = Some(scan);
+    }
+
+    fn numeric_call(&mut self, node: &syn::ExprCall) {
+        if self.error.is_some() {
+            return;
+        }
+        let Some(scan) = self.numeric.take() else {
+            return;
+        };
+        if let syn::Expr::Path(path) = syntax::ungroup(&node.func) {
+            self.error = scan
+                .call(&self.file.path, node, self.limits, |limits| {
+                    let site =
+                        Site::at(self.file, path.span(), Role::Call, Namespace::Value, false);
+                    let owners = self
+                        .owners
+                        .get(self.workspace, self.file, site.byte, limits)?;
+                    numeric_targets(
+                        (self.workspace, self.code),
+                        &site,
+                        owners,
+                        limits,
+                        NumericKind::Call,
+                        |lookup, limits| numeric_path(lookup, &self.scopes, path, limits),
+                    )
+                })
+                .err();
+        }
+        self.numeric = Some(scan);
+    }
+
+    fn numeric_method(&mut self, node: &syn::ExprMethodCall) {
+        if self.error.is_some()
+            || !matches!(syntax::ungroup(&node.receiver), syn::Expr::Path(path) if path.qself.is_none() && path.path.is_ident("self"))
+        {
+            return;
+        }
+        let (Some(receiver), Some(scan)) = (self.numeric_receiver, self.numeric.as_deref_mut())
+        else {
+            return;
+        };
+        self.error = scan
+            .method(&self.file.path, node, receiver, self.limits, |limits| {
+                let site = Site::at(
+                    self.file,
+                    node.method.span(),
+                    Role::Call,
+                    Namespace::Value,
+                    false,
+                );
+                let owners = self
+                    .owners
+                    .get(self.workspace, self.file, site.byte, limits)?;
+                numeric_targets(
+                    (self.workspace, self.code),
+                    &site,
+                    owners,
+                    limits,
+                    NumericKind::Dot,
+                    |lookup, _| numeric_self(lookup, &node.method.to_string()),
+                )
+            })
+            .err();
+    }
+}
+
+#[derive(Clone, Copy)]
+enum NumericKind {
+    Call,
+    Dot,
+    Bound,
+}
+
+fn numeric_lookup<'a, 'w>(
+    workspace: &'a Workspace,
+    code: &'a CodeResolver<'w>,
+    site: &'a Site<'a>,
+    owner: &raf_source::Item,
+) -> Result<super::Lookup<'a, 'w>, Error> {
+    let package = workspace
+        .target(owner.target)
+        .ok_or_else(|| super::failure(UNCLASSIFIED, "path site has no consuming target"))?
+        .package_id;
+    Ok(super::Lookup {
+        code,
+        owner: super::PathOwner::Item(owner.id),
+        site,
+        label: UNCLASSIFIED,
+        visibility: Some((workspace, package)),
+    })
+}
+
+fn numeric_self(lookup: &super::Lookup<'_, '_>, member: &str) -> Result<Vec<ItemId>, Error> {
+    let (super::PathOwner::Item(owner), Some((workspace, _))) = (lookup.owner, lookup.visibility)
+    else {
+        return Ok(Vec::new());
+    };
+    let owner = workspace
+        .item(owner)
+        .ok_or_else(|| super::failure(UNCLASSIFIED, "self path has no indexed owner"))?;
+    let Some(name) = super::super::super::rules::self_member(workspace, owner, member) else {
+        return Ok(Vec::new());
+    };
+    lookup.indexed(&name, false).map(Option::unwrap_or_default)
+}
+
+fn numeric_path(
+    lookup: &super::Lookup<'_, '_>,
+    scopes: &Scopes,
+    path: &syn::ExprPath,
+    limits: &mut MatchLimits,
+) -> Result<Vec<ItemId>, Error> {
+    let joined;
+    let name = match &path.qself {
+        Some(qself) if qself.position == 0 => {
+            let syn::Type::Path(nominal) = qself.ty.as_ref() else {
+                return Ok(Vec::new());
+            };
+            if nominal.qself.is_some() {
+                return Ok(Vec::new());
+            }
+            let mut name = bare_path(&nominal.path);
+            name.segments.extend(bare_path(&path.path).segments);
+            joined = name;
+            &joined
+        }
+        _ => &path.path,
+    };
+    if name.segments.len() == 2
+        && name
+            .segments
+            .first()
+            .is_some_and(|part| part.ident == "Self")
+        && let Some(member) = name.segments.last()
+    {
+        return numeric_self(lookup, &member.ident.to_string());
+    }
+    super::numeric_definitions(lookup, scopes, name, limits)
+}
+
+fn numeric_targets(
+    (workspace, code): (&Workspace, &CodeResolver<'_>),
+    site: &Site<'_>,
+    owners: &[&raf_source::Item],
+    limits: &mut MatchLimits,
+    kind: NumericKind,
+    mut resolve: impl FnMut(&super::Lookup<'_, '_>, &mut MatchLimits) -> Result<Vec<ItemId>, Error>,
+) -> Result<Vec<Option<ItemId>>, Error> {
+    let mut definitions = BTreeSet::new();
+    let mut retain = |definition, limits: &mut MatchLimits| -> Result<(), Error> {
+        super::charge(UNCLASSIFIED, limits, 1)?;
+        if definitions.len() >= limits.states && !definitions.contains(&definition) {
+            return Err(super::failure(
+                UNCLASSIFIED,
+                "numeric definition state limit exhausted",
+            ));
+        }
+        definitions.insert(definition);
+        Ok(())
+    };
+    for owner in owners {
+        let lookup = numeric_lookup(workspace, code, site, owner)?;
+        let actual = resolve(&lookup, limits)?;
+        if actual.is_empty() {
+            retain(None, limits)?;
+        }
+        for id in actual {
+            let item = workspace.item(id).ok_or_else(|| {
+                super::failure(UNCLASSIFIED, "resolved path has no indexed source item")
+            })?;
+            let admitted = match (kind, item.kind) {
+                (
+                    NumericKind::Bound,
+                    SymbolKind::Const | SymbolKind::Static | SymbolKind::AssocConst,
+                )
+                | (
+                    NumericKind::Call,
+                    SymbolKind::Fn
+                    | SymbolKind::ForeignFn
+                    | SymbolKind::TraitDefaultMethod
+                    | SymbolKind::TraitRequiredMethod,
+                ) => true,
+                (NumericKind::Call | NumericKind::Dot, SymbolKind::InherentMethod) => {
+                    match code.require_unconditional_inherent_method(id) {
+                        Ok(()) => true,
+                        Err(raf_source::CodeResolveError::MethodApplicability(_)) => false,
+                        Err(error) => return Err(lookup.error(item.path.as_str(), error)),
+                    }
+                }
+                _ => false,
+            }
+            .then_some(id);
+            retain(admitted, limits)?;
+        }
+    }
+    Ok(definitions.into_iter().collect())
 }

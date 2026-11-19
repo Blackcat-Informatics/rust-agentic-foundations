@@ -12,6 +12,9 @@ inputs:
     name: raf_census::BenchLink
     digest: 0cfb32481d48d75a47a6aa9abb72aa76a9a48fa4a0e495b3a8fdf364da325853
   - kind: symbol
+    name: raf_census::BoundClassification
+    digest: fb0402bd1164583f60458fb3dad86986e6871e34e1fad7807309c63e4168497f
+  - kind: symbol
     name: raf_census::Gate
     digest: 8e019eb5a094a1bcac8ef88df54a7a87debd9f18fd92501806df57f088656dfc
   - kind: symbol
@@ -43,13 +46,16 @@ inputs:
     digest: dc35508f1201a7297986e1a6b820a562c70419ee871967514bc7b56a110546e0
   - kind: symbol
     name: raf_census::GateReport
-    digest: c0a348306ca5bc8c50bd87731e19f1658f16f4872de642b8b5fe689fcaf7ba7c
+    digest: d8bfe3d580285225c7aba0461f6b7554bbd8e5441843ae111dfa6ef808d3b58a
+  - kind: symbol
+    name: raf_census::GateReport::numeric_bounds
+    digest: b112f8fc7f364d687e1d810ac34b6f3a5ac1f1644819ef6ad88a08d4db634904
   - kind: symbol
     name: raf_census::LEDGER_FILE
     digest: 13d0555b019cbfab0a0fb80e1a7d761d1adda926a620d160fa26e28390592aba
   - kind: symbol
     name: raf_census::Ledger
-    digest: 85ee530392f33bb026b718d4c8b6f8da33bff13bfaf9911b7f48be98e8f79286
+    digest: 44962e7fe203871e8f6e7a32c4f396d043f09f3b776a84a74597c033d6efb4ba
   - kind: symbol
     name: raf_census::LedgerDistinct
     digest: 17457f169b7261f1ddddabbf2a133314281331a298f382ee1d392ad9313475af
@@ -75,6 +81,9 @@ inputs:
     name: raf_census::NamePattern
     digest: 0c66e2a102cab95c5ca79473885359fa986216c057da61d0deebaaae9d6b93ac
   - kind: symbol
+    name: raf_census::NumericBound
+    digest: 7c34fed66afb06aab1a3b11cf3481ce6bd5b6809ec9addd1b005164d404ea8a5
+  - kind: symbol
     name: raf_census::PatternMatcher
     digest: 30a735bbbb30412ca5c41fe77b015dbaf13dc3b741ceb087d73a18ea016f144a
   - kind: symbol
@@ -91,7 +100,7 @@ inputs:
     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
   - kind: symbol
     name: raf_census::gate::evaluate
-    digest: 7a668b2bb8c9a08d28f0e7af42247b5caacb09a9c32f90875cf6af65fbcfd5ac
+    digest: 86dc4574c25aa42e21378064c968a9dcf4990286a50803bfdab478a9a65cd4c5
   - kind: symbol
     name: raf_census::gate::owners
     digest: 42c47c5cb754e9d6284eb089c8ee9aa14bfaa04b41194c50f9416bcbd4b4a34c
@@ -100,7 +109,7 @@ inputs:
     digest: 0f8af14c407068df501a54e54eb4a91e5bb1d20bdf923076c55825261d7afd2f
   - kind: symbol
     name: raf_census::report::ledger
-    digest: f12bfe2a2c1f524a5ebc3e087bed217d2968439ddfb3f84a964f5f8a8c181d35
+    digest: fe2683f9cd650dc732a2983d892e02350d757296159d9774a870b51491151a8b
 verdict: accepted
 by: agent
 ---

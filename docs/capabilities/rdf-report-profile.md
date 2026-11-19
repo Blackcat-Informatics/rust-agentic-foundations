@@ -204,11 +204,13 @@ unchanged to the consumer's validator, so they carry no engine vocabulary.
 
 | Census Ledger class | Properties and object types |
 |---|---|
-| `Ledger` | `normalForm`, `reportForm` version integers; optional `minTokens` positive integer and `maxFileBytes` nonnegative integer; optional `excludeTestItems` boolean, stated only as true; repeated `excludeDir` directory-name strings, which leave excluded units out of body and shim grouping only; repeated `root`, `reference` strings; `job`, `distinct`, `pattern` links to owned declarations |
+| `Ledger` | `normalForm`, `reportForm` version integers; optional `minTokens` positive integer and `maxFileBytes` nonnegative integer; optional `excludeTestItems` boolean, stated only as true; repeated `excludeDir` directory-name strings, which leave excluded units out of body and shim grouping only; repeated `root`, `reference` strings; `job`, `distinct`, `pattern` links to owned declarations and optional `numericBounds` link to one owned registry |
 | `LedgerJob` | `jobId`, `summary`, `homeSymbol` strings; `enforced` boolean; repeated `entryPoint`, `forbiddenName`, `forbiddenFingerprint`, `forbiddenPattern`, `ratchetedRule`, `vectorPath` and `benchTarget` strings, one optional `specRef` string, and `forbiddenConstant` unsigned integer values; `variant`, `extension`, `preferredProvider` links to owned declarations |
 | `Variant` | `symbol`, `file`, `detector`, `criterion`, `reason` strings; `anchor` documentation IRI |
 | `Distinct` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members; `kind` string body or shim; `criterion`, `reason` strings; `anchor` documentation IRI |
 | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
+| `NumericBounds` | `mode` string strict or ratcheted; repeated `bound` links to owned rows |
+| `NumericBound` | `file`, `siteKey`, `classification` strings; sanctioned rows require a `reason` string and `anchor` documentation IRI |
 | `Pattern` | `patternId`, `summary` strings; exactly one matcher string: `call`, `path`, `macro`, `typePath`, `literalRegex` or `tokens`; optional scope: repeated `targetKind`, `excludeTargetKind` strings (lib, bin, test, bench, example or buildScript), repeated `includePath`, `excludePath` workspace-relative path strings, `shippingOnly` stated only as boolean true; and optional `ratcheted`, stated only as boolean true |
 | `PreferredProvider` | `package` string; repeated nonempty `entryPoint`, `consumer` strings |
 | `Extension` | Consumer-owned content; no additional engine-owned properties |

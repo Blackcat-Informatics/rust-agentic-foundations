@@ -6,6 +6,7 @@
 mod debt;
 mod error;
 mod ledger;
+pub(crate) use ledger::bounds;
 pub(crate) mod mint;
 mod query;
 mod read;

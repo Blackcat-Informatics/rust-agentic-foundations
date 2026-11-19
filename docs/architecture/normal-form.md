@@ -505,9 +505,17 @@ same framing of the first ordinary or raw string literal that starts at or after
 the site inside that item. Line numbers and byte offsets are never hashed.
 The node name is `#site/<rule>/<key>@<file>`, and the reader recomputes it. A
 record with no ratcheted rule writes neither a `ratchetedRule` nor a `SiteDebt`. A rule
-id names a ratcheted pattern, built-in detector or registered rule alike, so rules add
-no property to the record. A registered or fact-detector hit states a line, and its
+id names a ratcheted pattern, built-in detector, registered rule or numeric
+guard. A registered or fact-detector hit states a line, and its
 site uses the first literal at or after the start of that line inside the item.
+
+Numeric guards frame the canonical file path in place of the enclosing symbol
+and leave the literal absent. Each file and rule therefore retains a count
+across line movement and added module reaches. The Ledger's optional numeric
+bounds registry uses an exact locator in a separate BLAKE3 domain. Its key
+hashes `raf-census/numeric-bound/v1`, the framed byte offset as a little-endian
+unsigned 128-bit integer, and the framed written source context. The registry
+and numeric guards leave the earlier report bytes intact when absent.
 
 ## Version-bump rule
 

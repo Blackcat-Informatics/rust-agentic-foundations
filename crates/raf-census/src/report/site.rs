@@ -10,22 +10,22 @@ use raf_source::RelPath;
 use super::ReportError as E;
 use crate::{Error, RuleId};
 
-/// The domain of every site-key preimage.
+/// The domain of counted debt site keys.
 const DOMAIN: Domain = Domain::new(b"raf-census/debt-site/v1");
 
-/// A stable per-site key: the BLAKE3-256 digest of the enclosing item's symbol
-/// and the first string literal at or after the site inside that item.
-///
-/// The preimage is the domain bytes, the symbol framed by `purrdf-hash` (a
-/// little-endian `u64` length and its bytes), one presence byte, and when the
-/// literal is present its frame in the same encoding. Line numbers and byte
-/// offsets are never hashed, so inserting lines above a site leaves its key
-/// unchanged.
+/// A canonical BLAKE3-256 key for a counted site or an exact numeric bound.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SiteKey(Digest32);
 
 impl SiteKey {
-    /// The key of a site in the item `symbol` whose first string literal is `literal`.
+    /// The key of a counted site with an optional string witness.
+    ///
+    /// The stable owner is a symbol for pattern and job-rule debt, or a canonical
+    /// file path for numeric debt.
+    ///
+    /// The preimage holds the domain, the symbol framed by `purrdf-hash`, one
+    /// presence byte and the framed literal when present. Positions are excluded,
+    /// so inserting lines above the site preserves the key.
     #[must_use]
     pub fn digest(symbol: &str, literal: Option<&str>) -> Self {
         let mut hasher = blake3::Hasher::new();
@@ -40,6 +40,17 @@ impl SiteKey {
                 frame_le_into(&mut hasher, literal.as_bytes());
             }
         }
+        Self(Digest32::new(*hasher.finalize().as_bytes()))
+    }
+
+    /// The exact ledger locator for one written numeric bound.
+    #[must_use]
+    pub(crate) fn numeric_bound(byte: usize, text: &str) -> Self {
+        let domain = Domain::new(b"raf-census/numeric-bound/v1");
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(domain.as_bytes());
+        frame_le_into(&mut hasher, &(byte as u128).to_le_bytes());
+        frame_le_into(&mut hasher, text.as_bytes());
         Self(Digest32::new(*hasher.finalize().as_bytes()))
     }
 

@@ -11,6 +11,7 @@ mod layout;
 mod names;
 mod rdf;
 mod structure;
+pub(crate) use structure::receiver_mode;
 
 #[cfg(test)]
 mod tests;

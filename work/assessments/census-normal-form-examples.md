@@ -397,10 +397,10 @@ inputs:
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
     name: raf_census::report
-    digest: 373da30eba391fd8e4bce85dde16508b695a5fe5dae1227cd5d3e42e6f568ead
+    digest: 6fd731bf3ac1a9d26a777bcf9ff0903e254447d08796171118fcb291041d8547
   - kind: symbol
     name: raf_census::report::vocab
-    digest: c91f183296db99f162937f7847e0c144bae6473b3a4e84b3d705538946942133
+    digest: 645cf649dc49e314986b8ae4e9f656699fc997552ed35d688fc9ed898098ab2f
   - kind: symbol
     name: raf_source_fuzz::bin_crate::census_normalize::exercise
     digest: 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941

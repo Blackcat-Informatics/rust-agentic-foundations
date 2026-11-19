@@ -3,6 +3,7 @@
 
 //! The census policy model over a closed native RDF graph.
 
+pub(crate) mod bounds;
 mod declarations;
 mod extensions;
 mod flag;
@@ -160,6 +161,7 @@ pub struct Ledger {
     /// Sanctioned exact member sets.
     distinct: Vec<LedgerDistinct>,
     patterns: Vec<LedgerPattern>,
+    pub(crate) numeric_bounds: Option<bounds::BoundRegistry>,
     extensions: BTreeMap<String, BTreeSet<String>>,
 }
 
@@ -366,6 +368,7 @@ impl Ledger {
                 reason: required_text(&node, "reason")?,
             });
         }
+        let numeric_bounds = bounds::read(&graph, &root, &mut reached)?;
         let extensions = extensions::collect(&graph, &jobs, &reached)?;
         Ok(Self {
             graph,
@@ -375,6 +378,7 @@ impl Ledger {
             jobs,
             distinct,
             patterns,
+            numeric_bounds,
             extensions,
         })
     }
