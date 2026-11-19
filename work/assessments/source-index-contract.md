@@ -394,7 +394,7 @@ inputs:
     digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
-    digest: d7162f1bed217dd98faf998391e8505b9eabe9e410bab89a78615606f7b7cfb0
+    digest: 789360434129cd25ec5a4dca9529f56d3d650c709e54ff5d4a4cce494c1a832d
   - kind: symbol
     name: raf_source::syntax_storage::syntax_held
     digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b

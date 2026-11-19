@@ -1584,22 +1584,32 @@ impl Index {
         &here[start..start + end]
     }
 
-    /// Named imports that can bind `name` in the requested namespace.
-    pub(crate) fn imports_in<'a>(
-        &'a self,
+    /// The first two named imports that can bind `name` in the requested namespace.
+    pub(crate) fn first_imports_in(
+        &self,
         module: usize,
         name: &str,
         namespace: Namespace,
         steps: Steps<'_>,
-    ) -> Result<impl Iterator<Item = usize> + use<'a>, LoadError> {
-        let positions = self.imports_of(module, name);
-        steps.storage_work(positions.len())?;
-        Ok(positions.iter().copied().filter(move |&position| {
-            self.uses[position]
+    ) -> Result<[Option<usize>; 2], LoadError> {
+        let mut first = None;
+        for &position in self.imports_of(module, name) {
+            if self.uses[position]
                 .kind
                 .terminal_namespaces()
                 .contains(&namespace)
-        }))
+            {
+                if first.is_some() {
+                    return Ok([first, Some(position)]);
+                }
+                first = Some(position);
+            } else {
+                // Looking for zero, one or several candidates visits at most
+                // two matches. Charge each skipped candidate before continuing.
+                steps.storage_work(1)?;
+            }
+        }
+        Ok([first, None])
     }
 
     /// What settling the tables again allocates at most beyond the bindings

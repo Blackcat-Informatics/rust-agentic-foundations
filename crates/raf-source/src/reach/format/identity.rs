@@ -520,11 +520,8 @@ impl Resolver {
         if imported.is_some() {
             return Ok(true);
         }
-        let mut positions = index.imports_in(module, name, Namespace::Macro, steps)?;
-        let first = positions.next();
-        if let Some(position) = first
-            && positions.next().is_none()
-        {
+        let [first, second] = index.first_imports_in(module, name, Namespace::Macro, steps)?;
+        if let (Some(position), None) = (first, second) {
             let decl = &index.uses[position];
             if let UseKind::Named { segs, .. } = &decl.kind {
                 return Ok(endpoint(segs, allowed)

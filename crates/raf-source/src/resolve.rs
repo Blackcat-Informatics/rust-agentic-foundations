@@ -1246,39 +1246,32 @@ impl Index {
         })
     }
 
-    /// The named imports that bind `name` in `module` and are not resolved
-    /// (`resolved_mode`) or not settled yet.
+    /// The unresolved named imports that can bind `name` in `namespace`.
     fn unresolved_uses<'a>(
         &'a self,
-        source: &Source,
-        resolved_mode: bool,
-        steps: Steps<'_>,
-    ) -> Result<impl Iterator<Item = usize> + use<'a>, LoadError> {
-        let decided = if resolved_mode {
-            &self.use_resolved
-        } else {
-            &self.use_settled
-        };
-        Ok(self
-            .imports_in(source.module, &source.name, source.ns, steps)?
-            .filter(move |&position| !decided[position]))
+        module: usize,
+        name: &str,
+        namespace: Namespace,
+    ) -> impl Iterator<Item = usize> + use<'a> {
+        self.imports_of(module, name)
+            .iter()
+            .copied()
+            .filter(move |&position| {
+                !self.use_resolved[position]
+                    && self.uses[position]
+                        .kind
+                        .terminal_namespaces()
+                        .contains(&namespace)
+            })
     }
 
-    /// The walks of the path of the named import at `position`, in each terminal name
-    /// space, read as a `use` path that does not consult its own binding: the
-    /// other imports it waits on (unresolved ones in `resolved_mode`, else
-    /// unsettled ones), which bind a name the walks looked up, the items of
-    /// an ambiguous first segment, and the places the walks read.
+    /// Walk a named import in its terminal namespaces without its own binding.
+    /// Collect unresolved peers, ambiguous first-segment items and read places.
     ///
     /// # Errors
     ///
     /// Preserves storage and work refusals from every namespace walk.
-    fn import_walks(
-        &self,
-        position: usize,
-        resolved_mode: bool,
-        (steps, storage): (Steps<'_>, Steps<'_>),
-    ) -> Result<ImportWalks, ResolveError> {
+    fn import_walks(&self, position: usize, steps: Steps<'_>) -> Result<ImportWalks, ResolveError> {
         let decl = &self.uses[position];
         let UseKind::Named { segs, .. } = &decl.kind else {
             return Ok(ImportWalks::default());
@@ -1305,18 +1298,26 @@ impl Index {
                 | Err(Fail::Missing(_) | Fail::SuperAboveRoot | Fail::SeveralCrates { .. }) => {}
             }
         }
-        let mut blockers = BTreeSet::new();
-        storage
-            .storage_work(reads.len())
-            .map_err(ResolveError::storage)?;
+        let mut places = BTreeMap::new();
         for source in &reads {
             // The path never reads the imports of the name it binds.
             if !self.binds_name(position, source.module, source.ns, &source.name) {
-                blockers.extend(
-                    self.unresolved_uses(source, resolved_mode, storage)
-                        .map_err(ResolveError::storage)?,
-                );
+                let sees_type = places
+                    .entry((source.module, source.name.as_str()))
+                    .or_insert(false);
+                *sees_type |= source.ns == Namespace::Type;
             }
+        }
+        let mut blockers = BTreeSet::new();
+        for ((module, name), sees_type) in places {
+            // Ordinary imports can bind in all namespaces. A grouped `self`
+            // can bind only in Type, so one scan suffices for all these reads.
+            let namespace = if sees_type {
+                Namespace::Type
+            } else {
+                Namespace::Value
+            };
+            blockers.extend(self.unresolved_uses(module, name, namespace));
         }
         // The import's own binding is never a way its path goes.
         blockers.remove(&position);
@@ -1407,11 +1408,7 @@ impl Index {
         let mut seen: BTreeSet<usize> = BTreeSet::new();
         let mut work = WorkList::<_, 8>::new();
         for source in missing {
-            let positions = match self.unresolved_uses(source, true, stack_steps) {
-                Ok(positions) => positions,
-                Err(error) => return ResolveError::storage(error),
-            };
-            for position in positions {
+            for position in self.unresolved_uses(source.module, &source.name, source.ns) {
                 if let Err(error) = push_work(&mut work, position, stack_steps) {
                     return ResolveError::storage(error);
                 }
@@ -1427,7 +1424,7 @@ impl Index {
                 blockers: following,
                 ambiguous: items,
                 reads,
-            } = match self.import_walks(position, true, (steps, stack_steps)) {
+            } = match self.import_walks(position, steps) {
                 Ok(walks) => walks,
                 Err(error) => return error,
             };
