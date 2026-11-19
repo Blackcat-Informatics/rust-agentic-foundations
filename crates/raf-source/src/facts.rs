@@ -437,6 +437,8 @@ pub(crate) struct ModBody {
     pub(crate) impls: Vec<ImplFact>,
     /// Item-producing macro invocations, without generated definitions.
     pub(crate) unexpanded: Vec<UnexpandedFact>,
+    /// Opaque declarations proved disabled for every configuration.
+    pub(crate) disabled: Vec<SpanFact>,
 }
 
 impl ModFact {
@@ -1155,7 +1157,8 @@ impl Extractor<'_> {
             + slack(&mut body.blocks)
             + slack(&mut body.uses)
             + slack(&mut body.impls)
-            + slack(&mut body.unexpanded);
+            + slack(&mut body.unexpanded)
+            + slack(&mut body.disabled);
         self.meter.charge(room, line)?;
         Ok(body)
     }
@@ -1222,21 +1225,23 @@ impl Extractor<'_> {
         t: &syn::ItemTrait,
         whole: proc_macro2::Span,
         inherited: TestRole,
-        unexpanded: &mut Vec<UnexpandedFact>,
+        body: &mut ModBody,
     ) -> Found<ItemFact> {
         let own = summarize(&t.attrs, &FactMeter::scratch())?;
         let inside = role(own.own_test, inherited);
         let mut members = Vec::new();
         for member in &t.items {
-            if let syn::TraitItem::Macro(invocation) = member {
-                unexpanded.push(self.unexpanded(
+            match member {
+                syn::TraitItem::Macro(invocation) => body.unexpanded.push(self.unexpanded(
                     &invocation.attrs,
                     &invocation.mac,
                     member.span(),
                     inside,
-                )?);
-            } else {
-                members.push(self.trait_member(member, inside)?);
+                )?),
+                syn::TraitItem::Verbatim(tokens) if verbatim::definitely_disabled(tokens) => {
+                    self.record_disabled(member.span(), body)?;
+                }
+                _ => members.push(self.trait_member(member, inside)?),
             }
         }
         self.meter
@@ -1258,7 +1263,7 @@ impl Extractor<'_> {
         &self,
         item: &Item,
         inherited: TestRole,
-        unexpanded: &mut Vec<UnexpandedFact>,
+        body: &mut ModBody,
     ) -> Found<Option<ItemFact>> {
         let whole = item.span();
         let fact = match item {
@@ -1290,7 +1295,7 @@ impl Extractor<'_> {
                 self.with_nominal(fact, &e.generics)?
             }
             Item::Union(u) => self.union_fact(u, whole, inherited)?,
-            Item::Trait(t) => self.trait_fact(t, whole, inherited, unexpanded)?,
+            Item::Trait(t) => self.trait_fact(t, whole, inherited, body)?,
             Item::Type(t) => {
                 let mut fact = self.item(
                     &t.ident,
@@ -1361,7 +1366,7 @@ impl Extractor<'_> {
 
     fn one(&self, item: &Item, inherited: TestRole, body: &mut ModBody) -> Found<()> {
         self.blocks(item, inherited, &mut body.blocks)?;
-        if let Some(fact) = self.named(item, inherited, &mut body.unexpanded)? {
+        if let Some(fact) = self.named(item, inherited, body)? {
             body.items.push(fact);
             return Ok(());
         }
@@ -1410,9 +1415,10 @@ impl Extractor<'_> {
                 }
             }
             Item::Mod(m) => body.mods.push(self.module_fact(m, inherited)?),
-            Item::Impl(i) => body
-                .impls
-                .push(self.impl_fact(i, inherited, &mut body.unexpanded)?),
+            Item::Impl(i) => {
+                let implementation = self.impl_fact(i, inherited, body)?;
+                body.impls.push(implementation);
+            }
             Item::Use(u) => {
                 let role = use_role(&u.attrs, inherited)?;
                 body.uses.push(self.use_fact(
@@ -1445,10 +1451,20 @@ impl Extractor<'_> {
                     body.items
                         .push(self.bodiless(&read, whole, inherited, false)?);
                 }
+                None if verbatim::definitely_disabled(tokens) => {
+                    self.record_disabled(whole, body)?;
+                }
                 None => return Err(unsupported(item)),
             },
             other => return Err(unsupported(other)),
         }
+        Ok(())
+    }
+
+    fn record_disabled(&self, whole: proc_macro2::Span, body: &mut ModBody) -> Found<()> {
+        let span = self.positions.span(whole)?;
+        self.meter.charge(size_of::<SpanFact>(), span.lines.start)?;
+        body.disabled.push(span);
         Ok(())
     }
 
@@ -1660,7 +1676,12 @@ impl Extractor<'_> {
         }
     }
 
-    fn impl_member(&self, member: &syn::ImplItem, inherited: TestRole) -> Found<ItemFact> {
+    fn impl_member(
+        &self,
+        member: &syn::ImplItem,
+        inherited: TestRole,
+        body: &mut ModBody,
+    ) -> Found<Option<ItemFact>> {
         let whole = member.span();
         let fact = match member {
             syn::ImplItem::Fn(f) => {
@@ -1701,18 +1722,22 @@ impl Extractor<'_> {
             )?,
             syn::ImplItem::Verbatim(tokens) => match verbatim::member(tokens) {
                 Some(read) => self.bodiless(&read, whole, inherited, true)?,
+                None if verbatim::definitely_disabled(tokens) => {
+                    self.record_disabled(whole, body)?;
+                    return Ok(None);
+                }
                 None => return Err(unsupported(member)),
             },
             other => return Err(unsupported(other)),
         };
-        Ok(fact)
+        Ok(Some(fact))
     }
 
     fn impl_fact(
         &self,
         block: &syn::ItemImpl,
         inherited: TestRole,
-        unexpanded: &mut Vec<UnexpandedFact>,
+        body: &mut ModBody,
     ) -> Found<ImplFact> {
         let whole = block.span();
         let line = block.impl_token.span.start().line;
@@ -1721,14 +1746,14 @@ impl Extractor<'_> {
         let mut items = Vec::new();
         for member in &block.items {
             if let syn::ImplItem::Macro(invocation) = member {
-                unexpanded.push(self.unexpanded(
+                body.unexpanded.push(self.unexpanded(
                     &invocation.attrs,
                     &invocation.mac,
                     member.span(),
                     test,
                 )?);
-            } else {
-                items.push(self.impl_member(member, test)?);
+            } else if let Some(fact) = self.impl_member(member, test, body)? {
+                items.push(fact);
             }
         }
         let written_path = self_path_of(&block.self_ty);

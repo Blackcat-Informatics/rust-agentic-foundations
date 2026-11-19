@@ -11,6 +11,8 @@ bindings:
     - raf_source::git
     - raf_source::Unexpanded
     - raf_source::Workspace::unexpanded
+    - raf_source::DisabledSyntax
+    - raf_source::Workspace::disabled_syntax
     - raf_source::cargo_version
     - raf_source::resolve
     - raf_source::Tree
@@ -721,7 +723,7 @@ bindings:
     - raf_source::test_crate::use_resolution::a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015
     - raf_source::test_crate::use_resolution::a_crate_root_inside_a_group_under_a_path_is_a_syntax_error
     - raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written
-    - raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line
+    - raf_source::test_crate::symbol_index::disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse
     - raf_source::test_crate::load_budgets::a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms
     - raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not
     - raf_source::test_crate::exported_items::a_pub_item_of_a_private_module_is_exported_only_through_a_pub_use_and_under_its_rename
@@ -2462,10 +2464,24 @@ bool;`) is a type alias whose alias target is `None`, so no path is followed thr
 Both are indexed as written: what the macro makes of them (kept, renamed, dropped, or an
 item of another kind) is not seen, as for any other item an attribute macro rewrites. The third
 shape syn returns as tokens, a `use` group with a member that starts with `::`, is read
-by the use-alias index below. Every other item that syn returns as tokens fails the load
-with `UnsupportedItem`, naming the file and the first line of the item: a constant with
-no value (`const C: u8;`, in a module or an impl block), a type with bounds and no
-definition (`type T: Bound;`), a trait alias, and any other form.
+by the use-alias index below. A remaining opaque declaration without proof of
+disabling fails with `UnsupportedItem`, naming its file and first line.
+
+### Disabled opaque declarations
+<!-- raf:tested-by raf_source::test_crate::symbol_index::disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse,raf_source::test_crate::configured_sources::unexpanded_occurrences_follow_the_exact_declared_syntax,raf_source::test_crate::symbol_index::unexpanded_payloads_obey_original_fact_and_item_allowances -->
+
+`Workspace::disabled_syntax()` records opaque declarations in a module,
+trait or implementation when their written outer `#[cfg(any())]` evaluates
+false for every target. Structural and configured loads record the exact
+span including attributes, the file, and the actual module and target of
+each reach. The inventory binds no names and sorts by file, starting byte,
+module and target.
+
+Source first applies its existing verbatim decoders. An opaque item must
+carry the direct empty disjunction to qualify. Other configuration
+expressions or a `cfg_attr` alone leave the typed `UnsupportedItem`
+refusal in place. Observation storage and sorting spend the original
+fact, item and work allowances.
 
 Every target's crate root is also an item of the module kind, at the target's crate
 path in the type name space: its file is the target's root file, its line is 1, its
@@ -4146,10 +4162,12 @@ delegates to that library or enforce preferred-provider policy.
   level is no item's, so a block there is never reached. An impl block inside a module
   declared in a block is in `impls()` under that module's path.
 - An item that syn returns as tokens is indexed only in the three shapes the Contract
-  <!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written,raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line,raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do -->
+  <!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written,raf_source::test_crate::symbol_index::disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse,raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do -->
   names: a `use` group with a member that starts with `::`, a function with no body and
-  a type with no definition. Any other, such as `const C: u8;` written as the input of an
-  attribute macro, fails the whole load with `UnsupportedItem`, naming the file and line.
+  a type with no definition. Other opaque module or associated declarations
+  require the disabling proof to be recorded. A declaration such as
+  `const C: u8;` supplied to an attribute macro without that proof fails with
+  `UnsupportedItem`, naming the file and line.
 - An import whose namespace proof remains indeterminate cannot publish an apparently settled peer through a named copy, glob, exported surface or reachability edge. A cyclic or indeterminate-import disagreement with the compiler fails the differential oracle; it is not a tolerated class.
   <!-- raf:tested-by raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other,raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes -->
 - For some glob ambiguities rustc's own answer depends on the order of the declarations, the first binding of the name that reaches a module deciding; the index gives one fixed answer, the same in every order, which is the ambiguity for some shapes and the item for others, and which rustc gives in some of its orders and not in the others.
@@ -4788,8 +4806,9 @@ one-byte-short refusal.
   role and visibility of the whole declaration. `a::{::b}` is a `Syntax` error naming the
   file and line. A bodiless function at item level, a bodiless method in an impl block
   and `type bool;` are indexed with their kind, name line, span and attributes, and no
-  `body`; `const C: u8;`, a bodiless `const` in an impl block and `type T: Bound;` are
-  `UnsupportedItem` naming the file and line. A group of 6000 members under a
+  `body`. An opaque constant or type under `#[cfg(any())]` is recorded at its
+  original span. The refusal cases report `UnsupportedItem` with the file and
+  line when the declaration lacks that proof. A group of 6000 members under a
   `cfg` predicate of 6000 names reads that attribute once, counted as one attribute read for
   the whole declaration, each member's fact carrying the test role,
   visibility, span and tree it would have alone. A group and a bodiless method are charged
@@ -6001,7 +6020,6 @@ one-byte-short refusal.
 | `raf_source::test_crate::spawn_limit::a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file` | test | [Contract](#contract) |
 | `raf_source::test_crate::spawn_limit::child_main` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::a_bitflags_style_macro_type_with_an_impl_loads_with_its_members_marked_unresolved` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::symbol_index::a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed` | test | [Verification](#verification) |
@@ -6021,6 +6039,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::symbol_index::cfg_twins_are_one_symbol_with_two_sorted_sites` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::symbol_index::documentation_counts_text_and_include_str_but_not_hidden_or_blank_comments` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility` | test | [Contract](#contract) |

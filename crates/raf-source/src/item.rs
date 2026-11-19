@@ -215,6 +215,20 @@ pub struct Unexpanded {
     pub identifiers: Vec<SharedStr>,
 }
 
+/// An opaque declaration proved disabled for every configuration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DisabledSyntax {
+    /// The source file, relative to the workspace root.
+    pub file: RelPath,
+    /// The whole declaration, including its attributes.
+    pub span: SpanFact,
+    /// The enclosing module path for this reach.
+    pub module: SharedStr,
+    /// The target whose module tree contains the declaration.
+    pub target: TargetId,
+}
+
 impl ItemId {
     /// The number of the item.
     #[must_use]
