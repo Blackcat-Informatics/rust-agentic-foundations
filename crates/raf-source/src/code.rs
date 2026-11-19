@@ -259,6 +259,31 @@ impl<'a> CodeResolver<'a> {
         path: &str,
         namespace: Namespace,
     ) -> Result<Resolution, CodeResolveError> {
+        let (module, heads) = self.file_context(reach, false)?;
+        self.resolve_code_at(module, path, namespace, heads)
+            .map(|(resolution, _)| resolution)
+    }
+
+    /// Resolve an import spelling in a file's own module and target.
+    ///
+    /// # Errors
+    /// Refuses an absent reach and preserves the shared resolver errors.
+    pub fn resolve_import_from_file_reach(
+        &self,
+        reach: &Reach,
+        path: &str,
+        namespace: Namespace,
+    ) -> Result<Resolution, CodeResolveError> {
+        let (module, heads) = self.file_context(reach, true)?;
+        self.resolve_code_at(module, path, namespace, heads)
+            .map(|(resolution, _)| resolution)
+    }
+
+    fn file_context(
+        &self,
+        reach: &Reach,
+        import: bool,
+    ) -> Result<(usize, Heads), CodeResolveError> {
         let module = self
             .index
             .target_roots
@@ -274,8 +299,7 @@ impl<'a> CodeResolver<'a> {
                     reach.module_path.to_string(),
                 ))
             })?;
-        self.resolve_code_at(module, path, namespace, Heads::Code { test: reach.test })
-            .map(|(resolution, _)| resolution)
+        Ok((module, reading_heads(reach.test, import)))
     }
 
     /// Read a module-level path in the lexical module of an indexed impl.
@@ -356,6 +380,16 @@ impl<'a> CodeResolver<'a> {
     ) -> Result<bool, CodeResolveError> {
         let module = self.module(owner, byte)?;
         self.owner_query(owner, |index, steps| {
+            index.module_is_unconditional(module, steps)
+        })
+    }
+
+    /// Check a file reach's module and ancestor declarations for configuration dependence.
+    ///
+    /// # Errors
+    /// Refuses an absent reach or an exceeded query grant.
+    pub fn has_unconditional_file_reach(&self, reach: &Reach) -> Result<bool, CodeResolveError> {
+        self.file_query(reach, false, |index, module, _, steps| {
             index.module_is_unconditional(module, steps)
         })
     }
@@ -453,8 +487,9 @@ impl<'a> CodeResolver<'a> {
     /// asking this module-level query. Set `import` when the spelling was
     /// written in an import declaration, to preserve its edition rules.
     ///
-    /// Existing definitions and inconclusive or conditional import routes
-    /// yield no enum member evidence.
+    /// An empty candidate list means the inspected routes supply no variants.
+    /// An existing definition or an inconclusive or conditional route returns
+    /// `None`, so the caller cannot infer the name is available to another route.
     ///
     /// # Errors
     /// Refuses missing owner context, invalid paths and native
@@ -466,9 +501,28 @@ impl<'a> CodeResolver<'a> {
         path: &str,
         namespace: Namespace,
         import: bool,
-    ) -> Result<Vec<(ItemId, String)>, CodeResolveError> {
+    ) -> Result<Option<Vec<(ItemId, String)>>, CodeResolveError> {
         let (module, heads) = self.owned_context(owner, byte, import)?;
         self.owner_query(owner, |index, steps| {
+            index.enum_member_import(module, path, namespace, heads, steps)
+        })
+    }
+
+    /// Follow visible enum member imports from a file's own module and target.
+    ///
+    /// As [`Self::enum_member_imports_from_item_at`], validate candidates against the
+    /// enum declaration and set `import` for a spelling read in an import.
+    ///
+    /// # Errors
+    /// Refuses an absent reach, invalid path or exhausted query resources.
+    pub fn enum_member_imports_from_file_reach(
+        &self,
+        reach: &Reach,
+        path: &str,
+        namespace: Namespace,
+        import: bool,
+    ) -> Result<Option<Vec<(ItemId, String)>>, CodeResolveError> {
+        self.file_query(reach, import, |index, module, heads, steps| {
             index.enum_member_import(module, path, namespace, heads, steps)
         })
     }
@@ -491,12 +545,48 @@ impl<'a> CodeResolver<'a> {
         })
     }
 
+    /// Find a single named type by an unconditional route from a file's own module.
+    ///
+    /// # Errors
+    /// Refuses an absent reach, invalid path or exhausted query resources.
+    pub fn unconditional_type_from_file_reach(
+        &self,
+        reach: &Reach,
+        path: &str,
+        import: bool,
+    ) -> Result<Option<ItemId>, CodeResolveError> {
+        self.file_query(reach, import, |index, module, heads, steps| {
+            index.unconditional_type_path(module, path, heads, steps)
+        })
+    }
+
+    fn file_query<T>(
+        &self,
+        reach: &Reach,
+        import: bool,
+        query: impl FnOnce(&'a Index, usize, Heads, crate::meter::Steps<'_>) -> Result<T, ResolveError>,
+    ) -> Result<T, CodeResolveError> {
+        let (module, heads) = self.file_context(reach, import)?;
+        let (file, line) = self.index.module_site(module);
+        self.query_at((&file, line), |index, steps| {
+            query(index, module, heads, steps)
+        })
+    }
+
     fn owner_query<T>(
         &self,
         owner: ItemId,
         query: impl FnOnce(&'a Index, crate::meter::Steps<'_>) -> Result<T, ResolveError>,
     ) -> Result<T, CodeResolveError> {
         let item = &self.index.items[owner.index()];
+        self.query_at((&item.file, Some(item.name_line)), query)
+    }
+
+    fn query_at<T>(
+        &self,
+        (file, line): (&RelPath, Option<usize>),
+        query: impl FnOnce(&'a Index, crate::meter::Steps<'_>) -> Result<T, ResolveError>,
+    ) -> Result<T, CodeResolveError> {
         let meter = Meter::resume_query(
             self.options,
             Usage {
@@ -506,8 +596,8 @@ impl<'a> CodeResolver<'a> {
         );
         let steps = crate::meter::Steps::QueryItems {
             meter: &meter,
-            file: &item.file,
-            line: Some(item.name_line),
+            file,
+            line,
         };
         let answer = query(self.index, steps);
         Index::query_refusal(steps)
@@ -545,11 +635,14 @@ impl<'a> CodeResolver<'a> {
             return Err(CodeResolveError::MacroDefinition(owner));
         }
         let test = self.index.items[owner.index()].test != TestRole::None;
-        let heads = if import {
-            Heads::Use { test, own: None }
-        } else {
-            Heads::Code { test }
-        };
-        Ok((module, heads))
+        Ok((module, reading_heads(test, import)))
+    }
+}
+
+fn reading_heads(test: bool, import: bool) -> Heads {
+    if import {
+        Heads::Use { test, own: None }
+    } else {
+        Heads::Code { test }
     }
 }

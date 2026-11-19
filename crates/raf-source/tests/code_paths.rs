@@ -36,10 +36,8 @@ fn query_budget(error: &CodeResolveError) -> Option<Budget> {
     }
 }
 
-/// A route carries the defining enum through each import's own module.
-#[test]
-fn enum_member_imports_require_unique_visible_routes() {
-    let files = MemoryTree::from([
+fn enum_route_files() -> MemoryTree {
+    MemoryTree::from([
         ("Cargo.toml", "[workspace]\nmembers=['consumer','provider']"),
         (
             "consumer/Cargo.toml",
@@ -54,12 +52,54 @@ fn enum_member_imports_require_unique_visible_routes() {
             "provider/src/lib.rs",
             r#"
                 mod origin { pub enum State { Ready, Busy } }
+                mod names { pub struct Ready { pub value: u8 } }
+                mod other {
+                    #[derive(Clone, Copy)]
+                    pub enum Other { Idle }
+                    impl Other { pub fn Ready() {} }
+                    pub enum Conflict { State { value: u8 } }
+                    #[cfg_attr(test, derive(Debug))]
+                    pub enum Opaque { Idle }
+                }
                 mod glob_provider { pub use crate::origin::State::*; }
-                pub mod glob_facade { pub use crate::glob_provider::*; }
+                pub mod glob_facade {
+                    pub use crate::glob_provider::*;
+                    pub use crate::names::Ready;
+                    pub use crate::other::Other::*;
+                }
+                mod forwarder {
+                    pub use crate::names::Ready;
+                    pub use crate::origin::State::*;
+                }
+                mod competitor { pub enum Competing { Ready } }
+                pub mod named_facade {
+                    pub use crate::forwarder::Ready;
+                    pub use crate::competitor::Competing::*;
+                }
+                mod outer { pub mod models { pub use crate::origin::State; } }
+                pub mod chained_type { pub use crate::outer::*; pub use self::models::*; }
+                pub mod conditional_type {
+                    #[cfg(not(test))] pub use crate::outer::*;
+                    #[cfg(not(test))] pub use self::models::*;
+                }
+                pub mod type_glob {
+                    pub use crate::origin::*;
+                    pub use crate::other::Other::*;
+                }
+                pub mod competing_type {
+                    pub use crate::origin::*;
+                    pub use crate::other::Conflict::*;
+                }
+                pub mod opaque_type {
+                    pub use crate::origin::*;
+                    pub use crate::other::Opaque::*;
+                }
                 pub mod facade {
                     use crate::origin::State as Local;
                     pub use self::Local::Ready as Direct;
                     pub use self::Direct as Chained;
+                    pub use self::Local::Ready as a‿b;
+                    pub use self::Local::Ready as r#type;
                     use self::Local::Ready as Private;
                     mod concealed { pub use crate::origin::State::Ready as Hidden; }
                     #[cfg(feature = "models")]
@@ -73,7 +113,13 @@ fn enum_member_imports_require_unique_visible_routes() {
                 }
             "#,
         ),
-    ]);
+    ])
+}
+
+/// A route carries the defining enum through each import's own module.
+#[test]
+fn enum_member_imports_require_unique_visible_routes() {
+    let files = enum_route_files();
     let workspace = Workspace::load(&files, &["."]).unwrap();
     let reader = owner(&workspace, "consumer::reader");
     let byte = workspace.item(reader).unwrap().span.start_byte;
@@ -81,6 +127,22 @@ fn enum_member_imports_require_unique_visible_routes() {
         .resolve_in("provider::origin::State", Namespace::Type)
         .unwrap()
         .sites[0];
+    assert!(
+        workspace
+            .item(state)
+            .unwrap()
+            .enum_roster_has_only_written_variants()
+    );
+    let opaque = workspace
+        .resolve_in("provider::other::Opaque", Namespace::Type)
+        .unwrap()
+        .sites[0];
+    assert!(
+        !workspace
+            .item(opaque)
+            .unwrap()
+            .enum_roster_has_only_written_variants()
+    );
     let code = workspace.code_resolver().unwrap();
     assert!(code.has_unconditional_reading_module(reader, byte).unwrap());
     let conditional = owner(&workspace, "provider::facade::conditional::inside");
@@ -97,11 +159,14 @@ fn enum_member_imports_require_unique_visible_routes() {
     for path in [
         "renamed::facade::Direct",
         "renamed::facade::Chained",
+        "renamed::facade::a‿b",
+        "renamed::facade::r#type",
         "renamed::glob_facade::Ready",
+        "renamed::named_facade::Ready",
     ] {
         assert_eq!(
             lookup(path, Namespace::Value),
-            vec![(state, "Ready".into())],
+            Some(vec![(state, "Ready".into())]),
             "{path}"
         );
     }
@@ -113,17 +178,87 @@ fn enum_member_imports_require_unique_visible_routes() {
         "renamed::facade::Ordinary",
         "renamed::other::Direct",
     ] {
-        assert!(lookup(path, Namespace::Value).is_empty(), "{path}");
+        assert!(
+            lookup(path, Namespace::Value).is_none_or(|candidates| candidates.is_empty()),
+            "{path}"
+        );
     }
     assert_eq!(
         lookup("renamed::facade::Direct", Namespace::Macro),
-        Vec::new()
+        Some(Vec::new())
+    );
+    assert_eq!(lookup("renamed::opaque_type::Idle", Namespace::Value), None);
+    assert_eq!(
+        lookup("renamed::facade::Missing", Namespace::Value),
+        Some(Vec::new())
     );
     assert_eq!(
         code.resolve_from_item_at(reader, byte, "renamed::facade::Ordinary", Namespace::Value)
             .unwrap()
             .path,
         "provider::facade::Ordinary"
+    );
+    for path in [
+        "renamed::facade::1name",
+        "renamed::facade:: Direct",
+        "renamed::facade::r#crate",
+    ] {
+        assert!(
+            matches!(
+                code.enum_member_imports_from_item_at(reader, byte, path, Namespace::Value, false),
+                Err(CodeResolveError::Resolve(
+                    raf_source::ResolveError::Invalid(_)
+                ))
+            ),
+            "{path}"
+        );
+    }
+    assert_enum_file_reach_routes(&workspace, &code, reader, state);
+}
+
+fn assert_enum_file_reach_routes(
+    workspace: &Workspace,
+    code: &raf_source::CodeResolver<'_>,
+    reader: raf_source::ItemId,
+    state: raf_source::ItemId,
+) {
+    let file = workspace
+        .file(&workspace.item(reader).unwrap().file)
+        .unwrap();
+    let [reach] = file.reached.as_slice() else {
+        panic!("expected one actual consumer file reach")
+    };
+    assert!(code.has_unconditional_file_reach(reach).unwrap());
+    assert_eq!(
+        code.enum_member_imports_from_file_reach(
+            reach,
+            "renamed::glob_facade::Ready",
+            Namespace::Value,
+            false
+        )
+        .unwrap(),
+        Some(vec![(state, "Ready".into())])
+    );
+    for (scope, expected) in [
+        ("chained_type", Some(state)),
+        ("type_glob", Some(state)),
+        ("conditional_type", None),
+        ("competing_type", None),
+        ("opaque_type", None),
+    ] {
+        let path = format!("renamed::{scope}::State");
+        assert_eq!(
+            code.unconditional_type_from_file_reach(reach, &path, false)
+                .unwrap(),
+            expected,
+            "{path}"
+        );
+    }
+    assert_eq!(
+        code.resolve_import_from_file_reach(reach, "renamed::chained_type::State", Namespace::Type)
+            .unwrap()
+            .sites,
+        vec![state]
     );
 }
 

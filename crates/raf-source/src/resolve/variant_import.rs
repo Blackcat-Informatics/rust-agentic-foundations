@@ -54,9 +54,9 @@ impl Index {
         namespace: Namespace,
         heads: Heads,
         steps: Steps<'_>,
-    ) -> Result<Vec<(ItemId, String)>, ResolveError> {
+    ) -> Result<Option<Vec<(ItemId, String)>>, ResolveError> {
         if !matches!(namespace, Namespace::Type | Namespace::Value) {
-            return Ok(Vec::new());
+            return Ok(Some(Vec::new()));
         }
         let (colon, written) = read_path(path, steps)?;
         let first = ImportRoute {
@@ -78,10 +78,10 @@ impl Index {
         let mut candidates = BTreeSet::<Candidate<'_>>::new();
         while let Some(route) = pending.pop() {
             let Some((name, prefix)) = route.segments.split_last() else {
-                return Ok(Vec::new());
+                return Ok(None);
             };
             let Some(scope) = self.enum_route_scope(route, name, prefix, path, steps)? else {
-                return Ok(Vec::new());
+                return Ok(None);
             };
             let module = match scope {
                 Prefix::Module(module) => module,
@@ -106,11 +106,11 @@ impl Index {
                 route.heads,
                 steps,
             )? {
-                Leaf::Refused => return Ok(Vec::new()),
+                Leaf::Refused => return Ok(None),
                 Leaf::Named(position) => {
                     let decl = &self.uses[position];
                     let UseKind::Named { segs, .. } = &decl.kind else {
-                        return Ok(Vec::new());
+                        return Ok(None);
                     };
                     push_work(
                         &mut pending,
@@ -132,7 +132,7 @@ impl Index {
                         &mut pending,
                         &mut candidates,
                     )? {
-                        return Ok(Vec::new());
+                        return Ok(None);
                     }
                 }
             }
@@ -144,10 +144,11 @@ impl Index {
                     .saturating_mul(vec_slot::<(ItemId, String)>()),
             )
             .map_err(ResolveError::storage)?;
-        candidates
+        let candidates = candidates
             .into_iter()
             .map(|(id, name)| variant_name(id, name, steps))
-            .collect()
+            .collect::<Result<_, _>>()?;
+        Ok(Some(candidates))
     }
 
     fn follow_enum_globs<'a>(
@@ -193,10 +194,15 @@ impl Index {
                     steps,
                 )
                 .map_err(ResolveError::storage)?,
-                Some(Prefix::Item(id)) if self.enum_member_candidate(id, name, namespace) => {
-                    insert(candidates, (id, name), steps)?;
+                Some(Prefix::Item(id)) => {
+                    let Some(present) = self.enum_glob_member(id, name, namespace, steps)? else {
+                        return Ok(false);
+                    };
+                    if present {
+                        insert(candidates, (id, name), steps)?;
+                    }
                 }
-                Some(Prefix::Item(_)) | None => return Ok(false),
+                None => return Ok(false),
             }
         }
         Ok(true)
@@ -247,6 +253,29 @@ impl Index {
                 })
     }
 
+    fn enum_glob_member(
+        &self,
+        id: ItemId,
+        name: &str,
+        namespace: Namespace,
+        steps: Steps<'_>,
+    ) -> Result<Option<bool>, ResolveError> {
+        let Some(variants) = self.items[id.index()].written_enum_variants() else {
+            return Ok(None);
+        };
+        for variant in variants {
+            steps
+                .storage_work(variant.name.len().max(name.len()).saturating_add(1))
+                .map_err(ResolveError::storage)?;
+            if variant.name == name
+                && (namespace == Namespace::Type || variant.shape != crate::FieldShape::Named)
+            {
+                return Ok(Some(true));
+            }
+        }
+        Ok(Some(false))
+    }
+
     pub(crate) fn unconditional_type_path(
         &self,
         from: usize,
@@ -295,6 +324,9 @@ impl Index {
             {
                 continue;
             }
+            if self.named_rhs_proves_enum_absence(position, namespace, steps)? {
+                continue;
+            }
             if decl.configuration == ConfigurationDependence::Conditional
                 || found.replace(position).is_some()
                 || viewer != reader
@@ -307,6 +339,53 @@ impl Index {
             }
         }
         Ok(found.map_or(Leaf::Absent, Leaf::Named))
+    }
+
+    fn named_rhs_proves_enum_absence(
+        &self,
+        position: usize,
+        namespace: Namespace,
+        steps: Steps<'_>,
+    ) -> Result<bool, ResolveError> {
+        let at = crate::settle::slot(namespace);
+        if !(self.use_free[position][at]
+            && self.use_decided[position][at]
+            && self.use_empty[position][at])
+        {
+            return Ok(false);
+        }
+
+        // Native empty slots describe indexed items. A forwarding import can
+        // still carry an enum variant which has no item identity of its own.
+        let decl = &self.uses[position];
+        let UseKind::Named { segs, .. } = &decl.kind else {
+            return Ok(false);
+        };
+        let Some((name, prefix)) = segs.split_last() else {
+            return Ok(false);
+        };
+        let route = ImportRoute {
+            from: decl.module,
+            segments: segs,
+            colon: decl.leading_colon,
+            heads: decl.heads(position),
+            module: None,
+        };
+        let Some(Prefix::Module(module)) =
+            self.enum_route_scope(route, name, prefix, name, steps)?
+        else {
+            return Ok(false);
+        };
+        if !self.module_is_unconditional(module, steps)? || !self.globs_of(module).is_empty() {
+            return Ok(false);
+        }
+        for &other in self.imports_of(module, name) {
+            steps.storage_work(1).map_err(ResolveError::storage)?;
+            if other != position && self.binds_name(other, module, namespace, name) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     fn enum_import_globs(
@@ -354,18 +433,25 @@ impl Index {
         text: &str,
         steps: Steps<'_>,
     ) -> Result<Option<Prefix>, ResolveError> {
-        self.enum_import_prefix_with_globs(from, prefix, (colon, true), heads, text, steps)
+        let Some((scope, reads)) =
+            self.enum_import_prefix_inputs(from, prefix, colon, heads, text, steps)?
+        else {
+            return Ok(None);
+        };
+        Ok(self
+            .enum_import_prefix_reads(from, &reads, heads, steps)?
+            .then_some(scope))
     }
 
-    fn enum_import_prefix_with_globs(
+    fn enum_import_prefix_inputs(
         &self,
         from: usize,
         prefix: &[String],
-        (colon, permit_globs): (bool, bool),
+        colon: bool,
         heads: Heads,
         text: &str,
         steps: Steps<'_>,
-    ) -> Result<Option<Prefix>, ResolveError> {
+    ) -> Result<Option<(Prefix, Vec<Source>)>, ResolveError> {
         let mut reads = Vec::new();
         let walk = self.walk_with_visibility(
             from,
@@ -380,34 +466,30 @@ impl Index {
             return Ok(None);
         }
         self.path_determinacy(from, prefix, colon, Namespace::Type, heads, text, steps)?;
-        let uses_globs = walked.items.values().any(|hit| hit.via_glob);
-        if uses_globs && !permit_globs
-            || self
-                .unresolved_glob_read(&reads, steps)
-                .map_err(ResolveError::storage)?
-                .is_some()
-            || !self.enum_import_prefix_reads(from, &reads, heads, uses_globs, steps)?
+        if self
+            .unresolved_glob_read(&reads, steps)
+            .map_err(ResolveError::storage)?
+            .is_some()
         {
             return Ok(None);
         }
-        if let Some(module) = walked.modules.first() {
-            return Ok(self
-                .module_is_unconditional(*module, steps)?
-                .then_some(Prefix::Module(*module)));
-        }
-        let Some((&id, _)) = walked.items.first_key_value() else {
+        let module = if let Some(&module) = walked.modules.first() {
+            module
+        } else if let Some((&id, _)) = walked.items.first_key_value() {
+            if self.items[id.index()].kind != SymbolKind::Mod {
+                return Ok(Some((Prefix::Item(id), reads)));
+            }
+            let mut modules = self.modules_for(id);
+            let Some(module) = modules.next().filter(|_| modules.next().is_none()) else {
+                return Ok(None);
+            };
+            module
+        } else {
             return Ok(None);
         };
-        if self.items[id.index()].kind != SymbolKind::Mod {
-            return Ok(Some(Prefix::Item(id)));
-        }
-        let mut modules = self.modules_for(id);
-        let module = modules.next();
-        Ok(if modules.next().is_none() {
-            module.map(Prefix::Module)
-        } else {
-            None
-        })
+        Ok(self
+            .module_is_unconditional(module, steps)?
+            .then_some((Prefix::Module(module), reads)))
     }
 
     fn enum_import_prefix_reads(
@@ -415,7 +497,6 @@ impl Index {
         viewer: usize,
         reads: &[Source],
         heads: Heads,
-        uses_globs: bool,
         steps: Steps<'_>,
     ) -> Result<bool, ResolveError> {
         let mut pending = WorkList::<TypeRead<'_>, 8>::new();
@@ -463,9 +544,7 @@ impl Index {
             if via_glob {
                 let reading_heads =
                     own.map_or(heads, |position| self.uses[position].heads(position));
-                if !uses_globs
-                    || !self.audit_type_globs(read, reading_heads, &mut pending, steps)?
-                {
+                if !self.audit_type_globs(read, reading_heads, &mut pending, steps)? {
                     return Ok(false);
                 }
             } else if let Some((id, found)) = bound.iter().next() {
@@ -519,26 +598,8 @@ impl Index {
             if !bindings.iter().map(|(item, _)| *item).eq([expected]) {
                 return Ok(false);
             }
-            for read in reads {
-                steps
-                    .storage_work(segs.len())
-                    .map_err(ResolveError::storage)?;
-                let Some(segment) = segs.iter().find(|segment| segment.as_str() == read.name)
-                else {
-                    return Ok(false);
-                };
-                push_work(
-                    pending,
-                    (
-                        module,
-                        read.module,
-                        read.ns,
-                        Some(position),
-                        segment.as_str(),
-                    ),
-                    steps,
-                )
-                .map_err(ResolveError::storage)?;
+            if !queue_import_reads((module, position), segs, reads, pending, steps)? {
+                return Ok(false);
             }
             found = true;
         }
@@ -546,7 +607,7 @@ impl Index {
     }
 
     fn audit_type_globs<'a>(
-        &self,
+        &'a self,
         (viewer, module, namespace, _, name): TypeRead<'a>,
         heads: Heads,
         pending: &mut WorkList<TypeRead<'a>, 8>,
@@ -563,10 +624,10 @@ impl Index {
             let UseKind::Glob { segs } = &decl.kind else {
                 return Ok(false);
             };
-            let Some(Prefix::Module(target)) = self.enum_import_prefix_with_globs(
+            let Some((scope, reads)) = self.enum_import_prefix_inputs(
                 module,
                 segs,
-                (decl.leading_colon, false),
+                decl.leading_colon,
                 decl.heads(position),
                 name,
                 steps,
@@ -574,12 +635,20 @@ impl Index {
             else {
                 return Ok(false);
             };
-            push_work(
-                pending,
-                (module, target, namespace, Some(position), name),
-                steps,
-            )
-            .map_err(ResolveError::storage)?;
+            if !queue_import_reads((module, position), segs, reads, pending, steps)? {
+                return Ok(false);
+            }
+            match scope {
+                Prefix::Module(target) => push_work(
+                    pending,
+                    (module, target, namespace, Some(position), name),
+                    steps,
+                )
+                .map_err(ResolveError::storage)?,
+                Prefix::Item(id)
+                    if self.enum_glob_member(id, name, namespace, steps)? == Some(false) => {}
+                Prefix::Item(_) => return Ok(false),
+            }
         }
         Ok(true)
     }
@@ -601,6 +670,39 @@ impl Index {
             module = parent;
         }
     }
+}
+
+fn queue_import_reads<'a>(
+    (module, position): (usize, usize),
+    segments: &'a [String],
+    reads: Vec<Source>,
+    pending: &mut WorkList<TypeRead<'a>, 8>,
+    steps: Steps<'_>,
+) -> Result<bool, ResolveError> {
+    for read in reads {
+        steps
+            .storage_work(segments.len())
+            .map_err(ResolveError::storage)?;
+        let Some(segment) = segments
+            .iter()
+            .find(|segment| segment.as_str() == read.name)
+        else {
+            return Ok(false);
+        };
+        push_work(
+            pending,
+            (
+                module,
+                read.module,
+                read.ns,
+                Some(position),
+                segment.as_str(),
+            ),
+            steps,
+        )
+        .map_err(ResolveError::storage)?;
+    }
+    Ok(true)
 }
 
 fn insert<T: Ord>(set: &mut BTreeSet<T>, value: T, steps: Steps<'_>) -> Result<bool, ResolveError> {
@@ -640,7 +742,7 @@ fn read_path(path: &str, steps: Steps<'_>) -> Result<(bool, Vec<String>), Resolv
     let mut written = Vec::with_capacity(count);
     for part in text.split("::") {
         let name = strip_raw(part);
-        if !valid_code_segment(name) {
+        if !valid_code_segment(part) {
             return Err(ResolveError::Invalid(path.to_owned()));
         }
         written.push(name.to_owned());

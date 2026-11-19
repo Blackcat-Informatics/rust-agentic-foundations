@@ -48,9 +48,13 @@ bindings:
     - raf_source::CodeResolver::extern_libraries_at
     - raf_source::CodeResolver::with_configured_syntax
     - raf_source::CodeResolver::require_unconditional_inherent_method
+    - raf_source::CodeResolver::enum_member_imports_from_file_reach
     - raf_source::CodeResolver::enum_member_imports_from_item_at
+    - raf_source::CodeResolver::has_unconditional_file_reach
     - raf_source::CodeResolver::has_unconditional_reading_module
+    - raf_source::CodeResolver::resolve_import_from_file_reach
     - raf_source::CodeResolver::unconditional_enum_alias
+    - raf_source::CodeResolver::unconditional_type_from_file_reach
     - raf_source::CodeResolver::unconditional_type_from_item_at
     - raf_source::ExternLibrary
     - raf_source::ExternRouteKind
@@ -1359,14 +1363,24 @@ public-surface work compose with the original query allowance.
 
 `enum_member_imports_from_item_at` follows visible named imports and glob
 reexports. It returns candidate enum identities and member names using each
-import's declaration scope and edition. Conditional or unresolved routes
-furnish no proof. A caller checks each name against the variant roster and
+import's declaration scope and edition. A named import only shadows a glob
+in namespaces it can bind. Enum globs supply only variant names and forms.
+An opaque enum roster leaves its glob's names unproved. A blocked or
+unresolved route, including a conditional import that could supply the
+queried name, returns `None`. An empty candidate list establishes absence
+on the inspected routes. Macro namespace queries return an empty list.
+A caller checks each name against the variant roster and
 constructor form, requires a unique surviving definition, and accounts for
 lexical shadowing at the occurrence. `unconditional_type_from_item_at` checks the
 named type route itself. `unconditional_enum_alias` follows the admitted
 plain alias forms to their defining enum through unconditional named paths.
 `has_unconditional_reading_module` checks the indexed module and ancestor
 declarations and file reaches. A caller checks local syntax separately.
+The file-reach variants perform the same checks in the exact module and
+target that reached a file. `resolve_import_from_file_reach` uses that
+context with the edition's import rules. Code and import path segments
+follow Rust's Unicode identifier rules. Raw path keywords and other
+malformed segments return a typed error.
 The queries retain the native resource limits.
 
 ### Selected target syntax inspection

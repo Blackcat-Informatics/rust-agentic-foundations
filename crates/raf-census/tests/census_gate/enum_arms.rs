@@ -5,12 +5,19 @@
 
 use super::{Gate, Term, base, detector_fixtures, job, put, tree};
 
-/// Only a resolved shipping expression discharges a variant's use obligation.
-#[test]
-fn designated_enum_requires_shipping_values_and_current_retentions() {
-    let source = r#"
+const ENUM_USAGE_FIXTURE: &str = r#"
         pub enum State { Unit, Tuple(u8), Named { value: u8 }, Idle }
         mod names { pub use crate::State::Tuple as New; }
+        #[replace_enum] enum Unrelated { Value }
+        fn unrelated() -> Unrelated { Unrelated::Value }
+        mod opaque_names {
+            #[replace_enum] pub enum Generated { Other }
+            pub use self::Generated::*;
+        }
+        fn opaque_glob() {
+            use State::*;
+            { use opaque_names::*; let _ = Idle; }
+        }
         mod exports { pub use crate::names::New as Make; }
         use exports::Make as Constructor;
         macro_rules! ignore { ($value:expr) => { () }; }
@@ -28,6 +35,7 @@ fn designated_enum_requires_shipping_values_and_current_retentions() {
         #[doc = stringify!(State::Idle)] fn documented() {}
         #[test] fn test_only() { let _ = State::Idle; }
         #[cfg(any())] mod disabled;
+        #[cfg(test)] #[path = "const_use.rs"] mod test_const_use;
         enum Marker {
             #[cfg(test)] Probe = { let _ = State::Idle; 1 },
             Present = 2,
@@ -54,12 +62,23 @@ fn designated_enum_requires_shipping_values_and_current_retentions() {
         fn conditional_glob_type() { use facade::*; let _ = Selected::Idle; }
         fn conditional_chained() { use facade::*; use Selected::*; let _ = Idle; }
     "#;
+
+/// Only a resolved shipping expression discharges a variant's use obligation.
+#[test]
+fn designated_enum_requires_shipping_values_and_current_retentions() {
+    let source = ENUM_USAGE_FIXTURE;
     let check = |source: &str, retentions: &[(&str, &str)]| {
         let mut fixture = tree(source, enum_policy(retentions), 0);
         fixture
             .create_new(
                 &raf_source::RelPath::new("src/disabled.rs").unwrap(),
                 "fn disabled() -> crate::State { crate::State::Idle }".into(),
+            )
+            .unwrap();
+        fixture
+            .create_new(
+                &raf_source::RelPath::new("src/const_use.rs").unwrap(),
+                "use crate::State::Idle as Current; const _: crate::State = Current;".into(),
             )
             .unwrap();
         Gate::workspace(".").check_tree(&fixture)
@@ -89,6 +108,11 @@ fn designated_enum_requires_shipping_values_and_current_retentions() {
         fn imported() -> State { front::Idle }",
         "mod kinds { pub use crate::State; } mod api { pub use crate::kinds::*; }
         fn imported() -> State { api::State::Idle }",
+        "mod outer { pub mod facade { pub use crate::State::Idle as Current; } }
+        fn imported() -> State { use outer::*; facade::Current }",
+        "mod outer { pub mod delivery { pub use crate::State::Idle as Current; } }
+        fn imported() -> State { use outer::*; use delivery::Current as Rest; Rest }",
+        "mod const_use;",
         "use crate as here; fn imported() -> State { here::State::Idle }",
     ] {
         let verdict = check(&format!("{source}\n{route}"), &[]).unwrap();
@@ -109,6 +133,18 @@ fn designated_enum_requires_shipping_values_and_current_retentions() {
         let error = check(source, retentions).unwrap_err().to_string();
         assert!(error.contains(expected), "{error}");
     }
+
+    let inert = source.replace(
+        "pub enum State",
+        "#[derive(Clone)] #[repr(u8)] pub enum State",
+    );
+    assert!(check(&inert, &retained).unwrap().is_clean());
+    let rewritten = source.replace("pub enum State", "#[replace_enum] pub enum State");
+    let error = check(&rewritten, &retained).unwrap_err().to_string();
+    assert!(
+        error.contains("attribute that may rewrite its enum roster"),
+        "{error}"
+    );
 }
 
 /// Destructuring constructor heads behave as patterns even in assignment syntax.

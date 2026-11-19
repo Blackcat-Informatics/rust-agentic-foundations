@@ -13,7 +13,7 @@ inputs:
     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
   - kind: symbol
     name: raf_census::gate::patterns
-    digest: 6b17002f6fec8659ac5367c3bb0a522fb9829b22cd2f14f43a241208b56eb222
+    digest: ba47b41d91bd07881be95bec3d499b371ee3a6ff7c80e9e07f48117a6fa755a9
   - kind: symbol
     name: raf_census::gate::ratchet
     digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b

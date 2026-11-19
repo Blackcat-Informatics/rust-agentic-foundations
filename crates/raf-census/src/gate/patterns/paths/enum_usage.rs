@@ -10,7 +10,7 @@ use raf_source::{
     Workspace,
 };
 
-use super::{MatchLimits, charge, failure, read_enum_members};
+use super::{MatchLimits, PathOwner, charge, failure, read_enum_members};
 use crate::{Census, Error, Ledger};
 
 pub(super) const RULE: &str = "enum-usage";
@@ -68,23 +68,10 @@ impl<'a> EnumUsage<'a> {
                         &format!("{symbol:?} must name a selected first-party shipping enum"),
                     )
                 })?;
+            require_roster_context(owner, code, symbol)?;
             capacity = capacity
                 .checked_sub(1)
                 .ok_or_else(|| failure(RULE, "enum usage state limit exhausted"))?;
-            if !code
-                .has_unconditional_reading_module(*id, owner.span.start_byte)
-                .map_err(|error| {
-                    failure(
-                        RULE,
-                        &format!("cannot inspect declaration {symbol:?}: {error}"),
-                    )
-                })?
-            {
-                return Err(failure(
-                    RULE,
-                    &format!("{symbol:?} has a conditional module reach"),
-                ));
-            }
             let members =
                 read_enum_members(workspace, owner, RULE, capacity, limits)?.ok_or_else(|| {
                     failure(
@@ -150,6 +137,27 @@ impl<'a> EnumUsage<'a> {
                 .is_some_and(|target| self.consumers.contains(&target.package_id))
     }
 
+    pub(super) fn shipping_context(
+        &self,
+        workspace: &Workspace,
+        file: &raf_source::SourceFile,
+        owner: PathOwner<'_>,
+    ) -> bool {
+        match owner {
+            PathOwner::Item(id) => workspace
+                .item(id)
+                .is_some_and(|item| self.shipping(workspace, item)),
+            PathOwner::File(reach) => {
+                file.path.authority() == SourceAuthorityId::FIRST_PARTY
+                    && !reach.test
+                    && workspace.target(reach.target).is_some_and(|target| {
+                        target.shipping && self.consumers.contains(&target.package_id)
+                    })
+            }
+            PathOwner::Impl(_) => false,
+        }
+    }
+
     pub(super) fn record(
         &mut self,
         enumeration: ItemId,
@@ -187,4 +195,32 @@ impl<'a> EnumUsage<'a> {
         }
         findings
     }
+}
+
+fn require_roster_context(
+    owner: &Item,
+    code: &CodeResolver<'_>,
+    symbol: &str,
+) -> Result<(), Error> {
+    if !owner.enum_roster_has_only_written_variants() {
+        return Err(failure(
+            RULE,
+            &format!("{symbol:?} has an attribute that may rewrite its enum roster"),
+        ));
+    }
+    let unconditional = code
+        .has_unconditional_reading_module(owner.id, owner.span.start_byte)
+        .map_err(|error| {
+            failure(
+                RULE,
+                &format!("cannot inspect declaration {symbol:?}: {error}"),
+            )
+        })?;
+    if !unconditional {
+        return Err(failure(
+            RULE,
+            &format!("{symbol:?} has a conditional module reach"),
+        ));
+    }
+    Ok(())
 }

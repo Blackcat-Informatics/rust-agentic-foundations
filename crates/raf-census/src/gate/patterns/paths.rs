@@ -299,6 +299,7 @@ struct GlobRoute {
 enum GlobProvider {
     Module,
     Enum(Rc<WorkList<EnumAlternative, 2>>),
+    OpaqueEnum,
     Other,
 }
 
@@ -421,7 +422,7 @@ impl GlobProvider {
     fn retained_states(&self) -> usize {
         match self {
             Self::Enum(enums) => enums.len(),
-            Self::Module | Self::Other => 0,
+            Self::Module | Self::OpaqueEnum | Self::Other => 0,
         }
     }
 
@@ -432,12 +433,14 @@ impl GlobProvider {
         enum_inventory: bool,
         limits: &mut MatchLimits,
     ) -> Result<VariantLookup, Error> {
-        let Self::Enum(enums) = self else {
-            return Ok(VariantLookup::Missing);
-        };
         if !matches!(namespace, Namespace::Type | Namespace::Value) {
             return Ok(VariantLookup::Missing);
         }
+        let enums = match self {
+            Self::Enum(enums) => enums,
+            Self::OpaqueEnum => return Ok(VariantLookup::Conditional),
+            Self::Module | Self::Other => return Ok(VariantLookup::Missing),
+        };
         let mut present = None;
         let mut disagreement = None;
         for alternative in enums.iter() {
@@ -545,6 +548,11 @@ impl GlobBinding {
     }
 
     fn same(&self, other: &Self) -> bool {
+        if let (Self::Variant(left), Self::Variant(right)) = (self, other)
+            && left.member != right.member
+        {
+            return false;
+        }
         std::mem::discriminant(self) == std::mem::discriminant(other)
             && self.sites().eq(other.sites())
     }
@@ -574,6 +582,17 @@ enum PathOwner<'a> {
 }
 
 impl Lookup<'_, '_> {
+    fn has_unconditional_enum_context(&self) -> Result<bool, Error> {
+        match self.owner {
+            PathOwner::Item(item) => self
+                .code
+                .has_unconditional_reading_module(item, self.site.byte),
+            PathOwner::File(reach) => self.code.has_unconditional_file_reach(reach),
+            PathOwner::Impl(_) => return Ok(false),
+        }
+        .map_err(|error| self.error("enum value use", error))
+    }
+
     fn error(&self, path: &str, source: CodeResolveError) -> Error {
         if self.label == VISIBILITY {
             return Error::Visibility(VisibilityError::Path {
@@ -835,6 +854,7 @@ impl Lookup<'_, '_> {
                 glob_lookup.head = Some(binding);
             } else if !gathered.ambiguous {
                 self.finish_glob(
+                    scopes,
                     &mut glob_lookup,
                     binding,
                     &written[1..],
@@ -848,6 +868,7 @@ impl Lookup<'_, '_> {
 
     fn finish_glob(
         &self,
+        scopes: &Scopes,
         lookup: &mut GlobLookup,
         binding: GlobBinding,
         tail: &[String],
@@ -855,7 +876,9 @@ impl Lookup<'_, '_> {
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
         lookup.definition = Some(match binding {
-            GlobBinding::Item(route) => self.glob_definition(route, tail, namespace, limits)?,
+            GlobBinding::Item(route) => {
+                self.glob_definition(scopes, lookup, route, (tail, namespace), limits)?
+            }
             GlobBinding::Variant(variant) => {
                 lookup.variant = tail.is_empty().then_some(variant);
                 PathDefinition::Missing
@@ -866,9 +889,10 @@ impl Lookup<'_, '_> {
 
     fn glob_definition(
         &self,
+        scopes: &Scopes,
+        lookup: &mut GlobLookup,
         route: GlobRoute,
-        tail: &[String],
-        namespace: Namespace,
+        (tail, namespace): (&[String], Namespace),
         limits: &mut MatchLimits,
     ) -> Result<PathDefinition<'static>, Error> {
         if tail.is_empty() {
@@ -887,6 +911,14 @@ impl Lookup<'_, '_> {
             path.len().try_into().unwrap_or(u64::MAX),
         )?;
         let Some(sites) = self.indexed_in(&path, namespace, true)? else {
+            if self.label == enum_usage::RULE {
+                let mut found = GlobHead::default();
+                self.merge_imported_variants(scopes, &mut found, &path, namespace, limits)?;
+                lookup.conditional_variant |= found.conditional_variant || found.ambiguous;
+                if let Some(GlobBinding::Variant(variant)) = found.binding {
+                    lookup.variant = Some(variant);
+                }
+            }
             return Ok(PathDefinition::Missing);
         };
         Ok(if self.proved_glob_types(namespace, &path, &sites)? {
@@ -946,7 +978,14 @@ impl Lookup<'_, '_> {
         if let (Some(alias), Some(head)) = (named_outer, glob.head.take()) {
             self.compare_enclosing_scopes(scopes, alias, written, &head, &mut glob, limits)?;
             if glob.definition.is_none() {
-                self.finish_glob(&mut glob, head, &written[1..], self.site.namespace, limits)?;
+                self.finish_glob(
+                    scopes,
+                    &mut glob,
+                    head,
+                    &written[1..],
+                    self.site.namespace,
+                    limits,
+                )?;
             }
         }
         if glob.definition.is_none()
@@ -1239,10 +1278,10 @@ impl Lookup<'_, '_> {
                             limits,
                         )?;
                     } else if self.label == enum_usage::RULE {
-                        self.merge_module_variant(
+                        self.merge_imported_variants(
                             scopes,
                             &mut found,
-                            (&glob.prefix, head),
+                            &format!("{}::{head}", glob.prefix),
                             namespace,
                             limits,
                         )?;
@@ -1259,17 +1298,20 @@ impl Lookup<'_, '_> {
         Ok(found)
     }
 
-    fn merge_module_variant(
+    fn merge_imported_variants(
         &self,
         scopes: &Scopes,
         found: &mut GlobHead,
-        (prefix, head): (&str, &str),
+        path: &str,
         namespace: Namespace,
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
-        let path = format!("{prefix}::{head}");
-        let candidates =
-            enum_sites::imported_variants_from_path(self, &path, namespace, true, limits)?;
+        let Some(candidates) =
+            enum_sites::imported_variants_from_path(self, path, namespace, true, limits)?
+        else {
+            found.conditional_variant = true;
+            return Ok(());
+        };
         let (workspace, _) = self
             .visibility
             .expect("INVARIANT: enum glob proof has a source workspace");
@@ -1277,6 +1319,10 @@ impl Lookup<'_, '_> {
             let item = workspace
                 .item(id)
                 .ok_or_else(|| failure(self.label, "imported enum has no indexed declaration"))?;
+            if !item.enum_roster_has_only_written_variants() {
+                found.conditional_variant = true;
+                return Ok(());
+            }
             let mut enums = WorkList::new();
             push(
                 self.label,
@@ -1336,6 +1382,12 @@ impl Lookup<'_, '_> {
             let item = workspace.item(id).ok_or_else(|| {
                 failure(self.label, "block glob prefix has no indexed declaration")
             })?;
+            if item.kind == SymbolKind::Enum
+                && self.label == enum_usage::RULE
+                && !item.enum_roster_has_only_written_variants()
+            {
+                return Ok(GlobProvider::OpaqueEnum);
+            }
             match item.kind {
                 SymbolKind::Mod => modules += 1,
                 SymbolKind::Enum => push(
@@ -1703,6 +1755,9 @@ impl Lookup<'_, '_> {
             PathOwner::Impl(block) => self
                 .code
                 .resolve_from_impl(block, written, namespace, import),
+            PathOwner::File(reach) if import && self.label == enum_usage::RULE => self
+                .code
+                .resolve_import_from_file_reach(reach, written, namespace),
             PathOwner::File(reach) => self.code.resolve_from_file_reach(reach, written, namespace),
         }
     }

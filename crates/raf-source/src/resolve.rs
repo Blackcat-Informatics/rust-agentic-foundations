@@ -513,11 +513,13 @@ fn strip_raw(segment: &str) -> &str {
 }
 
 fn valid_code_segment(segment: &str) -> bool {
-    !segment.is_empty()
-        && segment != "Self"
-        && segment
-            .chars()
-            .all(|character| character.is_alphanumeric() || character == '_')
+    let name = strip_raw(segment);
+    let mut characters = name.chars();
+    !(matches!(name, "Self" | "_") || name != segment && matches!(name, "crate" | "self" | "super"))
+        && characters
+            .next()
+            .is_some_and(|first| first == '_' || unicode_ident::is_xid_start(first))
+        && characters.all(unicode_ident::is_xid_continue)
 }
 
 pub(crate) fn insert_module(
@@ -2151,7 +2153,7 @@ impl Index {
             .split("::")
             .map(|s| strip_raw(s).to_owned())
             .collect();
-        if !segs.iter().all(|segment| valid_code_segment(segment)) {
+        if !written.split("::").all(valid_code_segment) {
             return Err(ResolveError::Invalid(path.to_owned()));
         }
         let text = segs.join("::");

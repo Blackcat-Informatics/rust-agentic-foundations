@@ -257,6 +257,7 @@ fn expand_variant_path(
                     alias_scope: Some(&|frame| target.sees_glob(frame)),
                 },
                 form,
+                true,
                 limits,
             )?
             .is_empty()
@@ -331,7 +332,11 @@ fn path_arm(
             Arm::Variants(sites)
         });
     }
-    if written.len() == 1 && glob.definition.is_some() {
+    if glob.definition.is_some()
+        && (written.len() == 1
+            || lookup.label == super::enum_usage::RULE
+                && matches!(glob.definition, Some(PathDefinition::Written(_))))
+    {
         return Ok(Arm::Other);
     }
     let declaration = |frame| {
@@ -354,7 +359,8 @@ fn path_arm(
             alias_scope: Some(&declaration),
         },
     );
-    let actual = variants(&lookup, scopes, path, form, limits)?;
+    let import_fallback = glob.definition.is_none();
+    let actual = variants(&lookup, scopes, path, form, import_fallback, limits)?;
     if !actual.is_empty() {
         return Ok(Arm::Variants(actual));
     }
@@ -379,6 +385,7 @@ fn variants(
     scopes: &Scopes,
     path: VariantPath<'_>,
     form: Form,
+    import_fallback: bool,
     limits: &mut MatchLimits,
 ) -> Result<BTreeSet<Variant>, Error> {
     let Some((member, prefix)) = path.segments.split_last() else {
@@ -401,7 +408,7 @@ fn variants(
         limits,
     )?;
     let found = indexed_variants(&lookup, scopes, actual, member, form, limits)?;
-    if found.is_empty() {
+    if found.is_empty() && import_fallback {
         return imported_variants(&lookup, scopes, path, form, limits);
     }
     Ok(found)
@@ -422,17 +429,23 @@ fn imported_variants(
     let Some((workspace, _)) = lookup.visibility else {
         return Ok(found);
     };
-    let candidates = imported_variants_from_path(
+    let Some(candidates) = imported_variants_from_path(
         lookup,
         &written,
         form.namespace(),
         path.alias_scope.is_some(),
         limits,
-    )?;
+    )?
+    else {
+        return Ok(found);
+    };
     for (id, member) in candidates {
         let item = workspace
             .item(id)
             .ok_or_else(|| failure(lookup.label, "imported enum is absent"))?;
+        if !item.enum_roster_has_only_written_variants() {
+            return Ok(BTreeSet::new());
+        }
         let members = lookup.enum_members(scopes, workspace, item, limits)?;
         if let Some(candidate) = members.get(&member)
             && candidate
@@ -453,28 +466,31 @@ pub(super) fn imported_variants_from_path(
     namespace: Namespace,
     import: bool,
     limits: &mut MatchLimits,
-) -> Result<Vec<(ItemId, String)>, Error> {
+) -> Result<Option<Vec<(ItemId, String)>>, Error> {
     if lookup.label != super::enum_usage::RULE {
-        return Ok(Vec::new());
+        return Ok(Some(Vec::new()));
     }
-    let PathOwner::Item(owner) = lookup.owner else {
-        return Ok(Vec::new());
-    };
     charge(
         lookup.label,
         limits,
         written.len().try_into().unwrap_or(u64::MAX),
     )?;
-    let found = lookup.code.enum_member_imports_from_item_at(
-        owner,
-        lookup.site.byte,
-        written,
-        namespace,
-        import,
-    );
+    let found = match lookup.owner {
+        PathOwner::Item(owner) => lookup.code.enum_member_imports_from_item_at(
+            owner,
+            lookup.site.byte,
+            written,
+            namespace,
+            import,
+        ),
+        PathOwner::File(reach) => lookup
+            .code
+            .enum_member_imports_from_file_reach(reach, written, namespace, import),
+        PathOwner::Impl(_) => return Ok(None),
+    };
     match found {
         Ok(found) => Ok(found),
-        Err(error) if unproved(&error) => Ok(Vec::new()),
+        Err(error) if unproved(&error) => Ok(None),
         Err(error) => Err(lookup.error(written, error)),
     }
 }
@@ -581,13 +597,18 @@ pub(super) fn named_type(
     path: &str,
     import: bool,
 ) -> Result<Vec<ItemId>, Error> {
-    let PathOwner::Item(owner) = lookup.owner else {
-        return Ok(Vec::new());
+    let found = match lookup.owner {
+        PathOwner::Item(owner) => {
+            lookup
+                .code
+                .unconditional_type_from_item_at(owner, lookup.site.byte, path, import)
+        }
+        PathOwner::File(reach) => lookup
+            .code
+            .unconditional_type_from_file_reach(reach, path, import),
+        PathOwner::Impl(_) => return Ok(Vec::new()),
     };
-    match lookup
-        .code
-        .unconditional_type_from_item_at(owner, lookup.site.byte, path, import)
-    {
+    match found {
         Ok(item) => Ok(item.into_iter().collect()),
         Err(error) if unproved(&error) => Ok(Vec::new()),
         Err(error) => Err(lookup.error(path, error)),
@@ -629,13 +650,16 @@ fn enum_item<'w>(
     let item = workspace
         .item(id)
         .ok_or_else(|| failure(lookup.label, "enum prefix has no indexed item"))?;
+    let roster = |item: &&raf_source::Item| {
+        lookup.label != super::enum_usage::RULE || item.enum_roster_has_only_written_variants()
+    };
     match item.kind {
-        SymbolKind::Enum => Ok(Some(item)),
+        SymbolKind::Enum => Ok(Some(item).filter(roster)),
         SymbolKind::TypeAlias if lookup.label == super::enum_usage::RULE => {
             match lookup.code.unconditional_enum_alias(id) {
                 Ok(Some(enumeration)) => workspace
                     .item(enumeration)
-                    .map(Some)
+                    .map(|item| Some(item).filter(roster))
                     .ok_or_else(|| failure(lookup.label, "alias target has no indexed enum")),
                 Ok(None) | Err(CodeResolveError::AliasMember { .. }) => Ok(None),
                 Err(error) if unproved(&error) => Ok(None),

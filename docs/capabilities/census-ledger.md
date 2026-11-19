@@ -235,7 +235,8 @@ variants, patterns and required or registered rules use other IDs.
 <!-- raf:tested-by raf_census::test_crate::census_gate::enum_arms::designated_enum_requires_shipping_values_and_current_retentions,raf_census::test_crate::census_gate::enum_arms::enum_assignees_preserve_real_value_expressions_in_places -->
 
 Each `enumUsage` link owns one `EnumUsage` node. Its `symbol` names one indexed
-first-party shipping enum with an unconditional variant roster. A declaration
+first-party shipping enum with an unconditional variant roster. Census refuses
+an enum declaration with an attribute that may rewrite that roster. A declaration
 may link owned `EnumVariantRetention` nodes through `retainedVariant`. Each
 row requires a `variantName` and a nonblank `reason`. Duplicate declarations,
 duplicate rows for one member, and unknown members are errors.
@@ -243,7 +244,8 @@ duplicate rows for one member, and unknown members are errors.
 Census checks the selected first-party shipping source for an exact value
 occurrence of each member. Unit variants, tuple constructor values and
 braced expressions count through resolved paths, reexports, supported type
-aliases and `Self`. Pattern positions, destructuring heads, tests, attributes,
+aliases and `Self`. A file-level anonymous constant uses the exact module
+reaches of its source file. Pattern positions, destructuring heads, tests, attributes,
 unexpanded macro arguments and configuration-dependent reading contexts supply
 no evidence. Each unused
 variant produces a finding at its enum unless it has a retention row. A

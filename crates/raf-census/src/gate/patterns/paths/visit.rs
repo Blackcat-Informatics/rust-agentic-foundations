@@ -15,7 +15,9 @@ use crate::{
     syntax::{ImportLeaf, visit_import_paths},
 };
 use purrdf_jsonschema::ecma::MatchLimits;
-use raf_source::{CodeResolver, ImplBlock, ItemId, Namespace, SourceFile, SymbolKind, Workspace};
+use raf_source::{
+    CodeResolver, ImplBlock, ItemId, Namespace, SourceFile, SymbolKind, TargetId, Workspace,
+};
 use std::collections::BTreeSet;
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
@@ -209,6 +211,7 @@ pub(in crate::gate) fn enum_inventory<'w>(
             arms: retained.as_deref().map(|&count| (&mut hits, count)),
             usage,
             suppress_usage: false,
+            anonymous_file_constant: false,
             file_impls: None,
             self_path: None,
         }),
@@ -229,6 +232,7 @@ struct EnumInventory<'a, 'w> {
     arms: Option<(&'a mut Vec<RawHit>, usize)>,
     usage: &'a mut super::EnumUsage<'w>,
     suppress_usage: bool,
+    anonymous_file_constant: bool,
     file_impls: Option<&'w [ImplBlock]>,
     self_path: Option<String>,
 }
@@ -282,20 +286,72 @@ fn enum_lookup<'a, 'w>(
     workspace: &'a Workspace,
     code: &'a CodeResolver<'w>,
     site: &'a Site<'a>,
-    owner: &raf_source::Item,
+    (owner, target): (super::PathOwner<'a>, TargetId),
     (label, enum_impl): (&'a str, Option<(&'a str, &'a [ImplBlock])>),
 ) -> Result<super::Lookup<'a, 'w>, Error> {
     let target = workspace
-        .target(owner.target)
+        .target(target)
         .ok_or_else(|| super::failure(label, "enum occurrence has no consuming target"))?;
     Ok(super::Lookup {
         code,
-        owner: super::PathOwner::Item(owner.id),
+        owner,
         site,
         label,
         visibility: Some((workspace, target.package_id)),
         enum_impl,
     })
+}
+
+fn enum_contexts<'a>(
+    owners: &'a [&'a raf_source::Item],
+    file: &'a SourceFile,
+    anonymous_file_constant: bool,
+) -> impl Iterator<Item = (super::PathOwner<'a>, TargetId)> {
+    owners
+        .iter()
+        .map(|item| (super::PathOwner::Item(item.id), item.target))
+        .chain(
+            file.reached
+                .iter()
+                .filter(move |_| anonymous_file_constant)
+                .map(|reach| (super::PathOwner::File(reach), reach.target)),
+        )
+}
+
+fn enum_pattern_binding<'w>(
+    (workspace, code, file): (&'w Workspace, &CodeResolver<'_>, &'w SourceFile),
+    (inventory, owner_cache): (&EnumInventory<'_, '_>, &mut super::OwnerCache<'w>),
+    scopes: &Scopes,
+    name: &syn::Ident,
+    limits: &mut MatchLimits,
+) -> Result<bool, Error> {
+    let label = if inventory.usage.observes() {
+        super::enum_usage::RULE
+    } else {
+        ENUM_CATCH_ALL
+    };
+    let site = Site::at(file, name.span(), Role::Pattern, Namespace::Value, false);
+    let anonymous = inventory.anonymous_file_constant;
+    let owners = if anonymous {
+        &[][..]
+    } else {
+        owner_cache.get(workspace, file, site.byte, limits)?
+    };
+    let mut read = false;
+    for (owner, target) in enum_contexts(owners, file, anonymous) {
+        if anonymous {
+            super::charge(label, limits, 1)?;
+            if !inventory.usage.shipping_context(workspace, file, owner) {
+                continue;
+            }
+        }
+        let lookup = enum_lookup(workspace, code, &site, (owner, target), (label, None))?;
+        if !super::enum_sites::bare_binding(name, &lookup, scopes, limits)? {
+            return Ok(false);
+        }
+        read = true;
+    }
+    Ok(read)
 }
 
 struct Paths<'a, 'p, 'w, 'c> {
@@ -357,7 +413,7 @@ impl Paths<'_, '_, '_, '_> {
                 self.workspace,
                 self.code,
                 &site,
-                owner,
+                (super::PathOwner::Item(owner.id), owner.target),
                 (ENUM_CATCH_ALL, enum_impl),
             )?;
             let found = super::enum_sites::catch_alls(node, &lookup, &self.scopes, self.limits)?;
@@ -420,11 +476,19 @@ impl Paths<'_, '_, '_, '_> {
             form.namespace(),
             true,
         );
-        let owners = self
-            .owners
-            .get(self.workspace, self.file, site.byte, self.limits)?;
-        for owner in owners {
-            if !inventory.usage.shipping(self.workspace, owner) {
+        let anonymous = inventory.anonymous_file_constant;
+        let owners = if anonymous {
+            &[][..]
+        } else {
+            self.owners
+                .get(self.workspace, self.file, site.byte, self.limits)?
+        };
+        for (owner, target) in enum_contexts(owners, self.file, anonymous) {
+            super::charge(super::enum_usage::RULE, self.limits, 1)?;
+            if !inventory
+                .usage
+                .shipping_context(self.workspace, self.file, owner)
+            {
                 continue;
             }
             let enum_impl = inventory
@@ -435,15 +499,12 @@ impl Paths<'_, '_, '_, '_> {
                 self.workspace,
                 self.code,
                 &site,
-                owner,
+                (owner, target),
                 (super::enum_usage::RULE, enum_impl),
             )?;
             if let Some((enumeration, member)) =
                 super::enum_sites::value_use(path, form, &lookup, &self.scopes, self.limits)?
-                && self
-                    .code
-                    .has_unconditional_reading_module(owner.id, site.byte)
-                    .map_err(|error| lookup.error("enum value use", error))?
+                && lookup.has_unconditional_enum_context()?
             {
                 inventory.usage.record(enumeration, &member, self.limits)?;
             }
@@ -617,29 +678,13 @@ impl Paths<'_, '_, '_, '_> {
         );
         let result = self.scopes.bind(pattern, |scopes, name| {
             if let Some(inventory) = &self.enum_hits {
-                let label = if inventory.usage.observes() {
-                    super::enum_usage::RULE
-                } else {
-                    ENUM_CATCH_ALL
-                };
-                let site = Site::at(
-                    self.file,
-                    name.span(),
-                    Role::Pattern,
-                    Namespace::Value,
-                    false,
+                return enum_pattern_binding(
+                    (self.workspace, self.code, self.file),
+                    (inventory, &mut self.owners),
+                    scopes,
+                    name,
+                    self.limits,
                 );
-                let owners = self
-                    .owners
-                    .get(self.workspace, self.file, site.byte, self.limits)?;
-                for owner in owners {
-                    let lookup =
-                        enum_lookup(self.workspace, self.code, &site, owner, (label, None))?;
-                    if !super::enum_sites::bare_binding(name, &lookup, scopes, self.limits)? {
-                        return Ok(false);
-                    }
-                }
-                return Ok(!owners.is_empty());
             }
             if self.numeric.is_some() {
                 let site = Site::at(
@@ -991,9 +1036,18 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             .enum_hits
             .as_mut()
             .and_then(|inventory| inventory.self_path.take());
+        let anonymous = self.scopes.in_file_module()
+            && matches!(node, syn::Item::Const(item) if item.ident == "_");
+        let previous_anonymous = self.enum_hits.as_mut().is_some_and(|inventory| {
+            std::mem::replace(
+                &mut inventory.anonymous_file_constant,
+                anonymous && inventory.usage.observes(),
+            )
+        });
         self.with_enum_attributes(attributes, |this| syn::visit::visit_item(this, node));
         if let Some(inventory) = &mut self.enum_hits {
             inventory.self_path = previous_self;
+            inventory.anonymous_file_constant = previous_anonymous;
         }
         self.impl_blocks = previous;
     }

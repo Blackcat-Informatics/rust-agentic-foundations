@@ -36,11 +36,17 @@ inputs:
     name: raf_source::CodeResolver
     digest: 36d55b06a2b12cb92653c3d37ad26798b5720c96741b3d260cbfc1fe0ebfe24e
   - kind: symbol
+    name: raf_source::CodeResolver::enum_member_imports_from_file_reach
+    digest: 8f515890872b83d35d5d4da7c6c1c741509ec0d78dbb7db309998f5112abe00a
+  - kind: symbol
     name: raf_source::CodeResolver::enum_member_imports_from_item_at
-    digest: 0dc91f0aca226ee749393d505a889d3f52295b5fd51bd509b9bea47a4d167882
+    digest: 80514fcb1f8bb0b3256e52a27cf20ec1fd481b76609c555c0da9ddb210a37c16
   - kind: symbol
     name: raf_source::CodeResolver::extern_libraries_at
     digest: ccf7d8ddbd4d7ebbbe395615b508aab0b15d044ea583729560f42f4cc6d8a9eb
+  - kind: symbol
+    name: raf_source::CodeResolver::has_unconditional_file_reach
+    digest: 6fa0db65e695f1df122e383f852fca348989e41015b412c7f3c2cf817d10c8dd
   - kind: symbol
     name: raf_source::CodeResolver::has_unconditional_reading_module
     digest: 60745905a9f1e1130cbdbb44d23ec80b2c773bf68b66193d86db4bd16a8bae63
@@ -48,8 +54,14 @@ inputs:
     name: raf_source::CodeResolver::require_unconditional_inherent_method
     digest: 16d434d5f5097cfb1bd87978c7ec00fd7c747cade1363709099e3979b7feb561
   - kind: symbol
+    name: raf_source::CodeResolver::resolve_import_from_file_reach
+    digest: a61d9e4cb341fd01556b6d44638263e0795814b7edbeb5f479fcefe1e9ce5787
+  - kind: symbol
     name: raf_source::CodeResolver::unconditional_enum_alias
     digest: 609c568fab4b31a7808e82c81c7682d9ce8fcd67189f6d6e968bc2ee52a694c7
+  - kind: symbol
+    name: raf_source::CodeResolver::unconditional_type_from_file_reach
+    digest: fb646f972a31b10e2620595a991c8619ce4243d6451bdb337b03ad558e68d484
   - kind: symbol
     name: raf_source::CodeResolver::unconditional_type_from_item_at
     digest: 344dbd59cc21528226abeba62aabb82a7b2d7a75224b4e1952bec798cb281691
@@ -514,7 +526,7 @@ inputs:
     digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
   - kind: symbol
     name: raf_source::code
-    digest: a1df78010494c648b2f032d6e4396ae29a17cc1df6769e29606f1d73bc2dd438
+    digest: 8de1463468ed0c5eb8cac86caa93610eee1c8600cb9655581399f23098e62831
   - kind: symbol
     name: raf_source::cost::shared_text
     digest: 417543dec94f58efe64575df018bc4b13589e906d90c4db5a4f0693d372ab4f1
@@ -526,7 +538,7 @@ inputs:
     digest: 4c604e45e3e78c4721ba4f923ca58ad579fd3e384fb3db424369fe1747775ed3
   - kind: symbol
     name: raf_source::item
-    digest: 3f221f04736dc6516eedcfd8c5f836faff93d8a350f8f94eeb6c22babd6f6c24
+    digest: 1c617d22915dac9bbe4e00f5b3d2f6ab310bcb0e51c68eaa593d339ba8f3dcc9
   - kind: symbol
     name: raf_source::library_target_name
     digest: e2573ec72c0e8ae40a9c8eae5609e3397bf0df6cfbf286e2a64b8f3404b27794
@@ -544,7 +556,7 @@ inputs:
     digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
-    digest: 6b32896b8d63882dc70430350ad647f27bb9b79d576542ed51e3414a18ddef33
+    digest: 2307161520087d00d219629d8d064b93e85c40a40ddcb16b6ce9765dca0d987b
   - kind: symbol
     name: raf_source::settle
     digest: 6b87bfd9278a93bdf6976def510880204b8acc565e7cc9d53fddbfcd145b5623

@@ -178,7 +178,7 @@ inputs:
     digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
   - kind: symbol
     name: raf_source::item
-    digest: 3f221f04736dc6516eedcfd8c5f836faff93d8a350f8f94eeb6c22babd6f6c24
+    digest: 1c617d22915dac9bbe4e00f5b3d2f6ab310bcb0e51c68eaa593d339ba8f3dcc9
   - kind: symbol
     name: raf_source::parse_source
     digest: 56820f7a2c8dfe74a54889085db72458faf088b2c522d0292f8e6b1f5940e95a
@@ -193,7 +193,7 @@ inputs:
     digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
-    digest: 6b32896b8d63882dc70430350ad647f27bb9b79d576542ed51e3414a18ddef33
+    digest: 2307161520087d00d219629d8d064b93e85c40a40ddcb16b6ce9765dca0d987b
   - kind: symbol
     name: raf_source::tree
     digest: 7f0bae00e8e8eb5fd6417a4a33d9430ae20549ed415702e92e64d58cd4599309
