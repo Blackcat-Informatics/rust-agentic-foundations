@@ -140,6 +140,7 @@ fn compare_schema_history(
             descriptor: &current_descriptor,
         },
         &args.types,
+        args.required_annotation,
     )?;
     for finding in &findings {
         writeln!(output, "{finding}").map_err(stdout)?;

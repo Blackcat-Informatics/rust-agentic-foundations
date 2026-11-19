@@ -13,10 +13,10 @@ inputs:
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
   - kind: symbol
     name: cargo_census::cli
-    digest: d35086a81b8684e106cd94c128ad6bb782bdeefc4107f0f4b749b7d11c68b1f2
+    digest: 7529501652fb3da77c7d2bba753c31bdf925797a77126341ae981857293fdaf5
   - kind: symbol
     name: cargo_census::command
-    digest: eea896a4939b9988c7154cfb5bdac59145fc5e3ca48dd53b1d6a2868f47c995a
+    digest: 667c8dccf27183eca6b06acdeae3aae724b9766b359c0af3de9f00564c95c68d
   - kind: symbol
     name: cargo_census::error
     digest: fc73ef64cd895b6b3b30b1b8b547c21e50ef07884ddb91c40f27451c88a63c10
@@ -58,7 +58,7 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: 4540114cff1a6b5ae9b04b1c37321f3222f593b3b2bffc24f102e130b224dfb4
+    digest: 68020b49b439e3f65c5968d93fb2e6697a803f033ede32a3a1dc297f73512926
   - kind: symbol
     name: raf_census::registered
     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1

@@ -4,14 +4,14 @@
 //! Admitted schema nodes and their projected data-layout closure.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     ops::Range,
     rc::Rc,
 };
 
 use capnp::{
     message::ReaderOptions,
-    schema_capnp::{code_generator_request, field, node},
+    schema_capnp::{code_generator_request, field, node, type_, value},
     serialize,
 };
 
@@ -69,13 +69,17 @@ pub(super) struct Slot {
     pub(super) discriminant: Option<u16>,
     pub(super) ty: Type,
     pub(super) default: DefaultValue,
+    pub(super) required: bool,
 }
 
 pub(super) struct Nodes<'a>(BTreeMap<TypeId, node::Reader<'a>>);
 
+type DeclarationScopes = BTreeMap<TypeId, Vec<TypeId>>;
+
 pub(super) fn read(
     bytes: &[u8],
     roots: &BTreeSet<TypeId>,
+    required_annotation: Option<TypeId>,
     require_roots: bool,
 ) -> Result<Schema, Error> {
     let mut limits = ReaderOptions::new();
@@ -101,7 +105,11 @@ pub(super) fn read(
         }
     }
     let nodes = Nodes(nodes);
-    nodes.project(roots, require_roots)
+    let mut scopes = DeclarationScopes::new();
+    if let Some(id) = required_annotation {
+        nodes.validate_required_annotation(id, &mut scopes)?;
+    }
+    nodes.project(roots, required_annotation, require_roots, &mut scopes)
 }
 
 pub(super) fn layout(message: impl Into<String>) -> Error {
@@ -109,11 +117,78 @@ pub(super) fn layout(message: impl Into<String>) -> Error {
 }
 
 impl<'a> Nodes<'a> {
+    fn validate_required_annotation(
+        &self,
+        id: TypeId,
+        scopes: &mut DeclarationScopes,
+    ) -> Result<(), Error> {
+        let invalid = || {
+            layout(format!(
+                "required annotation {id} must declare a Void field target"
+            ))
+        };
+        let declaration = self
+            .0
+            .get(&id)
+            .ok_or_else(|| layout(format!("missing required annotation {id}")))?;
+        let node::Annotation(annotation) = declaration.which()? else {
+            return Err(invalid());
+        };
+        if !annotation.get_targets_field()
+            || !annotation.has_type()
+            || !matches!(annotation.get_type()?.which()?, type_::Void(()))
+        {
+            return Err(invalid());
+        }
+        if !self.is_declared(id, scopes)? {
+            return Err(layout(format!(
+                "required annotation {id} must belong to a declared schema scope"
+            )));
+        }
+        Ok(())
+    }
+
     fn node(&self, id: TypeId) -> Result<node::Reader<'a>, Error> {
         self.0
             .get(&id)
             .copied()
             .ok_or_else(|| layout(format!("missing schema node {id}")))
+    }
+
+    fn is_declared(&self, id: TypeId, scopes: &mut DeclarationScopes) -> Result<bool, Error> {
+        // Compiler-generated RPC parameter and result structs have no declaration.
+        let mut child = self.node(id)?;
+        for _ in 0..MAX_DEPTH {
+            let parent_id = TypeId(child.get_scope_id());
+            let Some(&parent) = self.0.get(&parent_id) else {
+                return Ok(false);
+            };
+            let entries = match scopes.entry(parent_id) {
+                Entry::Occupied(entries) => entries.into_mut(),
+                Entry::Vacant(entry) => {
+                    let mut ids: Vec<_> = parent
+                        .get_nested_nodes()?
+                        .iter()
+                        .map(|node| TypeId(node.get_id()))
+                        .collect();
+                    ids.sort_unstable();
+                    entry.insert(ids)
+                }
+            };
+            let child_id = TypeId(child.get_id());
+            let index = entries.partition_point(|entry| *entry < child_id);
+            if entries.get(index) != Some(&child_id) || entries.get(index + 1) == Some(&child_id) {
+                return Ok(false);
+            }
+            match parent.which()? {
+                node::File(()) => return Ok(parent.get_scope_id() == 0),
+                node::Interface(_) => {}
+                node::Struct(data) if !data.get_is_group() => {}
+                _ => return Ok(false),
+            }
+            child = parent;
+        }
+        Ok(false)
     }
 
     pub(super) fn require_kind(&self, id: TypeId, expected: Kind) -> Result<(), Error> {
@@ -155,7 +230,13 @@ impl<'a> Nodes<'a> {
         Ok(data.get_enumerants()?.len())
     }
 
-    fn project(&self, roots: &BTreeSet<TypeId>, require_roots: bool) -> Result<Schema, Error> {
+    fn project(
+        &self,
+        roots: &BTreeSet<TypeId>,
+        required_annotation: Option<TypeId>,
+        require_roots: bool,
+        scopes: &mut DeclarationScopes,
+    ) -> Result<Schema, Error> {
         let mut needed = BTreeSet::new();
         let mut present = BTreeSet::new();
         for &root in roots {
@@ -172,7 +253,16 @@ impl<'a> Nodes<'a> {
             }
             let data = match self.node(id)?.which()? {
                 node::Struct(data) if !data.get_is_group() => {
-                    Node::Struct(self.structure(id, data, &mut needed)?)
+                    let structure = self.structure(id, data, &mut needed, required_annotation)?;
+                    if required_annotation.is_some()
+                        && structure.slots.values().any(|slot| slot.required)
+                        && !self.is_declared(id, scopes)?
+                    {
+                        return Err(layout(format!(
+                            "required fields must belong to a declared struct; check node {id} and its enclosing scopes"
+                        )));
+                    }
+                    Node::Struct(structure)
                 }
                 node::Enum(data) => Node::Enum(enumerants(id, data)?),
                 _ => {
@@ -194,17 +284,19 @@ impl<'a> Nodes<'a> {
         id: TypeId,
         reader: node::struct_::Reader<'a>,
         needed: &mut BTreeSet<TypeId>,
+        required_annotation: Option<TypeId>,
     ) -> Result<Struct, Error> {
         let mut collector = Fields {
             nodes: self,
             needed,
+            required_annotation,
             slots: BTreeMap::new(),
             groups: BTreeMap::new(),
             used_groups: BTreeSet::new(),
             ordinals: BTreeSet::new(),
             sizes: (reader.get_data_word_count(), reader.get_pointer_count()),
         };
-        collector.group(id, reader, Rc::from([]), (None, None))?;
+        collector.group(id, reader, Rc::from([]), (None, None), false)?;
         if collector
             .ordinals
             .last()
@@ -259,6 +351,7 @@ fn member_name(name: capnp::text::Reader<'_>) -> Result<&str, Error> {
 struct Fields<'a, 'b> {
     nodes: &'b Nodes<'a>,
     needed: &'b mut BTreeSet<TypeId>,
+    required_annotation: Option<TypeId>,
     slots: BTreeMap<u16, Slot>,
     groups: BTreeMap<GroupPath, Group>,
     used_groups: BTreeSet<TypeId>,
@@ -273,6 +366,7 @@ impl<'a> Fields<'a, '_> {
         reader: node::struct_::Reader<'a>,
         path: GroupPath,
         (ordinal, discriminant): (Option<u16>, Option<u16>),
+        inherited_activation: bool,
     ) -> Result<Occupancy, Error> {
         if path.len() >= usize::from(MAX_DEPTH) {
             return Err(layout("schema groups exceed the nesting bound"));
@@ -304,6 +398,7 @@ impl<'a> Fields<'a, '_> {
         }
         let mut discriminants = BTreeSet::new();
         let mut names = BTreeSet::new();
+        let conditional = inherited_activation || discriminant.is_some();
         for field in reader.get_fields()? {
             let name = member_name(field.get_name()?)?;
             if !names.insert(name) {
@@ -324,7 +419,14 @@ impl<'a> Fields<'a, '_> {
             } else {
                 &mut occupied
             };
-            self.field((id, &path), name, field, discriminant, destination)?;
+            self.field(
+                (id, &path),
+                name,
+                field,
+                discriminant,
+                conditional,
+                destination,
+            )?;
         }
         if discriminants.len() != usize::from(count) {
             return Err(layout(format!("incomplete union tag values in node {id}")));
@@ -340,6 +442,7 @@ impl<'a> Fields<'a, '_> {
         name: &str,
         field: field::Reader<'a>,
         discriminant: Option<u16>,
+        inherited_activation: bool,
         occupied: &mut Occupancy,
     ) -> Result<(), Error> {
         let ordinal = match field.get_ordinal().which()? {
@@ -352,16 +455,26 @@ impl<'a> Fields<'a, '_> {
             ))
         };
         let exclusive = discriminant.is_some();
+        let conditional = inherited_activation || exclusive;
+        let required = required_field(self.nodes, self.required_annotation, (owner, name), field)?;
         match field.which()? {
             field::Slot(slot) => {
+                if required && conditional {
+                    return Err(invalid_required_field(owner, name));
+                }
                 let ordinal =
                     ordinal.ok_or_else(|| layout(format!("{owner}.{name} has no ordinal")))?;
                 self.record_ordinal(owner, name, ordinal)?;
-                if let Some(span) = self.slot((owner, path), (name, ordinal), slot, discriminant)? {
+                if let Some(span) =
+                    self.slot((owner, path), (name, ordinal), slot, discriminant, required)?
+                {
                     occupied.insert(span, exclusive).map_err(collision)?;
                 }
             }
             field::Group(group) => {
+                if required {
+                    return Err(invalid_required_field(owner, name));
+                }
                 let id = TypeId(group.get_type_id());
                 let node = self.nodes.node(id)?;
                 let node::Struct(overlay) = node.which()? else {
@@ -388,7 +501,13 @@ impl<'a> Fields<'a, '_> {
                 }
                 let mut path = path.to_vec();
                 path.push(Rc::from(name));
-                let footprint = self.group(id, overlay, path.into(), (ordinal, discriminant))?;
+                let footprint = self.group(
+                    id,
+                    overlay,
+                    path.into(),
+                    (ordinal, discriminant),
+                    inherited_activation,
+                )?;
                 occupied.merge(footprint, exclusive).map_err(collision)?;
             }
         }
@@ -410,6 +529,7 @@ impl<'a> Fields<'a, '_> {
         (name, ordinal): (&str, u16),
         slot: field::slot::Reader<'_>,
         discriminant: Option<u16>,
+        required: bool,
     ) -> Result<Option<Range<u32>>, Error> {
         if !slot.has_type() || !slot.has_default_value() {
             return Err(layout(format!(
@@ -420,6 +540,9 @@ impl<'a> Fields<'a, '_> {
         let default = shape::default(&ty, slot.get_default_value()?, self.nodes)?;
         let offset = slot.get_offset();
         let storage = ty.storage();
+        if required && !matches!(storage, Some((true, _))) {
+            return Err(invalid_required_field(owner, name));
+        }
         let limit = match storage {
             None => 1,
             Some((true, _)) => u32::from(self.sizes.1),
@@ -437,6 +560,7 @@ impl<'a> Fields<'a, '_> {
             discriminant,
             ty,
             default,
+            required,
         };
         self.slots.insert(ordinal, slot);
         Ok(storage.map(|(pointer, width)| {
@@ -448,4 +572,44 @@ impl<'a> Fields<'a, '_> {
             start..start + width
         }))
     }
+}
+
+fn required_field(
+    nodes: &Nodes<'_>,
+    marker: Option<TypeId>,
+    (owner, name): (TypeId, &str),
+    field: field::Reader<'_>,
+) -> Result<bool, Error> {
+    let Some(marker) = marker else {
+        return Ok(false);
+    };
+    let mut required = false;
+    for annotation in field.get_annotations()? {
+        if annotation.get_id() != marker.0 {
+            continue;
+        }
+        if required
+            || !annotation.has_value()
+            || !matches!(annotation.get_value()?.which()?, value::Void(()))
+        {
+            return Err(layout(format!(
+                "expected one Void application of required annotation {marker} at {owner}.{name}"
+            )));
+        }
+        // Annotation brands do not add persisted data types to the closure.
+        shape::read_brand(
+            annotation.get_brand()?,
+            nodes,
+            (owner, marker),
+            &mut BTreeSet::new(),
+        )?;
+        required = true;
+    }
+    Ok(required)
+}
+
+fn invalid_required_field(owner: TypeId, name: &str) -> Error {
+    layout(format!(
+        "required annotation at {owner}.{name} must mark an unconditional pointer slot in a declared struct"
+    ))
 }

@@ -29,7 +29,9 @@ bindings:
     - raf_census::capnp_history
   tests:
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
+    - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
     - raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse
+    - raf_census::capnp_history::tests::required_annotation_refuses_invalid_values_and_undeclared_structs
     - raf_census::capnp_history::tests::deep_group_findings_refuse_as_a_whole_above_the_payload_limit
     - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
     - cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration
@@ -75,8 +77,8 @@ descriptors read from explicit base and current Git commits. The caller
 selects struct and enum roots by type ID. Census follows their data type
 references and groups. It reports an old root or member that disappears
 and changes to existing names, ordinals, types, slots, discriminants and
-defaults. Adding a defaulted field or enum variant passes when the old
-layout is preserved. Written declaration order is ignored. A field
+defaults. The layout comparison permits a defaulted field or enum variant
+that preserves the old layout. Written declaration order is ignored. A field
 rename can violate history policy even when Cap'n Proto allows it on
 the wire. List defaults use the native representation for their element
 types. Struct-valued defaults are checked as native containers and
@@ -84,6 +86,16 @@ compared by their canonical pointer bytes. The caller maintains
 correspondence between the committed descriptors and the consumer schema
 and verifies application readers.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
+
+A caller can select a compiler-declared Void field annotation for
+required pointer presence. Census validates the marker in both
+snapshots. It reports a newly marked ordinal in a struct reached from
+the selected roots in both snapshots, including a marked append or a
+field with an unchanged read default. It includes fields in
+unconditional groups. An unmarked append, an unchanged or removed
+marker, and a marker on a newly reached struct add no required-field
+finding. The strict layout comparison also runs.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors -->
 
 **Static contract.** `check` evaluates the native library Gate for the selected workspace. `index`, `job`, `count` and `fingerprint` derive complete native reports from that Gate. The CLI accepts no package/example executable selector and never invokes Cargo, tests, examples or custom repository binaries. Custom Rust registrations remain explicit library API operations performed by their caller; repository contents cannot instantiate them automatically.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
@@ -141,6 +153,10 @@ Capture the compiler request with `capnp compile -o- SCHEMA` and commit
 it with the schema. Library consumers call `raf_census::capnp_history::check`.
 The command exits 0 for a clean comparison or 1 with findings on stdout.
 An input or resource refusal exits 1 with a diagnostic on stderr.
+
+Add `--required-annotation 0xID` to compare required pointer presence.
+Supply the same annotation ID to the library as the final argument of
+`raf_census::capnp_history::check`. Use `None` for strict layout alone.
 
 The documented data path is illustrated by `raf_census::example_crate::registered` and `rust_agentic_foundations::example_crate::repository_census`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
@@ -203,6 +219,15 @@ and member names of at most 256 bytes. A result exceeding two MiB of
 counted finding payload refuses the entire comparison.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts,raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse,raf_census::capnp_history::tests::deep_group_findings_refuse_as_a_whole_above_the_payload_limit -->
 
+The required-field check refuses a missing or invalid declaration, a
+duplicate application, and an application with an absent or non-Void
+value. A marker must apply to an ordinary pointer slot in a declared
+struct. A group, a scalar, a synthesized RPC parameter or result, and
+a field activated by any enclosing union arm are invalid placements.
+The marker and marked structs must have consistent declaration paths
+to a file within the nesting bound.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors,raf_census::capnp_history::tests::required_annotation_refuses_invalid_values_and_undeclared_structs -->
+
 Controlled fixtures protect native CLI parity, the self-test case list, the absence of consumer execution, report destination restrictions, migration carrier bounds, monotone debt writes and the declared reference options.
 
 <!-- raf:generated:verification-matrix -->
@@ -212,6 +237,7 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target` | test | [Constraints](#constraints) |
@@ -229,6 +255,7 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines` | test | [Contract](#contract) |
 | `raf_census::capnp_history::tests::deep_group_findings_refuse_as_a_whole_above_the_payload_limit` | test | [Verification](#verification) |
 | `raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse` | test | [Verification](#verification) |
+| `raf_census::capnp_history::tests::required_annotation_refuses_invalid_values_and_undeclared_structs` | test | [Verification](#verification) |
 | `raf_census::example_crate::registered` | example target | [Usage](#usage) |
 | `raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers` | test | [Verification](#verification) |
 | `raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings` | test | [Verification](#verification) |

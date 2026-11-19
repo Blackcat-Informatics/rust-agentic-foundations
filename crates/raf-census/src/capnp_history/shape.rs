@@ -198,7 +198,7 @@ fn read_pointer(
     })
 }
 
-fn read_brand(
+pub(super) fn read_brand(
     reader: brand::Reader<'_>,
     nodes: &Nodes<'_>,
     (owner, target): (TypeId, TypeId),

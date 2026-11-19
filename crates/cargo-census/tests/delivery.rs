@@ -134,25 +134,31 @@ fn run(root: &Path, words: &[&str]) -> Output {
     )
 }
 
-fn capnp_history(root: &Path, base: &str, current: &str) -> Output {
-    run(
-        root,
-        &[
-            "capnp-history",
-            "--base",
-            base,
-            "--current",
-            current,
-            "--base-descriptor",
-            "schema.bin",
-            "--current-descriptor",
-            "schema.bin",
-            "--type",
-            "0xf1804b9b18ae6505",
-            "--type",
-            "0xc8a351b6b42dc6a5",
-        ],
-    )
+fn capnp_history(
+    root: &Path,
+    base: &str,
+    current: &str,
+    types: &[&str],
+    required_annotation: Option<&str>,
+) -> Output {
+    let mut args = vec![
+        "capnp-history",
+        "--base",
+        base,
+        "--current",
+        current,
+        "--base-descriptor",
+        "schema.bin",
+        "--current-descriptor",
+        "schema.bin",
+    ];
+    for &selected in types {
+        args.extend(["--type", selected]);
+    }
+    if let Some(marker) = required_annotation {
+        args.extend(["--required-annotation", marker]);
+    }
+    run(root, &args)
 }
 
 /// The shipped command follows compiled references from the selected type and
@@ -179,12 +185,14 @@ fn capnp_history_checks_committed_compiler_layouts() {
     .unwrap();
     let unresolved = git_repo::commit_all(root);
     fs::write(&descriptor, b"uncommitted bytes").unwrap();
+    let types = ["0xf1804b9b18ae6505", "0xc8a351b6b42dc6a5"];
+    let history = |before: &str, after: &str| capnp_history(root, before, after, &types, None);
 
-    let clean = capnp_history(root, &base, &compatible);
+    let clean = history(&base, &compatible);
     assert!(clean.status.success(), "{clean:?}");
     assert_eq!(clean.stdout, b"");
 
-    let changed = capnp_history(root, &base, &changed);
+    let changed = history(&base, &changed);
     assert_eq!(changed.status.code(), Some(1), "{changed:?}");
     let findings = String::from_utf8(changed.stdout).unwrap();
     for expected in [
@@ -208,7 +216,7 @@ fn capnp_history_checks_committed_compiler_layouts() {
     }
     assert!(!findings.contains("ignored"), "{findings}");
 
-    let bad = capnp_history(root, &base, &malformed);
+    let bad = history(&base, &malformed);
     assert_eq!(bad.status.code(), Some(1), "{bad:?}");
     assert_eq!(bad.stdout, b"");
     let diagnostic = String::from_utf8(bad.stderr).unwrap();
@@ -217,14 +225,14 @@ fn capnp_history_checks_committed_compiler_layouts() {
         "{diagnostic}"
     );
 
-    let missing_node = capnp_history(root, &base, &unresolved);
+    let missing_node = history(&base, &unresolved);
     assert_eq!(missing_node.status.code(), Some(1), "{missing_node:?}");
     assert_eq!(missing_node.stdout, b"");
     let diagnostic = String::from_utf8(missing_node.stderr).unwrap();
     assert!(diagnostic.contains("missing schema node"), "{diagnostic}");
 
     let missing = "1111111111111111111111111111111111111111";
-    let refused = capnp_history(root, missing, &compatible);
+    let refused = history(missing, &compatible);
     assert_eq!(refused.status.code(), Some(1), "{refused:?}");
     assert_eq!(refused.stdout, b"");
     let diagnostic = String::from_utf8(refused.stderr).unwrap();
@@ -232,6 +240,108 @@ fn capnp_history_checks_committed_compiler_layouts() {
         diagnostic.contains(&format!("Cap'n Proto revision {missing}")),
         "{diagnostic}"
     );
+}
+
+/// Required pointer presence is compared through the shipped command on
+/// selected committed structs. An invalid marker never yields a partial verdict.
+#[test]
+fn capnp_history_compares_required_pointer_fields_in_committed_descriptors() {
+    const ROOT: &str = "0xf1804b9b18ae6505";
+    const MARKER: &str = "0xe91447cf636b013a";
+    let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let descriptor = root.join("schema.bin");
+    let commit = |bytes: &[u8]| {
+        fs::write(&descriptor, bytes).unwrap();
+        git_repo::commit_all(root)
+    };
+    let base = commit(include_bytes!("fixtures/capnp/required-base.bin"));
+    let current = commit(include_bytes!("fixtures/capnp/required-current.bin"));
+    let invalid = commit(include_bytes!("fixtures/capnp/required-invalid-slots.bin"));
+    let union = commit(include_bytes!("fixtures/capnp/required-union.bin"));
+    let declarations = commit(include_bytes!(
+        "fixtures/capnp/required-bad-declarations.bin"
+    ));
+    let mixed = commit(include_bytes!("fixtures/capnp/required-multi-target.bin"));
+    fs::write(descriptor, b"uncommitted bytes").unwrap();
+
+    let history = |base: &str, current: &str, selected, marker| {
+        capnp_history(root, base, current, &[selected], marker)
+    };
+    let strict = history(&base, &current, ROOT, None);
+    assert!(strict.status.success(), "{strict:?}");
+    assert_eq!(strict.stdout, b"");
+    let required = history(&base, &current, ROOT, Some(MARKER));
+    assert_eq!(required.status.code(), Some(1), "{required:?}");
+    assert_eq!(
+        String::from_utf8(required.stdout).unwrap(),
+        concat!(
+            "Cap'n Proto history for 0xf1804b9b18ae6505.name: pointer field became required\n",
+            "Cap'n Proto history for 0xf1804b9b18ae6505.options.destination: pointer field became required\n",
+            "Cap'n Proto history for 0xf1804b9b18ae6505.token: pointer field became required\n",
+        )
+    );
+    let named = history(&mixed, &mixed, ROOT, Some(MARKER));
+    assert!(named.status.success(), "{named:?}");
+    for (before, after, selected, marker, diagnostic) in [
+        (
+            &base,
+            &current,
+            ROOT,
+            "0xa153cb65a6fa66ab",
+            "missing required annotation",
+        ),
+        (
+            &base,
+            &declarations,
+            ROOT,
+            MARKER,
+            "must declare a Void field target",
+        ),
+        (
+            &declarations,
+            &declarations,
+            ROOT,
+            "0xbe2b106eee8557e0",
+            "must declare a Void field target",
+        ),
+        (
+            &base,
+            &invalid,
+            ROOT,
+            MARKER,
+            "expected one Void application",
+        ),
+        (
+            &invalid,
+            &invalid,
+            "0xa153cb65a6fa66ab",
+            MARKER,
+            "must mark an unconditional pointer slot",
+        ),
+        (
+            &base,
+            &union,
+            ROOT,
+            MARKER,
+            "must mark an unconditional pointer slot",
+        ),
+        (
+            &mixed,
+            &mixed,
+            "0xbedd0c5585e38aff",
+            MARKER,
+            "must belong to a declared struct",
+        ),
+    ] {
+        let refused = history(before, after, selected, Some(marker));
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert_eq!(refused.stdout, b"");
+        let stderr = String::from_utf8(refused.stderr).unwrap();
+        assert!(stderr.contains(diagnostic), "{stderr}");
+    }
 }
 
 fn visibility_nodes<'a>(
