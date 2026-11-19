@@ -1312,7 +1312,7 @@ fn the_sync_note_is_there_when_the_target_file_was_already_stale() {
 
 #[test]
 fn opening_refuses_a_concurrent_lifecycle_publication_without_writes() {
-    let scratch = Scratch::in_test_target("new-other-writer");
+    let scratch = Scratch::new("new-other-writer");
     let root = scratch.path();
     write_repo(root, &synced::base());
     let request = NewChangeRequest::new("fresh-change").capability("cap:gamma");

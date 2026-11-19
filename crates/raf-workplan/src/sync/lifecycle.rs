@@ -10,11 +10,13 @@ use std::rc::Rc;
 use raf_okf::{DocType, Document, ErrorTag, Profile, RafDocument, State};
 use raf_source::{EntryKind, RelPath, Tree as _};
 
-use crate::Workplan;
 use crate::load::{READ_LIMIT, is_markdown, is_navigation_index};
 use crate::publication_io::Root;
+use crate::{SyncError, Workplan, finding::kind};
 
 use super::refused;
+
+const DIRECTORIES: [DocType; 2] = [DocType::Capability, DocType::Change];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Metadata {
@@ -40,8 +42,24 @@ impl Metadata {
 pub(super) struct Basis(BTreeMap<String, Metadata>);
 
 impl Basis {
-    pub(super) fn of(plan: &Workplan<'_>) -> Self {
-        Self(
+    pub(super) fn of(plan: &Workplan<'_>) -> Result<Self, SyncError> {
+        let misplaced: Vec<_> = plan
+            .findings
+            .iter()
+            .filter(|finding| {
+                finding.kind == kind::WRONG_DIRECTORY
+                    && finding.file.rsplit_once('/').is_some_and(|(parent, _)| {
+                        DIRECTORIES
+                            .iter()
+                            .any(|doc_type| parent == doc_type.directory())
+                    })
+            })
+            .cloned()
+            .collect();
+        if !misplaced.is_empty() {
+            return Err(SyncError::Refused(misplaced));
+        }
+        Ok(Self(
             plan.capabilities()
                 .iter()
                 .map(|capability| {
@@ -57,7 +75,7 @@ impl Basis {
                     )
                 }))
                 .collect(),
-        )
+        ))
     }
 
     pub(super) fn verify(&self, root: &Rc<Root>) -> io::Result<()> {
@@ -72,7 +90,7 @@ impl Basis {
     fn read(root: &Rc<Root>) -> io::Result<Self> {
         let mut documents = BTreeMap::new();
         let tree = root.tree();
-        for doc_type in [DocType::Capability, DocType::Change] {
+        for doc_type in DIRECTORIES {
             let directory = RelPath::new(doc_type.directory()).map_err(io::Error::other)?;
             match root.directory(&directory) {
                 Ok(_) => {}
@@ -103,7 +121,7 @@ impl Basis {
                 if document.doc_type() != Some(doc_type) {
                     return Err(refused(
                         &path,
-                        "unexpected document in a lifecycle directory",
+                        "unexpected document type in a lifecycle directory; move it to its declared directory",
                     ));
                 }
                 let metadata = Metadata::of(&typed(&path, &document)?)

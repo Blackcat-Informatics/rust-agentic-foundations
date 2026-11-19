@@ -25,7 +25,7 @@ use raf_source::RelPath;
 use crate::Finding;
 use crate::Workplan;
 use crate::generated::{self, INDEX_PATH};
-use crate::publication_io::{Root, Staged, Target, cleanup_after, with_cleanup};
+use crate::publication_io::{Rollback, Root, Staged, Target, cleanup_after};
 
 mod lifecycle;
 
@@ -120,22 +120,23 @@ impl SyncReport {
         plan: &Workplan<'_>,
         edits: Vec<(RelPath, String)>,
         diagram_assets: Option<Arc<crate::diagram::DiagramPublication>>,
-    ) -> Self {
+    ) -> Result<Self, SyncError> {
+        let lifecycle = lifecycle::Basis::of(plan)?;
         if edits.is_empty() && diagram_assets.is_none() {
-            return Self::default();
+            return Ok(Self::default());
         }
         let catalogue = edits
             .iter()
             .find(|(path, _)| path.as_str() == INDEX_PATH)
             .map(|(_, text)| ContentDigest::of(text.as_bytes()));
-        Self {
+        Ok(Self {
             edits,
             diagram_assets,
             admission: Some(Admission {
-                lifecycle: lifecycle::Basis::of(plan),
+                lifecycle,
                 catalogue,
             }),
-        }
+        })
     }
 
     /// Previously owned generated files that this publication removes.
@@ -317,11 +318,7 @@ impl Workplan<'_> {
                     })
             })
             .collect::<Result<_, _>>()?;
-        Ok(SyncReport::computed(
-            self,
-            edits,
-            diagrams.publication.map(Arc::new),
-        ))
+        SyncReport::computed(self, edits, diagrams.publication.map(Arc::new))
     }
 
     /// Write the edits of a report under `root`.
@@ -382,81 +379,93 @@ impl Workplan<'_> {
                 ));
             }
         }
-        Self::write_guarded(report, &root, &BTreeMap::new()).map(|_| ())
+        Self::write_guarded(report, &root, &BTreeMap::new()).and_then(Rollback::discard)
     }
 
-    /// Publish with exact input checks for capability state edits. The returned
-    /// handles permit restoration if completion cannot remove the owning record.
+    /// Publish with exact input checks and stage the state originals before writing.
     pub(crate) fn write_guarded(
         report: &SyncReport,
         root: &Rc<Root>,
         originals: &BTreeMap<RelPath, String>,
-    ) -> io::Result<Vec<Staged>> {
-        let mut targets = admit_targets(report, root, originals)?;
-        let count = report
-            .edits
-            .len()
-            .checked_add(usize::from(report.diagram_assets.is_some()))
-            .ok_or_else(|| io::Error::other("metadata staging count overflow"))?;
-        let mut grant = root.reserve_staging(count, targets.values())?;
-        let mut staged = Vec::new();
-        for (path, text) in &report.edits {
-            let Some(target) = targets.remove(path) else {
+    ) -> io::Result<Rollback> {
+        let mut rollback = Rollback::default();
+        match publish_report(report, root, originals, &mut rollback) {
+            Ok(()) => Ok(rollback),
+            Err(error) => Err(rollback.restore_after(error)),
+        }
+    }
+}
+
+fn publish_report(
+    report: &SyncReport,
+    root: &Rc<Root>,
+    originals: &BTreeMap<RelPath, String>,
+    rollback: &mut Rollback,
+) -> io::Result<()> {
+    let mut targets = admit_targets(report, root, originals)?;
+    let count = report
+        .edits
+        .len()
+        .checked_add(originals.len())
+        .and_then(|count| count.checked_add(usize::from(report.diagram_assets.is_some())))
+        .ok_or_else(|| io::Error::other("metadata staging count overflow"))?;
+    let mut grant = root.reserve_staging(count, targets.values())?;
+    let mut staged = Vec::new();
+    for (path, text) in &report.edits {
+        let Some(target) = targets.remove(path) else {
+            drop(grant);
+            return Err(cleanup_after(
+                refused(path, "missing retained destination admission"),
+                &staged,
+            ));
+        };
+        match rollback.stage(
+            target,
+            text,
+            originals.get(path).map(String::as_str),
+            &mut grant,
+        ) {
+            Ok(temporary) => staged.push(temporary),
+            Err(error) => {
                 drop(grant);
-                return Err(cleanup_after(
-                    refused(path, "missing retained destination admission"),
-                    &staged,
-                ));
-            };
-            match target.stage_reserved(text, &mut grant) {
-                Ok(temporary) => staged.push(temporary),
-                Err(error) => {
-                    drop(grant);
-                    return Err(cleanup_after(error, &staged));
-                }
+                return Err(cleanup_after(error, &staged));
             }
         }
-        let published = if let Some(assets) = &report.diagram_assets {
-            let intent = match assets.stage_intent(root, &mut grant) {
-                Ok(path) => path,
-                Err(error) => {
-                    drop(grant);
-                    return Err(cleanup_after(error, &staged));
-                }
-            };
-            drop(grant);
-            for file in &mut staged {
-                if file.target_path().as_str() == crate::diagram::assets::MANIFEST
-                    && let Err(error) = file.follows(&intent)
-                {
-                    return Err(cleanup_after(cleanup_after(error, &[intent]), &staged));
-                }
+    }
+    if let Some(assets) = &report.diagram_assets {
+        let intent = match assets.stage_intent(root, &mut grant) {
+            Ok(path) => path,
+            Err(error) => {
+                drop(grant);
+                return Err(cleanup_after(error, &staged));
             }
-            if let Err(error) = intent.publish() {
+        };
+        drop(grant);
+        for file in &mut staged {
+            if file.target_path().as_str() == crate::diagram::assets::MANIFEST
+                && let Err(error) = file.follows(&intent)
+            {
                 return Err(cleanup_after(cleanup_after(error, &[intent]), &staged));
             }
-            let (manifests, files): (Vec<_>, Vec<_>) = staged
-                .into_iter()
-                .partition(|file| file.target_path().as_str() == crate::diagram::assets::MANIFEST);
-            if let Err(error) = publish(&files, originals) {
-                return Err(cleanup_after(error, &manifests));
-            }
-            assets
-                .retire(root, &mut targets)
-                .map_err(|error| cleanup_after(error, &manifests))
-                .and_then(|()| publish(&manifests, originals))
-                .map_err(|error| restore_state_edits(error, &files, originals))?;
-            files
-        } else {
-            drop(grant);
-            publish(&staged, originals)?;
-            staged
-        };
-        Ok(published
+        }
+        if let Err(error) = intent.publish() {
+            return Err(cleanup_after(cleanup_after(error, &[intent]), &staged));
+        }
+        let (manifests, files): (Vec<_>, Vec<_>) = staged
             .into_iter()
-            .filter(|file| originals.contains_key(file.target_path()))
-            .collect())
+            .partition(|file| file.target_path().as_str() == crate::diagram::assets::MANIFEST);
+        if let Err(error) = publish(&files, rollback) {
+            return Err(cleanup_after(error, &manifests));
+        }
+        assets
+            .retire(root, &mut targets)
+            .map_err(|error| cleanup_after(error, &manifests))
+            .and_then(|()| publish(&manifests, rollback))?;
+    } else {
+        drop(grant);
+        publish(&staged, rollback)?;
     }
+    Ok(())
 }
 
 fn admit_targets(
@@ -512,29 +521,14 @@ fn admit_targets(
 }
 
 /// Publish already staged texts, discarding the unpublished tail on failure.
-fn publish(staged: &[Staged], originals: &BTreeMap<RelPath, String>) -> io::Result<()> {
+fn publish(staged: &[Staged], rollback: &mut Rollback) -> io::Result<()> {
     for (done, file) in staged.iter().enumerate() {
         if let Err(error) = file.publish() {
-            let error = cleanup_after(error, &staged[done..]);
-            return Err(restore_state_edits(error, &staged[..done], originals));
+            return Err(cleanup_after(error, &staged[done..]));
         }
+        rollback.published(file);
     }
     Ok(())
-}
-
-/// Restore state edits published by this operation, leaving normal generated
-/// edits recoverable through sync. Refuse restoration across a concurrent edit.
-pub(crate) fn restore_state_edits(
-    mut error: io::Error,
-    published: &[Staged],
-    originals: &BTreeMap<RelPath, String>,
-) -> io::Error {
-    for file in published.iter().rev() {
-        if let Some(text) = originals.get(file.target_path()) {
-            error = with_cleanup(error, file.undo(Some(text)));
-        }
-    }
-    error
 }
 
 /// An error that names a refused target.

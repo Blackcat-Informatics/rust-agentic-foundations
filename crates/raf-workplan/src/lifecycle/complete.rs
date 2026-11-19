@@ -20,7 +20,6 @@ use crate::generated;
 use crate::lookup::bare_slug;
 use crate::obligation::{ObligationKind, Reconciled};
 use crate::publication_io::Root;
-use crate::sync::restore_state_edits;
 use crate::{
     Binding, BindingKind, Finding, Loaded, Opened, SyncError, SyncOptions, SyncReport, Workplan,
 };
@@ -345,14 +344,22 @@ impl Lifecycle {
         target
             .verify_content(Some(&completed.record_digest))
             .map_err(refused)?;
-        let published =
+        let rollback =
             Workplan::write_guarded(&completed.rewrite, root, &completed.state_originals)
                 .map_err(|source| LifecycleError::Rewrite { source })?;
-        target.remove().map_err(|source| LifecycleError::Remove {
-            path: record.as_str().to_string(),
-            rewritten: rewritten.clone(),
-            source: restore_state_edits(source, &published, &completed.state_originals),
-        })?;
+        if let Err(source) = target.remove() {
+            return Err(LifecycleError::Remove {
+                path: record.to_string(),
+                rewritten,
+                source: rollback.restore_after(source),
+            });
+        }
+        rollback
+            .discard()
+            .map_err(|source| LifecycleError::Cleanup {
+                path: record.to_string(),
+                source,
+            })?;
         Ok(Completion::Completed {
             removed: record.as_str().to_string(),
             rewritten,

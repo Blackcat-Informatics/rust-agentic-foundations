@@ -60,7 +60,7 @@ fn batch_publication_reserves_inode_capacity_before_staging() {
     limit.current = Some(96);
     setrlimit(Resource::Nofile, limit).expect("set only the controlled child's soft limit");
 
-    let directory = purrdf_testkit::TempDir::new_in(std::env::temp_dir())
+    let directory = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR"))
         .expect("create descriptor publication fixture");
     let parent = directory.path().join("docs/capabilities");
     fs::create_dir_all(&parent).unwrap();
@@ -619,13 +619,13 @@ fn check_and_sync_agree_after_each_repair() {
 
 // --- on a disk ---------------------------------------------------------------
 
-/// A unique directory under the system temporary directory, removed on drop.
+/// A unique directory under the test target, removed on drop.
 struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
     fn new(tag: &str) -> Self {
         Self(
-            purrdf_testkit::TempDir::new_in(std::env::temp_dir())
+            purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR"))
                 .unwrap_or_else(|error| panic!("create {tag} fixture: {error}")),
         )
     }
@@ -681,6 +681,20 @@ fn write_puts_every_edit_on_disk_and_a_second_run_writes_nothing() {
     let scratch = Scratch::new("write");
     write_repo(scratch.path(), &unsynced());
     let report = on_disk(scratch.path(), |plan| plan.sync(&options())).expect("syncs");
+    let misplaced = "docs/capabilities/receipt.md";
+    let evidence = "---\ntype: Evidence\nid: evidence:receipt\ntitle: Receipt\n---\n\n# Receipt\n";
+    let path = scratch.path().join(misplaced);
+    fs::write(&path, evidence).unwrap();
+    let refused = on_disk(scratch.path(), |plan| plan.sync(&options())).unwrap_err();
+    assert!(
+        matches!(refused, SyncError::Refused(findings) if findings.iter().any(|finding| {
+            finding.file == misplaced && finding.kind == "wrong-directory"
+        }))
+    );
+    assert!(Workplan::write(&report, scratch.path()).is_err());
+    assert_eq!(read(scratch.path(), ALPHA), unsynced()[ALPHA]);
+    assert_eq!(read(scratch.path(), misplaced), evidence);
+    fs::remove_file(path).unwrap();
     assert_eq!(report.edits.len(), 5);
     Workplan::write(&report, scratch.path()).expect("writes");
     let expected = base();

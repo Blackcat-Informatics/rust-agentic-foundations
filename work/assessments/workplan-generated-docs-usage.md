@@ -7,16 +7,16 @@ subject: cap:workplan-generated-docs#usage
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#usage
-    digest: b908651b23c16dc458f58eb74d8f7121f8279b20c9b87dc11b63a9902e5c30c6
+    digest: fe90072a5b140dbd8813e6aae0b8de2640151e5cfba6554426307cf2aac132b4
   - kind: symbol
     name: raf_workplan::Opened::preview_generated
-    digest: 393923f1933cb399da9ed3fafbe82b49a7e0266251c9ecd78ec61019a8845369
+    digest: 28d93a5c0d1674cd19549805da4e6c55db6b508fdd4ae8f5ee6be5182cd2177c
   - kind: symbol
     name: raf_workplan::Workplan::sync
-    digest: '0b64f760a8ff9a1978bda756c14546eebae1eb69421eb423dc303a47f70b88d5'
+    digest: 4b3b902587c96b108c384120e642116c9975aa355516461db33d01762824ee1a
   - kind: symbol
     name: raf_workplan::Workplan::write
-    digest: 910526f3f19c85c0bddb4bd8ad1d3bb9458d725d30eee7695c795e3a89ff16c2
+    digest: c1a7252fc3f8fd6ba23f5f4e2edfe384d338a6939ebef4f845fc71adbfd4913d
   - kind: symbol
     name: raf_workplan::diagram
     digest: 43b64969a97a3c7e1348c234b85d79bef3b152b506295a6f58d98ba59a236438

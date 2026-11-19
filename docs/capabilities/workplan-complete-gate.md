@@ -69,10 +69,12 @@ Inspect a reported filesystem binding change before retrying completion. The
 generated-document publisher retains its admitted destinations and reports
 temporary cleanup failures alongside the original error.
 
-If publication or record removal fails after writing a capability's delivered
-state, completion restores the original bytes when it still owns the published
-file. It reports any restoration failure with the original error. Restore
-access, run `docs sync` with the record still present, and retry completion.
+Completion stages the original capability bytes before the first rename. If
+publication or record removal fails after writing a delivered state, completion
+restores the original bytes while it still owns the published file. It reports
+restoration failures with the original error. Restore access, run `docs sync`
+with the record still present, and retry completion. A cleanup refusal after
+record removal reports that completion published and names the cleanup error.
 
 The documented data path is illustrated by `raf_workplan::Gate`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 

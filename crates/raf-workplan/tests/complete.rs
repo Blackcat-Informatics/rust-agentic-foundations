@@ -25,7 +25,7 @@ fn fixture(state: &str, items: &str, bindings: [&str; 3]) -> Checkout {
                 .replace("affects:\n", "affects: []\n"),
         ),
     ]);
-    Checkout::in_test_target("static-completion", &documents)
+    Checkout::new("static-completion", &documents)
 }
 
 fn delivery_capability(state: &str, bindings: [&str; 3]) -> String {
@@ -173,7 +173,7 @@ fn completion_retains_implementing_while_a_second_record_owns_the_capability() {
                 .replace("affects:\n", "affects: []\n"),
         ),
     ]);
-    let checkout = Checkout::in_test_target("completion-other-owner", &documents);
+    let checkout = Checkout::new("completion-other-owner", &documents);
     let other = read(checkout.root(), second);
     let mut stale_index = detached_sync(&checkout);
     stale_index.edits.retain(|(path, _)| path.as_str() == INDEX);

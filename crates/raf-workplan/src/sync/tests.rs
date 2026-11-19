@@ -4,10 +4,10 @@
 //! Filesystem outcomes at the publication boundary after all texts are staged.
 
 use super::publish;
-use crate::publication_io::{Root, Staged};
+use crate::publication_io::{Rollback, Root, Staged};
 use raf_source::RelPath;
-use std::collections::BTreeMap;
 use std::fs;
+use std::os::unix::fs::MetadataExt as _;
 use std::path::Path;
 
 struct Scratch(purrdf_testkit::TempDir);
@@ -20,10 +20,10 @@ impl Scratch {
     }
 }
 
-fn staged(root: &Path) -> Vec<Staged> {
+fn staged(root: &Path, guarded: bool) -> (Vec<Staged>, Rollback) {
     fs::create_dir(root).expect("create target directory");
     let authority = Root::open(root).expect("open native publication root");
-    ["one.md", "two.md", "three.md"]
+    let targets: Vec<_> = ["one.md", "two.md", "three.md"]
         .into_iter()
         .map(|name| {
             let target = root.join(name);
@@ -31,26 +31,55 @@ fn staged(root: &Path) -> Vec<Staged> {
             if name == "one.md" {
                 fs::hard_link(&target, root.join("one-alias.md")).expect("create original alias");
             }
-            authority
-                .capture(&RelPath::new(name).unwrap())
-                .unwrap()
-                .stage(&format!("new {name}\n"))
+            authority.capture(&RelPath::new(name).unwrap()).unwrap()
+        })
+        .collect();
+    let mut grant = authority
+        .reserve_staging(targets.len() + usize::from(guarded), targets.iter())
+        .unwrap();
+    let mut rollback = Rollback::default();
+    let files = targets
+        .into_iter()
+        .zip(["one.md", "two.md", "three.md"])
+        .map(|(target, name)| {
+            rollback
+                .stage(
+                    target,
+                    &format!("new {name}\n"),
+                    (guarded && name == "one.md").then_some("old one.md\n"),
+                    &mut grant,
+                )
                 .expect("stage text")
         })
-        .collect()
+        .collect();
+    (files, rollback)
 }
 
 #[test]
 fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
     let scratch = Scratch::new();
-    let empty = BTreeMap::new();
-    let guarded = BTreeMap::from([(RelPath::new("one.md").unwrap(), "old one.md\n".to_owned())]);
-    for (case, originals, expected) in [
-        ("refused", &empty, "new one.md\n"),
-        ("guarded", &guarded, "old one.md\n"),
+    for (case, guarded, expected) in [
+        ("refused", false, "new one.md\n"),
+        ("guarded", true, "old one.md\n"),
     ] {
         let root = scratch.0.path().join(case);
-        let files = staged(&root);
+        let (files, mut rollback) = staged(&root, guarded);
+        let backup = guarded.then(|| {
+            fs::read_dir(&root)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .find(|path| {
+                    path.file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .ends_with(".sync.tmp")
+                        && fs::read_to_string(path).unwrap() == "old one.md\n"
+                })
+                .expect("the original is staged before publication")
+        });
+        let backup_inode = backup
+            .as_ref()
+            .map(|path| fs::metadata(path).unwrap().ino());
         // An ordinary sync keeps published files. Completion restores its
         // promoted capability when a later document publication refuses.
         let second = root.join(files[1].target_path().as_str());
@@ -59,7 +88,13 @@ fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
         let sentinel = second.join("sentinel");
         fs::write(&sentinel, "untouched\n").expect("write sentinel");
 
-        publish(&files, originals).expect_err("the second rename must fail");
+        publish(&files, &mut rollback).expect_err("the second rename must fail");
+        rollback.restore().expect("finish the guarded restoration");
+        rollback.discard().expect("clean the staged originals");
+        if let Some(inode) = backup_inode {
+            assert_eq!(fs::metadata(root.join("one.md")).unwrap().ino(), inode);
+        }
+        assert!(backup.is_none_or(|path| !path.exists()));
         assert_eq!(
             fs::read_to_string(root.join(files[0].target_path().as_str())).unwrap(),
             expected
@@ -83,8 +118,16 @@ fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
     }
 
     let root = scratch.0.path().join("accepted");
-    let valid = staged(&root);
-    publish(&valid, &empty).expect("regular targets accept every staged replacement");
+    let (valid, mut rollback) = staged(&root, true);
+    publish(&valid, &mut rollback).expect("regular targets accept every staged replacement");
+    rollback.discard().expect("discard the staged original");
+    assert!(fs::read_dir(&root).unwrap().all(|entry| {
+        !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .ends_with(".sync.tmp")
+    }));
     assert_eq!(
         fs::read_to_string(root.join("one-alias.md")).unwrap(),
         "old one.md\n"
@@ -98,12 +141,16 @@ fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
     }
 
     let root = scratch.0.path().join("foreign-temporary");
-    let files = staged(&root);
+    let (files, mut rollback) = staged(&root, false);
     let temporary = files[0].temporary_path();
     fs::remove_file(temporary).unwrap();
     fs::write(temporary, "foreign\n").unwrap();
-    let error =
-        publish(&files, &empty).expect_err("a replaced temporary is never published or removed");
+    let error = publish(&files, &mut rollback)
+        .expect_err("a replaced temporary is never published or removed");
+    rollback
+        .restore()
+        .expect("no guarded original was published");
+    rollback.discard().expect("no guarded original was staged");
     assert!(
         error.to_string().contains("metadata cleanup also failed"),
         "{error}"

@@ -7,16 +7,16 @@ subject: cap:workplan-generated-docs#constraints
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#constraints
-    digest: 4cddbb4a78d3eb0d5db76b0062f4f6e8116afcebdfd0639b9f3c1ab32f74f3ca
+    digest: f391e34eedac42d5d013654e3eb2018da4e53589086df4b3f3ccfebf15900d7b
   - kind: symbol
     name: raf_workplan::Workplan::preview
     digest: 04393e5f8c58e32c5a8f28dc6a0c237cb6a4e186d214f69e50fe03be54555199
   - kind: symbol
     name: raf_workplan::Workplan::sync
-    digest: '0b64f760a8ff9a1978bda756c14546eebae1eb69421eb423dc303a47f70b88d5'
+    digest: 4b3b902587c96b108c384120e642116c9975aa355516461db33d01762824ee1a
   - kind: symbol
     name: raf_workplan::Workplan::write
-    digest: 910526f3f19c85c0bddb4bd8ad1d3bb9458d725d30eee7695c795e3a89ff16c2
+    digest: c1a7252fc3f8fd6ba23f5f4e2edfe384d338a6939ebef4f845fc71adbfd4913d
 verdict: accepted
 by: agent
 ---

@@ -19,14 +19,7 @@ pub(crate) struct Scratch(TempDir, TempDir);
 
 impl Scratch {
     pub(crate) fn new(tag: &str) -> Self {
-        Self::in_directory(tag, &std::env::temp_dir())
-    }
-
-    pub(crate) fn in_test_target(tag: &str) -> Self {
-        Self::in_directory(tag, Path::new(env!("CARGO_TARGET_TMPDIR")))
-    }
-
-    fn in_directory(tag: &str, parent: &Path) -> Self {
+        let parent = Path::new(env!("CARGO_TARGET_TMPDIR"));
         let directory = || {
             TempDir::new_in(parent)
                 .unwrap_or_else(|error| panic!("create {tag} fixture directory: {error}"))

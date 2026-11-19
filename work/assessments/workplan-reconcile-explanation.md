@@ -13,7 +13,7 @@ inputs:
     digest: 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a
   - kind: symbol
     name: raf_workplan::Workplan::new_change
-    digest: 5c5fe7414d069ff519cc0cb3fae45975887b10895e36244cc049daed2726e704
+    digest: 4d54e6fd63543c62c1c65511b687ac05194c897163c2138a8ce9feb70f5f93a3
   - kind: symbol
     name: raf_workplan::Workplan::reconcile
     digest: dc8a8600263b5f9a10aa7cffc3ecbec81a2916b0a29dd22a1b1d161380c1b20f
@@ -43,7 +43,7 @@ inputs:
     digest: 8faccb5690df217dc2a093f3142b723662621569d56e1274a4c47b3a84d15f52
   - kind: symbol
     name: raf_workplan::lifecycle
-    digest: 5e4beea07937eab19941df86ac9acaba62402d7a09a97d20787d87498572c6ec
+    digest: 70d90598ad4c0f54d4fa29709aa1bd9aa0810e261acef4a7356bef2d2debe06b
   - kind: symbol
     name: raf_workplan::lifecycle::Impact
     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
@@ -58,7 +58,7 @@ inputs:
     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
   - kind: symbol
     name: raf_workplan::lifecycle::NewChangeError
-    digest: e477548d61f70224b576055bf2817b7474a4db83f5a06fe2f99c09934f4c6778
+    digest: f0c01e2962b0a9f94ff9cb6f1b0e25035cf804af53723c3ecbd2e9da8313ec58
   - kind: symbol
     name: raf_workplan::lifecycle::NewChangeRequest
     digest: 5979427bd8fa150f21c4a959020eb90680dd610e4a4eba487a5d0b118701d2f6

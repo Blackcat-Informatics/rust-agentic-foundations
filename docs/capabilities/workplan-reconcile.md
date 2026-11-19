@@ -202,9 +202,11 @@ Turn a change's documented effect into a concrete list of owed document and sour
 for the listed capabilities. Each listed capability's Contract is affected by
 default. Opening moves listed delivered and designed capabilities to
 implementing and preserves their authored content. The result reports the prior
-state and the applied action. Slugs, sections and paired SPDX fields are
-validated before publication. `impact` reports listed capabilities, affected
-sections, bindings, dependants and linking sections without writing.
+state and the applied action. Opening validates slugs, sections and paired SPDX
+fields, and stages original capability bytes before publication. A cleanup
+refusal after publication states that the record opened. `impact` reports
+listed capabilities, affected sections, bindings, dependants and linking
+sections without writing.
 <!-- raf:tested-by raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean,raf_workplan::test_crate::lifecycle::the_default_affects_is_the_contract_of_each_listed_capability,raf_workplan::test_crate::lifecycle::reopening_delivered_or_designed_capabilities_publishes_implementing -->
 
 Reconciliation reports unresolved proposals, missing item outcomes or reasons, missing bindings, stale generated output, unsupported tense, unsupported claims, stale or changed evidence metadata, missing or stale assessments, and missing or stale required reviews. Each obligation retains its typed subject, location and needed evidence. Ordering is deterministic; a refused source or document read remains an error.

@@ -266,7 +266,10 @@ record relations it used. Publication rechecks those relations before staging.
 An ordinary replacement preserves the current lifecycle metadata, and a
 catalogue edit must carry the computed index text. When the lifecycle metadata
 agrees, publication writes the report's authored snapshot.
-<!-- raf:tested-by raf_workplan::test_crate::complete::split_sync_refuses_stale_publication_after_completion_or_reopening,raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability,raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits -->
+Report computation refuses misplaced documents in the capability and change
+directories. Publication of computed edits or removals checks those directories
+again before staging.
+<!-- raf:tested-by raf_workplan::test_crate::complete::split_sync_refuses_stale_publication_after_completion_or_reopening,raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability,raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits,raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing -->
 
 A sync report admits its complete batch's descriptor capacity before creating
 any temporary file. Insufficient capacity returns an actionable error with no
@@ -372,8 +375,9 @@ tables that list it would be wrong.
 A block whose content differs from what the sync operation would
 write is stale. `check` fails on a stale block and names the file, the kind and the
 line of its opening marker. A sync clears that staleness finding. Both read the same
-renderers, so generated-block checks are clean exactly when sync has nothing to
-write. Other document or binding findings can remain after synchronization.
+renderers. For admitted sync inputs, generated-block checks are clean exactly
+when sync has nothing to write. Other document or binding findings can remain
+after synchronization.
 
 ### Preview selection and preserved text
 <!-- raf:tested-by raf_workplan::test_crate::preview::a_change_with_two_blocks_in_a_capability_reads_reconciled_and_other_blocks_stay,raf_workplan::test_crate::preview::another_change_reconciles_only_its_own_blocks,raf_workplan::test_crate::preview::the_slug_is_taken_with_or_without_the_prefix,raf_workplan::test_crate::preview::preview_is_deterministic,raf_workplan::test_crate::preview::a_crlf_document_keeps_its_line_endings,raf_workplan::test_crate::preview::a_block_in_a_list_item_keeps_its_indentation,raf_workplan::test_crate::preview::a_tab_after_the_quote_marker_is_kept_as_written,raf_workplan::test_crate::preview::a_nested_quote_loses_one_level_only,raf_workplan::test_crate::preview::an_unknown_slug_names_it_and_lists_the_open_changes,raf_workplan::test_crate::preview::a_change_record_that_did_not_load_says_why,raf_workplan::test_crate::preview::a_listed_capability_that_did_not_load_is_named_never_skipped -->
@@ -409,10 +413,12 @@ staged before any target rename; admission does not select incremental publicati
 <!-- raf:tested-by raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging -->
 
 Publish a computed sync report through `Workplan::write` with its explicit root.
+Use `SyncReport::new` for explicit replacement text and `Workplan::sync` to
+compute catalogue or owned diagram edits.
 The writer retains that root and admitted destinations for the entire invocation;
 a changed filesystem binding refuses with an actionable error.
-After a lifecycle metadata refusal, recompute the report from the current
-documents and publish that report.
+After a lifecycle metadata refusal, repair any reported malformed or misplaced
+documents. Compute and publish a report from the current documents.
 
 Declare a `components`, `artifacts` or `model-provenance` diagram with its owning `cap:` or `arch:`
 scope, or a `scenario` diagram with `document-id#scenario-id`. Use grouping `none`
@@ -595,8 +601,8 @@ adversarial concurrent publishers is claimed.
   the first byte is written.
   <!-- raf:tested-by raf_workplan::test_crate::sync::write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index,raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root -->
 - Every text goes to a temporary file first and is renamed into place once all are
-  written. A staging failure leaves every target unchanged and removes the temporary
-  files already staged.
+  written. A staging failure leaves every target unchanged. The writer attempts
+  to remove each temporary it still owns and reports any cleanup refusal.
   <!-- raf:tested-by raf_workplan::test_crate::sync::write_changes_no_target_when_a_later_file_cannot_be_written -->
 
 Descriptor admission reserves one inode slot per staged file, including any
@@ -606,7 +612,8 @@ concurrent host resource changes are not covered by a universal descriptor
 bound or isolation guarantee.
 <!-- raf:tested-by raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging -->
 - An ordinary sync rename failure preserves earlier published text and
-  remaining targets. It removes unpublished temporary files. Once the
+  remaining targets. The writer attempts to remove owned unpublished temporary
+  files and reports any cleanup refusal. Once the
   failing target can be replaced, the next sync computes the remaining edits.
   <!-- raf:tested-by raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail -->
 - `preview` returns text and writes nothing.
@@ -836,7 +843,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `raf_workplan::test_crate::sync::write_keeps_the_permissions_of_the_file_it_replaces` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_never_touches_a_file_that_is_already_there_under_a_temporary_name` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index` | test | [Constraints](#constraints) |
 <!-- raf:generated:end -->

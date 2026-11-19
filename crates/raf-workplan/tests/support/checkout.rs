@@ -32,7 +32,8 @@ pub(crate) fn serial() -> MutexGuard<'static, ()> {
 fn empty_home() -> &'static Path {
     static HOME: OnceLock<purrdf_testkit::TempDir> = OnceLock::new();
     HOME.get_or_init(|| {
-        purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("an empty home directory")
+        purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR"))
+            .expect("an empty home directory")
     })
     .path()
 }
@@ -107,18 +108,11 @@ impl Checkout {
         Self::below(tag, repo, "")
     }
 
-    pub(crate) fn in_test_target(tag: &str, repo: &Repo) -> Self {
-        Self::in_scratch(Scratch::in_test_target(tag), repo, "")
-    }
-
     /// As [`Checkout::new`], with the workspace in the directory `below` of the
     /// work tree (`""` for the top, `"services/api"` for two levels down), so
     /// that `git` names its files from a directory above it.
     pub(crate) fn below(tag: &str, repo: &Repo, below: &str) -> Self {
-        Self::in_scratch(Scratch::new(tag), repo, below)
-    }
-
-    fn in_scratch(scratch: Scratch, repo: &Repo, below: &str) -> Self {
+        let scratch = Scratch::new(tag);
         let top = scratch.path().join("work");
         let root = if below.is_empty() {
             top.clone()

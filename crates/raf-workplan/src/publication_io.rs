@@ -294,6 +294,7 @@ pub(crate) struct StagingGrant {
     slots: Vec<fs::File>,
 }
 
+#[derive(Clone)]
 pub(crate) struct Directory {
     root: Rc<Root>,
     path: RelPath,
@@ -398,6 +399,7 @@ fn observe(directory: &fs::File, name: &str) -> io::Result<Option<(Vec<u8>, Snap
 }
 
 /// A destination and its original presence, identity, mode and exact byte digest.
+#[derive(Clone)]
 pub(crate) struct Target {
     directory: Directory,
     path: RelPath,
@@ -563,18 +565,20 @@ impl Staged {
     pub(crate) fn target_path(&self) -> &RelPath {
         &self.target.path
     }
-    /// An ownership intent replaces the same original manifest before its final text.
-    pub(crate) fn follows(&mut self, intent: &Self) -> io::Result<()> {
-        if !Rc::ptr_eq(&self.target.directory.root, &intent.target.directory.root)
-            || self.target.path != intent.target.path
-            || self.target.current != intent.target.current
-            || self.target.directory.chain != intent.target.directory.chain
+    /// This file replaces an earlier publication of the same admitted target.
+    pub(crate) fn follows(&mut self, predecessor: &Self) -> io::Result<()> {
+        if !Rc::ptr_eq(
+            &self.target.directory.root,
+            &predecessor.target.directory.root,
+        ) || self.target.path != predecessor.target.path
+            || self.target.current != predecessor.target.current
+            || self.target.directory.chain != predecessor.target.directory.chain
         {
             return Err(refused(
-                "ownership intent does not replace the same admitted manifest",
+                "metadata predecessor does not replace the same admitted target",
             ));
         }
-        self.target.current = Some(intent.state.clone());
+        self.target.current = Some(predecessor.state.clone());
         Ok(())
     }
 
@@ -609,23 +613,79 @@ impl Staged {
         discard_owned(&self.target.directory, &self.name, &self.file)
     }
 
-    /// Undo this exact publication, preserving a replacement made by another writer.
-    pub(crate) fn undo(&self, original: Option<&str>) -> io::Result<()> {
-        let target = self.target.directory.root.capture(&self.target.path)?;
-        if target.current.as_ref() != Some(&self.state) {
-            return Err(refused(format!(
-                "cannot restore {} because its published contents changed",
-                self.target.path
-            )));
-        }
-        let Some(text) = original else {
-            return target.remove();
-        };
-        let staged = target.stage(text)?;
-        staged
-            .publish()
-            .map_err(|error| cleanup_after(error, &[staged]))
+    /// Remove this publication only while it still occupies the admitted target.
+    pub(crate) fn remove_published(&self) -> io::Result<()> {
+        let mut target = self.target.clone();
+        target.current = Some(self.state.clone());
+        target.remove()
     }
+}
+
+/// State originals staged ahead of publication, in restoration order.
+#[derive(Default)]
+pub(crate) struct Rollback {
+    pending: BTreeMap<RelPath, Staged>,
+    published: Vec<Staged>,
+}
+
+impl Rollback {
+    pub(crate) fn stage(
+        &mut self,
+        target: Target,
+        replacement: &str,
+        original: Option<&str>,
+        grant: &mut StagingGrant,
+    ) -> io::Result<Staged> {
+        let Some(original) = original else {
+            return target.stage_reserved(replacement, grant);
+        };
+        let forward = target.clone().stage_reserved(replacement, grant)?;
+        let mut backup = match target.stage_reserved(original, grant) {
+            Ok(backup) => backup,
+            Err(error) => return Err(with_cleanup(error, forward.discard())),
+        };
+        if let Err(error) = backup.follows(&forward) {
+            return Err(cleanup_after(error, &[forward, backup]));
+        }
+        self.pending.insert(forward.target_path().clone(), backup);
+        Ok(forward)
+    }
+
+    pub(crate) fn published(&mut self, forward: &Staged) {
+        if let Some(backup) = self.pending.remove(forward.target_path()) {
+            self.published.push(backup);
+        }
+    }
+
+    pub(crate) fn restore(&self) -> io::Result<()> {
+        finish_all(self.published.iter().rev().map(Staged::publish))
+    }
+
+    pub(crate) fn restore_after(self, error: io::Error) -> io::Error {
+        let error = with_cleanup(error, self.restore());
+        with_cleanup(error, self.discard())
+    }
+
+    pub(crate) fn discard(self) -> io::Result<()> {
+        finish_all(
+            self.pending
+                .values()
+                .chain(&self.published)
+                .map(Staged::discard),
+        )
+    }
+}
+
+/// Attempt every restoration or discard even when an earlier operation failed.
+fn finish_all(operations: impl Iterator<Item = io::Result<()>>) -> io::Result<()> {
+    let mut result = Ok(());
+    for operation in operations {
+        result = match result {
+            Ok(()) => operation,
+            Err(error) => Err(with_cleanup(error, operation)),
+        };
+    }
+    result
 }
 
 /// Cleanup owns an inode, not whatever bytes now occupy its former name.

@@ -102,6 +102,13 @@ pub enum LifecycleError {
         /// The removal failure.
         source: io::Error,
     },
+    /// The record was removed, but its rollback files could not all be removed.
+    Cleanup {
+        /// The removed change record.
+        path: String,
+        /// The cleanup failure.
+        source: io::Error,
+    },
     /// A record destination or parent is not owned and regular.
     RecordRefused {
         /// The refused path.
@@ -164,6 +171,10 @@ impl fmt::Display for LifecycleError {
                 "cannot remove `{path}`: {source}; documentation publication touched {}; sync generated documents before retrying completion",
                 rewritten.join(", ")
             ),
+            Self::Cleanup { path, source } => write!(
+                f,
+                "completed `{path}`, but could not remove every staged original: {source}"
+            ),
             Self::RecordRefused { path, source } => write!(
                 f,
                 "change-record destination `{path}` is refused: {source}; use regular directories and a regular record file; nothing was written"
@@ -184,6 +195,7 @@ impl Error for LifecycleError {
             Self::Sync(error) => Some(error),
             Self::Rewrite { source }
             | Self::Remove { source, .. }
+            | Self::Cleanup { source, .. }
             | Self::RecordRefused { source, .. } => Some(source),
             Self::Surface { .. } | Self::Document { .. } | Self::Unloaded { .. } => None,
         }

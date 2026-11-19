@@ -21,7 +21,7 @@ use crate::digest::semantic_hash;
 use crate::files;
 use crate::generated;
 use crate::graph::SectionId;
-use crate::publication_io::{Root, Target, cleanup_after, with_cleanup};
+use crate::publication_io::{Rollback, Root, Target, cleanup_after, with_cleanup};
 use crate::spdx::{self, SpdxError};
 use crate::staged::Staged;
 use crate::{Finding, Workplan};
@@ -322,6 +322,13 @@ pub enum NewChangeError {
         /// Why.
         source: io::Error,
     },
+    /// The change opened successfully, but its rollback files could not all be removed.
+    Cleanup {
+        /// The published record.
+        path: RelPath,
+        /// The cleanup failure.
+        source: io::Error,
+    },
 }
 
 impl fmt::Display for NewChangeError {
@@ -389,6 +396,12 @@ impl fmt::Display for NewChangeError {
                 crate::lookup::write_findings(f, findings)
             }
             Self::Write { path, source } => write!(f, "cannot write {path}: {source}"),
+            Self::Cleanup { path, source } => {
+                write!(
+                    f,
+                    "opened {path}, but could not remove every staged original: {source}"
+                )
+            }
         }
     }
 }
@@ -397,7 +410,7 @@ impl Error for NewChangeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Build(error) => Some(error),
-            Self::Write { source, .. } => Some(source),
+            Self::Write { source, .. } | Self::Cleanup { source, .. } => Some(source),
             _ => None,
         }
     }
@@ -478,8 +491,9 @@ impl Workplan<'_> {
     /// anything is written;
     /// `Exists` when a file is already at the path (also when the record of the
     /// slug is loaded or is there and did not load); `Write` when publication
-    /// is refused, including any restoration error; and `Invalid` when the
-    /// proposed record does not load clean.
+    /// is refused, including any restoration error; `Invalid` when the
+    /// proposed record does not load clean; and `Cleanup` when opening succeeds
+    /// but a staged original remains.
     pub fn new_change(
         &self,
         root: &Path,
@@ -610,7 +624,13 @@ impl Workplan<'_> {
         edits.sort_unstable_by(|left, right| left.0.cmp(&right.0));
         let after = self.preview_new(root.tree(), path, slug, &edits)?;
         let sync_needed = after != pending_sync(self);
-        publish(&root, path, text, states).map_err(failed)?;
+        publish(&root, path, text, states)
+            .map_err(failed)?
+            .discard()
+            .map_err(|source| NewChangeError::Cleanup {
+                path: path.clone(),
+                source,
+            })?;
         Ok(sync_needed)
     }
 
@@ -653,25 +673,35 @@ fn publish(
     path: &RelPath,
     text: &str,
     states: Vec<StatePublication>,
-) -> io::Result<()> {
+) -> io::Result<Rollback> {
     root.create_parents(path)?;
     let record = root.capture(path)?;
     record.verify_content(None)?;
+    let count = states
+        .len()
+        .checked_mul(2)
+        .and_then(|count| count.checked_add(1))
+        .ok_or_else(|| io::Error::other("metadata staging count overflow"))?;
     let mut grant = root.reserve_staging(
-        states.len() + 1,
+        count,
         std::iter::once(&record).chain(states.iter().map(|row| &row.target)),
     )?;
     let mut staged = vec![record.stage_reserved(text, &mut grant)?];
-    let mut originals = Vec::new();
+    let mut rollback = Rollback::default();
     for state in states {
-        match state.target.stage_reserved(&state.replacement, &mut grant) {
-            Ok(file) => {
-                staged.push(file);
-                originals.push(state.original);
-            }
+        match rollback.stage(
+            state.target,
+            &state.replacement,
+            Some(&state.original),
+            &mut grant,
+        ) {
+            Ok(file) => staged.push(file),
             Err(error) => {
                 drop(grant);
-                return Err(cleanup_after(error, &staged));
+                return Err(with_cleanup(
+                    cleanup_after(error, &staged),
+                    rollback.discard(),
+                ));
             }
         }
     }
@@ -679,21 +709,18 @@ fn publish(
     for (index, file) in staged.iter().enumerate() {
         if let Err(error) = file.publish() {
             let mut error = cleanup_after(error, &staged[index..]);
-            if index != 0 {
-                let mut restored = true;
-                for (file, original) in staged[1..index].iter().zip(&originals).rev() {
-                    let result = file.undo(Some(original));
-                    restored &= result.is_ok();
-                    error = with_cleanup(error, result);
-                }
-                if restored {
-                    error = with_cleanup(error, staged[0].undo(None));
-                }
+            let restored = rollback.restore();
+            if index != 0 && restored.is_ok() {
+                error = with_cleanup(error, staged[0].remove_published());
             }
-            return Err(error);
+            return Err(with_cleanup(
+                with_cleanup(error, restored),
+                rollback.discard(),
+            ));
         }
+        rollback.published(file);
     }
-    Ok(())
+    Ok(rollback)
 }
 
 /// The path of the record of `slug`, a kebab-case slug. A name the tree
