@@ -30,7 +30,7 @@ pub(crate) struct Args {
 #[derive(Subcommand)]
 pub(crate) enum Command {
     /// Compare committed Cap'n Proto schema descriptors under the strict history policy.
-    CapnpHistory(HistoryArgs),
+    CapnpHistory(Box<HistoryArgs>),
     /// Inspect verified embedded source regions without running consumer code.
     Embedded {
         #[command(subcommand)]
@@ -122,6 +122,21 @@ pub(crate) struct HistoryArgs {
     /// Void field annotation that declares required pointer storage.
     #[arg(long)]
     pub(crate) required_annotation: Option<raf_census::capnp_history::TypeId>,
+    /// Trusted Ed25519 public key as lowercase hexadecimal digits.
+    #[arg(long, requires_all = ["base_capture", "base_capture_signature", "current_capture", "current_capture_signature"])]
+    pub(crate) capture_key: Option<raf_census::capnp_history::CaptureKey>,
+    /// Committed capture statement in the base revision.
+    #[arg(long, requires = "capture_key", value_parser = raf_source::RelPath::new)]
+    pub(crate) base_capture: Option<raf_source::RelPath>,
+    /// Committed detached signature in the base revision.
+    #[arg(long, requires = "capture_key", value_parser = raf_source::RelPath::new)]
+    pub(crate) base_capture_signature: Option<raf_source::RelPath>,
+    /// Committed capture statement in the current revision.
+    #[arg(long, requires = "capture_key", value_parser = raf_source::RelPath::new)]
+    pub(crate) current_capture: Option<raf_source::RelPath>,
+    /// Committed detached signature in the current revision.
+    #[arg(long, requires = "capture_key", value_parser = raf_source::RelPath::new)]
+    pub(crate) current_capture_signature: Option<raf_source::RelPath>,
 }
 
 /// Gate requirements the caller selects for one run; nothing here is persisted

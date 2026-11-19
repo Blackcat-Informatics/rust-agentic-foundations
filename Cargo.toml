@@ -47,6 +47,7 @@ capnp = { version = "=0.28.1", features = ["unaligned"] }
 purrdf-markdown = { version = "=4" }
 purrdf-toml = { version = "=4" }
 purrdf-alloc-probe = { version = "=4" }
+purrdf-ed25519 = { version = "=4" }
 purrdf-hash = { version = "=4" }
 purrdf-lex = { version = "=4" }
 purrdf-jsonschema = { version = "=4" }

@@ -6,7 +6,9 @@
 use crate::cli::{
     Args, Command, HistoryArgs, MigrationArgs, QueryTarget, RdfFormat, ReferenceArgs, RegistryArgs,
 };
-use raf_census::capnp_history::{self, Snapshot};
+use raf_census::capnp_history::{
+    self, CaptureFiles, CaptureVerification, HistoryOptions, Snapshot,
+};
 use raf_census::{
     ArchiveCache, Census, CensusOptions, Error, ExternalReference, Gate, GateReport, LEDGER_FILE,
     Ledger, LockedRegistry, MAX_INDEX_BYTES, MAX_LEDGER_BYTES, MigrationInput, ReportError,
@@ -129,6 +131,33 @@ fn compare_schema_history(
         RelPath::new(&args.base_descriptor).map_err(|error| Error::Options(error.to_string()))?;
     let current_descriptor = RelPath::new(&args.current_descriptor)
         .map_err(|error| Error::Options(error.to_string()))?;
+    let capture = match (
+        &args.capture_key,
+        &args.base_capture,
+        &args.base_capture_signature,
+        &args.current_capture,
+        &args.current_capture_signature,
+    ) {
+        (Some(key), Some(base), Some(base_signature), Some(current), Some(current_signature)) => {
+            Some(CaptureVerification {
+                key,
+                base: CaptureFiles {
+                    statement: base,
+                    signature: base_signature,
+                },
+                current: CaptureFiles {
+                    statement: current,
+                    signature: current_signature,
+                },
+            })
+        }
+        (None, None, None, None, None) => None,
+        _ => return Err(Error::Options(
+            "capture verification needs a public key and both committed statements and signatures"
+                .to_owned(),
+        )
+        .into()),
+    };
     let findings = capnp_history::check(
         root,
         Snapshot {
@@ -139,8 +168,11 @@ fn compare_schema_history(
             commit: &args.current,
             descriptor: &current_descriptor,
         },
-        &args.types,
-        args.required_annotation,
+        HistoryOptions {
+            roots: &args.types,
+            required_annotation: args.required_annotation,
+            capture,
+        },
     )?;
     for finding in &findings {
         writeln!(output, "{finding}").map_err(stdout)?;

@@ -3,6 +3,7 @@
 
 //! Strict layout history for explicitly selected types in committed Cap'n Proto descriptors.
 
+mod capture;
 mod compare;
 mod descriptor;
 mod occupancy;
@@ -14,6 +15,7 @@ use std::{collections::BTreeSet, fmt, path::Path, str::FromStr};
 
 use raf_source::{LoadError, LoadOptions, PinnedGitTree, RelPath, Tree, TreeError};
 
+pub use capture::{CaptureError, CaptureFiles, CaptureKey, CaptureVerification, InvalidCaptureKey};
 pub use compare::{Change, ChangeKind};
 
 /// Schema node ID in the compiler's 64-bit identity space.
@@ -63,6 +65,17 @@ pub struct Snapshot<'a> {
     pub descriptor: &'a RelPath,
 }
 
+/// Selected schema roots and optional policies for one comparison.
+#[derive(Clone, Copy, Debug)]
+pub struct HistoryOptions<'a> {
+    /// Struct or enum IDs whose data references define the comparison closure.
+    pub roots: &'a [TypeId],
+    /// Void field annotation identifying required pointer fields, if selected.
+    pub required_annotation: Option<TypeId>,
+    /// Authenticate and corroborate both committed compiler captures, if selected.
+    pub capture: Option<CaptureVerification<'a>>,
+}
+
 /// An input that prevented a complete strict history verdict.
 #[derive(Debug)]
 pub enum Error {
@@ -84,6 +97,15 @@ pub enum Error {
         /// The blob read error, including its path.
         source: TreeError,
     },
+    /// A capture or one of its recorded blobs could not be admitted.
+    Capture {
+        /// Supplied object ID.
+        commit: String,
+        /// Repository-relative capture statement.
+        path: RelPath,
+        /// Authentication or artifact failure.
+        source: CaptureError,
+    },
     /// The descriptor could not establish its selected layout.
     Descriptor {
         /// Supplied object ID.
@@ -104,6 +126,14 @@ pub enum DescriptorError {
     Tag(capnp::NotInSchema),
     /// The selected closure contains inconsistent or unsupported information.
     Layout(String),
+    /// A descriptor does not agree with its signed compiler capture.
+    Capture(CaptureError),
+}
+
+impl From<CaptureError> for DescriptorError {
+    fn from(source: CaptureError) -> Self {
+        Self::Capture(source)
+    }
 }
 
 impl From<capnp::Error> for DescriptorError {
@@ -124,6 +154,7 @@ impl fmt::Display for DescriptorError {
             Self::Wire(source) => source.fmt(f),
             Self::Tag(source) => source.fmt(f),
             Self::Layout(message) => f.write_str(message),
+            Self::Capture(source) => source.fmt(f),
         }
     }
 }
@@ -134,6 +165,7 @@ impl std::error::Error for DescriptorError {
             Self::Wire(source) => Some(source),
             Self::Tag(source) => Some(source),
             Self::Layout(_) => None,
+            Self::Capture(source) => Some(source),
         }
     }
 }
@@ -153,6 +185,10 @@ impl fmt::Display for Error {
             Self::Read { commit, source } => {
                 write!(f, "Cap'n Proto read at {commit}: {source}")
             }
+            Self::Capture { commit, path, source } => write!(
+                f,
+                "Cap'n Proto capture {path} at {commit}: {source}; check the trusted key and committed capture inputs"
+            ),
             Self::Descriptor {
                 commit,
                 path,
@@ -171,6 +207,7 @@ impl std::error::Error for Error {
             Self::Roots | Self::FindingLimit => None,
             Self::Revision { source, .. } => Some(source),
             Self::Read { source, .. } => Some(source),
+            Self::Capture { source, .. } => Some(source),
             Self::Descriptor { source, .. } => Some(source),
         }
     }
@@ -182,37 +219,41 @@ impl std::error::Error for Error {
 /// tree files and runs no compiler, generator, consumer program, or migration.
 /// A change describes a history violation, including renames that the wire
 /// protocol permits.
-/// Supply `required_annotation` to also compare explicit required pointer
-/// fields. The ID must name a Void annotation targeting fields in both snapshots.
+/// The optional marker must name a Void annotation targeting fields in both
+/// snapshots. Optional capture verification admits both compiled inputs
+/// against the caller's trusted key before projecting the selected layout.
 ///
 /// # Errors
 ///
 /// Refuses missing or repeated roots, unavailable commits or blobs, and
-/// malformed, incomplete, or unsupported selected layouts.
+/// malformed, incomplete, or unsupported layout or capture inputs.
 pub fn check(
     repository: impl AsRef<Path>,
     base: Snapshot<'_>,
     current: Snapshot<'_>,
-    roots: &[TypeId],
-    required_annotation: Option<TypeId>,
+    options: HistoryOptions<'_>,
 ) -> Result<Vec<Change>, Error> {
-    let selected: BTreeSet<_> = roots.iter().copied().collect();
-    if selected.is_empty() || selected.len() != roots.len() {
+    let selected: BTreeSet<_> = options.roots.iter().copied().collect();
+    if selected.is_empty() || selected.len() != options.roots.len() {
         return Err(Error::Roots);
     }
     let base = load(
         repository.as_ref(),
         base,
         &selected,
-        required_annotation,
+        options.required_annotation,
         true,
+        options.capture.map(|capture| (capture.key, capture.base)),
     )?;
     let current = load(
         repository.as_ref(),
         current,
         &selected,
-        required_annotation,
+        options.required_annotation,
         false,
+        options
+            .capture
+            .map(|capture| (capture.key, capture.current)),
     )?;
     compare::changes(&base, &current)
 }
@@ -223,6 +264,7 @@ fn load(
     roots: &BTreeSet<TypeId>,
     required_annotation: Option<TypeId>,
     require_roots: bool,
+    verification: Option<(&CaptureKey, CaptureFiles<'_>)>,
 ) -> Result<descriptor::Schema, Error> {
     let tree = PinnedGitTree::open(repository, snapshot.commit, &LoadOptions::default()).map_err(
         |source| Error::Revision {
@@ -236,11 +278,36 @@ fn load(
             commit: snapshot.commit.into(),
             source,
         })?;
-    descriptor::read(&bytes, roots, required_annotation, require_roots).map_err(|source| {
-        Error::Descriptor {
+    let capture = verification
+        .map(|(key, files)| {
+            capture::load(&tree, files, key, (snapshot.descriptor, &bytes)).map_err(|source| {
+                Error::Capture {
+                    commit: snapshot.commit.into(),
+                    path: files.statement.clone(),
+                    source,
+                }
+            })
+        })
+        .transpose()?;
+    descriptor::read(
+        &bytes,
+        roots,
+        required_annotation,
+        require_roots,
+        capture
+            .as_ref()
+            .map(|capture| (capture, &tree as &dyn Tree)),
+    )
+    .map_err(|source| match (source, verification) {
+        (DescriptorError::Capture(source), Some((_, files))) => Error::Capture {
+            commit: snapshot.commit.into(),
+            path: files.statement.clone(),
+            source,
+        },
+        (source, _) => Error::Descriptor {
             commit: snapshot.commit.into(),
             path: snapshot.descriptor.clone(),
             source,
-        }
+        },
     })
 }

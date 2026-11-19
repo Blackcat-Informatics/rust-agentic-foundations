@@ -7,16 +7,16 @@ subject: cap:census-cli#constraints
 inputs:
   - kind: section
     name: cap:census-cli#constraints
-    digest: c4ad6f41a2d5aeb4335d889a95bcf3cab27771e405d4e4b703a20e28224255a9
+    digest: ca5b70ad68a7463b93f1979595299eabbdc75b709a6f23a0151a1f14ced7a829
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
   - kind: symbol
     name: cargo_census::cli
-    digest: 7529501652fb3da77c7d2bba753c31bdf925797a77126341ae981857293fdaf5
+    digest: 80e3dc00c2948183f19d8d4c23fdb2944a25283094c09ec11dcead565f6f4a81
   - kind: symbol
     name: cargo_census::command
-    digest: 667c8dccf27183eca6b06acdeae3aae724b9766b359c0af3de9f00564c95c68d
+    digest: 9012265832810f45168726c42764868ac83623b207200f1cd9aec5776ffd3701
   - kind: symbol
     name: cargo_census::error
     digest: fc73ef64cd895b6b3b30b1b8b547c21e50ef07884ddb91c40f27451c88a63c10
@@ -58,7 +58,7 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: c846fe7717ed5ed7b75bbbc2e9cbbc77d7c4031cc9f9a6d0a8efad03d7a0a857
+    digest: 2183a67686931d6dc86ae8a60d190078128302e67e75361c24ab449f2c0ba0e7
   - kind: symbol
     name: raf_census::registered
     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1

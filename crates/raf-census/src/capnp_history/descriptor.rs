@@ -14,9 +14,11 @@ use capnp::{
     schema_capnp::{code_generator_request, field, node, type_, value},
     serialize,
 };
+use raf_source::Tree;
 
 use super::{
     DescriptorError as Error, TypeId,
+    capture::Capture,
     occupancy::{Occupancy, POINTER_BASE},
     shape::{self, DefaultValue, Type},
 };
@@ -81,6 +83,7 @@ pub(super) fn read(
     roots: &BTreeSet<TypeId>,
     required_annotation: Option<TypeId>,
     require_roots: bool,
+    capture: Option<(&Capture, &dyn Tree)>,
 ) -> Result<Schema, Error> {
     let mut limits = ReaderOptions::new();
     limits.traversal_limit_in_words(Some(MAX_WORDS));
@@ -103,6 +106,9 @@ pub(super) fn read(
         if id.0 & (1 << 63) == 0 || nodes.insert(id, node).is_some() {
             return Err(layout(format!("invalid or repeated node ID {id}")));
         }
+    }
+    if let Some((capture, tree)) = capture {
+        capture.verify_request(tree, request, &nodes)?;
     }
     let nodes = Nodes(nodes);
     let mut scopes = DeclarationScopes::new();
