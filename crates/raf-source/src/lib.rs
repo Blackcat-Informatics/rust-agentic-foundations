@@ -197,7 +197,7 @@ pub use budget::{
     Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES, SYNTAX_BYTES_PER_BYTE_DEN,
     SYNTAX_BYTES_PER_BYTE_NUM, SYNTAX_BYTES_PER_NODE,
 };
-pub use code::{CodeResolveError, CodeResolver, ExternLibrary, ExternRouteKind};
+pub use code::{CodeResolveError, CodeResolver, ExternLibrary, ExternRouteKind, IndexedImport};
 pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport};
 pub use facts::visit_pattern_bindings;
@@ -236,6 +236,7 @@ pub use tree::{
     CapturedDirectory, CapturedFile, CapturedLink, CommittedGitTree, DiskTree, Entry, EntryKind,
     FileId, MemoryTree, Opened, OpenedBytes, PinnedGitTree, RegistryArchiveTree, SourceTrees, Tree,
 };
+pub use verbatim::visit_grouped_import;
 pub use workspace::{
     ForeignModulePath, LockedBinding, LockedEdge, LockedManifest, LockedPackageRoots, LockedTree,
     ReferenceBinding, ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree,

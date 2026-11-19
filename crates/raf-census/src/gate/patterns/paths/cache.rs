@@ -17,6 +17,8 @@ pub(super) struct OwnerCache<'w> {
     // Exact physical admission covers the ordered slot arena only.
     bytes: usize,
     unit: usize,
+    latest: Option<(usize, Vec<&'w Item>)>,
+    latest_only: bool,
 }
 
 // An AVL tree has height below twice the key count's bit length. The extra
@@ -26,6 +28,13 @@ fn height_bound(entries: usize) -> u64 {
 }
 
 impl<'w> OwnerCache<'w> {
+    pub(super) fn one_occurrence() -> Self {
+        Self {
+            latest_only: true,
+            ..Self::default()
+        }
+    }
+
     pub(super) fn get(
         &mut self,
         workspace: &'w Workspace,
@@ -33,6 +42,19 @@ impl<'w> OwnerCache<'w> {
         byte: usize,
         limits: &mut MatchLimits,
     ) -> Result<&[&'w Item], Error> {
+        if self.latest_only {
+            charge("paths", limits, 1)?;
+            if self.latest.as_ref().is_none_or(|(known, _)| *known != byte) {
+                self.latest = None;
+                let owners = self.read(workspace, file, byte, limits)?;
+                self.latest = Some((byte, owners));
+            }
+            return Ok(&self
+                .latest
+                .as_ref()
+                .expect("INVARIANT: the current owner lookup stores an entry before returning")
+                .1);
+        }
         charge("paths", limits, height_bound(self.entries.len()))?;
         if self.entries.get(&byte).is_none() {
             self.load(workspace, file, byte, limits)?;
@@ -48,23 +70,8 @@ impl<'w> OwnerCache<'w> {
         byte: usize,
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
-        let candidates = workspace.item_count_in(&file.path);
-        let work = candidates.saturating_mul(file.path.as_str().len().saturating_add(4));
-        charge("paths", limits, work.try_into().unwrap_or(u64::MAX))?;
-        self.admit(candidates, limits)?;
-        let mut owners = workspace.item_at(&file.path, byte);
-        let mut real = 0;
-        for index in 0..owners.len() {
-            if !workspace.same_source(owners[index]).is_empty() {
-                owners.swap(real, index);
-                real += 1;
-            }
-        }
-        if real != 0 {
-            owners.truncate(real);
-        }
+        let owners = self.read(workspace, file, byte, limits)?;
         let retained = owners.capacity();
-        self.admit(retained, limits)?;
         // Precharge the native search and AVL parent/height/link edits, with
         // 32 primitive operations per possible level. Array growth is charged
         // separately by the native producer's exact layout callback.
@@ -99,6 +106,32 @@ impl<'w> OwnerCache<'w> {
         }
         self.retained = self.retained.saturating_add(retained);
         Ok(())
+    }
+
+    fn read(
+        &self,
+        workspace: &'w Workspace,
+        file: &SourceFile,
+        byte: usize,
+        limits: &mut MatchLimits,
+    ) -> Result<Vec<&'w Item>, Error> {
+        let candidates = workspace.item_count_in(&file.path);
+        let work = candidates.saturating_mul(file.path.as_str().len().saturating_add(4));
+        charge("paths", limits, work.try_into().unwrap_or(u64::MAX))?;
+        self.admit(candidates, limits)?;
+        let mut owners = workspace.item_at(&file.path, byte);
+        let mut real = 0;
+        for index in 0..owners.len() {
+            if !workspace.same_source(owners[index]).is_empty() {
+                owners.swap(real, index);
+                real += 1;
+            }
+        }
+        if real != 0 {
+            owners.truncate(real);
+        }
+        self.admit(owners.capacity(), limits)?;
+        Ok(owners)
     }
 
     fn admit(&self, references: usize, limits: &MatchLimits) -> Result<(), Error> {

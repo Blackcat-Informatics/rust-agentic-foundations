@@ -533,7 +533,7 @@ fn resolve_call(
 
 /// An inherent candidate can take precedence only when the native type lookup
 /// identifies one nominal definition and every candidate belongs to its member.
-fn inherent_candidate(
+pub(super) fn inherent_candidate(
     workspace: &Workspace,
     path: &str,
     candidates: &[ItemId],

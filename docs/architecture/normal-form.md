@@ -333,9 +333,15 @@ copies.
 
 ## Reports
 
-The census writes two ground RDF 1.2 graphs as canonical Turtle and N-Triples: the baseline
-summarizes repeated bodies, shims, tables and large constants; the index lists
-every unit, group and classified job match. Every subject has exactly one type.
+The census writes ground RDF 1.2 graphs as canonical Turtle and N-Triples. The
+baseline summarizes repeated bodies, shims, tables and large constants. The
+index lists every unit, group and classified job match. Every subject has
+exactly one type.
+
+The visibility census uses a separate `WorkspaceVisibility` root for
+declaration, export and written use evidence. See the
+[workspace library visibility census](../capabilities/census-visibility.md).
+
 Selected JobQuery, CountQuery and FingerprintQuery reports use their own closed
 root classes rather than relabeling a partial Index. A job query retains its
 Job, Match and full index-unit nodes; a count query contains jobId and exact
@@ -370,8 +376,9 @@ A job match asserts `job census:match unit`; its named RDF 1.2 reifier carries
 requires exactly one reifier, and copies equals
 the number classified Copy.
 
-The closed shape is stated below. Every class also requires exactly one rdf:type;
-no other subject, predicate, class, individual or datatype is admitted. Baseline
+The table below states the closed shapes of the typed carriers it lists.
+Every class requires exactly one rdf:type. Each carrier admits only the
+subjects, predicates, classes, individuals and datatypes its shape defines. Baseline
 units must be referenced by a group, shared constant or holds property. Every
 reference must resolve, and minted node names must agree with their properties.
 A Baseline, Index or DebtRecord states its grouping scope with excludeTestItems,

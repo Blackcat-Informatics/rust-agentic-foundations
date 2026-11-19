@@ -15,6 +15,7 @@ mod reference;
 mod registry;
 mod rules;
 mod subjects;
+mod visibility;
 
 pub use migrate::{
     ForeignField, ForeignLedgerAdapter, MAX_INDEX_BYTES, Migration, MigrationInput, UnmappedRow,
@@ -22,6 +23,7 @@ pub use migrate::{
 };
 pub use reference::{ExternalReference, ReferenceRoot};
 pub use registry::{ArchiveCache, LockedRegistry};
+pub use visibility::visibility;
 
 use std::path::{Component, Path, PathBuf};
 

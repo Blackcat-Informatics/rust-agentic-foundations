@@ -52,6 +52,15 @@ pub(crate) enum Command {
         #[arg(long)]
         out: Option<PathBuf>,
     },
+    /// Inventory public workspace library declarations and cross-package uses.
+    Visibility {
+        /// Native RDF 1.2 report carrier.
+        #[arg(long, value_enum, default_value = "ntriples")]
+        format: RdfFormat,
+        /// Write the complete report here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Read the complete index through the native repository gate.
     Index(QueryTarget),
     /// Inspect every classified physical match of one configured job.

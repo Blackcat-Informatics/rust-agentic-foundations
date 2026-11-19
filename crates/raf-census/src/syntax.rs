@@ -279,22 +279,31 @@ impl Names {
         self.alias(name, Vec::new(), false, None, false, AliasAttributes::Inert);
     }
 
+    pub(crate) fn import_tree(
+        &mut self,
+        tree: &syn::UseTree,
+        absolute: bool,
+        attributes: &[syn::Attribute],
+    ) {
+        let attributes = AliasAttributes::of(attributes);
+        visit_import_paths(tree, |path, alias| {
+            if let Some(alias) = alias {
+                self.alias(
+                    alias.unraw().to_string(),
+                    path.iter().map(|ident| ident.unraw().to_string()).collect(),
+                    absolute,
+                    path.first().map(|ident| ident.span().byte_range().start),
+                    false,
+                    attributes,
+                );
+            }
+        });
+    }
+
     pub(crate) fn item(&mut self, item: &syn::Item) {
         let (shadow, attributes) = match item {
             syn::Item::Use(item) => {
-                let attributes = AliasAttributes::of(&item.attrs);
-                visit_import_paths(&item.tree, |path, alias| {
-                    if let Some(alias) = alias {
-                        self.alias(
-                            alias.unraw().to_string(),
-                            path.iter().map(|ident| ident.unraw().to_string()).collect(),
-                            item.leading_colon.is_some(),
-                            path.first().map(|ident| ident.span().byte_range().start),
-                            false,
-                            attributes,
-                        );
-                    }
-                });
+                self.import_tree(&item.tree, item.leading_colon.is_some(), &item.attrs);
                 return;
             }
             syn::Item::ExternCrate(item) => {

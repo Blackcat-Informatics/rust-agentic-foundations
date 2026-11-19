@@ -18,6 +18,7 @@ use purrdf_lex::walk::WorkList;
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 use crate::manifest::{self, Manifest, PackageDecl};
+use crate::members::members;
 use crate::meter::{ItemAdmission, Meter, push_item_work};
 use crate::path::{RelPath, SourceAuthorityId};
 use crate::target::Package;
@@ -57,7 +58,28 @@ fn skipped(name: &str) -> bool {
     name == "target" || name.starts_with('.')
 }
 
-impl Walk<'_> {
+impl<'a> Walk<'a> {
+    fn new(tree: &'a dyn Tree, meter: &'a Meter, at: &RelPath) -> Result<Self, LoadError> {
+        meter.items(
+            size_of::<OrderedTable<(SourceAuthorityId, String), RelPath>>(),
+            at,
+            None,
+        )?;
+        Ok(Self {
+            tree,
+            meter,
+            found: BTreeMap::new(),
+            names: OrderedTable::default(),
+            name_bytes: 0,
+        })
+    }
+
+    fn finish(self) -> Discovered {
+        Discovered {
+            packages: self.found.into_values().collect(),
+        }
+    }
+
     /// Retain one source-local package name through the original item allowance.
     fn remember_name(&mut self, name: &str, path: &RelPath) -> Result<(), LoadError> {
         let mut admission = ItemAdmission::resume(self.meter, path, self.name_bytes);
@@ -113,33 +135,34 @@ impl Walk<'_> {
         }
     }
 
-    /// Read the manifest of `dir`, if it has one. Returns whether the walk goes
-    /// on into the directory's children.
-    fn manifest(&mut self, dir: &RelPath) -> Result<bool, LoadError> {
+    fn manifest_path(dir: &RelPath) -> Result<RelPath, LoadError> {
         let origin = Origin::Discovery;
-        let path = dir
-            .join("Cargo.toml")
-            .map_err(|error| LoadError::tree(dir, None, &origin, error.into()))?;
+        dir.join("Cargo.toml")
+            .map_err(|error| LoadError::tree(dir, None, &origin, error.into()))
+    }
+
+    fn read_manifest(&self, path: &RelPath) -> Result<Option<Manifest>, LoadError> {
+        let origin = Origin::Discovery;
         let present = self
             .tree
-            .entry(&path)
-            .map_err(|error| LoadError::tree(&path, None, &origin, error))?;
+            .entry(path)
+            .map_err(|error| LoadError::tree(path, None, &origin, error))?;
         if present.is_none() {
-            return Ok(true);
+            return Ok(None);
         }
         let text = self
             .tree
-            .read(&path, self.meter.options().max_file_bytes)
-            .map_err(|error| LoadError::tree(&path, None, &origin, error))?;
+            .read(path, self.meter.options().max_file_bytes)
+            .map_err(|error| LoadError::tree(path, None, &origin, error))?;
         self.meter
-            .read(&path, &text)
+            .read(path, &text)
             .map_err(|error| error.reached_by(&origin))?;
-        let mut parsed = manifest::parse(&text).map_err(|problem| {
+        manifest::parse(&text).map(Some).map_err(|problem| {
             let origin = problem
                 .key
                 .map_or(Origin::Discovery, |key| Origin::ManifestKey { key });
             LoadError::new(
-                &path,
+                path,
                 None,
                 LoadErrorKind::Manifest {
                     message: problem.message,
@@ -147,7 +170,25 @@ impl Walk<'_> {
                 },
             )
             .reached_by(&origin)
-        })?;
+        })
+    }
+
+    /// Read the manifest of `dir`, if it has one. Returns whether the walk goes
+    /// on into the directory's children.
+    fn manifest(&mut self, dir: &RelPath) -> Result<bool, LoadError> {
+        let path = Self::manifest_path(dir)?;
+        let Some(parsed) = self.read_manifest(&path)? else {
+            return Ok(true);
+        };
+        self.retain_manifest(dir, path, parsed)
+    }
+
+    fn retain_manifest(
+        &mut self,
+        dir: &RelPath,
+        path: RelPath,
+        mut parsed: Manifest,
+    ) -> Result<bool, LoadError> {
         let descend = parsed.package.is_none() || parsed.has_workspace;
         if let Some(package) = parsed.package.take() {
             match self.names.get_by(|(authority, name)| {
@@ -265,6 +306,53 @@ impl Walk<'_> {
     }
 }
 
+fn missing_selection(path: &RelPath, message: &str) -> LoadError {
+    LoadError::new(
+        path,
+        None,
+        LoadErrorKind::Manifest {
+            message: message.to_owned(),
+            source: None,
+        },
+    )
+    .reached_by(&Origin::Discovery)
+}
+
+/// Select and retain just the package manifests of one declared workspace.
+pub(crate) fn workspace_members(
+    tree: &dyn Tree,
+    root: &RelPath,
+    meter: &Meter,
+) -> Result<Discovered, LoadError> {
+    let root = crate::root::directory(tree, root)?;
+    let path = Walk::manifest_path(&root)?;
+    let mut walk = Walk::new(tree, meter, &path)?;
+    let root_manifest = walk
+        .read_manifest(&path)?
+        .filter(|manifest| manifest.has_workspace || manifest.package.is_some())
+        .ok_or_else(|| {
+            missing_selection(&path, "select a Cargo.toml with a workspace or package")
+        })?;
+    if root_manifest.has_workspace {
+        for member in members(tree, meter, &root, &path, &root_manifest)? {
+            if member == root {
+                continue;
+            }
+            let member = crate::root::directory(tree, &member)?;
+            let path = Walk::manifest_path(&member)?;
+            let parsed = walk
+                .read_manifest(&path)?
+                .filter(|manifest| manifest.package.is_some())
+                .ok_or_else(|| {
+                    missing_selection(&path, "workspace member needs a package manifest")
+                })?;
+            walk.retain_manifest(&member, path, parsed)?;
+        }
+    }
+    walk.retain_manifest(&root, path, root_manifest)?;
+    Ok(walk.finish())
+}
+
 /// Find every package under `roots`, sorted by manifest path.
 ///
 /// # Errors
@@ -278,24 +366,11 @@ pub(crate) fn discover(
     roots: &[RelPath],
     meter: &Meter,
 ) -> Result<Discovered, LoadError> {
-    meter.items(
-        size_of::<OrderedTable<(SourceAuthorityId, String), RelPath>>(),
-        &RelPath::root(),
-        None,
-    )?;
-    let mut walk = Walk {
-        tree,
-        meter,
-        found: BTreeMap::new(),
-        names: OrderedTable::default(),
-        name_bytes: 0,
-    };
+    let mut walk = Walk::new(tree, meter, &RelPath::root())?;
     for root in roots {
         walk.root(root)?;
     }
-    Ok(Discovered {
-        packages: walk.found.into_values().collect(),
-    })
+    Ok(walk.finish())
 }
 
 /// Read exactly the selected package header, retaining its workspace context
@@ -317,18 +392,7 @@ pub(crate) fn single(
             },
         ));
     }
-    meter.items(
-        size_of::<OrderedTable<(SourceAuthorityId, String), RelPath>>(),
-        manifest,
-        None,
-    )?;
-    let mut walk = Walk {
-        tree,
-        meter,
-        found: BTreeMap::new(),
-        names: OrderedTable::default(),
-        name_bytes: 0,
-    };
+    let mut walk = Walk::new(tree, meter, manifest)?;
     match tree
         .entry(&dir)
         .map_err(|error| LoadError::tree(&dir, None, &Origin::Discovery, error))?
@@ -350,9 +414,7 @@ pub(crate) fn single(
             },
         ));
     }
-    Ok(Discovered {
-        packages: walk.found.into_values().collect(),
-    })
+    Ok(walk.finish())
 }
 
 #[cfg(test)]

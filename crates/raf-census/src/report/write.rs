@@ -21,13 +21,13 @@ pub(crate) fn put(graph: &mut Builder, id: &str, key: &str, value: Term) -> Resu
             error => E::Ground(error),
         })
 }
-pub(super) fn class(graph: &mut Builder, id: &str, name: &str) -> Result<(), E> {
+pub(crate) fn class(graph: &mut Builder, id: &str, name: &str) -> Result<(), E> {
     put(graph, id, "type", shape::iri(name))
 }
-pub(super) fn num(graph: &mut Builder, id: &str, key: &str, value: usize) -> Result<(), E> {
+pub(crate) fn num(graph: &mut Builder, id: &str, key: &str, value: usize) -> Result<(), E> {
     put(graph, id, key, shape::integer(value as u128))
 }
-pub(super) fn text(graph: &mut Builder, id: &str, key: &str, value: &str) -> Result<(), E> {
+pub(crate) fn text(graph: &mut Builder, id: &str, key: &str, value: &str) -> Result<(), E> {
     put(graph, id, key, Term::simple_literal(value))
 }
 pub(super) fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {

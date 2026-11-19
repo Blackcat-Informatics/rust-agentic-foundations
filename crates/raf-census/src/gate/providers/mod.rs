@@ -572,7 +572,7 @@ impl FunctionObserver for Providers<'_> {
             };
             for expected in entries.iter() {
                 flow::attributes(&expected.row.job.id, attributes)?;
-                scopes.enter(false, std::iter::empty(), limits)?;
+                scopes.enter(false, false, std::iter::empty(), limits)?;
                 let result = flow::check(
                     self.workspace,
                     self.code,

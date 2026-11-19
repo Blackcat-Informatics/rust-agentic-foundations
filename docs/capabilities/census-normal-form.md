@@ -417,12 +417,11 @@ of the workspace load; a file above it is a load error that names the file.
 ### Actionable errors and panic ownership
 <!-- raf:tested-by raf_census::test_crate::forms::an_unlexable_slice_is_a_source_error_with_a_valid_neighbour,raf_census::error::tests::each_variant_renders_its_facts,raf_census::units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans -->
 
-`raf_census::Error` is the one error type: `Source` (file, line and reason of a
-slice that does not lex, text of an item that the workspace does not hold, or a
-source item of the index whose item does not resolve or that has no reach: such an
-inconsistency is an error that names the file and never drops a unit),
-`Options`, `Version`, `Report` (a typed `ReportError`), a load error of `raf-source`,
-and `CollectionSpawn` with its I/O source when the collection worker cannot start.
+`raf_census::Error` carries normalization, collection and report failures.
+A `Source` error names the file, line and reason when a slice cannot be lexed
+or the source index lacks the text, definition or reach needed for a unit.
+Options, version, report and Source load failures keep their typed variants.
+`CollectionSpawn` retains the I/O source when a collection worker cannot start.
 A collection-worker panic resumes on the caller with the original payload after
 worker teardown. Nothing falls back to a partial result.
 Foreign TOML import failures retain the original `purrdf_toml::TomlError` in

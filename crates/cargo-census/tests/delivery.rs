@@ -134,6 +134,211 @@ fn run(root: &Path, words: &[&str]) -> Output {
     )
 }
 
+fn visibility_nodes<'a>(
+    graph: &'a raf_rdf::Graph,
+    from: raf_rdf::Node<'a>,
+    key: &str,
+) -> impl Iterator<Item = raf_rdf::Node<'a>> {
+    from.values(&format!("{}{key}", vocab::REPORT))
+        .map(move |value| graph.get(value.iri().unwrap()).unwrap())
+}
+
+fn visibility_value<'a>(node: raf_rdf::Node<'a>, key: &str) -> &'a str {
+    node.values(&format!("{}{key}", vocab::REPORT))
+        .next()
+        .unwrap()
+        .literal()
+        .unwrap()
+        .0
+}
+
+/// Count distinct definitions and attribute written paths to their owner
+/// library, including a definition reached only through a member re-export.
+#[test]
+fn visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers() {
+    let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
+    let root = scratch.path();
+    let base_manifest = "[package]\nname='base'\nversion='0.1.0'\nedition='2024'\n";
+    files::write(
+        root,
+        &[
+            (
+                "Cargo.toml",
+                "[workspace]\nmembers=['base','bridge','client']\nexclude=['excluded']\n",
+            ),
+            ("base/Cargo.toml", base_manifest),
+            (
+                "base/src/lib.rs",
+                "mod implementation { pub fn used() {} pub fn internal_only() {} }\n\
+                 pub use implementation::{internal_only, used as api, used as other_alias};\n\
+                 pub fn local() { implementation::internal_only(); }\n\
+                 pub fn spare() {}\n#[doc(hidden)] pub fn hidden() {}\n\
+                 pub struct Data { pub number: u32 }\n\
+                 pub fn only_in_import() {}\npub fn dev_only() {}\npub trait Marker {}\n\
+                 pub mod glob_symbols {\n\
+                     pub const LIMIT: u8 = 3;\n\
+                     pub fn via_glob() {} pub fn shadowed() {}\n\
+                 }",
+            ),
+            (
+                "bridge/Cargo.toml",
+                "[package]\nname='bridge'\nversion='0.1.0'\nedition='2024'\n\
+                 [dependencies]\nupstream={path='../base',package='base'}\n",
+            ),
+            (
+                "bridge/src/lib.rs",
+                "pub use upstream::{api as facade, glob_symbols, only_in_import, Marker};\n\
+                 pub fn unused_bridge() {}",
+            ),
+            (
+                "client/Cargo.toml",
+                "[package]\nname='client'\nversion='0.1.0'\nedition='2024'\n\
+                 [dependencies]\nbridge={path='../bridge'}\n\
+                 [dev-dependencies]\ndev={path='../base',package='base'}\n",
+            ),
+            (
+                "client/src/lib.rs",
+                "mod loose;\nstruct Local;\nimpl bridge::Marker for Local {}\n\
+                 pub fn call(value: u8) {\n\
+                     use { ::bridge::facade as chosen };\n\
+                     use bridge::glob_symbols::*;\n\
+                     fn shadowed() {}\n\
+                     chosen();\n\
+                     via_glob();\n\
+                     shadowed();\n\
+                     match value { LIMIT => (), _ => () }\n\
+                 }",
+            ),
+            (
+                "client/src/loose.rs",
+                "use { ::bridge::only_in_import };\n#[cfg(test)] use dev::dev_only;",
+            ),
+            (
+                "client/build.rs",
+                "fn main() { std::fs::write(\"consumer-executed\", b\"bad\").unwrap(); panic!(\"static data\"); }",
+            ),
+            (
+                "excluded/Cargo.toml",
+                "[package]\nname='excluded'\nversion='0.1.0'\nedition='2024'\n",
+            ),
+            ("excluded/src/lib.rs", "this source must remain unparsed"),
+        ],
+    );
+    let first = run(root, &["visibility"]);
+    assert!(first.status.success(), "{first:?}");
+    assert_eq!(
+        run(&root.join("client"), &["visibility"]).stdout,
+        first.stdout
+    );
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&first.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    assert_visibility_report(&graph);
+    assert!(!root.join("client/consumer-executed").exists());
+    assert!(!root.join("target").exists());
+
+    assert_opaque_glob_refused(root);
+    fs::write(
+        root.join("base/Cargo.toml"),
+        format!("{base_manifest}[dependencies]\nclient={{path='../client'}}\n"),
+    )
+    .unwrap();
+    let cycle = run(root, &["visibility"]);
+    assert_eq!(cycle.status.code(), Some(1));
+    assert_eq!(cycle.stdout, Vec::<u8>::new());
+    assert!(String::from_utf8_lossy(&cycle.stderr).contains("normal library dependency cycle"));
+}
+
+fn assert_opaque_glob_refused(root: &Path) {
+    fs::write(
+        root.join("client/src/loose.rs"),
+        "use bridge::facade;\nfn call() { use std::io::*; facade(); }",
+    )
+    .unwrap();
+    let branch = run(root, &["visibility"]);
+    assert_eq!(branch.status.code(), Some(1));
+    assert_eq!(branch.stdout, Vec::<u8>::new());
+    assert!(String::from_utf8_lossy(&branch.stderr).contains("unindexed block glob"));
+}
+
+fn assert_visibility_report(graph: &raf_rdf::Graph) {
+    let root = graph.get("").unwrap();
+    let libraries: std::collections::BTreeMap<_, _> = visibility_nodes(graph, root, "library")
+        .map(|library| (visibility_value(library, "package"), library))
+        .collect();
+    assert_eq!(libraries.len(), 3);
+    for (package, tier) in [("base", "0"), ("bridge", "1"), ("client", "2")] {
+        assert_eq!(visibility_value(libraries[package], "tier"), tier);
+    }
+    let base = libraries["base"];
+    assert_eq!(visibility_value(base, "publicCount"), "13");
+    assert_eq!(visibility_value(base, "exportedCount"), "13");
+    assert_eq!(visibility_value(base, "usedExportedCount"), "7");
+    assert_eq!(visibility_value(base, "writtenPathCount"), "12");
+    let counts: std::collections::BTreeMap<_, _> = visibility_nodes(graph, base, "kindCount")
+        .map(|row| {
+            (
+                visibility_value(row, "kind"),
+                visibility_value(row, "count"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        counts,
+        std::collections::BTreeMap::from([
+            ("constant", "1"),
+            ("function", "9"),
+            ("module", "1"),
+            ("struct", "1"),
+            ("trait", "1")
+        ])
+    );
+    let unused: std::collections::BTreeSet<_> = visibility_nodes(graph, base, "unusedDeclaration")
+        .map(|row| visibility_value(row, "symbol"))
+        .collect();
+    assert!(unused.contains("base::implementation::internal_only"));
+    assert!(!unused.contains("base::implementation::used"));
+    assert!(unused.contains("base::glob_symbols::shadowed"));
+    assert!(!unused.contains("base::glob_symbols::LIMIT"));
+    let client_uses: std::collections::BTreeMap<_, _> = visibility_nodes(graph, base, "use")
+        .filter(|row| visibility_value(*row, "consumer") == "client")
+        .map(|row| {
+            let written: std::collections::BTreeSet<_> = row
+                .values(&format!("{}writtenPath", vocab::REPORT))
+                .map(|value| value.literal().unwrap().0)
+                .collect();
+            (visibility_value(row, "symbol"), written)
+        })
+        .collect();
+    assert_eq!(
+        client_uses,
+        std::collections::BTreeMap::from([
+            ("base::Marker", ["bridge::Marker"].into_iter().collect()),
+            ("base::dev_only", ["dev::dev_only"].into_iter().collect()),
+            (
+                "base::glob_symbols",
+                ["bridge::glob_symbols::*"].into_iter().collect()
+            ),
+            ("base::glob_symbols::LIMIT", ["LIMIT"].into_iter().collect()),
+            (
+                "base::glob_symbols::via_glob",
+                ["via_glob"].into_iter().collect()
+            ),
+            (
+                "base::implementation::used",
+                ["::bridge::facade", "chosen"].into_iter().collect()
+            ),
+            (
+                "base::only_in_import",
+                ["::bridge::only_in_import"].into_iter().collect()
+            ),
+        ])
+    );
+}
+
 const OWNER: &str = "urn:example:query-owner";
 
 struct QueryOwner;

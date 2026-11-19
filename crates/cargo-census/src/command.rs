@@ -22,16 +22,7 @@ pub(crate) fn run(
 ) -> Result<u8, crate::error::Error> {
     let external = external(&args.reference)?;
     let registry = registry(&args.registry)?;
-    if (external.is_some() || registry.is_some())
-        && matches!(
-            args.command,
-            Command::SelfTest
-                | Command::DumpLedger { .. }
-                | Command::Baseline { .. }
-                | Command::Migrate(_)
-                | Command::Embedded { .. }
-        )
-    {
+    if (external.is_some() || registry.is_some()) && !accepts_external_sources(&args.command) {
         return Err(Error::Options(
             "reference options apply only to check, index, job, count, fingerprint and debt, and so do the registry options".into(),
         )
@@ -70,6 +61,10 @@ pub(crate) fn run(
                 out.as_deref(),
                 output,
             )?;
+            Ok(0)
+        }
+        Command::Visibility { format, out } => {
+            visibility(&gate.root()?, *format, out.as_deref(), output)?;
             Ok(0)
         }
         Command::Check(policy) => {
@@ -340,19 +335,56 @@ fn baseline(
     out: Option<&Path>,
     output: &mut dyn Write,
 ) -> Result<(), Error> {
+    render_tree_report(root, out, output, |tree| {
+        if let Some(gate) = registration {
+            gate.validate_tree_registrations(tree)?;
+        }
+        let report = Census::load(tree, &["."], &CensusOptions::default())?.baseline();
+        match format {
+            RdfFormat::Ntriples => report.to_ntriples(),
+            RdfFormat::Turtle => report.to_turtle(),
+        }
+    })
+}
+
+fn render_tree_report(
+    root: &Path,
+    out: Option<&Path>,
+    output: &mut dyn Write,
+    render: impl FnOnce(&DiskTree) -> Result<String, Error>,
+) -> Result<(), Error> {
     let tree = DiskTree::new(root).map_err(|source| Error::Tree {
         file: root.display().to_string(),
         source,
     })?;
-    if let Some(gate) = registration {
-        gate.validate_tree_registrations(&tree)?;
-    }
-    let report = Census::load(&tree, &["."], &CensusOptions::default())?.baseline();
-    let text = match format {
-        RdfFormat::Ntriples => report.to_ntriples()?,
-        RdfFormat::Turtle => report.to_turtle()?,
-    };
+    let text = render(&tree)?;
     write_report(root, &text, out, output)
+}
+
+fn accepts_external_sources(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::Check(_)
+            | Command::Index(_)
+            | Command::Job { .. }
+            | Command::Count { .. }
+            | Command::Fingerprint { .. }
+            | Command::Debt { .. }
+    )
+}
+
+fn visibility(
+    root: &Path,
+    format: RdfFormat,
+    out: Option<&Path>,
+    output: &mut dyn Write,
+) -> Result<(), Error> {
+    render_tree_report(root, out, output, |tree| {
+        let graph = raf_census::visibility(tree, &RelPath::root())?;
+        graph
+            .to_text(format.native())
+            .map_err(|error| ReportError::Ground(error).into())
+    })
 }
 
 pub(crate) fn write_report(

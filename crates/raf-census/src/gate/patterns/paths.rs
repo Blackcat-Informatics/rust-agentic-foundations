@@ -11,25 +11,27 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use purrdf_jsonschema::ecma::MatchLimits;
 use raf_source::{
-    CodeResolveError, CodeResolver, ItemId, Namespace, ResolutionAttempt, ResolveError, SourceFile,
-    Workspace,
+    CodeResolveError, CodeResolver, ImplBlock, ItemId, Namespace, PackageId, Resolution,
+    ResolutionAttempt, ResolveError, SourceFile, TargetKind, Workspace,
 };
 use syn::ext::IdentExt;
 
 use super::{Found, charge, failure};
 use crate::syntax::{Alias, path_text};
-use crate::{Census, Error, LedgerPattern, PatternMatcher};
+use crate::{Census, Error, LedgerPattern, PatternMatcher, VisibilityError};
 use cache::OwnerCache;
-use scopes::Scopes;
+use scopes::{Expanded, Scopes};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Role {
     Call,
     Path,
+    Pattern,
     Macro,
     Type,
     Attribute,
     Import,
+    Glob,
 }
 
 struct Compiled<'p> {
@@ -173,7 +175,31 @@ struct Site<'a> {
     byte: usize,
     line: usize,
     namespace: Namespace,
-    import: bool,
+    role: Role,
+    file_scope: bool,
+}
+
+impl<'a> Site<'a> {
+    fn at(
+        file: &'a SourceFile,
+        span: proc_macro2::Span,
+        role: Role,
+        namespace: Namespace,
+        file_scope: bool,
+    ) -> Self {
+        Self {
+            file,
+            byte: span.byte_range().start,
+            line: span.start().line,
+            namespace,
+            role,
+            file_scope,
+        }
+    }
+
+    fn is_import(&self) -> bool {
+        matches!(self.role, Role::Import | Role::Glob)
+    }
 }
 
 fn query_error(id: &str, site: &Site<'_>, source: CodeResolveError) -> Error {
@@ -185,28 +211,550 @@ fn query_error(id: &str, site: &Site<'_>, source: CodeResolveError) -> Error {
     }
 }
 
-fn indexed_match(
-    code: &CodeResolver<'_>,
-    owner: ItemId,
-    written: &str,
-    expected: &Compiled<'_>,
-    site: &Site<'_>,
-    import: bool,
-) -> Result<Option<bool>, Error> {
-    let resolved = if import {
-        code.resolve_import_from_item_at(owner, site.byte, written, site.namespace)
-    } else {
-        code.resolve_from_item_at(owner, site.byte, written, site.namespace)
-    };
-    match resolved {
-        Ok(actual) => {
-            Ok(Some(expected.sites.get(&site.namespace).is_some_and(
-                |wanted| actual.sites.iter().any(|id| wanted.contains(id)),
-            )))
+enum LexicalPath {
+    Local,
+    Accessible(Option<Expanded>),
+}
+
+enum PathDefinition<'a> {
+    Written(Vec<ItemId>),
+    Expanded(Vec<ItemId>),
+    Unverified(&'a [String]),
+    Missing,
+}
+
+#[derive(Default)]
+struct GlobLookup {
+    definition: Option<PathDefinition<'static>>,
+    opaque: Option<String>,
+}
+
+struct Lookup<'a, 'w> {
+    code: &'a CodeResolver<'w>,
+    owner: PathOwner<'a>,
+    site: &'a Site<'a>,
+    label: &'a str,
+    visibility: Option<(&'a Workspace, PackageId)>,
+}
+
+#[derive(Clone, Copy)]
+enum PathOwner<'a> {
+    Item(ItemId),
+    Impl(raf_source::ImplId),
+    File(&'a raf_source::Reach),
+}
+
+impl Lookup<'_, '_> {
+    fn error(&self, path: &str, source: CodeResolveError) -> Error {
+        if self.visibility.is_some() {
+            return Error::Visibility(VisibilityError::Path {
+                file: self.site.file.path.to_string(),
+                line: self.site.line,
+                path: path.to_owned(),
+                source: Box::new(source),
+            });
         }
-        Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => Ok(None),
-        Err(error) => Err(query_error(&expected.pattern.id, site, error)),
+        query_error(self.label, self.site, source)
     }
+
+    fn eligible(&self, alias: &Alias, namespace: Namespace) -> Result<bool, Error> {
+        if self.site.is_import() && alias.source_byte == Some(self.site.byte) {
+            return Ok(false);
+        }
+        let text = path_text(&alias.path, alias.absolute);
+        eligible_namespace(namespace, |space| match self.query(&text, space, true) {
+            Ok(_) => Ok(true),
+            Err(error)
+                if self.visibility.is_some_and(|(workspace, consumer)| {
+                    internal_ambiguity(workspace, consumer, &error)
+                }) =>
+            {
+                Ok(true)
+            }
+            Err(CodeResolveError::AliasMember { .. }) if self.visibility.is_some() => Ok(false),
+            Err(error) => Err(error),
+        })
+        .map_err(|error| self.error(&text, error))
+    }
+
+    fn lexical(
+        &self,
+        scopes: &Scopes,
+        written: &[String],
+        absolute: bool,
+        limits: &mut MatchLimits,
+    ) -> Result<LexicalPath, Error> {
+        let mut eligible = |alias: &Alias, namespace| self.eligible(alias, namespace);
+        if self.visibility.is_none()
+            && !self.site.is_import()
+            && !absolute
+            && scopes.local(written, self.site.namespace, limits, &mut eligible)?
+        {
+            return Ok(LexicalPath::Local);
+        }
+        scopes
+            .expand(
+                written,
+                absolute,
+                self.site.namespace,
+                limits,
+                &mut eligible,
+            )
+            .map(LexicalPath::Accessible)
+    }
+
+    fn indexed(&self, written: &str, import: bool) -> Result<Option<Vec<ItemId>>, Error> {
+        self.indexed_in(written, self.site.namespace, import)
+    }
+
+    fn indexed_in(
+        &self,
+        written: &str,
+        namespace: Namespace,
+        import: bool,
+    ) -> Result<Option<Vec<ItemId>>, Error> {
+        let result = self.query(written, namespace, import);
+        if let Some((workspace, package)) = self.visibility {
+            if namespace == Namespace::Value
+                && let Err(CodeResolveError::Resolve(ResolveError::Ambiguous(items))) = &result
+                && let Some(id) = self.inherent_at(workspace, written, items, import)?
+            {
+                return Ok(Some(vec![id]));
+            }
+            return visibility_resolution(workspace, package, result)
+                .map(|result| result.map(|resolution| resolution.sites))
+                .map_err(|error| self.error(written, error));
+        }
+        match result {
+            Ok(actual) => Ok(Some(actual.sites)),
+            Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => Ok(None),
+            Err(error) => Err(query_error(self.label, self.site, error)),
+        }
+    }
+
+    fn inherent_at(
+        &self,
+        workspace: &Workspace,
+        written: &str,
+        items: &[ItemId],
+        import: bool,
+    ) -> Result<Option<ItemId>, Error> {
+        let candidate =
+            super::super::rules::inherent_candidate(workspace, written, items, |nominal| {
+                self.query(nominal, Namespace::Type, import)
+            })
+            .map_err(|source| self.error(written, source))?;
+        let Some(candidate) = candidate else {
+            return Ok(None);
+        };
+        match self.code.require_unconditional_inherent_method(candidate) {
+            Ok(()) => Ok(Some(candidate)),
+            Err(CodeResolveError::MethodApplicability(_)) => Ok(None),
+            Err(source) => Err(self.error(written, source)),
+        }
+    }
+
+    fn through_block_glob(
+        &self,
+        scopes: &Scopes,
+        written: &[String],
+        expanded: Option<&Expanded>,
+        limits: &mut MatchLimits,
+    ) -> Result<GlobLookup, Error> {
+        let Some(head) = written.first() else {
+            return Ok(GlobLookup::default());
+        };
+        if matches!(head.as_str(), "crate" | "self" | "super") {
+            return Ok(GlobLookup::default());
+        }
+        let namespace = if written.len() > 1 {
+            Namespace::Type
+        } else {
+            self.site.namespace
+        };
+        let mut glob_lookup = GlobLookup::default();
+        for (frame, globs) in scopes.block_globs(expanded) {
+            let mut selected: Option<(String, Vec<ItemId>)> = None;
+            for glob in globs {
+                if self.site.is_import() && glob.source_byte == Some(self.site.byte) {
+                    continue;
+                }
+                let mut eligible = |alias: &Alias, namespace| self.eligible(alias, namespace);
+                let Some(mut prefix) = scopes.expand_from(
+                    &glob.path,
+                    glob.absolute,
+                    Namespace::Type,
+                    frame + 1,
+                    limits,
+                    &mut eligible,
+                )?
+                else {
+                    continue;
+                };
+                if prefix.shadowed || prefix.segments.is_empty() {
+                    glob_lookup
+                        .opaque
+                        .get_or_insert_with(|| path_text(&glob.path, glob.absolute));
+                    continue;
+                }
+                let glob_path = prefix.text();
+                prefix.segments.push(head.clone());
+                let path = prefix.text();
+                charge(
+                    self.label,
+                    limits,
+                    path.len().try_into().unwrap_or(u64::MAX),
+                )?;
+                let Some(resolution) = self.indexed_in(&path, namespace, true)? else {
+                    if self
+                        .indexed_in(&glob_path, Namespace::Type, true)?
+                        .is_none()
+                    {
+                        glob_lookup.opaque.get_or_insert(glob_path);
+                    }
+                    continue;
+                };
+                if let Some((_, previous)) = &selected
+                    && *previous != resolution
+                {
+                    return Err(failure(
+                        self.label,
+                        &format!("written path head {head:?} has competing block glob bindings"),
+                    ));
+                }
+                prefix.segments.extend(written.iter().skip(1).cloned());
+                selected = Some((prefix.text(), resolution));
+            }
+            if let Some((path, resolved_head)) = selected {
+                glob_lookup.definition = Some(if written.len() == 1 {
+                    PathDefinition::Written(resolved_head)
+                } else {
+                    self.indexed(&path, true)?
+                        .map_or(PathDefinition::Missing, PathDefinition::Written)
+                });
+                break;
+            }
+        }
+        Ok(glob_lookup)
+    }
+
+    fn query(
+        &self,
+        written: &str,
+        namespace: Namespace,
+        import: bool,
+    ) -> Result<Resolution, CodeResolveError> {
+        match self.owner {
+            PathOwner::Item(item) if import => {
+                self.code
+                    .resolve_import_from_item_at(item, self.site.byte, written, namespace)
+            }
+            PathOwner::Item(item) => {
+                self.code
+                    .resolve_from_item_at(item, self.site.byte, written, namespace)
+            }
+            PathOwner::Impl(block) => self
+                .code
+                .resolve_from_impl(block, written, namespace, import),
+            PathOwner::File(reach) => self.code.resolve_from_file_reach(reach, written, namespace),
+        }
+    }
+
+    fn resolve<'a>(
+        &self,
+        raw: &str,
+        expanded: Option<&'a Expanded>,
+        limits: &mut MatchLimits,
+    ) -> Result<PathDefinition<'a>, Error> {
+        charge(self.label, limits, raw.len().try_into().unwrap_or(u64::MAX))?;
+        // A block binding shadows the module spelling even when its target
+        // has no indexed definition. Module imports use the Source index.
+        if let Some(block) = expanded.filter(|path| path.block) {
+            return self.expanded(block);
+        }
+        if let Some(actual) = self.indexed(raw, self.site.is_import())? {
+            return Ok(PathDefinition::Written(actual));
+        }
+        expanded.map_or(Ok(PathDefinition::Missing), |path| self.expanded(path))
+    }
+
+    fn expanded<'a>(&self, path: &'a Expanded) -> Result<PathDefinition<'a>, Error> {
+        if path.shadowed {
+            return Ok(PathDefinition::Missing);
+        }
+        Ok(self.indexed(&path.text(), true)?.map_or(
+            PathDefinition::Unverified(&path.segments),
+            PathDefinition::Expanded,
+        ))
+    }
+}
+
+const VISIBILITY: &str = "visibility";
+
+pub(in crate::gate) fn visibility_resolution(
+    workspace: &Workspace,
+    consumer: PackageId,
+    result: Result<Resolution, CodeResolveError>,
+) -> Result<Option<Resolution>, CodeResolveError> {
+    match result {
+        Ok(actual) => Ok(Some(actual)),
+        Err(
+            CodeResolveError::Resolve(ResolveError::NotFound(_) | ResolveError::UnresolvedSelf(_))
+            | CodeResolveError::AliasMember { .. },
+        ) => Ok(None),
+        // Structural indexing can see alternate internal definitions of one
+        // spelling, such as the test and shipping versions of a function.
+        Err(ref error) if internal_ambiguity(workspace, consumer, error) => Ok(None),
+        // Inherited associated candidates are outside the public declaration
+        // inventory. The independently observed type prefix still has evidence.
+        Err(CodeResolveError::Resolve(ResolveError::Ambiguous(items)))
+            if items.iter().all(|&id| {
+                workspace.item(id).is_some_and(|item| {
+                    item.visibility != raf_source::Vis::Public
+                        && matches!(
+                            item.kind,
+                            raf_source::SymbolKind::InherentMethod
+                                | raf_source::SymbolKind::TraitImplMethod
+                                | raf_source::SymbolKind::TraitDefaultMethod
+                                | raf_source::SymbolKind::TraitRequiredMethod
+                                | raf_source::SymbolKind::AssocType
+                                | raf_source::SymbolKind::AssocConst
+                        )
+                })
+            }) =>
+        {
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn internal_ambiguity(
+    workspace: &Workspace,
+    consumer: PackageId,
+    error: &CodeResolveError,
+) -> bool {
+    let CodeResolveError::Resolve(ResolveError::Ambiguous(items)) = error else {
+        return false;
+    };
+    items.iter().all(|&id| {
+        workspace
+            .item(id)
+            .and_then(|item| workspace.target(item.target))
+            .is_some_and(|target| target.package_id == consumer)
+    })
+}
+
+/// Distinct written paths by defining item and consuming package.
+#[derive(Default)]
+pub(in crate::gate) struct CrossPackagePaths {
+    pub(in crate::gate) by_item: BTreeMap<ItemId, BTreeMap<PackageId, BTreeSet<String>>>,
+    retained: usize,
+}
+
+impl CrossPackagePaths {
+    fn record_occurrence(
+        &mut self,
+        workspace: &Workspace,
+        consumer: PackageId,
+        definition: ItemId,
+        written: &str,
+        (site, opaque): (&Site<'_>, Option<&str>),
+        limits: &MatchLimits,
+    ) -> Result<(), Error> {
+        if let Some(opaque) = opaque
+            && workspace
+                .item(definition)
+                .and_then(|item| workspace.target(item.target))
+                .is_some_and(|target| {
+                    target.kind == TargetKind::Lib && target.package_id != consumer
+                })
+        {
+            return Err(Error::Source {
+                file: site.file.path.to_string(),
+                line: site.line,
+                reason: format!(
+                    "visibility path {written:?}: unindexed block glob {opaque:?} may change its binding; qualify the path or use an explicit import"
+                ),
+            });
+        }
+        self.record(workspace, consumer, definition, written, limits)
+    }
+
+    pub(in crate::gate) fn record(
+        &mut self,
+        workspace: &Workspace,
+        consumer: PackageId,
+        definition: ItemId,
+        written: &str,
+        limits: &MatchLimits,
+    ) -> Result<(), Error> {
+        let item = workspace
+            .item(definition)
+            .ok_or_else(|| failure(VISIBILITY, "resolved path has no defining item"))?;
+        let target = workspace
+            .target(item.target)
+            .ok_or_else(|| failure(VISIBILITY, "resolved path has no defining target"))?;
+        if target.kind != TargetKind::Lib
+            || target.package_id == consumer
+            || workspace.same_source(item).is_empty()
+        {
+            return Ok(());
+        }
+        let paths = self
+            .by_item
+            .entry(definition)
+            .or_default()
+            .entry(consumer)
+            .or_default();
+        if paths.contains(written) {
+            return Ok(());
+        }
+        if self.retained >= limits.states {
+            return Err(failure(VISIBILITY, "written path state limit exhausted"));
+        }
+        paths.insert(written.to_owned());
+        self.retained += 1;
+        Ok(())
+    }
+}
+
+fn cross_package_uses(
+    workspace: &Workspace,
+    code: &CodeResolver<'_>,
+    (owners, blocks): (&[&raf_source::Item], &[ImplBlock]),
+    scopes: &Scopes,
+    path: &syn::Path,
+    site: &Site<'_>,
+    (paths, limits): (&mut CrossPackagePaths, &mut MatchLimits),
+) -> Result<bool, Error> {
+    let written = segments(path);
+    let absolute = path.leading_colon.is_some();
+    let raw = path_text(&written, absolute);
+    let observed = if site.role == Role::Glob {
+        format!("{raw}::*")
+    } else {
+        raw.clone()
+    };
+    let in_impl =
+        |owner: &&raf_source::Item| blocks.is_empty() || owner.kind != raf_source::SymbolKind::Mod;
+    let owner_contexts = owners
+        .iter()
+        .copied()
+        .filter(in_impl)
+        .map(|item| (PathOwner::Item(item.id), item.target));
+    let impl_contexts = blocks
+        .iter()
+        .filter(|block| {
+            !owners
+                .iter()
+                .copied()
+                .filter(in_impl)
+                .any(|item| item.target == block.target)
+        })
+        .map(|block| (PathOwner::Impl(block.id), block.target));
+    let file_contexts = site
+        .file
+        .reached
+        .iter()
+        .filter(|reach| {
+            !site.is_import()
+                && blocks.is_empty()
+                && (owners.is_empty() || site.file_scope)
+                && !owners.iter().any(|item| {
+                    item.target == reach.target
+                        && code
+                            .reading_module(item.id, site.byte)
+                            .is_ok_and(|module| module == reach.module_path.as_str())
+                })
+        })
+        .map(|reach| (PathOwner::File(reach), reach.target));
+    let mut classified = None;
+    for (owner, target) in owner_contexts.chain(impl_contexts).chain(file_contexts) {
+        let consumer = workspace
+            .target(target)
+            .ok_or_else(|| failure(VISIBILITY, "path occurrence has no consuming target"))?
+            .package_id;
+        let lookup = Lookup {
+            code,
+            owner,
+            site,
+            label: VISIBILITY,
+            visibility: Some((workspace, consumer)),
+        };
+        let LexicalPath::Accessible(expanded) =
+            lookup.lexical(scopes, &written, absolute, limits)?
+        else {
+            continue;
+        };
+        let glob = if absolute {
+            GlobLookup::default()
+        } else {
+            lookup.through_block_glob(scopes, &written, expanded.as_ref(), limits)?
+        };
+        let definition = match glob.definition {
+            Some(definition) => definition,
+            None => lookup.resolve(&raw, expanded.as_ref(), limits)?,
+        };
+        let actual = match &definition {
+            PathDefinition::Written(actual) | PathDefinition::Expanded(actual) => actual.as_slice(),
+            PathDefinition::Missing | PathDefinition::Unverified(_) => &[],
+        };
+        if site.role == Role::Pattern
+            && !classify_pattern(workspace, VISIBILITY, actual, &mut classified)?
+        {
+            continue;
+        }
+        for &definition in actual {
+            paths.record_occurrence(
+                workspace,
+                consumer,
+                definition,
+                &observed,
+                (site, glob.opaque.as_deref()),
+                limits,
+            )?;
+        }
+    }
+    Ok(classified.unwrap_or(false))
+}
+
+fn classify_pattern(
+    workspace: &Workspace,
+    label: &str,
+    sites: &[ItemId],
+    classified: &mut Option<bool>,
+) -> Result<bool, Error> {
+    use raf_source::{FieldShape, SymbolKind};
+
+    let mut kind = None;
+    for &site in sites {
+        let item = workspace
+            .item(site)
+            .ok_or_else(|| failure(label, "resolved pattern constant has no source item"))?;
+        let constant = matches!(item.kind, SymbolKind::Const | SymbolKind::AssocConst)
+            || (item.kind == SymbolKind::Struct && item.shape == Some(FieldShape::Unit));
+        if kind
+            .replace(constant)
+            .is_some_and(|previous| previous != constant)
+        {
+            return Err(failure(
+                label,
+                "pattern identifier has mixed constant/binding definitions; provide an unambiguous source context",
+            ));
+        }
+    }
+    let constant = kind.unwrap_or(false);
+    if classified
+        .replace(constant)
+        .is_some_and(|previous| previous != constant)
+    {
+        return Err(failure(
+            label,
+            "pattern identifier changes binding meaning across source reaches; provide an unambiguous source context",
+        ));
+    }
+    Ok(constant)
 }
 
 /// Indexed namespaces select imports; an entirely unindexed target stays
@@ -219,18 +767,28 @@ pub(in crate::gate) fn import_eligible(
     namespace: Namespace,
 ) -> Result<bool, CodeResolveError> {
     let text = path_text(&alias.path, alias.absolute);
-    match code.resolve_import_from_item_at(owner, byte, &text, namespace) {
-        Ok(_) => return Ok(true),
-        Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => {}
+    eligible_namespace(namespace, |space| {
+        code.resolve_import_from_item_at(owner, byte, &text, space)
+            .map(|_| true)
+    })
+}
+
+fn eligible_namespace(
+    namespace: Namespace,
+    mut resolve: impl FnMut(Namespace) -> Result<bool, CodeResolveError>,
+) -> Result<bool, CodeResolveError> {
+    match resolve(namespace) {
+        Ok(true) => return Ok(true),
+        Ok(false) | Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => {}
         Err(error) => return Err(error),
     }
     for other in Namespace::ALL {
         if other == namespace {
             continue;
         }
-        match code.resolve_import_from_item_at(owner, byte, &text, other) {
-            Ok(_) => return Ok(false),
-            Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => {}
+        match resolve(other) {
+            Ok(true) => return Ok(false),
+            Ok(false) | Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => {}
             Err(error) => return Err(error),
         }
     }
@@ -246,56 +804,18 @@ fn constant<'w>(
     cache: &mut OwnerCache<'w>,
     limits: &mut MatchLimits,
 ) -> Result<bool, Error> {
-    let span = name.span();
-    let site = Site {
-        file,
-        byte: span.byte_range().start,
-        line: span.start().line,
-        namespace: Namespace::Value,
-        import: false,
-    };
+    let site = Site::at(file, name.span(), Role::Path, Namespace::Value, false);
     let written = name.unraw().to_string();
     let mut classified = None;
     let owners = cache.get(workspace, file, site.byte, limits)?;
     for owner in owners {
-        let native = match code.resolve_from_item_at(
-            owner.id,
-            site.byte,
-            &written,
-            Namespace::Value,
-        ) {
-            Ok(resolution) => {
-                let mut kinds = BTreeSet::new();
-                for definition in resolution.sites {
-                    let item = workspace.item(definition).ok_or_else(|| {
-                        failure(id, "resolved pattern constant has no source item")
-                    })?;
-                    kinds.insert(
-                        matches!(
-                            item.kind,
-                            raf_source::SymbolKind::Const | raf_source::SymbolKind::AssocConst
-                        ) || (item.kind == raf_source::SymbolKind::Struct
-                            && item.shape == Some(raf_source::FieldShape::Unit)),
-                    );
-                }
-                if kinds.len() != 1 {
-                    return Err(failure(
-                        id,
-                        "pattern identifier has mixed constant/binding definitions; provide an unambiguous source context",
-                    ));
-                }
-                *kinds.first().expect("one resolved definition kind")
-            }
-            Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => false,
+        let sites = match code.resolve_from_item_at(owner.id, site.byte, &written, Namespace::Value)
+        {
+            Ok(resolution) => resolution.sites,
+            Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => Vec::new(),
             Err(error) => return Err(query_error(id, &site, error)),
         };
-        if classified.is_some_and(|previous| previous != native) {
-            return Err(failure(
-                id,
-                "pattern identifier changes binding meaning across source reaches; provide an unambiguous source context",
-            ));
-        }
-        classified = Some(native);
+        classify_pattern(workspace, id, &sites, &mut classified)?;
     }
     Ok(classified.unwrap_or(false))
 }
@@ -314,34 +834,33 @@ fn matches(
     if named_macro && written.last() == expected.spelling.last() {
         return Ok(true);
     }
-    let raw = path_text(&written, path.leading_colon.is_some());
+    let absolute = path.leading_colon.is_some();
+    let raw = path_text(&written, absolute);
     if owners.is_empty() {
         return Err(failure(
             &expected.pattern.id,
             "path occurrence has no source owner",
         ));
     }
+    let declares = |actual: &[ItemId]| {
+        expected
+            .sites
+            .get(&site.namespace)
+            .is_some_and(|wanted| actual.iter().any(|id| wanted.contains(id)))
+    };
     for owner in owners {
-        let mut eligible = |alias: &Alias, namespace| {
-            if site.import && alias.source_byte == Some(site.byte) {
-                return Ok(false);
-            }
-            import_eligible(code, owner.id, site.byte, alias, namespace)
-                .map_err(|error| query_error(&expected.pattern.id, site, error))
+        let lookup = Lookup {
+            code,
+            owner: PathOwner::Item(owner.id),
+            site,
+            label: &expected.pattern.id,
+            visibility: None,
         };
-        if !site.import
-            && path.leading_colon.is_none()
-            && scopes.local(&written, site.namespace, limits, &mut eligible)?
-        {
+        let LexicalPath::Accessible(expanded) =
+            lookup.lexical(scopes, &written, absolute, limits)?
+        else {
             continue;
-        }
-        let expanded = scopes.expand(
-            &written,
-            path.leading_colon.is_some(),
-            site.namespace,
-            limits,
-            &mut eligible,
-        )?;
+        };
         if named_macro {
             if expanded
                 .as_ref()
@@ -351,63 +870,21 @@ fn matches(
             }
             continue;
         }
-        charge(
-            &expected.pattern.id,
-            limits,
-            raw.len().try_into().unwrap_or(u64::MAX),
-        )?;
-        // Block imports are absent from the module index: resolve their actual
-        // expanded path first. Module imports/reexports use the shared resolver.
-        if let Some(expanded) = &expanded
-            && expanded.block
-        {
-            if expanded.shadowed {
-                continue;
+        let matched = match lookup.resolve(&raw, expanded.as_ref(), limits)? {
+            PathDefinition::Written(actual) => {
+                declares(&actual)
+                    || (expected.spelling.len() == 1
+                        && expected.sites.is_empty()
+                        && written == expected.spelling)
             }
-            if let Some(result) =
-                indexed_match(code, owner.id, &expanded.text(), expected, site, true)?
-            {
-                if result {
-                    return Ok(true);
-                }
-                continue;
+            PathDefinition::Expanded(actual) => declares(&actual),
+            PathDefinition::Unverified(spelling) => {
+                expected.sites.is_empty() && spelling == expected.spelling
             }
-            if expected.sites.is_empty() && expanded.segments == expected.spelling {
-                return Ok(true);
-            }
-            // The syntactic block binding shadows the raw module name even
-            // when its external target has no indexed source definition.
-            continue;
-        }
-        if let Some(result) = indexed_match(code, owner.id, &raw, expected, site, site.import)? {
-            if result {
-                return Ok(true);
-            }
-            // An indexed different definition is never replaced by spelling.
-            if expected.spelling.len() == 1
-                && expected.sites.is_empty()
-                && written == expected.spelling
-            {
-                return Ok(true);
-            }
-            continue;
-        }
-        if let Some(expanded) = &expanded
-            && !expanded.shadowed
-        {
-            if let Some(result) =
-                indexed_match(code, owner.id, &expanded.text(), expected, site, true)?
-            {
-                if result {
-                    return Ok(true);
-                }
-                continue;
-            }
-            // This is an explicitly unverified syntax observation. Provider
-            // policy must never consume it as source or delegation evidence.
-            if expected.sites.is_empty() && expanded.segments == expected.spelling {
-                return Ok(true);
-            }
+            PathDefinition::Missing => false,
+        };
+        if matched {
+            return Ok(true);
         }
     }
     Ok(false)

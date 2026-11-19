@@ -293,7 +293,7 @@ impl Proof<'_> {
             },
         )?;
         self.insert_binding(name, Binding { value, mutable })?;
-        self.scopes.bind(&local.pat, |_| Ok(true))
+        self.scopes.bind(&local.pat, |_, _| Ok(true))
     }
 
     fn value(&mut self, expression: &syn::Expr) -> Result<Value, Error> {

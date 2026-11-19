@@ -2309,6 +2309,7 @@ fn mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches() {
             ("helpers-ledger.ttl", graph.to_text(Format::Turtle).unwrap()),
         ].into_iter().collect();
         let result = Gate::workspace(".").check_tree(&files);
+        let visibility = raf_census::visibility(&files, &raf_source::RelPath::root());
         if refused {
             let error = result.unwrap_err();
             assert!(
@@ -2317,9 +2318,16 @@ fn mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches() {
                     .contains("changes binding meaning across source reaches"),
                 "{error}"
             );
+            assert!(
+                visibility
+                    .unwrap_err()
+                    .to_string()
+                    .contains("changes binding meaning across source reaches")
+            );
         } else {
             let report = result.unwrap();
             assert!(report.is_clean(), "{:?}", report.findings());
+            assert!(visibility.is_ok(), "{visibility:?}");
         }
     }
 }

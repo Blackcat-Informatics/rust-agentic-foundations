@@ -16,6 +16,7 @@ use syn::ext::IdentExt;
 
 #[derive(Default)]
 struct Frame {
+    globs: Vec<Glob>,
     names: Names,
     values: BTreeSet<String>,
     types: BTreeSet<String>,
@@ -23,7 +24,25 @@ struct Frame {
     module: bool,
 }
 
+pub(super) struct Glob {
+    pub(super) path: Vec<String>,
+    pub(super) absolute: bool,
+    pub(super) source_byte: Option<usize>,
+}
+
 impl Frame {
+    fn import_globs(&mut self, tree: &syn::UseTree, absolute: bool) {
+        crate::syntax::visit_import_paths(tree, |parts, alias| {
+            if alias.is_none() {
+                self.globs.push(Glob {
+                    path: parts.iter().map(|part| part.unraw().to_string()).collect(),
+                    absolute,
+                    source_byte: parts.first().map(|part| part.span().byte_range().start),
+                });
+            }
+        });
+    }
+
     fn local(&self, head: &str, namespace: Namespace) -> bool {
         match namespace {
             Namespace::Type => self.types.contains(head),
@@ -141,6 +160,7 @@ pub(in crate::gate) struct Expanded {
     absolute: bool,
     pub(in crate::gate) block: bool,
     pub(in crate::gate) shadowed: bool,
+    first_frame: Option<usize>,
 }
 
 impl Expanded {
@@ -157,7 +177,7 @@ pub(in crate::gate) struct Scopes {
 #[derive(Clone, Copy)]
 enum Query<'a> {
     Local(&'a [String], Namespace),
-    Expand(&'a [String], bool, Namespace),
+    Expand(&'a [String], bool, Namespace, usize),
 }
 
 enum Answer {
@@ -169,6 +189,7 @@ impl Scopes {
     pub(in crate::gate) fn enter<'a>(
         &mut self,
         module: bool,
+        track_globs: bool,
         items: impl Iterator<Item = &'a syn::Item>,
         limits: &MatchLimits,
     ) -> Result<(), Error> {
@@ -178,8 +199,19 @@ impl Scopes {
         };
         for item in items {
             frame.names.item(item);
+            if track_globs && let syn::Item::Verbatim(tokens) = item {
+                raf_source::visit_grouped_import(tokens, |attributes, absolute, tree| {
+                    frame.names.import_tree(tree, absolute, attributes);
+                    if !module {
+                        frame.import_globs(tree, absolute);
+                    }
+                });
+            }
             if !module {
                 match item {
+                    syn::Item::Use(item) if track_globs => {
+                        frame.import_globs(&item.tree, item.leading_colon.is_some());
+                    }
                     syn::Item::Fn(item) => {
                         frame.values.insert(item.sig.ident.unraw().to_string());
                     }
@@ -218,20 +250,34 @@ impl Scopes {
         self.frames.pop();
     }
 
+    pub(super) fn in_module(&self) -> bool {
+        self.frames
+            .iter()
+            .next_back()
+            .is_some_and(|frame| frame.module)
+    }
+
+    pub(super) fn in_file_module(&self) -> bool {
+        self.frames.len() == 1
+    }
+
     pub(in crate::gate) fn bind(
         &mut self,
         pattern: &syn::Pat,
-        mut include: impl FnMut(&syn::Ident) -> Result<bool, Error>,
+        mut include: impl FnMut(&Self, &syn::Ident) -> Result<bool, Error>,
     ) -> Result<(), Error> {
-        let frame = self.frames.top_mut().expect("entered lexical scope");
         let mut failure = None;
         raf_source::visit_pattern_bindings(pattern, |name| {
             if failure.is_some() {
                 return;
             }
-            match include(name) {
+            match include(self, name) {
                 Ok(true) => {
-                    frame.values.insert(name.unraw().to_string());
+                    self.frames
+                        .top_mut()
+                        .expect("entered lexical scope")
+                        .values
+                        .insert(name.unraw().to_string());
                 }
                 Ok(false) => {}
                 Err(error) => failure = Some(error),
@@ -313,6 +359,7 @@ impl Scopes {
             absolute,
             block: false,
             shadowed: false,
+            first_frame: None,
         };
         let mut seen = WorkList::<&Alias, 8>::new();
         while !expanded.absolute {
@@ -328,6 +375,7 @@ impl Scopes {
                     continue;
                 }
                 if frame.local(head, namespace) {
+                    expanded.first_frame.get_or_insert(index);
                     expanded.shadowed = true;
                     expanded.block = true;
                     return Ok(Some(expanded));
@@ -345,6 +393,7 @@ impl Scopes {
             let Some((alias, block, declaration_limit)) = selected else {
                 break;
             };
+            expanded.first_frame.get_or_insert(declaration_limit - 1);
             if alias.path.is_empty() {
                 expanded.shadowed = true;
                 expanded.block |= block;
@@ -450,12 +499,12 @@ impl Scopes {
                 Query::Local(path, namespace) => self
                     .local_with(path, namespace, limits, &mut check)
                     .map(Answer::Local),
-                Query::Expand(path, absolute, namespace) => self
+                Query::Expand(path, absolute, namespace, frame_limit) => self
                     .expand_with(
                         path,
                         absolute,
                         namespace,
-                        (None, self.frames.len()),
+                        (None, frame_limit),
                         limits,
                         &mut check,
                     )
@@ -492,9 +541,47 @@ impl Scopes {
         limits: &mut MatchLimits,
         eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
     ) -> Result<Option<Expanded>, Error> {
-        match self.resolve(Query::Expand(path, absolute, namespace), limits, eligible)? {
+        self.expand_from(
+            path,
+            absolute,
+            namespace,
+            self.frames.len(),
+            limits,
+            eligible,
+        )
+    }
+
+    pub(super) fn expand_from(
+        &self,
+        path: &[String],
+        absolute: bool,
+        namespace: Namespace,
+        frame_limit: usize,
+        limits: &mut MatchLimits,
+        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+    ) -> Result<Option<Expanded>, Error> {
+        match self.resolve(
+            Query::Expand(path, absolute, namespace, frame_limit),
+            limits,
+            eligible,
+        )? {
             Answer::Expanded(value) => Ok(value),
             Answer::Local(_) => unreachable!("an expansion query returns an expansion answer"),
         }
+    }
+
+    pub(super) fn block_globs(
+        &self,
+        expanded: Option<&Expanded>,
+    ) -> impl Iterator<Item = (usize, &[Glob])> {
+        let first_frame = expanded.and_then(|path| path.first_frame);
+        (0..self.frames.len())
+            .rev()
+            .zip(self.frames.iter().rev())
+            .take_while(move |(index, frame)| {
+                !frame.module && first_frame.is_none_or(|first| *index > first)
+            })
+            .filter(|(_, frame)| !frame.globs.is_empty())
+            .map(|(index, frame)| (index, frame.globs.as_slice()))
     }
 }

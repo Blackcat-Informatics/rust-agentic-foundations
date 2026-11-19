@@ -13,13 +13,13 @@ use std::fmt;
 
 use purrdf_lex::allocation::Memory;
 
-use crate::index::Index;
+use crate::index::{Index, UseKind};
 use crate::meter::{ItemAdmission, Meter};
 use crate::reach::{Home, fill_homes};
 use crate::resolve::Heads;
 use crate::{
-    ItemId, LoadError, LoadOptions, Namespace, RelPath, Resolution, ResolveError, SymbolKind,
-    TargetId, TestRole, Usage, Workspace,
+    ImplId, ItemId, LoadError, LoadOptions, Namespace, Reach, RelPath, Resolution, ResolveError,
+    SymbolKind, TargetId, TestRole, Usage, Workspace,
 };
 
 /// Failure to establish a reading context or resolve its module-level code path.
@@ -28,6 +28,8 @@ use crate::{
 pub enum CodeResolveError {
     /// The load-local owner is absent from this workspace.
     UnknownItem(ItemId),
+    /// The load-local impl is absent from this workspace.
+    UnknownImpl(ImplId),
     /// The byte is outside the selected item's source span.
     OutsideItem(ItemId, usize),
     /// An indexed owner has no source-owned reading module.
@@ -77,6 +79,7 @@ impl fmt::Display for CodeResolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnknownItem(id) => write!(f, "source owner {id:?} is absent from this workspace"),
+            Self::UnknownImpl(id) => write!(f, "source impl {id:?} is absent from this workspace"),
             Self::OutsideItem(id, byte) => write!(f, "byte {byte} is outside source owner {id:?}"),
             Self::MissingContext(id) => write!(f, "source owner {id:?} has no reading module"),
             Self::ExpectedModule(id) => write!(f, "source scope {id:?} is not a module"),
@@ -138,6 +141,56 @@ pub struct CodeResolver<'a> {
     usage: Usage,
 }
 
+/// One import in the module index, with its exact target and reading context.
+pub struct IndexedImport<'query, 'workspace> {
+    code: &'query CodeResolver<'workspace>,
+    position: usize,
+}
+
+impl IndexedImport<'_, '_> {
+    /// The target and location where this flattened import was written.
+    #[must_use]
+    pub fn site(&self) -> (TargetId, &RelPath, usize) {
+        let declaration = &self.code.index.uses[self.position];
+        (
+            self.code.index.modules[declaration.module].target,
+            &declaration.file,
+            declaration.line,
+        )
+    }
+
+    /// The imported path segments, whether they start with `::`, and whether
+    /// the declaration imports a glob from that path.
+    #[must_use]
+    pub fn path(&self) -> (&[String], bool, bool) {
+        let declaration = &self.code.index.uses[self.position];
+        let (segments, glob) = match &declaration.kind {
+            UseKind::Named { segs, .. } => (segs, false),
+            UseKind::Glob { segs } => (segs, true),
+        };
+        (segments, declaration.leading_colon, glob)
+    }
+
+    /// Resolve the whole import path or a prefix of it in its own use context.
+    ///
+    /// # Errors
+    /// Preserves shared resolver errors, including invalid prefixes.
+    pub fn resolve(
+        &self,
+        path: &str,
+        namespace: Namespace,
+    ) -> Result<Resolution, CodeResolveError> {
+        let declaration = &self.code.index.uses[self.position];
+        let heads = Heads::Use {
+            test: declaration.test,
+            own: Some(self.position),
+        };
+        self.code
+            .resolve_code_at(declaration.module, path, namespace, heads)
+            .map(|(resolution, _)| resolution)
+    }
+}
+
 impl<'a> CodeResolver<'a> {
     pub(crate) fn new(
         workspace: &'a Workspace,
@@ -177,6 +230,71 @@ impl<'a> CodeResolver<'a> {
     #[must_use]
     pub const fn usage(&self) -> Usage {
         self.usage
+    }
+
+    /// Every flattened module import in its exact admitted reading context.
+    pub fn indexed_imports(&self) -> impl Iterator<Item = IndexedImport<'_, 'a>> {
+        (0..self.index.uses.len()).map(|position| IndexedImport {
+            code: self,
+            position,
+        })
+    }
+
+    /// Resolve a name at the file's own module, as reached by this workspace.
+    /// Use this for file-level syntax that has no named item of its own.
+    ///
+    /// # Errors
+    /// Refuses a reach whose target or module is absent from this index.
+    /// Preserves every shared resolver error.
+    pub fn resolve_from_file_reach(
+        &self,
+        reach: &Reach,
+        path: &str,
+        namespace: Namespace,
+    ) -> Result<Resolution, CodeResolveError> {
+        let module = self
+            .index
+            .target_roots
+            .get(reach.target.index())
+            .and_then(|&root| {
+                self.index
+                    .module_by_path
+                    .get(&(root, reach.module_path.clone()))
+            })
+            .copied()
+            .ok_or_else(|| {
+                CodeResolveError::Resolve(ResolveError::UnknownModule(
+                    reach.module_path.to_string(),
+                ))
+            })?;
+        self.resolve_code_at(module, path, namespace, Heads::Code { test: reach.test })
+            .map(|(resolution, _)| resolution)
+    }
+
+    /// Read a module-level path in the lexical module of an indexed impl.
+    /// Use this for the impl header, which has no named item of its own.
+    ///
+    /// # Errors
+    /// Refuses an unknown impl and preserves every shared resolver error.
+    pub fn resolve_from_impl(
+        &self,
+        implementation: ImplId,
+        path: &str,
+        namespace: Namespace,
+        import: bool,
+    ) -> Result<Resolution, CodeResolveError> {
+        let block = self
+            .workspace
+            .impl_block(implementation)
+            .ok_or(CodeResolveError::UnknownImpl(implementation))?;
+        let test = block.test != TestRole::None;
+        let heads = if import {
+            Heads::Use { test, own: None }
+        } else {
+            Heads::Code { test }
+        };
+        self.resolve_code_at(block.module_index, path, namespace, heads)
+            .map(|(resolution, _)| resolution)
     }
 
     fn module(&self, owner: ItemId, byte: usize) -> Result<usize, CodeResolveError> {
