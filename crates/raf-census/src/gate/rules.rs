@@ -5,6 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use purrdf_jsonschema::ecma::MatchLimits;
 use raf_source::{
     CodeResolveError, CodeResolver, Item, ItemId, Namespace, ResolveError, SelfType, SymbolKind,
     Workspace, parse_source,
@@ -85,6 +86,7 @@ pub(super) struct Collected {
     pub(super) hits: Hits,
     pub(super) subjects: BTreeMap<UnitKey, Subject>,
     pub(super) offsets: Offsets,
+    pub(super) bounds: super::bounds::Scan,
 }
 
 pub(super) struct JobHits<'a> {
@@ -130,6 +132,7 @@ pub(super) fn collect(
     selected: &Selected<'_>,
     owners: &Owners<'_>,
     ledger: &Ledger,
+    limits: &mut MatchLimits,
 ) -> Result<Collected, Error> {
     let rules = selected.registered;
     let tracked = ledger.ratcheted_rules();
@@ -147,9 +150,10 @@ pub(super) fn collect(
             .collect(),
         subjects: BTreeMap::new(),
         offsets: BTreeMap::new(),
+        bounds: super::bounds::Scan::default(),
     };
     fact_hits(workspace, census, (&requested, &tracked), &mut collected)?;
-    if rules.is_empty() && !builtin {
+    if rules.is_empty() && !builtin && ledger.numeric_bounds.is_none() {
         return Ok(collected);
     }
     let mut receivers = Receivers::new();
@@ -159,6 +163,11 @@ pub(super) fn collect(
             continue;
         };
         let (found, builtins) = parse_source(&source.path, &source.text, |syntax| {
+            if ledger.numeric_bounds.is_some() {
+                collected
+                    .bounds
+                    .file((workspace, code), source, syntax, limits)?;
+            }
             let registered = admitted
                 .iter()
                 .map(|(id, rule)| {
@@ -172,8 +181,8 @@ pub(super) fn collect(
             } else {
                 Ok(SyntaxHits::default())
             };
-            (registered, builtins)
-        })?;
+            Ok::<_, Error>((registered, builtins))
+        })??;
         let SyntaxHits {
             hits,
             receivers: declared,
@@ -273,6 +282,17 @@ pub(super) fn requested<'a>(
                 .chain(row.variants.iter().map(|variant| variant.detector.as_str()))
         })
         .collect();
+    if let Some(id) = requested
+        .iter()
+        .copied()
+        .chain(required.iter().map(String::as_str))
+        .find(|id| crate::report::bounds::IDS.contains(id))
+    {
+        return Err(refused(
+            id,
+            "numeric bounds guard ids are reserved; configure numericBounds on the ledger",
+        ));
+    }
     let ratcheted = ledger.ratcheted_rules();
     let mut required_ids = BTreeSet::new();
     for id in required {
@@ -311,6 +331,7 @@ pub(super) fn admit(rules: &[Box<dyn Rule>]) -> Result<Vec<(&'static str, &dyn R
                     .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
         }) || !ids.insert(id)
             || crate::rule::BUILTIN_RULE_IDS.contains(&id)
+            || crate::report::bounds::IDS.contains(&id)
         {
             return Err(refused(
                 id,
@@ -444,7 +465,7 @@ fn source_calls(
     Ok(reaches)
 }
 
-fn self_member(workspace: &Workspace, owner: &Item, member: &str) -> Option<String> {
+pub(super) fn self_member(workspace: &Workspace, owner: &Item, member: &str) -> Option<String> {
     if member.is_empty()
         || owner.kind != SymbolKind::InherentMethod
         || owner.self_key != Some(SelfType::Local)

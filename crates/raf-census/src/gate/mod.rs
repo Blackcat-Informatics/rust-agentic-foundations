@@ -3,7 +3,9 @@
 
 //! One production gate over the ledger, source workspace, rules and exact debt.
 
+mod bounds;
 mod context;
+pub use bounds::{BoundClassification, BoundRole, NumericBound};
 mod evaluate;
 mod migrate;
 mod module_paths;
@@ -95,10 +97,16 @@ pub struct GateReport {
     jobs: Vec<JobReport>,
     findings: Vec<String>,
     debt: DebtRecord,
+    numeric_bounds: Vec<NumericBound>,
     sites: std::collections::BTreeMap<crate::DebtSite, Vec<String>>,
 }
 
 impl GateReport {
+    /// The physical numeric bounds observed when the ledger enables their inventory.
+    #[must_use]
+    pub fn numeric_bounds(&self) -> &[NumericBound] {
+        &self.numeric_bounds
+    }
     /// The collected workspace units and groups.
     #[must_use]
     pub const fn census(&self) -> &Census {

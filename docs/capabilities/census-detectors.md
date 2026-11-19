@@ -12,6 +12,8 @@ bindings:
     - raf_census::gate::context
     - raf_census::gate::subjects
     - raf_census::Unit::string_initializer
+    - raf_census::gate::bounds
+    - raf_census::BoundRole
   tests:
     - raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures
     - raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions
@@ -34,6 +36,9 @@ bindings:
     - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
     - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
     - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
+    - raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs
+    - raf_census::test_crate::census_gate::numeric_bounds::numeric_size_arguments_require_agreement_at_shared_physical_sites
+    - raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_refuses_a_signature_beyond_the_state_grant
   examples:
     - raf_census::example_crate::providers
 depends: [cap:census-normal-form]
@@ -57,6 +62,49 @@ Complete fixture coverage makes detector verdicts dependable: the executable
 registry and behavioral cases must agree before the suite can pass.
 
 ## Contract
+
+### Numeric bounds inventory
+
+A Ledger with a [numeric bounds registry](./census-ledger.md#numeric-bounds-classification)
+inventories physical sites in the first-party files selected for Census. Jobs,
+homes, variants and grouping exclusions leave those sites in the inventory.
+The detector reads written Rust and counts each qualifying token once, even
+when several source contexts reach it.
+
+- A numeric const, static or associated const qualifies when its name contains
+  one of the underscore-separated words max, limit, cap, budget, bound or
+  capacity, ignoring ASCII case. A written primitive numeric type or a
+  numeric literal initializer supplies the numeric evidence.
+- A direct integer operand qualifies in a comparison against an expression
+  named with len, length or count. The measure can be a path, a field, a path
+  call or a zero-argument method call. Arithmetic around the operand leaves it
+  outside this comparison rule.
+- A direct integer operand qualifies in an argument position that limits
+  truncate, take, min or clamp. The rule reads method calls and calls with the
+  corresponding written path and argument count. It reads both extrema of
+  clamp and both arguments to a two-argument min call.
+- A direct integer argument qualifies for a parameter whose name has size, len,
+  length, count, capacity, limit, max, cap, budget or bound as a word. The
+  parameter must be one simple binding in an indexed signature. Receivers,
+  wildcards and destructured arguments retain their slots. Variadic signatures
+  and conditionally compiled parameters supply no size evidence. Each reading
+  context must establish a callable signature and agree that the actual
+  argument occupies a size-named slot. Lexical bindings can shadow callables.
+  Indexed function and associated paths can supply the evidence, including
+  resolved imports. An inherent dot call on self can also supply it when the
+  written receiver modes agree.
+
+Parentheses and signed integer literals are admitted.
+A positively resolved named operand adds the observed comparison or limiter
+role to its existing declaration. A call whose reading contexts disagree on
+a literal size slot fails with the argument number and source location.
+An unresolved callable or dynamic dispatch
+supplies no size-parameter evidence. Comparison and limiter observations
+describe written syntax. They supply no control-flow or method type proof.
+The scanner reads macro arguments that parse as an expression list or a
+statement list. Macro expansion provides no evidence.
+The gate uses the shared source and matching limits and refuses exhaustion.
+<!-- raf:tested-by raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs,raf_census::test_crate::census_gate::numeric_bounds::numeric_size_arguments_require_agreement_at_shared_physical_sites,raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_refuses_a_signature_beyond_the_state_grant -->
 
 ### Required representation policies
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
@@ -359,23 +407,19 @@ self-Census makes this selection for the real snapshot and its mutation
 fixtures. Other detectors retain their documented source eligibility.
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
 
-A job forbids a detector by listing its fingerprint. Serialize its graph with
-the [native report writer](./rdf-report-profile.md), which computes the snapshot
-BASE and canonical bytes. This complete ledger is native writer output:
+A job forbids a detector by listing its fingerprint. Add the selection to the
+job's node in the ledger graph and serialize the graph with the
+[native report writer](./rdf-report-profile.md) to compute the snapshot BASE
+and canonical bytes. The following job selects the ceiling-division detector.
 
 ```turtle
-VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/30b0289c5affe30deea1d0581eed949178d1fc783e0d9ce69a3b19b6e1543140>
-<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
-<> <https://blackcatinformatics.ca/raf/report/1#job> <#ceil-div> .
-<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<#ceil-div> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LedgerJob> .
-<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#enforced> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
-<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#forbiddenFingerprint> "rule:div-ceil-by-hand" .
-<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#homeSymbol> "demo_util::math::ceil_div" .
-<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#jobId> "ceil-div" .
-<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#summary> "Ceiling division." .
+PREFIX raf: <https://blackcatinformatics.ca/raf/report/1#>
+<#ceil-div> a raf:LedgerJob ;
+    raf:jobId "ceil-div" ;
+    raf:summary "Ceiling division." ;
+    raf:enforced true ;
+    raf:homeSymbol "demo_util::math::ceil_div" ;
+    raf:forbiddenFingerprint "rule:div-ceil-by-hand" .
 ```
 
 The native ledger is read by `Gate::workspace(directory).check()` or by
@@ -606,6 +650,9 @@ required findings with neighbouring clean source.
 | `raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_refuses_a_signature_beyond_the_state_grant` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::numeric_bounds::numeric_size_arguments_require_agreement_at_shared_physical_sites` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector` | test | [Contract](#contract) |

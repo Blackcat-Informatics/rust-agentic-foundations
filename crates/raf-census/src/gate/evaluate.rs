@@ -26,7 +26,14 @@ pub(super) fn evaluate(
     let owners = owners::index(&census);
     let code = workspace.code_resolver()?;
     let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
-    let mut collected = rules::collect((workspace, &code), &census, &selected, &owners, ledger)?;
+    let mut collected = rules::collect(
+        (workspace, &code),
+        &census,
+        &selected,
+        &owners,
+        ledger,
+        &mut limits,
+    )?;
     collect_patterns(
         (ledger, &references.names),
         workspace,
@@ -39,6 +46,16 @@ pub(super) fn evaluate(
     let hits = &collected.hits;
     let mut sink = ratchet::Sink::new(ledger, &collected.offsets);
     let mut findings = selected.findings(hits);
+    let (numeric_bounds, numeric_debt) = if let Some(registry) = &ledger.numeric_bounds {
+        std::mem::take(&mut collected.bounds).evaluate(
+            workspace,
+            registry,
+            &mut limits,
+            &mut findings,
+        )?
+    } else {
+        (Vec::new(), ratchet::Counted::default())
+    };
     let mut reports = Vec::new();
     let mut copies = BTreeMap::new();
     for row in ledger.jobs() {
@@ -57,56 +74,15 @@ pub(super) fn evaluate(
         else {
             continue;
         };
-        let hits = super::context::collect(&collected, &census, row, &resolved, &mut limits)?;
-        let ResolvedJob {
-            mut job,
-            homes,
-            home_packages,
-            home_sources,
-            ..
-        } = resolved;
-        // A native adapter does not authorize competing implementations in
-        // the rest of its package. Ordinary home jobs retain their exemption.
-        let no_exempt_packages = BTreeSet::new();
-        let detector_exempt_packages = if row.preferred_provider.is_some() {
-            &no_exempt_packages
-        } else {
-            &home_packages
-        };
-        let variants = resolve_variants(
-            workspace,
-            &owners,
+        let report = report_job(
+            (workspace, &census, &owners),
+            &collected,
             row,
-            &hits,
-            &collected.subjects,
-            &mut findings,
+            resolved,
+            (&mut sink, &mut limits, &mut findings),
         )?;
-        // Legacy in-memory jobs classify symbol-wide variants. The ledger's
-        // narrower sanction must include the declared source file as well.
-        job.variants.clear();
-        let matched = matching_units(&census, &job, row, &hits, detector_exempt_packages);
-        let mut report = collect_report(&job, matched, &homes, &variants);
-        append_reference_homes(&census, &homes, &mut report);
-        super::subjects::append(
-            row,
-            &hits,
-            &collected.subjects,
-            detector_exempt_packages,
-            &home_sources,
-            &variants,
-            &mut report,
-        );
-        report_copies(
-            row,
-            &report,
-            &hits,
-            &owners,
-            detector_exempt_packages,
-            &mut sink,
-            &mut findings,
-        );
         if !row.enforced && report.copies > 0 {
-            copies.insert(job.id.clone(), report.copies);
+            copies.insert(report.id.clone(), report.copies);
         }
         reports.push(report);
     }
@@ -116,6 +92,7 @@ pub(super) fn evaluate(
     let (debt, sites) = collect_debt(
         (ledger, workspace, &owners, &census),
         copies,
+        numeric_debt,
         (&sink, &mut limits),
         &mut findings,
     )?;
@@ -125,7 +102,59 @@ pub(super) fn evaluate(
         findings,
         debt,
         sites,
+        numeric_bounds,
     })
+}
+
+fn report_job(
+    (workspace, census, owners): (&Workspace, &Census, &owners::Owners<'_>),
+    collected: &rules::Collected,
+    row: &LedgerJob,
+    resolved: ResolvedJob,
+    (sink, limits, findings): (&mut ratchet::Sink<'_>, &mut MatchLimits, &mut Vec<String>),
+) -> Result<JobReport, Error> {
+    let hits = super::context::collect(collected, census, row, &resolved, limits)?;
+    let ResolvedJob {
+        mut job,
+        homes,
+        home_packages,
+        home_sources,
+        ..
+    } = resolved;
+    // A native adapter does not authorize competing implementations in
+    // the rest of its package. Ordinary home jobs retain their exemption.
+    let no_exempt_packages = BTreeSet::new();
+    let detector_exempt_packages = if row.preferred_provider.is_some() {
+        &no_exempt_packages
+    } else {
+        &home_packages
+    };
+    let variants = resolve_variants(workspace, owners, row, &hits, &collected.subjects, findings)?;
+    // Legacy in-memory jobs classify symbol-wide variants. The ledger's
+    // narrower sanction must include the declared source file as well.
+    job.variants.clear();
+    let matched = matching_units(census, &job, row, &hits, detector_exempt_packages);
+    let mut report = collect_report(&job, matched, &homes, &variants);
+    append_reference_homes(census, &homes, &mut report);
+    super::subjects::append(
+        row,
+        &hits,
+        &collected.subjects,
+        detector_exempt_packages,
+        &home_sources,
+        &variants,
+        &mut report,
+    );
+    report_copies(
+        row,
+        &report,
+        &hits,
+        owners,
+        detector_exempt_packages,
+        sink,
+        findings,
+    );
+    Ok(report)
 }
 
 fn append_reference_homes(
@@ -152,6 +181,7 @@ fn append_reference_homes(
 fn collect_debt(
     (ledger, workspace, owners, census): (&Ledger, &Workspace, &owners::Owners<'_>, &Census),
     copies: BTreeMap<String, usize>,
+    numeric_debt: ratchet::Counted,
     (sink, limits): (&ratchet::Sink<'_>, &mut MatchLimits),
     findings: &mut Vec<String>,
 ) -> Result<(DebtRecord, BTreeMap<crate::DebtSite, Vec<String>>), Error> {
@@ -166,10 +196,19 @@ fn collect_debt(
             ));
         }
     }
-    let counted = sink.count(workspace, limits)?;
+    let mut counted = sink.count(workspace, limits)?;
+    counted.merge(numeric_debt);
+    let numeric_rules = ledger
+        .numeric_bounds
+        .iter()
+        .filter(|registry| registry.ratcheted)
+        .flat_map(|_| crate::report::bounds::IDS);
     let record = DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)?
         .scoped(census.options().scope.clone())
-        .with_ratchet(sink.rules().map(str::to_owned), counted.counts)?;
+        .with_ratchet(
+            sink.rules().chain(numeric_rules).map(str::to_owned),
+            counted.counts,
+        )?;
     Ok((record, counted.locations))
 }
 
@@ -612,7 +651,7 @@ fn resolve_job(
     })
 }
 
-fn documented(workspace: &Workspace, anchor: &str, findings: &mut Vec<String>) {
+pub(super) fn documented(workspace: &Workspace, anchor: &str, findings: &mut Vec<String>) {
     let Some(encoded) = anchor.strip_prefix(SYMBOL_ANCHOR_PREFIX) else {
         findings.push(format!("anchor {anchor:?}: use {SYMBOL_ANCHOR_PREFIX} followed by an encoded documented source path"));
         return;

@@ -87,6 +87,21 @@ pub(super) struct Counted {
     pub(super) locations: BTreeMap<DebtSite, Vec<String>>,
 }
 
+impl Counted {
+    pub(super) fn record(&mut self, site: DebtSite, location: String) {
+        *self.counts.entry(site.clone()).or_default() += 1;
+        self.locations.entry(site).or_default().push(location);
+    }
+
+    pub(super) fn merge(&mut self, other: Self) {
+        for (site, locations) in other.locations {
+            for location in locations {
+                self.record(site.clone(), location);
+            }
+        }
+    }
+}
+
 type Row<'a> = (&'a str, &'a str, usize, usize, &'a str);
 
 fn count_sites(
@@ -123,12 +138,7 @@ fn count_sites(
                 .filter(|literal| literal.start < end)
                 .map(|literal| literal.value.as_str());
             let site = DebtSite::new(file, rule, SiteKey::digest(symbol, literal))?;
-            *counted.counts.entry(site.clone()).or_default() += 1;
-            counted
-                .locations
-                .entry(site)
-                .or_default()
-                .push(format!("{file}:{line}: {symbol}: {message}"));
+            counted.record(site, format!("{file}:{line}: {symbol}: {message}"));
         }
     }
     Ok(counted)
