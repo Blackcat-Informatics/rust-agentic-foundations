@@ -7,7 +7,7 @@ subject: cap:census-ledger#explanation
 inputs:
   - kind: section
     name: cap:census-ledger#explanation
-    digest: 75e9fdd5b753b3a1b1923b2e723d5b1b453be904ede05226385fd3ad8077873e
+    digest: 2add754d37e5dadb64054b3946d20c1a5301991988d695fd969272aa580f0273
   - kind: symbol
     name: raf_census::BenchLink
     digest: 0cfb32481d48d75a47a6aa9abb72aa76a9a48fa4a0e495b3a8fdf364da325853

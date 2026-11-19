@@ -31,10 +31,10 @@ inputs:
     digest: ee73f3e1b34baee6fe1444c47168271822b40aa62a586a43e5f2a752bad1e91a
   - kind: symbol
     name: raf_census::gate::rules
-    digest: a362472717397f7362fe694a0ecf0ba6131908fe94a4b42d2f9bd8bcf53c4d3d
+    digest: 77ecd669cbf624320c67ed386fe90f178f010466bf81c4537fe2832fae2437f7
   - kind: symbol
     name: raf_census::rule
-    digest: 272e8c9b5a32f2f209a57aa6499c7641214b270b17f8ab8186244432bc017c9d
+    digest: cd623ae43036600b4791b82d9442d7f6305472d959d8329aef8eeeeb80d67c3c
 verdict: accepted
 by: agent
 ---

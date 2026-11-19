@@ -611,16 +611,23 @@ impl Gate {
                 supplied,
             )?)
         };
+        let enum_inventory = self
+            .required_rules
+            .iter()
+            .map(String::as_str)
+            .chain(ledger.jobs().iter().flat_map(rules::job_rule_ids))
+            .any(|id| id == crate::detectors::ENUM_CATCH_ALL);
         if let Some(acquired) = &mut acquired
-            && ledger.patterns().iter().any(|pattern| {
-                matches!(
-                    pattern.matcher,
-                    crate::PatternMatcher::Call(_)
-                        | crate::PatternMatcher::Path(_)
-                        | crate::PatternMatcher::Macro(_)
-                        | crate::PatternMatcher::Type(_)
-                )
-            })
+            && (enum_inventory
+                || ledger.patterns().iter().any(|pattern| {
+                    matches!(
+                        pattern.matcher,
+                        crate::PatternMatcher::Call(_)
+                            | crate::PatternMatcher::Path(_)
+                            | crate::PatternMatcher::Macro(_)
+                            | crate::PatternMatcher::Type(_)
+                    )
+                }))
         {
             acquired.prepare_namespace(tree, host, &roots)?;
         }

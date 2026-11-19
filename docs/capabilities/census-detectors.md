@@ -4,7 +4,7 @@
 type: Capability
 id: cap:census-detectors
 title: "Built-in census detectors"
-description: "Twenty built-in detectors for recurring helpers and RDF representation and structure, each with positive and negative fixtures."
+description: "Twenty-one built-in detectors for recurring helpers, enum match arms, and RDF representation and structure, each with positive and negative fixtures."
 state: delivered
 bindings:
   code:
@@ -16,6 +16,9 @@ bindings:
     - raf_census::BoundRole
   tests:
     - raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures
+    - raf_census::test_crate::census_gate::enum_arms::enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes
+    - raf_census::test_crate::census_gate::enum_arms::enum_catch_alls_keep_only_arms_proved_across_shared_reaches
+    - raf_census::test_crate::reference_scan::enum_catch_alls_prove_variants_from_a_selected_dependency
     - raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions
 
     - raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases
@@ -275,6 +278,38 @@ A single-line literal remains a hit whatever words it contains, as does a
 multi-line literal without a listed keyword. Sole-name includes test
 targets in the home package and exempts the actual home and entry-point units.
 
+### Enum catch-all arms
+<!-- raf:tested-by raf_census::test_crate::census_gate::enum_arms::enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes,raf_census::test_crate::census_gate::enum_arms::enum_catch_alls_keep_only_arms_proved_across_shared_reaches,raf_census::test_crate::reference_scan::enum_catch_alls_prove_variants_from_a_selected_dependency -->
+
+The `enum-catch-all` detector reports the source location of each unguarded
+top-level wildcard or bare binding in a match whose other arms establish an
+indexed enum. It checks qualified variant paths and resolved imports against the
+enum's declared member names and forms at the actual source reach. A
+`Self::Variant` pattern supplies evidence when the written type path of an
+indexed inherent implementation resolves directly to the enum in that
+reach. A physically shared arm reports once when each reading context
+establishes the role.
+
+A variant pattern supplies enum evidence through its own head. Wildcards inside
+tuple or record fields leave that arm outside the catch-all inventory. An
+or-pattern supplies enum evidence when all its alternatives resolve to variants
+of the same enum. Parentheses preserve the role of the enclosed pattern.
+A bare identifier denoting a constant or variant leaves the arm outside the
+inventory. A guard limits its arm and prevents the catch-all role.
+
+The detector requires an indexed variant witness. Opaque imports, unresolved
+aliases and conditional declarations supply no witness. An enum or variant
+with written `cfg_attr` remains conditional because the attribute can add
+configuration or macro attributes. Arm and match attributes that can change
+configuration also leave the pattern inconclusive. Selected reference roots
+and dependency sources can supply enum identities. Only selected first-party
+targets contribute arm locations. The matcher charges source and retained
+evidence to the shared matching grant.
+
+Enable the detector as a required rule, forbid its rule fingerprint in an
+enforced job, or count it with the job ratchet. The detector observes matching
+arms within the home package too.
+
 ### Complete fixture coverage
 <!-- raf:tested-by raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures -->
 
@@ -297,7 +332,7 @@ the body can be classified as a home.
 ### Detector identities and target eligibility
 <!-- raf:tested-by raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases,raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::fact_detectors_reuse_collected_values_and_keep_their_target_scope,raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields,raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence,raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions -->
 
-The census ships twenty built-in detectors. Each reports hits as `rule:<id>`, where
+The census ships twenty-one built-in detectors. Each reports hits as `rule:<id>`, where
 `<id>` is the detector id, and a ledger job names the hit in
 `forbiddenFingerprint`. A job may also name a detector in `ratchetedRule`, so that
 its hits are counted sites in the debt record instead of findings (see the
@@ -331,6 +366,7 @@ inside the owning item.
 | `rdf-term-model` | all | A local IRI, blank-node and literal enum without a triple-term alternative. |
 | `reifier-default-graph` | shipping | A reifier row built for the default graph through the home or an entry point, in a function that handles named graphs. |
 | `rdf-list-walk` | shipping | A function that names `rdf:first` and `rdf:rest`, iterates or recurses, and calls neither the home nor an entry point. |
+| `enum-catch-all` | all | An unguarded top-level wildcard or bare binding in a match over an indexed enum. |
 
 The `home-literal`, `sole-name`, `vocabulary-literal` and `foreign-host-import`
 detectors apply to jobs that name them in `forbidden`. The census walks shipping
@@ -339,11 +375,12 @@ the table names what each detector reads: `shipping` for shipping code only, and
 for shipping code and every test, bench and example target. The eleven `shipping`
 detectors are `hex-digit-radix`, `json-pointer-escape`, `length-prefix-frame`,
 `le-slice-int`, `align-up-mask`, `div-ceil-by-hand`, `xor-first-mismatch`,
-`home-literal`, `vocabulary-literal`, `reifier-default-graph` and `rdf-list-walk`; each marks itself so in its report. The nine
+`home-literal`, `vocabulary-literal`, `reifier-default-graph` and `rdf-list-walk`.
+Each marks itself as shipping-only in its report. The ten
 `all` detectors also include the three representation policies alongside
 `std-default-hasher`, `foreign-host-import`, `hex-format-loop`, `hex-pair-radix`,
-`hex-table` and `sole-name`. Apart from `sole-name`, `foreign-host-import` and the
-three representation policies,
+`hex-table`, `sole-name` and `enum-catch-all`. Apart from `sole-name`, `foreign-host-import`,
+`enum-catch-all` and the three representation policies,
 a detector exempts the home package of an ordinary job.
 A preferred-provider declaration removes this package exemption; only the actual
 home and entry-point items retain their classification as homes.
@@ -542,9 +579,9 @@ delegation to a native provider.
 
 ## Explanation
 
-These twenty detectors recognise recurring byte-level encodings, integer layout
-operations, literals, hash-collection defaults, host function imports, RDF
-representation syntax and hand-written RDF structure.
+These detectors recognise recurring byte-level encodings, integer layout
+operations, literals, hash-collection defaults, host function imports, enum
+catch-all arms, RDF representation syntax and hand-written RDF structure.
 The shared crate gives each
 consumer the same source ownership, target eligibility and ledger interpretation.
 Domain-specific rules stay in the consuming repository as `Rule` implementations,
@@ -583,9 +620,9 @@ required findings with neighbouring clean source.
 
 - Each detector has a positive fixture that yields exactly one hit with the right
   `rule:<id>`, and a negative fixture that yields none.
-- A fixture shows that a detector other than `sole-name` and `foreign-host-import`
-  reports no hit inside the home package of an ordinary job that forbids it, except
-  the three representation policies, which do not exempt home packages. A second
+- Fixtures cover the home-package exemption for detectors forbidden by an
+  ordinary job. The exemption excludes `sole-name`, `foreign-host-import`,
+  `enum-catch-all` and the three representation policies. A second
   module of the home package that repeats the home's host import is reported.
 - A preferred-provider fixture reports unlisted competing functions and structs
   in the adapter package, including a helper containing a discarded native call,
@@ -642,6 +679,8 @@ required findings with neighbouring clean source.
 | `raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::enum_arms::enum_catch_alls_keep_only_arms_proved_across_shared_reaches` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::enum_arms::enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::fact_detectors_reuse_collected_values_and_keep_their_target_scope` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::foreign_host_import_names_a_class_by_its_js_class_or_constructed_type` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::foreign_host_import_names_a_property_by_the_property_it_reads` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
@@ -656,4 +695,5 @@ required findings with neighbouring clean source.
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector` | test | [Contract](#contract) |
+| `raf_census::test_crate::reference_scan::enum_catch_alls_prove_variants_from_a_selected_dependency` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

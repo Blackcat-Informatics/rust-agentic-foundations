@@ -502,8 +502,9 @@ cannot create extra debt members, while real alternative implementations must
 retain their multiplicity. Exact sanctions bind actual members and their
 documentation, so a new clone invalidates an old justification automatically.
 Staleness in both directions prevents dead policy accumulating unused exceptions.
-The Gate reports every selected physical item once and refuses missing executors
-before a result can be mistaken for a complete evaluation.
+Job results classify each selected physical item once. Site-based rules can
+report several offending locations within that item. The Gate refuses missing
+executors before a result can be mistaken for a complete evaluation.
 
 ## Verification
 

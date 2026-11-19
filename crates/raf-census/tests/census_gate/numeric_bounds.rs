@@ -7,7 +7,7 @@ use raf_census::{BoundClassification, BoundRole, GateReport};
 
 use super::{Builder, Format, Gate, Ledger, MemoryTree, Term, base, job, put, vocab};
 
-fn registry(mut graph: Builder, mode: &str) -> Builder {
+pub(super) fn registry(mut graph: Builder, mode: &str) -> Builder {
     put(&mut graph, "", "numericBounds", Term::iri("#bounds"));
     kind(&mut graph, "#bounds", "NumericBounds");
     put(&mut graph, "#bounds", "mode", Term::simple_literal(mode));

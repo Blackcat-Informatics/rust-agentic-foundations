@@ -13,7 +13,7 @@ inputs:
     digest: 466c7d52136e2ced24a8da3e510904c6a7b044844fc2f215970f1e87c59bd11f
   - kind: symbol
     name: raf_census::embedded
-    digest: 4ece44eefb8209fcd850d4dd39e7ee5a34639f8fa0f27760f0fef91b5c824c78
+    digest: a69c3743daf6b83f933fa7162ea51ac50baf850d3bcf8e0bf9ef2154fb63c92b
   - kind: symbol
     name: raf_census::embedded::analysis::Analysis
     digest: f4b3a6e4a11df3a07c9ea5dadafa8b9032c098efcdd6716be695a8a190a93cb7

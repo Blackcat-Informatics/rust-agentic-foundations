@@ -139,6 +139,7 @@ pub(super) fn collect(
     let admitted = admit(rules)?;
     let mut ids: BTreeSet<_> = admitted.iter().map(|(id, _)| *id).collect();
     let requested = requested(ledger, selected.required, &ids)?;
+    let enum_inventory = requested.contains(crate::detectors::ENUM_CATCH_ALL);
     let builtin = requested
         .iter()
         .any(|id| crate::detectors::needs_syntax(id));
@@ -158,6 +159,7 @@ pub(super) fn collect(
     }
     let mut receivers = Receivers::new();
     let mut pending = Vec::new();
+    let mut enum_retained = 0;
     for source in workspace.files() {
         let Some(ctx) = census.source_context(&source.path) else {
             continue;
@@ -176,11 +178,23 @@ pub(super) fn collect(
                     (*id, hits)
                 })
                 .collect::<Vec<_>>();
-            let builtins = if builtin {
+            let mut builtins = if builtin {
                 crate::detectors::collect(syntax, &requested)
             } else {
                 Ok(SyntaxHits::default())
             };
+            if enum_inventory && let Ok(observed) = &mut builtins {
+                observed
+                    .hits
+                    .extend(super::patterns::paths::visit::enum_arms(
+                        workspace,
+                        code,
+                        source,
+                        syntax,
+                        limits,
+                        &mut enum_retained,
+                    )?);
+            }
             Ok::<_, Error>((registered, builtins))
         })??;
         let SyntaxHits {
@@ -274,14 +288,7 @@ pub(super) fn requested<'a>(
     required: &'a [String],
     registered: &BTreeSet<&str>,
 ) -> Result<BTreeSet<&'a str>, Error> {
-    let mut requested: BTreeSet<_> = ledger
-        .jobs()
-        .iter()
-        .flat_map(|row| {
-            row.referenced()
-                .chain(row.variants.iter().map(|variant| variant.detector.as_str()))
-        })
-        .collect();
+    let mut requested: BTreeSet<_> = ledger.jobs().iter().flat_map(job_rule_ids).collect();
     if let Some(id) = requested
         .iter()
         .copied()
@@ -317,6 +324,11 @@ pub(super) fn requested<'a>(
         requested.insert(id.as_str());
     }
     Ok(requested)
+}
+
+pub(super) fn job_rule_ids(row: &crate::LedgerJob) -> impl Iterator<Item = &str> {
+    row.referenced()
+        .chain(row.variants.iter().map(|variant| variant.detector.as_str()))
 }
 
 pub(super) fn admit(rules: &[Box<dyn Rule>]) -> Result<Vec<(&'static str, &dyn Rule)>, Error> {

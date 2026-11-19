@@ -4,6 +4,7 @@
 //! Syntax bans with indexed workspace identity kept separate from spelling.
 
 mod cache;
+mod enum_sites;
 pub(in crate::gate) mod scopes;
 pub(in crate::gate) mod visit;
 
@@ -231,6 +232,7 @@ enum PathDefinition<'a> {
 struct GlobLookup {
     definition: Option<PathDefinition<'static>>,
     opaque: Option<String>,
+    conditional_variant: bool,
     variant: Option<VariantMatch>,
     head: Option<GlobBinding>,
 }
@@ -261,7 +263,9 @@ impl ScopedGlob<'_> {
 
     fn has_prefix(&self) -> bool {
         // Source can identify the declaration of a module-scope shadow.
-        !(self.expanded.segments.is_empty() || self.expanded.shadowed && self.expanded.block)
+        self.declaration.trusted
+            && !self.expanded.has_uncertain_alias()
+            && !(self.expanded.segments.is_empty() || self.expanded.shadowed && self.expanded.block)
     }
 
     fn unresolved_relative(&self) -> bool {
@@ -291,11 +295,17 @@ enum GlobProvider {
     Other,
 }
 
-type EnumMembers = BTreeMap<String, VariantForms>;
+type EnumMembers = BTreeMap<String, VariantMember>;
 
 struct EnumAlternative {
     id: ItemId,
     members: Rc<EnumMembers>,
+}
+
+#[derive(Default)]
+struct VariantMember {
+    forms: VariantForms,
+    conditional: bool,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -335,7 +345,14 @@ fn variant_disagreement(head: &str) -> Error {
 #[derive(Clone)]
 struct VariantMatch {
     enums: Rc<WorkList<EnumAlternative, 2>>,
+    member: String,
     unit: bool,
+}
+
+enum VariantLookup {
+    Missing,
+    Conditional,
+    Proven(VariantMatch),
 }
 
 impl GlobProvider {
@@ -350,35 +367,58 @@ impl GlobProvider {
         &self,
         head: &str,
         namespace: Namespace,
+        enum_inventory: bool,
         limits: &mut MatchLimits,
-    ) -> Result<Option<VariantMatch>, Error> {
+    ) -> Result<VariantLookup, Error> {
         let Self::Enum(enums) = self else {
-            return Ok(None);
+            return Ok(VariantLookup::Missing);
         };
         if !matches!(namespace, Namespace::Type | Namespace::Value) {
-            return Ok(None);
+            return Ok(VariantLookup::Missing);
         }
         let mut present = None;
+        let mut disagreement = None;
         for alternative in enums.iter() {
             charge(
                 VISIBILITY,
                 limits,
                 u64::from(alternative.members.len().bit_width()) + 1,
             )?;
-            let found = alternative
-                .members
-                .get(head)
-                .map_or(Ok(None), |forms| forms.binding(head, namespace))?;
-            if present
-                .replace(found)
-                .is_some_and(|previous| previous != found)
+            let member = alternative.members.get(head);
+            if enum_inventory
+                && member.is_some_and(|member| {
+                    member.conditional
+                        && (namespace == Namespace::Type || member.forms.unit || member.forms.tuple)
+                })
             {
-                return Err(variant_disagreement(head));
+                return Ok(VariantLookup::Conditional);
+            }
+            if disagreement.is_none() {
+                match member.map_or(Ok(None), |member| member.forms.binding(head, namespace)) {
+                    Ok(found) => {
+                        if present
+                            .replace(found)
+                            .is_some_and(|previous| previous != found)
+                        {
+                            disagreement = Some(variant_disagreement(head));
+                        }
+                    }
+                    Err(error) => disagreement = Some(error),
+                }
+            }
+            if !enum_inventory && let Some(error) = disagreement.take() {
+                return Err(error);
             }
         }
-        Ok(present.flatten().map(|unit| VariantMatch {
-            enums: Rc::clone(enums),
-            unit,
+        if let Some(error) = disagreement {
+            return Err(error);
+        }
+        Ok(present.flatten().map_or(VariantLookup::Missing, |unit| {
+            VariantLookup::Proven(VariantMatch {
+                enums: Rc::clone(enums),
+                member: head.to_owned(),
+                unit,
+            })
         }))
     }
 }
@@ -411,6 +451,7 @@ struct SettledGlob {
 struct GlobHead {
     binding: Option<GlobBinding>,
     opaque: Option<String>,
+    conditional_variant: bool,
     ambiguous: bool,
 }
 
@@ -460,6 +501,7 @@ struct Lookup<'a, 'w> {
     site: &'a Site<'a>,
     label: &'a str,
     visibility: Option<(&'a Workspace, PackageId)>,
+    enum_impl: Option<(&'a str, &'a [ImplBlock])>,
 }
 
 #[derive(Clone, Copy)]
@@ -471,7 +513,7 @@ enum PathOwner<'a> {
 
 impl Lookup<'_, '_> {
     fn error(&self, path: &str, source: CodeResolveError) -> Error {
-        if self.visibility.is_some() {
+        if self.label == VISIBILITY {
             return Error::Visibility(VisibilityError::Path {
                 file: self.site.file.path.to_string(),
                 line: self.site.line,
@@ -533,6 +575,10 @@ impl Lookup<'_, '_> {
                     },
                     limits,
                 )?;
+                if glob.conditional_variant {
+                    // A conditional variant can occupy this namespace, but only as a leaf.
+                    return Ok(target.expanded.segments.len() == 1);
+                }
                 if let Some(resolved) = glob.definition {
                     return Ok(
                         glob.variant.is_some() || matches!(resolved, PathDefinition::Written(_))
@@ -702,6 +748,7 @@ impl Lookup<'_, '_> {
             if gathered.opaque.is_none() {
                 gathered.opaque = selected.opaque;
             }
+            gathered.conditional_variant |= selected.conditional_variant;
             gathered.ambiguous |= selected.ambiguous;
             if let Some(binding) = selected.binding {
                 self.merge_glob_binding(&mut gathered, binding, head, limits)?;
@@ -712,6 +759,7 @@ impl Lookup<'_, '_> {
         }
         let mut glob_lookup = GlobLookup {
             opaque: gathered.opaque,
+            conditional_variant: gathered.conditional_variant,
             ..GlobLookup::default()
         };
         if let Some(binding) = gathered.binding {
@@ -825,6 +873,7 @@ impl Lookup<'_, '_> {
             )?;
             glob.definition = target.definition;
             glob.opaque = glob.opaque.or(target.opaque);
+            glob.conditional_variant |= target.conditional_variant;
             glob.variant = target.variant;
         }
         Ok(glob)
@@ -868,6 +917,7 @@ impl Lookup<'_, '_> {
                 limits,
             )?;
             glob.opaque = glob.opaque.take().or(candidate.opaque);
+            glob.conditional_variant |= candidate.conditional_variant;
             if let Some(other) = candidate.head {
                 self.compare_import_heads(&name[0], head, &other, glob, limits)?;
             }
@@ -923,8 +973,11 @@ impl Lookup<'_, '_> {
             )?
         };
         glob.opaque = glob.opaque.take().or(candidate.opaque);
+        glob.conditional_variant |= candidate.conditional_variant;
         let text = path_text(prefix, alias.is_absolute());
-        let enclosing = if let Some(variant) = candidate.variant {
+        let enclosing = if candidate.conditional_variant {
+            None
+        } else if let Some(variant) = candidate.variant {
             Some(GlobBinding::Variant(variant))
         } else {
             let sites = match candidate.definition {
@@ -1091,14 +1144,7 @@ impl Lookup<'_, '_> {
                     }
                 }
                 Some(provider) => {
-                    if let Some(variant) = provider.variant(head, namespace, limits)? {
-                        self.merge_glob_binding(
-                            &mut found,
-                            GlobBinding::Variant(variant),
-                            head,
-                            limits,
-                        )?;
-                    }
+                    self.merge_glob_variant(&mut found, provider, head, namespace, limits)?;
                 }
                 None => {
                     found.opaque.get_or_insert_with(|| glob.prefix.clone());
@@ -1106,6 +1152,27 @@ impl Lookup<'_, '_> {
             }
         }
         Ok(found)
+    }
+
+    fn merge_glob_variant(
+        &self,
+        found: &mut GlobHead,
+        provider: &GlobProvider,
+        head: &str,
+        namespace: Namespace,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        let enum_inventory = self.label == crate::detectors::ENUM_CATCH_ALL;
+        match provider.variant(head, namespace, enum_inventory, limits)? {
+            VariantLookup::Conditional => {
+                found.conditional_variant = true;
+            }
+            VariantLookup::Proven(variant) => {
+                self.merge_glob_binding(found, GlobBinding::Variant(variant), head, limits)?;
+            }
+            VariantLookup::Missing => {}
+        }
+        Ok(())
     }
 
     fn glob_provider(
@@ -1185,10 +1252,25 @@ impl Lookup<'_, '_> {
                 ));
             };
             let mut members = EnumMembers::new();
+            let enum_scan = self.label == crate::detectors::ENUM_CATCH_ALL;
+            if enum_scan && crate::syntax::definitely_excluded(&declaration.attrs) {
+                return Ok(members);
+            }
+            let has_cfg = |attributes: &[syn::Attribute]| {
+                attributes.iter().any(|attribute| {
+                    attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
+                })
+            };
+            let conditional_declaration = enum_scan && has_cfg(&declaration.attrs);
             for variant in &declaration.variants {
+                if enum_scan && crate::syntax::definitely_excluded(&variant.attrs) {
+                    continue;
+                }
+                let conditional = conditional_declaration || enum_scan && has_cfg(&variant.attrs);
                 let name = variant.ident.unraw().to_string();
                 if let Some(known) = members.get_mut(&name) {
-                    known.observe(&variant.fields);
+                    known.forms.observe(&variant.fields);
+                    known.conditional |= conditional;
                 } else {
                     if members.len() >= capacity {
                         return Err(failure(
@@ -1196,8 +1278,11 @@ impl Lookup<'_, '_> {
                             "enum glob roster state limit exhausted",
                         ));
                     }
-                    let mut known = VariantForms::default();
-                    known.observe(&variant.fields);
+                    let mut known = VariantMember {
+                        conditional,
+                        ..VariantMember::default()
+                    };
+                    known.forms.observe(&variant.fields);
                     members.insert(name, known);
                 }
             }
@@ -1358,14 +1443,13 @@ impl Lookup<'_, '_> {
                     }
                 }
                 Some(provider) => {
-                    if let Some(variant) = provider.variant(head, Namespace::Type, limits)? {
-                        self.merge_glob_binding(
-                            &mut selected,
-                            GlobBinding::Variant(variant),
-                            head,
-                            limits,
-                        )?;
-                    }
+                    self.merge_glob_variant(
+                        &mut selected,
+                        provider,
+                        head,
+                        Namespace::Type,
+                        limits,
+                    )?;
                 }
                 None => {}
             }
@@ -1374,7 +1458,11 @@ impl Lookup<'_, '_> {
             return Ok(None);
         };
         // Imports cannot select a glob binding over a distinct outer candidate.
-        if selected.ambiguous || self.conflicting_outer_glob(head, Namespace::Type, &binding)? {
+        if selected.opaque.is_some()
+            || selected.conditional_variant
+            || selected.ambiguous
+            || self.conflicting_outer_glob(head, Namespace::Type, &binding)?
+        {
             return Ok(None);
         }
         let GlobBinding::Item(route) = binding else {
@@ -1690,11 +1778,8 @@ fn cross_package_uses(
     let written = segments(path);
     let absolute = path.leading_colon.is_some();
     let raw = path_text(&written, absolute);
-    let observed = if site.role == Role::Glob {
-        format!("{raw}::*")
-    } else {
-        raw.clone()
-    };
+    let glob_spelling = (site.role == Role::Glob).then(|| format!("{raw}::*"));
+    let observed = glob_spelling.as_deref().unwrap_or(&raw);
     let textual_macro = site.role == Role::Macro
         && !absolute
         && written.len() == 1
@@ -1743,6 +1828,7 @@ fn cross_package_uses(
             site,
             label: VISIBILITY,
             visibility: Some((workspace, consumer)),
+            enum_impl: None,
         };
         let LexicalPath::Accessible(expanded) =
             lookup.lexical(scopes, &written, absolute, limits)?
@@ -1780,7 +1866,7 @@ fn cross_package_uses(
                 workspace,
                 consumer,
                 definition,
-                &observed,
+                observed,
                 (site, glob.opaque.as_deref()),
                 limits,
             )?;
@@ -1931,6 +2017,7 @@ fn matches(
             site,
             label: &expected.pattern.id,
             visibility: None,
+            enum_impl: None,
         };
         let LexicalPath::Accessible(expanded) =
             lookup.lexical(scopes, &written, absolute, limits)?

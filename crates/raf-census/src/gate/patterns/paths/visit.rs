@@ -11,6 +11,7 @@ use crate::gate::bounds::{BoundRole, Scan, syntax};
 use crate::report::bounds::UNCLASSIFIED;
 use crate::{
     Error,
+    detectors::{ENUM_CATCH_ALL, RawHit},
     syntax::{ImportLeaf, visit_import_paths},
 };
 use purrdf_jsonschema::ecma::MatchLimits;
@@ -70,6 +71,7 @@ pub(in crate::gate) fn functions(
         numeric: None,
         numeric_receiver: None,
         path_uses: None,
+        enum_hits: None,
         impl_blocks: &[],
         owners: super::OwnerCache::default(),
     };
@@ -115,6 +117,7 @@ pub(super) fn collect<'p, 'w>(
         numeric: None,
         numeric_receiver: None,
         path_uses: None,
+        enum_hits: None,
         impl_blocks: &[],
         owners: super::OwnerCache::default(),
     };
@@ -147,11 +150,129 @@ pub(in crate::gate) fn references(
         numeric: None,
         numeric_receiver: None,
         path_uses: Some(paths),
+        enum_hits: None,
         impl_blocks: &[],
         owners: super::OwnerCache::one_occurrence(),
     };
     visitor.visit_file(syntax);
     visitor.error.map_or(Ok(()), Err)
+}
+
+pub(in crate::gate) fn enum_arms(
+    workspace: &Workspace,
+    code: &CodeResolver<'_>,
+    file: &SourceFile,
+    syntax: &syn::File,
+    limits: &mut MatchLimits,
+    retained: &mut usize,
+) -> Result<Vec<RawHit>, Error> {
+    super::charge(
+        ENUM_CATCH_ALL,
+        limits,
+        file.text.len().try_into().unwrap_or(u64::MAX),
+    )?;
+    let mut hits = Vec::new();
+    let mut visitor = Paths {
+        compiled: &[],
+        workspace,
+        code,
+        file,
+        limits,
+        scopes: Scopes::for_enum_patterns(),
+        found: Vec::new(),
+        error: None,
+        seen: BTreeSet::new(),
+        observer: None,
+        numeric: None,
+        numeric_receiver: None,
+        path_uses: None,
+        enum_hits: Some(EnumInventory {
+            found: &mut hits,
+            retained: *retained,
+            file_impls: None,
+            self_path: None,
+        }),
+        impl_blocks: &[],
+        owners: super::OwnerCache::one_occurrence(),
+    };
+    visitor.visit_file(syntax);
+    if let Some(error) = visitor.error {
+        return Err(error);
+    }
+    *retained += hits.len();
+    Ok(hits)
+}
+
+struct EnumInventory<'a, 'w> {
+    found: &'a mut Vec<RawHit>,
+    retained: usize,
+    file_impls: Option<&'w [ImplBlock]>,
+    self_path: Option<String>,
+}
+
+impl<'w> EnumInventory<'_, 'w> {
+    fn impls_at(
+        &mut self,
+        workspace: &'w Workspace,
+        file: &SourceFile,
+        start: usize,
+        limits: &mut MatchLimits,
+    ) -> Result<&'w [ImplBlock], Error> {
+        let blocks = if let Some(blocks) = self.file_impls {
+            blocks
+        } else {
+            let upper = workspace.impls().size_hint().1.unwrap_or(usize::MAX);
+            let probes = 2 * (u64::from(upper.bit_width()) + 1);
+            let bytes = u64::try_from(file.path.as_str().len()).unwrap_or(u64::MAX);
+            super::charge(
+                ENUM_CATCH_ALL,
+                limits,
+                probes.saturating_mul(bytes.saturating_add(1)),
+            )?;
+            let blocks = workspace.impls_in(&file.path);
+            self.file_impls = Some(blocks);
+            blocks
+        };
+        super::charge(
+            ENUM_CATCH_ALL,
+            limits,
+            2 * (u64::from(blocks.len().bit_width()) + 1),
+        )?;
+        Ok(impls_at(blocks, start))
+    }
+}
+
+fn impls_at(blocks: &[ImplBlock], start: usize) -> &[ImplBlock] {
+    let first = blocks.partition_point(|block| block.span.start_byte < start);
+    let end = blocks.partition_point(|block| block.span.start_byte <= start);
+    &blocks[first..end]
+}
+
+fn argument_attributes(argument: &syn::FnArg) -> &[syn::Attribute] {
+    match argument {
+        syn::FnArg::Receiver(receiver) => &receiver.attrs,
+        syn::FnArg::Typed(typed) => &typed.attrs,
+    }
+}
+
+fn enum_lookup<'a, 'w>(
+    workspace: &'a Workspace,
+    code: &'a CodeResolver<'w>,
+    site: &'a Site<'a>,
+    owner: &raf_source::Item,
+    enum_impl: Option<(&'a str, &'a [ImplBlock])>,
+) -> Result<super::Lookup<'a, 'w>, Error> {
+    let target = workspace
+        .target(owner.target)
+        .ok_or_else(|| super::failure(ENUM_CATCH_ALL, "enum pattern has no consuming target"))?;
+    Ok(super::Lookup {
+        code,
+        owner: super::PathOwner::Item(owner.id),
+        site,
+        label: ENUM_CATCH_ALL,
+        visibility: Some((workspace, target.package_id)),
+        enum_impl,
+    })
 }
 
 struct Paths<'a, 'p, 'w, 'c> {
@@ -168,11 +289,72 @@ struct Paths<'a, 'p, 'w, 'c> {
     numeric: Option<&'a mut Scan>,
     numeric_receiver: Option<ReceiverMode>,
     path_uses: Option<&'a mut CrossPackagePaths>,
+    enum_hits: Option<EnumInventory<'a, 'w>>,
     impl_blocks: &'w [ImplBlock],
     owners: super::OwnerCache<'w>,
 }
 
 impl Paths<'_, '_, '_, '_> {
+    fn excludes_from_inventory(&self, attributes: &[syn::Attribute]) -> bool {
+        self.enum_hits.is_some() && crate::syntax::definitely_excluded(attributes)
+    }
+
+    fn collect_match_arms(&mut self, node: &syn::ExprMatch) -> Result<(), Error> {
+        let Some(inventory) = self.enum_hits.as_mut() else {
+            return Ok(());
+        };
+        super::charge(
+            ENUM_CATCH_ALL,
+            self.limits,
+            node.arms.len().try_into().unwrap_or(u64::MAX),
+        )?;
+        if !super::enum_sites::has_candidate(node) {
+            return Ok(());
+        }
+        let site = Site::at(
+            self.file,
+            node.match_token.span(),
+            Role::Pattern,
+            Namespace::Value,
+            false,
+        );
+        let owners = self
+            .owners
+            .get(self.workspace, self.file, site.byte, self.limits)?;
+        let mut qualified: Option<BTreeSet<usize>> = None;
+        for owner in owners {
+            let enum_impl = inventory
+                .self_path
+                .as_deref()
+                .map(|path| (path, self.impl_blocks));
+            let lookup = enum_lookup(self.workspace, self.code, &site, owner, enum_impl)?;
+            let found = super::enum_sites::catch_alls(node, &lookup, &self.scopes, self.limits)?;
+            if let Some(survivors) = &mut qualified {
+                survivors.retain(|arm| found.contains(arm));
+            } else {
+                qualified = Some(found);
+            }
+        }
+        if let Some(qualified) = qualified {
+            let total = inventory
+                .retained
+                .saturating_add(inventory.found.len())
+                .saturating_add(qualified.len());
+            if total > self.limits.states {
+                return Err(super::failure(
+                    ENUM_CATCH_ALL,
+                    "catch-all arm state limit exhausted",
+                ));
+            }
+            inventory.found.extend(
+                qualified
+                    .into_iter()
+                    .map(|index| super::enum_sites::hit(&node.arms[index])),
+            );
+        }
+        Ok(())
+    }
+
     fn container(&mut self, container: Container, attributes: &[syn::Attribute]) -> bool {
         if let Some(observer) = self.observer.as_deref_mut()
             && let Err(error) = observer.container(self.file, container, attributes, self.limits)
@@ -236,7 +418,7 @@ impl Paths<'_, '_, '_, '_> {
         }
         if let Err(error) = self.scopes.enter(
             module,
-            self.path_uses.is_some() || self.numeric.is_some(),
+            self.path_uses.is_some() || self.numeric.is_some() || self.enum_hits.is_some(),
             items,
             self.limits,
         ) {
@@ -261,6 +443,9 @@ impl Paths<'_, '_, '_, '_> {
 
     fn inputs(&mut self, inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::Token![,]>) {
         for input in inputs {
+            if self.excludes_from_inventory(argument_attributes(input)) {
+                continue;
+            }
             match input {
                 syn::FnArg::Receiver(_) => self.scopes.receiver(),
                 syn::FnArg::Typed(typed) => self.bind(&typed.pat),
@@ -281,6 +466,25 @@ impl Paths<'_, '_, '_, '_> {
             |compiled| compiled.pattern.id.as_str(),
         );
         let result = self.scopes.bind(pattern, |scopes, name| {
+            if self.enum_hits.is_some() {
+                let site = Site::at(
+                    self.file,
+                    name.span(),
+                    Role::Pattern,
+                    Namespace::Value,
+                    false,
+                );
+                let owners = self
+                    .owners
+                    .get(self.workspace, self.file, site.byte, self.limits)?;
+                for owner in owners {
+                    let lookup = enum_lookup(self.workspace, self.code, &site, owner, None)?;
+                    if !super::enum_sites::bare_binding(name, &lookup, scopes, self.limits)? {
+                        return Ok(false);
+                    }
+                }
+                return Ok(!owners.is_empty());
+            }
             if self.numeric.is_some() {
                 let site = Site::at(
                     self.file,
@@ -622,6 +826,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_item(&mut self, node: &'ast syn::Item) {
+        if self.excludes_from_inventory(crate::syntax::item_attributes(node)) {
+            return;
+        }
         if self.path_uses.is_some()
             && let syn::Item::Verbatim(tokens) = node
         {
@@ -629,7 +836,17 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
                 self.imports(attributes, absolute, tree);
             });
         }
+        let previous = self.impl_blocks;
+        // Nested items cannot capture the enclosing implementation's Self.
+        let previous_self = self
+            .enum_hits
+            .as_mut()
+            .and_then(|inventory| inventory.self_path.take());
         syn::visit::visit_item(self, node);
+        if let Some(inventory) = &mut self.enum_hits {
+            inventory.self_path = previous_self;
+        }
+        self.impl_blocks = previous;
     }
 
     fn visit_block(&mut self, node: &'ast syn::Block) {
@@ -646,6 +863,12 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         );
     }
 
+    fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
+        if !self.excludes_from_inventory(&node.attrs) {
+            syn::visit::visit_stmt_macro(self, node);
+        }
+    }
+
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
         if self.ignores_function(&node.sig) {
             return;
@@ -658,6 +881,25 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             }
         });
         self.numeric_receiver = previous;
+    }
+
+    fn visit_fn_arg(&mut self, node: &'ast syn::FnArg) {
+        if !self.excludes_from_inventory(argument_attributes(node)) {
+            syn::visit::visit_fn_arg(self, node);
+        }
+    }
+
+    fn visit_impl_item(&mut self, node: &'ast syn::ImplItem) {
+        let attributes = match node {
+            syn::ImplItem::Const(item) => item.attrs.as_slice(),
+            syn::ImplItem::Fn(item) => item.attrs.as_slice(),
+            syn::ImplItem::Type(item) => item.attrs.as_slice(),
+            syn::ImplItem::Macro(item) => item.attrs.as_slice(),
+            _ => &[],
+        };
+        if !self.excludes_from_inventory(attributes) {
+            syn::visit::visit_impl_item(self, node);
+        }
     }
 
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
@@ -675,6 +917,19 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             }
         });
         self.numeric_receiver = previous;
+    }
+
+    fn visit_trait_item(&mut self, node: &'ast syn::TraitItem) {
+        let attributes = match node {
+            syn::TraitItem::Const(item) => item.attrs.as_slice(),
+            syn::TraitItem::Fn(item) => item.attrs.as_slice(),
+            syn::TraitItem::Type(item) => item.attrs.as_slice(),
+            syn::TraitItem::Macro(item) => item.attrs.as_slice(),
+            _ => &[],
+        };
+        if !self.excludes_from_inventory(attributes) {
+            syn::visit::visit_trait_item(self, node);
+        }
     }
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
@@ -699,16 +954,32 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         }
         self.generic_scope(&node.generics, true, |this| {
             let previous = this.impl_blocks;
-            if this.path_uses.is_some() {
-                let blocks = this.workspace.impls_in(&this.file.path);
-                let start = node.span().byte_range().start;
-                let first = blocks.partition_point(|block| block.span.start_byte < start);
-                let end = blocks.partition_point(|block| block.span.start_byte <= start);
-                this.impl_blocks = &blocks[first..end];
-                if let Some((path, _)) = &node.trait_ {
-                    this.path(path, Role::Type, Namespace::Type);
-                    this.type_prefixes(path);
+            let start = node.span().byte_range().start;
+            if let Some(inventory) = &mut this.enum_hits {
+                if let syn::Type::Path(path) = node.self_ty.as_ref()
+                    && path.qself.is_none()
+                    && node.trait_.is_none()
+                {
+                    inventory.self_path = Some(super::path_text(
+                        &super::segments(&path.path),
+                        path.path.leading_colon.is_some(),
+                    ));
+                    match inventory.impls_at(this.workspace, this.file, start, this.limits) {
+                        Ok(blocks) => this.impl_blocks = blocks,
+                        Err(error) => {
+                            this.error = Some(error);
+                            return;
+                        }
+                    }
                 }
+            } else if this.path_uses.is_some() {
+                this.impl_blocks = impls_at(this.workspace.impls_in(&this.file.path), start);
+            }
+            if this.path_uses.is_some()
+                && let Some((path, _)) = &node.trait_
+            {
+                this.path(path, Role::Type, Namespace::Type);
+                this.type_prefixes(path);
             }
             syn::visit::visit_item_impl(this, node);
             this.impl_blocks = previous;
@@ -748,6 +1019,24 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         });
     }
 
+    fn visit_variant(&mut self, node: &'ast syn::Variant) {
+        if !self.excludes_from_inventory(&node.attrs) {
+            syn::visit::visit_variant(self, node);
+        }
+    }
+
+    fn visit_field(&mut self, node: &'ast syn::Field) {
+        if !self.excludes_from_inventory(&node.attrs) {
+            syn::visit::visit_field(self, node);
+        }
+    }
+
+    fn visit_field_value(&mut self, node: &'ast syn::FieldValue) {
+        if !self.excludes_from_inventory(&node.attrs) {
+            syn::visit::visit_field_value(self, node);
+        }
+    }
+
     fn visit_item_type(&mut self, node: &'ast syn::ItemType) {
         if self.container(
             Container::Declaration(node.ident.span().byte_range().start),
@@ -773,6 +1062,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_local(&mut self, node: &'ast syn::Local) {
+        if self.excludes_from_inventory(&node.attrs) {
+            return;
+        }
         self.visit_pat(&node.pat);
         if let Some(initializer) = &node.init {
             self.visit_expr(&initializer.expr);
@@ -793,6 +1085,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_arm(&mut self, node: &'ast syn::Arm) {
+        if self.enum_hits.is_some() && !crate::syntax::inert_attributes(&node.attrs) {
+            return;
+        }
         self.scope(false, std::iter::empty(), |this| {
             if this.path_uses.is_some() {
                 for attribute in &node.attrs {
@@ -802,6 +1097,26 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             this.arm_pattern(&node.pat);
             this.visit_expr(&node.body);
         });
+    }
+
+    fn visit_expr(&mut self, node: &'ast syn::Expr) {
+        if self.enum_hits.is_some()
+            && crate::syntax::expression_attributes(node)
+                .is_some_and(crate::syntax::definitely_excluded)
+        {
+            return;
+        }
+        syn::visit::visit_expr(self, node);
+    }
+
+    fn visit_expr_match(&mut self, node: &'ast syn::ExprMatch) {
+        if self.enum_hits.is_some() && !crate::syntax::inert_attributes(&node.attrs) {
+            return;
+        }
+        if self.error.is_none() {
+            self.error = self.collect_match_arms(node).err();
+        }
+        syn::visit::visit_expr_match(self, node);
     }
 
     fn visit_expr_if(&mut self, node: &'ast syn::ExprIf) {
@@ -1057,6 +1372,7 @@ pub(in crate::gate) fn numeric_calls(
         numeric: Some(scan),
         numeric_receiver: None,
         path_uses: None,
+        enum_hits: None,
         impl_blocks: &[],
         owners: super::OwnerCache::one_occurrence(),
     };
@@ -1194,6 +1510,7 @@ fn numeric_lookup<'a, 'w>(
         site,
         label: UNCLASSIFIED,
         visibility: Some((workspace, package)),
+        enum_impl: None,
     })
 }
 

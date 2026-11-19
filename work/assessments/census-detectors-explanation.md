@@ -7,7 +7,7 @@ subject: cap:census-detectors#explanation
 inputs:
   - kind: section
     name: cap:census-detectors#explanation
-    digest: 766c3df0cf9a164070e21e665ec5b89f030f842848bf1279b5b0730df448bde1
+    digest: 0d7d5e6b8084239a6ead935b5f3aa8a2e7ef8515de86d31202e9cb513f4d39aa
   - kind: symbol
     name: raf_census::BoundRole
     digest: d2fc1891daf1c9c75eb5144fcd301c1d24d31386c2f916f0a87f7ba5647d835c
@@ -16,7 +16,7 @@ inputs:
     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
   - kind: symbol
     name: raf_census::detectors
-    digest: 6f0a87e0c029e9c0ec82b1316e01da3a57e35bac024143748418f1c00d6de7b8
+    digest: 3dae062dd6fa959e7c65f4be2dc9f77c4190ab4869372d0a997347f4ead160f7
   - kind: symbol
     name: raf_census::gate::bounds
     digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d

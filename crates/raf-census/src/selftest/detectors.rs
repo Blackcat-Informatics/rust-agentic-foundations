@@ -187,6 +187,14 @@ fn family(id: &str) -> Option<Family> {
             negative,
         });
     }
+    let (enum_id, positive, negative) = fixtures::ENUM_MATCH;
+    if id == enum_id {
+        return Some(Family {
+            selection: Selection::Required,
+            positive: positive.iter().copied().map(Probe::consumer).collect(),
+            negative: negative.iter().copied().map(Probe::consumer).collect(),
+        });
+    }
     if id == fixtures::HASHER_ID {
         return Some(Family {
             selection: Selection::Job,
