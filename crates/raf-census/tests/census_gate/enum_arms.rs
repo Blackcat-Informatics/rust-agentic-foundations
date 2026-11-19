@@ -15,9 +15,11 @@ fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
         pub fn home() {}
         pub use home as alias;
         enum State { Ready(u8), Busy, Idle }
-        pub fn inspect(value: State, next: State) {
-            match value { State::Ready { 0: _ } => (), | _ => () }
-            assert!(match next { State::Busy {} => true, remainder => true });
+        impl State {
+            pub fn inspect(value: State, next: Self) {
+                match value { State::Ready { 0: _ } => (), | _ => () }
+                assert!(match next { Self::Busy {} => true, remainder => true });
+            }
         }
         const WORK_LIMIT: usize = 9;
         fn exceeds_limit(items: &[u8]) -> bool { items.len() > WORK_LIMIT }
@@ -29,8 +31,8 @@ fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
         .unwrap();
     let findings = required.findings();
     assert_eq!(findings.len(), 3, "{findings:?}");
-    assert!(findings[0].contains("src/lib.rs:7:"));
-    assert!(findings[1].contains("src/lib.rs:8:"));
+    assert!(findings[0].contains("src/lib.rs:8:"));
+    assert!(findings[1].contains("src/lib.rs:9:"));
     assert!(findings[2].contains("unclassified numeric bound"));
     let [limit] = required.numeric_bounds() else {
         panic!(
@@ -97,12 +99,13 @@ fn enum_catch_alls_keep_only_arms_proved_across_shared_reaches() {
             ("src/lib.rs", "mod left; mod right;"),
             (
                 "src/left.rs",
-                "enum State { Ready, Busy } type Input = State; #[path=\"shared.rs\"] mod shared;",
+                "enum State { Ready, Busy } use State as Input; #[path=\"shared.rs\"] mod shared;",
             ),
             ("src/right.rs", right),
             (
                 "src/shared.rs",
-                "fn inspect(value: super::Input) { match value { super::State::Ready => (), _ => () } }",
+                "fn inspect(value: super::Input) { match value { super::State::Ready => (), _ => () } }\n\
+                 impl super::Input { fn inspect(self) { match self { Self::Ready => (), _ => () } } }",
             ),
             ("helpers-ledger.ttl", ledger.as_str()),
         ]);
@@ -112,12 +115,23 @@ fn enum_catch_alls_keep_only_arms_proved_across_shared_reaches() {
             .unwrap()
     };
     let enums =
-        check("enum State { Ready, Busy } type Input = State; #[path=\"shared.rs\"] mod shared;");
-    assert_eq!(enums.findings().len(), 1, "{:?}", enums.findings());
-    assert!(enums.findings()[0].contains("src/shared.rs:1:"));
+        check("enum State { Ready, Busy } use State as Input; #[path=\"shared.rs\"] mod shared;");
+    assert_eq!(enums.findings().len(), 2, "{:?}", enums.findings());
+    for line in ["src/shared.rs:1:", "src/shared.rs:2:"] {
+        assert!(
+            enums
+                .findings()
+                .iter()
+                .any(|finding| finding.contains(line)),
+            "{:?}",
+            enums.findings()
+        );
+    }
 
     let mixed = check(
-        "mod State { pub const Ready: u8 = 0; } type Input = u8; #[path=\"shared.rs\"] mod shared;",
+        "#[derive(PartialEq, Eq)] struct Input; impl Input { const Ready: Self = Self; }
+         mod State { pub const Ready: super::Input = super::Input; }
+         #[path=\"shared.rs\"] mod shared;",
     );
     assert!(mixed.is_clean(), "{:?}", mixed.findings());
 }

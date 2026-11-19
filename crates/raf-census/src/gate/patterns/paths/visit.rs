@@ -189,6 +189,8 @@ pub(in crate::gate) fn enum_arms(
         enum_hits: Some(EnumInventory {
             found: &mut hits,
             retained: *retained,
+            file_impls: None,
+            self_path: None,
         }),
         impl_blocks: &[],
         owners: super::OwnerCache::one_occurrence(),
@@ -201,9 +203,49 @@ pub(in crate::gate) fn enum_arms(
     Ok(hits)
 }
 
-struct EnumInventory<'a> {
+struct EnumInventory<'a, 'w> {
     found: &'a mut Vec<RawHit>,
     retained: usize,
+    file_impls: Option<&'w [ImplBlock]>,
+    self_path: Option<String>,
+}
+
+impl<'w> EnumInventory<'_, 'w> {
+    fn impls_at(
+        &mut self,
+        workspace: &'w Workspace,
+        file: &SourceFile,
+        start: usize,
+        limits: &mut MatchLimits,
+    ) -> Result<&'w [ImplBlock], Error> {
+        let blocks = if let Some(blocks) = self.file_impls {
+            blocks
+        } else {
+            let upper = workspace.impls().size_hint().1.unwrap_or(usize::MAX);
+            let probes = 2 * (u64::from(upper.bit_width()) + 1);
+            let bytes = u64::try_from(file.path.as_str().len()).unwrap_or(u64::MAX);
+            super::charge(
+                ENUM_CATCH_ALL,
+                limits,
+                probes.saturating_mul(bytes.saturating_add(1)),
+            )?;
+            let blocks = workspace.impls_in(&file.path);
+            self.file_impls = Some(blocks);
+            blocks
+        };
+        super::charge(
+            ENUM_CATCH_ALL,
+            limits,
+            2 * (u64::from(blocks.len().bit_width()) + 1),
+        )?;
+        Ok(impls_at(blocks, start))
+    }
+}
+
+fn impls_at(blocks: &[ImplBlock], start: usize) -> &[ImplBlock] {
+    let first = blocks.partition_point(|block| block.span.start_byte < start);
+    let end = blocks.partition_point(|block| block.span.start_byte <= start);
+    &blocks[first..end]
 }
 
 fn enum_lookup<'a, 'w>(
@@ -211,6 +253,7 @@ fn enum_lookup<'a, 'w>(
     code: &'a CodeResolver<'w>,
     site: &'a Site<'a>,
     owner: &raf_source::Item,
+    enum_impl: Option<(&'a str, &'a [ImplBlock])>,
 ) -> Result<super::Lookup<'a, 'w>, Error> {
     let target = workspace
         .target(owner.target)
@@ -221,6 +264,7 @@ fn enum_lookup<'a, 'w>(
         site,
         label: ENUM_CATCH_ALL,
         visibility: Some((workspace, target.package_id)),
+        enum_impl,
     })
 }
 
@@ -238,7 +282,7 @@ struct Paths<'a, 'p, 'w, 'c> {
     numeric: Option<&'a mut Scan>,
     numeric_receiver: Option<ReceiverMode>,
     path_uses: Option<&'a mut CrossPackagePaths>,
-    enum_hits: Option<EnumInventory<'a>>,
+    enum_hits: Option<EnumInventory<'a, 'w>>,
     impl_blocks: &'w [ImplBlock],
     owners: super::OwnerCache<'w>,
 }
@@ -272,7 +316,11 @@ impl Paths<'_, '_, '_, '_> {
             .get(self.workspace, self.file, site.byte, self.limits)?;
         let mut qualified: Option<BTreeSet<usize>> = None;
         for owner in owners {
-            let lookup = enum_lookup(self.workspace, self.code, &site, owner)?;
+            let enum_impl = inventory
+                .self_path
+                .as_deref()
+                .map(|path| (path, self.impl_blocks));
+            let lookup = enum_lookup(self.workspace, self.code, &site, owner, enum_impl)?;
             let found = super::enum_sites::catch_alls(node, &lookup, &self.scopes, self.limits)?;
             if let Some(survivors) = &mut qualified {
                 survivors.retain(|arm| found.contains(arm));
@@ -420,7 +468,7 @@ impl Paths<'_, '_, '_, '_> {
                     .owners
                     .get(self.workspace, self.file, site.byte, self.limits)?;
                 for owner in owners {
-                    let lookup = enum_lookup(self.workspace, self.code, &site, owner)?;
+                    let lookup = enum_lookup(self.workspace, self.code, &site, owner, None)?;
                     if !super::enum_sites::bare_binding(name, &lookup, scopes, self.limits)? {
                         return Ok(false);
                     }
@@ -778,7 +826,17 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
                 self.imports(attributes, absolute, tree);
             });
         }
+        let previous = self.impl_blocks;
+        // Nested items cannot capture the enclosing implementation's Self.
+        let previous_self = self
+            .enum_hits
+            .as_mut()
+            .and_then(|inventory| inventory.self_path.take());
         syn::visit::visit_item(self, node);
+        if let Some(inventory) = &mut self.enum_hits {
+            inventory.self_path = previous_self;
+        }
+        self.impl_blocks = previous;
     }
 
     fn visit_block(&mut self, node: &'ast syn::Block) {
@@ -866,16 +924,32 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         }
         self.generic_scope(&node.generics, true, |this| {
             let previous = this.impl_blocks;
-            if this.path_uses.is_some() {
-                let blocks = this.workspace.impls_in(&this.file.path);
-                let start = node.span().byte_range().start;
-                let first = blocks.partition_point(|block| block.span.start_byte < start);
-                let end = blocks.partition_point(|block| block.span.start_byte <= start);
-                this.impl_blocks = &blocks[first..end];
-                if let Some((path, _)) = &node.trait_ {
-                    this.path(path, Role::Type, Namespace::Type);
-                    this.type_prefixes(path);
+            let start = node.span().byte_range().start;
+            if let Some(inventory) = &mut this.enum_hits {
+                if let syn::Type::Path(path) = node.self_ty.as_ref()
+                    && path.qself.is_none()
+                    && node.trait_.is_none()
+                {
+                    inventory.self_path = Some(super::path_text(
+                        &super::segments(&path.path),
+                        path.path.leading_colon.is_some(),
+                    ));
+                    match inventory.impls_at(this.workspace, this.file, start, this.limits) {
+                        Ok(blocks) => this.impl_blocks = blocks,
+                        Err(error) => {
+                            this.error = Some(error);
+                            return;
+                        }
+                    }
                 }
+            } else if this.path_uses.is_some() {
+                this.impl_blocks = impls_at(this.workspace.impls_in(&this.file.path), start);
+            }
+            if this.path_uses.is_some()
+                && let Some((path, _)) = &node.trait_
+            {
+                this.path(path, Role::Type, Namespace::Type);
+                this.type_prefixes(path);
             }
             syn::visit::visit_item_impl(this, node);
             this.impl_blocks = previous;
@@ -918,6 +992,12 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     fn visit_variant(&mut self, node: &'ast syn::Variant) {
         if !self.excludes_from_inventory(&node.attrs) {
             syn::visit::visit_variant(self, node);
+        }
+    }
+
+    fn visit_field(&mut self, node: &'ast syn::Field) {
+        if !self.excludes_from_inventory(&node.attrs) {
+            syn::visit::visit_field(self, node);
         }
     }
 
@@ -1394,6 +1474,7 @@ fn numeric_lookup<'a, 'w>(
         site,
         label: UNCLASSIFIED,
         visibility: Some((workspace, package)),
+        enum_impl: None,
     })
 }
 

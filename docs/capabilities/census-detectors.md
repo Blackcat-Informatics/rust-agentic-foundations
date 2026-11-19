@@ -284,8 +284,11 @@ targets in the home package and exempts the actual home and entry-point units.
 The `enum-catch-all` detector reports the source location of each unguarded
 top-level wildcard or bare binding in a match whose other arms establish an
 indexed enum. It checks qualified variant paths and resolved imports against the
-enum's declared member names and forms at the actual source reach. A physically
-shared arm reports once when each reading context establishes the role.
+enum's declared member names and forms at the actual source reach. A
+`Self::Variant` pattern supplies evidence when the written type path of an
+indexed inherent implementation resolves directly to the enum in that
+reach. A physically shared arm reports once when each reading context
+establishes the role.
 
 A variant pattern supplies enum evidence through its own head. Wildcards inside
 tuple or record fields leave that arm outside the catch-all inventory. An

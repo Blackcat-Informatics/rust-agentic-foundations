@@ -8,8 +8,9 @@ use std::collections::BTreeSet;
 use syn::spanned::Spanned;
 
 use super::{
-    Error, GlobRead, ItemId, LexicalPath, Lookup, MatchLimits, Namespace, PathDefinition, Scopes,
-    Site, SymbolKind, VariantForms, charge, failure, path_text, segments,
+    CodeResolveError, Error, GlobRead, ItemId, LexicalPath, Lookup, MatchLimits, Namespace,
+    PathDefinition, PathOwner, ResolveError, Scopes, Site, SymbolKind, VariantForms, charge,
+    failure, path_text, segments,
 };
 use crate::detectors::{ENUM_CATCH_ALL, RawHit};
 
@@ -267,6 +268,17 @@ fn path_arm(
     };
     let written = segments(path);
     let absolute = path.leading_colon.is_some();
+    if !absolute
+        && let [head, member] = written.as_slice()
+        && head == "Self"
+    {
+        let variants = inherent_variants(&lookup, scopes, member, form, limits)?;
+        return Ok(if variants.is_empty() {
+            Arm::Other
+        } else {
+            Arm::Variants(variants)
+        });
+    }
     let expanded = expand_variant_path((&written, absolute), form, &lookup, scopes, limits)?;
     if expanded
         .as_ref()
@@ -367,6 +379,90 @@ fn variants(
         path.alias_scope,
         limits,
     )?;
+    indexed_variants(&lookup, scopes, actual, member, form, limits)
+}
+
+fn inherent_variants(
+    lookup: &Lookup<'_, '_>,
+    scopes: &Scopes,
+    member: &str,
+    form: Form,
+    limits: &mut MatchLimits,
+) -> Result<BTreeSet<Variant>, Error> {
+    let (PathOwner::Item(owner), Some((workspace, _)), Some((path, blocks))) =
+        (lookup.owner, lookup.visibility, lookup.enum_impl)
+    else {
+        return Ok(BTreeSet::new());
+    };
+    if blocks.is_empty() {
+        return Ok(BTreeSet::new());
+    }
+    let target = workspace
+        .item(owner)
+        .ok_or_else(|| failure(ENUM_CATCH_ALL, "Self pattern has no indexed owner"))?
+        .target;
+    let module = lookup
+        .code
+        .reading_module(owner, lookup.site.byte)
+        .map_err(|error| lookup.error("Self", error))?;
+    let probes = u64::from(blocks.len().bit_width()) + 1;
+    let bytes = u64::try_from(module.len()).unwrap_or(u64::MAX);
+    charge(
+        ENUM_CATCH_ALL,
+        limits,
+        probes.saturating_mul(bytes.saturating_add(1)),
+    )?;
+    let Ok(index) = blocks
+        .binary_search_by(|block| (block.module.as_str(), block.target).cmp(&(module, target)))
+    else {
+        return Ok(BTreeSet::new());
+    };
+    let block = &blocks[index];
+    if block.trait_path.is_some() || block.self_items.is_empty() {
+        return Ok(BTreeSet::new());
+    }
+    // Source can retain an enum from a partial type alias route. Require
+    // the written impl path to resolve directly to the same keys.
+    charge(
+        ENUM_CATCH_ALL,
+        limits,
+        u64::try_from(path.len()).unwrap_or(u64::MAX),
+    )?;
+    let direct = match lookup
+        .code
+        .resolve_from_impl(block.id, path, Namespace::Type, false)
+    {
+        Ok(resolution) => resolution.sites,
+        Err(CodeResolveError::Resolve(
+            ResolveError::Invalid(_)
+            | ResolveError::NotFound(_)
+            | ResolveError::Ambiguous(_)
+            | ResolveError::Cyclic(_)
+            | ResolveError::IndeterminateImport { .. }
+            | ResolveError::UnresolvedSelf(_)
+            | ResolveError::UnresolvedGlob { .. },
+        )) => return Ok(BTreeSet::new()),
+        Err(error) => return Err(lookup.error(path, error)),
+    };
+    charge(
+        ENUM_CATCH_ALL,
+        limits,
+        u64::try_from(direct.len()).unwrap_or(u64::MAX),
+    )?;
+    if direct != block.self_items {
+        return Ok(BTreeSet::new());
+    }
+    indexed_variants(lookup, scopes, direct, member, form, limits)
+}
+
+fn indexed_variants(
+    lookup: &Lookup<'_, '_>,
+    scopes: &Scopes,
+    actual: impl IntoIterator<Item = ItemId>,
+    member: &str,
+    form: Form,
+    limits: &mut MatchLimits,
+) -> Result<BTreeSet<Variant>, Error> {
     let Some((workspace, _)) = lookup.visibility else {
         return Err(failure(
             ENUM_CATCH_ALL,

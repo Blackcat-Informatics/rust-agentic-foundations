@@ -501,6 +501,7 @@ struct Lookup<'a, 'w> {
     site: &'a Site<'a>,
     label: &'a str,
     visibility: Option<(&'a Workspace, PackageId)>,
+    enum_impl: Option<(&'a str, &'a [ImplBlock])>,
 }
 
 #[derive(Clone, Copy)]
@@ -1777,11 +1778,8 @@ fn cross_package_uses(
     let written = segments(path);
     let absolute = path.leading_colon.is_some();
     let raw = path_text(&written, absolute);
-    let observed = if site.role == Role::Glob {
-        format!("{raw}::*")
-    } else {
-        raw.clone()
-    };
+    let glob_spelling = (site.role == Role::Glob).then(|| format!("{raw}::*"));
+    let observed = glob_spelling.as_deref().unwrap_or(&raw);
     let textual_macro = site.role == Role::Macro
         && !absolute
         && written.len() == 1
@@ -1830,6 +1828,7 @@ fn cross_package_uses(
             site,
             label: VISIBILITY,
             visibility: Some((workspace, consumer)),
+            enum_impl: None,
         };
         let LexicalPath::Accessible(expanded) =
             lookup.lexical(scopes, &written, absolute, limits)?
@@ -1867,7 +1866,7 @@ fn cross_package_uses(
                 workspace,
                 consumer,
                 definition,
-                &observed,
+                observed,
                 (site, glob.opaque.as_deref()),
                 limits,
             )?;
@@ -2018,6 +2017,7 @@ fn matches(
             site,
             label: &expected.pattern.id,
             visibility: None,
+            enum_impl: None,
         };
         let LexicalPath::Accessible(expanded) =
             lookup.lexical(scopes, &written, absolute, limits)?
