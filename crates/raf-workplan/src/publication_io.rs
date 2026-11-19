@@ -72,6 +72,40 @@ impl std::error::Error for RefusedPath {
     }
 }
 
+#[derive(Debug)]
+struct RestorationError {
+    original: PathBuf,
+    source: io::Error,
+    verification: io::Result<()>,
+}
+
+impl fmt::Display for RestorationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status = if self.verification.is_ok() {
+            "original capability bytes remain at"
+        } else {
+            "could not verify the staged original at"
+        };
+        write!(
+            f,
+            "capability restoration failed: {}. {status} ",
+            self.source
+        )?;
+        // Quote the OS path without substituting for non-UTF-8 bytes.
+        fmt::Debug::fmt(&self.original, f)?;
+        if let Err(error) = &self.verification {
+            write!(f, ": {error}")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for RestorationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
+}
+
 /// One reader authority, retained from admission through publication.
 pub(crate) struct Root {
     path: PathBuf,
@@ -613,6 +647,20 @@ impl Staged {
         discard_owned(&self.target.directory, &self.name, &self.file)
     }
 
+    fn restore_original(self) -> io::Result<()> {
+        self.publish().map_err(|source| {
+            let verification = self.check();
+            io::Error::new(
+                source.kind(),
+                RestorationError {
+                    original: self.temporary,
+                    source,
+                    verification,
+                },
+            )
+        })
+    }
+
     /// Remove this publication only while it still occupies the admitted target.
     pub(crate) fn remove_published(&self) -> io::Result<()> {
         let mut target = self.target.clone();
@@ -657,11 +705,13 @@ impl Rollback {
         }
     }
 
-    pub(crate) fn restore(&self) -> io::Result<()> {
-        finish_all(self.published.iter().rev().map(Staged::publish))
+    pub(crate) fn restore(&mut self) -> io::Result<()> {
+        // Drain the attempted originals so cleanup cannot unlink a verified
+        // recovery file whose guarded rename failed.
+        finish_all(self.published.drain(..).rev().map(Staged::restore_original))
     }
 
-    pub(crate) fn restore_after(self, error: io::Error) -> io::Error {
+    pub(crate) fn restore_after(mut self, error: io::Error) -> io::Error {
         let error = with_cleanup(error, self.restore());
         with_cleanup(error, self.discard())
     }

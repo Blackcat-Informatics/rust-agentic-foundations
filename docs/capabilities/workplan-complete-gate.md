@@ -43,6 +43,7 @@ bindings:
     - raf_workplan::staged::tests::a_replaced_file_reads_as_its_new_text_within_the_bound
     - raf_workplan::staged::tests::every_other_path_is_answered_as_the_inner_tree_does
     - raf_workplan::staged::tests::the_hidden_file_is_not_read_listed_or_found
+    - raf_workplan::sync::tests::rollback_retains_the_original_when_its_destination_changes
   examples:
     - raf_workplan::Gate
 depends: [cap:workplan-reconcile, cap:workplan-generated-docs]
@@ -72,9 +73,11 @@ temporary cleanup failures alongside the original error.
 Completion stages the original capability bytes before the first rename. If
 publication or record removal fails after writing a delivered state, completion
 restores the original bytes while it still owns the published file. It reports
-restoration failures with the original error. Restore access, run `docs sync`
-with the record still present, and retry completion. A cleanup refusal after
-record removal reports that completion published and names the cleanup error.
+restoration failures with the original error and names any verified original
+retained for recovery. Restore the capability from the reported file when
+needed, run `docs sync` with the record still present, and retry completion.
+A cleanup refusal after record removal reports that completion published and
+names the cleanup error.
 
 The documented data path is illustrated by `raf_workplan::Gate`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
@@ -86,6 +89,10 @@ If another writer replaces a generated document's staged temporary, publication
 refuses and preserves the foreign file. An unchanged neighboring publication
 continues to use the same owned-document path.
 <!-- raf:tested-by raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail -->
+
+If a published capability path becomes a directory before restoration, the
+publisher preserves the directory and reports the retained original's path.
+<!-- raf:tested-by raf_workplan::sync::tests::rollback_retains_the_original_when_its_destination_changes -->
 
 A consumer test containing a panic remains a declared test binding. Static verification prints `declared`. A completion with an unresolved code binding or an undone item refuses and retains every input byte.
 
@@ -118,6 +125,7 @@ Controlled RAF fixtures exercise prospective refusal, record removal, generated 
 | `raf_workplan::staged::tests::every_other_path_is_answered_as_the_inner_tree_does` | test | [Verification](#verification) |
 | `raf_workplan::staged::tests::the_hidden_file_is_not_read_listed_or_found` | test | [Verification](#verification) |
 | `raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail` | test | [Examples](#examples) |
+| `raf_workplan::sync::tests::rollback_retains_the_original_when_its_destination_changes` | test | [Examples](#examples) |
 | `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched` | test | [Contract](#contract) |

@@ -170,3 +170,41 @@ fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
             .all(|file| !file.temporary_path().exists())
     );
 }
+
+#[test]
+fn rollback_retains_the_original_when_its_destination_changes() {
+    let scratch = Scratch::new();
+    for (name, replaced) in [("owned-original", false), ("foreign-original", true)] {
+        let root = scratch.0.path().join(name);
+        let (files, mut rollback) = staged(&root, true);
+        let backup = staged_original(&root);
+        publish(&files, &mut rollback).expect("publish the guarded edit");
+        let destination = root.join("one.md");
+        fs::remove_file(&destination).unwrap();
+        fs::create_dir(&destination).unwrap();
+        if replaced {
+            // Matching bytes do not make another inode an owned recovery file.
+            fs::remove_file(&backup).unwrap();
+            fs::write(&backup, "old one.md\n").unwrap();
+        }
+        let inode = fs::metadata(&backup).unwrap().ino();
+        let error = rollback
+            .restore_after(std::io::Error::other("later publication failed"))
+            .to_string();
+
+        assert!(error.contains("later publication failed"), "{error}");
+        let name = backup.file_name().unwrap().to_str().unwrap();
+        assert!(error.contains(name), "{error}");
+        assert_eq!(
+            error.contains("original capability bytes remain"),
+            !replaced
+        );
+        assert_eq!(
+            error.contains("could not verify the staged original"),
+            replaced
+        );
+        assert_eq!(fs::metadata(&backup).unwrap().ino(), inode);
+        assert_eq!(fs::read_to_string(backup).unwrap(), "old one.md\n");
+        assert!(destination.is_dir());
+    }
+}
