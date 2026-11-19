@@ -154,7 +154,7 @@ bindings:
     - raf_workplan::test_crate::untouched::a_default_branch_with_no_common_ancestor_is_an_error
     - raf_workplan::test_crate::untouched::a_prefix_with_a_space_is_an_error_and_a_neighbour_without_one_is_not
     - raf_workplan::test_crate::untouched::a_repository_with_no_remote_at_all_is_an_error_and_not_a_pass
-    - raf_workplan::test_crate::untouched::a_root_outside_any_work_tree_is_an_error_at_the_open
+    - raf_workplan::test_crate::untouched::a_bare_repository_is_refused_at_the_open
     - raf_workplan::test_crate::untouched::a_section_missing_from_the_merge_base_file_counts_as_touched
     - raf_workplan::test_crate::untouched::an_affected_section_the_working_tree_file_lacks_is_an_error
     - raf_workplan::test_crate::untouched::contract_effect_none_still_reports_the_other_sections
@@ -391,6 +391,7 @@ Named obligation fixtures cover every current kind. Native merge-base fixtures c
 | `raf_workplan::test_crate::obligations::wording_that_only_looks_like_a_phrase_owes_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::planning_produces_the_documentation` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::several_redesigns_leave_one_readable_present` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::a_bare_repository_is_refused_at_the_open` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_checkout_with_converted_line_endings_is_untouched_in_every_section` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_default_branch_named_like_an_option_is_resolved_and_never_reaches_git_as_one` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_default_branch_with_no_common_ancestor_is_an_error` | test | [Verification](#verification) |
@@ -401,7 +402,6 @@ Named obligation fixtures cover every current kind. Native merge-base fixtures c
 | `raf_workplan::test_crate::untouched::a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_prefix_with_a_space_is_an_error_and_a_neighbour_without_one_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_repository_with_no_remote_at_all_is_an_error_and_not_a_pass` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::untouched::a_root_outside_any_work_tree_is_an_error_at_the_open` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_section_edited_on_the_branch_is_not_reported_and_its_neighbour_is` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_section_missing_from_the_merge_base_file_counts_as_touched` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_workspace_below_the_top_of_the_repository_is_compared_at_its_prefix` | test | [Verification](#verification) |

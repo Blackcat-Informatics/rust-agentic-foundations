@@ -64,9 +64,14 @@ fn repository(tag: &str, capability: &str, library: &str, record: &str) -> Scrat
     scratch
 }
 
+/// Judge the catalogue link against the fixture's capability path.
+fn fixture_gate(root: &Path) -> Gate {
+    Gate::workspace(root).tracked_paths([RelPath::new(strict::CAPABILITY).unwrap()])
+}
+
 /// Sync the generated blocks, creating the index.
 fn sync(root: &Path) {
-    let opened = Gate::workspace(root).open().expect("a repository");
+    let opened = fixture_gate(root).open().expect("a repository");
     let report = opened.workplan().sync(&options()).expect("a sync");
     Workplan::write(&report, root).expect("the sync is written");
 }
@@ -119,7 +124,7 @@ fn library_with(functions: &[(&str, usize)]) -> String {
 }
 
 fn found(root: &Path) -> Vec<Finding> {
-    Gate::workspace(root).check()
+    fixture_gate(root).check()
 }
 
 fn kinds(root: &Path) -> Vec<&'static str> {
@@ -147,7 +152,7 @@ fn without_a_record_every_strict_finding_stands_and_the_write_creates_it() {
         assert_eq!(snapshot(root), before, "ordinary checks do not adopt debt");
         assert!(!root.join(DEBT).exists());
     }
-    let written = Gate::workspace(root)
+    let written = fixture_gate(root)
         .write_debt()
         .expect("the adoption writes");
     assert_eq!(written.change(), DebtChange::Created);
@@ -163,7 +168,7 @@ fn without_a_record_every_strict_finding_stands_and_the_write_creates_it() {
     );
     // The repository then passes, and the record loads as the typed value.
     assert_eq!(found(root), []);
-    let opened = Gate::workspace(root).open().expect("opens");
+    let opened = fixture_gate(root).open().expect("opens");
     let plan = opened.workplan();
     let record = plan.debt().expect("the record loads");
     assert_eq!(record.path(), DEBT);
@@ -230,10 +235,10 @@ fn every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_hold
         "strict-usage-unbound",
     ];
     assert_eq!(present, wanted);
-    Gate::workspace(root).write_debt().expect("adopts");
+    fixture_gate(root).write_debt().expect("adopts");
     // No row is invalid, and the repository passes with every one of them.
     assert_eq!(found(root), []);
-    let opened = Gate::workspace(root).open().expect("opens");
+    let opened = fixture_gate(root).open().expect("opens");
     let plan = opened.workplan();
     let record = plan.debt().expect("the record");
     let mut recorded: Vec<(&str, &str)> = record
@@ -274,7 +279,7 @@ fn a_repository_that_passes_has_no_finding_to_hold_and_the_write_records_nothing
     );
     let root = repo.path();
     assert_eq!(found(root), []);
-    let written = Gate::workspace(root).write_debt().expect("an empty record");
+    let written = fixture_gate(root).write_debt().expect("an empty record");
     assert_eq!(written.change(), DebtChange::Created);
     assert_eq!((written.findings(), written.lines()), (0, 0));
     assert_eq!(
@@ -288,7 +293,7 @@ fn a_repository_that_passes_has_no_finding_to_hold_and_the_write_records_nothing
 fn a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing() {
     let repo = two_thin();
     let root = repo.path();
-    Gate::workspace(root)
+    fixture_gate(root)
         .write_debt()
         .expect("the adoption writes");
     // The neighbour: the capability as recorded passes.
@@ -309,7 +314,7 @@ fn a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing() {
     };
     assert_eq!(memory_growth, findings);
     assert_eq!(memory, before_memory);
-    let Err(DebtError::Growth(growth)) = Gate::workspace(root).write_debt() else {
+    let Err(DebtError::Growth(growth)) = fixture_gate(root).write_debt() else {
         panic!("the write must refuse growth");
     };
     assert_eq!(growth, findings);
@@ -336,7 +341,7 @@ fn rewording_a_recorded_constraint_is_growth_beside_its_resolved_old_key() {
     );
     let root = repo.path();
     let key = |root: &Path| {
-        let opened = Gate::workspace(root).open().expect("the repository opens");
+        let opened = fixture_gate(root).open().expect("the repository opens");
         let report = opened.workplan().claims_report();
         let uncovered: Vec<_> = report
             .claims()
@@ -347,7 +352,7 @@ fn rewording_a_recorded_constraint_is_growth_beside_its_resolved_old_key() {
         uncovered[0].key()
     };
     let original = key(root);
-    Gate::workspace(root)
+    fixture_gate(root)
         .write_debt()
         .expect("the explicit initial record");
     assert_eq!(found(root), []);
@@ -378,7 +383,7 @@ fn rewording_a_recorded_constraint_is_growth_beside_its_resolved_old_key() {
             );
         }
         let before = snapshot(root);
-        let Err(DebtError::Growth(growth)) = Gate::workspace(root).write_debt() else {
+        let Err(DebtError::Growth(growth)) = fixture_gate(root).write_debt() else {
             panic!("a changed claim cannot silently replace its recorded identity");
         };
         assert_eq!(growth.len(), 1);
@@ -394,7 +399,7 @@ fn rewording_a_recorded_constraint_is_growth_beside_its_resolved_old_key() {
 fn a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt() {
     let repo = two_thin();
     let root = repo.path();
-    Gate::workspace(root)
+    fixture_gate(root)
         .write_debt()
         .expect("the adoption writes");
     set(root, &thin(&["Explanation"]));
@@ -410,7 +415,7 @@ fn a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_d
         "{:#?}",
         findings[0]
     );
-    let written = Gate::workspace(root)
+    let written = fixture_gate(root)
         .write_debt()
         .expect("the record is lowered");
     assert_eq!(
@@ -432,7 +437,7 @@ fn a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_d
         strict::LIBRARY,
         &strict_record(),
     );
-    Gate::workspace(fresh.path())
+    fixture_gate(fresh.path())
         .write_debt()
         .expect("an adoption");
     assert_eq!(read(root, DEBT), read(fresh.path(), DEBT));
@@ -447,7 +452,7 @@ fn two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched() {
         write_memory(&mut memory).unwrap().change(),
         DebtChange::Created
     );
-    Gate::workspace(root).write_debt().expect("the first write");
+    fixture_gate(root).write_debt().expect("the first write");
     let first = snapshot(root);
     assert_eq!(
         memory.read(&RelPath::new(DEBT).unwrap(), u64::MAX).unwrap(),
@@ -465,9 +470,7 @@ fn two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched() {
         first,
         "checking existing debt does not rewrite it"
     );
-    let second = Gate::workspace(root)
-        .write_debt()
-        .expect("the second write");
+    let second = fixture_gate(root).write_debt().expect("the second write");
     assert_eq!(second.change(), DebtChange::Unchanged);
     assert_eq!(second.change().name(), "unchanged");
     assert_eq!(snapshot(root), first);
@@ -488,7 +491,7 @@ fn a_finding_of_the_default_rules_stops_the_write() {
         ),
     );
     let before = snapshot(root);
-    let Err(DebtError::Findings(blocking)) = Gate::workspace(root).write_debt() else {
+    let Err(DebtError::Findings(blocking)) = fixture_gate(root).write_debt() else {
         panic!("a default finding must stop the write");
     };
     assert!(
@@ -507,7 +510,7 @@ fn a_finding_of_the_default_rules_stops_the_write() {
     // The neighbour: once synced, the same repository is adopted.
     sync(root);
     assert_eq!(
-        Gate::workspace(root).write_debt().expect("adopts").change(),
+        fixture_gate(root).write_debt().expect("adopts").change(),
         DebtChange::Created
     );
 }
@@ -520,7 +523,7 @@ fn the_default_gate_records_present_debt_without_a_policy_switch() {
         strict::LIBRARY,
         &coverage("", ""),
     );
-    let written = Gate::workspace(repo.path()).write_debt().expect("adopts");
+    let written = fixture_gate(repo.path()).write_debt().expect("adopts");
     assert_eq!(written.change(), DebtChange::Created);
     assert_eq!(written.findings(), 1);
     assert_eq!(found(repo.path()), []);
@@ -687,7 +690,7 @@ fn an_invalid_row_holds_nothing_so_the_write_replaces_it() {
         DEBT,
         &debt_record(&row("link-broken", "cap:demo"), " []"),
     );
-    let written = Gate::workspace(root)
+    let written = fixture_gate(root)
         .write_debt()
         .expect("the record is replaced");
     assert_eq!(written.change(), DebtChange::Replaced);
@@ -728,7 +731,7 @@ fn a_record_that_breaks_the_profile_is_the_finding_of_its_rule_and_stops_the_wri
     assert_eq!(findings.len(), 1, "{findings:#?}");
     assert_eq!(findings[0].kind, "okf-unknown-key");
     assert!(matches!(
-        Gate::workspace(root).write_debt(),
+        fixture_gate(root).write_debt(),
         Err(DebtError::Findings(_))
     ));
     put(
@@ -757,7 +760,7 @@ fn orphan_repo(tag: &str, functions: &[(&str, usize)], extra: &str) -> Scratch {
 }
 
 fn lines_of(root: &Path) -> Vec<(String, usize)> {
-    let opened = Gate::workspace(root).open().expect("opens");
+    let opened = fixture_gate(root).open().expect("opens");
     let plan = opened.workplan();
     plan.debt().map_or_else(Vec::new, |record| {
         record
@@ -779,14 +782,14 @@ fn orphan_lines_over_a_ceiling_are_held_per_item_as_a_count() {
     assert_eq!(findings[0].kind, "coverage-lines-over-ceiling");
     assert_eq!(findings[0].file, strict::COVERAGE);
     let before = snapshot(root);
-    let written = Gate::workspace(root).write_debt().expect("adopts");
+    let written = fixture_gate(root).write_debt().expect("adopts");
     assert_eq!(written.change(), DebtChange::Created);
     assert_eq!((written.findings(), written.lines()), (0, 1));
     assert_eq!(changed(&before, &snapshot(root)), [DEBT]);
     assert_eq!(lines_of(root), [("demo::helper".to_string(), 3)]);
     assert_eq!(found(root), []);
     // The column of the report is the lines the record holds.
-    let opened = Gate::workspace(root).open().expect("opens");
+    let opened = fixture_gate(root).open().expect("opens");
     let plan = opened.workplan();
     let report = plan.lines_report();
     assert_eq!(report.crates()[0].orphan(), 3);
@@ -794,7 +797,7 @@ fn orphan_lines_over_a_ceiling_are_held_per_item_as_a_count() {
     assert!(report.to_string().contains("| 0 lines | 3 |"), "{report}");
     // Without the record the column is 0.
     let none = orphan_repo("debt-lines-none", &[("helper", 1)], "");
-    let opened = Gate::workspace(none.path()).open().expect("opens");
+    let opened = fixture_gate(none.path()).open().expect("opens");
     let plan = opened.workplan();
     assert_eq!(plan.lines_report().crates()[0].debt(), 0);
 }
@@ -803,7 +806,7 @@ fn orphan_lines_over_a_ceiling_are_held_per_item_as_a_count() {
 fn an_item_that_holds_more_lines_than_its_row_fails_naming_the_row_and_the_write_refuses() {
     let repo = orphan_repo("debt-lines-grow", &[("helper", 1)], "");
     let root = repo.path();
-    Gate::workspace(root).write_debt().expect("adopts");
+    fixture_gate(root).write_debt().expect("adopts");
     put(root, strict::LIB, &library_with(&[("helper", 2)]));
     let findings = found(root);
     assert_eq!(findings.len(), 1, "{findings:#?}");
@@ -819,7 +822,7 @@ fn an_item_that_holds_more_lines_than_its_row_fails_naming_the_row_and_the_write
         findings[0].message
     );
     let before = snapshot(root);
-    let Err(DebtError::Growth(growth)) = Gate::workspace(root).write_debt() else {
+    let Err(DebtError::Growth(growth)) = fixture_gate(root).write_debt() else {
         panic!("a row that grew is growth");
     };
     assert_eq!(growth, findings);
@@ -830,7 +833,7 @@ fn an_item_that_holds_more_lines_than_its_row_fails_naming_the_row_and_the_write
 fn an_orphan_item_with_no_row_is_growth_in_a_package_judged_by_its_rows() {
     let repo = orphan_repo("debt-lines-new", &[("helper", 1)], "");
     let root = repo.path();
-    Gate::workspace(root).write_debt().expect("adopts");
+    fixture_gate(root).write_debt().expect("adopts");
     put(
         root,
         strict::LIB,
@@ -846,7 +849,7 @@ fn an_orphan_item_with_no_row_is_growth_in_a_package_judged_by_its_rows() {
         findings[0].message
     );
     assert!(matches!(
-        Gate::workspace(root).write_debt(),
+        fixture_gate(root).write_debt(),
         Err(DebtError::Growth(_))
     ));
     assert_eq!(lines_of(root), [("demo::helper".to_string(), 3)]);
@@ -858,13 +861,13 @@ fn a_package_over_a_ceiling_that_the_record_does_not_name_is_growth_not_adoption
     // ceiling is debt that grew.
     let repo = orphan_repo("debt-lines-package", &[], "");
     let root = repo.path();
-    Gate::workspace(root).write_debt().expect("adopts");
+    fixture_gate(root).write_debt().expect("adopts");
     put(root, strict::LIB, &library_with(&[("helper", 1)]));
     let findings = found(root);
     assert_eq!(findings.len(), 1, "{findings:#?}");
     assert_eq!(findings[0].file, strict::COVERAGE);
     assert!(matches!(
-        Gate::workspace(root).write_debt(),
+        fixture_gate(root).write_debt(),
         Err(DebtError::Growth(growth)) if growth == findings
     ));
 }
@@ -873,7 +876,7 @@ fn a_package_over_a_ceiling_that_the_record_does_not_name_is_growth_not_adoption
 fn a_falling_count_fails_until_the_write_lowers_the_row() {
     let repo = orphan_repo("debt-lines-fall", &[("helper", 1)], "");
     let root = repo.path();
-    Gate::workspace(root).write_debt().expect("adopts");
+    fixture_gate(root).write_debt().expect("adopts");
     put(root, strict::LIB, &library_with(&[("helper", 0)]));
     let findings = found(root);
     assert_eq!(findings.len(), 1, "{findings:#?}");
@@ -888,10 +891,10 @@ fn a_falling_count_fails_until_the_write_lowers_the_row() {
         findings[0].message
     );
     // The debt column counts the fewer of the lines and the row.
-    let opened = Gate::workspace(root).open().expect("opens");
+    let opened = fixture_gate(root).open().expect("opens");
     assert_eq!(opened.workplan().lines_report().crates()[0].debt(), 2);
     drop(opened);
-    let written = Gate::workspace(root).write_debt().expect("lowers");
+    let written = fixture_gate(root).write_debt().expect("lowers");
     assert_eq!(written.change(), DebtChange::Replaced);
     assert_eq!(lines_of(root), [("demo::helper".to_string(), 2)]);
     assert_eq!(found(root), []);
@@ -901,7 +904,7 @@ fn a_falling_count_fails_until_the_write_lowers_the_row() {
 fn an_item_that_is_gone_is_resolved_and_the_write_drops_its_row() {
     let repo = orphan_repo("debt-lines-gone", &[("helper", 1)], "");
     let root = repo.path();
-    Gate::workspace(root).write_debt().expect("adopts");
+    fixture_gate(root).write_debt().expect("adopts");
     put(root, strict::LIB, strict::LIBRARY);
     let findings = found(root);
     assert_eq!(findings.len(), 1, "{findings:#?}");
@@ -911,7 +914,7 @@ fn an_item_that_is_gone_is_resolved_and_the_write_drops_its_row() {
         "{}",
         findings[0].message
     );
-    Gate::workspace(root).write_debt().expect("lowers");
+    fixture_gate(root).write_debt().expect("lowers");
     assert_eq!(lines_of(root), []);
     assert_eq!(found(root), []);
 }
@@ -920,7 +923,7 @@ fn an_item_that_is_gone_is_resolved_and_the_write_drops_its_row() {
 fn a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_debt() {
     let repo = orphan_repo("debt-lines-ceiling", &[("helper", 1)], "");
     let root = repo.path();
-    Gate::workspace(root).write_debt().expect("adopts");
+    fixture_gate(root).write_debt().expect("adopts");
     // The ceiling is raised over the lines: the package holds no debt.
     put(
         root,
@@ -937,7 +940,7 @@ fn a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_d
         "{}",
         findings[0].message
     );
-    let written = Gate::workspace(root).write_debt().expect("lowers");
+    let written = fixture_gate(root).write_debt().expect("lowers");
     assert_eq!((written.findings(), written.lines()), (0, 0));
     assert_eq!(found(root), []);
     // The boundary: a ceiling of exactly the orphan lines holds, one under
@@ -960,7 +963,7 @@ fn the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given() {
     let options = RecordOptions::new()
         .copyright("2026 Example Org <dev@example.org>")
         .licence("CC-BY-4.0");
-    let written = Gate::workspace(root)
+    let written = fixture_gate(root)
         .record_options(options.clone())
         .write_debt()
         .expect("adopts");
@@ -972,7 +975,7 @@ fn the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given() {
     );
     // Lowered without options, the record keeps its lines.
     set(root, &thin(&["Explanation"]));
-    let written = Gate::workspace(root).write_debt().expect("lowers");
+    let written = fixture_gate(root).write_debt().expect("lowers");
     assert_eq!(written.change(), DebtChange::Replaced);
     let lowered = read(root, DEBT);
     assert!(
@@ -983,7 +986,7 @@ fn the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given() {
     // Given others, they replace them.
     let other = RecordOptions::new().copyright("2027 Other").licence("MIT");
     set(root, &strict::capability());
-    Gate::workspace(root)
+    fixture_gate(root)
         .record_options(other)
         .write_debt()
         .expect("lowers");
@@ -992,15 +995,12 @@ fn the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given() {
     let before = snapshot(root);
     let half = RecordOptions::new().copyright("2027 Other");
     set(root, &thin(&["Purpose"]));
-    let Err(DebtError::Growth(_)) = Gate::workspace(root)
-        .record_options(half.clone())
-        .write_debt()
+    let Err(DebtError::Growth(_)) = fixture_gate(root).record_options(half.clone()).write_debt()
     else {
         panic!("new debt is refused before the options are read");
     };
     set(root, &strict::capability());
-    let Err(DebtError::Record(error)) = Gate::workspace(root).record_options(half).write_debt()
-    else {
+    let Err(DebtError::Record(error)) = fixture_gate(root).record_options(half).write_debt() else {
         panic!("one SPDX line is refused");
     };
     assert!(error.to_string().contains("licence"), "{error}");
@@ -1052,7 +1052,7 @@ fn the_record_is_read_back_as_the_typed_value_the_write_built() {
     let record = DebtRecord::new(Vec::new(), vec![DebtLine::new("demo::helper", 3)]);
     let repo = orphan_repo("debt-typed", &[("helper", 1)], "");
     let root = repo.path();
-    Gate::workspace(root).write_debt().expect("adopts");
+    fixture_gate(root).write_debt().expect("adopts");
     let text = read(root, DEBT);
     let document = raf_okf::Document::parse(&text).expect("the record reads");
     assert_eq!(
@@ -1066,7 +1066,7 @@ fn the_default_debt_writer_judges_all_present_findings() {
     let repo = two_thin();
     let root = repo.path();
     // The record says strict; a floor of default changes nothing.
-    let written = Gate::workspace(root).write_debt().expect("adopts");
+    let written = fixture_gate(root).write_debt().expect("adopts");
     assert_eq!(written.findings(), 2);
 }
 
@@ -1074,9 +1074,9 @@ fn the_default_debt_writer_judges_all_present_findings() {
 fn the_snapshot_of_every_other_file_is_unchanged_by_a_refused_write() {
     let repo = two_thin();
     let root = repo.path();
-    Gate::workspace(root).write_debt().expect("adopts");
+    fixture_gate(root).write_debt().expect("adopts");
     set(root, &thin(&["Examples", "Explanation", "Usage"]));
     let before: BTreeMap<String, Vec<u8>> = snapshot(root);
-    let _ = Gate::workspace(root).write_debt();
+    let _ = fixture_gate(root).write_debt();
     assert_eq!(snapshot(root), before);
 }

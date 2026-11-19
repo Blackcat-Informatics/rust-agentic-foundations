@@ -55,6 +55,20 @@ fn staged(root: &Path, guarded: bool) -> (Vec<Staged>, Rollback) {
     (files, rollback)
 }
 
+fn staged_original(root: &Path) -> std::path::PathBuf {
+    fs::read_dir(root)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with(".sync.tmp")
+                && fs::read_to_string(path).unwrap() == "old one.md\n"
+        })
+        .expect("the original is staged before publication")
+}
+
 #[test]
 fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
     let scratch = Scratch::new();
@@ -64,19 +78,7 @@ fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
     ] {
         let root = scratch.0.path().join(case);
         let (files, mut rollback) = staged(&root, guarded);
-        let backup = guarded.then(|| {
-            fs::read_dir(&root)
-                .unwrap()
-                .map(|entry| entry.unwrap().path())
-                .find(|path| {
-                    path.file_name()
-                        .unwrap()
-                        .to_string_lossy()
-                        .ends_with(".sync.tmp")
-                        && fs::read_to_string(path).unwrap() == "old one.md\n"
-                })
-                .expect("the original is staged before publication")
-        });
+        let backup = guarded.then(|| staged_original(&root));
         let backup_inode = backup
             .as_ref()
             .map(|path| fs::metadata(path).unwrap().ino());
