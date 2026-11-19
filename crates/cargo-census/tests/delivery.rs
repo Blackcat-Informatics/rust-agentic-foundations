@@ -395,7 +395,10 @@ fn assert_visibility_glob_namespaces(root: &Path) {
          pub mod types { pub struct Record { pub value: u8 } pub struct GenericOnly; #[derive(Clone, Copy)] pub struct Used; }\n\
          pub mod left { pub mod branch { pub fn run() {} pub use crate::ping as same; } }\n\
          pub mod right { pub mod branch { pub fn run() {} pub use crate::ping as same; } }\n\
-         pub enum First { Ready } pub enum Second { Ready } pub use First as Same;",
+         pub enum First { Ready } pub enum Second { Ready } pub use First as Same;\n\
+         pub mod api { pub mod entry { pub fn member() {} } pub fn entry() {} }\n\
+         #[macro_export] macro_rules! stamp { () => {} }\n\
+         #[macro_export] macro_rules! early_stamp { () => {} }",
     );
     fs::write(bridge, source).unwrap();
     let report = |source: &str| {
@@ -408,7 +411,9 @@ fn assert_visibility_glob_namespaces(root: &Path) {
          fn union_fields() { use bridge::types::*; union Generic<GenericOnly: Copy> { field: GenericOnly } union Ordinary { field: Used } }\n\
          fn qualified() { use bridge::right::*; branch::run(); }\n\
          fn coincident() { use bridge::left::*; use branch::run as chosen; chosen(); }\n\
-         fn coincident_block() { use bridge::right::*; use bridge::left::branch; { use bridge::left::*; use branch::run as chosen; chosen(); } }\n\
+         fn coincident_block() { use bridge::right::*; use bridge::left::branch; { use bridge::left::*; use branch::run as chosen_in_block; chosen_in_block(); } }\n\
+         fn coincident_glob() { use bridge::left::branch; { use bridge::left::*; use branch::*; run(); } }\n\
+         fn explicit_glob() { use bridge::left::branch; { use bridge::right::*; use bridge::left::branch::*; run(); } }\n\
          fn repeated() { use bridge::First::*; use bridge::Same::*; let _ = Ready; }",
     );
     assert!(
@@ -431,6 +436,9 @@ fn assert_visibility_glob_namespaces(root: &Path) {
         ("bridge::types::Used", "Used", true),
         ("bridge::right::branch::run", "branch::run", true),
         ("bridge::left::branch::run", "chosen", true),
+        ("bridge::left::branch::run", "chosen_in_block", true),
+        ("bridge::left::branch", "branch::*", true),
+        ("bridge::left::branch", "bridge::left::branch::*", true),
     ] {
         assert_eq!(
             visibility_nodes(&graph, bridge, "use").any(|row| {
@@ -444,6 +452,11 @@ fn assert_visibility_glob_namespaces(root: &Path) {
             "written path {written} for {symbol}"
         );
     }
+    assert_visibility_glob_refusals(&report);
+    assert_visibility_grouped_self_and_macros(&report);
+}
+
+fn assert_visibility_glob_refusals(report: &impl Fn(&str) -> Output) {
     for (source, reason) in [
         (
             "use bridge::left::branch; fn call() { use bridge::right::*; use branch::run as chosen; chosen(); }",
@@ -456,6 +469,14 @@ fn assert_visibility_glob_namespaces(root: &Path) {
         (
             "fn call() { use bridge::left::branch; { use bridge::right::*; use branch::same as chosen; chosen(); } }",
             "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { use bridge::left::branch; { use bridge::right::*; use branch::*; run(); } }",
+            "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { macro_rules! stamp { () => {} } { use bridge::*; stamp!(); } }",
+            "competing textual and path-based bindings",
         ),
         (
             "fn call() { use bridge::left::branch; { use bridge::right::branch; { use bridge::right::*; use branch::same as chosen; chosen(); } } }",
@@ -484,6 +505,93 @@ fn assert_visibility_glob_namespaces(root: &Path) {
         "{}",
         String::from_utf8_lossy(&internal.stderr)
     );
+}
+
+fn assert_visibility_grouped_self_and_macros(report: &impl Fn(&str) -> Output) {
+    let output = report(
+        "use bridge::api::entry::{self as grouped}; use bridge::ping as grouped;\n\
+         use bridge::api as ordinary_api; use ordinary_api::entry as ordinary;\n\
+         use bridge::ping as local_module;\n\
+         fn grouped_paths() { grouped(); grouped::member(); ordinary(); ordinary::member();\n\
+             use bridge::api as api_block; use api_block::entry::{self as local_module};\n\
+             local_module(); local_module::member(); }\n\
+         fn macros() { use bridge::*; early_stamp!(); macro_rules! early_stamp { () => {} }\n\
+             macro_rules! stamp { () => {} } stamp!(); bridge::stamp!(); }",
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&output.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    let bridge = visibility_nodes(&graph, graph.get("").unwrap(), "library")
+        .find(|node| visibility_value(*node, "package") == "bridge")
+        .unwrap();
+    for (symbol, kind, written, expected) in [
+        ("bridge::api::entry", "module", "bridge::api::entry", true),
+        (
+            "bridge::api::entry",
+            "function",
+            "bridge::api::entry",
+            false,
+        ),
+        ("bridge::api::entry", "module", "api_block::entry", true),
+        ("bridge::api::entry", "function", "api_block::entry", false),
+        ("bridge::api::entry", "module", "ordinary_api::entry", true),
+        (
+            "bridge::api::entry",
+            "function",
+            "ordinary_api::entry",
+            true,
+        ),
+        ("bridge::api::entry", "function", "ordinary", true),
+        ("bridge::api::entry", "function", "local_module", false),
+        (
+            "bridge::api::entry::member",
+            "function",
+            "grouped::member",
+            true,
+        ),
+        (
+            "bridge::api::entry::member",
+            "function",
+            "local_module::member",
+            true,
+        ),
+        ("bridge::ping", "function", "grouped", true),
+        ("bridge::ping", "function", "local_module", true),
+        ("bridge::stamp", "macro-rules", "stamp", false),
+        ("bridge::stamp", "macro-rules", "bridge::stamp", true),
+        ("bridge::early_stamp", "macro-rules", "early_stamp", true),
+    ] {
+        let declaration = (symbol == "bridge::api::entry").then(|| {
+            visibility_nodes(&graph, bridge, "declaration")
+                .find(|row| {
+                    visibility_value(*row, "symbol") == symbol
+                        && visibility_value(*row, "kind") == kind
+                })
+                .expect("public definition in the selected namespace")
+        });
+        assert_eq!(
+            visibility_nodes(&graph, bridge, "use").any(|row| {
+                visibility_value(row, "symbol") == symbol
+                    && declaration.is_none_or(|declaration| {
+                        visibility_value(row, "startByte")
+                            == visibility_value(declaration, "startByte")
+                    })
+                    && visibility_value(row, "consumer") == "client"
+                    && row
+                        .values(&format!("{}writtenPath", vocab::REPORT))
+                        .any(|value| value.literal().unwrap().0 == written)
+            }),
+            expected,
+            "written path {written} for {symbol} ({kind})"
+        );
+    }
 }
 
 fn assert_visibility_report(graph: &raf_rdf::Graph) {

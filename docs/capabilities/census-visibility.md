@@ -95,12 +95,16 @@ unused by other packages.
   of qualified macro calls. A block glob can resolve through another block glob
   visible from its declaration, including through a named import whose target
   resolves in that import's declaration scope. An alias supplies only the
-  namespaces admitted by its indexed target. Module globs supply indexed
+  namespaces admitted by its import and indexed target. Grouped `self` names
+  only Type bindings in module and block imports. Module globs supply indexed
   member definitions. Enum globs retain distinct variant identities in the
   applicable namespace and recognize unit variants as path patterns. Inherent
   functions require a qualified path. Qualify an import whose selected glob
-  binding conflicts with a distinct binding in an outer scope. Ordinary
-  occurrences use the nearest eligible lexical binding. An identity that
+  binding conflicts with a distinct binding in an outer scope. This includes
+  the path before `::*`. Ordinary occurrences use the nearest eligible lexical
+  binding. A textual macro takes precedence over a glob in its own scope.
+  A competing foreign macro brought into a closer scope prevents unqualified
+  attribution. Qualified macro calls use path lookup. An identity that
   remains ambiguous across packages refuses the report when it can affect a
   public declaration. A block glob outside the index can likewise prevent
   attribution of an unqualified path. Macro expansion, implicit method
@@ -129,9 +133,11 @@ import in an out-of-line module, the test-only dependency, trait and block
 scope resolution, a constant pattern reached through a block glob, direct
 and chained glob prefixes through named imports, alias namespace fallback,
 repeated and competing enum variants, shadowed union generics, and nested
-function and closure scopes. It also checks a module named only through a
-qualified macro call and pairs an unambiguous import with imports whose glob
-and outer bindings conflict. It checks the exact union of written path spellings, compares
+function and closure scopes. Grouped `self` imports exercise same-name Type
+and Value declarations. The macro cases compare textual, unshadowed, and
+qualified uses, including a module named only by a qualified call. Named
+imports and glob prefixes pair matching identities with
+conflicting outer bindings. The fixture checks exact written paths, compares
 report bytes across entry directories and checks that a normal dependency
 cycle and a potentially shadowing unindexed block glob refuse before output.
 An excluded package and an inert build script exercise the static input

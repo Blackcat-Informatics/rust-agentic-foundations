@@ -520,9 +520,11 @@ impl Resolver {
         if imported.is_some() {
             return Ok(true);
         }
-        let positions = index.imports_of(module, name);
-        if positions.len() == 1 {
-            let position = positions[0];
+        let mut positions = index.imports_in(module, name, Namespace::Macro, steps)?;
+        let first = positions.next();
+        if let Some(position) = first
+            && positions.next().is_none()
+        {
             let decl = &index.uses[position];
             if let UseKind::Named { segs, .. } = &decl.kind {
                 return Ok(endpoint(segs, allowed)
@@ -535,7 +537,7 @@ impl Resolver {
             }
         }
         if !allowed(name)
-            || !positions.is_empty()
+            || first.is_some()
             || self.uncertain_globs[module]
             || index.blocked(module, name, Namespace::Macro, None)
         {

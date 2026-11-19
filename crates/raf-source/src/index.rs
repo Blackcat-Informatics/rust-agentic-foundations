@@ -33,7 +33,7 @@ use crate::item::{
     Unexpanded, UnresolvedImpl,
 };
 use crate::manifest::DependencyKind;
-use crate::meter::{ItemAdmission, LookupCount, Meter, NativeAdmission, push_item_work};
+use crate::meter::{ItemAdmission, LookupCount, Meter, NativeAdmission, Steps, push_item_work};
 use crate::modtree::{TargetId, Visit};
 use crate::path::RelPath;
 use crate::settle::{Entry, ImportReadState, Origin, Scope};
@@ -165,9 +165,39 @@ fn strings_bytes(strings: &[String]) -> usize {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum UseKind {
     /// `use path as name` (or `use path`, which binds the last segment).
-    Named { name: String, segs: Vec<String> },
+    Named {
+        name: String,
+        segs: Vec<String>,
+        namespaces: NamedNamespaces,
+    },
     /// `use path::*`.
     Glob { segs: Vec<String> },
+}
+
+/// The terminal namespaces a named import can bind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NamedNamespaces {
+    All,
+    /// `use path::{self}` and `use path::{self as name}`.
+    TypeOnly,
+}
+
+impl NamedNamespaces {
+    pub(crate) fn spaces(self) -> &'static [Namespace] {
+        match self {
+            Self::All => &Namespace::ALL,
+            Self::TypeOnly => &[Namespace::Type],
+        }
+    }
+}
+
+impl UseKind {
+    pub(crate) fn terminal_namespaces(&self) -> &'static [Namespace] {
+        match self {
+            Self::Named { namespaces, .. } => namespaces.spaces(),
+            Self::Glob { .. } => &[Namespace::Type],
+        }
+    }
 }
 
 /// One flattened `use` entry and where it was written.
@@ -239,7 +269,7 @@ impl UseDecl {
     /// Owned strings and path-vector storage copied with one import.
     pub(crate) fn clone_bytes(&self) -> usize {
         let path = match &self.kind {
-            UseKind::Named { name, segs } => name.len() + strings_bytes(segs),
+            UseKind::Named { name, segs, .. } => name.len() + strings_bytes(segs),
             UseKind::Glob { segs } => strings_bytes(segs),
         };
         path + self.file.as_str().len() + vis_capacity(&self.vis)
@@ -253,7 +283,7 @@ impl UseDecl {
     /// named import binds is charged when it binds it.
     fn bytes(&self) -> usize {
         let owned = match &self.kind {
-            UseKind::Named { name, segs } => name.capacity() + strings_bytes(segs),
+            UseKind::Named { name, segs, .. } => name.capacity() + strings_bytes(segs),
             UseKind::Glob { segs } => strings_bytes(segs),
         };
         vec_slot::<Self>()
@@ -535,13 +565,13 @@ fn flatten(tree: &UseTree, prefix: &mut Vec<String>, out: &mut Vec<UseKind>) -> 
             result
         }
         UseTree::Name(name) if name == "self" => {
-            // `use path::{self}` imports the module `path` itself.
             let last = prefix
                 .last()
                 .ok_or_else(|| "`use {self}` has no path before `self`".to_owned())?;
             out.push(UseKind::Named {
                 name: last.clone(),
                 segs: prefix.clone(),
+                namespaces: NamedNamespaces::TypeOnly,
             });
             Ok(())
         }
@@ -551,6 +581,7 @@ fn flatten(tree: &UseTree, prefix: &mut Vec<String>, out: &mut Vec<UseKind>) -> 
             out.push(UseKind::Named {
                 name: name.clone(),
                 segs,
+                namespaces: NamedNamespaces::All,
             });
             Ok(())
         }
@@ -563,6 +594,7 @@ fn flatten(tree: &UseTree, prefix: &mut Vec<String>, out: &mut Vec<UseKind>) -> 
                 out.push(UseKind::Named {
                     name: alias.clone(),
                     segs: prefix.clone(),
+                    namespaces: NamedNamespaces::TypeOnly,
                 });
             }
             Ok(())
@@ -574,6 +606,7 @@ fn flatten(tree: &UseTree, prefix: &mut Vec<String>, out: &mut Vec<UseKind>) -> 
                 out.push(UseKind::Named {
                     name: alias.clone(),
                     segs,
+                    namespaces: NamedNamespaces::All,
                 });
             }
             Ok(())
@@ -1549,6 +1582,24 @@ impl Index {
         let start = here.partition_point(|position| self.named_key(*position).1 < name);
         let end = here[start..].partition_point(|position| self.named_key(*position).1 == name);
         &here[start..start + end]
+    }
+
+    /// Named imports that can bind `name` in the requested namespace.
+    pub(crate) fn imports_in<'a>(
+        &'a self,
+        module: usize,
+        name: &str,
+        namespace: Namespace,
+        steps: Steps<'_>,
+    ) -> Result<impl Iterator<Item = usize> + use<'a>, LoadError> {
+        let positions = self.imports_of(module, name);
+        steps.storage_work(positions.len())?;
+        Ok(positions.iter().copied().filter(move |&position| {
+            self.uses[position]
+                .kind
+                .terminal_namespaces()
+                .contains(&namespace)
+        }))
     }
 
     /// What settling the tables again allocates at most beyond the bindings

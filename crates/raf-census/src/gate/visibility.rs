@@ -112,7 +112,7 @@ fn indexed_imports(
                 Error::Options("visibility: indexed import has no consuming target".into())
             })?
             .package_id;
-        let (segments, absolute, glob) = import.path();
+        let (segments, absolute, glob, terminal_namespaces) = import.path();
         let mut bytes = usize::from(absolute) * 2;
         for (index, segment) in segments.iter().enumerate() {
             let length = index + 1;
@@ -121,8 +121,8 @@ fn indexed_imports(
             if matches!(segment.as_str(), "crate" | "self" | "super") {
                 continue;
             }
-            let namespaces = if length == segments.len() && !glob {
-                &Namespace::ALL[..]
+            let namespaces = if length == segments.len() {
+                terminal_namespaces
             } else {
                 &[Namespace::Type][..]
             };

@@ -145,6 +145,8 @@ module shadows remain authoritative.
 
 Import namespaces are checked after their target's block aliases have expanded
 in their declaration frames; younger scopes cannot change an imported target.
+Grouped `self` aliases supply Type bindings. Ordinary named imports retain the
+namespaces their targets supply.
 Direct occurrences still observe their own lexical shadows.
 An unrelated module with the same written prefix cannot suppress a real match.
 Namespace dependencies use the same bounded expansion engine without recursive

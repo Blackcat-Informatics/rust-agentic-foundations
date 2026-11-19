@@ -6,7 +6,10 @@
 use super::{
     Compiled, CrossPackagePaths, Found, Role, Scopes, Site, VISIBILITY, cross_package_uses, matches,
 };
-use crate::{Error, syntax::visit_import_paths};
+use crate::{
+    Error,
+    syntax::{ImportLeaf, visit_import_paths},
+};
 use purrdf_jsonschema::ecma::MatchLimits;
 use raf_source::{CodeResolver, ImplBlock, Namespace, SourceFile, Workspace};
 use std::collections::BTreeSet;
@@ -483,17 +486,17 @@ impl Paths<'_, '_, '_, '_> {
         if self.path_uses.is_some() && self.scopes.in_module() {
             return;
         }
-        visit_import_paths(tree, |parts, alias| {
+        visit_import_paths(tree, |parts, leaf| {
             let path = syn::Path {
                 leading_colon: absolute.then(syn::token::PathSep::default),
                 segments: parts.iter().cloned().map(syn::PathSegment::from).collect(),
             };
-            let role = if self.path_uses.is_some() && alias.is_none() {
+            let role = if self.path_uses.is_some() && matches!(leaf, ImportLeaf::Glob) {
                 Role::Glob
             } else {
                 Role::Import
             };
-            let namespaces = if role == Role::Glob {
+            let namespaces = if role == Role::Glob || matches!(leaf, ImportLeaf::SelfType(_)) {
                 &[Namespace::Type][..]
             } else {
                 &Namespace::ALL[..]

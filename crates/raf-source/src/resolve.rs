@@ -466,14 +466,6 @@ impl ResolveError {
     }
 }
 
-/// The places a walk read, once each by module and name, in order.
-pub(crate) fn places(reads: Vec<Source>) -> BTreeSet<(usize, String)> {
-    reads
-        .into_iter()
-        .map(|source| (source.module, source.name))
-        .collect()
-}
-
 /// Add the place `name` in `module` in `ns` to the places a walk read, when
 /// they are noted.
 fn note(
@@ -1256,26 +1248,23 @@ impl Index {
 
     /// The named imports that bind `name` in `module` and are not resolved
     /// (`resolved_mode`) or not settled yet.
-    pub(crate) fn unresolved_uses(
-        &self,
-        module: usize,
-        name: &str,
+    fn unresolved_uses<'a>(
+        &'a self,
+        source: &Source,
         resolved_mode: bool,
-    ) -> Vec<usize> {
-        self.imports_of(module, name)
-            .iter()
-            .copied()
-            .filter(|position| {
-                !(if resolved_mode {
-                    self.use_resolved[*position]
-                } else {
-                    self.use_settled[*position]
-                })
-            })
-            .collect()
+        steps: Steps<'_>,
+    ) -> Result<impl Iterator<Item = usize> + use<'a>, LoadError> {
+        let decided = if resolved_mode {
+            &self.use_resolved
+        } else {
+            &self.use_settled
+        };
+        Ok(self
+            .imports_in(source.module, &source.name, source.ns, steps)?
+            .filter(move |&position| !decided[position]))
     }
 
-    /// The walks of the path of the named import at `position`, in every name
+    /// The walks of the path of the named import at `position`, in each terminal name
     /// space, read as a `use` path that does not consult its own binding: the
     /// other imports it waits on (unresolved ones in `resolved_mode`, else
     /// unsettled ones), which bind a name the walks looked up, the items of
@@ -1288,7 +1277,7 @@ impl Index {
         &self,
         position: usize,
         resolved_mode: bool,
-        steps: Steps<'_>,
+        (steps, storage): (Steps<'_>, Steps<'_>),
     ) -> Result<ImportWalks, ResolveError> {
         let decl = &self.uses[position];
         let UseKind::Named { segs, .. } = &decl.kind else {
@@ -1296,7 +1285,7 @@ impl Index {
         };
         let mut reads = Vec::new();
         let mut ambiguous = BTreeSet::new();
-        for ns in Namespace::ALL {
+        for &ns in decl.kind.terminal_namespaces() {
             match self.walk_noting(
                 decl.module,
                 segs,
@@ -1317,10 +1306,16 @@ impl Index {
             }
         }
         let mut blockers = BTreeSet::new();
-        for (module, name) in places(reads.clone()) {
+        storage
+            .storage_work(reads.len())
+            .map_err(ResolveError::storage)?;
+        for source in &reads {
             // The path never reads the imports of the name it binds.
-            if !self.binds_name(position, module, &name) {
-                blockers.extend(self.unresolved_uses(module, &name, resolved_mode));
+            if !self.binds_name(position, source.module, source.ns, &source.name) {
+                blockers.extend(
+                    self.unresolved_uses(source, resolved_mode, storage)
+                        .map_err(ResolveError::storage)?,
+                );
             }
         }
         // The import's own binding is never a way its path goes.
@@ -1412,7 +1407,11 @@ impl Index {
         let mut seen: BTreeSet<usize> = BTreeSet::new();
         let mut work = WorkList::<_, 8>::new();
         for source in missing {
-            for position in self.unresolved_uses(source.module, &source.name, true) {
+            let positions = match self.unresolved_uses(source, true, stack_steps) {
+                Ok(positions) => positions,
+                Err(error) => return ResolveError::storage(error),
+            };
+            for position in positions {
                 if let Err(error) = push_work(&mut work, position, stack_steps) {
                     return ResolveError::storage(error);
                 }
@@ -1428,7 +1427,7 @@ impl Index {
                 blockers: following,
                 ambiguous: items,
                 reads,
-            } = match self.import_walks(position, true, steps) {
+            } = match self.import_walks(position, true, (steps, stack_steps)) {
                 Ok(walks) => walks,
                 Err(error) => return error,
             };

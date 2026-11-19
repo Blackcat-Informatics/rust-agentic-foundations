@@ -723,11 +723,42 @@ fn use_with_only_self_is_an_error_and_use_path_self_imports_the_module() {
         "{error}"
     );
     assert_eq!(error.line, Some(2));
-    let ws = lib(
-        "mod a { pub fn f() {} }\nmod b { pub use crate::a::{self}; }\nmod c { pub use crate::a::{self as renamed}; }\n",
-    );
-    assert_eq!(path_of(&ws, "demo::b::a::f"), "demo::a::f");
-    assert_eq!(path_of(&ws, "demo::c::renamed::f"), "demo::a::f");
+    let ws = lib("mod source { pub mod a { pub fn f() {} } pub fn a() {} }\n\
+         pub mod b { pub use crate::source::a::{self}; }\n\
+         pub mod c { pub use crate::source::a::{self as renamed}; pub use crate::fallback::*; }\n\
+         pub mod ordinary { pub use crate::source::a; }\n\
+         mod fallback { pub fn renamed() {} }");
+    assert_eq!(path_of(&ws, "demo::b::a::f"), "demo::source::a::f");
+    assert_eq!(path_of(&ws, "demo::c::renamed::f"), "demo::source::a::f");
+    assert_eq!(path_of(&ws, "demo::ordinary::a::f"), "demo::source::a::f");
+    assert!(matches!(
+        ws.resolve_in("demo::b::a", Namespace::Value),
+        Err(ResolveError::NotFound(_))
+    ));
+    for (path, expected) in [
+        ("demo::c::renamed", "demo::fallback::renamed"),
+        ("demo::ordinary::a", "demo::source::a"),
+    ] {
+        let value = ws
+            .resolve_in(path, Namespace::Value)
+            .expect("value binding");
+        assert_eq!(value.path, expected);
+    }
+    let target = ws.target_ids().next().expect("library target");
+    let exports = ws.exported_items(target).expect("public exports");
+    let values: Vec<_> = exports
+        .items
+        .iter()
+        .filter(|item| item.kind == raf_source::SymbolKind::Fn)
+        .map(|item| item.path.as_str())
+        .filter(|path| {
+            matches!(
+                *path,
+                "demo::b::a" | "demo::c::renamed" | "demo::ordinary::a"
+            )
+        })
+        .collect();
+    assert_eq!(values, ["demo::c::renamed", "demo::ordinary::a"]);
 }
 
 #[test]

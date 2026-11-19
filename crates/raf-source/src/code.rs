@@ -159,16 +159,22 @@ impl IndexedImport<'_, '_> {
         )
     }
 
-    /// The imported path segments, whether they start with `::`, and whether
-    /// the declaration imports a glob from that path.
+    /// The imported path segments, whether they start with `::`, whether
+    /// the declaration imports a glob from that path, and the namespaces
+    /// in which the full path is read.
     #[must_use]
-    pub fn path(&self) -> (&[String], bool, bool) {
+    pub fn path(&self) -> (&[String], bool, bool, &'static [Namespace]) {
         let declaration = &self.code.index.uses[self.position];
         let (segments, glob) = match &declaration.kind {
             UseKind::Named { segs, .. } => (segs, false),
             UseKind::Glob { segs } => (segs, true),
         };
-        (segments, declaration.leading_colon, glob)
+        (
+            segments,
+            declaration.leading_colon,
+            glob,
+            declaration.kind.terminal_namespaces(),
+        )
     }
 
     /// Resolve the whole import path or a prefix of it in its own use context.

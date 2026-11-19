@@ -490,7 +490,7 @@ inputs:
     digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
   - kind: symbol
     name: raf_source::code
-    digest: ce1c1391e62c1ee306d4b7fc221ac91e432e1d55958b271772937616dea36a58
+    digest: 0a087daa97b9978b47ac1dd369b342193a9b3dbd4242e15d7754680f13386141
   - kind: symbol
     name: raf_source::cost::shared_text
     digest: 417543dec94f58efe64575df018bc4b13589e906d90c4db5a4f0693d372ab4f1
@@ -520,10 +520,10 @@ inputs:
     digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
-    digest: ebcd0cbfdd12ad222ffee03bc8d4d1679765f00d8114d90719b78e8eb8424ca3
+    digest: d7162f1bed217dd98faf998391e8505b9eabe9e410bab89a78615606f7b7cfb0
   - kind: symbol
     name: raf_source::settle
-    digest: 1341d9394065bf75cffe3dc96dedf85ea7b9c1e760cf6dfeb30d64ad1ee4f7d6
+    digest: 9d419f3576f2cd6164f2858e95f207b0e1812e102831cfa52f2d84c4fcb2238c
   - kind: symbol
     name: raf_source::syntax_storage::SyntaxBound
     digest: cb22bdd68d556de9e8bf4358d6be413602544bf94589ed6dbc6aac8e4e5e52e6

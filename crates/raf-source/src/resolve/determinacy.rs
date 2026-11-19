@@ -293,11 +293,8 @@ impl<'a, 'm> Proof<'a, 'm> {
         )?;
         self.imports.insert(position);
         let decl = &self.index.uses[position];
-        let (segs, spaces) = match &decl.kind {
-            UseKind::Named { segs, .. } => (segs, Namespace::ALL.as_slice()),
-            UseKind::Glob { segs } => (segs, std::slice::from_ref(&Namespace::Type)),
-        };
-        for &ns in spaces {
+        let (UseKind::Named { segs, .. } | UseKind::Glob { segs }) = &decl.kind;
+        for &ns in decl.kind.terminal_namespaces() {
             self.path(
                 decl.module,
                 segs,

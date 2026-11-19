@@ -7,7 +7,7 @@ use super::super::{charge, failure, push};
 use super::{EnumMembers, GlobCache};
 use crate::{
     Error,
-    syntax::{Alias, Names, path_text},
+    syntax::{Alias, ImportLeaf, Names, path_text},
 };
 use purrdf_jsonschema::ecma::MatchLimits;
 use purrdf_lex::walk::WorkList;
@@ -38,8 +38,8 @@ pub(super) struct Glob {
 
 impl Frame {
     fn import_globs(&mut self, tree: &syn::UseTree, absolute: bool) {
-        crate::syntax::visit_import_paths(tree, |parts, alias| {
-            if alias.is_none() {
+        crate::syntax::visit_import_paths(tree, |parts, leaf| {
+            if matches!(leaf, ImportLeaf::Glob) {
                 self.globs.push(Glob {
                     path: parts.iter().map(|part| part.unraw().to_string()).collect(),
                     absolute,
@@ -122,7 +122,9 @@ fn binding<'a>(
 ) -> Result<Option<&'a Alias>, LookupError<'a>> {
     let mut selected: Option<&Alias> = None;
     for alias in frame.names.aliases.get(head).into_iter().flatten() {
-        if own.is_some_and(|own| std::ptr::eq(own, alias)) {
+        if own.is_some_and(|own| std::ptr::eq(own, alias))
+            || alias.type_only && namespace != Namespace::Type
+        {
             continue;
         }
         let bytes = alias.path.iter().map(String::len).sum::<usize>();
@@ -218,6 +220,7 @@ impl AliasTarget<'_> {
             absolute: self.expanded.absolute,
             source_byte: self.alias.source_byte,
             external: self.alias.external,
+            type_only: self.alias.type_only,
             attributes: self.alias.attributes,
             frame: self.alias.frame,
         }
@@ -383,6 +386,20 @@ impl Scopes {
             .expect("entered lexical scope")
             .macros
             .insert(name.unraw().to_string());
+    }
+
+    pub(super) fn has_textual_macro(
+        &self,
+        name: &str,
+        limits: &mut MatchLimits,
+    ) -> Result<bool, Error> {
+        for frame in self.frames.iter().rev() {
+            charge("paths", limits, 1)?;
+            if frame.macros.contains(name) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     pub(in crate::gate) fn generics(&mut self, generics: &syn::Generics, self_type: bool) {

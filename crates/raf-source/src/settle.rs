@@ -24,7 +24,7 @@ use crate::cost::{btree_entry, btree_map, vec_first, vec_slot};
 use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::Vis;
 use crate::glob_scope::{Level, Nobody, Waiters, ambiguity_seen, push_work};
-use crate::index::{Index, UseDecl, UseKind, binding_bytes};
+use crate::index::{Index, NamedNamespaces, UseDecl, UseKind, binding_bytes};
 use crate::item::{ItemId, Namespace};
 use crate::meter::{Meter, NativeAdmission, Steps, Transient};
 use crate::path::RelPath;
@@ -894,6 +894,22 @@ impl Index {
         self.use_free = vec![[false; 3]; self.uses.len()];
         self.use_decided = vec![[false; 3]; self.uses.len()];
         self.use_empty = vec![[false; 3]; self.uses.len()];
+        for (position, decl) in self.uses.iter().enumerate() {
+            if matches!(
+                decl.kind,
+                UseKind::Named {
+                    namespaces: NamedNamespaces::TypeOnly,
+                    ..
+                }
+            ) {
+                // These slots leave the name to other declarations and globs,
+                // including while the Type path is unresolved.
+                let excluded = Namespace::ALL.map(|ns| ns != Namespace::Type);
+                self.use_free[position] = excluded;
+                self.use_decided[position] = excluded;
+                self.use_empty[position] = excluded;
+            }
+        }
         self.use_read_state = vec![[ImportReadState::Unread; 3]; self.uses.len()];
         self.has_late_imports = false;
         self.glob_closed = vec![false; self.uses.len()];
@@ -1057,7 +1073,8 @@ impl Index {
                 .map(|entry| &entry.defs[slot(ns)]);
             if let Some(defs) = defs.filter(|defs| !defs.is_empty()) {
                 bounded.storage_work(defs.len()).map_err(Fail::Storage)?;
-                let exclusion = own.is_some_and(|position| self.binds_name(position, module, name))
+                let exclusion = own
+                    .is_some_and(|position| self.binds_name(position, module, ns, name))
                     && defs.iter().any(|(_, origin)| origin.link.is_some());
                 let mut partial = false;
                 if let Some(viewer) = viewer.filter(|viewer| *viewer != module) {
@@ -1163,7 +1180,7 @@ impl Index {
         work::add(Work::Lookups, 1);
         let entry = self.scopes[module].get(name);
         let at = slot(ns);
-        if own.is_some_and(|position| self.binds_name(position, module, name)) {
+        if own.is_some_and(|position| self.binds_name(position, module, ns, name)) {
             if let Some(entry) = entry {
                 let defs = &entry.defs[at];
                 if defs.iter().all(|(_, origin)| origin.link.is_none()) {
@@ -1213,7 +1230,7 @@ impl Index {
         ns: Namespace,
         own: Option<usize>,
     ) -> bool {
-        !own.is_some_and(|position| self.binds_name(position, module, name))
+        !own.is_some_and(|position| self.binds_name(position, module, ns, name))
             && self
                 .imports_of(module, name)
                 .iter()
@@ -1477,11 +1494,17 @@ impl Index {
     }
 
     /// True when the import at `position` is a named import of `module` that
-    /// binds `name`.
-    pub(crate) fn binds_name(&self, position: usize, module: usize, name: &str) -> bool {
+    /// can bind `name` in `ns`.
+    pub(crate) fn binds_name(
+        &self,
+        position: usize,
+        module: usize,
+        ns: Namespace,
+        name: &str,
+    ) -> bool {
         let decl = &self.uses[position];
         decl.module == module
-            && matches!(&decl.kind, UseKind::Named { name: bound, .. } if bound == name)
+            && matches!(&decl.kind, UseKind::Named { name: bound, namespaces, .. } if bound == name && namespaces.spaces().contains(&ns))
     }
 
     /// The items that stand for `module` in a scope: a crate root's item, or
@@ -2025,7 +2048,7 @@ impl Index {
         };
         if let Some(at) = at {
             for (module, name, ns, head) in self.read_places_in(position, at, steps)? {
-                if !self.binds_name(position, module, &name) {
+                if !self.binds_name(position, module, Namespace::ALL[ns], &name) {
                     let viewer = (module != decl.module).then_some(decl.module);
                     let next = graph.place(
                         (module, name, ns, None, head, viewer),
@@ -2658,7 +2681,7 @@ impl Index {
         let mut candidates: BTreeSet<NamePlace> = BTreeSet::new();
         for (&position, spaces) in imports {
             let decl = &self.uses[position];
-            let UseKind::Named { name, segs } = &decl.kind else {
+            let UseKind::Named { name, segs, .. } = &decl.kind else {
                 return Ok(None);
             };
             let Some(last) = segs.last() else {
@@ -2882,7 +2905,7 @@ impl Index {
             {
                 return Ok(false);
             }
-            if !self.binds_name(position, source.module, &source.name) {
+            if !self.binds_name(position, source.module, source.ns, &source.name) {
                 for other in self.imports_of(source.module, &source.name) {
                     steps.storage_work(1)?;
                     if self.keeps_out(*other, source.module, &source.name, at, inside, steps)? {
@@ -3671,12 +3694,12 @@ impl Index {
                 let (walks, reads, ends) = self.import_paths(position, decl, segs, steps)?;
                 let mut missing = [false; 3];
                 let mut private = [PrivacyDecision::Unproven; 3];
-                for (at, (ns, walk)) in walks.iter().enumerate() {
+                for (ns, walk) in &walks {
+                    let at = slot(*ns);
                     if let Err(Fail::Missing(sources)) = walk {
-                        private[slot(*ns)] =
-                            self.inaccessible_read(position, sources, steps, ordinary)?;
-                        missing[slot(*ns)] = private[slot(*ns)] == PrivacyDecision::Final
-                            || private[slot(*ns)] != PrivacyDecision::Deferred
+                        private[at] = self.inaccessible_read(position, sources, steps, ordinary)?;
+                        missing[at] = private[at] == PrivacyDecision::Final
+                            || private[at] != PrivacyDecision::Deferred
                                 && self.reads_final(
                                     position,
                                     &reads[ends[at]..ends[at + 1]],
@@ -4069,7 +4092,7 @@ impl Index {
     }
 
     /// The walks of the path of the named import at `position`, written as
-    /// `decl` with the segments `segs`, in every name space, read as a `use`
+    /// `decl` with the segments `segs`, in its terminal name spaces, read as a `use`
     /// path that does not consult the import's own binding, with the places
     /// they read, those of the walk in the name space at `at` from `ends[at]`
     /// to `ends[at + 1]`.
@@ -4091,7 +4114,9 @@ impl Index {
                 + 3 * vec_slot::<(Namespace, Result<Walked, Fail>)>(),
         )?;
         let mut walks = Vec::with_capacity(3);
-        for (at, ns) in Namespace::ALL.into_iter().enumerate() {
+        for &ns in decl.kind.terminal_namespaces() {
+            let at = slot(ns);
+            ends[at] = reads.len();
             let walk = self.walk_noting(
                 decl.module,
                 segs,
@@ -4189,7 +4214,7 @@ impl Index {
         meter: &Meter,
         memory: &Transient<'_>,
     ) -> Result<Vec<(usize, String)>, LoadError> {
-        let UseKind::Named { name, segs } = &decl.kind else {
+        let UseKind::Named { name, segs, .. } = &decl.kind else {
             unreachable!("only named imports bind names");
         };
         let steps = Steps::LoadAt {
@@ -4347,7 +4372,7 @@ impl Index {
         steps: Steps<'_>,
     ) -> Result<Vec<ImportSupply>, LoadError> {
         let decl = &self.uses[position];
-        let UseKind::Named { name, segs } = &decl.kind else {
+        let UseKind::Named { name, segs, .. } = &decl.kind else {
             return Ok(Vec::new());
         };
         if !self.use_bound[position].iter().any(|bound| *bound) {
@@ -4396,7 +4421,7 @@ impl Index {
         steps: Steps<'_>,
     ) -> Result<Vec<ImportSupply>, LoadError> {
         let decl = &self.uses[position];
-        let UseKind::Named { name, segs } = &decl.kind else {
+        let UseKind::Named { name, segs, .. } = &decl.kind else {
             return Ok(Vec::new());
         };
         let (walks, _, _) = self.import_paths(position, decl, segs, steps)?;
@@ -5555,7 +5580,7 @@ mod tests {
             "pub mod a { pub struct T; }\npub mod b { pub use crate::a::*; pub use self::T; }\n",
         );
         index.lookups.built(false);
-        let position = index.uses.iter().position(|decl| matches!(&decl.kind, UseKind::Named {name, segs} if name == "T" && segs == &["self", "T"])).expect("self-binding import");
+        let position = index.uses.iter().position(|decl| matches!(&decl.kind, UseKind::Named {name, segs, ..} if name == "T" && segs == &["self", "T"])).expect("self-binding import");
         let decl = &index.uses[position];
         let defs = &index.scopes[decl.module]["T"].defs[slot(Namespace::Type)];
         assert!(!defs.is_empty() && defs.iter().all(|(_, origin)| origin.link.is_some()));
@@ -5688,7 +5713,7 @@ mod tests {
                 .imports_of(module, name)
                 .iter()
                 .map(|position| match &index.uses[*position].kind {
-                    UseKind::Named { name, segs } => format!("{name}={}", segs.join("::")),
+                    UseKind::Named { name, segs, .. } => format!("{name}={}", segs.join("::")),
                     UseKind::Glob { .. } => "glob".to_owned(),
                 })
                 .collect()

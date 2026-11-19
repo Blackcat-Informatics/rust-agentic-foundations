@@ -787,14 +787,14 @@ impl Lookup<'_, '_> {
             return Ok(GlobLookup::default());
         }
         let named_outer =
-            expanded.filter(|path| self.site.role == Role::Import && path.first_frame().is_some());
+            expanded.filter(|path| self.site.is_import() && path.first_frame().is_some());
         let mut glob = self.through_block_glob(
             scopes,
             written,
             |frame| expanded.is_none_or(|path| path.sees_glob(frame)),
             GlobRead {
                 namespace: self.site.namespace,
-                early: self.site.role == Role::Import,
+                early: self.site.is_import(),
                 exclusion: self.site.is_import().then_some(self.site.byte),
                 keep_head: named_outer.is_some(),
             },
@@ -1695,6 +1695,10 @@ fn cross_package_uses(
     } else {
         raw.clone()
     };
+    let textual_macro = site.role == Role::Macro
+        && !absolute
+        && written.len() == 1
+        && scopes.has_textual_macro(&written[0], limits)?;
     let in_impl = |owner: &&raf_source::Item| blocks.is_empty() || owner.kind != SymbolKind::Mod;
     let owner_contexts = owners
         .iter()
@@ -1754,6 +1758,12 @@ fn cross_package_uses(
             PathDefinition::Written(actual) | PathDefinition::Expanded(actual) => actual.as_slice(),
             PathDefinition::Missing | PathDefinition::Unverified(_) => &[],
         };
+        if textual_macro && actual.iter().any(|&id| lookup.cross_package(id)) {
+            return Err(failure(
+                VISIBILITY,
+                &format!("written macro {raw:?} has competing textual and path-based bindings"),
+            ));
+        }
         if site.role == Role::Pattern
             && !classify_pattern(
                 workspace,

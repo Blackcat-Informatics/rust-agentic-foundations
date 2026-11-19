@@ -1475,7 +1475,10 @@ impl<'a> Surface<'a> {
             if !exporting(decl) || index.use_bound[position].iter().any(|bound| *bound) {
                 continue;
             }
-            let UseKind::Named { name, .. } = &decl.kind else {
+            let UseKind::Named {
+                name, namespaces, ..
+            } = &decl.kind
+            else {
                 continue;
             };
             let hidden = match carry.as_deref_mut() {
@@ -1487,7 +1490,10 @@ impl<'a> Surface<'a> {
             };
             match index.resolve(
                 &format!("{at_path}::{name}"),
-                None,
+                match namespaces {
+                    crate::index::NamedNamespaces::All => None,
+                    crate::index::NamedNamespaces::TypeOnly => Some(Namespace::Type),
+                },
                 Some(package),
                 self.meter,
             ) {

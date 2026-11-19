@@ -110,6 +110,7 @@ pub(crate) struct Alias {
     pub(crate) absolute: bool,
     pub(crate) source_byte: Option<usize>,
     pub(crate) external: bool,
+    pub(crate) type_only: bool,
     pub(crate) attributes: AliasAttributes,
     /// The lexical declaration frame used by written-name observations.
     pub(crate) frame: usize,
@@ -256,27 +257,27 @@ impl Names {
         path
     }
 
-    fn alias(
-        &mut self,
-        local: String,
-        path: Vec<String>,
-        absolute: bool,
-        source_byte: Option<usize>,
-        external: bool,
-        attributes: AliasAttributes,
-    ) {
-        self.aliases.entry(local).or_default().push(Alias {
-            path,
-            absolute,
-            source_byte,
-            external,
-            attributes,
-            frame: self.frame,
-        });
+    fn alias(&mut self, local: String, alias: Alias) {
+        self.aliases.entry(local).or_default().push(alias);
     }
 
     pub(crate) fn shadow(&mut self, name: String) {
-        self.alias(name, Vec::new(), false, None, false, AliasAttributes::Inert);
+        self.shadow_with(name, AliasAttributes::Inert);
+    }
+
+    fn shadow_with(&mut self, name: String, attributes: AliasAttributes) {
+        self.alias(
+            name,
+            Alias {
+                path: Vec::new(),
+                absolute: false,
+                source_byte: None,
+                external: false,
+                type_only: true,
+                attributes,
+                frame: self.frame,
+            },
+        );
     }
 
     pub(crate) fn import_tree(
@@ -286,15 +287,19 @@ impl Names {
         attributes: &[syn::Attribute],
     ) {
         let attributes = AliasAttributes::of(attributes);
-        visit_import_paths(tree, |path, alias| {
-            if let Some(alias) = alias {
+        visit_import_paths(tree, |path, leaf| {
+            if let Some(alias) = leaf.alias() {
                 self.alias(
                     alias.unraw().to_string(),
-                    path.iter().map(|ident| ident.unraw().to_string()).collect(),
-                    absolute,
-                    path.first().map(|ident| ident.span().byte_range().start),
-                    false,
-                    attributes,
+                    Alias {
+                        path: path.iter().map(|ident| ident.unraw().to_string()).collect(),
+                        absolute,
+                        source_byte: path.first().map(|ident| ident.span().byte_range().start),
+                        external: false,
+                        type_only: matches!(leaf, ImportLeaf::SelfType(_)),
+                        attributes,
+                        frame: self.frame,
+                    },
                 );
             }
         });
@@ -310,11 +315,15 @@ impl Names {
                 let name = item.rename.as_ref().map_or(&item.ident, |(_, name)| name);
                 self.alias(
                     name.unraw().to_string(),
-                    vec![item.ident.unraw().to_string()],
-                    true,
-                    Some(item.ident.span().byte_range().start),
-                    true,
-                    AliasAttributes::of(&item.attrs),
+                    Alias {
+                        path: vec![item.ident.unraw().to_string()],
+                        absolute: true,
+                        source_byte: Some(item.ident.span().byte_range().start),
+                        external: true,
+                        type_only: false,
+                        attributes: AliasAttributes::of(&item.attrs),
+                        frame: self.frame,
+                    },
                 );
                 return;
             }
@@ -327,14 +336,24 @@ impl Names {
             syn::Item::Union(item) => (&item.ident, &item.attrs),
             _ => return,
         };
-        self.alias(
-            shadow.unraw().to_string(),
-            Vec::new(),
-            false,
-            None,
-            false,
-            AliasAttributes::of(attributes),
-        );
+        self.shadow_with(shadow.unraw().to_string(), AliasAttributes::of(attributes));
+    }
+}
+
+/// The terminal leaf of a written import.
+pub(crate) enum ImportLeaf<'a> {
+    Named(&'a syn::Ident),
+    SelfType(Option<&'a syn::Ident>),
+    Glob,
+}
+
+impl<'a> ImportLeaf<'a> {
+    pub(crate) fn alias(&self) -> Option<&'a syn::Ident> {
+        match *self {
+            Self::Named(alias) => Some(alias),
+            Self::SelfType(alias) => alias,
+            Self::Glob => None,
+        }
     }
 }
 
@@ -342,7 +361,7 @@ impl Names {
 /// A glob has no bound alias; `self` names the prefix it imports.
 pub(crate) fn visit_import_paths(
     tree: &syn::UseTree,
-    mut emit: impl FnMut(&[syn::Ident], Option<&syn::Ident>),
+    mut emit: impl FnMut(&[syn::Ident], ImportLeaf<'_>),
 ) {
     walk_import(tree, &mut Vec::new(), &mut emit);
 }
@@ -350,7 +369,7 @@ pub(crate) fn visit_import_paths(
 fn walk_import(
     tree: &syn::UseTree,
     prefix: &mut Vec<syn::Ident>,
-    emit: &mut impl FnMut(&[syn::Ident], Option<&syn::Ident>),
+    emit: &mut impl FnMut(&[syn::Ident], ImportLeaf<'_>),
 ) {
     match tree {
         syn::UseTree::Path(path) => {
@@ -363,21 +382,22 @@ fn walk_import(
                 walk_import(item, prefix, emit);
             }
         }
-        syn::UseTree::Name(name) if name.ident == "self" => emit(prefix, prefix.last()),
+        syn::UseTree::Name(name) if name.ident == "self" => {
+            emit(prefix, ImportLeaf::SelfType(prefix.last()));
+        }
         syn::UseTree::Name(name) => {
             prefix.push(name.ident.clone());
-            emit(prefix, Some(&name.ident));
+            emit(prefix, ImportLeaf::Named(&name.ident));
             prefix.pop();
         }
-        syn::UseTree::Rename(rename) => {
-            if rename.ident != "self" {
-                prefix.push(rename.ident.clone());
-            }
-            emit(prefix, Some(&rename.rename));
-            if rename.ident != "self" {
-                prefix.pop();
-            }
+        syn::UseTree::Rename(rename) if rename.ident == "self" => {
+            emit(prefix, ImportLeaf::SelfType(Some(&rename.rename)));
         }
-        syn::UseTree::Glob(_) => emit(prefix, None),
+        syn::UseTree::Rename(rename) => {
+            prefix.push(rename.ident.clone());
+            emit(prefix, ImportLeaf::Named(&rename.rename));
+            prefix.pop();
+        }
+        syn::UseTree::Glob(_) => emit(prefix, ImportLeaf::Glob),
     }
 }
