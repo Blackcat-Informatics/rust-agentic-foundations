@@ -24,8 +24,9 @@ bindings:
   tests:
     - raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail
     - raf_workplan::lifecycle::tests::verification_returns_static_bindings_without_running_their_bodies
-    - raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item
+    - raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item
     - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
+    - raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability
     - raf_workplan::test_crate::complete::forged_sync_reports_cannot_overwrite_source_or_manifests
     - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
     - cargo_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion
@@ -53,13 +54,13 @@ Complete a documented change only when its static contract and prospective repos
 
 ## Contract
 
-**Static contract.** Completion requires no remaining obligations, valid item outcomes, no `PROPOSED` blocks, current generated blocks, structurally valid source bindings and current accepted affected-section assessments. The repository is checked in an in-memory view with the completed record removed and generated replacements applied. A remaining implementing capability or undone item refuses without publication.
-<!-- raf:tested-by raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item -->
+**Static contract.** Completion requires no remaining obligations, valid item outcomes, no `PROPOSED` blocks, current generated blocks, structurally valid source bindings and current accepted affected-section assessments. The repository is checked in an in-memory view with the completed record removed and generated replacements applied. An implementing capability enters `delivered` in that view only when the completed record is its last owner. Its delivered document and bindings must pass the full policy. An implementing capability with another open owner retains its state and obligations.
+<!-- raf:tested-by raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item,raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability,raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched -->
 
 Verification reports declared bindings and canonical static findings. It executes no tests, examples, doctests, compilers or arbitrary commands. Stored verdicts cannot substitute for these checks or become observed test success. A panicking consumer body is data and does not prevent structurally valid completion.
 <!-- raf:tested-by cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution,cargo_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion -->
 
-Before publishing, completion reopens the static inputs and compares source, tracked paths, loaded documentation, binding selection and generated replacements. Only owned documentation is rewritten and the change record removed. Source, manifests and Git administration are never publication targets.
+Before publishing, completion reopens the static inputs and compares source, tracked paths, loaded documentation, binding selection and document replacements. It publishes state edits and regenerated blocks, then removes the change record. Publication is confined to owned documentation.
 <!-- raf:tested-by raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched,raf_workplan::test_crate::complete::forged_sync_reports_cannot_overwrite_source_or_manifests -->
 
 ## Usage
@@ -67,6 +68,11 @@ Before publishing, completion reopens the static inputs and compares source, tra
 Inspect a reported filesystem binding change before retrying completion. The
 generated-document publisher retains its admitted destinations and reports
 temporary cleanup failures alongside the original error.
+
+If publication or record removal fails after writing a capability's delivered
+state, completion restores the original bytes when it still owns the published
+file. It reports any restoration failure with the original error. Restore
+access, run `docs sync` with the record still present, and retry completion.
 
 The documented data path is illustrated by `raf_workplan::Gate`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
@@ -79,11 +85,11 @@ refuses and preserves the foreign file. An unchanged neighboring publication
 continues to use the same owned-document path.
 <!-- raf:tested-by raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail -->
 
-A consumer test containing a panic remains a declared test binding. Static verification prints `declared`, never a passing execution verdict. A prospective check that leaves a capability implementing refuses and retains every input byte.
+A consumer test containing a panic remains a declared test binding. Static verification prints `declared`. A completion with an unresolved code binding or an undone item refuses and retains every input byte.
 
 ## Constraints
 
-- Completion is static assurance only. It does not prove tests pass, examples are safe, code compiles or runtime behavior matches the documentation. Generated replacements retain admitted filesystem identities; checks and renames remain separate operations. Reopening and publication do not form an atomic snapshot transaction.
+- Completion provides static assurance about the declared contract. Opening and completion serialize their publications on the repository directory. Document replacements retain admitted filesystem identities. Checks and renames remain separate operations, and concurrent external edits can cause publication to refuse.
 <!-- raf:tested-by cargo_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion -->
 
 ## Explanation
@@ -111,9 +117,10 @@ Controlled RAF fixtures exercise prospective refusal, record removal, generated 
 | `raf_workplan::staged::tests::the_hidden_file_is_not_read_listed_or_found` | test | [Verification](#verification) |
 | `raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail` | test | [Examples](#examples) |
 | `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::forged_sync_reports_cannot_overwrite_source_or_manifests` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::scenarios::a_document_that_merely_exists_does_not_satisfy_the_scenario` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::a_thin_document_is_not_the_account_the_scenario_builds` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::each_fault_of_the_account_has_a_document_that_breaks_only_it` | test | [Verification](#verification) |

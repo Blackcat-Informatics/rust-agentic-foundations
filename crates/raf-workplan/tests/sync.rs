@@ -65,8 +65,8 @@ fn batch_publication_reserves_inode_capacity_before_staging() {
     let parent = directory.path().join("docs/capabilities");
     fs::create_dir_all(&parent).unwrap();
     let mut originals = Vec::new();
-    let report = SyncReport {
-        edits: (0..128)
+    let report = SyncReport::new(
+        (0..128)
             .map(|index| {
                 let path = format!("docs/capabilities/item-{index}.md");
                 let original = support::fixtures::capability(
@@ -81,8 +81,7 @@ fn batch_publication_reserves_inode_capacity_before_staging() {
                 (RelPath::new(&path).unwrap(), replacement)
             })
             .collect(),
-        diagram_assets: None,
-    };
+    );
     let error = Workplan::write(&report, directory.path())
         .expect_err("the complete inode grant exceeds the child's descriptor limit");
     assert!(
@@ -101,10 +100,7 @@ fn batch_publication_reserves_inode_capacity_before_staging() {
     }
     assert_eq!(fs::read_dir(&parent).unwrap().count(), report.edits.len());
 
-    let accepted = SyncReport {
-        edits: report.edits[..64].to_vec(),
-        diagram_assets: None,
-    };
+    let accepted = SyncReport::new(report.edits[..64].to_vec());
     Workplan::write(&accepted, directory.path())
         .expect("the neighboring batch fits with shared parent descriptors");
     for (index, (path, replacement)) in report.edits.iter().enumerate() {
@@ -190,10 +186,7 @@ fn syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal() {
         })
         .map(|(path, _)| path.clone())
         .collect();
-    let forged = SyncReport {
-        edits: vec![(owned[0].clone(), "forged".into())],
-        diagram_assets: None,
-    };
+    let forged = SyncReport::new(vec![(owned[0].clone(), "forged".into())]);
     assert!(Workplan::write(&forged, root).is_err());
     let kept = support::disk::snapshot(root);
     fs::write(
@@ -759,13 +752,10 @@ fn write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index(
     write_repo(scratch.path(), &unsynced());
     let root = scratch.path();
     let before = read(root, ALPHA);
-    let good = (rel(ALPHA), "rewritten\n".to_string());
+    let good = (rel(ALPHA), format!("{before}\nExtra authored prose.\n"));
     let refused = |bad: &str| {
-        let report = SyncReport {
-            diagram_assets: None,
-            // A valid edit first: it must not be written when a later one is refused.
-            edits: vec![good.clone(), (rel(bad), "x\n".to_string())],
-        };
+        // A valid edit first: it must not be written when a later one is refused.
+        let report = SyncReport::new(vec![good.clone(), (rel(bad), "x\n".to_string())]);
         let error = Workplan::write(&report, root).expect_err(bad);
         assert!(
             error.to_string().contains(bad) || bad.contains("outside"),
@@ -798,10 +788,7 @@ fn write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index(
         assert_eq!(fs::read_dir(outside.path()).expect("lists").count(), 0);
     }
     // The same path twice.
-    let twice = SyncReport {
-        diagram_assets: None,
-        edits: vec![good.clone(), good],
-    };
+    let twice = SyncReport::new(vec![good.clone(), good]);
     assert!(Workplan::write(&twice, root).is_err());
     assert_eq!(read(root, ALPHA), before);
 }
@@ -862,12 +849,10 @@ fn write_creates_the_index_only_where_the_directory_exists() {
     let scratch = Scratch::new("index");
     write_repo(scratch.path(), &unsynced());
     assert!(!scratch.path().join(INDEX).exists());
-    let report = SyncReport {
-        diagram_assets: None,
-        edits: vec![(rel(INDEX), "created\n".to_string())],
-    };
+    let mut report = on_disk(scratch.path(), |plan| plan.sync(&options())).expect("syncs");
+    report.edits.retain(|(path, _)| path.as_str() == INDEX);
     Workplan::write(&report, scratch.path()).expect("creates the index");
-    assert_eq!(read(scratch.path(), INDEX), "created\n");
+    assert_eq!(read(scratch.path(), INDEX), base()[INDEX]);
 }
 
 // --- the example ---------------------------------------------------------------
@@ -1288,14 +1273,16 @@ fn write_changes_no_target_when_a_later_file_cannot_be_written() {
             "the write-failure fixture needs directory permissions to refuse creation; run as an unprivileged user"
         );
     }
-    let report = SyncReport {
-        diagram_assets: None,
-        edits: vec![
-            (rel(ALPHA), "ONE\n".to_string()),
-            (rel(support::synced::OVERVIEW), "TWO\n".to_string()),
-            (rel(support::synced::GROW), "THREE\n".to_string()),
-        ],
-    };
+    let overview = support::synced::OVERVIEW;
+    let grow = support::synced::GROW;
+    let report = SyncReport::new(vec![
+        (rel(ALPHA), format!("{}\nMore prose.\n", read(root, ALPHA))),
+        (
+            rel(overview),
+            format!("{}\nMore overview.\n", read(root, overview)),
+        ),
+        (rel(grow), read(root, grow).replace("Grows.", "Changed.")),
+    ]);
     let result = Workplan::write(&report, root);
     fs::set_permissions(&directory, fs::Permissions::from_mode(0o755)).expect("chmod");
     let error = result.expect_err("the second document cannot stage in its read-only directory");

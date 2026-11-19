@@ -485,10 +485,11 @@ impl Opened {
                 edits.push((RelPath::new(path)?, text));
             }
         }
-        Ok(crate::SyncReport {
+        Ok(crate::SyncReport::computed(
+            &plan,
             edits,
-            diagram_assets: generated.publication.map(Arc::new),
-        })
+            generated.publication.map(Arc::new),
+        ))
     }
     /// The directory the gate was given.
     #[must_use]

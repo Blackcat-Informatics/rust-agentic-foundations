@@ -348,7 +348,6 @@ bindings:
     - raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan
     - raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding
     - raf_workplan::test_crate::debt::an_empty_debt_record_is_judged_without_a_policy_switch
-    - raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication
     - raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication
   examples:
     - raf_workplan::Gate
@@ -418,7 +417,7 @@ the identity `cap:<slug>`, the keys and the seven sections defined in
 
 The document is permanent: authors keep its identity and its path from the first
 time the capability is considered until the capability is removed. Lifecycle
-operations retain that identity and path as the author changes its state.
+operations preserve that identity and path through state transitions.
 
 ### State and open-record consistency
 <!-- raf:tested-by raf_workplan::test_crate::states::accepts_each_state_with_matching_content,raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
@@ -436,12 +435,12 @@ document and the change records may say.
 ### State transition policy
 <!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
 
-A change to a delivered capability puts the capability back under an open record,
-which moves it to `implementing`: the current account stays as written, and the
-new text of the change sits beside it in PROPOSED blocks. Everything that moves a capability
-between states is a change. These are authoring obligations: `change new` prints
-the required state edit but does not perform it. Reconciliation and verification
-also retain the authored state; the author sets `delivered` before completion.
+`change new` writes the open change record and moves a delivered or designed
+capability to `implementing`. It preserves the current account. A `PROPOSED`
+block holds candidate text beside that account. Reconciliation and verification
+retain the current state. `change complete` moves an implementing capability to
+`delivered` when it validates the delivered contract and removes the last
+record that owns the capability.
 
 ### Proposal ownership and placement
 <!-- raf:tested-by raf_workplan::test_crate::states::rejects_orphan_proposed_marker,raf_workplan::test_crate::states::rejects_proposed_section_missing_from_affects,raf_workplan::test_crate::states::rejects_proposed_change_that_does_not_list_the_capability,raf_workplan::test_crate::states::rejects_considered_without_proposed_block,raf_workplan::test_crate::states::rejects_delivered_with_proposed_block,raf_workplan::test_crate::states::rejects_designed_with_proposed_block,raf_workplan::test_crate::documents::rejects_proposed_marker_in_architecture,raf_workplan::test_crate::documents::rejects_proposed_marker_in_change -->
@@ -723,7 +722,7 @@ store retains the root, admitted parent directories and original destination
 snapshot through staging and publication. A changed binding refuses. Checks and
 renames are separate operations, with no isolation from adversarial concurrent
 publishers; see the [evidence publication trust boundary](./workplan-evidence-claims.md#constraints).
-<!-- raf:tested-by raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication,raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication -->
+<!-- raf:tested-by raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication -->
 
 ### Record validation and SPDX headers
 <!-- raf:tested-by raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value,raf_workplan::test_crate::records::a_record_that_would_not_load_clean_is_not_written,raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given -->
@@ -872,9 +871,8 @@ items:
   <!-- raf:tested-by raf_workplan::test_crate::states::rejects_delivered_with_proposed_block,raf_workplan::test_crate::states::rejects_designed_with_proposed_block,raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does -->
 - Directories are flat: a document sits directly in its directory.
   <!-- raf:tested-by raf_workplan::test_crate::documents::rejects_nested_documents -->
-- A state does not advance on its own. The state of a capability is edited in the
-  same change that earns it, and the check rules above reject a state its content
-  does not support.
+- A state transition is part of a change to the capability. The check rules
+  reject a state its content and owning records do not support.
   <!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
 - Outside a git work tree, such as a copy of a commit's files, the gate takes every
   file under the directory as a tracked path, so a link to an untracked file passes
@@ -900,7 +898,7 @@ Design begins in the shape of the eventual documentation. If the first design we
 written as a proposal for approval, turning it into documentation would be a second
 writing project, and that project is easy to neglect. With seven fixed sections from
 the first draft, uncertainty is marked and resolved in place. Promotion to
-`delivered` requires reconciliation, not just a status edit: the implementation may
+`delivered` requires reconciliation: the implementation may
 have changed the API, a guarantee may have proved impractical, and an attractive
 option may have been dropped. Those outcomes are written into the current text before
 the state moves. Design material maps to outcomes in the same way: a stated need
@@ -1029,7 +1027,6 @@ document writes and unchanged source and Git state beside successful completion.
 | `raf_workplan::digest::tests::sha256_is_the_same_over_block_boundaries_and_pieces` | test | [Verification](#verification) |
 | `raf_workplan::digest::tests::symbol_definitions_are_deduplicated_by_source_key_and_ordered` | test | [Verification](#verification) |
 | `raf_workplan::digest::tests::the_encoding_is_unambiguous_across_names_texts_and_fields` | test | [Verification](#verification) |
-| `raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication` | test | [Contract](#contract) |
 | `raf_workplan::finding::tests::each_location_answers_to_exactly_one_accessor` | test | [Verification](#verification) |
 | `raf_workplan::finding::tests::native_operational_refusals_keep_typed_messages_and_actionable_kinds` | test | [Contract](#contract) |
 | `raf_workplan::graph::tests::a_section_of_many_blocks_is_read_in_work_linear_in_its_blocks` | test | [Verification](#verification) |

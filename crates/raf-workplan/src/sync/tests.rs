@@ -3,19 +3,20 @@
 
 //! Filesystem outcomes at the publication boundary after all texts are staged.
 
-use super::{fs, publish};
+use super::publish;
 use crate::publication_io::{Root, Staged};
 use raf_source::RelPath;
+use std::collections::BTreeMap;
+use std::fs;
 use std::path::Path;
 
 struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
     fn new() -> Self {
-        Self(
-            purrdf_testkit::TempDir::new_in(std::env::temp_dir())
-                .expect("create publication fixture"),
-        )
+        let binary = std::env::current_exe().expect("the test binary");
+        let target = binary.parent().expect("the test target directory");
+        Self(purrdf_testkit::TempDir::new_in(target).expect("create publication fixture"))
     }
 }
 
@@ -42,41 +43,48 @@ fn staged(root: &Path) -> Vec<Staged> {
 #[test]
 fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
     let scratch = Scratch::new();
-    let root = scratch.0.path().join("refused");
-    let files = staged(&root);
-    // Model a target replacement after preflight and staging. A nonempty
-    // directory cannot be replaced by the staged regular file on any target.
-    fs::remove_file(root.join(files[1].target_path().as_str())).expect("remove second target");
-    fs::create_dir(root.join(files[1].target_path().as_str()))
-        .expect("replace it with a directory");
-    let sentinel = root.join(files[1].target_path().as_str()).join("sentinel");
-    fs::write(&sentinel, "untouched\n").expect("write sentinel");
+    let empty = BTreeMap::new();
+    let guarded = BTreeMap::from([(RelPath::new("one.md").unwrap(), "old one.md\n".to_owned())]);
+    for (case, originals, expected) in [
+        ("refused", &empty, "new one.md\n"),
+        ("guarded", &guarded, "old one.md\n"),
+    ] {
+        let root = scratch.0.path().join(case);
+        let files = staged(&root);
+        // An ordinary sync keeps published files. Completion restores its
+        // promoted capability when a later document publication refuses.
+        let second = root.join(files[1].target_path().as_str());
+        fs::remove_file(&second).expect("remove second target");
+        fs::create_dir(&second).expect("replace it with a directory");
+        let sentinel = second.join("sentinel");
+        fs::write(&sentinel, "untouched\n").expect("write sentinel");
 
-    publish(&files).expect_err("the second rename must fail");
-    assert_eq!(
-        fs::read_to_string(root.join(files[0].target_path().as_str())).unwrap(),
-        "new one.md\n"
-    );
-    assert_eq!(
-        fs::read_to_string(root.join("one-alias.md")).unwrap(),
-        "old one.md\n"
-    );
-    assert_eq!(fs::read_to_string(&sentinel).unwrap(), "untouched\n");
-    assert_eq!(
-        fs::read_to_string(root.join(files[2].target_path().as_str())).unwrap(),
-        "old three.md\n"
-    );
-    for file in &files {
-        let temporary = file.temporary_path();
-        assert!(
-            !temporary.exists(),
-            "unpublished temporary file {temporary:?}"
+        publish(&files, originals).expect_err("the second rename must fail");
+        assert_eq!(
+            fs::read_to_string(root.join(files[0].target_path().as_str())).unwrap(),
+            expected
         );
+        assert_eq!(
+            fs::read_to_string(root.join("one-alias.md")).unwrap(),
+            "old one.md\n"
+        );
+        assert_eq!(fs::read_to_string(&sentinel).unwrap(), "untouched\n");
+        assert_eq!(
+            fs::read_to_string(root.join(files[2].target_path().as_str())).unwrap(),
+            "old three.md\n"
+        );
+        for file in &files {
+            let temporary = file.temporary_path();
+            assert!(
+                !temporary.exists(),
+                "unpublished temporary file {temporary:?}"
+            );
+        }
     }
 
     let root = scratch.0.path().join("accepted");
     let valid = staged(&root);
-    publish(&valid).expect("regular targets accept every staged replacement");
+    publish(&valid, &empty).expect("regular targets accept every staged replacement");
     assert_eq!(
         fs::read_to_string(root.join("one-alias.md")).unwrap(),
         "old one.md\n"
@@ -94,7 +102,8 @@ fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
     let temporary = files[0].temporary_path();
     fs::remove_file(temporary).unwrap();
     fs::write(temporary, "foreign\n").unwrap();
-    let error = publish(&files).expect_err("a replaced temporary is never published or removed");
+    let error =
+        publish(&files, &empty).expect_err("a replaced temporary is never published or removed");
     assert!(
         error.to_string().contains("metadata cleanup also failed"),
         "{error}"

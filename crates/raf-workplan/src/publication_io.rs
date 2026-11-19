@@ -107,6 +107,19 @@ impl Root {
         &self.tree
     }
 
+    /// Hold the repository directory lock across sync or a change lifecycle publication.
+    pub(crate) fn lock_lifecycle(&self) -> io::Result<fs::File> {
+        let directory = native::read(&self.directory)?;
+        directory.try_lock().map_err(|error| match error {
+            fs::TryLockError::WouldBlock => io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "another Workplan publication is active; retry after it finishes",
+            ),
+            fs::TryLockError::Error(error) => error,
+        })?;
+        Ok(directory)
+    }
+
     fn verify(&self, path: &RelPath) -> io::Result<()> {
         if path.authority() != SourceAuthorityId::FIRST_PARTY {
             return Err(refused("metadata publication requires a first-party path"));
@@ -218,6 +231,18 @@ impl Root {
             }
             Err(error) => Err(error),
         }
+    }
+
+    pub(crate) fn create_parents(self: &Rc<Self>, path: &RelPath) -> io::Result<()> {
+        let Some(parent) = path.parent() else {
+            return Ok(());
+        };
+        let mut prefix = RelPath::root();
+        for name in parent.as_str().split('/').filter(|part| !part.is_empty()) {
+            prefix = prefix.join(name).map_err(io::Error::other)?;
+            self.create_directory(&prefix)?;
+        }
+        Ok(())
     }
 
     /// Retain inode slots and probe actual target checks before creating temporaries.
@@ -538,10 +563,6 @@ impl Staged {
     pub(crate) fn target_path(&self) -> &RelPath {
         &self.target.path
     }
-    pub(crate) fn permissions(&self) -> fs::Permissions {
-        self.state.permissions.clone()
-    }
-
     /// An ownership intent replaces the same original manifest before its final text.
     pub(crate) fn follows(&mut self, intent: &Self) -> io::Result<()> {
         if !Rc::ptr_eq(&self.target.directory.root, &intent.target.directory.root)
@@ -586,6 +607,24 @@ impl Staged {
 
     pub(crate) fn discard(&self) -> io::Result<()> {
         discard_owned(&self.target.directory, &self.name, &self.file)
+    }
+
+    /// Undo this exact publication, preserving a replacement made by another writer.
+    pub(crate) fn undo(&self, original: Option<&str>) -> io::Result<()> {
+        let target = self.target.directory.root.capture(&self.target.path)?;
+        if target.current.as_ref() != Some(&self.state) {
+            return Err(refused(format!(
+                "cannot restore {} because its published contents changed",
+                self.target.path
+            )));
+        }
+        let Some(text) = original else {
+            return target.remove();
+        };
+        let staged = target.stage(text)?;
+        staged
+            .publish()
+            .map_err(|error| cleanup_after(error, &[staged]))
     }
 }
 

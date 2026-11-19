@@ -20,7 +20,7 @@ bindings:
     - raf_workplan::Opened::preview_generated
     - raf_workplan::Workplan::sync
     - raf_workplan::Workplan::write
-    - raf_workplan::Workplan::write_observed
+    - raf_workplan::Workplan::write_guarded
     - raf_workplan::publication_io
     - raf_workplan::SyncOptions
     - raf_workplan::SyncReport
@@ -39,6 +39,9 @@ bindings:
     - cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading
     - raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping
     - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
+    - raf_workplan::test_crate::complete::split_sync_refuses_stale_publication_after_completion_or_reopening
+    - raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability
+    - raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits
     - raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root
     - raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all
     - raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections
@@ -257,6 +260,14 @@ edits. Existing replacements preserve permissions and break hardlink aliases by
 staging and rename; a missing generated catalogue uses native creation permissions.
 <!-- raf:tested-by raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched -->
 
+Sync publication shares the repository directory lock with change opening and
+completion. A computed report attests the capability states and the owning
+record relations it used. Publication rechecks those relations before staging.
+An ordinary replacement preserves the current lifecycle metadata, and a
+catalogue edit must carry the computed index text. When the lifecycle metadata
+agrees, publication writes the report's authored snapshot.
+<!-- raf:tested-by raf_workplan::test_crate::complete::split_sync_refuses_stale_publication_after_completion_or_reopening,raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability,raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits -->
+
 A sync report admits its complete batch's descriptor capacity before creating
 any temporary file. Insufficient capacity returns an actionable error with no
 target modification for that report.
@@ -400,6 +411,8 @@ staged before any target rename; admission does not select incremental publicati
 Publish a computed sync report through `Workplan::write` with its explicit root.
 The writer retains that root and admitted destinations for the entire invocation;
 a changed filesystem binding refuses with an actionable error.
+After a lifecycle metadata refusal, recompute the report from the current
+documents and publish that report.
 
 Declare a `components`, `artifacts` or `model-provenance` diagram with its owning `cap:` or `arch:`
 scope, or a `scenario` diagram with `document-id#scenario-id`. Use grouping `none`
@@ -427,8 +440,8 @@ artifacts through `cargo workplan docs build standalone --view cap:api#workspace
 --output-dir <existing-directory>`.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
-Callers publish a `SyncReport` through the checked writer shown below. Completion consumes
-the same writer internally and validates its resulting copy before running bindings.
+Completion validates declared bindings and generated replacements in its
+prospective document view before invoking the same writer.
 
 Run `raf_workplan::example_crate::docs_sync` to inspect or rewrite the generated documentation blocks through the production sync API.
 
@@ -592,10 +605,9 @@ held. All final parent directories are admitted first. Native discovery and
 concurrent host resource changes are not covered by a universal descriptor
 bound or isolation guarantee.
 <!-- raf:tested-by raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging -->
-- A rename that fails after earlier ones succeeded leaves those files with their
-  new text, preserves the remaining targets and removes the unpublished temporary
-  files. Once the failing target can be replaced, the next sync computes the
-  remaining edits.
+- An ordinary sync rename failure preserves earlier published text and
+  remaining targets. It removes unpublished temporary files. Once the
+  failing target can be replaced, the next sync computes the remaining edits.
   <!-- raf:tested-by raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail -->
 - `preview` returns text and writes nothing.
   <!-- raf:tested-by raf_workplan::test_crate::preview::a_disk_fixture_is_byte_identical_afterwards -->
@@ -738,7 +750,9 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept` | test | [Verification](#verification) |
 | `raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail` | test | [Examples](#examples), [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::split_sync_refuses_stale_publication_after_completion_or_reopening` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_backtick_in_a_binding_path_does_not_break_the_code_span` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_block_in_a_section_other_than_verification_converges_in_one_sync` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Verification](#verification) |
@@ -821,6 +835,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `raf_workplan::test_crate::sync::write_creates_the_index_only_where_the_directory_exists` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_keeps_the_permissions_of_the_file_it_replaces` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_never_touches_a_file_that_is_already_there_under_a_temporary_name` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index` | test | [Constraints](#constraints) |

@@ -47,7 +47,7 @@ bindings:
     - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
     - raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean
     - raf_workplan::test_crate::untouched::an_unchanged_affected_section_is_owed_with_the_line_the_contract_shows
-    - raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item
+    - raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item
     - raf_workplan::test_crate::lifecycle::a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not
     - raf_workplan::test_crate::lifecycle::an_existing_file_is_refused_and_left_byte_identical
     - raf_workplan::test_crate::lifecycle::a_capability_that_does_not_exist_is_refused
@@ -125,10 +125,10 @@ bindings:
     - raf_workplan::test_crate::lifecycle::impact_tells_an_unknown_slug_from_a_record_that_did_not_load
     - raf_workplan::test_crate::lifecycle::neither_spdx_field_writes_no_comment_line
     - raf_workplan::test_crate::lifecycle::the_bad_slug_message_says_what_a_slug_is
-    - raf_workplan::test_crate::lifecycle::the_guidance_for_a_delivered_capability_names_both_findings_it_avoids
-    - raf_workplan::test_crate::lifecycle::the_record_beside_a_delivered_capability_is_a_finding_until_the_state_is_set
+    - raf_workplan::test_crate::lifecycle::opening_refuses_a_concurrent_lifecycle_publication_without_writes
+    - raf_workplan::test_crate::lifecycle::reopening_delivered_or_designed_capabilities_publishes_implementing
     - raf_workplan::test_crate::lifecycle::the_sync_note_is_there_when_the_target_file_was_already_stale
-    - raf_workplan::test_crate::lifecycle::the_template_in_the_wrong_state_is_the_finding_the_guidance_names
+    - raf_workplan::test_crate::lifecycle::check_refuses_a_proposal_in_a_delivered_or_designed_capability
     - raf_workplan::test_crate::lifecycle::work_changes_is_created_when_the_repository_has_none
     - raf_workplan::test_crate::obligations::a_block_of_another_change_in_a_capability_that_does_not_load_is_not_owed
     - raf_workplan::test_crate::obligations::a_capability_over_the_size_bound_is_not_loaded_and_refused
@@ -198,14 +198,27 @@ Turn a change's documented effect into a concrete list of owed document and sour
 
 ## Contract
 
-**Static contract.** `change new` exclusively creates one owned change record for explicit known capabilities and affected sections. Slugs, sections and paired SPDX fields are validated before publication. `impact` reports listed capabilities, affected sections, bindings, dependants and linking sections without writing.
-<!-- raf:tested-by raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean -->
+**Static contract.** `change new` exclusively creates one owned change record
+for the listed capabilities. Each listed capability's Contract is affected by
+default. Opening moves listed delivered and designed capabilities to
+implementing and preserves their authored content. The result reports the prior
+state and the applied action. Slugs, sections and paired SPDX fields are
+validated before publication. `impact` reports listed capabilities, affected
+sections, bindings, dependants and linking sections without writing.
+<!-- raf:tested-by raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean,raf_workplan::test_crate::lifecycle::the_default_affects_is_the_contract_of_each_listed_capability,raf_workplan::test_crate::lifecycle::reopening_delivered_or_designed_capabilities_publishes_implementing -->
 
 Reconciliation reports unresolved proposals, missing item outcomes or reasons, missing bindings, stale generated output, unsupported tense, unsupported claims, stale or changed evidence metadata, missing or stale assessments, and missing or stale required reviews. Each obligation retains its typed subject, location and needed evidence. Ordering is deterministic; a refused source or document read remains an error.
 <!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
 
-Historical obligations use native read-only Git. Affected authored sections are compared with the selected merge base after generated blocks and proposal text are removed from the comparison. A section new on the branch is touched. `contract_effect: none` suppresses an untouched Contract obligation, but affected Usage and Examples still require accounting. Changes in bound public source tokens or documentation require a stated contract effect; whitespace and plain comments alone do not. Public surface comparison preserves package, target and impl-member identity.
-<!-- raf:tested-by raf_workplan::test_crate::untouched::an_unchanged_affected_section_is_owed_with_the_line_the_contract_shows,raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item -->
+Historical obligations use native read-only Git. Affected sections are compared
+with the selected merge base. The comparison excludes generated-block content
+and includes proposal text. A section new on the branch is touched.
+`contract_effect: none` suppresses an untouched Contract obligation. Affected
+Usage and Examples still require accounting. Changes in bound public source
+tokens or documentation require a stated contract effect. Whitespace and plain
+comments alone leave that effect unchanged. Public surface comparison preserves
+package, target and impl-member identity.
+<!-- raf:tested-by raf_workplan::test_crate::untouched::an_unchanged_affected_section_is_owed_with_the_line_the_contract_shows,raf_workplan::test_crate::untouched::text_in_a_fence_and_in_a_proposed_block_is_authored,raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item -->
 
 ## Usage
 
@@ -294,7 +307,7 @@ Named obligation fixtures cover every current kind. Native merge-base fixtures c
 | `raf_workplan::obligation::trace::tests::a_value_over_its_limit_is_found_by_its_text_and_not_its_nearest_float` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::with_no_bound_symbol_named_every_bound_symbol_is_an_input` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::git::a_blob_is_returned_byte_for_byte` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::git::a_blob_over_one_mebibyte_is_an_error_and_exactly_one_mebibyte_is_read` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::git::a_default_branch_named_like_an_option_is_a_ref_and_never_an_option` | test | [Verification](#verification) |
@@ -322,6 +335,7 @@ Named obligation fixtures cover every current kind. Native merge-base fixtures c
 | `raf_workplan::test_crate::lifecycle::an_existing_file_is_refused_and_left_byte_identical` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::an_spdx_field_that_is_not_one_line_of_text_is_refused_and_nothing_is_written` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::both_spdx_fields_open_the_record_with_the_two_comment_lines_of_the_records_of_the_repository` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::check_refuses_a_proposal_in_a_delivered_or_designed_capability` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::explicit_affects_are_written_as_given_and_impact_reports_them_sorted` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::impact_gives_the_capabilities_sections_bindings_dependants_and_linking_sections` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::impact_of_a_change_that_just_was_created_reads_the_record_from_the_disk` | test | [Verification](#verification) |
@@ -332,16 +346,15 @@ Named obligation fixtures cover every current kind. Native merge-base fixtures c
 | `raf_workplan::test_crate::lifecycle::neither_spdx_field_writes_no_comment_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lifecycle::one_spdx_field_without_the_other_is_an_error_that_names_the_missing_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::opening_refuses_a_concurrent_lifecycle_publication_without_writes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::reopening_delivered_or_designed_capabilities_publishes_implementing` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lifecycle::several_capabilities_are_listed_in_the_order_given_without_repeats` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::the_bad_slug_message_says_what_a_slug_is` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::lifecycle::the_default_affects_is_the_contract_of_each_listed_capability` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::the_default_affects_is_the_contract_of_each_listed_capability` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lifecycle::the_guidance_follows_the_state_of_each_listed_capability` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::lifecycle::the_guidance_for_a_delivered_capability_names_both_findings_it_avoids` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::the_printed_text_holds_the_template_and_the_guidance` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::lifecycle::the_record_beside_a_delivered_capability_is_a_finding_until_the_state_is_set` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::the_sync_note_is_there_when_the_target_file_was_already_stale` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::the_template_in_a_capability_of_each_state_gives_one_block_and_a_clean_check` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::lifecycle::the_template_in_the_wrong_state_is_the_finding_the_guidance_names` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::work_changes_is_created_when_the_repository_has_none` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::a_block_of_another_change_in_a_capability_that_does_not_load_is_not_owed` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::a_capability_over_the_size_bound_is_not_loaded_and_refused` | test | [Verification](#verification) |
@@ -400,7 +413,7 @@ Named obligation fixtures cover every current kind. Native merge-base fixtures c
 | `raf_workplan::test_crate::untouched::on_the_default_branch_itself_every_affected_section_is_owed_and_it_is_not_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::only_a_generated_block_changed_is_still_reported` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::reconcile_writes_nothing_and_prints_the_same_list_twice` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::untouched::text_in_a_fence_and_in_a_proposed_block_is_authored` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::text_in_a_fence_and_in_a_proposed_block_is_authored` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::untouched::the_default_branch_moving_on_after_the_fork_does_not_touch_the_section` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::the_digest_leaves_out_generated_blocks_on_both_sides_and_nothing_else` | test | [Verification](#verification) |
 <!-- raf:generated:end -->

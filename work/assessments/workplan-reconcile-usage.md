@@ -13,7 +13,7 @@ inputs:
     digest: 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a
   - kind: symbol
     name: raf_workplan::Workplan::new_change
-    digest: e98206c0a4765ede28c155cb8575aa631609841c14e02af17e889740bbccc4d5
+    digest: 5c5fe7414d069ff519cc0cb3fae45975887b10895e36244cc049daed2726e704
   - kind: symbol
     name: raf_workplan::Workplan::reconcile
     digest: dc8a8600263b5f9a10aa7cffc3ecbec81a2916b0a29dd22a1b1d161380c1b20f

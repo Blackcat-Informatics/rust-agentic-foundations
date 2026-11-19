@@ -88,12 +88,12 @@ pub enum LifecycleError {
     },
     /// Prospective generated documentation cannot be computed.
     Sync(SyncError),
-    /// Generated publication failed; the record remains.
+    /// Document publication failed; the record remains.
     Rewrite {
         /// The publication failure.
         source: io::Error,
     },
-    /// Generated documentation was published, but record removal failed.
+    /// Record removal failed after document publication and restoration was attempted.
     Remove {
         /// The change record path.
         path: String,
@@ -153,7 +153,7 @@ impl fmt::Display for LifecycleError {
             ),
             Self::Rewrite { source } => write!(
                 f,
-                "generated documentation could not be rewritten: {source}; the record remains; some documents may already contain their replacements"
+                "cannot publish completion documents: {source}; the record remains; generated edits may need to be resynced before retrying"
             ),
             Self::Remove {
                 path,
@@ -161,7 +161,7 @@ impl fmt::Display for LifecycleError {
                 source,
             } => write!(
                 f,
-                "cannot remove `{path}`: {source}; documentation already rewritten: {}; inspect it before retrying completion",
+                "cannot remove `{path}`: {source}; documentation publication touched {}; sync generated documents before retrying completion",
                 rewritten.join(", ")
             ),
             Self::RecordRefused { path, source } => write!(

@@ -422,8 +422,8 @@ pub(crate) struct CoverageArgs {
 /// The commands under `change`.
 #[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
 pub(crate) enum Change {
-    /// Create the record of a new change, and print the PROPOSED block to
-    /// place and the state each listed capability needs.
+    /// Open a new change and publish its capability state changes. Print the
+    /// PROPOSED block to place.
     New(NewArgs),
     /// Print what the change reaches: its capabilities, sections, bindings,
     /// dependants and linking sections. Writes nothing.

@@ -6,12 +6,12 @@
 mod support;
 use support::{
     changed,
-    completion::{CAP, DONE, RECORD, ready, shaped},
+    completion::{CAP, DONE, GOOD, PASSES, RECORD, shaped},
 };
 
 #[test]
 fn completion_prints_the_owned_changes_and_leaves_a_clean_static_check() {
-    let repo = ready("static-cli-completion");
+    let repo = shaped("static-cli-completion", "implementing", PASSES, GOOD, DONE);
     let before = repo.worktree();
     let run = repo.run(&["change", "complete", "shape"]).expect(0);
     assert!(
@@ -19,10 +19,15 @@ fn completion_prints_the_owned_changes_and_leaves_a_clean_static_check() {
             .starts_with("completed: removed work/changes/shape.md\n")
     );
     assert!(!repo.root().join(RECORD).exists());
+    assert!(repo.read(CAP).contains("state: delivered\n"));
+    assert!(
+        repo.read("docs/capabilities/index.md")
+            .contains("## Delivered")
+    );
     assert!(
         changed(&before, &repo.worktree())
             .iter()
-            .all(|path| path == CAP || path == RECORD)
+            .all(|path| path == CAP || path == RECORD || path == "docs/capabilities/index.md")
     );
     repo.both(&["check"]).expect(0);
 }
@@ -31,7 +36,7 @@ fn completion_prints_the_owned_changes_and_leaves_a_clean_static_check() {
 fn failing_consumer_bodies_do_not_prevent_structurally_valid_completion() {
     let repo = shaped(
         "static-failing-consumer",
-        "delivered",
+        "implementing",
         "[demo::tests::fails]",
         "[demo::example_crate::exiting]",
         DONE,
@@ -54,11 +59,11 @@ fn prospective_refusal_retains_the_record_and_every_input_byte() {
         "static-cli-refusal",
         "implementing",
         "[demo::tests::passes]",
-        "[demo::example_crate::good]",
+        "[demo::example_crate::missing]",
         DONE,
     );
     let before = repo.worktree();
     let run = repo.both(&["change", "complete", "shape"]).expect(1);
-    assert!(run.stdout.contains("no-open-record"), "{run:?}");
+    assert!(run.stdout.contains("binding-unresolved"), "{run:?}");
     assert_eq!(repo.worktree(), before);
 }

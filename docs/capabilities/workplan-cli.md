@@ -92,7 +92,7 @@ bindings:
     - cargo_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes
     - cargo_workplan::test_crate::sync::a_missing_index_with_the_text_is_created_with_that_header
     - cargo_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten
-    - cargo_workplan::test_crate::new::new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes
+    - cargo_workplan::test_crate::new::new_prints_and_writes_the_record_and_capability_transition_in_both_shapes
     - cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal
     - cargo_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing
     - cargo_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples
@@ -129,7 +129,7 @@ bindings:
     - cargo_workplan::test_crate::new::spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing
     - cargo_workplan::test_crate::new::the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale
     - cargo_workplan::test_crate::new::the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository
-    - cargo_workplan::test_crate::new::the_template_left_in_a_state_that_refuses_it_is_the_finding_the_guidance_names
+    - cargo_workplan::test_crate::new::a_delivered_state_with_an_open_proposal_is_refused
     - cargo_workplan::test_crate::preview::a_capability_the_change_lists_that_has_no_document_is_exit_two
     - cargo_workplan::test_crate::preview::a_change_record_that_did_not_load_is_exit_two_and_says_so
     - cargo_workplan::test_crate::preview::a_slug_that_is_not_a_slug_is_a_usage_error
@@ -258,6 +258,12 @@ output, and diagnostics name the inspected path. Export changes no input.
 
 **Static contract.** `cargo workplan COMMAND` and `cargo-workplan COMMAND` use the same parser. Root discovery reads manifests through the native source model. Ordinary checks, history, coverage, review and evidence queries launch no process. Verification reports declared bindings and static findings; completion checks a prospective document overlay and publishes owned documentation only.
 <!-- raf:tested-by cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution,cargo_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check -->
+
+`change new` opens the record and publishes the implementing state for each
+listed delivered or designed capability. Its text and machine reports give the
+prior state and the action applied. `change complete` validates and publishes
+the delivered state for each implementing capability whose last record it removes.
+<!-- raf:tested-by cargo_workplan::test_crate::new::new_prints_and_writes_the_record_and_capability_transition_in_both_shapes,cargo_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance,cargo_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check -->
 
 Only `docs build rustdoc --trust-docs` admits tool execution, with explicit package, toolchain and output selection. The flag is required on each invocation before root discovery. It accepts arbitrary build-time code effects without enabling test, example, doctest or arbitrary-command operations. Existing artifact inspection is separate and never builds or publishes.
 <!-- raf:tested-by cargo_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent -->
@@ -454,18 +460,18 @@ CLI fixtures compare static verification with the library, exercise prospective 
 | `cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::a_capability_given_twice_is_listed_once` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::new::a_delivered_state_with_an_open_proposal_is_refused` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::affects_is_repeatable_and_the_record_holds_the_entries_given_in_order` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::every_refusal_of_the_library_is_exit_two_with_the_tree_untouched` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::new::new_prints_and_writes_the_record_and_capability_transition_in_both_shapes` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::new::new_works_from_a_subdirectory_and_by_root` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::quiet_writes_the_record_and_prints_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::new::spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::the_template_left_in_a_state_that_refuses_it_is_the_finding_the_guidance_names` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::preview::a_capability_the_change_lists_that_has_no_document_is_exit_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::preview::a_change_record_that_did_not_load_is_exit_two_and_says_so` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::preview::a_slug_that_is_not_a_slug_is_a_usage_error` | test | [Verification](#verification) |

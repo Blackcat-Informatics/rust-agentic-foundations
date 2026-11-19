@@ -7,7 +7,7 @@ subject: cap:workplan-prose-assessment#constraints
 inputs:
   - kind: section
     name: cap:workplan-prose-assessment#constraints
-    digest: e926904a96a7621463aee59c5c36c29a12c31ce9f882b3d0269cc17e62b15268
+    digest: 11f74fdef6eab499cb997a0531b6ccae276f54ec48bc673671858345fcda2d2d
   - kind: symbol
     name: raf_workplan::Workplan::assess_context
     digest: 48c085f83be3f08e24c6de886469e950441dec54620b011a06845d33cc6e713c
@@ -28,7 +28,7 @@ inputs:
     digest: 67373dc1c069453be611cd66a67071128f3099d8e757df01568f9ecb6ecfdefb
   - kind: symbol
     name: raf_workplan::record
-    digest: e0af591739db479a091b718df1b215a15578d48a56ab73bae3db222026927436
+    digest: 416954816d9cb9a7c43ef56a547ca154bee150f9272acc13f4f0955db6a3ed87
 verdict: accepted
 by: agent
 ---

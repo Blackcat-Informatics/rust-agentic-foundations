@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! `change new` through the built binary: the record it writes and the one file
-//! it writes, the text it prints (the library's), the SPDX lines, the exit 2
+//! `change new` through the built binary: the record and states it writes,
+//! the text it prints (the library's), the SPDX lines, the exit 2
 //! of every refusal, `-q`, and the printed template placed in a capability of
 //! each state.
 
@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use support::{Repo, Run, changed};
 
 const RECORD: &str = "work/changes/fresh-change.md";
+const ALPHA: &str = "docs/capabilities/alpha.md";
 
 /// What `change new fresh-change --capability cap:alpha --capability cap:beta`
 /// prints for the roadmap repository: `alpha` is delivered and `beta`
@@ -30,8 +31,8 @@ Place this block in a section named in `affects`, in the document of a listed ca
 > State the proposed text here.
 
 State of the listed capabilities:
-  cap:alpha  delivered  set `state: implementing` in the same commit as the block, since in this state a PROPOSED block is a finding of `check` (`state-delivered-proposal`) and so is the open record itself (`state-delivered-open-record`)
-  cap:beta  implementing  no change of state is needed
+  cap:alpha  delivered  set to implementing
+  cap:beta  implementing  kept
 
 The record makes generated blocks stale. Stage the record first, since a link to a file git does not track is a finding of `check`, then bring the blocks up to date:
   git add work/changes/fresh-change.md
@@ -79,16 +80,26 @@ fn run_new(repo: &Repo, extra: &[&str]) -> Run {
 }
 
 #[test]
-fn new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes() {
+fn new_prints_and_writes_the_record_and_capability_transition_in_both_shapes() {
     let repo = Repo::synced("new-one", false);
+    repo.edit(
+        ALPHA,
+        "state: delivered",
+        "state: 'delivered'  # Current API.",
+    );
+    let alpha = repo.read(ALPHA);
     let before = repo.snapshot();
     let args = with(&[]);
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     let run = repo.both_writing(&args).expect(0);
     assert_eq!(run.stdout, PRINTED);
     assert_eq!(run.stderr, "");
-    assert_eq!(changed(&before, &repo.snapshot()), [RECORD]);
+    assert_eq!(changed(&before, &repo.snapshot()), [ALPHA, RECORD]);
     assert_eq!(repo.read(RECORD), WRITTEN);
+    assert_eq!(
+        repo.read(ALPHA),
+        alpha.replacen("state: 'delivered'", "state: 'implementing'", 1)
+    );
 
     // The record loads: the commands that read it find it.
     let impact = repo.both(&["change", "impact", "fresh-change"]).expect(0);
@@ -120,7 +131,7 @@ fn every_refusal_of_the_library_is_exit_two_with_the_tree_untouched() {
     for (args, said) in [
         // A record that exists.
         (
-            vec!["change", "new", "grow", "--capability", "cap:beta"],
+            vec!["change", "new", "grow", "--capability", "cap:alpha"],
             "already exists",
         ),
         // A capability that is not one.
@@ -314,7 +325,7 @@ fn the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository() 
     let before = repo.snapshot();
     let run = run_new(&repo, &["--copyright", &copyright, "--licence", &licence]).expect(0);
     assert_eq!(run.stdout, PRINTED);
-    assert_eq!(changed(&before, &repo.snapshot()), [RECORD]);
+    assert_eq!(changed(&before, &repo.snapshot()), [ALPHA, RECORD]);
 
     // The same two lines, directly after the opening fence, as in the records
     // `make reuse` accepts.
@@ -503,10 +514,13 @@ fn the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_on
             run.stdout.contains(&format!("  {id}  {state}  ")),
             "{capability}: {run:#?}"
         );
-        // Creating a record advises a state change; it never performs one.
-        repo.assert_capability(capability, state);
+        let current = match state {
+            "delivered" | "designed" => "implementing",
+            _ => state,
+        };
+        repo.assert_capability(capability, current);
 
-        // Follow the guidance: the block, and the state when it says so.
+        // Place the block in the capability whose state was set by the command.
         let path = format!("docs/capabilities/{capability}.md");
         let anchor = "\n## Usage\n";
         repo.edit(
@@ -514,21 +528,12 @@ fn the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_on
             anchor,
             &format!("\n{}\n{anchor}", printed_template(&run)),
         );
-        let says_implementing = run.stdout.contains("set `state: implementing`");
+        let says_implementing = run.stdout.contains("set to implementing");
         assert_eq!(
             says_implementing,
             matches!(state, "delivered" | "designed"),
             "{capability}"
         );
-        if says_implementing {
-            repo.edit(&path, &format!("state: {state}\n"), "state: implementing\n");
-        }
-        let authored_state = if says_implementing {
-            "implementing"
-        } else {
-            state
-        };
-        repo.assert_capability(capability, authored_state);
 
         // The generated blocks are brought up to date, as the output says.
         repo.git(&["add", "work/changes/fresh-change.md"]);
@@ -550,23 +555,23 @@ fn the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_on
             "{capability}: {}",
             proposals[0]
         );
-        repo.assert_capability(capability, authored_state);
+        repo.assert_capability(capability, current);
     }
 }
 
 #[test]
-fn the_template_left_in_a_state_that_refuses_it_is_the_finding_the_guidance_names() {
-    // The guidance for a delivered capability names both findings; leaving the
-    // state as it is gives them.
+fn a_delivered_state_with_an_open_proposal_is_refused() {
+    // A delivered capability and a proposed change cannot coexist.
     let repo = Repo::synced("new-template-wrong", false);
     let run = repo
         .run(&["change", "new", "fresh-change", "--capability", "cap:alpha"])
         .expect(0);
     repo.edit(
-        "docs/capabilities/alpha.md",
+        ALPHA,
         "\n## Usage\n",
         &format!("\n{}\n## Usage\n", printed_template(&run)),
     );
+    repo.edit(ALPHA, "state: implementing", "state: delivered");
     let check = repo.run(&["check"]).expect(1);
     assert!(
         check.stdout.contains("[state-delivered-proposal]"),

@@ -7,19 +7,16 @@ subject: cap:workplan-generated-docs#usage
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#usage
-    digest: edb44799b969fb16606103ed1c32d39ada0d19f1e532efb82039cb8457691c31
+    digest: b908651b23c16dc458f58eb74d8f7121f8279b20c9b87dc11b63a9902e5c30c6
   - kind: symbol
     name: raf_workplan::Opened::preview_generated
-    digest: f7a6f2c2949296be5ef567a886b1a93e08b98d7886771143411f8a334650f6c0
-  - kind: symbol
-    name: raf_workplan::SyncReport
-    digest: 8c5ddb0bdd4816e53ff88ba345daec8cc8dd2ec2062cafb6e32eaaf3a51814f1
+    digest: 393923f1933cb399da9ed3fafbe82b49a7e0266251c9ecd78ec61019a8845369
   - kind: symbol
     name: raf_workplan::Workplan::sync
-    digest: 9d918fab0b070dcb507a0a3fdfb002a9f3978649db125994ca287c2c09b45f2a
+    digest: '0b64f760a8ff9a1978bda756c14546eebae1eb69421eb423dc303a47f70b88d5'
   - kind: symbol
     name: raf_workplan::Workplan::write
-    digest: 9ba560131a4fedddffd7453172f167de21c0f3559a1cd0417572f82d00b2ded4
+    digest: 910526f3f19c85c0bddb4bd8ad1d3bb9458d725d30eee7695c795e3a89ff16c2
   - kind: symbol
     name: raf_workplan::diagram
     digest: 43b64969a97a3c7e1348c234b85d79bef3b152b506295a6f58d98ba59a236438

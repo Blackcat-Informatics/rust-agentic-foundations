@@ -50,7 +50,6 @@ bindings:
     - raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does
     - raf_workplan::test_crate::assessments::prose_fenced_names_and_alternate_reexports_do_not_select_an_unnamed_bound_input
     - raf_workplan::test_crate::digest::a_type_digest_excludes_method_bodies_but_its_definition_and_method_digests_move
-    - raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication
     - raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication
   examples:
     - raf_workplan::assessment::record_slug
@@ -266,7 +265,7 @@ cap:streaming-parser#usage  assessment:streaming-parser-usage  accepted  agent  
   publication, refusing changes. Checks and renames are separate operations,
   subject to the concurrent-writer limit of
   [evidence publication](./workplan-evidence-claims.md#constraints).
-  <!-- raf:tested-by raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication,raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication,raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records,raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first -->
+  <!-- raf:tested-by raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication,raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records,raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first -->
 - Generated blocks are excluded from assessment, so a regenerated table does not
   invalidate the assessment of the prose around it.
   <!-- raf:tested-by raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current -->
@@ -398,7 +397,6 @@ files. The existing command-line cases continue to publish through the disk stor
 | `raf_workplan::assessment::tests::the_bindings_are_tested_against_the_names_once_to_find_a_strong_one_and_once_to_name_them` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::the_record_slug_is_the_capability_slug_and_the_section_and_no_two_sections_share_one` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::widening_a_section_with_weak_names_never_removes_an_input` | test | [Verification](#verification) |
-| `raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication` | test | [Constraints](#constraints) |
 | `raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication` | test | [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::assessments::a_bound_symbol_named_by_its_last_segment_is_an_input_beside_one_named_in_full` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load` | test | [Contract](#contract) |
