@@ -106,7 +106,8 @@ fn unexpanded_payloads_obey_original_fact_and_item_allowances() {
             "generate!((one two) [three four] {five six});\n\
              trait T { generate!((seven eight)); }\n\
              impl T for () { generate!([nine ten]); }\n\
-             extern \"C\" { generate!({eleven twelve}); }",
+             extern \"C\" { generate!({eleven twelve}); }\n\
+             #[cfg(any())] const OPAQUE: u8;",
         ),
     ]);
     let usage = Workspace::load(&tree, &["."])
@@ -128,13 +129,9 @@ fn unexpanded_payloads_obey_original_fact_and_item_allowances() {
             }
             let loaded = Workspace::load_with(&tree, &["."], &options);
             if admitted {
-                assert_eq!(
-                    loaded
-                        .expect("exact allowance retains the occurrence")
-                        .unexpanded()
-                        .len(),
-                    4
-                );
+                let loaded = loaded.expect("exact allowance retains the observations");
+                assert_eq!(loaded.unexpanded().len(), 4);
+                assert_eq!(loaded.disabled_syntax().len(), 1);
             } else {
                 assert!(
                     matches!(loaded.expect_err("one byte below the original allowance").kind,
@@ -1226,17 +1223,81 @@ fn bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_w
     ));
 }
 
+/// A disabled opaque declaration has a location in each reach and binds no
+/// name. A declaration without the same proof retains the typed refusal.
 #[test]
-fn a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line() {
-    // rustc parses each of these (they compile under `#[cfg(any())]`); syn
-    // has no node for them and the index does not read them.
+fn disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse() {
+    let text = "pub fn kept() {}\n\
+        #[cfg(any())] const C: u8;\n\
+        pub struct S;\n\
+        impl S { #[cfg(any())] const K: u8; }\n\
+        #[cfg(any())] type T: Bound;\n";
+    let tree = MemoryTree::from([
+        ("Cargo.toml", DEMO),
+        ("src/lib.rs", "pub mod common;"),
+        ("src/main.rs", "mod common;"),
+        ("src/common.rs", text),
+    ]);
+    let options = raf_source::LoadOptions::default();
+    let loaded = Workspace::load_with(&tree, &["."], &options).expect("structural load");
+    let records = loaded.disabled_syntax();
+    #[cfg(target_os = "linux")]
+    {
+        let parallel = Workspace::par_load(
+            &tree,
+            &["."],
+            &options,
+            &raf_source::ParallelOptions::default(),
+        )
+        .expect("parallel structural load");
+        assert_eq!(parallel.disabled_syntax(), records);
+        assert_eq!(parallel.usage(), loaded.usage());
+    }
+    assert_eq!(records.len(), 6);
+    for target in loaded.targets() {
+        let module = format!("{}::common", target.crate_path);
+        for (line, declaration) in [
+            (2, "#[cfg(any())] const C: u8;"),
+            (4, "#[cfg(any())] const K: u8;"),
+            (5, "#[cfg(any())] type T: Bound;"),
+        ] {
+            let record = records
+                .iter()
+                .find(|record| record.module.as_str() == module && record.span.lines.start == line)
+                .expect("each reading module observes the original declaration");
+            assert_eq!(record.file.as_str(), "src/common.rs");
+            assert_eq!(
+                loaded
+                    .target(record.target)
+                    .expect("recorded target")
+                    .crate_path,
+                target.crate_path
+            );
+            assert_eq!(
+                &text[record.span.start_byte..record.span.end_byte],
+                declaration
+            );
+        }
+    }
+    assert!(loaded.resolve("demo::common::kept").is_ok());
+    assert!(
+        loaded
+            .items()
+            .all(|item| !matches!(item.name.as_str(), "C" | "K" | "T"))
+    );
+
     for (text, line) in [
-        ("pub fn ok() {}\n#[cfg(any())]\nconst C: u8;\n", 2),
+        ("pub fn ok() {}\nconst C: u8;\n", 2),
+        ("pub fn ok() {}\n#[cfg(any[])] const C: u8;\n", 2),
+        ("pub fn ok() {}\n#[cfg[any()]] const C: u8;\n", 2),
         (
-            "pub struct S;\nimpl S {\n    #[cfg(any())]\n    const K: u8;\n}\n",
+            "pub struct S;\nimpl S {\n    #[cfg(test)]\n    const K: u8;\n}\n",
             3,
         ),
-        ("pub fn ok() {}\n#[cfg(any())]\ntype T: Bound;\n", 2),
+        (
+            "pub fn ok() {}\n#[cfg_attr(test, cfg(any()))]\ntype T: Bound;\n",
+            2,
+        ),
     ] {
         let error = load(&[("src/lib.rs", text)]).expect_err(text);
         assert!(
@@ -1249,8 +1310,10 @@ fn a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_
             "{text}"
         );
     }
-    // The bodiless function beside them loads.
-    assert!(load(&[("src/lib.rs", "#[cfg(any())]\nfn f();\n")]).is_ok());
+    // The existing decoder still models this bodiless function as written.
+    let supported = lib("#[cfg(any())]\nfn f();\n");
+    assert!(supported.resolve("demo::f").is_ok());
+    assert_eq!(supported.disabled_syntax(), []);
 }
 
 /// What the tests of `Workspace::impls` read of each block, as a line: its

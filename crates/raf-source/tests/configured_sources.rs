@@ -239,7 +239,9 @@ fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
          #[cfg(test)] mod tests { make_test!(); }\n\
          trait Api { #[cfg(feature=\"native\")] trait_native!(); #[cfg(not(feature=\"native\"))] trait_portable!(); }\n\
          impl Api for () { #[cfg(feature=\"native\")] impl_native!(); #[cfg(not(feature=\"native\"))] impl_portable!(); }\n\
-         extern \"C\" { #[cfg(feature=\"native\")] foreign_native!(); #[cfg(not(feature=\"native\"))] foreign_portable!(); }",
+         extern \"C\" { #[cfg(feature=\"native\")] foreign_native!(); #[cfg(not(feature=\"native\"))] foreign_portable!(); }\n\
+         pub mod opaque { #[cfg(any())] const HIDDEN: u8; pub fn kept() {} }\n\
+         pub struct Owner; impl Owner { #[cfg(any())] const HIDDEN: u8; }",
     );
     for enabled in [false, true] {
         let source = load(
@@ -250,6 +252,23 @@ fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
             &LoadOptions::default(),
         )
         .expect("declared syntax");
+        let disabled = source.disabled_syntax();
+        assert_eq!(
+            disabled
+                .iter()
+                .map(|record| record.module.as_str())
+                .collect::<Vec<_>>(),
+            ["consumer::opaque", "consumer"]
+        );
+        for record in disabled {
+            assert_eq!(record.file.as_str(), "consumer/src/lib.rs");
+            let text = source.source(&record.file).expect("recorded file");
+            assert_eq!(
+                &text[record.span.start_byte..record.span.end_byte],
+                "#[cfg(any())] const HIDDEN: u8;"
+            );
+        }
+        assert!(source.resolve("consumer::opaque::kept").is_ok());
         let actual: Vec<_> = source
             .unexpanded()
             .iter()
@@ -276,6 +295,20 @@ fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
             }
         );
     }
+    let active = fixture(MANIFEST, "pub fn kept() {}\nconst ACTIVE: u8;");
+    let error = load(
+        &active,
+        Some(context(&[], "consumer")),
+        Some(context(&["api"], "provider")),
+        "",
+        &LoadOptions::default(),
+    )
+    .expect_err("active opaque declaration");
+    assert!(matches!(error.kind, LoadErrorKind::UnsupportedItem { .. }));
+    assert_eq!(
+        (error.file.as_str(), error.line),
+        ("consumer/src/lib.rs", Some(2))
+    );
 }
 
 fn load(

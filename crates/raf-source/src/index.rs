@@ -29,8 +29,8 @@ use crate::facts::{
 use crate::glob_scope::{GlobTables, ImportReach};
 use crate::intern::Interner;
 use crate::item::{
-    ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
-    Unexpanded, UnresolvedImpl,
+    DisabledSyntax, ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind,
+    TraitKey, Unexpanded, UnresolvedImpl,
 };
 use crate::manifest::DependencyKind;
 use crate::meter::{ItemAdmission, LookupCount, Meter, NativeAdmission, Steps, push_item_work};
@@ -336,6 +336,7 @@ pub(crate) struct Module {
 pub(crate) struct Index {
     pub(crate) items: Vec<Item>,
     pub(crate) unexpanded: Vec<Unexpanded>,
+    pub(crate) disabled_syntax: Vec<DisabledSyntax>,
     /// The items in the order of [`crate::Workspace::items`].
     pub(crate) order: Vec<ItemId>,
     pub(crate) modules: Vec<Module>,
@@ -914,6 +915,7 @@ impl<'a> Builder<'a> {
                             identifiers,
                         });
                     }
+                    self.disabled_syntax(&body.disabled, module, cx)?;
                     push(&mut stack, Emit::Rest(body, module), line)?;
                     push(&mut stack, Emit::Mods(body, module, 0), line)?;
                 }
@@ -942,6 +944,34 @@ impl<'a> Builder<'a> {
                 Emit::Rest(body, module) => self.uses_and_impls(body, module, cx)?,
             }
         }
+        Ok(())
+    }
+
+    fn disabled_syntax(
+        &mut self,
+        spans: &[SpanFact],
+        module: usize,
+        cx: &Cx<'_>,
+    ) -> Result<(), LoadError> {
+        let Some(first) = spans.first() else {
+            return Ok(());
+        };
+        let line = Some(first.lines.start);
+        let records = &mut self.index.disabled_syntax;
+        self.store.reserve_items(
+            records,
+            records.len().saturating_add(spans.len()),
+            cx.file,
+            line,
+        )?;
+        self.store.meter.work(spans.len(), cx.file, line)?;
+        let module = &self.index.modules[module].path;
+        records.extend(spans.iter().cloned().map(|span| DisabledSyntax {
+            file: cx.file.clone(),
+            span,
+            module: module.clone(),
+            target: cx.target,
+        }));
         Ok(())
     }
 
@@ -1076,12 +1106,45 @@ enum Emit<'a> {
     Rest(&'a ModBody, usize),
 }
 
+type ObservationPosition<'a> = (&'a RelPath, &'a SpanFact, &'a SharedStr, TargetId);
+
+fn sort_observations<T>(
+    meter: &Meter,
+    observations: &mut [T],
+    position: impl Fn(&T) -> ObservationPosition<'_>,
+) -> Result<(), LoadError> {
+    purrdf_lex::walk::try_sort_unstable_by(observations, |left, right| {
+        let (left_file, left_span, left_module, left_target) = position(left);
+        let (right_file, right_span, right_module, right_target) = position(right);
+        meter.work(
+            left_file
+                .as_str()
+                .len()
+                .saturating_add(right_file.as_str().len())
+                .saturating_add(left_module.len())
+                .saturating_add(right_module.len())
+                .saturating_add(1),
+            left_file,
+            Some(left_span.lines.start),
+        )?;
+        Ok(
+            (left_file, left_span.start_byte, left_module, left_target).cmp(&(
+                right_file,
+                right_span.start_byte,
+                right_module,
+                right_target,
+            )),
+        )
+    })
+}
+
 impl Index {
     /// An index of `targets` that holds nothing yet.
     fn empty(targets: &[Target]) -> Self {
         Self {
             items: Vec::new(),
             unexpanded: Vec::new(),
+            disabled_syntax: Vec::new(),
             order: Vec::new(),
             modules: Vec::new(),
             module_by_path: BTreeMap::new(),
@@ -1223,24 +1286,11 @@ impl Index {
         index.build_scopes();
         index.settle_agreed(store.meter)?;
         index.attach_impls(impls, &mut store)?;
-        purrdf_lex::walk::try_sort_unstable_by(&mut index.unexpanded, |a, b| {
-            store.meter.work(
-                a.file
-                    .as_str()
-                    .len()
-                    .saturating_add(b.file.as_str().len())
-                    .saturating_add(a.module.len())
-                    .saturating_add(b.module.len())
-                    .saturating_add(1),
-                &a.file,
-                Some(a.span.lines.start),
-            )?;
-            Ok::<_, LoadError>((&a.file, a.span.start_byte, &a.module, a.target).cmp(&(
-                &b.file,
-                b.span.start_byte,
-                &b.module,
-                b.target,
-            )))
+        sort_observations(store.meter, &mut index.unexpanded, |row| {
+            (&row.file, &row.span, &row.module, row.target)
+        })?;
+        sort_observations(store.meter, &mut index.disabled_syntax, |row| {
+            (&row.file, &row.span, &row.module, row.target)
         })?;
         index.finish();
         index.settle_glob_facts(store.meter)?;

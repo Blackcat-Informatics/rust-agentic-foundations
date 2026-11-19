@@ -78,6 +78,9 @@ inputs:
     name: raf_source::DependencySpec
     digest: b03f60727b64eb7013cb9dc1284ee27270ac3c4433042bcc6d7cb5b34f6f64f1
   - kind: symbol
+    name: raf_source::DisabledSyntax
+    digest: d6f6836e4fa43d556b8ec0479953d81b1d80ec704ba07a13fbffcd6f4f7ad68f
+  - kind: symbol
     name: raf_source::DiskTree
     digest: 5496855041cec7a22d2303a3eb9049dbcafa368c7a19589c040d0e13f752702f
   - kind: symbol
@@ -420,6 +423,9 @@ inputs:
     name: raf_source::Workspace::dependency_declarations
     digest: 722a7cb773d1344927f226068f461ef618ac4373d130d5c9d540057ada529b32
   - kind: symbol
+    name: raf_source::Workspace::disabled_syntax
+    digest: ab72010e1c2aec08ee2d0dbf24676b9b69f855bcaeb5587c81bb8f5f91a63bcf
+  - kind: symbol
     name: raf_source::Workspace::exported_items
     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
   - kind: symbol
@@ -502,7 +508,7 @@ inputs:
     digest: 4c604e45e3e78c4721ba4f923ca58ad579fd3e384fb3db424369fe1747775ed3
   - kind: symbol
     name: raf_source::item
-    digest: ad09f5dc9cc8bbcf01296985c4d4bda792ebe123255366e365c623c2e1117d1b
+    digest: 3f221f04736dc6516eedcfd8c5f836faff93d8a350f8f94eeb6c22babd6f6c24
   - kind: symbol
     name: raf_source::library_target_name
     digest: e2573ec72c0e8ae40a9c8eae5609e3397bf0df6cfbf286e2a64b8f3404b27794

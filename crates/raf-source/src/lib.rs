@@ -203,8 +203,8 @@ pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport};
 pub use facts::visit_pattern_bindings;
 pub use facts::{FieldShape, SpanFact, TestRole, Vis};
 pub use item::{
-    ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
-    Unexpanded, UnresolvedImpl,
+    DisabledSyntax, ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind,
+    TraitKey, Unexpanded, UnresolvedImpl,
 };
 pub use locked::{
     LockedCatalog, LockedGitReference, LockedPackage, LockedPackageId, LockedSource,
