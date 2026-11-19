@@ -55,6 +55,8 @@ pub enum ChangeKind {
     ChangedType,
     /// The default changed in the compiled descriptor.
     ChangedDefault,
+    /// A pointer slot became required in an existing struct.
+    RequiredField,
 }
 
 impl fmt::Display for ChangeKind {
@@ -71,6 +73,7 @@ impl fmt::Display for ChangeKind {
             Self::ChangedDiscriminant => "union discriminant changed",
             Self::ChangedType => "type changed",
             Self::ChangedDefault => "default changed",
+            Self::RequiredField => "pointer field became required",
         })
     }
 }
@@ -199,6 +202,14 @@ fn structure(
         }
         if slot.default != current.default {
             emit(name(), ChangeKind::ChangedDefault)?;
+        }
+    }
+    for (&ordinal, slot) in &after.slots {
+        if slot.required && !before.slots.get(&ordinal).is_some_and(|old| old.required) {
+            emit(
+                Some(member_name(&slot.owner, &slot.name)),
+                ChangeKind::RequiredField,
+            )?;
         }
     }
     Ok(())

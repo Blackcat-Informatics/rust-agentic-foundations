@@ -119,6 +119,9 @@ pub(crate) struct HistoryArgs {
     /// Selected struct or enum type ID. Repeat to select additional types.
     #[arg(long = "type", required = true)]
     pub(crate) types: Vec<raf_census::capnp_history::TypeId>,
+    /// Void field annotation that declares required pointer storage.
+    #[arg(long)]
+    pub(crate) required_annotation: Option<raf_census::capnp_history::TypeId>,
 }
 
 /// Gate requirements the caller selects for one run; nothing here is persisted

@@ -182,6 +182,8 @@ impl std::error::Error for Error {
 /// tree files and runs no compiler, generator, consumer program, or migration.
 /// A change describes a history violation, including renames that the wire
 /// protocol permits.
+/// Supply `required_annotation` to also compare explicit required pointer
+/// fields. The ID must name a Void annotation targeting fields in both snapshots.
 ///
 /// # Errors
 ///
@@ -192,13 +194,26 @@ pub fn check(
     base: Snapshot<'_>,
     current: Snapshot<'_>,
     roots: &[TypeId],
+    required_annotation: Option<TypeId>,
 ) -> Result<Vec<Change>, Error> {
     let selected: BTreeSet<_> = roots.iter().copied().collect();
     if selected.is_empty() || selected.len() != roots.len() {
         return Err(Error::Roots);
     }
-    let base = load(repository.as_ref(), base, &selected, true)?;
-    let current = load(repository.as_ref(), current, &selected, false)?;
+    let base = load(
+        repository.as_ref(),
+        base,
+        &selected,
+        required_annotation,
+        true,
+    )?;
+    let current = load(
+        repository.as_ref(),
+        current,
+        &selected,
+        required_annotation,
+        false,
+    )?;
     compare::changes(&base, &current)
 }
 
@@ -206,6 +221,7 @@ fn load(
     repository: &Path,
     snapshot: Snapshot<'_>,
     roots: &BTreeSet<TypeId>,
+    required_annotation: Option<TypeId>,
     require_roots: bool,
 ) -> Result<descriptor::Schema, Error> {
     let tree = PinnedGitTree::open(repository, snapshot.commit, &LoadOptions::default()).map_err(
@@ -220,9 +236,11 @@ fn load(
             commit: snapshot.commit.into(),
             source,
         })?;
-    descriptor::read(&bytes, roots, require_roots).map_err(|source| Error::Descriptor {
-        commit: snapshot.commit.into(),
-        path: snapshot.descriptor.clone(),
-        source,
+    descriptor::read(&bytes, roots, required_annotation, require_roots).map_err(|source| {
+        Error::Descriptor {
+            commit: snapshot.commit.into(),
+            path: snapshot.descriptor.clone(),
+            source,
+        }
     })
 }
