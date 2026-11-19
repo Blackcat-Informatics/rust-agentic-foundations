@@ -1,0 +1,435 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! Admitted schema nodes and their projected data-layout closure.
+
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ops::Range,
+    rc::Rc,
+};
+
+use capnp::{
+    message::ReaderOptions,
+    schema_capnp::{code_generator_request, field, node},
+    serialize,
+};
+
+use super::{
+    DescriptorError as Error, TypeId,
+    occupancy::{Occupancy, POINTER_BASE},
+    shape::{self, DefaultValue, Type},
+};
+
+pub(super) const MAX_BYTES: u64 = 2 * 1024 * 1024;
+pub(super) const MAX_WORDS: usize = 1024 * 1024;
+const MAX_DEPTH: u8 = 64;
+const MAX_NAME_BYTES: usize = 256;
+
+pub(super) type GroupPath = Rc<[Rc<str>]>;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Kind {
+    Struct,
+    Enum,
+    Interface,
+}
+
+#[derive(Debug)]
+pub(super) struct Schema {
+    pub(super) roots: BTreeSet<TypeId>,
+    pub(super) nodes: BTreeMap<TypeId, Node>,
+}
+
+#[derive(Debug)]
+pub(super) enum Node {
+    Struct(Struct),
+    Enum(Vec<String>),
+}
+
+#[derive(Debug)]
+pub(super) struct Struct {
+    pub(super) parameters: u32,
+    pub(super) slots: BTreeMap<u16, Slot>,
+    pub(super) groups: BTreeMap<GroupPath, Group>,
+}
+
+#[derive(Debug)]
+pub(super) struct Group {
+    pub(super) ordinal: Option<u16>,
+    pub(super) discriminant: Option<u16>,
+    pub(super) tag_offset: Option<u32>,
+}
+
+#[derive(Debug)]
+pub(super) struct Slot {
+    pub(super) owner: GroupPath,
+    pub(super) name: String,
+    pub(super) offset: u32,
+    pub(super) discriminant: Option<u16>,
+    pub(super) ty: Type,
+    pub(super) default: DefaultValue,
+}
+
+pub(super) struct Nodes<'a>(BTreeMap<TypeId, node::Reader<'a>>);
+
+pub(super) fn read(
+    bytes: &[u8],
+    roots: &BTreeSet<TypeId>,
+    require_roots: bool,
+) -> Result<Schema, Error> {
+    let mut limits = ReaderOptions::new();
+    limits.traversal_limit_in_words(Some(MAX_WORDS));
+    limits.nesting_limit(i32::from(MAX_DEPTH));
+    let mut remainder = bytes;
+    let message = serialize::read_message_from_flat_slice(&mut remainder, limits)?;
+    if !remainder.is_empty() {
+        return Err(layout(
+            "expected exactly one unpacked compiler request with no trailing bytes",
+        ));
+    }
+    let request = message.get_root::<code_generator_request::Reader<'_>>()?;
+    let mut nodes = BTreeMap::new();
+    for node in request.get_nodes()? {
+        let id = TypeId(node.get_id());
+        if id.0 & (1 << 63) == 0 || nodes.insert(id, node).is_some() {
+            return Err(layout(format!("invalid or repeated node ID {id}")));
+        }
+    }
+    let nodes = Nodes(nodes);
+    nodes.project(roots, require_roots)
+}
+
+pub(super) fn layout(message: impl Into<String>) -> Error {
+    Error::Layout(message.into())
+}
+
+impl<'a> Nodes<'a> {
+    fn node(&self, id: TypeId) -> Result<node::Reader<'a>, Error> {
+        self.0
+            .get(&id)
+            .copied()
+            .ok_or_else(|| layout(format!("missing schema node {id}")))
+    }
+
+    pub(super) fn require_kind(&self, id: TypeId, expected: Kind) -> Result<(), Error> {
+        let actual = self.node(id)?.which()?;
+        if match (actual, expected) {
+            (node::Struct(value), Kind::Struct) => !value.get_is_group(),
+            (node::Enum(_), Kind::Enum) | (node::Interface(_), Kind::Interface) => true,
+            _ => false,
+        } {
+            Ok(())
+        } else {
+            Err(layout(format!(
+                "node {id} is not a referenced {expected:?}"
+            )))
+        }
+    }
+
+    pub(super) fn contains_scope(&self, mut owner: TypeId, scope: TypeId) -> Result<bool, Error> {
+        for _ in 0..MAX_DEPTH {
+            if owner == scope {
+                return Ok(true);
+            }
+            owner = TypeId(self.node(owner)?.get_scope_id());
+            if owner.0 == 0 {
+                return Ok(false);
+            }
+        }
+        Err(layout("schema scope chain exceeds the nesting bound"))
+    }
+
+    pub(super) fn parameters(&self, scope: TypeId) -> Result<u32, Error> {
+        Ok(self.node(scope)?.get_parameters()?.len())
+    }
+
+    pub(super) fn enumerant_count(&self, id: TypeId) -> Result<u32, Error> {
+        let node::Enum(data) = self.node(id)?.which()? else {
+            return Err(layout(format!("node {id} is not an enum")));
+        };
+        Ok(data.get_enumerants()?.len())
+    }
+
+    fn project(&self, roots: &BTreeSet<TypeId>, require_roots: bool) -> Result<Schema, Error> {
+        let mut needed = BTreeSet::new();
+        let mut present = BTreeSet::new();
+        for &root in roots {
+            if require_roots || self.0.contains_key(&root) {
+                self.node(root)?;
+                needed.insert(root);
+                present.insert(root);
+            }
+        }
+        let mut nodes = BTreeMap::new();
+        while let Some(id) = needed.pop_first() {
+            if nodes.contains_key(&id) {
+                continue;
+            }
+            let data = match self.node(id)?.which()? {
+                node::Struct(data) if !data.get_is_group() => {
+                    Node::Struct(self.structure(id, data, &mut needed)?)
+                }
+                node::Enum(data) => Node::Enum(enumerants(id, data)?),
+                _ => {
+                    return Err(layout(format!(
+                        "selected node {id} must be a data struct or enum"
+                    )));
+                }
+            };
+            nodes.insert(id, data);
+        }
+        Ok(Schema {
+            roots: present,
+            nodes,
+        })
+    }
+
+    fn structure(
+        &self,
+        id: TypeId,
+        reader: node::struct_::Reader<'a>,
+        needed: &mut BTreeSet<TypeId>,
+    ) -> Result<Struct, Error> {
+        let mut collector = Fields {
+            nodes: self,
+            needed,
+            slots: BTreeMap::new(),
+            groups: BTreeMap::new(),
+            used_groups: BTreeSet::new(),
+            ordinals: BTreeSet::new(),
+            sizes: (reader.get_data_word_count(), reader.get_pointer_count()),
+        };
+        collector.group(id, reader, Rc::from([]), (None, None))?;
+        if collector
+            .ordinals
+            .last()
+            .is_some_and(|&last| usize::from(last) + 1 != collector.ordinals.len())
+        {
+            return Err(layout(format!(
+                "ordinals of struct {id} are not consecutive from zero"
+            )));
+        }
+        Ok(Struct {
+            parameters: self.parameters(id)?,
+            slots: collector.slots,
+            groups: collector.groups,
+        })
+    }
+}
+
+fn enumerants(id: TypeId, data: node::enum_::Reader<'_>) -> Result<Vec<String>, Error> {
+    let values = data.get_enumerants()?;
+    if values.len() > u32::from(u16::MAX) + 1 {
+        return Err(layout(format!("enum {id} exceeds the ordinal range")));
+    }
+    let mut names = Vec::new();
+    let mut unique = BTreeSet::new();
+    for value in values {
+        let name = member_name(value.get_name()?)?;
+        if !unique.insert(name) {
+            return Err(layout(format!("enum {id} repeats enumerant {name}")));
+        }
+        names.push(name.to_owned());
+    }
+    Ok(names)
+}
+
+fn member_name(name: capnp::text::Reader<'_>) -> Result<&str, Error> {
+    let name = name
+        .to_str()
+        .map_err(|error| layout(format!("invalid UTF-8 member name: {error}")))?;
+    if name.len() > MAX_NAME_BYTES {
+        return Err(layout("Cap'n Proto member name exceeds the 256-byte bound"));
+    }
+    if name.is_empty()
+        || !name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    {
+        return Err(layout(format!("invalid Cap'n Proto member name {name:?}")));
+    }
+    Ok(name)
+}
+
+struct Fields<'a, 'b> {
+    nodes: &'b Nodes<'a>,
+    needed: &'b mut BTreeSet<TypeId>,
+    slots: BTreeMap<u16, Slot>,
+    groups: BTreeMap<GroupPath, Group>,
+    used_groups: BTreeSet<TypeId>,
+    ordinals: BTreeSet<u16>,
+    sizes: (u16, u16),
+}
+
+impl<'a> Fields<'a, '_> {
+    fn group(
+        &mut self,
+        id: TypeId,
+        reader: node::struct_::Reader<'a>,
+        path: GroupPath,
+        (ordinal, discriminant): (Option<u16>, Option<u16>),
+    ) -> Result<Occupancy, Error> {
+        if path.len() >= usize::from(MAX_DEPTH) {
+            return Err(layout("schema groups exceed the nesting bound"));
+        }
+        let count = reader.get_discriminant_count();
+        let offset = reader.get_discriminant_offset();
+        if count == 1 || (count != 0 && offset >= u32::from(self.sizes.0) * 4) {
+            return Err(layout(format!("invalid union tag layout in node {id}")));
+        }
+        let group = Group {
+            ordinal,
+            discriminant,
+            tag_offset: (count != 0).then_some(offset),
+        };
+        if !self.used_groups.insert(id) {
+            return Err(layout(format!("repeated group node {id}")));
+        }
+        let collision = |_| {
+            layout(format!(
+                "overlapping active fields or union tag in node {id}"
+            ))
+        };
+        let mut occupied = Occupancy::default();
+        let mut arms = Occupancy::default();
+        if count != 0 {
+            occupied
+                .insert(offset * 16..(offset + 1) * 16, false)
+                .map_err(collision)?;
+        }
+        let mut discriminants = BTreeSet::new();
+        let mut names = BTreeSet::new();
+        for field in reader.get_fields()? {
+            let name = member_name(field.get_name()?)?;
+            if !names.insert(name) {
+                return Err(layout(format!("node {id} repeats field {name}")));
+            }
+            let value = field.get_discriminant_value();
+            let discriminant = if value == field::NO_DISCRIMINANT {
+                None
+            } else if value < count && discriminants.insert(value) {
+                Some(value)
+            } else {
+                return Err(layout(format!(
+                    "invalid or repeated union tag value for {id}.{name}"
+                )));
+            };
+            let destination = if discriminant.is_some() {
+                &mut arms
+            } else {
+                &mut occupied
+            };
+            self.field((id, &path), name, field, discriminant, destination)?;
+        }
+        if discriminants.len() != usize::from(count) {
+            return Err(layout(format!("incomplete union tag values in node {id}")));
+        }
+        occupied.merge(arms, false).map_err(collision)?;
+        self.groups.insert(path, group);
+        Ok(occupied)
+    }
+
+    fn field(
+        &mut self,
+        (owner, path): (TypeId, &GroupPath),
+        name: &str,
+        field: field::Reader<'a>,
+        discriminant: Option<u16>,
+        occupied: &mut Occupancy,
+    ) -> Result<(), Error> {
+        let ordinal = match field.get_ordinal().which()? {
+            field::ordinal::Explicit(value) => Some(value),
+            field::ordinal::Implicit(()) => None,
+        };
+        if let Some(value) = ordinal
+            && !self.ordinals.insert(value)
+        {
+            return Err(layout(format!(
+                "repeated ordinal @{value} at {owner}.{name}"
+            )));
+        }
+        let collision = |_| {
+            layout(format!(
+                "slot or group at {owner}.{name} overlaps active storage"
+            ))
+        };
+        let exclusive = discriminant.is_some();
+        match field.which()? {
+            field::Slot(slot) => {
+                let ordinal =
+                    ordinal.ok_or_else(|| layout(format!("{owner}.{name} has no ordinal")))?;
+                if let Some(span) = self.slot((owner, path), (name, ordinal), slot, discriminant)? {
+                    occupied.insert(span, exclusive).map_err(collision)?;
+                }
+            }
+            field::Group(group) => {
+                let id = TypeId(group.get_type_id());
+                let node = self.nodes.node(id)?;
+                let node::Struct(overlay) = node.which()? else {
+                    return Err(layout(format!(
+                        "{owner}.{name} refers to non-struct group {id}"
+                    )));
+                };
+                if !overlay.get_is_group()
+                    || node.get_scope_id() != owner.0
+                    || (overlay.get_data_word_count(), overlay.get_pointer_count()) != self.sizes
+                {
+                    return Err(layout(format!(
+                        "group {id} does not share the layout of {owner}.{name}"
+                    )));
+                }
+                let mut path = path.to_vec();
+                path.push(Rc::from(name));
+                let footprint = self.group(id, overlay, path.into(), (ordinal, discriminant))?;
+                occupied.merge(footprint, exclusive).map_err(collision)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn slot(
+        &mut self,
+        (owner, path): (TypeId, &GroupPath),
+        (name, ordinal): (&str, u16),
+        slot: field::slot::Reader<'_>,
+        discriminant: Option<u16>,
+    ) -> Result<Option<Range<u32>>, Error> {
+        if !slot.has_type() || !slot.has_default_value() {
+            return Err(layout(format!(
+                "missing type or default at {owner}.{name} @{ordinal}"
+            )));
+        }
+        let ty = Type::read(slot.get_type()?, self.nodes, owner, self.needed)?;
+        let default = shape::default(&ty, slot.get_default_value()?, self.nodes)?;
+        let offset = slot.get_offset();
+        let storage = ty.storage();
+        let limit = match storage {
+            None => 1,
+            Some((true, _)) => u32::from(self.sizes.1),
+            Some((false, bits)) => u32::from(self.sizes.0) * 64 / bits,
+        };
+        if offset >= limit {
+            return Err(layout(format!(
+                "slot offset out of bounds at {owner}.{name} @{ordinal}"
+            )));
+        }
+        let slot = Slot {
+            owner: Rc::clone(path),
+            name: name.to_owned(),
+            offset,
+            discriminant,
+            ty,
+            default,
+        };
+        self.slots.insert(ordinal, slot);
+        Ok(storage.map(|(pointer, width)| {
+            let start = if pointer {
+                POINTER_BASE + offset
+            } else {
+                offset * width
+            };
+            start..start + width
+        }))
+    }
+}

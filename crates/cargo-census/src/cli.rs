@@ -16,7 +16,7 @@ enum Cargo {
 #[derive(ClapArgs)]
 #[command(version, arg_required_else_help = true, disable_help_subcommand = true)]
 pub(crate) struct Args {
-    /// Directory inside the workspace; ancestor manifests locate its root.
+    /// Workspace directory, or the exact Git repository root for capnp-history.
     #[arg(long, default_value = ".", global = true)]
     pub(crate) workspace: PathBuf,
     #[command(flatten)]
@@ -29,6 +29,8 @@ pub(crate) struct Args {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    /// Compare committed Cap'n Proto schema descriptors under the strict history policy.
+    CapnpHistory(HistoryArgs),
     /// Inspect verified embedded source regions without running consumer code.
     Embedded {
         #[command(subcommand)]
@@ -98,6 +100,25 @@ pub(crate) enum Command {
         #[command(flatten)]
         policy: PolicyArgs,
     },
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct HistoryArgs {
+    /// Full base commit ID.
+    #[arg(long)]
+    pub(crate) base: String,
+    /// Full current commit ID.
+    #[arg(long)]
+    pub(crate) current: String,
+    /// Repository-relative path to the base compiler descriptor.
+    #[arg(long)]
+    pub(crate) base_descriptor: String,
+    /// Repository-relative path to the current compiler descriptor.
+    #[arg(long)]
+    pub(crate) current_descriptor: String,
+    /// Selected struct or enum type ID. Repeat to select additional types.
+    #[arg(long = "type", required = true)]
+    pub(crate) types: Vec<raf_census::capnp_history::TypeId>,
 }
 
 /// Gate requirements the caller selects for one run; nothing here is persisted

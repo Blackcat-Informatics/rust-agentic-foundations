@@ -44,6 +44,7 @@
 //! # Ok::<(), raf_census::Error>(())
 //! ```
 
+pub mod capnp_history;
 mod census;
 mod detectors;
 pub mod embedded;
