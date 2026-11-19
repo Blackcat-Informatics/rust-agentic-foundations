@@ -7,20 +7,22 @@ mod cache;
 pub(in crate::gate) mod scopes;
 pub(in crate::gate) mod visit;
 
+use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use purrdf_jsonschema::ecma::MatchLimits;
+use purrdf_lex::walk::WorkList;
 use raf_source::{
     CodeResolveError, CodeResolver, ImplBlock, ItemId, Namespace, PackageId, Resolution,
     ResolutionAttempt, ResolveError, SourceFile, TargetKind, Workspace,
 };
 use syn::ext::IdentExt;
 
-use super::{Found, charge, failure};
+use super::{Found, charge, failure, push};
 use crate::syntax::{Alias, path_text};
 use crate::{Census, Error, LedgerPattern, PatternMatcher, VisibilityError};
 use cache::OwnerCache;
-use scopes::{Expanded, Scopes};
+use scopes::{Expanded, Glob, Scopes};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Role {
@@ -229,6 +231,48 @@ struct GlobLookup {
     opaque: Option<String>,
 }
 
+struct ScopedGlob<'a> {
+    declaration: &'a Glob,
+    frame: usize,
+    expanded: Expanded,
+    text: String,
+    direct: bool,
+    chained: OnceCell<GlobRoute>,
+}
+
+type GlobPrefixes<'a> = WorkList<ScopedGlob<'a>, 8>;
+
+impl ScopedGlob<'_> {
+    fn prefix(&self) -> &str {
+        self.chained
+            .get()
+            .map_or(self.text.as_str(), |route| route.path.as_str())
+    }
+
+    fn has_prefix(&self) -> bool {
+        // Source can identify the declaration of a module-scope shadow.
+        !(self.expanded.segments.is_empty() || self.expanded.shadowed && self.expanded.block)
+    }
+
+    fn unresolved_relative(&self) -> bool {
+        !self.direct && self.chained.get().is_none() && self.relative_prefix().is_some()
+    }
+
+    fn relative_prefix(&self) -> Option<(&str, &[String])> {
+        let (head, tail) = self.expanded.segments.split_first()?;
+        let head = head.as_str();
+        (self.has_prefix()
+            && !self.expanded.is_absolute()
+            && !matches!(head, "crate" | "self" | "super"))
+        .then_some((head, tail))
+    }
+}
+
+struct GlobRoute {
+    path: String,
+    sites: Vec<ItemId>,
+}
+
 struct Lookup<'a, 'w> {
     code: &'a CodeResolver<'w>,
     owner: PathOwner<'a>,
@@ -373,62 +417,43 @@ impl Lookup<'_, '_> {
             self.site.namespace
         };
         let mut glob_lookup = GlobLookup::default();
-        for (frame, globs) in scopes.block_globs(expanded) {
-            let mut selected: Option<(String, Vec<ItemId>)> = None;
-            for glob in globs {
-                if self.site.is_import() && glob.source_byte == Some(self.site.byte) {
-                    continue;
-                }
-                let mut eligible = |alias: &Alias, namespace| self.eligible(alias, namespace);
-                let Some(mut prefix) = scopes.expand_from(
-                    &glob.path,
-                    glob.absolute,
-                    Namespace::Type,
-                    frame + 1,
-                    limits,
-                    &mut eligible,
-                )?
-                else {
-                    continue;
-                };
-                if prefix.shadowed || prefix.segments.is_empty() {
-                    glob_lookup
-                        .opaque
-                        .get_or_insert_with(|| path_text(&glob.path, glob.absolute));
-                    continue;
-                }
-                let glob_path = prefix.text();
-                prefix.segments.push(head.clone());
-                let path = prefix.text();
-                charge(
-                    self.label,
-                    limits,
-                    path.len().try_into().unwrap_or(u64::MAX),
-                )?;
-                let Some(resolution) = self.indexed_in(&path, namespace, true)? else {
-                    if self
-                        .indexed_in(&glob_path, Namespace::Type, true)?
-                        .is_none()
-                    {
-                        glob_lookup.opaque.get_or_insert(glob_path);
-                    }
-                    continue;
-                };
-                if let Some((_, previous)) = &selected
-                    && *previous != resolution
-                {
-                    return Err(failure(
-                        self.label,
-                        &format!("written path head {head:?} has competing block glob bindings"),
-                    ));
-                }
-                prefix.segments.extend(written.iter().skip(1).cloned());
-                selected = Some((prefix.text(), resolution));
+        let own = |glob: &Glob| self.site.is_import() && glob.source_byte == Some(self.site.byte);
+        for (frame, declarations) in scopes
+            .block_globs()
+            .take_while(|(frame, _)| expanded.is_none_or(|path| path.sees_glob(*frame)))
+        {
+            if declarations.iter().all(own) {
+                continue;
             }
-            if let Some((path, resolved_head)) = selected {
+            let mut selected = None;
+            let globs = self.resolve_block_globs(scopes, frame, limits)?;
+            for glob in globs.iter().take_while(|glob| glob.frame == frame) {
+                if own(glob.declaration) {
+                    continue;
+                }
+                if !glob.has_prefix() {
+                    glob_lookup.opaque.get_or_insert_with(|| {
+                        path_text(&glob.declaration.path, glob.declaration.absolute)
+                    });
+                    continue;
+                }
+                let prefix = glob.prefix();
+                if let Some(route) = self.glob_member(prefix, head, namespace, limits)? {
+                    self.select_glob(&mut selected, route, head)?;
+                } else if !glob.direct && glob.chained.get().is_none() {
+                    glob_lookup.opaque.get_or_insert_with(|| prefix.to_owned());
+                }
+            }
+            if let Some(route) = selected {
                 glob_lookup.definition = Some(if written.len() == 1 {
-                    PathDefinition::Written(resolved_head)
+                    PathDefinition::Written(route.sites)
                 } else {
+                    let path = format!("{}::{}", route.path, path_text(&written[1..], false));
+                    charge(
+                        self.label,
+                        limits,
+                        path.len().try_into().unwrap_or(u64::MAX),
+                    )?;
                     self.indexed(&path, true)?
                         .map_or(PathDefinition::Missing, PathDefinition::Written)
                 });
@@ -436,6 +461,217 @@ impl Lookup<'_, '_> {
             }
         }
         Ok(glob_lookup)
+    }
+
+    fn resolve_block_globs<'s>(
+        &self,
+        scopes: &'s Scopes,
+        wanted_frame: usize,
+        limits: &mut MatchLimits,
+    ) -> Result<GlobPrefixes<'s>, Error> {
+        let mut globs = WorkList::new();
+        for (frame, declarations) in scopes
+            .block_globs()
+            .skip_while(|(frame, _)| *frame > wanted_frame)
+        {
+            self.prepare_glob_frame(scopes, frame, declarations, &mut globs, limits)?;
+            self.settle_globs(&globs, limits)?;
+            if !globs
+                .iter()
+                .take_while(|glob| glob.frame == wanted_frame)
+                .any(|glob| glob.relative_prefix().is_some() && glob.expanded.sees_glob(frame))
+            {
+                break;
+            }
+        }
+        // A later anchored chain can introduce a second candidate in the
+        // declaration scope. Recheck each inferred prefix against that scope.
+        for glob in globs.iter().filter(|glob| glob.relative_prefix().is_some()) {
+            let settled = self.chain_glob(glob, &globs, limits)?;
+            if !glob.direct
+                && settled.as_ref().map(|route| &route.sites)
+                    != glob.chained.get().map(|route| &route.sites)
+            {
+                return Err(failure(
+                    self.label,
+                    "chained block glob prefix changes binding as imports resolve",
+                ));
+            }
+        }
+        Ok(globs)
+    }
+
+    fn prepare_glob_frame<'s>(
+        &self,
+        scopes: &'s Scopes,
+        frame: usize,
+        declarations: &'s [Glob],
+        globs: &mut GlobPrefixes<'s>,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        for declaration in declarations {
+            let mut eligible = |alias: &Alias, namespace| self.eligible(alias, namespace);
+            let Some(expanded) = scopes.expand_from(
+                &declaration.path,
+                declaration.absolute,
+                Namespace::Type,
+                frame + 1,
+                limits,
+                &mut eligible,
+            )?
+            else {
+                continue;
+            };
+            let text = expanded.text();
+            charge(
+                self.label,
+                limits,
+                text.len().try_into().unwrap_or(u64::MAX),
+            )?;
+            let mut prefix = ScopedGlob {
+                declaration,
+                frame,
+                expanded,
+                text,
+                direct: false,
+                chained: OnceCell::new(),
+            };
+            prefix.direct = prefix.has_prefix()
+                && self
+                    .indexed_in(&prefix.text, Namespace::Type, true)?
+                    .is_some();
+            push(self.label, globs, prefix, 0, limits)?;
+        }
+        Ok(())
+    }
+
+    fn settle_globs(
+        &self,
+        globs: &GlobPrefixes<'_>,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        // A chain gets a definition only from a previously proved prefix. Each
+        // productive pass resolves at least one declaration, and every candidate
+        // examination spends the shared work grant. Unanchored cycles stay opaque.
+        loop {
+            let mut changed = false;
+            for glob in globs.iter() {
+                if glob.unresolved_relative()
+                    && let Some(route) = self.chain_glob(glob, globs, limits)?
+                {
+                    glob.chained.set(route).map_err(|_| {
+                        failure(self.label, "block glob prefix already has a settled route")
+                    })?;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    fn chain_glob(
+        &self,
+        glob: &ScopedGlob<'_>,
+        globs: &GlobPrefixes<'_>,
+        limits: &mut MatchLimits,
+    ) -> Result<Option<GlobRoute>, Error> {
+        let Some((head, tail)) = glob.relative_prefix() else {
+            return Ok(None);
+        };
+        let mut selected = None;
+        for candidate in globs.iter() {
+            charge(self.label, limits, 1)?;
+            if candidate.frame > glob.frame
+                || !glob.expanded.sees_glob(candidate.frame)
+                || std::ptr::eq(candidate.declaration, glob.declaration)
+                || (!candidate.direct && candidate.chained.get().is_none())
+            {
+                continue;
+            }
+            if let Some(route) =
+                self.glob_member(candidate.prefix(), head, Namespace::Type, limits)?
+            {
+                self.select_glob(&mut selected, route, head)?;
+            }
+        }
+        let Some(route) = selected else {
+            return Ok(None);
+        };
+        // Imports cannot select a glob binding over a distinct outer candidate.
+        if self.conflicting_outer_glob(head, &route.sites)? {
+            return Err(failure(
+                self.label,
+                &format!(
+                    "block glob prefix {head:?} has distinct glob and outer bindings; qualify the import"
+                ),
+            ));
+        }
+        if tail.is_empty() {
+            return Ok(Some(route));
+        }
+        let path = format!("{}::{}", route.path, path_text(tail, false));
+        charge(
+            self.label,
+            limits,
+            path.len().try_into().unwrap_or(u64::MAX),
+        )?;
+        Ok(self
+            .indexed_in(&path, Namespace::Type, true)?
+            .map(|sites| GlobRoute { path, sites }))
+    }
+
+    fn conflicting_outer_glob(&self, head: &str, sites: &[ItemId]) -> Result<bool, Error> {
+        match self.query(head, Namespace::Type, true) {
+            Ok(outer) => Ok(outer.sites != sites),
+            Err(CodeResolveError::Resolve(ResolveError::Ambiguous(_))) => Ok(true),
+            Err(
+                CodeResolveError::Resolve(
+                    ResolveError::NotFound(_) | ResolveError::UnresolvedSelf(_),
+                )
+                | CodeResolveError::AliasMember { .. },
+            ) => Ok(false),
+            Err(error) => Err(self.error(head, error)),
+        }
+    }
+
+    fn glob_member(
+        &self,
+        prefix: &str,
+        head: &str,
+        namespace: Namespace,
+        limits: &mut MatchLimits,
+    ) -> Result<Option<GlobRoute>, Error> {
+        let path = format!("{prefix}::{head}");
+        charge(
+            self.label,
+            limits,
+            path.len().try_into().unwrap_or(u64::MAX),
+        )?;
+        Ok(self
+            .indexed_in(&path, namespace, true)?
+            .map(|sites| GlobRoute { path, sites }))
+    }
+
+    fn select_glob(
+        &self,
+        selected: &mut Option<GlobRoute>,
+        route: GlobRoute,
+        head: &str,
+    ) -> Result<(), Error> {
+        if selected
+            .as_ref()
+            .is_some_and(|previous| previous.sites != route.sites)
+        {
+            return Err(failure(
+                self.label,
+                &format!("written path head {head:?} has competing block glob bindings"),
+            ));
+        }
+        *selected = Some(route);
+        Ok(())
     }
 
     fn query(
@@ -892,15 +1128,21 @@ fn matches(
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write as _;
+
     use super::OwnerCache;
     use purrdf_jsonschema::ecma::MatchLimits;
     use raf_source::{MemoryTree, Workspace};
 
     #[test]
     fn ownership_scans_spend_the_grant_once_per_byte_and_bound_retention() {
+        let mut source = String::new();
+        for index in 0..64 {
+            writeln!(source, "pub fn owner_{index}(){{}}").unwrap();
+        }
         let tree = MemoryTree::from([
             ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\n"),
-            ("src/lib.rs", "pub fn one(){} pub fn two(){}"),
+            ("src/lib.rs", source.as_str()),
         ]);
         let workspace = Workspace::load(&tree, &["."]).unwrap();
         let file = workspace.files().next().unwrap();
@@ -909,18 +1151,18 @@ mod tests {
         let mut cache = OwnerCache::default();
         let mut limits = MatchLimits {
             steps: 10_000,
-            states: 64,
+            states: 128,
         };
         let first = cache.get(&workspace, file, 0, &mut limits).unwrap();
         assert_eq!(first.len(), 1);
-        assert_eq!(first[0].path, "demo::one");
-        // A second lookup can afford only the cache walk, not another scan.
+        assert_eq!(first[0].path, "demo::owner_0");
+        // A repeated lookup can afford only the already stored result.
         limits.steps = 32;
         assert_eq!(
             cache.get(&workspace, file, 0, &mut limits).unwrap()[0].path,
-            "demo::one"
+            "demo::owner_0"
         );
-        let second = file.text.find("two").unwrap();
+        let second = file.text.find("owner_42").unwrap();
         limits.steps = 32;
         assert!(
             cache
@@ -932,8 +1174,21 @@ mod tests {
         limits.steps = 10_000;
         assert_eq!(
             cache.get(&workspace, file, second, &mut limits).unwrap()[0].path,
-            "demo::two"
+            "demo::owner_42"
         );
+        // Visibility retains a single result but reuses the span index for
+        // distinct, nonsequential bytes under a grant too small for a scan.
+        let mut visibility = OwnerCache::one_occurrence();
+        visibility
+            .get(&workspace, file, second, &mut limits)
+            .unwrap();
+        for index in [63, 2, 29, 0] {
+            limits.steps = 64;
+            let byte = file.text.find(&format!("owner_{index}(")).unwrap();
+            let owners = visibility.get(&workspace, file, byte, &mut limits).unwrap();
+            assert_eq!(owners.len(), 1);
+            assert_eq!(owners[0].path, format!("demo::owner_{index}"));
+        }
         let mut refused = OwnerCache::default();
         limits.states = 0;
         assert!(
@@ -948,7 +1203,7 @@ mod tests {
         limits.states = usize::MAX;
         assert_eq!(
             generous.get(&workspace, file, 0, &mut limits).unwrap()[0].path,
-            "demo::one"
+            "demo::owner_0"
         );
     }
 }

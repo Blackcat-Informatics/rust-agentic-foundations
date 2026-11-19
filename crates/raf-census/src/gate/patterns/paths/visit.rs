@@ -892,6 +892,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_macro(&mut self, node: &'ast syn::Macro) {
+        if self.path_uses.is_some() {
+            self.type_prefixes(&node.path);
+        }
         self.path(&node.path, Role::Macro, Namespace::Macro);
         // This observes written expression-list arguments, never expansion or
         // the meaning of a macro's non-expression language.

@@ -7,7 +7,7 @@ subject: cap:census-visibility#constraints
 inputs:
   - kind: section
     name: cap:census-visibility#constraints
-    digest: 9bc8fbb07036a62f0d9639543686ab430cef8008a5032f6f861626611ac0f47e
+    digest: d70aa405dadc5257788a303dbb12caa82fbe21643f1a6c4ff54cf35aeed4f6a6
   - kind: symbol
     name: cargo_census::command::visibility
     digest: df5706602679ee9ad61e8e6d367f13e17205348448562126702283b237406459

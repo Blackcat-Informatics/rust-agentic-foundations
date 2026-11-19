@@ -90,9 +90,12 @@ unused by other packages.
   <!-- raf:tested-by cargo_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers -->
 - Written path evidence covers indexed imports, lexical aliases, calls,
   constructors, patterns, types and macros named in source. It covers type or
-  module prefixes that resolve in their written namespace. An identity that
-  remains ambiguous across packages refuses the report when it can affect a
-  public declaration. A block glob outside the index can likewise prevent
+  module prefixes that resolve in their written namespace, including prefixes
+  of qualified macro calls. A block glob can resolve through another block glob
+  visible from its declaration. If the glob prefix could name separate
+  definitions through a glob and an outer scope, qualify the import. An identity
+  that remains ambiguous across packages refuses the report when it can affect
+  a public declaration. A block glob outside the index can likewise prevent
   attribution of an unqualified path. Macro expansion, implicit method
   selection, unresolved `Self` paths and associated selections through
   unsupported type-alias projections require evidence outside this report.
@@ -111,10 +114,11 @@ path, and synthetic crate roots are outside the declaration inventory.
 
 The CLI fixture checks the three library tiers, re-export attribution, the
 import in an out-of-line module, the test-only dependency, trait and block
-scope resolution, a constant pattern reached through a block glob, and the
-exact union of written path spellings. It compares report bytes across entry
-directories and checks that a normal dependency cycle and a potentially
-shadowing unindexed block glob refuse before output.
+scope resolution, a constant pattern reached through a block glob, chained
+and direct block glob prefixes, and a module named only through a qualified
+macro call. It checks the exact union of written path spellings, compares
+report bytes across entry directories and checks that a normal dependency
+cycle and a potentially shadowing unindexed block glob refuse before output.
 An excluded package and an inert build script exercise the static input
 boundary.
 

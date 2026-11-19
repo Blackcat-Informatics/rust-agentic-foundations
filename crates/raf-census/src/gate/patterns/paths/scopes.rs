@@ -167,6 +167,14 @@ impl Expanded {
     pub(in crate::gate) fn text(&self) -> String {
         path_text(&self.segments, self.absolute)
     }
+
+    pub(super) fn sees_glob(&self, frame: usize) -> bool {
+        self.first_frame.is_none_or(|first| frame > first)
+    }
+
+    pub(super) fn is_absolute(&self) -> bool {
+        self.absolute
+    }
 }
 
 #[derive(Default)]
@@ -570,17 +578,11 @@ impl Scopes {
         }
     }
 
-    pub(super) fn block_globs(
-        &self,
-        expanded: Option<&Expanded>,
-    ) -> impl Iterator<Item = (usize, &[Glob])> {
-        let first_frame = expanded.and_then(|path| path.first_frame);
+    pub(super) fn block_globs(&self) -> impl Iterator<Item = (usize, &[Glob])> {
         (0..self.frames.len())
             .rev()
             .zip(self.frames.iter().rev())
-            .take_while(move |(index, frame)| {
-                !frame.module && first_frame.is_none_or(|first| *index > first)
-            })
+            .take_while(|(_, frame)| !frame.module)
             .filter(|(_, frame)| !frame.globs.is_empty())
             .map(|(index, frame)| (index, frame.globs.as_slice()))
     }

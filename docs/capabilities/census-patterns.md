@@ -231,13 +231,14 @@ refuse with a remedy. Structural navigation never supplies configured provider
 proof, and reference files do not become first-party rule subjects.
 <!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
 
-Source ownership queries reuse the native index once per file and byte across
-patterns and constant observations. Candidate scans spend the matching step
-grant before lookup. The native ordered table charges logarithmic lookup and
-update bounds, and exact arena growth layouts before allocation under the same
-original grant. Cache associations and retained reference-vector capacity,
-including spare cells, spend the state grant. The exact arena admission does
-not cover Source's existing query scratch or the indexed items it lends.
+Source ownership queries index the file's start-ordered spans once. Subtrees
+whose spans end before the query byte can be skipped. The file index and each
+examined node spend the matching step grant. The native ordered table reuses
+the owners of each byte across patterns and constant observations. It charges
+logarithmic lookup and update bounds and exact arena growth layouts before
+allocation under the same grant. File span slots, cache associations and
+retained reference-vector capacity, including spare cells, spend the state
+grant. The arena admission covers the ordered table storage.
 Native index allocation/layout failures retain their typed cause. Generous
 state ceilings do not fail merely because a derived allowance exceeds the
 address space; actual unrepresentable allocation layouts still refuse.

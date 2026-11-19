@@ -7,7 +7,7 @@ subject: cap:census-visibility#verification
 inputs:
   - kind: section
     name: cap:census-visibility#verification
-    digest: 8959d0fe4b570802bc2472cddcf0c695a3eb7dff516aea302f522a9cb1d95937
+    digest: aaeb55c3055cf8b11bc51fda88ce878a65ed12a1480a5df129fc507597d971b2
   - kind: symbol
     name: cargo_census::command::visibility
     digest: df5706602679ee9ad61e8e6d367f13e17205348448562126702283b237406459

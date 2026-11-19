@@ -179,6 +179,7 @@ fn visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers() {
                  pub mod glob_symbols {\n\
                      pub const LIMIT: u8 = 3;\n\
                      pub fn via_glob() {} pub fn shadowed() {}\n\
+                     pub mod branch { pub mod leaf { pub fn via_chain() {} pub fn via_direct() {} } }\n\
                  }",
             ),
             (
@@ -189,7 +190,9 @@ fn visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers() {
             (
                 "bridge/src/lib.rs",
                 "pub use upstream::{api as facade, glob_symbols, only_in_import, Marker};\n\
-                 pub fn unused_bridge() {}",
+                 pub fn unused_bridge() {}\n\
+                 #[macro_export] macro_rules! emitted { () => { () } }\n\
+                 pub mod macro_api { pub use crate::emitted as emit; }",
             ),
             (
                 "client/Cargo.toml",
@@ -208,6 +211,9 @@ fn visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers() {
                      via_glob();\n\
                      shadowed();\n\
                      match value { LIMIT => (), _ => () }\n\
+                     { use leaf::*; use branch::*; via_chain(); }\n\
+                     { use bridge::glob_symbols::branch::leaf::*; via_direct(); }\n\
+                     bridge::macro_api::emit!();\n\
                  }",
             ),
             (
@@ -240,7 +246,7 @@ fn visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers() {
     assert!(!root.join("client/consumer-executed").exists());
     assert!(!root.join("target").exists());
 
-    assert_opaque_glob_refused(root);
+    assert_block_glob_scope(root);
     fs::write(
         root.join("base/Cargo.toml"),
         format!("{base_manifest}[dependencies]\nclient={{path='../client'}}\n"),
@@ -252,16 +258,41 @@ fn visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers() {
     assert!(String::from_utf8_lossy(&cycle.stderr).contains("normal library dependency cycle"));
 }
 
-fn assert_opaque_glob_refused(root: &Path) {
+fn assert_block_glob_scope(root: &Path) {
     fs::write(
         root.join("client/src/loose.rs"),
-        "use bridge::facade;\nfn call() { use std::io::*; facade(); }",
+        "fn call() { use std::io::*; { use ::bridge::glob_symbols::branch::leaf::*; via_direct(); } }",
     )
     .unwrap();
     let branch = run(root, &["visibility"]);
-    assert_eq!(branch.status.code(), Some(1));
-    assert_eq!(branch.stdout, Vec::<u8>::new());
-    assert!(String::from_utf8_lossy(&branch.stderr).contains("unindexed block glob"));
+    assert!(branch.status.success(), "{branch:?}");
+
+    for globs in [
+        "use std::io::*;",
+        "use first::second::*; use second::first::*;",
+    ] {
+        fs::write(
+            root.join("client/src/loose.rs"),
+            format!("use bridge::facade;\nfn call() {{ {globs} facade(); }}"),
+        )
+        .unwrap();
+        let branch = run(root, &["visibility"]);
+        assert_eq!(branch.status.code(), Some(1));
+        assert_eq!(branch.stdout, Vec::<u8>::new());
+        assert!(String::from_utf8_lossy(&branch.stderr).contains("unindexed block glob"));
+    }
+
+    fs::write(
+        root.join("client/src/loose.rs"),
+        "mod branch {}\nfn call() { use ::bridge::glob_symbols::*; use branch::*; }",
+    )
+    .unwrap();
+    let ambiguous = run(root, &["visibility"]);
+    assert_eq!(ambiguous.status.code(), Some(1));
+    assert_eq!(ambiguous.stdout, Vec::<u8>::new());
+    assert!(
+        String::from_utf8_lossy(&ambiguous.stderr).contains("distinct glob and outer bindings")
+    );
 }
 
 fn assert_visibility_report(graph: &raf_rdf::Graph) {
@@ -274,10 +305,10 @@ fn assert_visibility_report(graph: &raf_rdf::Graph) {
         assert_eq!(visibility_value(libraries[package], "tier"), tier);
     }
     let base = libraries["base"];
-    assert_eq!(visibility_value(base, "publicCount"), "13");
-    assert_eq!(visibility_value(base, "exportedCount"), "13");
-    assert_eq!(visibility_value(base, "usedExportedCount"), "7");
-    assert_eq!(visibility_value(base, "writtenPathCount"), "12");
+    assert_eq!(visibility_value(base, "publicCount"), "17");
+    assert_eq!(visibility_value(base, "exportedCount"), "17");
+    assert_eq!(visibility_value(base, "usedExportedCount"), "11");
+    assert_eq!(visibility_value(base, "writtenPathCount"), "19");
     let counts: std::collections::BTreeMap<_, _> = visibility_nodes(graph, base, "kindCount")
         .map(|row| {
             (
@@ -290,8 +321,8 @@ fn assert_visibility_report(graph: &raf_rdf::Graph) {
         counts,
         std::collections::BTreeMap::from([
             ("constant", "1"),
-            ("function", "9"),
-            ("module", "1"),
+            ("function", "11"),
+            ("module", "3"),
             ("struct", "1"),
             ("trait", "1")
         ])
@@ -303,6 +334,27 @@ fn assert_visibility_report(graph: &raf_rdf::Graph) {
     assert!(!unused.contains("base::implementation::used"));
     assert!(unused.contains("base::glob_symbols::shadowed"));
     assert!(!unused.contains("base::glob_symbols::LIMIT"));
+    assert_visibility_paths(graph, base, libraries["bridge"]);
+}
+
+fn assert_visibility_paths(
+    graph: &raf_rdf::Graph,
+    base: raf_rdf::Node<'_>,
+    bridge: raf_rdf::Node<'_>,
+) {
+    for (definition, written) in [
+        ("bridge::macro_api", "bridge::macro_api"),
+        ("bridge::emitted", "bridge::macro_api::emit"),
+    ] {
+        assert!(
+            visibility_nodes(graph, bridge, "use").any(|row| {
+                visibility_value(row, "symbol") == definition
+                    && visibility_value(row, "consumer") == "client"
+                    && visibility_value(row, "writtenPath") == written
+            }),
+            "missing {definition} through {written}"
+        );
+    }
     let client_uses: std::collections::BTreeMap<_, _> = visibility_nodes(graph, base, "use")
         .filter(|row| visibility_value(*row, "consumer") == "client")
         .map(|row| {
@@ -320,9 +372,31 @@ fn assert_visibility_report(graph: &raf_rdf::Graph) {
             ("base::dev_only", ["dev::dev_only"].into_iter().collect()),
             (
                 "base::glob_symbols",
-                ["bridge::glob_symbols::*"].into_iter().collect()
+                ["bridge::glob_symbols", "bridge::glob_symbols::*"]
+                    .into_iter()
+                    .collect()
             ),
             ("base::glob_symbols::LIMIT", ["LIMIT"].into_iter().collect()),
+            (
+                "base::glob_symbols::branch",
+                ["branch::*", "bridge::glob_symbols::branch"]
+                    .into_iter()
+                    .collect()
+            ),
+            (
+                "base::glob_symbols::branch::leaf",
+                ["bridge::glob_symbols::branch::leaf::*", "leaf::*"]
+                    .into_iter()
+                    .collect()
+            ),
+            (
+                "base::glob_symbols::branch::leaf::via_chain",
+                ["via_chain"].into_iter().collect()
+            ),
+            (
+                "base::glob_symbols::branch::leaf::via_direct",
+                ["via_direct"].into_iter().collect()
+            ),
             (
                 "base::glob_symbols::via_glob",
                 ["via_glob"].into_iter().collect()
