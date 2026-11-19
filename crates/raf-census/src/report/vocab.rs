@@ -169,6 +169,7 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
             "job",
             "distinct",
             "pattern",
+            "numericBounds",
         ],
     ),
     (
@@ -213,6 +214,11 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
             "anchor",
             "reason",
         ],
+    ),
+    ("NumericBounds", &["mode", "bound"]),
+    (
+        "NumericBound",
+        &["file", "siteKey", "classification", "reason", "anchor"],
     ),
     ("MemberMultiplicity", &["symbol", "copies"]),
     ("PreferredProvider", &["package", "entryPoint", "consumer"]),

@@ -1120,7 +1120,7 @@ fn receiver_annotation(ty: &syn::Type) -> Option<(&syn::Path, ReceiverMode)> {
     .then_some((&path.path, mode))
 }
 
-fn receiver_mode(signature: &syn::Signature) -> Option<ReceiverMode> {
+pub(crate) fn receiver_mode(signature: &syn::Signature) -> Option<ReceiverMode> {
     let syn::FnArg::Receiver(receiver) = signature.inputs.first()? else {
         return None;
     };

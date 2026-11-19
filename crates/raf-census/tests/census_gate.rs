@@ -11,6 +11,8 @@ use raf_census::detector_fixtures;
 use raf_fixtures::layout;
 #[path = "census_gate/native_provider.rs"]
 mod native_provider;
+#[path = "census_gate/numeric_bounds.rs"]
+mod numeric_bounds;
 #[path = "census_gate/ratchet.rs"]
 mod ratchet;
 #[path = "support/vocabulary.rs"]
@@ -390,6 +392,7 @@ fn ledger_vocabulary_matches_validated_graphs() {
         .map(|matcher| declared_pattern(Some(matcher), true)),
     );
     builders.push(ratchet::ratcheted_declaration());
+    builders.push(numeric_bounds::vocabulary());
     let reports = builders.into_iter().flat_map(|builder| {
         let graph = builder.finish().unwrap();
         [Format::Turtle, Format::NTriples].map(|format| {

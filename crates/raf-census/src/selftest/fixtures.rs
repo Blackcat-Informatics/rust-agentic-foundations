@@ -25,6 +25,7 @@ pub const ENUM_MATCH: (&str, &[&str], &[&str]) = (
         "enum State { #[cfg(any())] Ready, Busy } use State::*; fn copy(n: u8) { match n { Ready => (), _ => () } }",
         "enum State { Ready } fn copy(n: u8, state: State) { match n { #[cfg(any())] State::Ready => (), _ => () }; match state { State::Ready => (), #[cfg(any())] _ => () } }",
         "enum State { Ready, Busy } struct Scope; impl Scope { #[cfg(any())] fn absent(state: State) { match state { State::Ready => (), _ => () } } } fn copy(state: State) { #[cfg(any())] { match state { State::Ready => (), _ => () } } }",
+        "enum State { Ready, Busy } struct Scope; impl Scope { #[cfg(any())] const ITEM: () = match State::Ready { State::Ready => (), _ => () }; } trait Policy { #[cfg(any())] const ITEM: () = match State::Ready { State::Ready => (), _ => () }; } fn copy(state: State) { #[cfg(any())] let _ = match state { State::Ready => (), _ => () }; }",
         "#[derive(PartialEq, Eq)] enum State { Ready, Busy } const FIRST: State = State::Ready; fn copy(state: State) { match state { FIRST => (), State::Busy => () } }",
     ],
 );

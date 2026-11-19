@@ -84,7 +84,8 @@ first-party scope.
 <!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites -->
 
 **Closed declarations.** A ledger links each Pattern through raf:pattern. A declaration has a unique
-raf:patternId, one-line raf:summary and exactly one matcher:
+raf:patternId, one-line raf:summary and exactly one matcher. The numeric
+inventory reserves its three guard IDs for the Ledger's numeric bounds registry.
 
 | Matcher | Observation |
 | --- | --- |
@@ -108,8 +109,8 @@ bench, an example and a build script are silent. A module-level macro invocation
 unscoped pattern reports exactly as before. Unknown kind names, a kind both included and excluded,
 a scope that admits no target kind, an include prefix inside an exclude prefix, a path that is
 absolute, above the root or the root itself, and raf:shippingOnly stated as false refuse at ledger
-load with the property to change. A referenced pattern whose every occurrence is out of scope is
-stale for an enforced job.
+load with the property to change. A referenced pattern whose every occurrence
+is out of scope is stale for an enforced job unless the pattern is ratcheted.
 <!-- raf:tested-by raf_census::test_crate::census_gate::ratchet::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts,raf_census::test_crate::census_gate::ratchet::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits,raf_census::test_crate::census_gate::ratchet::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it,raf_census::test_crate::census_gate::ratchet::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour,raf_census::test_crate::census_gate::ratchet::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation,raf_census::test_crate::census_gate::ratchet::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched -->
 
 Documentation comments are prose, not written string literals; literal matching
@@ -117,7 +118,7 @@ excludes their desugared leaves. Explicit `#[doc = "..."]` attributes remain
 ordinary string literals.
 <!-- raf:tested-by raf_census::test_crate::census_gate::literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes -->
 
-**Ratcheted patterns.** A pattern may state raf:ratcheted, only as true. Its hits are then not findings: each is recorded in the debt record as a counted site keyed by file, rule and a site key (see the debt ratchet), and the generic copy finding for the matched unit is suppressed only when the ratcheted pattern alone explains the match; a unit that is also a copy through a forbidden constant, a forbidden structural fingerprint or a non-ratcheted rule still fails. A ratcheted pattern with no hit stays a recorded guard rather than going stale. Every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; `ratcheted` stated as false, stated twice or stated for a pattern whose job is unenforced refuses at ledger load, and a pattern that does not state it is forbidden and keeps its hard failure. A literalRegex hit is keyed on its own literal. A job may hold a built-in detector or registered rule to the same record through ratchetedRule (see the ledger and rule-API capabilities); that is the only way to ratchet a rule, and a pattern never uses it.
+**Ratcheted patterns.** A pattern may state raf:ratcheted, only as true. Its hits are then not findings: each is recorded in the debt record as a counted site keyed by file, rule and a site key (see the debt ratchet), and the generic copy finding for the matched unit is suppressed only when the ratcheted pattern alone explains the match; a unit that is also a copy through a forbidden constant, a forbidden structural fingerprint or a non-ratcheted rule still fails. A ratcheted pattern with no hit stays a recorded guard rather than going stale. Every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; `ratcheted` stated as false, stated twice or stated for a pattern whose job is unenforced refuses at ledger load, and a pattern that does not state it is forbidden and keeps its hard failure. A literalRegex hit is keyed on its own literal. A job may hold a built-in detector or registered rule to the same record through ratchetedRule (see the ledger and rule-API capabilities). The property selects a rule forbidden by that job.
 <!-- raf:tested-by raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence -->
 
 **Validated references.** Patterns share the RuleId namespace with built-ins and registered rules. Missing,

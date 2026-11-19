@@ -37,7 +37,7 @@ inputs:
     digest: 5ce8868952094a1684f8a526cd41cfb66b70204d6d5bb54e49f4c12c32932dcc
   - kind: symbol
     name: raf_census::SiteKey
-    digest: 1de89ed80944c05d8deb51b94d07b08da613a475900dc1d20a2f1f68b74ec5bd
+    digest: 57710d01b243fe79234cfd79cd29bc0454c829e4101fe398e05cad605add2519
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_locked
     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
@@ -45,8 +45,11 @@ inputs:
     name: raf_census::gate::Gate::write_debt_with
     digest: cc3320f0acdf6398ea6ecb2e75be7a907ae578cfd63c2023370041617718c93c
   - kind: symbol
+    name: raf_census::gate::bounds
+    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
+  - kind: symbol
     name: raf_census::gate::ratchet
-    digest: b8f9261318bfa9a928a28aa76628442857d154521164d7176f23916edb13b8c3
+    digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
   - kind: symbol
     name: raf_census::gate::read_debt
     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5

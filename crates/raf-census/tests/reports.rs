@@ -1125,24 +1125,13 @@ fn an_absolute_directory_reports_the_same_as_the_relative_spelling() {
     );
 }
 
-/// A ledger with one node of every engine-owned Ledger class and a grouping
-/// scope on its root. The job's extension root reaches one consumer node.
-fn declared_ledger() -> String {
+/// Two ledgers cover every engine-owned class. The legacy layout neighbor
+/// retains its grouping scope and consumer-owned extension.
+fn declared_ledgers() -> [String; 2] {
     let text = TermValue::simple_literal;
     let link = TermValue::iri;
     let consumer = |name: &str| format!("https://consumer.example/{name}");
-    let facts = [
-        ("", "type", property("Ledger")),
-        (
-            "",
-            "normalForm",
-            TermValue::integer(i128::from(raf_census::NORMAL_FORM)),
-        ),
-        (
-            "",
-            "reportForm",
-            TermValue::integer(i128::from(raf_census::REPORT_FORM)),
-        ),
+    let prior = [
         ("", "excludeTestItems", TermValue::boolean(true)),
         ("", "excludeDir", text("generated")),
         ("", "job", link("#job")),
@@ -1203,8 +1192,39 @@ fn declared_ledger() -> String {
         ("#distinct/a", "symbol", text("demo::a")),
         ("#distinct/a", "copies", TermValue::integer(2)),
     ];
+    let numeric = [
+        ("", "numericBounds", link("#bounds")),
+        ("#bounds", "type", property("NumericBounds")),
+        ("#bounds", "mode", text("strict")),
+        ("#bounds", "bound", link("#limit")),
+        ("#limit", "type", property("NumericBound")),
+        ("#limit", "file", text("src/lib.rs")),
+        (
+            "#limit",
+            "siteKey",
+            text("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        ),
+        ("#limit", "classification", text("structural")),
+    ];
+    [ledger_from_facts(prior), ledger_from_facts(numeric)]
+}
+
+fn ledger_from_facts<'a>(facts: impl IntoIterator<Item = (&'a str, &'a str, TermValue)>) -> String {
+    let header = [
+        ("", "type", property("Ledger")),
+        (
+            "",
+            "normalForm",
+            TermValue::integer(i128::from(raf_census::NORMAL_FORM)),
+        ),
+        (
+            "",
+            "reportForm",
+            TermValue::integer(i128::from(raf_census::REPORT_FORM)),
+        ),
+    ];
     let mut graph = Builder::new();
-    for (node, key, object) in facts {
+    for (node, key, object) in header.into_iter().chain(facts) {
         let predicate = match key {
             "type" => TermValue::iri(vocab::TYPE),
             _ if key.starts_with("https:") => TermValue::iri(key),
@@ -1386,7 +1406,7 @@ fn every_report_reader_refuses_a_property_outside_its_vocabulary_by_name() {
     let unknown = [(added.as_str(), "excludeVendoredItems"), (foreign, foreign)];
     let mut records = census_vocabulary_reports();
     records.extend(reference_queries());
-    records.push(declared_ledger());
+    records.extend(declared_ledgers());
     let mut per_format = Vec::new();
     for format in [Format::Turtle, Format::NTriples] {
         // One injection per reader and node class, and one layout conversion

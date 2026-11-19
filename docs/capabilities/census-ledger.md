@@ -39,6 +39,9 @@ bindings:
     - raf_census::MAX_LEDGER_BYTES
     - raf_census::LEDGER_FILE
     - raf_census::SYMBOL_ANCHOR_PREFIX
+    - raf_census::NumericBound
+    - raf_census::BoundClassification
+    - raf_census::GateReport::numeric_bounds
   tests:
     - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
 
@@ -87,6 +90,8 @@ bindings:
     - raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt
     - raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner
     - raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension
+    - raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs
+    - raf_census::test_crate::census_gate::numeric_bounds::numeric_registry_refuses_duplicate_sites_and_incomplete_justification
   examples:
     - raf_census::example_crate::debt
     - raf_census::example_crate::providers
@@ -195,6 +200,34 @@ state it. An incompatible normal form
 refuses before job interpretation.
 Unknown core properties, wrong classes, missing required values, invalid
 cardinalities and unowned nodes refuse. Input is at most one MiB.
+
+### Numeric bounds classification
+
+The optional Ledger property `numericBounds` links one owned `NumericBounds`
+node. Its mode string is required and is either strict or ratcheted. It links
+zero or more owned `NumericBound` nodes through `bound`. Each row requires a
+canonical workspace-relative file, a siteKey of 64 lowercase hexadecimal
+digits and one classification string. The classifications are structural for
+a format or protocol requirement, sanctioned for a justified policy choice,
+and experimental for an experiment. Only sanctioned requires and admits a
+nonblank reason and a documented source anchor IRI. Duplicate physical keys
+and unowned or unexpected properties fail ledger validation.
+
+The [detector](./census-detectors.md#numeric-bounds-inventory) counts physical
+sites independently of jobs. `GateReport::numeric_bounds` exposes each site's
+classification, role evidence and exact locator. In strict mode, each site
+without a row is a finding that prints its file, line, byte offset and siteKey.
+Use its file and siteKey to author the classification row. The exact key
+identifies the token's byte offset and its written declaration, comparison or
+call. Editing that evidence or moving the site can require replacing its row.
+A row with no surviving site or a sanctioned row whose anchor fails to resolve
+is a finding in either mode. In ratcheted mode, the
+[debt record](./census-debt-ratchet.md#contract) holds unclassified counts and
+the observed comparison and limiting roles. Omit numericBounds to leave the
+inventory disabled.
+The three numeric guard IDs are reserved for this registry. Job matchers,
+variants, patterns and required or registered rules use other IDs.
+<!-- raf:tested-by raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs,raf_census::test_crate::census_gate::numeric_bounds::numeric_registry_refuses_duplicate_sites_and_incomplete_justification -->
 
 ### Source classification and exact sanctions
 <!-- raf:tested-by raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once,raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package,raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it,raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction,raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor -->
@@ -538,6 +571,8 @@ the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise de
 | `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::numeric_bounds::numeric_registry_refuses_duplicate_sites_and_incomplete_justification` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |

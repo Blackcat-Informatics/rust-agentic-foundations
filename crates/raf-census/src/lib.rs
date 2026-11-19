@@ -69,10 +69,11 @@ mod version;
 pub use census::{Census, FileCtx};
 pub use error::{Error, VisibilityError};
 pub use gate::{
-    ArchiveCache, DEBT_FILE, DebtWrite, ExternalReference, ForeignField, ForeignLedgerAdapter,
-    Gate, GateReport, LEDGER_FILE, LedgerExtension, LockedRegistry, MAX_INDEX_BYTES, Migration,
-    MigrationInput, ReferenceRoot, SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index,
-    migrate_legacy, migrate_legacy_with_extensions, visibility,
+    ArchiveCache, BoundClassification, BoundRole, DEBT_FILE, DebtWrite, ExternalReference,
+    ForeignField, ForeignLedgerAdapter, Gate, GateReport, LEDGER_FILE, LedgerExtension,
+    LockedRegistry, MAX_INDEX_BYTES, Migration, MigrationInput, NumericBound, ReferenceRoot,
+    SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index, migrate_legacy,
+    migrate_legacy_with_extensions, visibility,
 };
 pub use group::{Group, GroupKind, HexTable, Member, SharedConstant};
 pub use job::{Job, JobForbidden, JobMatch, JobReport, MatchClass};

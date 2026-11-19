@@ -24,6 +24,7 @@ bindings:
     - raf_census::gate::ratchet
     - raf_census::DEBT_FILE
     - raf_census::MAX_DEBT_BYTES
+    - raf_census::gate::bounds
   tests:
     - raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures
     - cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target
@@ -52,6 +53,7 @@ bindings:
     - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
     - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
     - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
+    - raf_census::test_crate::census_gate::numeric_bounds::numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_movement
   examples:
     - raf_census::example_crate::debt
 depends: [cap:census-normal-form, cap:census-ledger, cap:rdf-report-profile]
@@ -120,7 +122,7 @@ number of hits that share it. The record names every ratcheted rule in
 ratchetedRule, so a rule whose hits are all burned down stays recorded and a new
 hit of it is growth. A `DebtSite` names the file, the rule and a `SiteKey`.
 
-The site key is a BLAKE3-256 digest of the symbol of the enclosing source item
+For a pattern or job rule, the site key is a BLAKE3-256 digest of the enclosing source symbol
 and the first ordinary or raw string literal at or after the hit inside that item
 (none when no literal follows the hit in that item). Line numbers and byte offsets are never
 hashed, so inserting lines above a recorded site leaves the record
@@ -131,6 +133,19 @@ missing key plus a new key, so a removed hit cannot hide a new one. Two hits who
 case the key does not separate: they may swap places with no change to the record. The literal
 scan shares the lexical walk of literalRegex and is charged to the same matching
 grant; exceeding a bound refuses and never truncates.
+
+The Ledger's ratcheted numeric bounds inventory contributes three independent
+guards through the same counted record. The numeric-bound-refusing guard
+counts distinct sites observed in comparisons against length or count. The
+numeric-bound-truncating guard counts distinct sites observed in limiting
+operations. The numeric-bound-unclassified guard counts sites without a
+classification row. A named declaration can have several roles and counts
+once for each role. Comparison and limiting roles count in every classification.
+Numeric debt keys use the canonical source file and leave the literal absent.
+They retain counts by rule across additional reaches and line movement.
+Exact ledger locators remain tied to the written occurrence.
+<!-- raf:tested-by raf_census::test_crate::census_gate::numeric_bounds::numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_movement -->
+
 
 A ratcheted rule is a built-in detector or a registered rule that the same
 enforced job forbids with a rule fingerprint and names in ratchetedRule. It is
@@ -157,8 +172,9 @@ record carries no unused allowance. A forbidden rule or pattern keeps its hard
 failure and cannot be adopted as debt. A record with no ratcheted rule writes no
 ratchetedRule and no SiteDebt, so its bytes are unchanged. `DebtWrite` reports
 the number of distinct recorded site rows, and its summary line names them only
-when there are any. Growth findings name the file, line, enclosing symbol and summary
-of the hit.
+when there are any. Growth findings for patterns and job rules name the file,
+line, enclosing symbol and summary. Numeric growth findings name the file,
+line, byte offset, roles and exact ledger site key.
 
 ### Exclusive writer coordination
 <!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records,cargo_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records -->
@@ -196,7 +212,9 @@ Gate::write_debt and cargo census debt --write use ordinary evaluation;
 Gate::write_debt_locked uses configured locked evaluation. Both Gate writers
 share one ratchet and publication path. Non-debt findings prevent every write. Registered rules or nonempty
 extensions require a repository's registered Gate; the built-in CLI exits 2
-naming Gate::write_debt rather than skipping them. Required callbacks cannot be omitted from the debt evaluation. A current-version record can only stay equal or shrink.
+naming Gate::write_debt. Required callbacks remain part of the debt evaluation.
+An existing record can adopt a newly ratcheted rule. Once adopted, its counted
+sites can only stay equal or shrink.
 
 
 Registered policy is supplied directly to the library Gate through its rule and
@@ -386,6 +404,7 @@ or execution of an external native implementation.
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::numeric_bounds::numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_movement` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |

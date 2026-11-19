@@ -1205,12 +1205,12 @@ impl Lookup<'_, '_> {
                     attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
                 })
             };
+            let conditional_declaration = enum_scan && has_cfg(&declaration.attrs);
             for variant in &declaration.variants {
                 if enum_scan && crate::syntax::definitely_excluded(&variant.attrs) {
                     continue;
                 }
-                let conditional =
-                    enum_scan && (has_cfg(&declaration.attrs) || has_cfg(&variant.attrs));
+                let conditional = conditional_declaration || enum_scan && has_cfg(&variant.attrs);
                 let name = variant.ident.unraw().to_string();
                 if let Some(known) = members.get_mut(&name) {
                     known.forms.observe(&variant.fields);
@@ -1993,6 +1993,41 @@ fn matches(
         }
     }
     Ok(false)
+}
+
+fn numeric_definitions(
+    lookup: &Lookup<'_, '_>,
+    scopes: &Scopes,
+    path: &syn::Path,
+    limits: &mut MatchLimits,
+) -> Result<Vec<ItemId>, Error> {
+    let written = segments(path);
+    let absolute = path.leading_colon.is_some();
+    let raw = path_text(&written, absolute);
+    let LexicalPath::Accessible(expanded) = lookup.lexical(scopes, &written, absolute, limits)?
+    else {
+        return Ok(Vec::new());
+    };
+    // A module declaration is resolved by Source; only a block shadow
+    // prevents reading the indexed path.
+    if expanded
+        .as_ref()
+        .is_some_and(|path| path.shadowed && path.block)
+    {
+        return Ok(Vec::new());
+    }
+    let glob = lookup.glob_occurrence(scopes, &written, absolute, expanded.as_ref(), limits)?;
+    if glob.opaque.is_some() {
+        return Ok(Vec::new());
+    }
+    let definition = match glob.definition {
+        Some(definition) => definition,
+        None => lookup.resolve(&raw, expanded.as_ref(), limits)?,
+    };
+    Ok(match definition {
+        PathDefinition::Written(actual) | PathDefinition::Expanded(actual) => actual,
+        PathDefinition::Missing | PathDefinition::Unverified(_) => Vec::new(),
+    })
 }
 
 #[cfg(test)]

@@ -104,7 +104,10 @@ pub(super) fn patterns(
         fields(&node, "Pattern")?;
         let id = required_text(&node, "patternId")?;
         crate::RuleId::new(&id).map_err(|error| E::Value(error.to_string()))?;
-        if !ids.insert(id.clone()) || crate::rule::BUILTIN_RULE_IDS.contains(&id.as_str()) {
+        if !ids.insert(id.clone())
+            || crate::rule::BUILTIN_RULE_IDS.contains(&id.as_str())
+            || super::bounds::IDS.contains(&id.as_str())
+        {
             return Err(E::Value(format!(
                 "pattern {id:?}: id must be unique and must not replace a built-in"
             ))

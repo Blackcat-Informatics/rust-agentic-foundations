@@ -5,7 +5,8 @@
 
 use super::{Gate, Term, base, detector_fixtures, job, put, tree};
 
-/// Job-home scope leaves this inventory active, and the ratchet counts each arm.
+/// The required inventory coexists with numeric bounds, and job policy counts
+/// both arms in the home package.
 #[test]
 fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
     let id = detector_fixtures::ENUM_MATCH.0;
@@ -18,15 +19,27 @@ fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
             match value { State::Ready => (), _ => () }
             match next { State::Busy => (), remainder => () }
         }
+        const WORK_LIMIT: usize = 9;
+        fn exceeds_limit(items: &[u8]) -> bool { items.len() > WORK_LIMIT }
     ";
+    let numeric = super::numeric_bounds::registry(base(), "strict");
     let required = Gate::workspace(".")
         .require_rules([id])
-        .check_tree(&tree(source, base(), 0))
+        .check_tree(&tree(source, numeric, 0))
         .unwrap();
     let findings = required.findings();
-    assert_eq!(findings.len(), 2, "{findings:?}");
+    assert_eq!(findings.len(), 3, "{findings:?}");
     assert!(findings[0].contains("src/lib.rs:7:"));
     assert!(findings[1].contains("src/lib.rs:8:"));
+    assert!(findings[2].contains("unclassified numeric bound"));
+    let [limit] = required.numeric_bounds() else {
+        panic!(
+            "expected one numeric bound: {:?}",
+            required.numeric_bounds()
+        );
+    };
+    assert!(source[limit.start_byte..].starts_with("WORK_LIMIT"));
+    assert!(limit.roles.contains(&raf_census::BoundRole::Comparison));
 
     let policy = || {
         let mut graph = job(true);
