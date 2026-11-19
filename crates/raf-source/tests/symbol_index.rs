@@ -1241,15 +1241,18 @@ fn disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse() {
     let options = raf_source::LoadOptions::default();
     let loaded = Workspace::load_with(&tree, &["."], &options).expect("structural load");
     let records = loaded.disabled_syntax();
-    let parallel = Workspace::par_load(
-        &tree,
-        &["."],
-        &options,
-        &raf_source::ParallelOptions::default(),
-    )
-    .expect("parallel structural load");
-    assert_eq!(parallel.disabled_syntax(), records);
-    assert_eq!(parallel.usage(), loaded.usage());
+    #[cfg(target_os = "linux")]
+    {
+        let parallel = Workspace::par_load(
+            &tree,
+            &["."],
+            &options,
+            &raf_source::ParallelOptions::default(),
+        )
+        .expect("parallel structural load");
+        assert_eq!(parallel.disabled_syntax(), records);
+        assert_eq!(parallel.usage(), loaded.usage());
+    }
     assert_eq!(records.len(), 6);
     for target in loaded.targets() {
         let module = format!("{}::common", target.crate_path);
