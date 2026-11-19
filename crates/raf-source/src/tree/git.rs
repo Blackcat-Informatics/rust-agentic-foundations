@@ -257,50 +257,8 @@ impl<'a> PinnedGitTree<'a> {
                 .map(|record| record.map(|record| record.kind))
         })
     }
-}
 
-impl Tree for CommittedGitTree<'_> {
-    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
-        self.tree.read(path, max_bytes)
-    }
-    fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
-        self.tree.read_bytes(path, max_bytes)
-    }
-    fn read_unseen(
-        &self,
-        path: &RelPath,
-        max_bytes: u64,
-        seen: &dyn Fn(&FileId) -> bool,
-    ) -> Result<Opened, TreeError> {
-        self.tree.read_unseen(path, max_bytes, seen)
-    }
-    fn identity(&self, path: &RelPath) -> Result<FileId, TreeError> {
-        self.tree.identity(path)
-    }
-    fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
-        self.tree.list(path)
-    }
-    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
-        self.tree.entry(path)
-    }
-}
-
-impl Tree for PinnedGitTree<'_> {
-    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
-        match self.read_unseen(path, max_bytes, &|_| false)? {
-            Opened::Read { text, .. } => Ok(text),
-            Opened::Seen(_) => Err(tree_failure(
-                path,
-                refused(path, "forced committed blob read returned Seen"),
-            )),
-        }
-    }
-    fn read_unseen(
-        &self,
-        path: &RelPath,
-        max_bytes: u64,
-        seen: &dyn Fn(&FileId) -> bool,
-    ) -> Result<Opened, TreeError> {
+    fn file_record(&self, path: &RelPath) -> Result<&Record, TreeError> {
         require_first_party(path)?;
         let (kind, canonical) = self
             .locate(path)
@@ -313,29 +271,23 @@ impl Tree for PinnedGitTree<'_> {
                 path: path.to_string(),
             });
         }
-        let record = self
-            .record(&canonical, path)
+        self.record(&canonical, path)
             .map_err(|error| tree_failure(path, error))?
             .ok_or_else(|| {
                 tree_failure(
                     path,
                     refused(path, "located Git file has no committed record"),
                 )
-            })?;
-        self.meter
-            .items(crate::cost::shared_text(canonical.len()), path, None)
-            .map_err(|error| tree_failure(path, error))?;
-        let canonical_path = RelPath::new(&canonical).map_err(TreeError::from)?;
-        let id = FileId::git(self.commit, &canonical_path);
-        let previously_seen = seen(&id);
-        if previously_seen && !self.verify_seen {
-            return Ok(Opened::Seen(id));
-        }
-        let limit = if previously_seen {
-            self.meter.options().max_file_bytes
-        } else {
-            max_bytes.min(self.meter.options().max_file_bytes)
-        };
+            })
+    }
+
+    fn read_blob(
+        &self,
+        path: &RelPath,
+        record: &Record,
+        max_bytes: u64,
+    ) -> Result<Vec<u8>, TreeError> {
+        let limit = max_bytes.min(self.meter.options().max_file_bytes);
         if u64::try_from(record.size).unwrap_or(u64::MAX) > limit {
             return Err(TreeError::TooLarge {
                 path: path.to_string(),
@@ -379,9 +331,75 @@ impl Tree for PinnedGitTree<'_> {
                     "committed blob hash does not match its listed object ID",
                 ));
             }
-            if previously_seen {
-                return Ok(Opened::Seen(id));
-            }
+            Ok(bytes)
+        })();
+        result.map_err(|error| tree_failure(path, recover(error, &mut admission)))
+    }
+}
+
+impl Tree for CommittedGitTree<'_> {
+    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+        self.tree.read(path, max_bytes)
+    }
+    fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
+        self.tree.read_bytes(path, max_bytes)
+    }
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<Opened, TreeError> {
+        self.tree.read_unseen(path, max_bytes, seen)
+    }
+    fn identity(&self, path: &RelPath) -> Result<FileId, TreeError> {
+        self.tree.identity(path)
+    }
+    fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
+        self.tree.list(path)
+    }
+    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
+        self.tree.entry(path)
+    }
+}
+
+impl Tree for PinnedGitTree<'_> {
+    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+        match self.read_unseen(path, max_bytes, &|_| false)? {
+            Opened::Read { text, .. } => Ok(text),
+            Opened::Seen(_) => Err(tree_failure(
+                path,
+                refused(path, "forced committed blob read returned Seen"),
+            )),
+        }
+    }
+    fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
+        self.read_blob(path, self.file_record(path)?, max_bytes)
+    }
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<Opened, TreeError> {
+        let record = self.file_record(path)?;
+        self.meter
+            .items(crate::cost::shared_text(record.path.len()), path, None)
+            .map_err(|error| tree_failure(path, error))?;
+        let canonical_path = RelPath::new(&record.path).map_err(TreeError::from)?;
+        let id = FileId::git(self.commit, &canonical_path);
+        let previously_seen = seen(&id);
+        if previously_seen && !self.verify_seen {
+            return Ok(Opened::Seen(id));
+        }
+        let limit = if previously_seen { u64::MAX } else { max_bytes };
+        let bytes = self.read_blob(path, record, limit)?;
+        if previously_seen {
+            return Ok(Opened::Seen(id));
+        }
+        let mut admission = ItemAdmission::new(&self.meter, path);
+        let mut memory = Memory::new(&mut admission);
+        let result = (|| {
             let text = std::str::from_utf8(&bytes).map_err(|_| {
                 LoadError::tree(
                     path,

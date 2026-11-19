@@ -282,6 +282,12 @@ inputs:
     name: raf_source::PathSite
     digest: 393d1eeee67698d71c513c3d6590c508d76fb0a495133e94e555eccb8bbb1d16
   - kind: symbol
+    name: raf_source::PinnedGitTree
+    digest: 3a9d76397494b37297a9f0e1c973cc8a7a1421636e4bf290901c060972d80038
+  - kind: symbol
+    name: raf_source::PinnedGitTree::open
+    digest: a6ae4174ad924bbc05e8125a1b82a020f027558ba45d8064a10bc68c57df8a4e
+  - kind: symbol
     name: raf_source::PreparedSource
     digest: 034b6338b92bab2acb4c5dcf5d1cc605859add5733cc90e0ed051ca837d64745
   - kind: symbol
@@ -541,7 +547,7 @@ inputs:
     digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
   - kind: symbol
     name: raf_source::tree
-    digest: 255e85bc99c310af2f0f02f685c6d6c192aab5b8c22204e76bf5259e1b8a1de0
+    digest: 7f0bae00e8e8eb5fd6417a4a33d9430ae20549ed415702e92e64d58cd4599309
   - kind: symbol
     name: raf_source::tree::disk
     digest: faa6d96e34bb963e9ce92b80011a735b72229f96383019987b696f56fb3217bc

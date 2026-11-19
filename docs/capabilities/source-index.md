@@ -117,6 +117,8 @@ bindings:
     - raf_source::RegistryIndex
     - raf_source::CommittedGitTree
     - raf_source::CommittedGitTree::open
+    - raf_source::PinnedGitTree
+    - raf_source::PinnedGitTree::open
     - raf_source::Workspace::load_locked_sources
     - raf_source::Workspace::locked_binding
     - raf_source::LockedBinding
@@ -440,6 +442,7 @@ bindings:
     - raf_source::test_crate::git_tree::malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor
     - raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs
     - raf_source::test_crate::git_tree::native_git_reads_do_not_require_an_installed_git
+    - raf_source::test_crate::git_tree::pinned_and_locked_reads_return_binary_blobs_without_utf8_conversion
     - raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit
     - raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources
     - raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots
@@ -1278,20 +1281,18 @@ destination. Foreign authorities and outside parents refuse. Hosts without a
 verified lexical-link strategy return an explicit unsupported-operation error.
 <!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle,raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name,raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted,raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths -->
 
-`Tree::read_bytes` returns the exact bytes of a file, and `DiskTree` also provides
-the inherent `read_unseen_bytes` operation. `DiskTree` and `MemoryTree` implement
-`read_bytes`, and `SourceTrees` passes it to the selected backend. The Git and
-registry archive trees do not return bytes: like any backend that does not
-implement the call, they refuse it with an unsupported-operation `TreeError::Io`
-and never convert through text. Binary reads preserve arbitrary bytes
-without UTF-8 validation. A read-unseen result is `OpenedBytes`: it either holds
-the actual verified file identity and complete bytes from that same open, or
-reports an identity accepted by the caller without reading its payload or
-applying the payload ceiling. First-party authority admission, regular-file
-checks, containment verification and exact byte limits are unchanged. The `disk`
-implementation shares one verified bounded byte primitive with the production
-text reads; those reads explicitly convert UTF-8 and still refuse invalid text.
-<!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen,raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths -->
+`Tree::read_bytes` returns exact file bytes without UTF-8 validation.
+Disk, memory, pinned Git and locked Git trees implement it, and
+`SourceTrees` passes the call to the selected backend. Registry archive
+trees return the unsupported-operation `TreeError::Io`.
+
+`DiskTree::read_unseen_bytes` either returns an `OpenedBytes` with the
+verified file identity and complete bytes from that open, or reports an
+identity accepted by the caller without reading its payload or applying
+the payload ceiling. Disk reads share the byte primitive that verifies
+first-party authority, regular-file handles, containment and byte limits.
+Text reads validate UTF-8 before returning the text.
+<!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen,raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths,raf_source::test_crate::git_tree::pinned_and_locked_reads_return_binary_blobs_without_utf8_conversion -->
 
 `MemoryTree` supports checked `create_new` and `replace` publication as well as
 reading. Creation infers missing directories, refuses an occupied file or directory
@@ -3113,8 +3114,18 @@ optional-feature or target activation, verify source contents, or bind a supplie
 source tree to a loaded `PackageId`.
 <!-- raf:tested-by raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row,raf_source::test_crate::locked_selection::git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs,raf_source::test_crate::locked_selection::workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg,raf_source::test_crate::locked_selection::absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes,raf_source::test_crate::locked_selection::selection_honors_work_and_retained_catalog_item_admission,raf_source::test_crate::locked_selection::malformed_observations_and_unknown_owners_refuse_without_an_alternate_identity -->
 
-`CommittedGitTree::open` admits a selected full SHA-1 Git lock revision through a native read-only Rust Git adapter. Complete bounded tree listings validate paths, parent directories, object identities and supported modes. Missing objects, malformed data and submodules refuse locally. Symbolic links can be listed but never traversed. Exact-size blob reads verify native identity before returning text or Seen. Source bytes retain exact UTF-8 spelling and line endings; distinct paths retain distinct file identities. Caller labels cannot construct sealed admission.
-<!-- raf:tested-by raf_source::test_crate::git_tree::checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity -->
+`CommittedGitTree::open` admits the full SHA-1 revision of a selected Git
+lock row. `PinnedGitTree::open` admits an explicit full commit for
+comparison. Complete bounded listings validate paths, parent directories,
+object identities and modes. Missing objects, malformed data and
+submodules refuse locally. Symbolic links can be listed and cannot be
+traversed. Blob reads verify the listed byte count and object identity
+before returning bytes. Text reads preserve UTF-8 spelling and line
+endings. A pinned comparison may reuse a caller-held file identity
+without opening its blob, while a locked Git tree verifies the blob again.
+Distinct paths retain distinct identities. Caller labels cannot
+construct sealed admission.
+<!-- raf:tested-by raf_source::test_crate::git_tree::checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity,raf_source::test_crate::git_tree::pinned_and_locked_reads_return_binary_blobs_without_utf8_conversion -->
 
 The adapter reads committed objects without launching Git, fetching, running hooks or filters, or modifying repository state. Worktree edits and replacement refs cannot affect its source view. Native object decoding has an explicit per-allocation bound, distinct from the portable total allocation and semantic-work meters applied to retained listings and blob buffers. This does not claim that native decoder CPU or all internal allocations are covered by portable meters. Git object-store access remains distinct from DiskTree filesystem-handle containment.
 <!-- raf:tested-by raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs -->
@@ -4040,11 +4051,11 @@ the portable meters do not account for every internal decoder allocation.
   Linux only.
   <!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted,raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name -->
 
-- Binary reads are inherent `DiskTree` operations; `Tree` remains a UTF-8 text
-  interface. They expose bytes and file identities, without executable or link
-  metadata, source-tree capture, completed-root materialization or Runner
-  transport. A byte read is not a multi-file snapshot guarantee.
-  <!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted -->
+- `Tree::read_bytes` exposes the file payload. `DiskTree::read_unseen_bytes`
+  also exposes the file identity from its verified handle. Both are
+  individual file reads. Executable or link metadata, source-tree capture,
+  completed-root materialization and Runner transport are outside this API.
+  <!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted,raf_source::test_crate::git_tree::pinned_and_locked_reads_return_binary_blobs_without_utf8_conversion -->
 
 - Memory publication accepts first-party paths only and preserves the original
   construction fault of an invalid tree. Its directories remain inferred; it
@@ -4425,7 +4436,11 @@ assets, seen reads, real-directory parent traversal, invalid inventory and neste
 transport refusals beside valid inputs. The native provider fixture checks a
 fixed nonempty BLAKE3 digest and actual published registry source resolution,
 including checksum corruption, catalog relabeling and absent-source refusals.
-Existing committed Git fixtures retain exact source and configuration coverage.
+The committed Git fixtures check exact binary reads through both tree
+entry points, refusal as text and the caller's byte ceiling. The
+committed blob remains authoritative beside a different working file.
+A substituted object with the same length refuses identity verification.
+<!-- raf:tested-by raf_source::test_crate::git_tree::pinned_and_locked_reads_return_binary_blobs_without_utf8_conversion,raf_source::test_crate::git_tree::missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text -->
 
 
 Prepared-source fixtures compare the declared native-node ceiling with the
@@ -5706,6 +5721,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::git_tree::missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text` | test | [Verification](#verification) |
 | `raf_source::test_crate::git_tree::native_git_reads_do_not_require_an_installed_git` | test | [Verification](#verification) |
 | `raf_source::test_crate::git_tree::native_selected_index_is_read_only_and_committed_grants_remain_exact` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::git_tree::pinned_and_locked_reads_return_binary_blobs_without_utf8_conversion` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::glob_causality::a_cycle_with_an_independent_carrier_route_keeps_its_ambiguity` | test | [Verification](#verification) |
 | `raf_source::test_crate::glob_causality::a_final_glob_fallback_waits_for_an_outside_named_cycle` | test | [Verification](#verification) |
 | `raf_source::test_crate::glob_causality::a_forwarded_private_import_preserves_public_peer_namespace_exports` | test | [Verification](#verification) |
