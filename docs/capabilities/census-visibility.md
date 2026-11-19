@@ -94,14 +94,15 @@ unused by other packages.
   module prefixes that resolve in their written namespace, including prefixes
   of qualified macro calls. A block glob can resolve through another block glob
   visible from its declaration, including through a named import whose target
-  resolves in that import's declaration scope. Module globs supply indexed
-  member definitions. Enum globs can shadow an outer binding with a variant
-  in the applicable namespace. Inherent functions require a qualified path.
-  If indexed enum alternatives disagree about a variant name in that
-  namespace, qualify the path. If the glob prefix could name separate
-  definitions through a glob and an outer scope, qualify the import. An identity
-  that remains ambiguous across packages refuses the report when it can affect
-  a public declaration. A block glob outside the index can likewise prevent
+  resolves in that import's declaration scope. An alias supplies only the
+  namespaces admitted by its indexed target. Module globs supply indexed
+  member definitions. Enum globs retain distinct variant identities in the
+  applicable namespace and recognize unit variants as path patterns. Inherent
+  functions require a qualified path. Qualify an import whose selected glob
+  binding conflicts with a distinct binding in an outer scope. Ordinary
+  occurrences use the nearest eligible lexical binding. An identity that
+  remains ambiguous across packages refuses the report when it can affect a
+  public declaration. A block glob outside the index can likewise prevent
   attribution of an unqualified path. Macro expansion, implicit method
   selection, unresolved `Self` paths and associated selections through
   unsupported type-alias projections require evidence outside this report.
@@ -126,16 +127,19 @@ its own declaration during lookup.
 The CLI fixture checks the three library tiers, re-export attribution, the
 import in an out-of-line module, the test-only dependency, trait and block
 scope resolution, a constant pattern reached through a block glob, direct
-and chained glob prefixes through named imports, enum glob membership,
-nested function and closure scopes, and a module named only through a
-qualified macro call. It checks the exact union of written path spellings, compares
+and chained glob prefixes through named imports, alias namespace fallback,
+repeated and competing enum variants, shadowed union generics, and nested
+function and closure scopes. It also checks a module named only through a
+qualified macro call and pairs an unambiguous import with imports whose glob
+and outer bindings conflict. It checks the exact union of written path spellings, compares
 report bytes across entry directories and checks that a normal dependency
 cycle and a potentially shadowing unindexed block glob refuse before output.
 An excluded package and an inert build script exercise the static input
 boundary.
 
-A shared source file exercises a pattern identifier with conflicting meanings
-across module reaches and a neighbour with consistent meanings.
+A shared source file exercises a pattern identifier that names a unit variant
+in one module reach and a constant in another. A neighbour where the identifier
+introduces a binding in one reach refuses.
 <!-- raf:tested-by raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches -->
 
 <!-- raf:generated:verification-matrix -->

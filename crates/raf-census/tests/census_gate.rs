@@ -1623,7 +1623,7 @@ fn call_patterns_follow_written_imports_and_respect_parameters_locals_and_closur
         ("pub fn other(){let _=|release:fn(u32)| release(2);}", 0),
         ("pub fn other(){let release=release::<u32>; release(2);}", 0),
         (
-            "pub fn other(){let release=|_:u32|{}; fn inner(){release(2);} inner(); let _=||release(2);}",
+            "pub fn other(){fn inner(){release(2);} inner(); let release=|_:u32|{}; let _=||release(2);}",
             1,
         ),
         (
@@ -1631,7 +1631,7 @@ fn call_patterns_follow_written_imports_and_respect_parameters_locals_and_closur
             0,
         ),
         (
-            "pub fn other(){let release=|_:u32|{}; use std::mem::drop as imported; let imported=release; fn inner(){imported(2);} inner();}",
+            "pub fn other(){use std::mem::drop as imported; fn inner(){imported(2);} inner(); let imported=|_:u32|{}; let _=||imported(2);}",
             1,
         ),
         ("pub fn other(){let _=std::mem::drop::<u32>;}", 0),
@@ -1662,8 +1662,13 @@ fn type_patterns_follow_aliases_without_capturing_generic_or_module_shadows() {
     for (other, copies) in [
         ("pub fn other(_:Lock<u32>){}", 1),
         ("pub fn other<Lock>(_:Lock){}", 0),
-        ("pub fn other<Lock>(){fn inner(_:Lock<u32>){} }", 1),
+        ("pub fn other<Other>(){fn inner(_:Lock<u32>){} }", 1),
         ("pub fn other<Lock>(){fn inner<Lock>(_:Lock){} }", 0),
+        ("pub union Other<Lock: Copy> { field: Lock }", 0),
+        (
+            "pub union Other { field: std::mem::ManuallyDrop<Lock<u32>> }",
+            1,
+        ),
         ("pub fn other<std>(){let _:std::sync::Mutex<u32>;}", 0),
         (
             "pub mod nested {pub mod std {pub mod sync {pub struct Mutex<T>(T);}} pub fn other(_:std::sync::Mutex<u32>){}}",
@@ -2341,6 +2346,42 @@ fn mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches() {
         } else {
             let report = result.unwrap();
             assert!(report.is_clean(), "{:?}", report.findings());
+            assert!(visibility.is_ok(), "{visibility:?}");
+        }
+    }
+    unit_variant_reaches_are_classified_as_path_patterns();
+}
+
+fn unit_variant_reaches_are_classified_as_path_patterns() {
+    for (variant, refused) in [("Ready", false), ("Replaced", true)] {
+        let enum_source = format!(
+            "pub enum Provider {{ {variant}, Busy }} pub fn sample() -> Provider {{ Provider::Busy }} #[path=\"shared.rs\"] mod shared;"
+        );
+        let files = MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname='demo'\nversion='0.1.0'\nedition='2024'\n",
+            ),
+            ("src/lib.rs", "mod a; mod b;"),
+            ("src/a.rs", enum_source.as_str()),
+            (
+                "src/b.rs",
+                "pub mod Provider { pub const Ready: u8 = 1; } pub fn sample() -> u8 { 1 } #[path=\"shared.rs\"] mod shared;",
+            ),
+            (
+                "src/shared.rs",
+                "fn check() -> bool { use super::Provider::*; match super::sample() { Ready => true, _ => false } }",
+            ),
+        ]);
+        let visibility = raf_census::visibility(&files, &raf_source::RelPath::root());
+        if refused {
+            assert!(
+                visibility
+                    .unwrap_err()
+                    .to_string()
+                    .contains("changes binding meaning across source reaches")
+            );
+        } else {
             assert!(visibility.is_ok(), "{visibility:?}");
         }
     }

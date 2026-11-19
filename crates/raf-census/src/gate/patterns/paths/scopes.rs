@@ -26,7 +26,6 @@ struct Frame {
     macros: BTreeSet<String>,
     local_values: BTreeSet<String>,
     generic_types: BTreeSet<String>,
-    function: bool,
     settled: RefCell<GlobCache>,
     module: bool,
 }
@@ -184,6 +183,10 @@ impl Expanded {
         self.first_frame.is_none_or(|first| frame > first)
     }
 
+    pub(super) fn first_frame(&self) -> Option<usize> {
+        self.first_frame
+    }
+
     pub(super) fn is_absolute(&self) -> bool {
         self.absolute
     }
@@ -197,6 +200,32 @@ impl Expanded {
             .map_or_else(|| self.sees_glob(frame), |target| frame <= target)
     }
 }
+
+pub(super) struct AliasTarget<'a> {
+    pub(super) alias: &'a Alias,
+    pub(super) expanded: Expanded,
+    frame: usize,
+}
+
+impl AliasTarget<'_> {
+    pub(super) fn sees_glob(&self, frame: usize) -> bool {
+        frame <= self.frame && self.expanded.sees_target_glob(frame)
+    }
+
+    fn into_alias(self) -> Alias {
+        Alias {
+            path: self.expanded.segments,
+            absolute: self.expanded.absolute,
+            source_byte: self.alias.source_byte,
+            external: self.alias.external,
+            attributes: self.alias.attributes,
+            frame: self.alias.frame,
+        }
+    }
+}
+
+type AliasProbe<'a> =
+    dyn FnMut(AliasTarget<'_>, Namespace, &mut MatchLimits) -> Result<bool, Error> + 'a;
 
 #[derive(Default)]
 pub(in crate::gate) struct Scopes {
@@ -315,13 +344,6 @@ impl Scopes {
         self.frames.len() == 1
     }
 
-    pub(super) fn function_boundary(&mut self) {
-        self.frames
-            .top_mut()
-            .expect("entered lexical scope")
-            .function = true;
-    }
-
     pub(in crate::gate) fn bind(
         &mut self,
         pattern: &syn::Pat,
@@ -392,13 +414,11 @@ impl Scopes {
             return Ok(false);
         };
         let namespace = head_namespace(path, namespace);
-        let mut runtime = true;
         for (index, frame) in (0..self.frames.len()).rev().zip(self.frames.iter().rev()) {
             charge("paths", limits, 1)?;
-            if frame.local(head, namespace, runtime) {
+            if frame.local(head, namespace, true) {
                 return Ok(true);
             }
-            runtime &= !frame.function;
             if frame.module
                 || binding((index, frame), head, namespace, None, limits, eligible)?.is_some()
             {
@@ -433,19 +453,17 @@ impl Scopes {
             let namespace = head_namespace(&expanded.segments, namespace);
             let own = seen.iter().last().copied().or(initial_own);
             let mut selected = None;
-            let mut see_runtime = runtime;
             for (index, frame) in (0..self.frames.len()).rev().zip(self.frames.iter().rev()) {
                 charge("paths", limits, 1)?;
                 if index >= frame_limit {
                     continue;
                 }
-                if frame.local(head, namespace, see_runtime) {
+                if frame.local(head, namespace, runtime) {
                     expanded.first_frame.get_or_insert(index);
                     expanded.shadowed = true;
                     expanded.block = true;
                     return Ok(Some(expanded));
                 }
-                see_runtime &= !frame.function;
                 if let Some(alias) =
                     binding((index, frame), head, namespace, own, limits, eligible)?
                 {
@@ -497,7 +515,7 @@ impl Scopes {
         first: Key<'a>,
         facts: &mut Facts<'a>,
         limits: &mut MatchLimits,
-        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+        eligible: &mut AliasProbe<'_>,
     ) -> Result<(), Error> {
         let mut pending = WorkList::<Key<'a>, 8>::new();
         push("paths", &mut pending, first, 0, limits)?;
@@ -517,15 +535,13 @@ impl Scopes {
                             true
                         } else {
                             eligible(
-                                &Alias {
-                                    path: expanded.segments,
-                                    absolute: expanded.absolute,
-                                    source_byte: key.alias.source_byte,
-                                    external: key.alias.external,
-                                    attributes: key.alias.attributes,
-                                    frame: key.alias.frame,
+                                AliasTarget {
+                                    alias: key.alias,
+                                    expanded,
+                                    frame: key.frame,
                                 },
                                 key.namespace,
+                                limits,
                             )?
                         }
                     } else {
@@ -558,7 +574,7 @@ impl Scopes {
         &self,
         query: Query<'_>,
         limits: &mut MatchLimits,
-        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+        eligible: &mut AliasProbe<'_>,
     ) -> Result<Answer, Error> {
         let mut facts = Facts::new();
         loop {
@@ -595,7 +611,10 @@ impl Scopes {
         limits: &mut MatchLimits,
         eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
     ) -> Result<bool, Error> {
-        match self.resolve(Query::Local(path, namespace), limits, eligible)? {
+        let mut probe = |target: AliasTarget<'_>, namespace, _: &mut MatchLimits| {
+            eligible(&target.into_alias(), namespace)
+        };
+        match self.resolve(Query::Local(path, namespace), limits, &mut probe)? {
             Answer::Local(value) => Ok(value),
             Answer::Expanded(_) => unreachable!("a local query returns a local answer"),
         }
@@ -609,8 +628,28 @@ impl Scopes {
         limits: &mut MatchLimits,
         eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
     ) -> Result<Option<Expanded>, Error> {
+        let mut probe = |target: AliasTarget<'_>, namespace, _: &mut MatchLimits| {
+            eligible(&target.into_alias(), namespace)
+        };
+        self.expand_checked((path, absolute, namespace), false, None, limits, &mut probe)
+    }
+
+    pub(super) fn expand_checked(
+        &self,
+        (path, absolute, namespace): (&[String], bool, Namespace),
+        import: bool,
+        frame_limit: Option<usize>,
+        limits: &mut MatchLimits,
+        eligible: &mut AliasProbe<'_>,
+    ) -> Result<Option<Expanded>, Error> {
         self.expansion(
-            Query::Expand(path, absolute, namespace, self.frames.len(), true),
+            Query::Expand(
+                path,
+                absolute,
+                namespace,
+                frame_limit.unwrap_or(self.frames.len()),
+                !import,
+            ),
             limits,
             eligible,
         )
@@ -626,10 +665,13 @@ impl Scopes {
         eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
     ) -> Result<Option<Expanded>, Error> {
         let frame_limit = frame_limit.unwrap_or(self.frames.len());
+        let mut probe = |target: AliasTarget<'_>, namespace, _: &mut MatchLimits| {
+            eligible(&target.into_alias(), namespace)
+        };
         self.expansion(
             Query::Expand(path, absolute, namespace, frame_limit, false),
             limits,
-            eligible,
+            &mut probe,
         )
     }
 
@@ -637,7 +679,7 @@ impl Scopes {
         &self,
         query: Query<'_>,
         limits: &mut MatchLimits,
-        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+        eligible: &mut AliasProbe<'_>,
     ) -> Result<Option<Expanded>, Error> {
         match self.resolve(query, limits, eligible)? {
             Answer::Expanded(value) => Ok(value),

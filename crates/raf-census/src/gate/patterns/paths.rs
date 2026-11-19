@@ -24,7 +24,7 @@ use super::{Found, charge, failure, push};
 use crate::syntax::{Alias, path_text};
 use crate::{Census, Error, LedgerPattern, PatternMatcher, VisibilityError};
 use cache::OwnerCache;
-use scopes::{Expanded, Glob, Scopes};
+use scopes::{AliasTarget, Expanded, Glob, Scopes};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Role {
@@ -231,6 +231,8 @@ enum PathDefinition<'a> {
 struct GlobLookup {
     definition: Option<PathDefinition<'static>>,
     opaque: Option<String>,
+    variant: Option<VariantMatch>,
+    head: Option<GlobBinding>,
 }
 
 struct ScopedGlob<'a> {
@@ -285,11 +287,56 @@ struct GlobRoute {
 #[derive(Clone)]
 enum GlobProvider {
     Module,
-    Enum(Rc<WorkList<Rc<EnumMembers>, 2>>),
+    Enum(Rc<WorkList<EnumAlternative, 2>>),
     Other,
 }
 
-type EnumMembers = BTreeMap<String, bool>;
+type EnumMembers = BTreeMap<String, VariantForms>;
+
+struct EnumAlternative {
+    id: ItemId,
+    members: Rc<EnumMembers>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct VariantForms {
+    unit: bool,
+    tuple: bool,
+    named: bool,
+}
+
+impl VariantForms {
+    fn observe(&mut self, fields: &Fields) {
+        match fields {
+            Fields::Unit => self.unit = true,
+            Fields::Unnamed(_) => self.tuple = true,
+            Fields::Named(_) => self.named = true,
+        }
+    }
+
+    fn binding(self, head: &str, namespace: Namespace) -> Result<Option<bool>, Error> {
+        if namespace == Namespace::Type {
+            return Ok(Some(false));
+        }
+        if self.named && (self.unit || self.tuple) || self.unit && self.tuple {
+            return Err(variant_disagreement(head));
+        }
+        Ok((self.unit || self.tuple).then_some(self.unit))
+    }
+}
+
+fn variant_disagreement(head: &str) -> Error {
+    failure(
+        VISIBILITY,
+        &format!("enum glob head {head:?} differs across indexed declarations; qualify the path"),
+    )
+}
+
+#[derive(Clone)]
+struct VariantMatch {
+    enums: Rc<WorkList<EnumAlternative, 2>>,
+    unit: bool,
+}
 
 impl GlobProvider {
     fn retained_states(&self) -> usize {
@@ -304,32 +351,35 @@ impl GlobProvider {
         head: &str,
         namespace: Namespace,
         limits: &mut MatchLimits,
-    ) -> Result<bool, Error> {
+    ) -> Result<Option<VariantMatch>, Error> {
         let Self::Enum(enums) = self else {
-            return Ok(false);
+            return Ok(None);
         };
         if !matches!(namespace, Namespace::Type | Namespace::Value) {
-            return Ok(false);
+            return Ok(None);
         }
         let mut present = None;
-        for members in enums.iter() {
-            charge(VISIBILITY, limits, u64::from(members.len().bit_width()) + 1)?;
-            let found = members
+        for alternative in enums.iter() {
+            charge(
+                VISIBILITY,
+                limits,
+                u64::from(alternative.members.len().bit_width()) + 1,
+            )?;
+            let found = alternative
+                .members
                 .get(head)
-                .is_some_and(|value| namespace == Namespace::Type || *value);
+                .map_or(Ok(None), |forms| forms.binding(head, namespace))?;
             if present
                 .replace(found)
                 .is_some_and(|previous| previous != found)
             {
-                return Err(failure(
-                    VISIBILITY,
-                    &format!(
-                        "enum glob head {head:?} differs across indexed declarations; qualify the path"
-                    ),
-                ));
+                return Err(variant_disagreement(head));
             }
         }
-        Ok(present.unwrap_or(false))
+        Ok(present.flatten().map(|unit| VariantMatch {
+            enums: Rc::clone(enums),
+            unit,
+        }))
     }
 }
 
@@ -359,9 +409,49 @@ struct SettledGlob {
 
 #[derive(Clone, Default)]
 struct GlobHead {
-    route: Option<GlobRoute>,
+    binding: Option<GlobBinding>,
     opaque: Option<String>,
-    variant: bool,
+    ambiguous: bool,
+}
+
+#[derive(Clone, Copy)]
+struct GlobRead {
+    namespace: Namespace,
+    early: bool,
+    exclusion: Option<usize>,
+    keep_head: bool,
+}
+
+#[derive(Clone)]
+enum GlobBinding {
+    Item(GlobRoute),
+    Variant(VariantMatch),
+}
+
+impl GlobBinding {
+    fn sites(&self) -> impl Iterator<Item = ItemId> + '_ {
+        let (items, enums) = match self {
+            Self::Item(route) => (route.sites.as_slice(), None),
+            Self::Variant(variant) => (&[][..], Some(variant.enums.as_ref())),
+        };
+        items.iter().copied().chain(
+            enums
+                .into_iter()
+                .flat_map(|enums| enums.iter().map(|entry| entry.id)),
+        )
+    }
+
+    fn same(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
+            && self.sites().eq(other.sites())
+    }
+
+    fn retained_states(&self) -> usize {
+        match self {
+            Self::Item(route) => route.sites.capacity(),
+            Self::Variant(_) => 0,
+        }
+    }
 }
 
 struct Lookup<'a, 'w> {
@@ -401,8 +491,11 @@ impl Lookup<'_, '_> {
 
     fn eligible_declaration(&self, alias: &Alias, namespace: Namespace) -> Result<bool, Error> {
         let text = path_text(&alias.path, alias.absolute);
-        eligible_namespace(namespace, |space| match self.query(&text, space, true) {
-            Ok(_) => Ok(true),
+        eligible_namespace(namespace, |space| self.declared_namespace(&text, space))
+    }
+
+    fn declared_namespace(&self, text: &str, namespace: Namespace) -> Result<bool, Error> {
+        match self.query(text, namespace, true) {
             Err(error)
                 if self.visibility.is_some_and(|(workspace, consumer)| {
                     internal_ambiguity(workspace, consumer, &error)
@@ -411,9 +504,43 @@ impl Lookup<'_, '_> {
                 Ok(true)
             }
             Err(CodeResolveError::AliasMember { .. }) if self.visibility.is_some() => Ok(false),
-            Err(error) => Err(error),
+            result => source_namespace(result).map_err(|error| self.error(text, error)),
+        }
+    }
+
+    fn visible_alias(
+        &self,
+        scopes: &Scopes,
+        target: &AliasTarget<'_>,
+        namespace: Namespace,
+        limits: &mut MatchLimits,
+    ) -> Result<bool, Error> {
+        if self.site.is_import() && target.alias.source_byte == Some(self.site.byte) {
+            return Ok(false);
+        }
+        let text = target.expanded.text();
+        eligible_namespace(namespace, |space| {
+            if !target.expanded.is_absolute() {
+                let glob = self.through_block_glob(
+                    scopes,
+                    &target.expanded.segments,
+                    |frame| target.sees_glob(frame),
+                    GlobRead {
+                        namespace: space,
+                        early: true,
+                        exclusion: None,
+                        keep_head: false,
+                    },
+                    limits,
+                )?;
+                if let Some(resolved) = glob.definition {
+                    return Ok(
+                        glob.variant.is_some() || matches!(resolved, PathDefinition::Written(_))
+                    );
+                }
+            }
+            self.declared_namespace(&text, space)
         })
-        .map_err(|error| self.error(&text, error))
     }
 
     fn lexical(
@@ -423,9 +550,13 @@ impl Lookup<'_, '_> {
         absolute: bool,
         limits: &mut MatchLimits,
     ) -> Result<LexicalPath, Error> {
+        if self.visibility.is_some() {
+            return self
+                .visible_expansion(scopes, written, absolute, None, limits)
+                .map(LexicalPath::Accessible);
+        }
         let mut eligible = |alias: &Alias, namespace| self.eligible(alias, namespace);
-        if self.visibility.is_none()
-            && !self.site.is_import()
+        if !self.site.is_import()
             && !absolute
             && scopes.local(written, self.site.namespace, limits, &mut eligible)?
         {
@@ -450,6 +581,26 @@ impl Lookup<'_, '_> {
             )
         };
         expanded.map(LexicalPath::Accessible)
+    }
+
+    fn visible_expansion(
+        &self,
+        scopes: &Scopes,
+        written: &[String],
+        absolute: bool,
+        cutoff: Option<usize>,
+        limits: &mut MatchLimits,
+    ) -> Result<Option<Expanded>, Error> {
+        let mut probe = |target: AliasTarget<'_>, space, limits: &mut MatchLimits| {
+            self.visible_alias(scopes, &target, space, limits)
+        };
+        scopes.expand_checked(
+            (written, absolute, self.site.namespace),
+            self.site.is_import(),
+            cutoff,
+            limits,
+            &mut probe,
+        )
     }
 
     fn indexed(&self, written: &str, import: bool) -> Result<Option<Vec<ItemId>>, Error> {
@@ -508,6 +659,7 @@ impl Lookup<'_, '_> {
         scopes: &Scopes,
         written: &[String],
         visible: impl Fn(usize) -> bool,
+        read: GlobRead,
         limits: &mut MatchLimits,
     ) -> Result<GlobLookup, Error> {
         let Some(head) = written.first() else {
@@ -519,15 +671,14 @@ impl Lookup<'_, '_> {
         let namespace = if written.len() > 1 {
             Namespace::Type
         } else {
-            self.site.namespace
+            read.namespace
         };
-        let mut glob_lookup = GlobLookup::default();
-        let exclusion = self.site.is_import().then_some(self.site.byte);
+        let mut gathered = GlobHead::default();
         let mut context = None;
         for (frame, declarations, cache) in
             scopes.block_globs().filter(|(frame, _, _)| visible(*frame))
         {
-            if exclusion.is_some_and(|byte| {
+            if read.exclusion.is_some_and(|byte| {
                 declarations
                     .iter()
                     .all(|glob| glob.source_byte == Some(byte))
@@ -545,33 +696,83 @@ impl Lookup<'_, '_> {
                 frame,
                 &mut cache.borrow_mut(),
                 context,
-                (head, namespace, exclusion),
+                (head, namespace, read.exclusion),
                 limits,
             )?;
-            if glob_lookup.opaque.is_none() {
-                glob_lookup.opaque = selected.opaque;
+            if gathered.opaque.is_none() {
+                gathered.opaque = selected.opaque;
             }
-            if selected.variant {
-                glob_lookup.definition = Some(PathDefinition::Missing);
-                break;
+            gathered.ambiguous |= selected.ambiguous;
+            if let Some(binding) = selected.binding {
+                self.merge_glob_binding(&mut gathered, binding, head, limits)?;
             }
-            if let Some(route) = selected.route {
-                glob_lookup.definition = Some(if written.len() == 1 {
-                    PathDefinition::Written(route.sites)
-                } else {
-                    let path = format!("{}::{}", route.path, path_text(&written[1..], false));
-                    charge(
-                        self.label,
-                        limits,
-                        path.len().try_into().unwrap_or(u64::MAX),
-                    )?;
-                    self.indexed(&path, true)?
-                        .map_or(PathDefinition::Missing, PathDefinition::Written)
-                });
+            if !read.early && (gathered.binding.is_some() || gathered.ambiguous) {
                 break;
             }
         }
+        let mut glob_lookup = GlobLookup {
+            opaque: gathered.opaque,
+            ..GlobLookup::default()
+        };
+        if let Some(binding) = gathered.binding {
+            if read.early {
+                gathered.ambiguous |= self.conflicting_outer_glob(head, namespace, &binding)?;
+            }
+            if gathered.ambiguous {
+                glob_lookup.definition = Some(PathDefinition::Missing);
+            }
+            if read.keep_head {
+                glob_lookup.head = Some(binding);
+            } else if !gathered.ambiguous {
+                self.finish_glob(
+                    &mut glob_lookup,
+                    binding,
+                    &written[1..],
+                    read.namespace,
+                    limits,
+                )?;
+            }
+        }
         Ok(glob_lookup)
+    }
+
+    fn finish_glob(
+        &self,
+        lookup: &mut GlobLookup,
+        binding: GlobBinding,
+        tail: &[String],
+        namespace: Namespace,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        lookup.definition = Some(match binding {
+            GlobBinding::Item(route) => self.glob_definition(route, tail, namespace, limits)?,
+            GlobBinding::Variant(variant) => {
+                lookup.variant = tail.is_empty().then_some(variant);
+                PathDefinition::Missing
+            }
+        });
+        Ok(())
+    }
+
+    fn glob_definition(
+        &self,
+        route: GlobRoute,
+        tail: &[String],
+        namespace: Namespace,
+        limits: &mut MatchLimits,
+    ) -> Result<PathDefinition<'static>, Error> {
+        if tail.is_empty() {
+            return Ok(PathDefinition::Written(route.sites));
+        }
+        let path = format!("{}::{}", route.path, path_text(tail, false));
+        charge(
+            self.label,
+            limits,
+            path.len().try_into().unwrap_or(u64::MAX),
+        )?;
+        Ok(self
+            .indexed_in(&path, namespace, true)?
+            .map_or(PathDefinition::Missing, PathDefinition::Written))
     }
 
     fn glob_occurrence(
@@ -585,12 +786,26 @@ impl Lookup<'_, '_> {
         if absolute {
             return Ok(GlobLookup::default());
         }
+        let named_outer =
+            expanded.filter(|path| self.site.role == Role::Import && path.first_frame().is_some());
         let mut glob = self.through_block_glob(
             scopes,
             written,
             |frame| expanded.is_none_or(|path| path.sees_glob(frame)),
+            GlobRead {
+                namespace: self.site.namespace,
+                early: self.site.role == Role::Import,
+                exclusion: self.site.is_import().then_some(self.site.byte),
+                keep_head: named_outer.is_some(),
+            },
             limits,
         )?;
+        if let (Some(alias), Some(head)) = (named_outer, glob.head.take()) {
+            self.compare_enclosing_scopes(scopes, alias, written, &head, &mut glob, limits)?;
+            if glob.definition.is_none() {
+                self.finish_glob(&mut glob, head, &written[1..], self.site.namespace, limits)?;
+            }
+        }
         if glob.definition.is_none()
             && let Some(alias) = expanded.filter(|path| {
                 !path.is_absolute() && !path.shadowed && path.alias_frame().is_some()
@@ -600,12 +815,149 @@ impl Lookup<'_, '_> {
                 scopes,
                 &alias.segments,
                 |frame| alias.sees_target_glob(frame),
+                GlobRead {
+                    namespace: self.site.namespace,
+                    early: true,
+                    exclusion: self.site.is_import().then_some(self.site.byte),
+                    keep_head: false,
+                },
                 limits,
             )?;
             glob.definition = target.definition;
             glob.opaque = glob.opaque.or(target.opaque);
+            glob.variant = target.variant;
         }
         Ok(glob)
+    }
+
+    fn compare_enclosing_scopes(
+        &self,
+        scopes: &Scopes,
+        nearest: &Expanded,
+        written: &[String],
+        head: &GlobBinding,
+        glob: &mut GlobLookup,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        if nearest.alias_frame().is_some() {
+            self.compare_enclosing_alias(scopes, nearest, written, head, glob, limits)?;
+        }
+        let Some(name) = written.get(..1) else {
+            return Ok(());
+        };
+        let namespace = if written.len() == 1 {
+            self.site.namespace
+        } else {
+            Namespace::Type
+        };
+        let mut cutoff = nearest.first_frame().filter(|_| nearest.block);
+        // Each named declaration shadows globs of its own frame. A selected
+        // early glob must still agree with candidates in every farther frame.
+        while let Some(frame) = cutoff {
+            let farther = self.visible_expansion(scopes, written, false, cutoff, limits)?;
+            let candidate = self.through_block_glob(
+                scopes,
+                name,
+                |outer| outer < frame && farther.as_ref().is_none_or(|path| path.sees_glob(outer)),
+                GlobRead {
+                    namespace,
+                    early: true,
+                    exclusion: Some(self.site.byte),
+                    keep_head: true,
+                },
+                limits,
+            )?;
+            glob.opaque = glob.opaque.take().or(candidate.opaque);
+            if let Some(other) = candidate.head {
+                self.compare_import_heads(&name[0], head, &other, glob, limits)?;
+            }
+            if matches!(candidate.definition, Some(PathDefinition::Missing)) {
+                glob.definition = Some(PathDefinition::Missing);
+            }
+            if let Some(alias) = farther.as_ref().filter(|path| path.alias_frame().is_some()) {
+                self.compare_enclosing_alias(scopes, alias, written, head, glob, limits)?;
+            }
+            cutoff = farther.and_then(|path| path.first_frame().filter(|_| path.block));
+        }
+        Ok(())
+    }
+
+    fn compare_enclosing_alias(
+        &self,
+        scopes: &Scopes,
+        alias: &Expanded,
+        written: &[String],
+        head: &GlobBinding,
+        glob: &mut GlobLookup,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        let Some((name, tail)) = written.split_first() else {
+            return Ok(());
+        };
+        let namespace = if tail.is_empty() {
+            self.site.namespace
+        } else {
+            Namespace::Type
+        };
+        let prefix_len = alias
+            .segments
+            .len()
+            .checked_sub(tail.len())
+            .filter(|&len| len != 0)
+            .ok_or_else(|| failure(self.label, "expanded alias lost its declared head"))?;
+        let prefix = &alias.segments[..prefix_len];
+        let candidate = if alias.is_absolute() {
+            GlobLookup::default()
+        } else {
+            self.through_block_glob(
+                scopes,
+                prefix,
+                |frame| alias.sees_target_glob(frame),
+                GlobRead {
+                    namespace,
+                    early: true,
+                    exclusion: None,
+                    keep_head: false,
+                },
+                limits,
+            )?
+        };
+        glob.opaque = glob.opaque.take().or(candidate.opaque);
+        let text = path_text(prefix, alias.is_absolute());
+        let enclosing = if let Some(variant) = candidate.variant {
+            Some(GlobBinding::Variant(variant))
+        } else {
+            let sites = match candidate.definition {
+                Some(PathDefinition::Written(sites)) => Some(sites),
+                Some(_) => None,
+                None => self.indexed_in(&text, namespace, true)?,
+            };
+            sites.map(|sites| GlobBinding::Item(GlobRoute { path: text, sites }))
+        };
+        if let Some(enclosing) = enclosing {
+            self.compare_import_heads(name, head, &enclosing, glob, limits)?;
+        }
+        Ok(())
+    }
+
+    fn compare_import_heads(
+        &self,
+        head: &str,
+        selected: &GlobBinding,
+        enclosing: &GlobBinding,
+        glob: &mut GlobLookup,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        let count = selected
+            .sites()
+            .count()
+            .saturating_add(enclosing.sites().count());
+        charge(self.label, limits, count.try_into().unwrap_or(u64::MAX))?;
+        if !selected.same(enclosing) {
+            self.refuse_outer_conflict(head, selected.sites().chain(enclosing.sites()))?;
+            glob.definition = Some(PathDefinition::Missing);
+        }
+        Ok(())
     }
 
     fn reading_context(&self) -> Result<ReadingContext, Error> {
@@ -700,9 +1052,9 @@ impl Lookup<'_, '_> {
         let result = self.lookup_glob_head(settled, head, namespace, None, limits)?;
         let retained = usize::from(heads.is_none())
             + result
-                .route
+                .binding
                 .as_ref()
-                .map_or(1, |route| route.sites.capacity() + 1);
+                .map_or(1, |binding| binding.retained_states() + 1);
         scopes.retain_glob_states(retained, limits)?;
         cache.retained += retained;
         settled
@@ -730,20 +1082,28 @@ impl Lookup<'_, '_> {
             match &glob.provider {
                 Some(GlobProvider::Module) => {
                     if let Some(route) = self.glob_member(&glob.prefix, head, namespace, limits)? {
-                        self.select_glob(&mut found.route, route, head)?;
+                        self.merge_glob_binding(
+                            &mut found,
+                            GlobBinding::Item(route),
+                            head,
+                            limits,
+                        )?;
                     }
                 }
-                Some(provider) => found.variant |= provider.variant(head, namespace, limits)?,
+                Some(provider) => {
+                    if let Some(variant) = provider.variant(head, namespace, limits)? {
+                        self.merge_glob_binding(
+                            &mut found,
+                            GlobBinding::Variant(variant),
+                            head,
+                            limits,
+                        )?;
+                    }
+                }
                 None => {
                     found.opaque.get_or_insert_with(|| glob.prefix.clone());
                 }
             }
-        }
-        if found.variant && found.route.is_some() {
-            return Err(failure(
-                self.label,
-                &format!("written path head {head:?} has competing block glob bindings"),
-            ));
         }
         Ok(found)
     }
@@ -769,7 +1129,10 @@ impl Lookup<'_, '_> {
                 SymbolKind::Enum => push(
                     self.label,
                     &mut enums,
-                    self.enum_members(scopes, workspace, item, limits)?,
+                    EnumAlternative {
+                        id,
+                        members: self.enum_members(scopes, workspace, item, limits)?,
+                    },
                     0,
                     limits,
                 )?,
@@ -824,9 +1187,8 @@ impl Lookup<'_, '_> {
             let mut members = EnumMembers::new();
             for variant in &declaration.variants {
                 let name = variant.ident.unraw().to_string();
-                let value = !matches!(variant.fields, Fields::Named(_));
                 if let Some(known) = members.get_mut(&name) {
-                    *known |= value;
+                    known.observe(&variant.fields);
                 } else {
                     if members.len() >= capacity {
                         return Err(failure(
@@ -834,7 +1196,9 @@ impl Lookup<'_, '_> {
                             "enum glob roster state limit exhausted",
                         ));
                     }
-                    members.insert(name, value);
+                    let mut known = VariantForms::default();
+                    known.observe(&variant.fields);
+                    members.insert(name, known);
                 }
             }
             Ok(members)
@@ -971,8 +1335,7 @@ impl Lookup<'_, '_> {
         let Some((head, tail)) = glob.relative_prefix() else {
             return Ok(None);
         };
-        let mut selected = None;
-        let mut variant = false;
+        let mut selected = GlobHead::default();
         for candidate in globs.iter() {
             charge(self.label, limits, 1)?;
             if candidate.frame > glob.frame
@@ -986,31 +1349,37 @@ impl Lookup<'_, '_> {
                     if let Some(route) =
                         self.glob_member(candidate.prefix(), head, Namespace::Type, limits)?
                     {
-                        self.select_glob(&mut selected, route, head)?;
+                        self.merge_glob_binding(
+                            &mut selected,
+                            GlobBinding::Item(route),
+                            head,
+                            limits,
+                        )?;
                     }
                 }
-                Some(provider) => variant |= provider.variant(head, Namespace::Type, limits)?,
+                Some(provider) => {
+                    if let Some(variant) = provider.variant(head, Namespace::Type, limits)? {
+                        self.merge_glob_binding(
+                            &mut selected,
+                            GlobBinding::Variant(variant),
+                            head,
+                            limits,
+                        )?;
+                    }
+                }
                 None => {}
             }
         }
-        let Some(route) = selected else {
+        let Some(binding) = selected.binding else {
             return Ok(None);
         };
-        if variant {
-            return Err(failure(
-                self.label,
-                &format!("written path head {head:?} has competing block glob bindings"),
-            ));
-        }
         // Imports cannot select a glob binding over a distinct outer candidate.
-        if self.conflicting_outer_glob(head, &route.sites)? {
-            return Err(failure(
-                self.label,
-                &format!(
-                    "block glob prefix {head:?} has distinct glob and outer bindings; qualify the import"
-                ),
-            ));
+        if selected.ambiguous || self.conflicting_outer_glob(head, Namespace::Type, &binding)? {
+            return Ok(None);
         }
+        let GlobBinding::Item(route) = binding else {
+            return Ok(None);
+        };
         if tail.is_empty() {
             return Ok(Some(route));
         }
@@ -1025,18 +1394,46 @@ impl Lookup<'_, '_> {
             .map(|sites| GlobRoute { path, sites }))
     }
 
-    fn conflicting_outer_glob(&self, head: &str, sites: &[ItemId]) -> Result<bool, Error> {
-        match self.query(head, Namespace::Type, true) {
-            Ok(outer) => Ok(outer.sites != sites),
-            Err(CodeResolveError::Resolve(ResolveError::Ambiguous(_))) => Ok(true),
+    fn conflicting_outer_glob(
+        &self,
+        head: &str,
+        namespace: Namespace,
+        binding: &GlobBinding,
+    ) -> Result<bool, Error> {
+        let outer = match self.query(head, namespace, true) {
+            Ok(outer) => {
+                if matches!(binding, GlobBinding::Item(item) if item.sites == outer.sites) {
+                    return Ok(false);
+                }
+                outer.sites
+            }
+            Err(CodeResolveError::Resolve(ResolveError::Ambiguous(sites))) => sites,
             Err(
                 CodeResolveError::Resolve(
                     ResolveError::NotFound(_) | ResolveError::UnresolvedSelf(_),
                 )
                 | CodeResolveError::AliasMember { .. },
-            ) => Ok(false),
-            Err(error) => Err(self.error(head, error)),
+            ) => return Ok(false),
+            Err(error) => return Err(self.error(head, error)),
+        };
+        self.refuse_outer_conflict(head, binding.sites().chain(outer))?;
+        Ok(true)
+    }
+
+    fn refuse_outer_conflict(
+        &self,
+        head: &str,
+        mut sites: impl Iterator<Item = ItemId>,
+    ) -> Result<(), Error> {
+        if sites.any(|site| self.cross_package(site)) {
+            return Err(failure(
+                self.label,
+                &format!(
+                    "block glob head {head:?} has distinct glob and outer bindings; qualify the import"
+                ),
+            ));
         }
+        Ok(())
     }
 
     fn glob_member(
@@ -1057,22 +1454,46 @@ impl Lookup<'_, '_> {
             .map(|sites| GlobRoute { path, sites }))
     }
 
-    fn select_glob(
+    fn cross_package(&self, id: ItemId) -> bool {
+        self.visibility.is_some_and(|(workspace, consumer)| {
+            workspace
+                .item(id)
+                .and_then(|item| workspace.target(item.target))
+                .is_some_and(|target| {
+                    target.kind == TargetKind::Lib && target.package_id != consumer
+                })
+        })
+    }
+
+    fn merge_glob_binding(
         &self,
-        selected: &mut Option<GlobRoute>,
-        route: GlobRoute,
+        selected: &mut GlobHead,
+        candidate: GlobBinding,
         head: &str,
+        limits: &mut MatchLimits,
     ) -> Result<(), Error> {
-        if selected
-            .as_ref()
-            .is_some_and(|previous| previous.sites != route.sites)
-        {
-            return Err(failure(
-                self.label,
-                &format!("written path head {head:?} has competing block glob bindings"),
-            ));
+        let Some(previous) = &selected.binding else {
+            selected.binding = Some(candidate);
+            return Ok(());
+        };
+        let count = previous
+            .sites()
+            .count()
+            .saturating_add(candidate.sites().count());
+        charge(self.label, limits, count.try_into().unwrap_or(u64::MAX))?;
+        if !previous.same(&candidate) {
+            if previous
+                .sites()
+                .chain(candidate.sites())
+                .any(|site| self.cross_package(site))
+            {
+                return Err(failure(
+                    self.label,
+                    &format!("written path head {head:?} has competing block glob bindings"),
+                ));
+            }
+            selected.ambiguous = true;
         }
-        *selected = Some(route);
         Ok(())
     }
 
@@ -1334,7 +1755,13 @@ fn cross_package_uses(
             PathDefinition::Missing | PathDefinition::Unverified(_) => &[],
         };
         if site.role == Role::Pattern
-            && !classify_pattern(workspace, VISIBILITY, actual, &mut classified)?
+            && !classify_pattern(
+                workspace,
+                VISIBILITY,
+                actual,
+                glob.variant.as_ref().is_some_and(|variant| variant.unit),
+                &mut classified,
+            )?
         {
             continue;
         }
@@ -1356,6 +1783,7 @@ fn classify_pattern(
     workspace: &Workspace,
     label: &str,
     sites: &[ItemId],
+    unit_variant: bool,
     classified: &mut Option<bool>,
 ) -> Result<bool, Error> {
     use raf_source::FieldShape;
@@ -1377,7 +1805,7 @@ fn classify_pattern(
             ));
         }
     }
-    let constant = kind.unwrap_or(false);
+    let constant = kind.unwrap_or(unit_variant);
     if classified
         .replace(constant)
         .is_some_and(|previous| previous != constant)
@@ -1401,28 +1829,33 @@ pub(in crate::gate) fn import_eligible(
 ) -> Result<bool, CodeResolveError> {
     let text = path_text(&alias.path, alias.absolute);
     eligible_namespace(namespace, |space| {
-        code.resolve_import_from_item_at(owner, byte, &text, space)
-            .map(|_| true)
+        source_namespace(code.resolve_import_from_item_at(owner, byte, &text, space))
     })
 }
 
-fn eligible_namespace(
-    namespace: Namespace,
-    mut resolve: impl FnMut(Namespace) -> Result<bool, CodeResolveError>,
+fn source_namespace(
+    result: Result<Resolution, CodeResolveError>,
 ) -> Result<bool, CodeResolveError> {
-    match resolve(namespace) {
-        Ok(true) => return Ok(true),
-        Ok(false) | Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => {}
-        Err(error) => return Err(error),
+    match result {
+        Ok(_) => Ok(true),
+        Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+fn eligible_namespace<E>(
+    namespace: Namespace,
+    mut resolve: impl FnMut(Namespace) -> Result<bool, E>,
+) -> Result<bool, E> {
+    if resolve(namespace)? {
+        return Ok(true);
     }
     for other in Namespace::ALL {
         if other == namespace {
             continue;
         }
-        match resolve(other) {
-            Ok(true) => return Ok(false),
-            Ok(false) | Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => {}
-            Err(error) => return Err(error),
+        if resolve(other)? {
+            return Ok(false);
         }
     }
     Ok(true)
@@ -1448,7 +1881,7 @@ fn constant<'w>(
             Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => Vec::new(),
             Err(error) => return Err(query_error(id, &site, error)),
         };
-        classify_pattern(workspace, id, &sites, &mut classified)?;
+        classify_pattern(workspace, id, &sites, false, &mut classified)?;
     }
     Ok(classified.unwrap_or(false))
 }

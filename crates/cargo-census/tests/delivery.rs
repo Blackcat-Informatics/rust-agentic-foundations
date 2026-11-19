@@ -315,9 +315,10 @@ fn assert_visibility_item_scopes(root: &Path) {
             { use bridge::Empty::*; fallback(); bridge::Empty::fallback(); }\n\
             { use bridge::Tuple::*; let _ = concealed(()); }\n\
             { use bridge::Brace::*; named(); }\n\
-            use bridge::facade as nested_call; let nested_call = || ();\n\
-            use bridge::facade as captured_call; let captured_call = || ();\n\
+            use bridge::facade as nested_call;\n\
             fn inner() { nested_call(); }\n\
+            let nested_call = || ();\n\
+            use bridge::facade as captured_call; let captured_call = || ();\n\
             let _ = || captured_call();\n\
         }\n\
         fn alias_chain() {\n\
@@ -382,6 +383,106 @@ fn assert_visibility_item_scopes(root: &Path) {
     assert_eq!(ambiguous.stdout, Vec::<u8>::new());
     assert!(
         String::from_utf8_lossy(&ambiguous.stderr).contains("differs across indexed declarations")
+    );
+    assert_visibility_glob_namespaces(root);
+}
+
+fn assert_visibility_glob_namespaces(root: &Path) {
+    let bridge = root.join("bridge/src/lib.rs");
+    let mut source = fs::read_to_string(&bridge).unwrap();
+    source.push_str(
+        "\npub fn ping() {}\n\
+         pub mod types { pub struct Record { pub value: u8 } pub struct GenericOnly; #[derive(Clone, Copy)] pub struct Used; }\n\
+         pub mod left { pub mod branch { pub fn run() {} pub use crate::ping as same; } }\n\
+         pub mod right { pub mod branch { pub fn run() {} pub use crate::ping as same; } }\n\
+         pub enum First { Ready } pub enum Second { Ready } pub use First as Same;",
+    );
+    fs::write(bridge, source).unwrap();
+    let report = |source: &str| {
+        fs::write(root.join("client/src/loose.rs"), source).unwrap();
+        run(root, &["visibility"])
+    };
+    let output = report(
+        "use bridge::ping as picked; use bridge::left::branch;\n\
+         fn split() { use bridge::types::*; use Record as picked; picked(); let _: Option<picked> = None; }\n\
+         fn union_fields() { use bridge::types::*; union Generic<GenericOnly: Copy> { field: GenericOnly } union Ordinary { field: Used } }\n\
+         fn qualified() { use bridge::right::*; branch::run(); }\n\
+         fn coincident() { use bridge::left::*; use branch::run as chosen; chosen(); }\n\
+         fn coincident_block() { use bridge::right::*; use bridge::left::branch; { use bridge::left::*; use branch::run as chosen; chosen(); } }\n\
+         fn repeated() { use bridge::First::*; use bridge::Same::*; let _ = Ready; }",
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&output.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    let bridge = visibility_nodes(&graph, graph.get("").unwrap(), "library")
+        .find(|node| visibility_value(*node, "package") == "bridge")
+        .unwrap();
+    for (symbol, written, expected) in [
+        ("bridge::ping", "picked", true),
+        ("bridge::types::Record", "picked", true),
+        ("bridge::types::GenericOnly", "GenericOnly", false),
+        ("bridge::types::Used", "Used", true),
+        ("bridge::right::branch::run", "branch::run", true),
+        ("bridge::left::branch::run", "chosen", true),
+    ] {
+        assert_eq!(
+            visibility_nodes(&graph, bridge, "use").any(|row| {
+                visibility_value(row, "symbol") == symbol
+                    && visibility_value(row, "consumer") == "client"
+                    && row
+                        .values(&format!("{}writtenPath", vocab::REPORT))
+                        .any(|value| value.literal().unwrap().0 == written)
+            }),
+            expected,
+            "written path {written} for {symbol}"
+        );
+    }
+    for (source, reason) in [
+        (
+            "use bridge::left::branch; fn call() { use bridge::right::*; use branch::run as chosen; chosen(); }",
+            "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { use bridge::left::*; { use bridge::right::*; use branch::run as chosen; chosen(); } }",
+            "competing block glob bindings",
+        ),
+        (
+            "fn call() { use bridge::left::branch; { use bridge::right::*; use branch::same as chosen; chosen(); } }",
+            "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { use bridge::left::branch; { use bridge::right::branch; { use bridge::right::*; use branch::same as chosen; chosen(); } } }",
+            "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { use bridge::left::*; { use bridge::right::branch; { use bridge::right::*; use branch::same as chosen; chosen(); } } }",
+            "distinct glob and outer bindings",
+        ),
+        (
+            "fn call() { use bridge::First::*; use bridge::Second::*; let _ = Ready; }",
+            "competing block glob bindings",
+        ),
+    ] {
+        let ambiguous = report(source);
+        assert_eq!(ambiguous.status.code(), Some(1));
+        assert_eq!(ambiguous.stdout, Vec::<u8>::new());
+        let stderr = String::from_utf8_lossy(&ambiguous.stderr);
+        assert!(stderr.contains(reason), "{stderr}");
+    }
+    let internal = report(
+        "enum First { Ready } enum Second { Ready } fn call() { use self::First::*; use self::Second::*; let _ = Ready; }",
+    );
+    assert!(
+        internal.status.success(),
+        "{}",
+        String::from_utf8_lossy(&internal.stderr)
     );
 }
 
