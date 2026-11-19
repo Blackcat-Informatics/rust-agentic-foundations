@@ -172,6 +172,12 @@ fn capnp_history_checks_committed_compiler_layouts() {
     let changed = git_repo::commit_all(root);
     fs::write(&descriptor, b"not a request").unwrap();
     let malformed = git_repo::commit_all(root);
+    fs::write(
+        &descriptor,
+        include_bytes!("fixtures/capnp/missing-node.bin"),
+    )
+    .unwrap();
+    let unresolved = git_repo::commit_all(root);
     fs::write(&descriptor, b"uncommitted bytes").unwrap();
 
     let clean = capnp_history(root, &base, &compatible);
@@ -189,6 +195,8 @@ fn capnp_history_checks_committed_compiler_layouts() {
         ".options.retries: default changed",
         ".payload: default changed",
         ".boxed: type changed",
+        "0xc5fa75a0c95aa56a.obsolete: member removed",
+        "0xc5fa75a0c95aa56a.numbers: ordinal changed",
         "0xc8a351b6b42dc6a5.back: type changed",
         "0xe70e425d8d63c329.ready: member renamed to waiting",
         "0xe70e425d8d63c329.retired: member removed",
@@ -208,6 +216,12 @@ fn capnp_history_checks_committed_compiler_layouts() {
         diagnostic.contains("regenerate and commit the complete descriptor"),
         "{diagnostic}"
     );
+
+    let missing_node = capnp_history(root, &base, &unresolved);
+    assert_eq!(missing_node.status.code(), Some(1), "{missing_node:?}");
+    assert_eq!(missing_node.stdout, b"");
+    let diagnostic = String::from_utf8(missing_node.stderr).unwrap();
+    assert!(diagnostic.contains("missing schema node"), "{diagnostic}");
 
     let missing = "1111111111111111111111111111111111111111";
     let refused = capnp_history(root, missing, &compatible);

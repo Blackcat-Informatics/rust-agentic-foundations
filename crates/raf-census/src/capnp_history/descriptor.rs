@@ -88,7 +88,11 @@ pub(super) fn read(
             "expected exactly one unpacked compiler request with no trailing bytes",
         ));
     }
-    let request = message.get_root::<code_generator_request::Reader<'_>>()?;
+    let pointer = message.get_root::<capnp::any_pointer::Reader<'_>>()?;
+    if pointer.is_null() {
+        return Err(layout("compiler request has a null root"));
+    }
+    let request = pointer.get_as::<code_generator_request::Reader<'_>>()?;
     let mut nodes = BTreeMap::new();
     for node in request.get_nodes()? {
         let id = TypeId(node.get_id());
@@ -342,13 +346,6 @@ impl<'a> Fields<'a, '_> {
             field::ordinal::Explicit(value) => Some(value),
             field::ordinal::Implicit(()) => None,
         };
-        if let Some(value) = ordinal
-            && !self.ordinals.insert(value)
-        {
-            return Err(layout(format!(
-                "repeated ordinal @{value} at {owner}.{name}"
-            )));
-        }
         let collision = |_| {
             layout(format!(
                 "slot or group at {owner}.{name} overlaps active storage"
@@ -359,6 +356,7 @@ impl<'a> Fields<'a, '_> {
             field::Slot(slot) => {
                 let ordinal =
                     ordinal.ok_or_else(|| layout(format!("{owner}.{name} has no ordinal")))?;
+                self.record_ordinal(owner, name, ordinal)?;
                 if let Some(span) = self.slot((owner, path), (name, ordinal), slot, discriminant)? {
                     occupied.insert(span, exclusive).map_err(collision)?;
                 }
@@ -379,11 +377,29 @@ impl<'a> Fields<'a, '_> {
                         "group {id} does not share the layout of {owner}.{name}"
                     )));
                 }
+                if let Some(ordinal) = ordinal {
+                    let count = u32::from(overlay.get_discriminant_count());
+                    if count == 0 || overlay.get_fields()?.len() != count {
+                        return Err(layout(format!(
+                            "ordinary group {owner}.{name} cannot declare ordinal @{ordinal}"
+                        )));
+                    }
+                    self.record_ordinal(owner, name, ordinal)?;
+                }
                 let mut path = path.to_vec();
                 path.push(Rc::from(name));
                 let footprint = self.group(id, overlay, path.into(), (ordinal, discriminant))?;
                 occupied.merge(footprint, exclusive).map_err(collision)?;
             }
+        }
+        Ok(())
+    }
+
+    fn record_ordinal(&mut self, owner: TypeId, name: &str, ordinal: u16) -> Result<(), Error> {
+        if !self.ordinals.insert(ordinal) {
+            return Err(layout(format!(
+                "repeated ordinal @{ordinal} at {owner}.{name}"
+            )));
         }
         Ok(())
     }

@@ -8,7 +8,8 @@ struct Box @0xd05283a9dc67c5f1 (T) {
 }
 
 struct Payload @0xc5fa75a0c95aa56a {
-  numbers @0 :List(UInt16);
+  obsolete @0 :UInt32;
+  numbers @1 :List(UInt16);
 }
 
 struct Outer @0xe4ddd1d087b36f8d (T) {
@@ -31,6 +32,11 @@ struct Packet @0xf1804b9b18ae6505 {
   }
   counter @1 :UInt32 = 42;
   title @0 :Text = "packet";
+  flags @9 :List(Bool) = [true, false];
+  tail @10! :union {
+    parked @11 :Void;
+    number @12 :UInt32;
+  }
 }
 
 enum State @0xe70e425d8d63c329 {

@@ -6,9 +6,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use capnp::{
-    any_pointer,
+    ErrorKind, any_pointer, any_pointer_list,
     message::{Builder, HeapAllocator},
+    primitive_list,
     schema_capnp::{brand, type_, value},
+    struct_list,
 };
 
 use super::{
@@ -299,8 +301,8 @@ pub(super) fn default(
         (Type::Atom(Atom::Data), Which::Data(value)) => {
             return Ok(DefaultValue::Bytes(value?.to_vec()));
         }
-        (Type::List(_), Which::List(value)) => {
-            check_list_pointer(value)?;
+        (Type::List(element), Which::List(value)) => {
+            check_list_default(value, element, nodes)?;
             return pointer_default(value);
         }
         (Type::Named(Kind::Struct, ..), Which::Struct(value)) => {
@@ -308,14 +310,7 @@ pub(super) fn default(
             return pointer_default(value);
         }
         (Type::Pointer(kind), Which::AnyPointer(value)) => {
-            match kind {
-                Pointer::Struct => check_struct_pointer(value)?,
-                Pointer::List => check_list_pointer(value)?,
-                Pointer::Any | Pointer::Capability | Pointer::Parameter(..) => {}
-            }
-            if *kind == Pointer::Capability && !value.is_null() {
-                return Err(layout("non-null capability default"));
-            }
+            check_any_pointer(value, *kind)?;
             return pointer_default(value);
         }
         _ => return Err(layout("slot type and default value do not agree")),
@@ -323,11 +318,102 @@ pub(super) fn default(
     Ok(DefaultValue::Bits(bits))
 }
 
-fn check_list_pointer(pointer: any_pointer::Reader<'_>) -> Result<(), Error> {
-    // A Void list view accepts the list storage kind without requiring an
-    // element layout. The canonical copy below walks the actual contents.
-    pointer.get_as::<capnp::primitive_list::Reader<'_, ()>>()?;
+fn check_any_pointer(value: any_pointer::Reader<'_>, kind: Pointer) -> Result<(), Error> {
+    match kind {
+        Pointer::Struct => check_struct_pointer(value)?,
+        Pointer::List => {
+            // The Void view checks the list kind and every element layout
+            // except bit packing. Only the native bit-list refusal licenses
+            // the Boolean view. Traversal and other input failures propagate.
+            match value.get_as::<primitive_list::Reader<'_, ()>>() {
+                Ok(_) => {}
+                Err(error) if error.kind == ErrorKind::FoundBitListWhereStructListWasExpected => {
+                    value.get_as::<primitive_list::Reader<'_, bool>>()?;
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Pointer::Capability if !value.is_null() => {
+            return Err(layout("non-null capability default"));
+        }
+        Pointer::Any | Pointer::Capability | Pointer::Parameter(..) => {}
+    }
     Ok(())
+}
+
+fn check_list_default(
+    list: any_pointer::Reader<'_>,
+    element: &Type,
+    nodes: &Nodes<'_>,
+) -> Result<(), Error> {
+    match element {
+        Type::Atom(Atom::Void) => {
+            list.get_as::<primitive_list::Reader<'_, ()>>()?;
+        }
+        Type::Atom(Atom::Bool) => {
+            list.get_as::<primitive_list::Reader<'_, bool>>()?;
+        }
+        Type::Atom(Atom::Int8 | Atom::Uint8) => {
+            list.get_as::<primitive_list::Reader<'_, u8>>()?;
+        }
+        Type::Atom(Atom::Int16 | Atom::Uint16) => {
+            list.get_as::<primitive_list::Reader<'_, u16>>()?;
+        }
+        Type::Atom(Atom::Int32 | Atom::Uint32 | Atom::Float32) => {
+            list.get_as::<primitive_list::Reader<'_, u32>>()?;
+        }
+        Type::Atom(Atom::Int64 | Atom::Uint64 | Atom::Float64) => {
+            list.get_as::<primitive_list::Reader<'_, u64>>()?;
+        }
+        Type::Named(Kind::Enum, id, _) => {
+            let count = nodes.enumerant_count(*id)?;
+            for ordinal in list.get_as::<primitive_list::Reader<'_, u16>>()? {
+                if u32::from(ordinal) >= count {
+                    return Err(layout(format!(
+                        "list default enum ordinal {ordinal} does not exist in {id}"
+                    )));
+                }
+            }
+        }
+        Type::Named(Kind::Struct, ..) => {
+            // Native list admission includes compatible struct encodings. The
+            // descriptor supplies no generated reader for the member fields.
+            list.get_as::<struct_list::Reader<'_, value::Owned>>()?;
+        }
+        Type::Atom(Atom::Text | Atom::Data)
+        | Type::Named(Kind::Interface, ..)
+        | Type::List(_)
+        | Type::Pointer(_) => {
+            for pointer in list.get_as::<any_pointer_list::Reader<'_>>()? {
+                check_indirect_default(pointer?, element, nodes)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn check_indirect_default(
+    pointer: any_pointer::Reader<'_>,
+    element: &Type,
+    nodes: &Nodes<'_>,
+) -> Result<(), Error> {
+    match element {
+        Type::List(element) => check_list_default(pointer, element, nodes),
+        Type::Atom(Atom::Text) => {
+            pointer
+                .get_as::<capnp::text::Reader<'_>>()?
+                .to_str()
+                .map_err(|error| layout(format!("invalid UTF-8 Text default: {error}")))?;
+            Ok(())
+        }
+        Type::Atom(Atom::Data) => {
+            pointer.get_as::<capnp::data::Reader<'_>>()?;
+            Ok(())
+        }
+        Type::Pointer(kind) => check_any_pointer(pointer, *kind),
+        Type::Named(Kind::Interface, ..) => check_any_pointer(pointer, Pointer::Capability),
+        _ => Err(layout("expected a list of pointer values")),
+    }
 }
 
 fn check_struct_pointer(pointer: any_pointer::Reader<'_>) -> Result<(), Error> {

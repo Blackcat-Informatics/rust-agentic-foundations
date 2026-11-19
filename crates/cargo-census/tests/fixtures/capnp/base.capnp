@@ -8,7 +8,8 @@ struct Box @0xd05283a9dc67c5f1 (T) {
 }
 
 struct Payload @0xc5fa75a0c95aa56a {
-  numbers @0 :List(UInt16);
+  obsolete @0 :UInt32;
+  numbers @1 :List(UInt16);
 }
 
 struct Outer @0xe4ddd1d087b36f8d (T) {

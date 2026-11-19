@@ -78,8 +78,11 @@ and changes to existing names, ordinals, types, slots, discriminants and
 defaults. Adding a defaulted field or enum variant passes when the old
 layout is preserved. Written declaration order is ignored. A field
 rename can violate history policy even when Cap'n Proto allows it on
-the wire. The caller maintains correspondence between the committed
-descriptors and the consumer schema and verifies application readers.
+the wire. List defaults use the native representation for their element
+types. Struct-valued defaults are checked as native containers and
+compared by their canonical pointer bytes. The caller maintains
+correspondence between the committed descriptors and the consumer schema
+and verifies application readers.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
 
 **Static contract.** `check` evaluates the native library Gate for the selected workspace. `index`, `job`, `count` and `fingerprint` derive complete native reports from that Gate. The CLI accepts no package/example executable selector and never invokes Cargo, tests, examples or custom repository binaries. Custom Rust registrations remain explicit library API operations performed by their caller; repository contents cannot instantiate them automatically.
@@ -192,8 +195,9 @@ The native Gate supplies the policy verdict and complete configured job reports.
 
 The Cap'n Proto fixture compares real compiler output in committed Git
 objects while the worktree contains different bytes. Selected layouts
-refuse missing nodes, invalid ordinal sequences and overlapping active
-slots. Union arms may share storage. Each descriptor is limited to two
+refuse a null request root, missing nodes, invalid ordinals, incompatible
+list storage and overlapping active slots. Union arms may share storage.
+Each descriptor is limited to two
 MiB, with a traversal grant of 1,048,576 words, a nesting limit of 64
 and member names of at most 256 bytes. A result exceeding two MiB of
 counted finding payload refuses the entire comparison.

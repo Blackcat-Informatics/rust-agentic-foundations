@@ -3,7 +3,10 @@
 
 //! Strict history findings for old members and their compiled layout.
 
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 
 use super::{
     Error, TypeId,
@@ -150,6 +153,11 @@ fn structure(
         .iter()
         .map(|(&ordinal, slot)| ((slot.owner.as_ref(), slot.name.as_str()), ordinal))
         .collect();
+    let previous_names: BTreeSet<_> = before
+        .slots
+        .values()
+        .map(|slot| (slot.owner.as_ref(), slot.name.as_str()))
+        .collect();
     for (&ordinal, slot) in &before.slots {
         let name = || Some(member_name(&slot.owner, &slot.name));
         let current_ordinal = current_names
@@ -163,6 +171,12 @@ fn structure(
             emit(name(), ChangeKind::RemovedMember)?;
             continue;
         };
+        if (slot.owner != current.owner || slot.name != current.name)
+            && previous_names.contains(&(current.owner.as_ref(), current.name.as_str()))
+        {
+            emit(name(), ChangeKind::RemovedMember)?;
+            continue;
+        }
         if slot.owner != current.owner {
             emit(name(), ChangeKind::ChangedGroup)?;
         }
@@ -195,7 +209,7 @@ fn enumeration(
     after: &[String],
     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
 ) -> Result<(), Error> {
-    let previous: std::collections::BTreeSet<_> = before.iter().collect();
+    let previous: BTreeSet<_> = before.iter().collect();
     let current_ordinals: BTreeMap<_, _> = after
         .iter()
         .enumerate()
