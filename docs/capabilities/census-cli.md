@@ -26,7 +26,11 @@ bindings:
     - raf_census::SelfTestCase
     - raf_census::Gate::self_test
     - raf_census::MAX_INDEX_BYTES
+    - raf_census::capnp_history
   tests:
+    - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
+    - raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse
+    - raf_census::capnp_history::tests::deep_group_findings_refuse_as_a_whole_above_the_payload_limit
     - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
     - cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration
     - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
@@ -65,6 +69,21 @@ depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-migration, cap:
 Expose native duplication and ledger data without building or executing repository programs. Library Gate evaluation, native reports and explicit debt publication preserve useful structural checks while leaving consumer test and example bodies inert.
 
 ## Contract
+
+**Cap'n Proto history.** `capnp-history` compares unpacked compiler
+descriptors read from explicit base and current Git commits. The caller
+selects struct and enum roots by type ID. Census follows their data type
+references and groups. It reports an old root or member that disappears
+and changes to existing names, ordinals, types, slots, discriminants and
+defaults. Adding a defaulted field or enum variant passes when the old
+layout is preserved. Written declaration order is ignored. A field
+rename can violate history policy even when Cap'n Proto allows it on
+the wire. List defaults use the native representation for their element
+types. Struct-valued defaults are checked as native containers and
+compared by their canonical pointer bytes. The caller maintains
+correspondence between the committed descriptors and the consumer schema
+and verifies application readers.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
 
 **Static contract.** `check` evaluates the native library Gate for the selected workspace. `index`, `job`, `count` and `fingerprint` derive complete native reports from that Gate. The CLI accepts no package/example executable selector and never invokes Cargo, tests, examples or custom repository binaries. Custom Rust registrations remain explicit library API operations performed by their caller; repository contents cannot instantiate them automatically.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
@@ -111,6 +130,17 @@ The cases, in the order they run:
 <!-- raf:tested-by raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text,raf_census::selftest::tests::a_detector_that_stops_firing_or_starts_over_firing_fails_its_side,raf_census::selftest::tests::a_normal_form_that_merges_or_splits_wrongly_fails_its_case,raf_census::selftest::tests::the_documented_detector_list_and_case_count_equal_the_registry -->
 
 ## Usage
+
+Run `cargo census capnp-history --base BASE --current CURRENT` with
+`--base-descriptor PATH --current-descriptor PATH` and one or more
+`--type 0xID` options. Commit IDs use all 40 lowercase hexadecimal
+digits. Type IDs use a `0x` prefix followed by 16 lowercase hexadecimal
+digits with the high bit set. Descriptor paths are relative to the Git
+repository root. Run from that root or name it with `--workspace`.
+Capture the compiler request with `capnp compile -o- SCHEMA` and commit
+it with the schema. Library consumers call `raf_census::capnp_history::check`.
+The command exits 0 for a clean comparison or 1 with findings on stdout.
+An input or resource refusal exits 1 with a diagnostic on stderr.
 
 The documented data path is illustrated by `raf_census::example_crate::registered` and `rust_agentic_foundations::example_crate::repository_census`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
@@ -163,6 +193,16 @@ The native Gate supplies the policy verdict and complete configured job reports.
 
 ## Verification
 
+The Cap'n Proto fixture compares real compiler output in committed Git
+objects while the worktree contains different bytes. Selected layouts
+refuse a null request root, missing nodes, invalid ordinals, incompatible
+list storage and overlapping active slots. Union arms may share storage.
+Each descriptor is limited to two
+MiB, with a traversal grant of 1,048,576 words, a nesting limit of 64
+and member names of at most 256 bytes. A result exceeding two MiB of
+counted finding payload refuses the entire comparison.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts,raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse,raf_census::capnp_history::tests::deep_group_findings_refuse_as_a_whole_above_the_payload_limit -->
+
 Controlled fixtures protect native CLI parity, the self-test case list, the absence of consumer execution, report destination restrictions, migration carrier bounds, monotone debt writes and the declared reference options.
 
 <!-- raf:generated:verification-matrix -->
@@ -171,6 +211,7 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target` | test | [Constraints](#constraints) |
@@ -186,6 +227,8 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines` | test | [Contract](#contract) |
+| `raf_census::capnp_history::tests::deep_group_findings_refuse_as_a_whole_above_the_payload_limit` | test | [Verification](#verification) |
+| `raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse` | test | [Verification](#verification) |
 | `raf_census::example_crate::registered` | example target | [Usage](#usage) |
 | `raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers` | test | [Verification](#verification) |
 | `raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings` | test | [Verification](#verification) |

@@ -134,6 +134,106 @@ fn run(root: &Path, words: &[&str]) -> Output {
     )
 }
 
+fn capnp_history(root: &Path, base: &str, current: &str) -> Output {
+    run(
+        root,
+        &[
+            "capnp-history",
+            "--base",
+            base,
+            "--current",
+            current,
+            "--base-descriptor",
+            "schema.bin",
+            "--current-descriptor",
+            "schema.bin",
+            "--type",
+            "0xf1804b9b18ae6505",
+            "--type",
+            "0xc8a351b6b42dc6a5",
+        ],
+    )
+}
+
+/// The shipped command follows compiled references from the selected type and
+/// compares the committed layouts even when the worktree contains other bytes.
+#[test]
+fn capnp_history_checks_committed_compiler_layouts() {
+    let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let descriptor = root.join("schema.bin");
+    fs::write(&descriptor, include_bytes!("fixtures/capnp/base.bin")).unwrap();
+    let base = git_repo::commit_all(root);
+    fs::write(&descriptor, include_bytes!("fixtures/capnp/compatible.bin")).unwrap();
+    let compatible = git_repo::commit_all(root);
+    fs::write(&descriptor, include_bytes!("fixtures/capnp/changed.bin")).unwrap();
+    let changed = git_repo::commit_all(root);
+    fs::write(&descriptor, b"not a request").unwrap();
+    let malformed = git_repo::commit_all(root);
+    fs::write(
+        &descriptor,
+        include_bytes!("fixtures/capnp/missing-node.bin"),
+    )
+    .unwrap();
+    let unresolved = git_repo::commit_all(root);
+    fs::write(&descriptor, b"uncommitted bytes").unwrap();
+
+    let clean = capnp_history(root, &base, &compatible);
+    assert!(clean.status.success(), "{clean:?}");
+    assert_eq!(clean.stdout, b"");
+
+    let changed = capnp_history(root, &base, &changed);
+    assert_eq!(changed.status.code(), Some(1), "{changed:?}");
+    let findings = String::from_utf8(changed.stdout).unwrap();
+    for expected in [
+        ".title: member renamed to heading",
+        ".counter: ordinal changed",
+        ".selected: type changed",
+        ".state: slot offset changed",
+        ".options.retries: default changed",
+        ".payload: default changed",
+        ".boxed: type changed",
+        "0xc5fa75a0c95aa56a.obsolete: member removed",
+        "0xc5fa75a0c95aa56a.numbers: ordinal changed",
+        "0xc8a351b6b42dc6a5.back: type changed",
+        "0xe70e425d8d63c329.ready: member renamed to waiting",
+        "0xe70e425d8d63c329.retired: member removed",
+    ] {
+        assert!(
+            findings.contains(expected),
+            "{expected:?} absent from {findings}"
+        );
+    }
+    assert!(!findings.contains("ignored"), "{findings}");
+
+    let bad = capnp_history(root, &base, &malformed);
+    assert_eq!(bad.status.code(), Some(1), "{bad:?}");
+    assert_eq!(bad.stdout, b"");
+    let diagnostic = String::from_utf8(bad.stderr).unwrap();
+    assert!(
+        diagnostic.contains("regenerate and commit the complete descriptor"),
+        "{diagnostic}"
+    );
+
+    let missing_node = capnp_history(root, &base, &unresolved);
+    assert_eq!(missing_node.status.code(), Some(1), "{missing_node:?}");
+    assert_eq!(missing_node.stdout, b"");
+    let diagnostic = String::from_utf8(missing_node.stderr).unwrap();
+    assert!(diagnostic.contains("missing schema node"), "{diagnostic}");
+
+    let missing = "1111111111111111111111111111111111111111";
+    let refused = capnp_history(root, missing, &compatible);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert_eq!(refused.stdout, b"");
+    let diagnostic = String::from_utf8(refused.stderr).unwrap();
+    assert!(
+        diagnostic.contains(&format!("Cap'n Proto revision {missing}")),
+        "{diagnostic}"
+    );
+}
+
 fn visibility_nodes<'a>(
     graph: &'a raf_rdf::Graph,
     from: raf_rdf::Node<'a>,

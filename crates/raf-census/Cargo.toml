@@ -16,6 +16,8 @@ default-target = "x86_64-unknown-linux-gnu"
 targets = []
 
 [dependencies]
+# The native schema descriptor and bounded Cap'n Proto message reader.
+capnp.workspace = true
 # Shared native BLAKE3 identities; goldens pin the complete portable bytes.
 purrdf-hash.workspace = true
 # Native absolute-IRI laws for persisted source-qualified debt descriptors.

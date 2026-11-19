@@ -4,8 +4,9 @@
 //! Host input adapter; Census policy lives in the repository target and library.
 
 use crate::cli::{
-    Args, Command, MigrationArgs, QueryTarget, RdfFormat, ReferenceArgs, RegistryArgs,
+    Args, Command, HistoryArgs, MigrationArgs, QueryTarget, RdfFormat, ReferenceArgs, RegistryArgs,
 };
+use raf_census::capnp_history::{self, Snapshot};
 use raf_census::{
     ArchiveCache, Census, CensusOptions, Error, ExternalReference, Gate, GateReport, LEDGER_FILE,
     Ledger, LockedRegistry, MAX_INDEX_BYTES, MAX_LEDGER_BYTES, MigrationInput, ReportError,
@@ -45,6 +46,7 @@ pub(crate) fn run(
         None => (gate, false),
     };
     match &args.command {
+        Command::CapnpHistory(history) => compare_schema_history(&args.workspace, history, output),
         Command::Embedded { command } => {
             crate::embedded::run(&gate.root()?, command, output, diagnostics)
         }
@@ -116,6 +118,33 @@ pub(crate) fn run(
         }
         Command::Migrate(args) => migrate(&gate, args, output),
     }
+}
+
+fn compare_schema_history(
+    root: &Path,
+    args: &HistoryArgs,
+    output: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
+    let base_descriptor =
+        RelPath::new(&args.base_descriptor).map_err(|error| Error::Options(error.to_string()))?;
+    let current_descriptor = RelPath::new(&args.current_descriptor)
+        .map_err(|error| Error::Options(error.to_string()))?;
+    let findings = capnp_history::check(
+        root,
+        Snapshot {
+            commit: &args.base,
+            descriptor: &base_descriptor,
+        },
+        Snapshot {
+            commit: &args.current,
+            descriptor: &current_descriptor,
+        },
+        &args.types,
+    )?;
+    for finding in &findings {
+        writeln!(output, "{finding}").map_err(stdout)?;
+    }
+    Ok(u8::from(!findings.is_empty()))
 }
 
 fn native_index(

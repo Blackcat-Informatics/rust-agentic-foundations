@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+(nodes = [
+  (id = 17401992089665692933,
+   struct = (
+     dataWordCount = 1,
+     fields = [
+       (name = "state",
+        slot = (
+          type = (enum = (typeId = 11978989611004286631)),
+          defaultValue = (enum = 0)),
+        ordinal = (explicit = 0))]))])
