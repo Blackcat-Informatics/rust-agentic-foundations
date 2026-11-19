@@ -19,7 +19,7 @@ inputs:
     digest: 6f0a87e0c029e9c0ec82b1316e01da3a57e35bac024143748418f1c00d6de7b8
   - kind: symbol
     name: raf_census::gate::bounds
-    digest: fe4d765f1888aa35215d5a3f1785f1f1d5e2c922467f65176169cdb87ae16691
+    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
   - kind: symbol
     name: raf_census::gate::context
     digest: 1368fca0d384735849e01b30768e2e62d5b30b9a978c77ced2c60e274eda9ca8

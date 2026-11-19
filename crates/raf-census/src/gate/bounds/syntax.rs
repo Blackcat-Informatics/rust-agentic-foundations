@@ -6,6 +6,7 @@
 use proc_macro2::{Ident, Span};
 use purrdf_jsonschema::ecma::MatchLimits;
 use raf_source::SourceFile;
+use syn::ext::IdentExt;
 use syn::{BinOp, Expr, FnArg, Lit, Pat, Signature, Type, spanned::Spanned, visit::Visit};
 
 use super::{BoundRole, Scan, UNCLASSIFIED, patterns};
@@ -114,6 +115,9 @@ impl Syntax<'_> {
             }
             size.push(named);
         }
+        if !size.contains(&true) {
+            return;
+        }
         let slots = Slots {
             size,
             receiver: receiver_mode(signature),
@@ -186,7 +190,7 @@ pub(in crate::gate) fn comparisons(node: &syn::ExprBinary) -> impl Iterator<Item
 }
 
 pub(in crate::gate) fn limiting_method(node: &syn::ExprMethodCall) -> impl Iterator<Item = &Expr> {
-    let name = node.method.to_string();
+    let name = node.method.unraw().to_string();
     let supported = matches!(
         (name.as_str(), node.args.len()),
         ("truncate" | "take" | "min", 1) | ("clamp", 2)
@@ -197,7 +201,7 @@ pub(in crate::gate) fn limiting_method(node: &syn::ExprMethodCall) -> impl Itera
 pub(in crate::gate) fn limiting_call(node: &syn::ExprCall) -> impl Iterator<Item = &Expr> {
     let first = match ungroup(&node.func) {
         Expr::Path(path) => path.path.segments.last().map_or(node.args.len(), |member| {
-            match (member.ident.to_string().as_str(), node.args.len()) {
+            match (member.ident.unraw().to_string().as_str(), node.args.len()) {
                 ("min", 2) | ("truncate" | "take", 1) => 0,
                 ("clamp", 3) => 1,
                 ("truncate" | "take", 2)

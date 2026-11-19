@@ -16,6 +16,7 @@ use crate::{
 use purrdf_jsonschema::ecma::MatchLimits;
 use raf_source::{CodeResolver, ImplBlock, ItemId, Namespace, SourceFile, SymbolKind, Workspace};
 use std::collections::BTreeSet;
+use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
 
@@ -1163,7 +1164,7 @@ impl Paths<'_, '_, '_, '_> {
                     owners,
                     limits,
                     NumericKind::Dot,
-                    |lookup, _| numeric_self(lookup, &node.method.to_string()),
+                    |lookup, _| numeric_self(lookup, &node.method.unraw().to_string()),
                 )
             })
             .err();
@@ -1239,7 +1240,7 @@ fn numeric_path(
             .is_some_and(|part| part.ident == "Self")
         && let Some(member) = name.segments.last()
     {
-        return numeric_self(lookup, &member.ident.to_string());
+        return numeric_self(lookup, &member.ident.unraw().to_string());
     }
     super::numeric_definitions(lookup, scopes, name, limits)
 }

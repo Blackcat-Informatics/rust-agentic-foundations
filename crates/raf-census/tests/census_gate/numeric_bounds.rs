@@ -76,7 +76,8 @@ const SOURCE: &str = r#"
         if items.len() > MAX_ITEMS { return; }
         let count = items.len();
         let _ = 13 > count;
-        items.truncate(11); items.truncate(12);
+        items.r#truncate(11); items.truncate(12);
+        Vec::r#truncate(&mut items, 26);
         let _ = (0..10).take(14);
         let _ = count.clamp(15, 16);
         let _ = core::cmp::min(count, 17);
@@ -117,7 +118,7 @@ const SOURCE: &str = r#"
         fn apply_limit(&self, size: usize) {}
         fn truncate(&self, left: usize, right: usize) {}
         fn adjust(self, size: usize) {}
-        fn local(&self) { self.apply_limit(21); Self::apply_limit(self, 22); self.adjust(23); }
+        fn local(&self) { self.r#apply_limit(21); Self::r#apply_limit(self, 22); self.adjust(23); }
     }
 "#;
 
@@ -131,6 +132,7 @@ fn numeric_inventory_classifies_physical_sites_before_jobs() {
         ("13", BoundRole::Comparison),
         ("11", BoundRole::Limiter),
         ("12", BoundRole::Limiter),
+        ("26", BoundRole::Limiter),
         ("14", BoundRole::Limiter),
         ("15", BoundRole::Limiter),
         ("16", BoundRole::Limiter),
@@ -357,21 +359,22 @@ fn numeric_size_arguments_require_agreement_at_shared_physical_sites() {
 #[test]
 fn numeric_inventory_refuses_a_signature_beyond_the_state_grant() {
     let source = "pub fn configure(a: usize, b: usize, c: usize, d: usize, size: usize) {}";
-    let tree = super::tree(source, registry(base(), "strict"), 0);
-    let check = |states| {
+    let check = |source, states| {
         Gate::workspace(".")
             .matching_limits(purrdf_jsonschema::ecma::MatchLimits {
                 states,
                 ..Default::default()
             })
-            .check_tree(&tree)
+            .check_tree(&super::tree(source, registry(base(), "strict"), 0))
     };
-    let refused = check(5).unwrap_err();
+    let refused = check(source, 5).unwrap_err();
     assert!(
         refused
             .to_string()
             .contains("numeric bounds inventory state limit exhausted"),
         "{refused}"
     );
-    assert!(check(6).unwrap().is_clean());
+    assert!(check(source, 6).unwrap().is_clean());
+    let ordinary = source.replace("size:", "label:");
+    assert!(check(&ordinary, 5).unwrap().is_clean());
 }

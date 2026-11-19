@@ -46,7 +46,7 @@ inputs:
     digest: cc3320f0acdf6398ea6ecb2e75be7a907ae578cfd63c2023370041617718c93c
   - kind: symbol
     name: raf_census::gate::bounds
-    digest: fe4d765f1888aa35215d5a3f1785f1f1d5e2c922467f65176169cdb87ae16691
+    digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
   - kind: symbol
     name: raf_census::gate::ratchet
     digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
