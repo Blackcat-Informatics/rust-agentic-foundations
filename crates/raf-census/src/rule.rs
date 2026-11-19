@@ -30,6 +30,7 @@ pub(crate) const BUILTIN_RULE_IDS: &[&str] = &[
     "rdf-term-model",
     "reifier-default-graph",
     "rdf-list-walk",
+    crate::detectors::ENUM_CATCH_ALL,
     "isomorphic",
 ];
 

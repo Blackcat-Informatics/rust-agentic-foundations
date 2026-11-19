@@ -15,6 +15,8 @@ mod structure;
 #[cfg(test)]
 mod tests;
 
+pub(crate) const ENUM_CATCH_ALL: &str = "enum-catch-all";
+
 pub(crate) fn ids() -> impl Iterator<Item = &'static str> {
     layout::RULES
         .into_iter()
@@ -24,6 +26,7 @@ pub(crate) fn ids() -> impl Iterator<Item = &'static str> {
         .chain(["std-default-hasher", host_import::RULE])
         .chain(rdf::RULES)
         .chain(structure::RULES)
+        .chain([ENUM_CATCH_ALL])
 }
 
 pub(crate) fn implements(id: &str) -> bool {
@@ -45,7 +48,9 @@ pub(crate) fn job_scoped(id: &str) -> bool {
 }
 
 pub(crate) fn home_exempt(id: &str) -> bool {
-    implements(id) && id != "sole-name" && id != host_import::RULE && !rdf::RULES.contains(&id)
+    implements(id)
+        && !matches!(id, "sole-name" | host_import::RULE | ENUM_CATCH_ALL)
+        && !rdf::RULES.contains(&id)
 }
 
 pub(crate) fn needs_syntax(id: &str) -> bool {
@@ -55,6 +60,7 @@ pub(crate) fn needs_syntax(id: &str) -> bool {
         || id == host_import::RULE
         || rdf::RULES.contains(&id)
         || structure::RULES.contains(&id)
+        || id == ENUM_CATCH_ALL
 }
 
 pub(crate) fn shipping_only(id: &str) -> bool {
@@ -70,6 +76,7 @@ pub(crate) fn shipping_only(id: &str) -> bool {
                 | "serde-json"
                 | "rdf-text-writer"
                 | "rdf-term-model"
+                | ENUM_CATCH_ALL
         )
 }
 

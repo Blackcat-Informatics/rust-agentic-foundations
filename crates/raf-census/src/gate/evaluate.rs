@@ -26,7 +26,8 @@ pub(super) fn evaluate(
     let owners = owners::index(&census);
     let code = workspace.code_resolver()?;
     let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
-    let mut collected = rules::collect((workspace, &code), &census, &selected, &owners, ledger)?;
+    let lookup = (workspace, &code);
+    let mut collected = rules::collect(lookup, &census, &selected, &owners, ledger, &mut limits)?;
     collect_patterns(
         (ledger, &references.names),
         workspace,

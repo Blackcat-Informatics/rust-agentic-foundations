@@ -7,7 +7,7 @@ subject: cap:census-ledger#explanation
 inputs:
   - kind: section
     name: cap:census-ledger#explanation
-    digest: 75e9fdd5b753b3a1b1923b2e723d5b1b453be904ede05226385fd3ad8077873e
+    digest: 2add754d37e5dadb64054b3946d20c1a5301991988d695fd969272aa580f0273
   - kind: symbol
     name: raf_census::BenchLink
     digest: 0cfb32481d48d75a47a6aa9abb72aa76a9a48fa4a0e495b3a8fdf364da325853
@@ -91,7 +91,7 @@ inputs:
     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
   - kind: symbol
     name: raf_census::gate::evaluate
-    digest: 7a668b2bb8c9a08d28f0e7af42247b5caacb09a9c32f90875cf6af65fbcfd5ac
+    digest: 48e9489150e76b56f2158a1ebfb3ae0277bba79bf59a540c98f0f8003d33f644
   - kind: symbol
     name: raf_census::gate::owners
     digest: 42c47c5cb754e9d6284eb089c8ee9aa14bfaa04b41194c50f9416bcbd4b4a34c

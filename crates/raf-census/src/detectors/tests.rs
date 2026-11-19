@@ -29,6 +29,11 @@ fn every_executable_detector_has_positive_and_negative_gate_fixtures() {
         }))
         .chain([
             (
+                fixtures::ENUM_MATCH.0,
+                fixtures::ENUM_MATCH.1.len(),
+                fixtures::ENUM_MATCH.2.len(),
+            ),
+            (
                 fixtures::HASHER_ID,
                 fixtures::HASHER_POSITIVE.len(),
                 fixtures::HASHER_NEGATIVE.len(),

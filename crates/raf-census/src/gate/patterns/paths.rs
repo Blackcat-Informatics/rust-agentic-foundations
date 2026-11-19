@@ -4,6 +4,7 @@
 //! Syntax bans with indexed workspace identity kept separate from spelling.
 
 mod cache;
+mod enum_sites;
 pub(in crate::gate) mod scopes;
 pub(in crate::gate) mod visit;
 
@@ -261,7 +262,9 @@ impl ScopedGlob<'_> {
 
     fn has_prefix(&self) -> bool {
         // Source can identify the declaration of a module-scope shadow.
-        !(self.expanded.segments.is_empty() || self.expanded.shadowed && self.expanded.block)
+        self.declaration.trusted
+            && !self.expanded.has_uncertain_alias()
+            && !(self.expanded.segments.is_empty() || self.expanded.shadowed && self.expanded.block)
     }
 
     fn unresolved_relative(&self) -> bool {
@@ -291,11 +294,17 @@ enum GlobProvider {
     Other,
 }
 
-type EnumMembers = BTreeMap<String, VariantForms>;
+type EnumMembers = BTreeMap<String, VariantMember>;
 
 struct EnumAlternative {
     id: ItemId,
     members: Rc<EnumMembers>,
+}
+
+#[derive(Default)]
+struct VariantMember {
+    forms: VariantForms,
+    conditional: bool,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -335,6 +344,7 @@ fn variant_disagreement(head: &str) -> Error {
 #[derive(Clone)]
 struct VariantMatch {
     enums: Rc<WorkList<EnumAlternative, 2>>,
+    member: String,
     unit: bool,
 }
 
@@ -368,7 +378,7 @@ impl GlobProvider {
             let found = alternative
                 .members
                 .get(head)
-                .map_or(Ok(None), |forms| forms.binding(head, namespace))?;
+                .map_or(Ok(None), |member| member.forms.binding(head, namespace))?;
             if present
                 .replace(found)
                 .is_some_and(|previous| previous != found)
@@ -378,6 +388,7 @@ impl GlobProvider {
         }
         Ok(present.flatten().map(|unit| VariantMatch {
             enums: Rc::clone(enums),
+            member: head.to_owned(),
             unit,
         }))
     }
@@ -471,7 +482,7 @@ enum PathOwner<'a> {
 
 impl Lookup<'_, '_> {
     fn error(&self, path: &str, source: CodeResolveError) -> Error {
-        if self.visibility.is_some() {
+        if self.label == VISIBILITY {
             return Error::Visibility(VisibilityError::Path {
                 file: self.site.file.path.to_string(),
                 line: self.site.line,
@@ -1185,10 +1196,25 @@ impl Lookup<'_, '_> {
                 ));
             };
             let mut members = EnumMembers::new();
+            let enum_scan = self.label == crate::detectors::ENUM_CATCH_ALL;
+            if enum_scan && crate::syntax::definitely_excluded(&declaration.attrs) {
+                return Ok(members);
+            }
+            let has_cfg = |attributes: &[syn::Attribute]| {
+                attributes.iter().any(|attribute| {
+                    attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
+                })
+            };
             for variant in &declaration.variants {
+                if enum_scan && crate::syntax::definitely_excluded(&variant.attrs) {
+                    continue;
+                }
+                let conditional =
+                    enum_scan && (has_cfg(&declaration.attrs) || has_cfg(&variant.attrs));
                 let name = variant.ident.unraw().to_string();
                 if let Some(known) = members.get_mut(&name) {
-                    known.observe(&variant.fields);
+                    known.forms.observe(&variant.fields);
+                    known.conditional |= conditional;
                 } else {
                     if members.len() >= capacity {
                         return Err(failure(
@@ -1196,8 +1222,11 @@ impl Lookup<'_, '_> {
                             "enum glob roster state limit exhausted",
                         ));
                     }
-                    let mut known = VariantForms::default();
-                    known.observe(&variant.fields);
+                    let mut known = VariantMember {
+                        conditional,
+                        ..VariantMember::default()
+                    };
+                    known.forms.observe(&variant.fields);
                     members.insert(name, known);
                 }
             }

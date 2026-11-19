@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | [census-cli](./census-cli.md) | Native static Census reports, ledger inspection, migration and explicit debt publication. |  |
 | [census-debt-ratchet](./census-debt-ratchet.md) | An exact RDF record of duplication that can only shrink. |  |
-| [census-detectors](./census-detectors.md) | Twenty built-in detectors for recurring helpers and RDF representation and structure, each with positive and negative fixtures. |  |
+| [census-detectors](./census-detectors.md) | Twenty-one built-in detectors for recurring helpers, enum match arms, and RDF representation and structure, each with positive and negative fixtures. |  |
 | [census-ledger](./census-ledger.md) | Closed RDF policy declarations, exact sanctions, source classification and staleness. |  |
 | [census-migration](./census-migration.md) | Read-only fingerprint migration and foreign dialect import to one native RDF ledger. |  |
 | [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. |  |

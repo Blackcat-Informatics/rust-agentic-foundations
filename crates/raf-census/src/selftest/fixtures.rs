@@ -5,6 +5,30 @@
 //! shipped self-test and the detector tests of this crate.
 #![doc(hidden)]
 
+pub const ENUM_MATCH: (&str, &[&str], &[&str]) = (
+    crate::detectors::ENUM_CATCH_ALL,
+    &[
+        "enum State { Ready, Busy(u8), Retry { count: u8 }, Idle } fn copy(state: State) -> u8 { match state { State::Ready => 1, State::Busy(_) => 2, State::Retry { count: _ } => 3, _ => 4 } }",
+        "mod model { pub enum State { Ready, Busy, Idle } } use model::State as Status; fn copy(state: Status) { let rest = (); match state { Status::Ready | Status::Busy => (), rest => () } }",
+        "enum State { Ready, Busy, Idle } use State::*; fn copy(state: State) { match state { Ready => (), Busy => (), rest => () } }",
+        "enum State { Ready, Busy, Idle } fn copy(state: State) { use crate::State::Ready as First; match state { First => (), State::Busy => (), _ => () } }",
+        "mod types {} use types as rest; enum State { Ready, Busy } use State::*; #[cfg(any())] const Ready: u8 = 0; fn copy(state: State) { match state { Ready => (), rest => () } }",
+    ],
+    &[
+        "fn copy(number: u32, text: &str) { match number { 0 => (), _ => () }; match text { \"ready\" => (), _ => () } }",
+        "enum State { Ready, Busy(u8), Retry { count: u8 } } fn copy(state: State) { match state { State::Ready => (), State::Busy(_) => (), State::Retry { count: _ } => () } }",
+        "enum State { Ready, Busy } fn copy(state: State) { match state { State::Ready => (), _ if true => (), State::Busy => () } }",
+        "enum State { Ready, Busy } use State::*; fn copy(state: State) { match state { Ready => (), Busy => () } }",
+        "enum State { Ready, Busy } use State::*; fn copy(a: State, b: State) { match a { Ready => match b { Busy => (), Ready => () }, Busy => () } }",
+        "enum State { Ready, Busy } use State::*; const Ready: u8 = 0; fn copy(n: u8) { match n { Ready => (), _ => () } }",
+        "enum State { Ready, Busy } #[cfg(any())] use State::*; fn copy(n: u8) { match n { Ready => (), _ => () } }",
+        "enum State { #[cfg(any())] Ready, Busy } use State::*; fn copy(n: u8) { match n { Ready => (), _ => () } }",
+        "enum State { Ready } fn copy(n: u8, state: State) { match n { #[cfg(any())] State::Ready => (), _ => () }; match state { State::Ready => (), #[cfg(any())] _ => () } }",
+        "enum State { Ready, Busy } struct Scope; impl Scope { #[cfg(any())] fn absent(state: State) { match state { State::Ready => (), _ => () } } } fn copy(state: State) { #[cfg(any())] { match state { State::Ready => (), _ => () } } }",
+        "#[derive(PartialEq, Eq)] enum State { Ready, Busy } const FIRST: State = State::Ready; fn copy(state: State) { match state { FIRST => (), State::Busy => () } }",
+    ],
+);
+
 pub const RDF: [(&str, &str, &str); 3] = [
     (
         "serde-json",

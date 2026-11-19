@@ -5,6 +5,8 @@
 
 #[path = "census_gate/configured_provider_targets.rs"]
 mod configured_provider_targets;
+#[path = "census_gate/enum_arms.rs"]
+mod enum_arms;
 use raf_census::detector_fixtures;
 use raf_fixtures::layout;
 #[path = "census_gate/native_provider.rs"]

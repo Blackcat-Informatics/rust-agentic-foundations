@@ -2331,3 +2331,108 @@ fn an_outside_path_reference_is_refused_by_the_registry_route_on_disk_beside_a_c
         .unwrap();
     assert!(clean.is_clean(), "{:?}", clean.findings());
 }
+
+/// Required and variant-only selection can both use the renamed dependency
+/// enum. Its own catch-all stays outside the first-party inventory.
+#[test]
+fn enum_catch_alls_prove_variants_from_a_selected_dependency() {
+    let consumer = r"
+        /// An approved consumer boundary.
+        pub fn copy(state: renamed::State) {
+            match state { renamed::State::Ready => (), _ => () }
+        }
+        pub fn numeric(value: u8) { match value { 0 => (), _ => () } }
+    ";
+    let dependency = r"
+        pub enum State { Ready, Busy }
+        pub mod api { pub fn marker() {} }
+        pub fn ignore(state: State) { match state { State::Ready => (), _ => () } }
+    ";
+    let mut tree = fixture(consumer, dependency);
+    let ledger = RelPath::new("helpers-ledger.ttl").unwrap();
+    let original =
+        Graph::from_text(&tree.read(&ledger, 1_048_576).unwrap(), Format::Turtle).unwrap();
+    tree.replace(&ledger, unhomed_ledger(&["helper"])).unwrap();
+    let gate = Gate::workspace(".").require_rules(["enum-catch-all"]);
+    let report = gate.check_tree(&tree).unwrap();
+    assert_eq!(report.findings().len(), 1, "{:?}", report.findings());
+    assert!(report.findings()[0].contains("app/src/lib.rs:4:"));
+
+    let mut policy = Builder::from_graph(&original);
+    let property = |name| TermValue::iri(format!("{}{name}", vocab::REPORT));
+    assert!(
+        policy
+            .remove(Triple {
+                subject: TermValue::iri("#job"),
+                predicate: property("enforced"),
+                object: TermValue::boolean(false),
+            })
+            .unwrap()
+    );
+    for (subject, predicate, object) in [
+        ("#job", property("enforced"), TermValue::boolean(true)),
+        ("#job", property("variant"), TermValue::iri("#variant")),
+        ("#variant", TermValue::iri(vocab::TYPE), property("Variant")),
+        (
+            "#variant",
+            property("symbol"),
+            TermValue::simple_literal("app::copy"),
+        ),
+        (
+            "#variant",
+            property("file"),
+            TermValue::simple_literal("app/src/lib.rs"),
+        ),
+        (
+            "#variant",
+            property("detector"),
+            TermValue::simple_literal("enum-catch-all"),
+        ),
+        (
+            "#variant",
+            property("criterion"),
+            TermValue::simple_literal("layering"),
+        ),
+        (
+            "#variant",
+            property("reason"),
+            TermValue::simple_literal("The module documents its boundary"),
+        ),
+        (
+            "#variant",
+            property("anchor"),
+            TermValue::iri("urn:raf:code:app::copy"),
+        ),
+    ] {
+        policy
+            .insert(Triple {
+                subject: TermValue::iri(subject),
+                predicate,
+                object,
+            })
+            .unwrap();
+    }
+    tree.replace(
+        &ledger,
+        policy.finish().unwrap().to_text(Format::Turtle).unwrap(),
+    )
+    .unwrap();
+    let gate = Gate::workspace(".");
+    let accepted = gate.check_tree(&tree).unwrap();
+    assert!(accepted.is_clean(), "{:?}", accepted.findings());
+
+    tree.replace(
+        &RelPath::new("app/src/lib.rs").unwrap(),
+        consumer.replacen("_ => ()", "renamed::State::Busy => ()", 1),
+    )
+    .unwrap();
+    let stale = gate.check_tree(&tree).unwrap();
+    assert!(
+        stale
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("no longer matches detector \"enum-catch-all\"")),
+        "{:?}",
+        stale.findings()
+    );
+}

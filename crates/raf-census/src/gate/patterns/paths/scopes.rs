@@ -34,16 +34,18 @@ pub(super) struct Glob {
     pub(super) path: Vec<String>,
     pub(super) absolute: bool,
     pub(super) source_byte: Option<usize>,
+    pub(super) trusted: bool,
 }
 
 impl Frame {
-    fn import_globs(&mut self, tree: &syn::UseTree, absolute: bool) {
+    fn import_globs(&mut self, tree: &syn::UseTree, absolute: bool, trusted: bool) {
         crate::syntax::visit_import_paths(tree, |parts, leaf| {
             if matches!(leaf, ImportLeaf::Glob) {
                 self.globs.push(Glob {
                     path: parts.iter().map(|part| part.unraw().to_string()).collect(),
                     absolute,
                     source_byte: parts.first().map(|part| part.span().byte_range().start),
+                    trusted,
                 });
             }
         });
@@ -172,11 +174,16 @@ pub(in crate::gate) struct Expanded {
     absolute: bool,
     pub(in crate::gate) block: bool,
     pub(in crate::gate) shadowed: bool,
+    alias_attributes: crate::syntax::AliasAttributes,
     first_frame: Option<usize>,
     alias_frame: Option<usize>,
 }
 
 impl Expanded {
+    pub(super) fn has_uncertain_alias(&self) -> bool {
+        self.alias_attributes != crate::syntax::AliasAttributes::Inert
+    }
+
     pub(in crate::gate) fn text(&self) -> String {
         path_text(&self.segments, self.absolute)
     }
@@ -235,6 +242,7 @@ pub(in crate::gate) struct Scopes {
     frames: WorkList<Frame, 8>,
     pub(super) enums: RefCell<BTreeMap<ItemId, Rc<EnumMembers>>>,
     glob_states: Cell<usize>,
+    module_globs: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -249,6 +257,13 @@ enum Answer {
 }
 
 impl Scopes {
+    pub(super) fn for_enum_patterns() -> Self {
+        Self {
+            module_globs: true,
+            ..Self::default()
+        }
+    }
+
     pub(in crate::gate) fn enter<'a>(
         &mut self,
         module: bool,
@@ -260,21 +275,38 @@ impl Scopes {
             module,
             ..Frame::default()
         };
+        let keep_globs = track_globs && (!module || self.module_globs);
+        let trusted = |attributes: &[syn::Attribute]| {
+            !self.module_globs || crate::syntax::inert_attributes(attributes)
+        };
+        let excluded = |attributes: &[syn::Attribute]| {
+            self.module_globs && crate::syntax::definitely_excluded(attributes)
+        };
         for item in items {
+            if excluded(crate::syntax::item_attributes(item)) {
+                continue;
+            }
             frame.names.item(item);
             if track_globs && let syn::Item::Verbatim(tokens) = item {
                 raf_source::visit_grouped_import(tokens, |attributes, absolute, tree| {
+                    if excluded(attributes) {
+                        return;
+                    }
                     frame.names.import_tree(tree, absolute, attributes);
-                    if !module {
-                        frame.import_globs(tree, absolute);
+                    if keep_globs {
+                        frame.import_globs(tree, absolute, trusted(attributes));
                     }
                 });
             }
-            if !module {
+            if keep_globs && let syn::Item::Use(import) = item {
+                frame.import_globs(
+                    &import.tree,
+                    import.leading_colon.is_some(),
+                    trusted(&import.attrs),
+                );
+            }
+            if !module || self.module_globs {
                 match item {
-                    syn::Item::Use(item) if track_globs => {
-                        frame.import_globs(&item.tree, item.leading_colon.is_some());
-                    }
                     syn::Item::Fn(item) => {
                         frame.values.insert(item.sig.ident.unraw().to_string());
                     }
@@ -345,6 +377,24 @@ impl Scopes {
 
     pub(super) fn in_file_module(&self) -> bool {
         self.frames.len() == 1
+    }
+
+    pub(super) fn runtime_binding(
+        &self,
+        frame: usize,
+        name: &str,
+        limits: &mut MatchLimits,
+    ) -> Result<bool, Error> {
+        charge(
+            "paths",
+            limits,
+            frame.saturating_add(1).try_into().unwrap_or(u64::MAX),
+        )?;
+        Ok(self
+            .frames
+            .iter()
+            .nth(frame)
+            .is_some_and(|frame| frame.local_values.contains(name) && !frame.values.contains(name)))
     }
 
     pub(in crate::gate) fn bind(
@@ -459,6 +509,7 @@ impl Scopes {
             absolute,
             block: false,
             shadowed: false,
+            alias_attributes: crate::syntax::AliasAttributes::Inert,
             first_frame: None,
             alias_frame: None,
         };
@@ -478,7 +529,7 @@ impl Scopes {
                 if frame.local(head, namespace, runtime) {
                     expanded.first_frame.get_or_insert(index);
                     expanded.shadowed = true;
-                    expanded.block = true;
+                    expanded.block = !frame.module || !self.module_globs;
                     return Ok(Some(expanded));
                 }
                 if let Some(alias) =
@@ -501,6 +552,9 @@ impl Scopes {
                 return Ok(Some(expanded));
             }
             expanded.alias_frame = Some(declaration_limit - 1);
+            if self.module_globs && alias.attributes != crate::syntax::AliasAttributes::Inert {
+                expanded.alias_attributes = alias.attributes;
+            }
             let mut next = alias.path.clone();
             next.extend(expanded.segments.iter().skip(1).cloned());
             if next == expanded.segments {
@@ -710,7 +764,13 @@ impl Scopes {
         (0..self.frames.len())
             .rev()
             .zip(self.frames.iter().rev())
-            .take_while(|(_, frame)| !frame.module)
+            .scan(true, |blocks, (index, frame)| {
+                if !*blocks {
+                    return None;
+                }
+                *blocks = !frame.module;
+                (!frame.module || self.module_globs).then_some((index, frame))
+            })
             .filter(|(_, frame)| !frame.globs.is_empty())
             .map(|(index, frame)| (index, frame.globs.as_slice(), &frame.settled))
     }
