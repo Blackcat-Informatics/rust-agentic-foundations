@@ -5,19 +5,20 @@
 
 mod support;
 use raf_workplan::{
-    Gate, SyncOptions, Workplan,
-    lifecycle::{Completion, Condition, Lifecycle},
+    Gate, SyncOptions, SyncReport, Workplan,
+    lifecycle::{Completion, Condition, Lifecycle, NewChangeRequest},
 };
 use support::evidence::Evidence;
 use support::{
     changes::{BOUND, DONE, OMEGA, SHAPE, capability, record, repo},
     checkout::{Checkout, serial},
     disk::{read, snapshot},
+    synced::INDEX,
 };
 
-fn fixture(state: &str, items: &str) -> Checkout {
+fn fixture(state: &str, items: &str, bindings: [&str; 3]) -> Checkout {
     let documents = repo(&[
-        (OMEGA, capability("omega", state, BOUND, &[])),
+        (OMEGA, delivery_capability(state, bindings)),
         (
             SHAPE,
             record("shape", "[cap:omega]", &[], "none", items)
@@ -25,6 +26,14 @@ fn fixture(state: &str, items: &str) -> Checkout {
         ),
     ]);
     Checkout::new("static-completion", &documents)
+}
+
+fn delivery_capability(state: &str, bindings: [&str; 3]) -> String {
+    capability("omega", "delivered", bindings, &[]).replacen(
+        "state: delivered",
+        &format!("state: {state}"),
+        1,
+    )
 }
 
 fn complete(checkout: &Checkout) -> Completion {
@@ -35,17 +44,14 @@ fn complete(checkout: &Checkout) -> Completion {
 }
 
 #[test]
-fn prospective_completion_refuses_an_implementing_capability_and_an_undone_item() {
+fn prospective_completion_refuses_missing_bindings_or_an_undone_item() {
     let _lock = serial();
-    for (state, items, condition) in [
-        ("implementing", DONE, Condition::AfterRemoval),
-        (
-            "delivered",
-            "  - claim: still undone\n",
-            Condition::Outcomes,
-        ),
+    for (bindings, items, condition) in [
+        (["[]", BOUND[1], BOUND[2]], DONE, Condition::Obligations),
+        ([BOUND[0], BOUND[1], "[]"], DONE, Condition::AfterRemoval),
+        (BOUND, "  - claim: still undone\n", Condition::Outcomes),
     ] {
-        let checkout = fixture(state, items);
+        let checkout = fixture("implementing", items, bindings);
         let before = snapshot(checkout.root());
         let completion = complete(&checkout);
         assert!(!completion.is_completed(), "{completion}");
@@ -114,7 +120,13 @@ fn completion_waits_for_the_measured_evidence_a_capability_requires() {
 #[test]
 fn completion_rewrites_owned_documents_and_leaves_source_and_git_untouched() {
     let _lock = serial();
-    let checkout = fixture("delivered", DONE);
+    let checkout = fixture("implementing", DONE, BOUND);
+    let original_capability = read(checkout.root(), OMEGA).replacen(
+        "state: implementing",
+        "state: \"implementing\"  # Delivery state.",
+        1,
+    );
+    checkout.put(OMEGA, &original_capability);
     // A panicking body is source data. Structural verification never calls it.
     let original = read(checkout.root(), "tests/it.rs");
     checkout.put(
@@ -125,6 +137,7 @@ fn completion_rewrites_owned_documents_and_leaves_source_and_git_untouched() {
     let completion = complete(&checkout);
     assert!(completion.is_completed(), "{completion}");
     assert!(!checkout.root().join(SHAPE).exists());
+    assert!(read(checkout.root(), OMEGA).contains("state: \"delivered\"  # Delivery state.\n"));
     let after = snapshot(checkout.root());
     for (path, bytes) in &before {
         if path.starts_with(".git/")
@@ -141,13 +154,132 @@ fn completion_rewrites_owned_documents_and_leaves_source_and_git_untouched() {
     );
 }
 
+/// An implementing capability becomes delivered only when its last owning
+/// record is completed.
+#[test]
+fn completion_retains_implementing_while_a_second_record_owns_the_capability() {
+    let _lock = serial();
+    let second = "work/changes/second.md";
+    let documents = repo(&[
+        (OMEGA, delivery_capability("implementing", BOUND)),
+        (
+            SHAPE,
+            record("shape", "[cap:omega]", &[], "none", DONE)
+                .replace("affects:\n", "affects: []\n"),
+        ),
+        (
+            second,
+            record("second", "[cap:omega]", &[], "none", DONE)
+                .replace("affects:\n", "affects: []\n"),
+        ),
+    ]);
+    let checkout = Checkout::new("completion-other-owner", &documents);
+    let other = read(checkout.root(), second);
+    let mut stale_index = detached_sync(&checkout);
+    stale_index.edits.retain(|(path, _)| path.as_str() == INDEX);
+    assert!(complete(&checkout).is_completed());
+    assert_eq!(read(checkout.root(), second), other);
+    assert!(read(checkout.root(), OMEGA).contains("state: implementing\n"));
+    assert_stale(&checkout, &stale_index);
+    let last = Lifecycle::open(checkout.root())
+        .unwrap()
+        .complete("second")
+        .unwrap();
+    assert!(last.is_completed(), "{last}");
+    assert!(read(checkout.root(), OMEGA).contains("state: delivered\n"));
+    assert_eq!(
+        Gate::workspace(checkout.root()).try_check().unwrap(),
+        Vec::new()
+    );
+}
+
+/// Prepare a real split sync report without leaving the active fixture out of sync.
+fn detached_sync(checkout: &Checkout) -> SyncReport {
+    let root = checkout.root();
+    let page = read(root, OMEGA);
+    let catalogue = read(root, INDEX);
+    let marker = "<!-- raf:generated:relationships -->";
+    checkout.put(
+        OMEGA,
+        &page.replace(marker, &format!("{marker}\nStale content.")),
+    );
+    std::fs::remove_file(root.join(INDEX)).unwrap();
+    let opened = Gate::workspace(root).open().unwrap();
+    let report = opened.workplan().sync(&support::synced::options()).unwrap();
+    checkout.put(OMEGA, &page);
+    checkout.put(INDEX, &catalogue);
+    assert!([OMEGA, INDEX].iter().all(|expected| {
+        report
+            .edits
+            .iter()
+            .any(|(path, _)| path.as_str() == *expected)
+    }));
+    report
+}
+
+fn assert_stale(checkout: &Checkout, report: &SyncReport) {
+    let before = snapshot(checkout.root());
+    let error = Workplan::write(report, checkout.root())
+        .expect_err("the report has old lifecycle metadata");
+    assert!(
+        error
+            .to_string()
+            .contains("compute a fresh docs sync report"),
+        "{error}"
+    );
+    assert_eq!(snapshot(checkout.root()), before);
+}
+
+/// Split publication cannot write across a native close or reopen, even when
+/// the old report is limited to the catalogue or copied into a manual edit.
+#[test]
+fn split_sync_refuses_stale_publication_after_completion_or_reopening() {
+    let _lock = serial();
+    let checkout = fixture("implementing", DONE, BOUND);
+    let root = checkout.root();
+    let before_completion = detached_sync(&checkout);
+    assert!(complete(&checkout).is_completed());
+    assert_stale(&checkout, &before_completion);
+
+    let before_opening = detached_sync(&checkout);
+    Gate::workspace(root)
+        .open()
+        .unwrap()
+        .workplan()
+        .new_change(
+            root,
+            &NewChangeRequest::new("reopen").capability("cap:omega"),
+        )
+        .unwrap();
+    assert_stale(&checkout, &before_opening);
+    let manual = SyncReport::new(
+        before_opening
+            .edits
+            .into_iter()
+            .filter(|(path, _)| path.as_str() == OMEGA)
+            .collect(),
+    );
+    assert_stale(&checkout, &manual);
+
+    let current = Gate::workspace(root)
+        .open()
+        .unwrap()
+        .workplan()
+        .sync(&SyncOptions::default())
+        .unwrap();
+    Workplan::write(&current, root).expect("the neighboring current report publishes");
+    assert!(read(root, OMEGA).contains("state: implementing\n"));
+    assert!(read(root, OMEGA).contains("reopen.md"));
+    assert!(read(root, INDEX).contains("## Implementing"));
+}
+
 #[test]
 fn forged_sync_reports_cannot_overwrite_source_or_manifests() {
     let _lock = serial();
-    let checkout = fixture("delivered", DONE);
+    let checkout = fixture("delivered", DONE, BOUND);
     for path in ["src/lib.rs", "Cargo.toml", ".git/config"] {
         let before = snapshot(checkout.root());
-        let mut report = raf_workplan::SyncReport::default();
+        let mut report = SyncReport::default();
         report.edits.push((
             raf_source::RelPath::new(path).unwrap(),
             "replacement".into(),
@@ -159,7 +291,7 @@ fn forged_sync_reports_cannot_overwrite_source_or_manifests() {
         "docs/capabilities/source.md",
         "pub fn source_in_markdown_path() {}\n",
     );
-    let mut report = raf_workplan::SyncReport::default();
+    let mut report = SyncReport::default();
     report.edits.push((
         raf_source::RelPath::new("docs/capabilities/source.md").unwrap(),
         "replacement".into(),

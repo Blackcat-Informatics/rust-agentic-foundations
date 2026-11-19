@@ -616,6 +616,14 @@ fn the_guidance_follows_the_state_of_each_listed_capability() {
             ("cap:delta", State::Considered, StateAdvice::Keep),
         ]
     );
+    for (path, state) in [
+        (ALPHA, "implementing"),
+        (BETA, "implementing"),
+        (GAMMA, "implementing"),
+        (DELTA, "considered"),
+    ] {
+        assert!(read(scratch.path(), path).contains(&format!("state: {state}\n")));
+    }
 }
 
 #[test]
@@ -645,8 +653,8 @@ Place this block in a section named in `affects`, in the document of a listed ca
 > State the proposed text here.
 
 State of the listed capabilities:
-  cap:alpha  designed  set `state: implementing` in the same commit as the block, since a PROPOSED block is a finding of `check` in this state (`state-designed-proposal`)
-  cap:beta  implementing  no change of state is needed
+  cap:alpha  designed  set to implementing
+  cap:beta  implementing  kept
 
 The record makes generated blocks stale. Stage the record first, since a link to a file git does not track is a finding of `check`, then bring the blocks up to date:
   git add work/changes/fresh-change.md
@@ -657,14 +665,13 @@ The record makes generated blocks stale. Stage the record first, since a link to
 
 // --- the template in each state ----------------------------------------------
 
-/// The repository with the record `fresh-change` for `capability`, the guidance
-/// followed (the state set to `implementing` when it says so) and the template
-/// placed in the Contract section of the capability.
+/// The repository with the opened record and its template in the capability's
+/// Contract. The negative cases restore the previous state as invalid input.
 fn with_template_placed(
     tag: &str,
     capability: &str,
     path: &str,
-    follow: bool,
+    retain_transition: bool,
 ) -> (Scratch, NewChange) {
     let scratch = repo(tag);
     let root = scratch.path();
@@ -676,10 +683,9 @@ fn with_template_placed(
     let anchor = format!("Text for Contract of {}.\n", &capability[4..]);
     assert!(text.contains(&anchor), "{path}");
     text = text.replacen(&anchor, &format!("{anchor}\n{}", result.template), 1);
-    if follow && result.guidance[0].advice == StateAdvice::SetImplementing {
+    if !retain_transition && result.guidance[0].advice == StateAdvice::SetImplementing {
         let state = format!("state: {}\n", result.guidance[0].state.name());
-        assert!(text.contains(&state));
-        text = text.replacen(&state, "state: implementing\n", 1);
+        text = text.replacen("state: implementing\n", &state, 1);
     }
     put(root, path, &text);
     (scratch, result)
@@ -745,7 +751,7 @@ fn the_template_in_a_capability_of_each_state_gives_one_block_and_a_clean_check(
 }
 
 #[test]
-fn the_template_in_the_wrong_state_is_the_finding_the_guidance_names() {
+fn check_refuses_a_proposal_in_a_delivered_or_designed_capability() {
     // Designed: a PROPOSED block is a finding until the state is implementing.
     let (scratch, _) = with_template_placed("wrong-designed", "cap:alpha", ALPHA, false);
     let findings = findings_about(scratch.path(), ALPHA);
@@ -768,7 +774,7 @@ fn the_template_in_the_wrong_state_is_the_finding_the_guidance_names() {
         ]
     );
 
-    // The same two states with the guidance followed hold neither finding.
+    // The state written by opening accepts both proposals.
     for (capability, path) in [("cap:alpha", ALPHA), ("cap:gamma", GAMMA)] {
         let (scratch, _) = with_template_placed("followed", capability, path, true);
         let found = kinds(&findings_about(scratch.path(), path));
@@ -780,7 +786,7 @@ fn the_template_in_the_wrong_state_is_the_finding_the_guidance_names() {
 }
 
 #[test]
-fn the_record_beside_a_delivered_capability_is_a_finding_until_the_state_is_set() {
+fn reopening_delivered_or_designed_capabilities_publishes_implementing() {
     let scratch = repo("new-delivered");
     let root = scratch.path();
     created(
@@ -788,8 +794,11 @@ fn the_record_beside_a_delivered_capability_is_a_finding_until_the_state_is_set(
         &NewChangeRequest::new("fresh-change").capability("cap:gamma"),
     );
     let found = kinds(&findings_about(root, GAMMA));
-    assert!(found.contains(&"state-delivered-open-record"), "{found:?}");
-    // A designed capability needs nothing for the record alone.
+    assert!(
+        found.iter().all(|kind| *kind == "generated-stale"),
+        "{found:?}"
+    );
+    assert!(read(root, GAMMA).contains("state: implementing\n"));
     created(
         root,
         &NewChangeRequest::new("another").capability("cap:alpha"),
@@ -799,6 +808,7 @@ fn the_record_beside_a_delivered_capability_is_a_finding_until_the_state_is_set(
             .iter()
             .all(|finding| finding.kind == "generated-stale")
     );
+    assert!(read(root, ALPHA).contains("state: implementing\n"));
 }
 
 // --- impact ------------------------------------------------------------------
@@ -1301,27 +1311,26 @@ fn the_sync_note_is_there_when_the_target_file_was_already_stale() {
 }
 
 #[test]
-fn the_guidance_for_a_delivered_capability_names_both_findings_it_avoids() {
-    let scratch = repo("new-delivered-guidance");
-    let result = created(
-        scratch.path(),
-        &NewChangeRequest::new("fresh-change")
-            .capability("cap:gamma")
-            .capability("cap:alpha"),
-    );
-    let text = result.to_string();
-    let gamma = text
-        .lines()
-        .find(|line| line.starts_with("  cap:gamma  delivered  "))
-        .expect("a line for the delivered capability");
-    assert!(gamma.contains("`state-delivered-proposal`"), "{gamma}");
-    assert!(gamma.contains("`state-delivered-open-record`"), "{gamma}");
-    let alpha = text
-        .lines()
-        .find(|line| line.starts_with("  cap:alpha  designed  "))
-        .expect("a line for the designed capability");
-    assert!(alpha.contains("`state-designed-proposal`"), "{alpha}");
-    assert!(!alpha.contains("open-record"), "{alpha}");
-    assert_eq!(StateAdvice::Keep.name(), "keep");
-    assert_eq!(StateAdvice::SetImplementing.name(), "set-implementing");
+fn opening_refuses_a_concurrent_lifecycle_publication_without_writes() {
+    let scratch = Scratch::new("new-other-writer");
+    let root = scratch.path();
+    write_repo(root, &synced::base());
+    let request = NewChangeRequest::new("fresh-change").capability("cap:gamma");
+    let before = snapshot(root);
+    {
+        let directory = std::fs::File::open(root).expect("the repository directory");
+        directory
+            .try_lock()
+            .expect("the other writer holds the lock");
+        let error = create(root, &request)
+            .expect_err("opening refuses while another writer holds the lock");
+        assert!(
+            error
+                .to_string()
+                .contains("another Workplan publication is active")
+        );
+        assert_eq!(snapshot(root), before);
+    }
+    created(root, &request);
+    assert!(read(root, GAMMA).contains("state: implementing\n"));
 }

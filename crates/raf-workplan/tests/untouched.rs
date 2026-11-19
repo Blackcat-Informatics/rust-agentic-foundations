@@ -20,7 +20,7 @@ use raf_workplan::lifecycle::{Lifecycle, LifecycleError, Side, section_digest};
 use raf_workplan::obligation::ObligationKind;
 use support::Repo;
 use support::changes::{DONE, OMEGA, SHAPE, capability, record, replaced, repo};
-use support::checkout::{Checkout, serial};
+use support::checkout::{Checkout, git, serial};
 use support::disk::{self, snapshot};
 use support::synced::assessed;
 
@@ -364,13 +364,14 @@ fn a_prefix_with_a_space_is_an_error_and_a_neighbour_without_one_is_not() {
 }
 
 #[test]
-fn a_root_outside_any_work_tree_is_an_error_at_the_open() {
+fn a_bare_repository_is_refused_at_the_open() {
     let _lock = serial();
-    let scratch = disk::Scratch::new("untouched-no-tree");
+    let scratch = disk::Scratch::new("untouched-bare");
     disk::write_repo(scratch.path(), &base());
+    git(scratch.path(), &["init", "--bare", "-q"]);
     let error = Lifecycle::open(scratch.path()).expect_err("not a work tree");
     assert!(
-        matches!(&error, LifecycleError::Repository { .. }),
+        matches!(&error, LifecycleError::Git(GitError::Answer { answer, .. }) if answer == "bare repository"),
         "{error:?}"
     );
 }

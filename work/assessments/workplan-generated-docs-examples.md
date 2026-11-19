@@ -13,7 +13,7 @@ inputs:
     digest: 459b574b27a4df1e272bcae550119b42a7ce8ee9b12d1a0fd17155ae14c2185b
   - kind: symbol
     name: raf_workplan::Opened::preview_generated
-    digest: f7a6f2c2949296be5ef567a886b1a93e08b98d7886771143411f8a334650f6c0
+    digest: 28d93a5c0d1674cd19549805da4e6c55db6b508fdd4ae8f5ee6be5182cd2177c
   - kind: symbol
     name: raf_workplan::Preview
     digest: 966eea8404c29a11c218b82080ac4b962ba05d5a35f3ec609f38f5e720f0b3d1
@@ -28,7 +28,7 @@ inputs:
     digest: 63de6cced3b105868c1a9fbdf579fc889c530b0a18d5679990d1fcab5dc0ecab
   - kind: symbol
     name: raf_workplan::SyncReport
-    digest: 8c5ddb0bdd4816e53ff88ba345daec8cc8dd2ec2062cafb6e32eaaf3a51814f1
+    digest: cb5c810b764158d477acde8de98a18474cb97b65c731b9d128a3fadd0472c943
   - kind: symbol
     name: raf_workplan::Workplan::currency_checked
     digest: f41deab64522a9135d91e1aa547057cf7046c0efca52eb3012eb7da83f2ee7a8
@@ -40,13 +40,13 @@ inputs:
     digest: 04393e5f8c58e32c5a8f28dc6a0c237cb6a4e186d214f69e50fe03be54555199
   - kind: symbol
     name: raf_workplan::Workplan::sync
-    digest: 9d918fab0b070dcb507a0a3fdfb002a9f3978649db125994ca287c2c09b45f2a
+    digest: 4b3b902587c96b108c384120e642116c9975aa355516461db33d01762824ee1a
   - kind: symbol
     name: raf_workplan::Workplan::write
-    digest: 9ba560131a4fedddffd7453172f167de21c0f3559a1cd0417572f82d00b2ded4
+    digest: c1a7252fc3f8fd6ba23f5f4e2edfe384d338a6939ebef4f845fc71adbfd4913d
   - kind: symbol
-    name: raf_workplan::Workplan::write_observed
-    digest: 6a0f9577cb7309cd6f85cda2f2f1320c8fc3533632f99aae9eed7b2466b7c2ed
+    name: raf_workplan::Workplan::write_guarded
+    digest: 13db1bccfd4664c5bfe4499ab759303101ed27daa9c82376540870c578f2d4cb
   - kind: symbol
     name: raf_workplan::assessment::Inputs
     digest: d18f5325e70c97dac0d8464bbaac56fe28c131c9263b283b0e71f2e3890a5347
@@ -73,7 +73,7 @@ inputs:
     digest: abb30d947cd162a509ed3671cc9844d7729d0c286bffabf6bdcf0a1c8461d7c9
   - kind: symbol
     name: raf_workplan::publication_io
-    digest: f07d563fc59e9733830970e47347f2e604b5671c5dacba98c6d83e0b799230af
+    digest: 8a3be0d264d6edc2707cda042f73f79ccce6f23598cb65348664f290b8c166e5
 verdict: accepted
 by: agent
 ---

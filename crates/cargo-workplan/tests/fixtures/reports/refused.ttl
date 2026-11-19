@@ -1,15 +1,14 @@
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/0328ee578acb2b811e4750a5c9b85e6a4c11bea0075ee448595662c6eba1d7aa>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/008c8ccc8d252d71fabd4da4a78b3fb40386131d1bb8244925e2c5fc410ae535>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
 <> <https://blackcatinformatics.ca/raf/report/1#command> "change complete" .
 <> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
 <> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
 <> <https://blackcatinformatics.ca/raf/report/1#result> <#result/2> .
-<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/3> .
 <#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Refused> .
-<#result/0> <https://blackcatinformatics.ca/raf/report/1#failures> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "refused: 3 static failure(s)" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#failures> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "refused: 2 static failure(s)" .
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Refusal> .
 <#result/1> <https://blackcatinformatics.ca/raf/report/1#condition> "obligations" .
@@ -41,9 +40,3 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/0328ee578acb2b
 <#result/2/obligation/0> <https://blackcatinformatics.ca/raf/report/1#path> "work/changes/shape.md" .
 <#result/2/obligation/0> <https://blackcatinformatics.ca/raf/report/1#section> "item 1" .
 <#result/2/obligation/0> <https://blackcatinformatics.ca/raf/report/1#subject> "change:shape" .
-<#result/3> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Refusal> .
-<#result/3> <https://blackcatinformatics.ca/raf/report/1#condition> "after-removal" .
-<#result/3> <https://blackcatinformatics.ca/raf/report/1#message> "no-open-record docs/capabilities/fixture.md: state implementing requires an open change record that lists cap:fixture (list the capability in the `changes` of an open change record, or move the state to delivered)" .
-<#result/3> <https://blackcatinformatics.ca/raf/report/1#ordinal> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<#result/3> <https://blackcatinformatics.ca/raf/report/1#repeated> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
-<#result/3> <https://blackcatinformatics.ca/raf/report/1#source> "after-removal" .

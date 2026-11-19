@@ -7,21 +7,26 @@
 use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt;
-use std::fs;
 use std::io;
 use std::path::Path;
+use std::rc::Rc;
 
 use raf_okf::{
     CapabilitySection, ConstructError, DocType, Document, Entry, Frontmatter, List, ListItem, Map,
     Scalar, State, Value, is_kebab,
 };
-use raf_source::{DiskTree, RelPath};
+use raf_source::RelPath;
 
-use crate::files::{self, CreateError};
+use crate::digest::semantic_hash;
+use crate::files;
 use crate::generated;
 use crate::graph::SectionId;
+use crate::publication_io::{Rollback, Root, Target, cleanup_after, with_cleanup};
 use crate::spdx::{self, SpdxError};
+use crate::staged::Staged;
 use crate::{Finding, Workplan};
+
+use super::state;
 
 /// The prefix of a capability id.
 const CAPABILITY_PREFIX: &str = "cap:";
@@ -123,15 +128,13 @@ impl NewChangeRequest {
     }
 }
 
-/// What the author does to the state of a listed capability in the commit that
-/// holds the PROPOSED block.
+/// The state action performed while opening the change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum StateAdvice {
     /// The state allows a PROPOSED block and an open record as it is.
     Keep,
-    /// Set `state: implementing` in the same commit: a PROPOSED block is a
-    /// finding of `check` in a `delivered` and in a `designed` capability.
+    /// The command moved the capability to `implementing`.
     SetImplementing,
 }
 
@@ -163,7 +166,7 @@ pub struct CapabilityGuidance {
     pub capability: String,
     /// Its state in the loaded documents.
     pub state: State,
-    /// What the author does about the state.
+    /// The action applied to this state.
     pub advice: StateAdvice,
 }
 
@@ -210,18 +213,13 @@ impl fmt::Display for NewChange {
         writeln!(f)?;
         writeln!(f, "State of the listed capabilities:")?;
         for guidance in &self.guidance {
-            let advice = match (guidance.advice, guidance.state) {
-                (StateAdvice::SetImplementing, State::Delivered) => {
-                    "set `state: implementing` in the same commit as the block, since in this state a PROPOSED block is a finding of `check` (`state-delivered-proposal`) and so is the open record itself (`state-delivered-open-record`)"
-                }
-                (StateAdvice::SetImplementing, _) => {
-                    "set `state: implementing` in the same commit as the block, since a PROPOSED block is a finding of `check` in this state (`state-designed-proposal`)"
-                }
-                (StateAdvice::Keep, _) => "no change of state is needed",
+            let action = match guidance.advice {
+                StateAdvice::SetImplementing => "set to implementing",
+                StateAdvice::Keep => "kept",
             };
             writeln!(
                 f,
-                "  {}  {}  {advice}",
+                "  {}  {}  {action}",
                 guidance.capability,
                 guidance.state.name()
             )?;
@@ -309,7 +307,7 @@ pub enum NewChangeError {
     },
     /// The record could not be built from the request.
     Build(ConstructError),
-    /// The record written does not load clean. It was removed again.
+    /// The prospective record does not load clean.
     Invalid {
         /// The path of the record.
         path: RelPath,
@@ -322,6 +320,13 @@ pub enum NewChangeError {
         /// The path that was being written or judged.
         path: String,
         /// Why.
+        source: io::Error,
+    },
+    /// The change opened successfully, but its rollback files could not all be removed.
+    Cleanup {
+        /// The published record.
+        path: RelPath,
+        /// The cleanup failure.
         source: io::Error,
     },
 }
@@ -387,13 +392,16 @@ impl fmt::Display for NewChangeError {
             ),
             Self::Build(error) => write!(f, "the record cannot be built: {error}"),
             Self::Invalid { path, findings } => {
-                write!(
-                    f,
-                    "the record written to {path} did not load clean and was removed"
-                )?;
+                write!(f, "the proposed record at {path} did not load clean")?;
                 crate::lookup::write_findings(f, findings)
             }
             Self::Write { path, source } => write!(f, "cannot write {path}: {source}"),
+            Self::Cleanup { path, source } => {
+                write!(
+                    f,
+                    "opened {path}, but could not remove every staged original: {source}"
+                )
+            }
         }
     }
 }
@@ -402,7 +410,7 @@ impl Error for NewChangeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Build(error) => Some(error),
-            Self::Write { source, .. } => Some(source),
+            Self::Write { source, .. } | Self::Cleanup { source, .. } => Some(source),
             _ => None,
         }
     }
@@ -443,17 +451,14 @@ impl Workplan<'_> {
     /// each as a `#` comment, as the change records of a
     /// repository that checks licences do; with neither given it opens with
     /// none, and with one only the call is refused before anything is read or
-    /// written. It is built with the writer of
-    /// `raf-okf` and is the only file written: it is created exclusively, so
-    /// a file already at the path is never overwritten, and `work/changes` is
-    /// created when it does not exist. The record is then read back through the
-    /// loader and must have no finding; a record that has one is removed again
-    /// and reported.
+    /// written. The native OKF writer builds the record, and the document model
+    /// validates it and the proposed capability state edits before publication.
+    /// Publication creates the record exclusively and creates `work/changes`
+    /// when it is absent. Delivered and designed capabilities enter
+    /// `implementing` with their authored content preserved.
     ///
-    /// The result carries the PROPOSED block template and the state guidance:
-    /// a `delivered` or `designed` capability is set to `state: implementing`
-    /// in the commit that holds the block, a `considered` or `implementing`
-    /// one needs no change.
+    /// The result carries the PROPOSED block template and the state actions
+    /// applied to the listed capabilities.
     ///
     /// ```rust
     /// use raf_source::{MemoryTree, Workspace};
@@ -485,9 +490,10 @@ impl Workplan<'_> {
     /// `CapabilityNotLoaded`, `BadAffects`, `SpdxUnset` or `SpdxInvalid` before
     /// anything is written;
     /// `Exists` when a file is already at the path (also when the record of the
-    /// slug is loaded or is there and did not load); `Write` when the file or
-    /// `work/changes` cannot be created, in which case no file is left; and
-    /// `Invalid` when the record written does not load clean.
+    /// slug is loaded or is there and did not load); `Write` when publication
+    /// is refused, including any restoration error; `Invalid` when the
+    /// proposed record does not load clean; and `Cleanup` when opening succeeds
+    /// but a staged original remains.
     pub fn new_change(
         &self,
         root: &Path,
@@ -511,17 +517,8 @@ impl Workplan<'_> {
             return Err(NewChangeError::Exists { path });
         }
         let document = Document::new(frontmatter(slug, &capabilities, &affects)?, BODY)?;
-        let before = pending_sync(self);
-        create(root, &path, &spdx::with_spdx(document.render(), spdx))?;
-        let after = match self.reload(root, &path, slug) {
-            Ok(after) => after,
-            Err(error) => {
-                // The file was created by this call just above; nothing else
-                // is removed.
-                let _ = fs::remove_file(root.join(path.as_str()));
-                return Err(error);
-            }
-        };
+        let text = spdx::with_spdx(document.render(), spdx);
+        let sync_needed = self.publish_new(root, &path, slug, &text, &guidance)?;
         Ok(NewChange {
             slug: slug.to_string(),
             path,
@@ -529,7 +526,7 @@ impl Workplan<'_> {
             affects,
             template: template(slug),
             guidance,
-            sync_needed: after != before,
+            sync_needed,
         })
     }
 
@@ -575,22 +572,155 @@ impl Workplan<'_> {
             .collect()
     }
 
-    /// Load the documents again from `root` and require that the record at
-    /// `path` loaded with no finding. The result is what a sync would write
-    /// after the load.
-    fn reload(&self, root: &Path, path: &RelPath, slug: &str) -> Result<Pending, NewChangeError> {
-        let invalid = |findings| NewChangeError::Invalid {
-            path: path.clone(),
-            findings,
-        };
-        let tree = DiskTree::new(root).map_err(|error| write_error(path.as_str(), to_io(error)))?;
-        let reloaded = Workplan::load(&tree, self.source());
-        let findings = reloaded.findings_of(path.as_str());
-        if reloaded.change(slug).is_err() || !findings.is_empty() {
-            return Err(invalid(findings));
+    fn publish_new(
+        &self,
+        root: &Path,
+        path: &RelPath,
+        slug: &str,
+        text: &str,
+        guidance: &[CapabilityGuidance],
+    ) -> Result<bool, NewChangeError> {
+        let failed = |source| write_error(path.as_str(), source);
+        let root = Root::open(root).map_err(failed)?;
+        let _exclusive = root.lock_lifecycle().map_err(failed)?;
+        let found = files::target_in(root.tree(), DocType::Change.directory(), path)
+            .map_err(|error| write_error(&error.path, error.source))?;
+        if found.kind.is_some() {
+            return Err(NewChangeError::Exists { path: path.clone() });
         }
-        Ok(pending_sync(&reloaded))
+        let mut states = Vec::new();
+        for cap in self.capabilities() {
+            let Some(action) = guidance
+                .iter()
+                .find(|row| row.capability == cap.value().header.id)
+            else {
+                continue;
+            };
+            let relative = RelPath::new(cap.path())
+                .map_err(|error| write_error(cap.path(), io::Error::other(error)))?;
+            let original = cap.text();
+            let target = root
+                .capture(&relative)
+                .map_err(|error| write_error(cap.path(), error))?;
+            target
+                .verify_content(Some(&semantic_hash(&original)))
+                .map_err(|error| write_error(cap.path(), error))?;
+            if action.advice == StateAdvice::SetImplementing {
+                let (relative, replacement) = state::edit(cap, State::Implementing)
+                    .map_err(|error| write_error(cap.path(), error))?;
+                states.push(StatePublication {
+                    target,
+                    relative,
+                    original,
+                    replacement,
+                });
+            }
+        }
+        let mut edits: Vec<_> = states
+            .iter()
+            .map(|row| (row.relative.clone(), row.replacement.clone()))
+            .collect();
+        edits.push((path.clone(), text.to_owned()));
+        edits.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        let after = self.preview_new(root.tree(), path, slug, &edits)?;
+        let sync_needed = after != pending_sync(self);
+        publish(&root, path, text, states)
+            .map_err(failed)?
+            .discard()
+            .map_err(|source| NewChangeError::Cleanup {
+                path: path.clone(),
+                source,
+            })?;
+        Ok(sync_needed)
     }
+
+    /// Judge the exact record and capability edits with the existing loader.
+    fn preview_new(
+        &self,
+        tree: &dyn raf_source::Tree,
+        path: &RelPath,
+        slug: &str,
+        edits: &[(RelPath, String)],
+    ) -> Result<Pending, NewChangeError> {
+        let overlay = Staged::replacements(tree, edits);
+        let prospective = Workplan::load(&overlay, self.source());
+        let findings = edits
+            .iter()
+            .flat_map(|(relative, _)| prospective.findings_of(relative.as_str()))
+            .collect::<Vec<_>>();
+        if prospective.change(slug).is_err() || !findings.is_empty() {
+            return Err(NewChangeError::Invalid {
+                path: path.clone(),
+                findings,
+            });
+        }
+        Ok(pending_sync(&prospective))
+    }
+}
+
+struct StatePublication {
+    target: Target,
+    relative: RelPath,
+    original: String,
+    replacement: String,
+}
+
+/// Stage the whole opening before publishing its record and states. Restore
+/// the already-written states on refusal, retaining the record if restoration
+/// itself fails so a published implementing state still has an owner.
+fn publish(
+    root: &Rc<Root>,
+    path: &RelPath,
+    text: &str,
+    states: Vec<StatePublication>,
+) -> io::Result<Rollback> {
+    root.create_parents(path)?;
+    let record = root.capture(path)?;
+    record.verify_content(None)?;
+    let count = states
+        .len()
+        .checked_mul(2)
+        .and_then(|count| count.checked_add(1))
+        .ok_or_else(|| io::Error::other("metadata staging count overflow"))?;
+    let mut grant = root.reserve_staging(
+        count,
+        std::iter::once(&record).chain(states.iter().map(|row| &row.target)),
+    )?;
+    let mut staged = vec![record.stage_reserved(text, &mut grant)?];
+    let mut rollback = Rollback::default();
+    for state in states {
+        match rollback.stage(
+            state.target,
+            &state.replacement,
+            Some(&state.original),
+            &mut grant,
+        ) {
+            Ok(file) => staged.push(file),
+            Err(error) => {
+                drop(grant);
+                return Err(with_cleanup(
+                    cleanup_after(error, &staged),
+                    rollback.discard(),
+                ));
+            }
+        }
+    }
+    drop(grant);
+    for (index, file) in staged.iter().enumerate() {
+        if let Err(error) = file.publish() {
+            let mut error = cleanup_after(error, &staged[index..]);
+            let restored = rollback.restore();
+            if index != 0 && restored.is_ok() {
+                error = with_cleanup(error, staged[0].remove_published());
+            }
+            return Err(with_cleanup(
+                with_cleanup(error, restored),
+                rollback.discard(),
+            ));
+        }
+        rollback.published(file);
+    }
+    Ok(rollback)
 }
 
 /// The path of the record of `slug`, a kebab-case slug. A name the tree
@@ -701,22 +831,9 @@ fn frontmatter(
     Ok(Frontmatter::new(Map::new(entries)?))
 }
 
-fn to_io(error: raf_source::TreeError) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidInput, error)
-}
-
 fn write_error(path: &str, source: io::Error) -> NewChangeError {
     NewChangeError::Write {
         path: path.to_string(),
         source,
     }
-}
-
-/// Create the record `path` below `root` with `text`, exclusively, creating
-/// `work/changes` when it is missing; see [`files::create_new`].
-fn create(root: &Path, path: &RelPath, text: &str) -> Result<(), NewChangeError> {
-    files::create_new(root, DocType::Change.directory(), path, text).map_err(|error| match error {
-        CreateError::Exists => NewChangeError::Exists { path: path.clone() },
-        CreateError::Write { path, source } => NewChangeError::Write { path, source },
-    })
 }

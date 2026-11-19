@@ -44,7 +44,6 @@ bindings:
     - raf_okf::test_crate::records::a_record_has_no_title_description_or_body
     - raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved
     - raf_workplan::test_crate::evidence::a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound
-    - raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication
     - raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication
     - raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim
     - raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load
@@ -135,7 +134,6 @@ Native record round trips, claim lookup refusals and the stored-command fixture 
 | `raf_okf::test_crate::records::a_record_has_no_title_description_or_body` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name` | test | [Verification](#verification) |
 | `raf_workplan::Workplan::evidence_claims` | doctest | [Usage](#usage) |
-| `raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication` | test | [Verification](#verification) |
 | `raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::completion_waits_for_the_measured_evidence_a_capability_requires` | test | [Contract](#contract) |

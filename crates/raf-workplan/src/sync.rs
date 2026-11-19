@@ -10,19 +10,24 @@
 //! known good before the first byte is written. `write` is the only part that
 //! touches the disk.
 
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
-use std::fs;
 use std::io;
 use std::path::Path;
+use std::rc::Rc;
+use std::sync::Arc;
 
-use raf_okf::{Index, ParseError};
+use purrdf_core::ContentDigest;
+use raf_okf::{Document, Index, ParseError};
 use raf_source::RelPath;
 
 use crate::Finding;
 use crate::Workplan;
 use crate::generated::{self, INDEX_PATH};
-use crate::publication_io::{Root, Staged, Target, cleanup_after};
+use crate::publication_io::{Rollback, Root, Staged, Target, cleanup_after};
+
+mod lifecycle;
 
 /// What a sync needs beyond the documents: the SPDX text of the index it
 /// creates.
@@ -89,10 +94,51 @@ pub struct SyncReport {
     /// file.
     pub edits: Vec<(RelPath, String)>,
     /// Checked diagram ownership admission when generated assets change.
-    pub diagram_assets: Option<std::sync::Arc<crate::diagram::DiagramPublication>>,
+    pub diagram_assets: Option<Arc<crate::diagram::DiagramPublication>>,
+    admission: Option<Admission>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Admission {
+    lifecycle: lifecycle::Basis,
+    catalogue: Option<ContentDigest>,
 }
 
 impl SyncReport {
+    /// A manual set of replacement texts. Publication still requires owned
+    /// destinations and preserves lifecycle metadata. Use [`Workplan::sync`]
+    /// to compute changes to the capability catalogue or owned diagram assets.
+    #[must_use]
+    pub fn new(edits: Vec<(RelPath, String)>) -> Self {
+        Self {
+            edits,
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn computed(
+        plan: &Workplan<'_>,
+        edits: Vec<(RelPath, String)>,
+        diagram_assets: Option<Arc<crate::diagram::DiagramPublication>>,
+    ) -> Result<Self, SyncError> {
+        let lifecycle = lifecycle::Basis::of(plan)?;
+        if edits.is_empty() && diagram_assets.is_none() {
+            return Ok(Self::default());
+        }
+        let catalogue = edits
+            .iter()
+            .find(|(path, _)| path.as_str() == INDEX_PATH)
+            .map(|(_, text)| ContentDigest::of(text.as_bytes()));
+        Ok(Self {
+            edits,
+            diagram_assets,
+            admission: Some(Admission {
+                lifecycle,
+                catalogue,
+            }),
+        })
+    }
+
     /// Previously owned generated files that this publication removes.
     pub fn removals(&self) -> impl Iterator<Item = &RelPath> {
         self.diagram_assets
@@ -272,10 +318,7 @@ impl Workplan<'_> {
                     })
             })
             .collect::<Result<_, _>>()?;
-        Ok(SyncReport {
-            edits,
-            diagram_assets: diagrams.publication.map(std::sync::Arc::new),
-        })
+        SyncReport::computed(self, edits, diagrams.publication.map(Arc::new))
     }
 
     /// Write the edits of a report under `root`.
@@ -298,134 +341,192 @@ impl Workplan<'_> {
     /// are removed; unrelated neighbors are preserved. Failed staging can leave
     /// empty generated directories. Ownership intent precedes asset publication
     /// so a partial rename or retirement can be repaired by the next sync.
+    /// Publication is serialized with change opening and completion. A computed
+    /// report must still describe the same capability states and owning records.
+    /// The capability catalogue requires the computed report's exact index text.
+    /// An ordinary replacement preserves the destination's lifecycle metadata,
+    /// including when a caller supplies the replacement in a default report.
     ///
     /// # Errors
     ///
-    /// An [`io::Error`] naming the refused target, or the operating system's
+    /// An [`io::Error`] for a changed lifecycle basis, an unadmitted catalogue,
+    /// a refused target, or the operating system's
     /// error. What remains possible is a rename that fails after earlier
     /// renames succeeded: those files hold the new text of a sync, the
     /// remaining temporary files are removed, and syncing again completes the
     /// rest. A temporary file is created exclusively under a unique name and
     /// only the ones this call created are removed.
     pub fn write(report: &SyncReport, root: &Path) -> io::Result<()> {
-        Self::write_observed(report, root).map(|_| ())
+        let root = Root::open(root)?;
+        if report.is_empty() && report.diagram_assets.is_none() {
+            return Ok(());
+        }
+        let _exclusive = root.lock_lifecycle()?;
+        if let Some(admission) = &report.admission {
+            admission.lifecycle.verify(&root)?;
+        }
+        for (path, text) in &report.edits {
+            if path.as_str() == INDEX_PATH
+                && report
+                    .admission
+                    .as_ref()
+                    .and_then(|admission| admission.catalogue.as_ref())
+                    != Some(&ContentDigest::of(text.as_bytes()))
+            {
+                return Err(refused(
+                    path,
+                    "compute a fresh docs sync report for the catalogue",
+                ));
+            }
+        }
+        Self::write_guarded(report, &root, &BTreeMap::new()).and_then(Rollback::discard)
     }
 
-    /// The same native staging/publication path with intended modes from its handles.
-    pub(crate) fn write_observed(
+    /// Publish with exact input checks and stage the state originals before writing.
+    pub(crate) fn write_guarded(
         report: &SyncReport,
-        root: &Path,
-    ) -> io::Result<Vec<(RelPath, fs::Permissions)>> {
-        let root = Root::open(root)?;
-        let mut modes = Vec::new();
-        let mut seen = std::collections::BTreeSet::new();
-        let mut targets = match &report.diagram_assets {
-            Some(assets) => assets.validate(&root, &report.edits)?,
-            None => std::collections::BTreeMap::new(),
-        };
-        for (path, _) in &report.edits {
-            if !seen.insert(path.as_str()) {
-                return Err(refused(path, "it is listed twice"));
-            }
-            if crate::diagram::assets::publication::reserved(path) {
-                if !report
-                    .diagram_assets
-                    .as_ref()
-                    .is_some_and(|assets| assets.admits(path))
-                {
-                    return Err(refused(
-                        path,
-                        "reserved diagram destinations require computed ownership admission",
-                    ));
-                }
-            } else {
-                let target = root.capture(path)?;
-                judge(path, &target)?;
-                targets.insert(path.clone(), target);
-            }
+        root: &Rc<Root>,
+        originals: &BTreeMap<RelPath, String>,
+    ) -> io::Result<Rollback> {
+        let mut rollback = Rollback::default();
+        match publish_report(report, root, originals, &mut rollback) {
+            Ok(()) => Ok(rollback),
+            Err(error) => Err(rollback.restore_after(error)),
         }
-        if report.diagram_assets.is_some() {
-            modes.extend(crate::diagram::DiagramPublication::directories(
-                &root,
-                &report.edits,
-            )?);
-        }
-        // Newly created diagram parents must join the retained directory set
-        // before descriptor capacity is admitted for the complete batch.
-        for (path, _) in &report.edits {
-            if !targets.contains_key(path) {
-                targets.insert(path.clone(), root.capture(path)?);
-            }
-            if let Some(assets) = &report.diagram_assets {
-                assets.verify_target(path, &targets[path])?;
-            }
-        }
-        let count = report
-            .edits
-            .len()
-            .checked_add(usize::from(report.diagram_assets.is_some()))
-            .ok_or_else(|| io::Error::other("metadata staging count overflow"))?;
-        let mut grant = root.reserve_staging(count, targets.values())?;
-        let mut staged = Vec::new();
-        for (path, text) in &report.edits {
-            let Some(target) = targets.remove(path) else {
-                drop(grant);
-                return Err(cleanup_after(
-                    refused(path, "missing retained destination admission"),
-                    &staged,
-                ));
-            };
-            match target.stage_reserved(text, &mut grant) {
-                Ok(temporary) => {
-                    modes.push((path.clone(), temporary.permissions()));
-                    staged.push(temporary);
-                }
-                Err(error) => {
-                    drop(grant);
-                    return Err(cleanup_after(error, &staged));
-                }
-            }
-        }
-        if let Some(assets) = &report.diagram_assets {
-            let intent = match assets.stage_intent(&root, &mut grant) {
-                Ok(path) => path,
-                Err(error) => {
-                    drop(grant);
-                    return Err(cleanup_after(error, &staged));
-                }
-            };
-            drop(grant);
-            for file in &mut staged {
-                if file.target_path().as_str() == crate::diagram::assets::MANIFEST
-                    && let Err(error) = file.follows(&intent)
-                {
-                    return Err(cleanup_after(cleanup_after(error, &[intent]), &staged));
-                }
-            }
-            if let Err(error) = intent.publish() {
-                return Err(cleanup_after(cleanup_after(error, &[intent]), &staged));
-            }
-            let (manifests, files): (Vec<_>, Vec<_>) = staged
-                .into_iter()
-                .partition(|file| file.target_path().as_str() == crate::diagram::assets::MANIFEST);
-            if let Err(error) = publish(&files).and_then(|()| assets.retire(&root, &mut targets)) {
-                return Err(cleanup_after(error, &manifests));
-            }
-            publish(&manifests)?;
-        } else {
-            drop(grant);
-            publish(&staged)?;
-        }
-        Ok(modes)
     }
 }
 
+fn publish_report(
+    report: &SyncReport,
+    root: &Rc<Root>,
+    originals: &BTreeMap<RelPath, String>,
+    rollback: &mut Rollback,
+) -> io::Result<()> {
+    let mut targets = admit_targets(report, root, originals)?;
+    let count = report
+        .edits
+        .len()
+        .checked_add(originals.len())
+        .and_then(|count| count.checked_add(usize::from(report.diagram_assets.is_some())))
+        .ok_or_else(|| io::Error::other("metadata staging count overflow"))?;
+    let mut grant = root.reserve_staging(count, targets.values())?;
+    let mut staged = Vec::new();
+    for (path, text) in &report.edits {
+        let Some(target) = targets.remove(path) else {
+            drop(grant);
+            return Err(cleanup_after(
+                refused(path, "missing retained destination admission"),
+                &staged,
+            ));
+        };
+        match rollback.stage(
+            target,
+            text,
+            originals.get(path).map(String::as_str),
+            &mut grant,
+        ) {
+            Ok(temporary) => staged.push(temporary),
+            Err(error) => {
+                drop(grant);
+                return Err(cleanup_after(error, &staged));
+            }
+        }
+    }
+    if let Some(assets) = &report.diagram_assets {
+        let intent = match assets.stage_intent(root, &mut grant) {
+            Ok(path) => path,
+            Err(error) => {
+                drop(grant);
+                return Err(cleanup_after(error, &staged));
+            }
+        };
+        drop(grant);
+        for file in &mut staged {
+            if file.target_path().as_str() == crate::diagram::assets::MANIFEST
+                && let Err(error) = file.follows(&intent)
+            {
+                return Err(cleanup_after(cleanup_after(error, &[intent]), &staged));
+            }
+        }
+        if let Err(error) = intent.publish() {
+            return Err(cleanup_after(cleanup_after(error, &[intent]), &staged));
+        }
+        let (manifests, files): (Vec<_>, Vec<_>) = staged
+            .into_iter()
+            .partition(|file| file.target_path().as_str() == crate::diagram::assets::MANIFEST);
+        if let Err(error) = publish(&files, rollback) {
+            return Err(cleanup_after(error, &manifests));
+        }
+        assets
+            .retire(root, &mut targets)
+            .map_err(|error| cleanup_after(error, &manifests))
+            .and_then(|()| publish(&manifests, rollback))?;
+    } else {
+        drop(grant);
+        publish(&staged, rollback)?;
+    }
+    Ok(())
+}
+
+fn admit_targets(
+    report: &SyncReport,
+    root: &Rc<Root>,
+    originals: &BTreeMap<RelPath, String>,
+) -> io::Result<BTreeMap<RelPath, Target>> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut targets = match &report.diagram_assets {
+        Some(assets) => assets.validate(root, &report.edits)?,
+        None => BTreeMap::new(),
+    };
+    for (path, replacement) in &report.edits {
+        if !seen.insert(path.as_str()) {
+            return Err(refused(path, "it is listed twice"));
+        }
+        if crate::diagram::assets::publication::reserved(path) {
+            if !report
+                .diagram_assets
+                .as_ref()
+                .is_some_and(|assets| assets.admits(path))
+            {
+                return Err(refused(
+                    path,
+                    "reserved diagram destinations require computed ownership admission",
+                ));
+            }
+        } else {
+            let target = root.capture(path)?;
+            judge(
+                path,
+                &target,
+                replacement,
+                originals.get(path).map(String::as_str),
+            )?;
+            targets.insert(path.clone(), target);
+        }
+    }
+    if report.diagram_assets.is_some() {
+        crate::diagram::DiagramPublication::directories(root, &report.edits)?;
+    }
+    // Newly created diagram parents must join the retained directory set
+    // before descriptor capacity is admitted for the complete batch.
+    for (path, _) in &report.edits {
+        if !targets.contains_key(path) {
+            targets.insert(path.clone(), root.capture(path)?);
+        }
+        if let Some(assets) = &report.diagram_assets {
+            assets.verify_target(path, &targets[path])?;
+        }
+    }
+    Ok(targets)
+}
+
 /// Publish already staged texts, discarding the unpublished tail on failure.
-fn publish(staged: &[Staged]) -> io::Result<()> {
+fn publish(staged: &[Staged], rollback: &mut Rollback) -> io::Result<()> {
     for (done, file) in staged.iter().enumerate() {
         if let Err(error) = file.publish() {
             return Err(cleanup_after(error, &staged[done..]));
         }
+        rollback.published(file);
     }
     Ok(())
 }
@@ -440,7 +541,12 @@ fn refused(path: &RelPath, reason: &str) -> io::Error {
 
 /// Require that `path` is a regular file, or the new capability index, below
 /// directories whose admitted descriptor bindings are retained through publication.
-fn judge(path: &RelPath, target: &Target) -> io::Result<()> {
+fn judge(
+    path: &RelPath,
+    target: &Target,
+    replacement: &str,
+    state_original: Option<&str>,
+) -> io::Result<()> {
     let allowed = ["docs/capabilities", "docs/architecture", "work/changes"];
     if !allowed.iter().any(|directory| {
         path.parent()
@@ -458,13 +564,24 @@ fn judge(path: &RelPath, target: &Target) -> io::Result<()> {
             if path.as_str() == INDEX_PATH {
                 Index::parse(&text).map_err(|error| refused(path, &error.to_string()))?;
             } else {
-                let document = raf_okf::Document::parse(&text)
-                    .map_err(|error| refused(path, &error.to_string()))?;
-                raf_okf::Profile
-                    .validate(&document, path.as_str())
-                    .map_err(|_| {
-                        refused(path, "existing destination is not an owned typed document")
-                    })?;
+                let original =
+                    Document::parse(&text).map_err(|error| refused(path, &error.to_string()))?;
+                let current = lifecycle::typed(path, &original)?;
+                if let Some(original) = state_original {
+                    target.verify_content(Some(&crate::digest::semantic_hash(original)))?;
+                } else {
+                    let replacement = Document::parse(replacement)
+                        .map_err(|error| refused(path, &error.to_string()))?;
+                    let prospective = lifecycle::typed(path, &replacement)?;
+                    if lifecycle::Metadata::of(&prospective) != lifecycle::Metadata::of(&current)
+                        || replacement.doc_type() != original.doc_type()
+                    {
+                        return Err(refused(
+                            path,
+                            "a generated write must preserve document type and lifecycle metadata; compute a fresh docs sync report",
+                        ));
+                    }
+                }
             }
             Ok(())
         }

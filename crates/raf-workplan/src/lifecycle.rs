@@ -10,8 +10,8 @@
 //!
 //! Completion validates outcomes, proposed text, generated documentation, source
 //! bindings and current assessments against a prospective document overlay. It
-//! reopens static inputs before publication, then writes owned generated documents
-//! and removes the completed change record. No execution worktree or process
+//! reopens static inputs before publication, then writes owned state and generated
+//! documents and removes the completed change record. No execution worktree or process
 //! supervisor is involved.
 
 mod changed;
@@ -20,6 +20,7 @@ mod completion;
 mod create;
 mod impact;
 mod session;
+mod state;
 mod touched;
 pub(crate) use touched::BaseTree;
 mod untouched;

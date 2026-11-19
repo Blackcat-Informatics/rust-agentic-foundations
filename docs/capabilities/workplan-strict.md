@@ -25,7 +25,7 @@ bindings:
     - raf_workplan::work
   tests:
     - raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication
-    - raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item
+    - raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item
     - raf_workplan::lifecycle::touched::tests::static_surface_comparison_classifies_changes_without_executing_source
     - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
     - raf_workplan::test_crate::lines::incomplete_associated_macro_ownership_refuses_beside_complete_owner_reaches
@@ -231,7 +231,7 @@ documents does not judge policy units, while every complete check does. The
 completion check after record removal applies the same policy at both judgements.
 Content and binding findings follow document-model and generated-block findings,
 then the debt ratchet applies.
-<!-- raf:tested-by raf_workplan::strict::tests::the_default_check_judges_each_policy_unit_once_without_policy_work_during_load,raf_workplan::test_crate::strict::every_policy_refusal_case_is_enforced_by_the_default_check,raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan,raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command,raf_workplan::test_crate::debt::the_default_debt_writer_judges_all_present_findings -->
+<!-- raf:tested-by raf_workplan::strict::tests::the_default_check_judges_each_policy_unit_once_without_policy_work_during_load,raf_workplan::test_crate::strict::every_policy_refusal_case_is_enforced_by_the_default_check,raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan,raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command,raf_workplan::test_crate::debt::the_default_debt_writer_judges_all_present_findings -->
 
 **Examples.** A `delivered` capability binds at least
 one entry in `bindings.examples`; with none it is `strict-example-missing` at the key
@@ -345,7 +345,7 @@ condition 5 validates declared source bindings without executing tests or exampl
 refuses on each `tense-mismatch` of a listed capability. The list also holds
 `contract-effect-understated`, raised by [reconcile](./workplan-reconcile.md) when the
 record says `contract_effect: none` and a bound public item is touched.
-<!-- raf:tested-by raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item -->
+<!-- raf:tested-by raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item -->
 
 
 **Compared public surface.** Each side is read from a source index: the working tree's, and one loaded
@@ -962,7 +962,7 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `raf_workplan::test_crate::claim_coverage::constraints_are_cut_into_top_level_items_paragraphs_and_tables` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::claim_coverage::fenced_generated_and_proposed_text_make_no_claim_and_evidence_does_not_cover_one` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::prospective_completion_refuses_an_implementing_capability_and_an_undone_item` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_debt` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::a_falling_count_fails_until_the_write_lowers_the_row` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding` | test | [Contract](#contract) |

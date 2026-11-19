@@ -88,18 +88,25 @@ pub enum LifecycleError {
     },
     /// Prospective generated documentation cannot be computed.
     Sync(SyncError),
-    /// Generated publication failed; the record remains.
+    /// Document publication failed; the record remains.
     Rewrite {
         /// The publication failure.
         source: io::Error,
     },
-    /// Generated documentation was published, but record removal failed.
+    /// Record removal failed after document publication and restoration was attempted.
     Remove {
         /// The change record path.
         path: String,
         /// The documents already rewritten.
         rewritten: Vec<String>,
         /// The removal failure.
+        source: io::Error,
+    },
+    /// The record was removed, but its rollback files could not all be removed.
+    Cleanup {
+        /// The removed change record.
+        path: String,
+        /// The cleanup failure.
         source: io::Error,
     },
     /// A record destination or parent is not owned and regular.
@@ -153,7 +160,7 @@ impl fmt::Display for LifecycleError {
             ),
             Self::Rewrite { source } => write!(
                 f,
-                "generated documentation could not be rewritten: {source}; the record remains; some documents may already contain their replacements"
+                "cannot publish completion documents: {source}; the record remains; generated edits may need to be resynced before retrying"
             ),
             Self::Remove {
                 path,
@@ -161,8 +168,12 @@ impl fmt::Display for LifecycleError {
                 source,
             } => write!(
                 f,
-                "cannot remove `{path}`: {source}; documentation already rewritten: {}; inspect it before retrying completion",
+                "cannot remove `{path}`: {source}; documentation publication touched {}; sync generated documents before retrying completion",
                 rewritten.join(", ")
+            ),
+            Self::Cleanup { path, source } => write!(
+                f,
+                "completed `{path}`, but could not remove every staged original: {source}"
             ),
             Self::RecordRefused { path, source } => write!(
                 f,
@@ -184,6 +195,7 @@ impl Error for LifecycleError {
             Self::Sync(error) => Some(error),
             Self::Rewrite { source }
             | Self::Remove { source, .. }
+            | Self::Cleanup { source, .. }
             | Self::RecordRefused { source, .. } => Some(source),
             Self::Surface { .. } | Self::Document { .. } | Self::Unloaded { .. } => None,
         }

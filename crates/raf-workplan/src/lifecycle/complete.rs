@@ -6,22 +6,27 @@
 //! Static obligations and a prospective document overlay precede publication.
 //! Reopening validates the static judgement again without executing inspected code.
 
-use std::fs;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io;
+use std::rc::Rc;
 
-use raf_okf::{DocType, Location};
+use raf_okf::{Change, DocType, Location, State};
 use raf_source::{EntryKind, RelPath};
 
+use crate::digest::semantic_hash;
 use crate::files::{self, Target};
 use crate::finding::kind;
 use crate::generated;
 use crate::lookup::bare_slug;
 use crate::obligation::{ObligationKind, Reconciled};
-use crate::{Binding, BindingKind, Finding, Opened, SyncError, SyncOptions, SyncReport, Workplan};
+use crate::publication_io::Root;
+use crate::{
+    Binding, BindingKind, Finding, Loaded, Opened, SyncError, SyncOptions, SyncReport, Workplan,
+};
 
 use super::completion::{Completion, Failure};
 use super::session::{Lifecycle, LifecycleError, Side};
-use super::touched;
+use super::{state, touched};
 
 /// The static conditions judged over one opening of the repository.
 struct Evaluation {
@@ -33,6 +38,9 @@ struct Evaluation {
     bindings: Vec<Binding>,
     /// The path of the record.
     record: RelPath,
+    record_digest: String,
+    /// The admitted source bytes of the capability state edits.
+    state_originals: BTreeMap<RelPath, String>,
     /// The generated blocks the removal stales, rewritten as the sync of the
     /// repository without the record writes them. Empty while a failure
     /// stands.
@@ -81,6 +89,11 @@ impl Lifecycle {
     /// Refuses unavailable history, unreadable inputs and invalid publication paths.
     /// Static contract failures return a refusal without publishing any file.
     pub fn complete(&self, change: &str) -> Result<Completion, LifecycleError> {
+        let root = Root::from_tree(self.opened.shared_tree())
+            .map_err(|source| LifecycleError::Rewrite { source })?;
+        let _exclusive = root
+            .lock_lifecycle()
+            .map_err(|source| LifecycleError::Rewrite { source })?;
         let slug = bare_slug(change);
         let mut kept = None;
         let before = self.evaluate(&self.opened, slug, &mut kept)?;
@@ -105,7 +118,7 @@ impl Lifecycle {
             failures.extend(after.failures);
             return Ok(Completion::Refused { failures });
         }
-        Self::write(&opened, &after.record, &after.rewrite)
+        Self::write(&root, &after)
     }
 
     /// Judge static conditions and the prospective state without writing.
@@ -131,6 +144,8 @@ impl Lifecycle {
         Self::judge_record(opened, &record_path)?;
 
         // Condition 1, all kinds that need no run of `cargo`.
+        let mut state_originals = BTreeMap::new();
+        let state_edits = promote(&plan, record, &mut state_originals)?;
         let mut obligations = fixed.obligations().to_vec();
         obligations.extend(self.history_obligations(
             opened,
@@ -188,7 +203,7 @@ impl Lifecycle {
 
         // The repository as it will be once the writes are done, judged by
         // `check`.
-        let (found, rewrite, unsynced) = Self::after_removal(opened, &record_path);
+        let (found, rewrite, unsynced) = Self::after_removal(opened, &record_path, state_edits);
         for finding in found {
             let repeats = faults.contains(&finding)
                 || (finding.kind == kind::PROPOSED_MISSING_CHANGE
@@ -229,6 +244,8 @@ impl Lifecycle {
             failures,
             bindings,
             record: record_path,
+            record_digest: semantic_hash(&record.text()),
+            state_originals,
             rewrite,
         })
     }
@@ -236,8 +253,8 @@ impl Lifecycle {
     /// The findings of `check` over the repository as it will be once the
     /// writes are done, and the rewrite that gets it there.
     ///
-    /// The record is not shown and the files of the rewrite hold their new
-    /// text, so the generated blocks the removal stales are current in the
+    /// The record is hidden and completed capabilities hold their delivered
+    /// state, so the generated blocks the removal stales are current in the
     /// model that is judged, and a link inside one to the removed record is not
     /// a fault. When the sync cannot run the blocks stay as they are and the
     /// findings are those of the repository without the record, minus the
@@ -245,10 +262,11 @@ impl Lifecycle {
     fn after_removal(
         opened: &Opened,
         record: &RelPath,
+        state_edits: Vec<(RelPath, String)>,
     ) -> (Vec<Finding>, SyncReport, Option<SyncError>) {
-        let without = opened.workplan_after(record, &[], &[]);
+        let without = opened.workplan_after(record, &state_edits, &[]);
         match without.sync(&SyncOptions::default()) {
-            Ok(report) => {
+            Ok(mut report) => {
                 let mut removed: Vec<_> = report.removals().cloned().collect();
                 // Native ordering admits the same exact removal set used by the view.
                 if let Err(error) = purrdf_lex::walk::try_sort_unstable_by(&mut removed, |a, b| {
@@ -263,6 +281,11 @@ impl Lifecycle {
                         }),
                     );
                 }
+                let mut edits: BTreeMap<_, _> = state_edits.into_iter().collect();
+                // Sync starts with the promoted text, so its whole-file
+                // replacements already include the state changes.
+                edits.extend(report.edits);
+                report.edits = edits.into_iter().collect();
                 let findings = opened
                     .workplan_after(record, &report.edits, &removed)
                     .check();
@@ -304,29 +327,39 @@ impl Lifecycle {
         }
     }
 
-    /// The writes, in their fixed order: the generated blocks, and then, as the
-    /// last step, the record.
-    fn write(
-        opened: &Opened,
-        record: &RelPath,
-        rewrite: &SyncReport,
-    ) -> Result<Completion, LifecycleError> {
-        let rewritten: Vec<String> = rewrite
+    /// Publish the admitted document edits, then remove the exact record.
+    fn write(root: &Rc<Root>, completed: &Evaluation) -> Result<Completion, LifecycleError> {
+        let record = &completed.record;
+        let rewritten: Vec<String> = completed
+            .rewrite
             .edits
             .iter()
             .map(|(path, _)| path.as_str().to_string())
             .collect();
-        if !rewrite.is_empty() {
-            Workplan::write(rewrite, opened.dir())
+        let refused = |source| LifecycleError::RecordRefused {
+            path: record.to_string(),
+            source,
+        };
+        let target = root.capture(record).map_err(refused)?;
+        target
+            .verify_content(Some(&completed.record_digest))
+            .map_err(refused)?;
+        let rollback =
+            Workplan::write_guarded(&completed.rewrite, root, &completed.state_originals)
                 .map_err(|source| LifecycleError::Rewrite { source })?;
+        if let Err(source) = target.remove() {
+            return Err(LifecycleError::Remove {
+                path: record.to_string(),
+                rewritten,
+                source: rollback.restore_after(source),
+            });
         }
-        fs::remove_file(opened.dir().join(record.as_str())).map_err(|source| {
-            LifecycleError::Remove {
-                path: record.as_str().to_string(),
-                rewritten: rewritten.clone(),
+        rollback
+            .discard()
+            .map_err(|source| LifecycleError::Cleanup {
+                path: record.to_string(),
                 source,
-            }
-        })?;
+            })?;
         Ok(Completion::Completed {
             removed: record.as_str().to_string(),
             rewritten,
@@ -334,11 +367,37 @@ impl Lifecycle {
     }
 }
 
+fn promote(
+    plan: &Workplan<'_>,
+    completed: &Loaded<Change>,
+    before: &mut BTreeMap<RelPath, String>,
+) -> Result<Vec<(RelPath, String)>, LifecycleError> {
+    let other_owners: BTreeSet<&str> = plan
+        .changes()
+        .iter()
+        .filter(|record| record.path() != completed.path())
+        .flat_map(|record| record.value().changes.iter().map(String::as_str))
+        .collect();
+    let mut edits = Vec::new();
+    for cap in plan.capabilities() {
+        let value = cap.value();
+        if value.state != State::Implementing
+            || !completed.value().changes.contains(&value.header.id)
+            || other_owners.contains(value.header.id.as_str())
+        {
+            continue;
+        }
+        let (path, text) = state::edit(cap, State::Delivered)
+            .map_err(|source| LifecycleError::Rewrite { source })?;
+        before.insert(path.clone(), cap.text());
+        edits.push((path, text));
+    }
+    edits.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+    Ok(edits)
+}
+
 fn document_identities(plan: &Workplan<'_>) -> Vec<(String, purrdf_core::ContentDigest)> {
-    fn add<T>(
-        rows: &mut Vec<(String, purrdf_core::ContentDigest)>,
-        documents: &[crate::Loaded<T>],
-    ) {
+    fn add<T>(rows: &mut Vec<(String, purrdf_core::ContentDigest)>, documents: &[Loaded<T>]) {
         rows.extend(documents.iter().map(|document| {
             (
                 document.path().to_owned(),

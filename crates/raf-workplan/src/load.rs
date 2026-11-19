@@ -17,7 +17,7 @@ use crate::{Finding, Loaded, Workplan, plain, refs};
 
 /// The most bytes a document read may hold: one more than the profile accepts,
 /// so a text over the profile bound reaches the reader and is refused there.
-const READ_LIMIT: u64 = MAX_TEXT_BYTES as u64 + 1;
+pub(crate) const READ_LIMIT: u64 = MAX_TEXT_BYTES as u64 + 1;
 
 /// The file name of the navigation file of a directory.
 const INDEX: &str = "index.md";
@@ -103,8 +103,12 @@ fn scan_directory(
     clippy::case_sensitive_file_extension_comparisons,
     reason = "the profile defines a document file name by the lowercase suffix `.md`"
 )]
-fn is_markdown(name: &str) -> bool {
+pub(crate) fn is_markdown(name: &str) -> bool {
     name.ends_with(".md")
+}
+
+pub(crate) fn is_navigation_index(name: &str) -> bool {
+    name == INDEX
 }
 
 fn list(docs: &dyn Tree, directory: &str) -> Result<Vec<raf_source::Entry>, TreeError> {
@@ -179,7 +183,7 @@ fn read_file(
         }
     };
     refs::scan(path, &text, &mut plan.findings);
-    if path.rsplit('/').next() == Some(INDEX) {
+    if path.rsplit('/').next().is_some_and(is_navigation_index) {
         // Navigation, not a document. The capability index is generated, so
         // it must read as an index; any other index is Markdown that every
         // rule shared by Markdown files judges.

@@ -22,7 +22,7 @@ inputs:
     digest: d644af3f479aa82b30a5e32dbc519c4162aaf01eab86404b8b2bf554a9d3b4d4
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli
-    digest: b14a0a3e77f7441e06bbfe6079b088c67f7ce75d191ceb6d11d41f9a6580e57b
+    digest: 9b1dc27d7fc6014c954ec41301c4b972fa536d2565a84a958b698e2dee23e00f
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
     digest: 3dd1ebff24e34829916e12cb1dbd1fdcc87aee247237951ea1b4596727a9504c

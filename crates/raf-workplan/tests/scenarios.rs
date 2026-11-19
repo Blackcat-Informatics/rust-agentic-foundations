@@ -118,8 +118,13 @@ fn assert_refusal<S: AsRef<str>>(label: &str, completion: &Completion, expected:
 }
 
 /// Run `change complete` and require that it removes the record and rewrites
-/// the capability document, and nothing else.
+/// the capability and, when its state changes, the catalogue.
 fn completed(project: &Project, slug: &str, document: &str) {
+    let mut rewritten = vec![document.to_string()];
+    if project.text(document).contains("state: implementing") {
+        rewritten.push("docs/capabilities/index.md".to_owned());
+        rewritten.sort_unstable();
+    }
     let completion = project
         .lifecycle()
         .complete(slug)
@@ -128,11 +133,12 @@ fn completed(project: &Project, slug: &str, document: &str) {
         completion,
         Completion::Completed {
             removed: record_path(slug),
-            rewritten: vec![document.to_string()],
+            rewritten,
         },
         "{completion}"
     );
     assert!(!project.exists(&record_path(slug)), "the record is deleted");
+    assert!(project.text(document).contains("state: delivered"));
 }
 
 /// The text with its whitespace collapsed, so that a sentence the document
@@ -351,8 +357,8 @@ impl<'a> Step<'a> {
         );
     }
 
-    /// The author writes the record and the drafts of the proposal, and moves the
-    /// capability to `implementing` in the same commit, as the guidance says.
+    /// The author writes the drafts of the proposal under the implementing
+    /// capability and record opened by Workplan.
     /// The PROPOSED text states the amendment, as an amended decision record
     /// does; the current account beside it is untouched. Returns the commits.
     fn propose(&self) -> Vec<String> {
@@ -505,33 +511,15 @@ impl<'a> Step<'a> {
         revision
     }
 
-    /// The author sets the state the rules require, syncs, and `complete`
-    /// removes the record.
+    /// Completion publishes the delivered capability and removes the record.
     fn deliver(&self) -> String {
         let project = self.project;
         let slug = self.redesign.slug;
-        project.edit(
-            streaming::DOCUMENT,
-            "state: implementing",
-            "state: delivered",
+        assert!(
+            project
+                .text(streaming::DOCUMENT)
+                .contains("state: implementing")
         );
-        // The catalogue lists the capability under its state, so the new state
-        // stales it, and the gate says so until the author syncs.
-        let unsynced: Vec<&str> = project.findings().iter().map(|f| f.kind).collect();
-        assert_eq!(unsynced, ["state-delivered-open-record", "generated-stale"]);
-        assert_refusal(
-            &format!("{slug} before the sync"),
-            &refused(project, slug),
-            &[
-                "obligations:generated-stale document",
-                "generated-blocks:generated-stale",
-            ],
-        );
-        project.sync();
-        // A delivered capability beside its open record is not a tree that can be
-        // committed, which is what `complete` resolves.
-        let beside: Vec<&str> = project.findings().iter().map(|f| f.kind).collect();
-        assert_eq!(beside, ["state-delivered-open-record"]);
         assert!(owed(project, slug).is_empty(), "nothing is owed");
         completed(project, slug, streaming::DOCUMENT);
         project.commit(&format!("docs: complete {slug}"))
@@ -1383,17 +1371,11 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
         ]),
     );
 
-    // The claim is dropped. The documentation is the account of the built
-    // window, but the state is the author's to set and `complete` does not set
-    // it: left at `implementing`, the capability would have no open record.
+    // The claim is dropped and the documentation states the built window.
+    // Completion needs only the assessments to publish the delivered state.
     edit.state = "implementing";
     edit.outcomes = [Some("implemented"), Some("dropped"), Some("implemented")];
     author(project, template, &edit);
-    assert_refusal(
-        "state implementing",
-        &refused(project, window::CHANGE),
-        &and_assessments_missing(&["after-removal:no-open-record"]),
-    );
     let settled = project.commit("docs: settle the rolling window");
     // The account is settled, and what it still owes is its assessments.
     let expected: Vec<String> = window::AFFECTS
@@ -1502,11 +1484,8 @@ fn planning_produces_the_documentation() {
 
     let settled = refuse_until_reconciled(&project, &template);
 
-    // The author sets `delivered`. Now `complete` succeeds, and the only changes
-    // to the tree are the capability, the catalogue that lists its state and the
-    // record.
-    project.edit(window::DOCUMENT, "state: implementing", "state: delivered");
-    project.sync();
+    // Completion updates the capability, the catalogue that lists its state
+    // and the open record.
     // Implemented and settled, but no section is assessed: condition 6
     // refuses, and only it.
     assert_refusal(
@@ -1724,8 +1703,6 @@ fn finished_window() -> Project {
     author(&project, &template, &edit);
     assess_on_disk(project.root(), window::CHANGE);
     project.commit("docs: settle the rolling window");
-    project.edit(window::DOCUMENT, "state: implementing", "state: delivered");
-    project.sync();
     completed(&project, window::CHANGE, window::DOCUMENT);
     project.commit("docs: complete the first window API");
     project

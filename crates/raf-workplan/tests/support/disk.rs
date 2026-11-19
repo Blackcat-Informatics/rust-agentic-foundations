@@ -14,13 +14,14 @@ use raf_workplan::{LinkContext, Workplan};
 
 use super::{Repo, demo_files};
 
-/// A unique directory under the system temporary directory, removed on drop.
+/// A fixture directory and its sibling build directory, removed on drop.
 pub(crate) struct Scratch(TempDir, TempDir);
 
 impl Scratch {
     pub(crate) fn new(tag: &str) -> Self {
+        let parent = Path::new(env!("CARGO_TARGET_TMPDIR"));
         let directory = || {
-            TempDir::new_in(std::env::temp_dir())
+            TempDir::new_in(parent)
                 .unwrap_or_else(|error| panic!("create {tag} fixture directory: {error}"))
         };
         Self(directory(), directory())

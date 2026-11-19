@@ -183,19 +183,8 @@ impl RecordStore for DiskRecordStore {
         let root = self
             .authority()
             .map_err(|source| write_error(path, source))?;
-        if let Some(parent) = path.parent() {
-            let mut prefix = String::new();
-            for component in parent.as_str().split('/').filter(|part| !part.is_empty()) {
-                if !prefix.is_empty() {
-                    prefix.push('/');
-                }
-                prefix.push_str(component);
-                let relative = RelPath::new(&prefix)
-                    .map_err(|source| write_error(path, io::Error::other(source)))?;
-                root.create_directory(&relative)
-                    .map_err(|source| write_error(path, source))?;
-            }
-        }
+        root.create_parents(path)
+            .map_err(|source| write_error(path, source))?;
         let target = self.target(path)?;
         if target.exists() {
             return Err(RecordError::Exists { path: path.clone() });

@@ -32,7 +32,8 @@ pub(crate) fn serial() -> MutexGuard<'static, ()> {
 fn empty_home() -> &'static Path {
     static HOME: OnceLock<purrdf_testkit::TempDir> = OnceLock::new();
     HOME.get_or_init(|| {
-        purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("an empty home directory")
+        purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR"))
+            .expect("an empty home directory")
     })
     .path()
 }
