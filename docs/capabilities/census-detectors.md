@@ -298,10 +298,13 @@ A bare identifier denoting a constant or variant leaves the arm outside the
 inventory. A guard limits its arm and prevents the catch-all role.
 
 The detector requires an indexed variant witness. Opaque imports, unresolved
-aliases, and arm or match attributes that can change configuration supply no
-such witness. Selected reference roots and dependency sources can supply enum
-identities. Only selected first-party targets contribute arm locations. The
-matcher charges source and retained evidence to the shared matching grant.
+aliases and conditional declarations supply no witness. An enum or variant
+with written `cfg_attr` remains conditional because the attribute can add
+configuration or macro attributes. Arm and match attributes that can change
+configuration also leave the pattern inconclusive. Selected reference roots
+and dependency sources can supply enum identities. Only selected first-party
+targets contribute arm locations. The matcher charges source and retained
+evidence to the shared matching grant.
 
 Enable the detector as a required rule, forbid its rule fingerprint in an
 enforced job, or count it with the job ratchet. The detector observes matching

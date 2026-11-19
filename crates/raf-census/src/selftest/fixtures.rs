@@ -19,6 +19,7 @@ pub const ENUM_MATCH: (&str, &[&str], &[&str]) = (
         "mod first { pub enum State { A, B, C } } mod second { pub enum State { A, B, C } } fn copy(state: first::State) { #[cfg(all())] use crate::first::State as Choice; #[cfg(not(all()))] use crate::second::State as Choice; match state { Choice::A => (), crate::first::State::B => (), _ => () } }",
         "enum State { Ready, Busy } struct Active { length: [(); match State::Ready { State::Ready => 1, _ => 2 }] }",
         "enum State<T> { Ready, Busy(T) } impl<T> State<T> { fn inspect(self) { match self { Self::Ready => (), _ => () } } }",
+        "enum State { Ready, Busy } struct Record { length: usize } fn copy(state: State) -> Record { Record { length: match state { State::Ready => 1, _ => 2 } } }",
     ],
     &[
         "fn copy(number: u32, text: &str) { match number { 0 => (), _ => () }; match text { \"ready\" => (), _ => () } }",
@@ -39,6 +40,8 @@ pub const ENUM_MATCH: (&str, &[&str], &[&str]) = (
         "enum State { Ready, Busy } trait Inspect { fn inspect(self); } impl Inspect for State { fn inspect(self) { match self { Self::Ready => (), _ => () } } }",
         "enum State { Ready, Busy } macro_rules! define { () => { #[derive(PartialEq, Eq)] struct Generated(bool); impl Generated { const Ready: Self = Self(true); } } } define!(); #[cfg(any())] type Input = State; #[cfg(not(any()))] type Input = Generated; impl Input { fn inspect(self) { match self { Self::Ready => (), _ => () } } }",
         "mod known { pub enum State { Ready, Busy } } macro_rules! define { () => { mod generated {} } } define!(); use known::*; use self::generated::*; impl State { fn inspect(self) { match self { Self::Ready => (), _ => () } } }",
+        "enum State { Ready, Busy } struct Record { length: usize } fn copy(state: State, #[cfg(any())] hidden: [(); match State::Ready { State::Ready => 1, _ => 2 }]) -> Record { Record { #[cfg(any())] missing: match state { State::Ready => 1, _ => 2 }, length: 0 } } trait Policy { #[cfg(any())] type Hidden; #[cfg(any())] define!(match State::Ready { State::Ready => 1, _ => 2 }); } impl Policy for Record { #[cfg(any())] type Hidden = [(); match State::Ready { State::Ready => 1, _ => 2 }]; #[cfg(any())] define!(match State::Ready { State::Ready => 1, _ => 2 }); }",
+        "#[allow(non_camel_case_types)] enum State { Ready, rest } fn copy(state: State, #[cfg(any())] rest: State) { use self::State::*; match state { State::Ready => (), rest => () } }",
     ],
 );
 

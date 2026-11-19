@@ -248,6 +248,13 @@ fn impls_at(blocks: &[ImplBlock], start: usize) -> &[ImplBlock] {
     &blocks[first..end]
 }
 
+fn argument_attributes(argument: &syn::FnArg) -> &[syn::Attribute] {
+    match argument {
+        syn::FnArg::Receiver(receiver) => &receiver.attrs,
+        syn::FnArg::Typed(typed) => &typed.attrs,
+    }
+}
+
 fn enum_lookup<'a, 'w>(
     workspace: &'a Workspace,
     code: &'a CodeResolver<'w>,
@@ -436,6 +443,9 @@ impl Paths<'_, '_, '_, '_> {
 
     fn inputs(&mut self, inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::Token![,]>) {
         for input in inputs {
+            if self.excludes_from_inventory(argument_attributes(input)) {
+                continue;
+            }
             match input {
                 syn::FnArg::Receiver(_) => self.scopes.receiver(),
                 syn::FnArg::Typed(typed) => self.bind(&typed.pat),
@@ -873,14 +883,27 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         self.numeric_receiver = previous;
     }
 
-    fn visit_impl_item_const(&mut self, node: &'ast syn::ImplItemConst) {
-        if !self.excludes_from_inventory(&node.attrs) {
-            syn::visit::visit_impl_item_const(self, node);
+    fn visit_fn_arg(&mut self, node: &'ast syn::FnArg) {
+        if !self.excludes_from_inventory(argument_attributes(node)) {
+            syn::visit::visit_fn_arg(self, node);
+        }
+    }
+
+    fn visit_impl_item(&mut self, node: &'ast syn::ImplItem) {
+        let attributes = match node {
+            syn::ImplItem::Const(item) => item.attrs.as_slice(),
+            syn::ImplItem::Fn(item) => item.attrs.as_slice(),
+            syn::ImplItem::Type(item) => item.attrs.as_slice(),
+            syn::ImplItem::Macro(item) => item.attrs.as_slice(),
+            _ => &[],
+        };
+        if !self.excludes_from_inventory(attributes) {
+            syn::visit::visit_impl_item(self, node);
         }
     }
 
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
-        if self.ignores_function(&node.sig) || self.excludes_from_inventory(&node.attrs) {
+        if self.ignores_function(&node.sig) {
             return;
         }
         let previous = self.numeric_receiver;
@@ -896,14 +919,21 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         self.numeric_receiver = previous;
     }
 
-    fn visit_trait_item_const(&mut self, node: &'ast syn::TraitItemConst) {
-        if !self.excludes_from_inventory(&node.attrs) {
-            syn::visit::visit_trait_item_const(self, node);
+    fn visit_trait_item(&mut self, node: &'ast syn::TraitItem) {
+        let attributes = match node {
+            syn::TraitItem::Const(item) => item.attrs.as_slice(),
+            syn::TraitItem::Fn(item) => item.attrs.as_slice(),
+            syn::TraitItem::Type(item) => item.attrs.as_slice(),
+            syn::TraitItem::Macro(item) => item.attrs.as_slice(),
+            _ => &[],
+        };
+        if !self.excludes_from_inventory(attributes) {
+            syn::visit::visit_trait_item(self, node);
         }
     }
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
-        if self.ignores_function(&node.sig) || self.excludes_from_inventory(&node.attrs) {
+        if self.ignores_function(&node.sig) {
             return;
         }
         self.generic_scope(&node.sig.generics, false, |this| {
@@ -998,6 +1028,12 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     fn visit_field(&mut self, node: &'ast syn::Field) {
         if !self.excludes_from_inventory(&node.attrs) {
             syn::visit::visit_field(self, node);
+        }
+    }
+
+    fn visit_field_value(&mut self, node: &'ast syn::FieldValue) {
+        if !self.excludes_from_inventory(&node.attrs) {
+            syn::visit::visit_field_value(self, node);
         }
     }
 
