@@ -7,16 +7,22 @@ subject: cap:source-index#constraints
 inputs:
   - kind: section
     name: cap:source-index#constraints
-    digest: 2f0649fa9b1bbc085955f6643be9df8021e20efc3cf6af1aa6a5b8a3b54f5efe
+    digest: c5607aa5343a722cd2d75152ab576f78f9dde09cad6c58cf31e55206f658b045
   - kind: symbol
     name: raf_source::DiskTree
     digest: 5496855041cec7a22d2303a3eb9049dbcafa368c7a19589c040d0e13f752702f
+  - kind: symbol
+    name: raf_source::DiskTree::read_unseen_bytes
+    digest: cf31a8cda7db05997b9df57f62404e2d1a8894d5a8c7388ddb8c5692b9eaa943
   - kind: symbol
     name: raf_source::ParallelTree
     digest: 6ccc1b1da048b16d1c431aea9089bb84960632497c18e1d49932d61aeea5b25d
   - kind: symbol
     name: raf_source::Tree
     digest: 47e9968759c245bf187497fad588f8c41a39b2356fc4031b4082b1f8a3223d64
+  - kind: symbol
+    name: raf_source::Tree::read_bytes
+    digest: be62a987879e97b448aadd9b504c5f23f57218c5b7e0cdd361846c7144fc4438
   - kind: symbol
     name: raf_source::Workspace::impls
     digest: bcc416debd7ae6ba8ec0973cb5c0567395dba19a04e8974c8b4f58abae34209b
@@ -31,7 +37,7 @@ inputs:
     digest: 789360434129cd25ec5a4dca9529f56d3d650c709e54ff5d4a4cce494c1a832d
   - kind: symbol
     name: raf_source::tree
-    digest: 255e85bc99c310af2f0f02f685c6d6c192aab5b8c22204e76bf5259e1b8a1de0
+    digest: 7f0bae00e8e8eb5fd6417a4a33d9430ae20549ed415702e92e64d58cd4599309
 verdict: accepted
 by: agent
 ---

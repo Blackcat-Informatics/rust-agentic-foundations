@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 0640fa9d1e29726066e095f79bc1b54052b84cc0ecbfc2c2e793d3bf9bfcb5bd
+    digest: ed1e70ce209a32b3acfb7a38f2005eceeb3069788decb623df5d4b5cce5b655d
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -200,6 +200,9 @@ inputs:
   - kind: symbol
     name: raf_source::PathSite
     digest: 393d1eeee67698d71c513c3d6590c508d76fb0a495133e94e555eccb8bbb1d16
+  - kind: symbol
+    name: raf_source::PinnedGitTree::open
+    digest: a6ae4174ad924bbc05e8125a1b82a020f027558ba45d8064a10bc68c57df8a4e
   - kind: symbol
     name: raf_source::PreparedSource
     digest: 034b6338b92bab2acb4c5dcf5d1cc605859add5733cc90e0ed051ca837d64745
@@ -403,10 +406,7 @@ inputs:
     digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
   - kind: symbol
     name: raf_source::tree
-    digest: 255e85bc99c310af2f0f02f685c6d6c192aab5b8c22204e76bf5259e1b8a1de0
-  - kind: symbol
-    name: raf_source::tree::disk
-    digest: faa6d96e34bb963e9ce92b80011a735b72229f96383019987b696f56fb3217bc
+    digest: 7f0bae00e8e8eb5fd6417a4a33d9430ae20549ed415702e92e64d58cd4599309
   - kind: symbol
     name: raf_source::visit_pattern_bindings
     digest: 27019e74a30a0147f477718f5c4d7d4fd9cd0c9ed93f86efddf4718b98e98fcf

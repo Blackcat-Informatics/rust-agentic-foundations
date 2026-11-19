@@ -6,8 +6,8 @@
 use std::error::Error;
 
 use raf_source::{
-    CommittedGitTree, EntryKind, LoadOptions, LockedCatalog, MemoryTree, Opened, PinnedGitTree,
-    RelPath, Tree, TreeError, Workspace,
+    CommittedGitTree, EntryKind, LoadErrorKind, LoadOptions, LockedCatalog, MemoryTree, Opened,
+    PinnedGitTree, RelPath, Tree, TreeError, Workspace,
 };
 
 #[path = "support/git_objects.rs"]
@@ -125,6 +125,69 @@ fn checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_ide
     );
 }
 
+/// Both committed tree authorities return the authenticated bytes under the
+/// same path and length rules, even when the working copy diverges.
+#[test]
+fn pinned_and_locked_reads_return_binary_blobs_without_utf8_conversion() {
+    let mut objects = Objects::default();
+    let bytes = [0xff, 0, 0x80, b'\r', b'\n'];
+    let blob = objects.insert(GitObjectKind::Blob, bytes.to_vec());
+    let root = objects.insert(
+        GitObjectKind::Tree,
+        [
+            entry("100644", "schema.bin", blob),
+            entry("120000", "shortcut", blob),
+        ]
+        .concat(),
+    );
+    let commit = objects.commit(root);
+    assert!(
+        objects
+            .command()
+            .args(["read-tree", &commit.to_string()])
+            .status()
+            .expect("owned fixture index")
+            .success()
+    );
+    std::fs::write(
+        objects.path().join("schema.bin"),
+        b"different working bytes",
+    )
+    .expect("edit owned working file");
+
+    let options = LoadOptions::default();
+    let catalog = locked(commit);
+    let row = catalog.packages().next().expect("row").id();
+    let exact = PinnedGitTree::open(objects.path(), &commit.to_string(), &options)
+        .expect("pinned comparison");
+    let locked =
+        CommittedGitTree::open(&catalog, row, objects.path(), &options).expect("locked source");
+    let path = RelPath::new("schema.bin").expect("artifact");
+    let shortcut = RelPath::new("shortcut").expect("symlink");
+    let absent = RelPath::new("absent").expect("missing file");
+    for tree in [&exact as &dyn Tree, &locked] {
+        assert_eq!(tree.read_bytes(&path, 5).expect("original bytes"), bytes);
+        assert!(matches!(
+            tree.read(&path, 5),
+            Err(TreeError::GitSource { source, .. })
+                if matches!(&source.kind, LoadErrorKind::Tree(error)
+                    if matches!(error.as_ref(), TreeError::NotUtf8 { .. }))
+        ));
+        assert!(matches!(
+            tree.read_bytes(&path, 4),
+            Err(TreeError::TooLarge { limit: 4, .. })
+        ));
+        assert!(matches!(
+            tree.read_bytes(&shortcut, 10),
+            Err(TreeError::NotRegular { .. })
+        ));
+        assert!(matches!(
+            tree.read_bytes(&absent, 10),
+            Err(TreeError::NotFound { .. })
+        ));
+    }
+}
+
 #[test]
 fn missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit() {
     let (objects, commit, blob) = fixture();
@@ -187,6 +250,10 @@ fn missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text(
     remove_object(&objects, blob);
     std::fs::copy(objects.object_path(alternate), objects.object_path(blob))
         .expect("substitute only an owned object");
+    assert!(matches!(
+        tree.read_bytes(&path, 100),
+        Err(TreeError::GitSource { .. })
+    ));
     let error = tree
         .read_unseen(&path, 100, &|_| true)
         .expect_err("different committed blob cannot become Seen");
@@ -406,6 +473,10 @@ fn pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds() {
     let tree =
         PinnedGitTree::open(objects.path(), &commit.to_string(), &options).expect("pinned commit");
     let path = RelPath::new("src/lib.rs").expect("path");
+    assert!(matches!(
+        tree.read_bytes(&path, 100),
+        Err(TreeError::TooLarge { limit: 4, .. })
+    ));
     assert!(matches!(
         tree.read_unseen(&path, 100, &|_| false),
         Err(TreeError::TooLarge { .. })
