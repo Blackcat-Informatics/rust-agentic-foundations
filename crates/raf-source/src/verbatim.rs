@@ -14,7 +14,8 @@
 //!   the input of an attribute macro, at item level or in an impl block;
 //! * a type with no definition (`#[ty] type bool;`), likewise.
 //!
-//! Every other verbatim shape is not read, and the caller refuses it.
+//! Other shapes can supply a disabled-syntax observation when an outer
+//! `cfg(any())` proves they have no active declaration.
 //!
 //! The tokens of one item are parsed again after the parse of its file, which
 //! built and dropped the same nodes before it kept the tokens, so what the
@@ -23,7 +24,10 @@
 
 use proc_macro2::TokenStream;
 use syn::parse::{ParseStream, Parser as _};
-use syn::{Attribute, ForeignItemFn, ForeignItemType, Token, UseTree, Visibility, braced, token};
+use syn::{
+    Attribute, ForeignItemFn, ForeignItemType, MacroDelimiter, Meta, Token, UseTree, Visibility,
+    braced, token,
+};
 
 /// A verbatim item of a module that the index reads.
 pub(crate) enum Verbatim {
@@ -93,6 +97,27 @@ pub(crate) fn member(tokens: &TokenStream) -> Option<Bodiless> {
     syn::parse2::<ForeignItemType>(tokens.clone())
         .ok()
         .map(|t| Bodiless::Type(Box::new(t)))
+}
+
+/// Read only the outer configuration proof of an opaque declaration.
+pub(crate) fn definitely_disabled(tokens: &TokenStream) -> bool {
+    let parse = |input: ParseStream<'_>| {
+        let attributes = input.call(Attribute::parse_outer)?;
+        let _: TokenStream = input.parse()?;
+        Ok(attributes.iter().any(|attribute| {
+            matches!(
+                &attribute.meta,
+                Meta::List(cfg) if cfg.path.is_ident("cfg")
+                    && matches!(cfg.delimiter, MacroDelimiter::Paren(_))
+            ) && matches!(
+                attribute.parse_args::<Meta>(),
+                Ok(Meta::List(any)) if any.path.is_ident("any")
+                    && matches!(any.delimiter, MacroDelimiter::Paren(_))
+                    && any.tokens.is_empty()
+            )
+        }))
+    };
+    parse.parse2(tokens.clone()).unwrap_or(false)
 }
 
 /// `#[attrs] vis use { member, ... };`, each member an optional leading `::`

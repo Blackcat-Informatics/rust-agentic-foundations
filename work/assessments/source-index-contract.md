@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 51447f0b40898d2dda6be05c52d37dd3fa1ea5286101748792395d65e3e3a2ad
+    digest: 0640fa9d1e29726066e095f79bc1b54052b84cc0ecbfc2c2e793d3bf9bfcb5bd
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -303,6 +303,9 @@ inputs:
     name: raf_source::Workspace::dependency_declarations
     digest: 722a7cb773d1344927f226068f461ef618ac4373d130d5c9d540057ada529b32
   - kind: symbol
+    name: raf_source::Workspace::disabled_syntax
+    digest: ab72010e1c2aec08ee2d0dbf24676b9b69f855bcaeb5587c81bb8f5f91a63bcf
+  - kind: symbol
     name: raf_source::Workspace::exported_items
     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
   - kind: symbol
@@ -376,7 +379,7 @@ inputs:
     digest: decf25b8720addc5994dca976c46ea7f846dbd6c1321f82887c7990c29ab9c7f
   - kind: symbol
     name: raf_source::item
-    digest: ad09f5dc9cc8bbcf01296985c4d4bda792ebe123255366e365c623c2e1117d1b
+    digest: 3f221f04736dc6516eedcfd8c5f836faff93d8a350f8f94eeb6c22babd6f6c24
   - kind: symbol
     name: raf_source::library_target_name
     digest: e2573ec72c0e8ae40a9c8eae5609e3397bf0df6cfbf286e2a64b8f3404b27794

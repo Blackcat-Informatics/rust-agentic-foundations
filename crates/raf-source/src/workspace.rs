@@ -176,9 +176,10 @@ impl Workspace {
     ///
     /// Of the items that syn has no node for, a `use` group with a member that
     /// starts with `::`, a function with no body and a type with no definition
-    /// are indexed; any other, such as a constant with no value or a type with
-    /// bounds and no definition, is a [`LoadErrorKind::UnsupportedItem`]
-    /// naming the file and the first line of the item.
+    /// are indexed. Other opaque module or associated declarations qualify
+    /// for [`Self::disabled_syntax`] when an outer `cfg(any())` proves them
+    /// disabled. Otherwise they return [`LoadErrorKind::UnsupportedItem`]
+    /// with the file and the first line of the item.
     pub fn load_with(
         tree: &dyn Tree,
         roots: &[&str],
@@ -598,6 +599,13 @@ impl Workspace {
     #[must_use]
     pub fn unexpanded(&self) -> &[crate::Unexpanded] {
         &self.index.unexpanded
+    }
+
+    /// Opaque declarations under an outer `cfg(any())`, sorted by file,
+    /// byte position, module and target. These observations bind no names.
+    #[must_use]
+    pub fn disabled_syntax(&self) -> &[crate::DisabledSyntax] {
+        &self.index.disabled_syntax
     }
 
     /// The items at `prefix` or below it, in the order of [`Workspace::items`].
