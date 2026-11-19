@@ -8,10 +8,16 @@ use syn::ext::IdentExt;
 
 /// Attributes that preserve the indexed declaration or expression.
 pub(crate) fn inert_attributes(attributes: &[syn::Attribute]) -> bool {
+    inert_attributes_with(attributes, &[])
+}
+
+/// Recognize inert attributes with the additional names valid in a specific syntax position.
+pub(crate) fn inert_attributes_with(attributes: &[syn::Attribute], additional: &[&str]) -> bool {
     attributes.iter().all(|attribute| {
         attribute.path().get_ident().is_some_and(|name| {
+            let name = name.to_string();
             matches!(
-                name.to_string().as_str(),
+                name.as_str(),
                 "doc"
                     | "allow"
                     | "expect"
@@ -23,7 +29,7 @@ pub(crate) fn inert_attributes(attributes: &[syn::Attribute]) -> bool {
                     | "must_use"
                     | "deprecated"
                     | "track_caller"
-            )
+            ) || additional.contains(&name.as_str())
         })
     })
 }

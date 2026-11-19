@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: ed1e70ce209a32b3acfb7a38f2005eceeb3069788decb623df5d4b5cce5b655d
+    digest: 5e872090462b055e23817a4778e0ef8ef2a9962849f22aec5e45c08c05bc6fe1
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -21,11 +21,26 @@ inputs:
     name: raf_source::CapturedLink
     digest: c0726fb76019d83443f3af9a91288f50914445e49906122c58f38462d026ca46
   - kind: symbol
+    name: raf_source::CodeResolver::enum_member_imports_from_item_at
+    digest: 80514fcb1f8bb0b3256e52a27cf20ec1fd481b76609c555c0da9ddb210a37c16
+  - kind: symbol
     name: raf_source::CodeResolver::extern_libraries_at
     digest: ccf7d8ddbd4d7ebbbe395615b508aab0b15d044ea583729560f42f4cc6d8a9eb
   - kind: symbol
+    name: raf_source::CodeResolver::has_unconditional_reading_module
+    digest: 60745905a9f1e1130cbdbb44d23ec80b2c773bf68b66193d86db4bd16a8bae63
+  - kind: symbol
     name: raf_source::CodeResolver::require_unconditional_inherent_method
     digest: 16d434d5f5097cfb1bd87978c7ec00fd7c747cade1363709099e3979b7feb561
+  - kind: symbol
+    name: raf_source::CodeResolver::resolve_import_from_file_reach
+    digest: a61d9e4cb341fd01556b6d44638263e0795814b7edbeb5f479fcefe1e9ce5787
+  - kind: symbol
+    name: raf_source::CodeResolver::unconditional_enum_alias
+    digest: 609c568fab4b31a7808e82c81c7682d9ce8fcd67189f6d6e968bc2ee52a694c7
+  - kind: symbol
+    name: raf_source::CodeResolver::unconditional_type_from_item_at
+    digest: 344dbd59cc21528226abeba62aabb82a7b2d7a75224b4e1952bec798cb281691
   - kind: symbol
     name: raf_source::CodeResolver::with_configured_syntax
     digest: 35c9a85662ee7b6c80838931cd9c4c57e8dc7da7146eefbd67d8ab6858226258
@@ -382,7 +397,7 @@ inputs:
     digest: decf25b8720addc5994dca976c46ea7f846dbd6c1321f82887c7990c29ab9c7f
   - kind: symbol
     name: raf_source::item
-    digest: 3f221f04736dc6516eedcfd8c5f836faff93d8a350f8f94eeb6c22babd6f6c24
+    digest: 1c617d22915dac9bbe4e00f5b3d2f6ab310bcb0e51c68eaa593d339ba8f3dcc9
   - kind: symbol
     name: raf_source::library_target_name
     digest: e2573ec72c0e8ae40a9c8eae5609e3397bf0df6cfbf286e2a64b8f3404b27794
@@ -400,7 +415,7 @@ inputs:
     digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
-    digest: 789360434129cd25ec5a4dca9529f56d3d650c709e54ff5d4a4cce494c1a832d
+    digest: 0517ea9725a6dc09b5e4a1d4cb9a1b01e8b10d500dcac8e5194040a30486a920
   - kind: symbol
     name: raf_source::syntax_storage::syntax_held
     digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b

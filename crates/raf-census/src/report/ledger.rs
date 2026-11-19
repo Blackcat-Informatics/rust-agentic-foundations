@@ -5,6 +5,7 @@
 
 pub(crate) mod bounds;
 mod declarations;
+mod enum_usage;
 mod extensions;
 mod flag;
 mod scope;
@@ -162,6 +163,7 @@ pub struct Ledger {
     distinct: Vec<LedgerDistinct>,
     patterns: Vec<LedgerPattern>,
     pub(crate) numeric_bounds: Option<bounds::BoundRegistry>,
+    pub(crate) enum_usage: enum_usage::Declarations,
     extensions: BTreeMap<String, BTreeSet<String>>,
 }
 
@@ -369,6 +371,7 @@ impl Ledger {
             });
         }
         let numeric_bounds = bounds::read(&graph, &root, &mut reached)?;
+        let enum_usage = enum_usage::read(&graph, &root, &mut reached)?;
         let extensions = extensions::collect(&graph, &jobs, &reached)?;
         Ok(Self {
             graph,
@@ -379,6 +382,7 @@ impl Ledger {
             distinct,
             patterns,
             numeric_bounds,
+            enum_usage,
             extensions,
         })
     }
@@ -554,6 +558,20 @@ fn node_at<'a>(graph: &'a Graph, id: &str, class: &str) -> Result<Node<'a>, E> {
     if shape::class(&node)? != class {
         return Err(E::Class(format!("ledger {id}: expected {class}")));
     }
+    Ok(node)
+}
+
+fn owned<'a>(
+    graph: &'a Graph,
+    id: &str,
+    class: &str,
+    reached: &mut BTreeSet<String>,
+) -> Result<Node<'a>, E> {
+    if !reached.insert(id.to_owned()) {
+        return Err(E::Repeated(format!("ledger node {id}")));
+    }
+    let node = node_at(graph, id, class)?;
+    fields(&node, class)?;
     Ok(node)
 }
 

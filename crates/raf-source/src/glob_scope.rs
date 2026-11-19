@@ -1379,7 +1379,7 @@ const fn covert_bytes(first_of_module: bool, first_of_view: bool) -> usize {
 
 /// What an entry of a set of `T` of the tables allocates: its entry, and
 /// the first room of the set for its first.
-const fn set_bytes<T>(first: bool) -> usize {
+pub(crate) const fn set_bytes<T>(first: bool) -> usize {
     btree_entry::<T, ()>() + if first { btree_map::<T, ()>() } else { 0 }
 }
 

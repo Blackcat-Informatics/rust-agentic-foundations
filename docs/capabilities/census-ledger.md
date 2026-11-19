@@ -92,6 +92,8 @@ bindings:
     - raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension
     - raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs
     - raf_census::test_crate::census_gate::numeric_bounds::numeric_registry_refuses_duplicate_sites_and_incomplete_justification
+    - raf_census::test_crate::census_gate::enum_arms::designated_enum_requires_shipping_values_and_current_retentions
+    - raf_census::test_crate::census_gate::enum_arms::enum_assignees_preserve_real_value_expressions_in_places
   examples:
     - raf_census::example_crate::debt
     - raf_census::example_crate::providers
@@ -228,6 +230,27 @@ inventory disabled.
 The three numeric guard IDs are reserved for this registry. Job matchers,
 variants, patterns and required or registered rules use other IDs.
 <!-- raf:tested-by raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs,raf_census::test_crate::census_gate::numeric_bounds::numeric_registry_refuses_duplicate_sites_and_incomplete_justification -->
+
+### Enum usage
+<!-- raf:tested-by raf_census::test_crate::census_gate::enum_arms::designated_enum_requires_shipping_values_and_current_retentions,raf_census::test_crate::census_gate::enum_arms::enum_assignees_preserve_real_value_expressions_in_places -->
+
+Each `enumUsage` link owns one `EnumUsage` node. Its `symbol` names one indexed
+first-party shipping enum with an unconditional variant roster. Census refuses
+an enum declaration with an attribute that may rewrite that roster. A declaration
+may link owned `EnumVariantRetention` nodes through `retainedVariant`. Each
+row requires a `variantName` and a nonblank `reason`. Duplicate declarations,
+duplicate rows for one member, and unknown members are errors.
+
+Census checks the selected first-party shipping source for an exact value
+occurrence of each member. Unit variants, tuple constructor values and
+braced expressions count through resolved paths, reexports, supported type
+aliases and `Self`. A file-level anonymous constant uses the exact module
+reaches of its source file. Pattern positions, destructuring heads, tests, attributes,
+unexpanded macro arguments and configuration-dependent reading contexts supply
+no evidence. Each unused
+variant produces a finding at its enum unless it has a retention row. A
+confirmed use makes that row stale and produces a finding. The Gate checks
+these obligations independently of ledger jobs and the debt ratchet.
 
 ### Source classification and exact sanctions
 <!-- raf:tested-by raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once,raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package,raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it,raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction,raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor -->
@@ -565,6 +588,8 @@ the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise de
 | `raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::enum_arms::designated_enum_requires_shipping_values_and_current_retentions` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::enum_arms::enum_assignees_preserve_real_value_expressions_in_places` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |

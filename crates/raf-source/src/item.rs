@@ -446,6 +446,18 @@ pub struct Item {
 }
 
 impl Item {
+    /// True when the written enum variants bound its member roster.
+    /// Configuration can remove written variants. Attributes whose expansion
+    /// could change the roster leave this proof unavailable.
+    #[must_use]
+    pub fn enum_roster_has_only_written_variants(&self) -> bool {
+        self.written_enum_variants().is_some()
+    }
+
+    pub(crate) fn written_enum_variants(&self) -> Option<&[crate::facts::VariantFact]> {
+        self.detail.as_ref()?.variants.as_deref()
+    }
+
     /// True when the item defines a name in `namespace`.
     #[must_use]
     pub fn in_namespace(&self, namespace: Namespace) -> bool {

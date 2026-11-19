@@ -5,6 +5,7 @@
 
 use std::collections::BTreeSet;
 
+use raf_source::Workspace;
 use syn::spanned::Spanned;
 
 use super::{
@@ -15,16 +16,17 @@ use super::{
 use crate::detectors::{ENUM_CATCH_ALL, RawHit};
 
 #[derive(Clone, Copy)]
-enum Form {
+pub(super) enum Form {
     Unit,
     Tuple,
     Braced,
+    Value,
 }
 
 impl Form {
-    const fn namespace(self) -> Namespace {
+    pub(super) const fn namespace(self) -> Namespace {
         match self {
-            Self::Unit | Self::Tuple => Namespace::Value,
+            Self::Unit | Self::Tuple | Self::Value => Namespace::Value,
             Self::Braced => Namespace::Type,
         }
     }
@@ -33,12 +35,31 @@ impl Form {
         match self {
             Self::Unit => forms.unit && !forms.tuple && !forms.named,
             Self::Tuple => forms.tuple && !forms.unit && !forms.named,
+            Self::Value => (forms.unit ^ forms.tuple) && !forms.named,
             Self::Braced => matches!(
                 (forms.unit, forms.tuple, forms.named),
                 (true, false, false) | (false, true, false) | (false, false, true)
             ),
         }
     }
+}
+
+pub(super) fn value_use(
+    path: &syn::Path,
+    form: Form,
+    lookup: &Lookup<'_, '_>,
+    scopes: &Scopes,
+    limits: &mut MatchLimits,
+) -> Result<Option<(ItemId, String)>, Error> {
+    let Arm::Variants(mut uses) = path_arm(path, form, false, lookup, scopes, limits)? else {
+        return Ok(None);
+    };
+    Ok(if uses.len() == 1 {
+        uses.pop_first()
+            .map(|variant| (variant.enumeration, variant.member))
+    } else {
+        None
+    })
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -236,6 +257,7 @@ fn expand_variant_path(
                     alias_scope: Some(&|frame| target.sees_glob(frame)),
                 },
                 form,
+                true,
                 limits,
             )?
             .is_empty()
@@ -310,7 +332,11 @@ fn path_arm(
             Arm::Variants(sites)
         });
     }
-    if written.len() == 1 && glob.definition.is_some() {
+    if glob.definition.is_some()
+        && (written.len() == 1
+            || lookup.label == super::enum_usage::RULE
+                && matches!(glob.definition, Some(PathDefinition::Written(_))))
+    {
         return Ok(Arm::Other);
     }
     let declaration = |frame| {
@@ -333,7 +359,8 @@ fn path_arm(
             alias_scope: Some(&declaration),
         },
     );
-    let actual = variants(&lookup, scopes, path, form, limits)?;
+    let import_fallback = glob.definition.is_none();
+    let actual = variants(&lookup, scopes, path, form, import_fallback, limits)?;
     if !actual.is_empty() {
         return Ok(Arm::Variants(actual));
     }
@@ -358,13 +385,14 @@ fn variants(
     scopes: &Scopes,
     path: VariantPath<'_>,
     form: Form,
+    import_fallback: bool,
     limits: &mut MatchLimits,
 ) -> Result<BTreeSet<Variant>, Error> {
     let Some((member, prefix)) = path.segments.split_last() else {
         return Ok(BTreeSet::new());
     };
     if prefix.is_empty() {
-        return Ok(BTreeSet::new());
+        return imported_variants(lookup, scopes, path, form, limits);
     }
     let site = in_namespace(lookup.site, Namespace::Type);
     let lookup = Lookup {
@@ -379,7 +407,92 @@ fn variants(
         path.alias_scope,
         limits,
     )?;
-    indexed_variants(&lookup, scopes, actual, member, form, limits)
+    let found = indexed_variants(&lookup, scopes, actual, member, form, limits)?;
+    if found.is_empty() && import_fallback {
+        return imported_variants(&lookup, scopes, path, form, limits);
+    }
+    Ok(found)
+}
+
+fn imported_variants(
+    lookup: &Lookup<'_, '_>,
+    scopes: &Scopes,
+    path: VariantPath<'_>,
+    form: Form,
+    limits: &mut MatchLimits,
+) -> Result<BTreeSet<Variant>, Error> {
+    if lookup.label != super::enum_usage::RULE {
+        return Ok(BTreeSet::new());
+    }
+    let written = path_text(path.segments, path.absolute);
+    let mut found = BTreeSet::new();
+    let Some((workspace, _)) = lookup.visibility else {
+        return Ok(found);
+    };
+    let Some(candidates) = imported_variants_from_path(
+        lookup,
+        &written,
+        form.namespace(),
+        path.alias_scope.is_some(),
+        limits,
+    )?
+    else {
+        return Ok(found);
+    };
+    for (id, member) in candidates {
+        let item = workspace
+            .item(id)
+            .ok_or_else(|| failure(lookup.label, "imported enum is absent"))?;
+        if !item.enum_roster_has_only_written_variants() {
+            return Ok(BTreeSet::new());
+        }
+        let members = lookup.enum_members(scopes, workspace, item, limits)?;
+        if let Some(candidate) = members.get(&member)
+            && candidate
+                .forms
+                .binding(&member, form.namespace())?
+                .is_some()
+            && !admit_member(&mut found, (id, &members), &member, form, limits)?
+        {
+            return Ok(BTreeSet::new());
+        }
+    }
+    Ok(found)
+}
+
+pub(super) fn imported_variants_from_path(
+    lookup: &Lookup<'_, '_>,
+    written: &str,
+    namespace: Namespace,
+    import: bool,
+    limits: &mut MatchLimits,
+) -> Result<Option<Vec<(ItemId, String)>>, Error> {
+    if lookup.label != super::enum_usage::RULE {
+        return Ok(Some(Vec::new()));
+    }
+    charge(
+        lookup.label,
+        limits,
+        written.len().try_into().unwrap_or(u64::MAX),
+    )?;
+    let found = match lookup.owner {
+        PathOwner::Item(owner) => lookup.code.enum_member_imports_from_item_at(
+            owner,
+            lookup.site.byte,
+            written,
+            namespace,
+            import,
+        ),
+        PathOwner::File(reach) => lookup
+            .code
+            .enum_member_imports_from_file_reach(reach, written, namespace, import),
+        PathOwner::Impl(_) => return Ok(None),
+    };
+    match found {
+        Ok(found) => Ok(found),
+        Err(error) if unproved(&error) => Ok(None),
+        Err(error) => Err(lookup.error(written, error)),
+    }
 }
 
 fn inherent_variants(
@@ -418,7 +531,9 @@ fn inherent_variants(
         return Ok(BTreeSet::new());
     };
     let block = &blocks[index];
-    if block.trait_path.is_some() || block.self_items.is_empty() {
+    if (block.trait_path.is_some() && lookup.label != super::enum_usage::RULE)
+        || block.self_items.is_empty()
+    {
         return Ok(BTreeSet::new());
     }
     // Source can retain an enum from a partial type alias route. Require
@@ -433,15 +548,7 @@ fn inherent_variants(
         .resolve_from_impl(block.id, path, Namespace::Type, false)
     {
         Ok(resolution) => resolution.sites,
-        Err(CodeResolveError::Resolve(
-            ResolveError::Invalid(_)
-            | ResolveError::NotFound(_)
-            | ResolveError::Ambiguous(_)
-            | ResolveError::Cyclic(_)
-            | ResolveError::IndeterminateImport { .. }
-            | ResolveError::UnresolvedSelf(_)
-            | ResolveError::UnresolvedGlob { .. },
-        )) => return Ok(BTreeSet::new()),
+        Err(error) if unproved(&error) => return Ok(BTreeSet::new()),
         Err(error) => return Err(lookup.error(path, error)),
     };
     charge(
@@ -449,10 +556,63 @@ fn inherent_variants(
         limits,
         u64::try_from(direct.len()).unwrap_or(u64::MAX),
     )?;
+    if lookup.label == super::enum_usage::RULE {
+        let [declared] = direct.as_slice() else {
+            return Ok(BTreeSet::new());
+        };
+        if named_type(lookup, path, false)?.as_slice() != direct.as_slice() {
+            return Ok(BTreeSet::new());
+        }
+        let Some(enumeration) = enum_item(lookup, workspace, *declared)? else {
+            return Ok(BTreeSet::new());
+        };
+        if block.self_items.as_slice() != [enumeration.id] {
+            return Ok(BTreeSet::new());
+        }
+        return indexed_variants(lookup, scopes, [enumeration.id], member, form, limits);
+    }
     if direct != block.self_items {
         return Ok(BTreeSet::new());
     }
     indexed_variants(lookup, scopes, direct, member, form, limits)
+}
+
+fn unproved(error: &CodeResolveError) -> bool {
+    matches!(
+        error,
+        CodeResolveError::Resolve(
+            ResolveError::Invalid(_)
+                | ResolveError::NotFound(_)
+                | ResolveError::Ambiguous(_)
+                | ResolveError::Cyclic(_)
+                | ResolveError::IndeterminateImport { .. }
+                | ResolveError::UnresolvedSelf(_)
+                | ResolveError::UnresolvedGlob { .. }
+        )
+    )
+}
+
+pub(super) fn named_type(
+    lookup: &Lookup<'_, '_>,
+    path: &str,
+    import: bool,
+) -> Result<Vec<ItemId>, Error> {
+    let found = match lookup.owner {
+        PathOwner::Item(owner) => {
+            lookup
+                .code
+                .unconditional_type_from_item_at(owner, lookup.site.byte, path, import)
+        }
+        PathOwner::File(reach) => lookup
+            .code
+            .unconditional_type_from_file_reach(reach, path, import),
+        PathOwner::Impl(_) => return Ok(Vec::new()),
+    };
+    match found {
+        Ok(item) => Ok(item.into_iter().collect()),
+        Err(error) if unproved(&error) => Ok(Vec::new()),
+        Err(error) => Err(lookup.error(path, error)),
+    }
 }
 
 fn indexed_variants(
@@ -471,18 +631,43 @@ fn indexed_variants(
     };
     let mut result = BTreeSet::new();
     for id in actual {
-        let item = workspace
-            .item(id)
-            .ok_or_else(|| failure(ENUM_CATCH_ALL, "enum prefix has no indexed item"))?;
-        if item.kind != SymbolKind::Enum {
+        let Some(item) = enum_item(lookup, workspace, id)? else {
             return Ok(BTreeSet::new());
-        }
+        };
         let members = lookup.enum_members(scopes, workspace, item, limits)?;
-        if !admit_member(&mut result, (id, &members), member, form, limits)? {
+        if !admit_member(&mut result, (item.id, &members), member, form, limits)? {
             return Ok(BTreeSet::new());
         }
     }
     Ok(result)
+}
+
+fn enum_item<'w>(
+    lookup: &Lookup<'_, '_>,
+    workspace: &'w Workspace,
+    id: ItemId,
+) -> Result<Option<&'w raf_source::Item>, Error> {
+    let item = workspace
+        .item(id)
+        .ok_or_else(|| failure(lookup.label, "enum prefix has no indexed item"))?;
+    let roster = |item: &&raf_source::Item| {
+        lookup.label != super::enum_usage::RULE || item.enum_roster_has_only_written_variants()
+    };
+    match item.kind {
+        SymbolKind::Enum => Ok(Some(item).filter(roster)),
+        SymbolKind::TypeAlias if lookup.label == super::enum_usage::RULE => {
+            match lookup.code.unconditional_enum_alias(id) {
+                Ok(Some(enumeration)) => workspace
+                    .item(enumeration)
+                    .map(|item| Some(item).filter(roster))
+                    .ok_or_else(|| failure(lookup.label, "alias target has no indexed enum")),
+                Ok(None) | Err(CodeResolveError::AliasMember { .. }) => Ok(None),
+                Err(error) if unproved(&error) => Ok(None),
+                Err(error) => Err(lookup.error(item.path.as_str(), error)),
+            }
+        }
+        _ => Ok(None),
+    }
 }
 
 fn enum_prefix(
@@ -518,6 +703,8 @@ fn enum_prefix(
         }
         if let Some(actual) = glob.definition {
             actual
+        } else if lookup.label == super::enum_usage::RULE {
+            return named_type(lookup, &raw, true);
         } else {
             return lookup.indexed(&raw, true).map(Option::unwrap_or_default);
         }
@@ -538,6 +725,15 @@ fn enum_prefix(
         }
         match glob.definition {
             Some(actual) => actual,
+            None if lookup.label == super::enum_usage::RULE => {
+                if let Some(expanded) = expanded
+                    .as_ref()
+                    .filter(|path| path.block && path.alias_frame().is_some())
+                {
+                    return named_type(lookup, &expanded.text(), true);
+                }
+                return named_type(lookup, &raw, false);
+            }
             None => match lookup.resolve(&raw, expanded.as_ref(), limits)? {
                 PathDefinition::Written(actual) | PathDefinition::Expanded(actual) => {
                     return Ok(actual);

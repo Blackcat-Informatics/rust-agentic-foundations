@@ -619,6 +619,7 @@ impl Gate {
             .any(|id| id == crate::detectors::ENUM_CATCH_ALL);
         if let Some(acquired) = &mut acquired
             && (enum_inventory
+                || !ledger.enum_usage.is_empty()
                 || ledger.patterns().iter().any(|pattern| {
                     matches!(
                         pattern.matcher,

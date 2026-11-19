@@ -393,6 +393,10 @@ fn ledger_vocabulary_matches_validated_graphs() {
     );
     builders.push(ratchet::ratcheted_declaration());
     builders.push(numeric_bounds::vocabulary());
+    builders.push(enum_arms::enum_policy(&[(
+        "Idle",
+        "Reserved for the decoder",
+    )]));
     let reports = builders.into_iter().flat_map(|builder| {
         let graph = builder.finish().unwrap();
         [Format::Turtle, Format::NTriples].map(|format| {

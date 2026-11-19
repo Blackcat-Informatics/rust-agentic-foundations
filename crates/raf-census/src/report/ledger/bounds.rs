@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use raf_rdf::{Graph, Node};
 use raf_source::RelPath;
 
-use super::{E, Error, anchor, fields, node_at, required_text, shape, targets};
+use super::{E, Error, anchor, owned, required_text, shape, targets};
 use crate::SiteKey;
 
 pub(crate) const UNCLASSIFIED: &str = "numeric-bound-unclassified";
@@ -81,20 +81,6 @@ pub(super) fn read(
         }
     }
     Ok(Some(BoundRegistry { ratcheted, rows }))
-}
-
-fn owned<'a>(
-    graph: &'a Graph,
-    id: &str,
-    class: &str,
-    reached: &mut BTreeSet<String>,
-) -> Result<Node<'a>, E> {
-    if !reached.insert(id.to_owned()) {
-        return Err(E::Repeated(format!("ledger node {id}")));
-    }
-    let node = node_at(graph, id, class)?;
-    fields(&node, class)?;
-    Ok(node)
 }
 
 fn classification(node: &Node<'_>, id: &str) -> Result<BoundClassification, E> {

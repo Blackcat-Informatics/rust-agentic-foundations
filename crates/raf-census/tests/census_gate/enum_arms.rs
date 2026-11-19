@@ -1,9 +1,220 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! One physical catch-all inventory through required, forbidden and counted policy.
+//! Enum policy through the production gate.
 
 use super::{Gate, Term, base, detector_fixtures, job, put, tree};
+
+const ENUM_USAGE_FIXTURE: &str = r#"
+        pub enum State { Unit, Tuple(u8), Named { value: u8 }, Idle }
+        mod names { pub use crate::State::Tuple as New; }
+        #[replace_enum] enum Unrelated { Value = { let _ = State::Idle; 0 } }
+        fn unrelated() -> Unrelated { Unrelated::Value }
+        mod opaque_names {
+            #[replace_enum] pub enum Generated { Other }
+            pub use self::Generated::*;
+        }
+        fn opaque_glob() {
+            use State::*;
+            { use opaque_names::*; let _ = Idle; }
+        }
+        mod exports { pub use crate::names::New as Make; }
+        use exports::Make as Constructor;
+        macro_rules! ignore { ($value:expr) => { () }; }
+        type StateAlias = State;
+        const INITIAL: State = <StateAlias>::Unit;
+        fn constructor() -> fn(u8) -> State { Constructor }
+        impl State {
+            fn next() -> Self { Self::Named { value: 1 } }
+        }
+        fn inspect(value: State) {
+            match value { State::Idle => (), _ => () }
+            ignore!(State::Idle);
+            #[cfg(any())] let _ = State::Idle;
+        }
+        #[doc = stringify!(State::Idle)] fn documented() {}
+        #[test] fn test_only() { let _ = State::Idle; }
+        #[cfg(any())] mod disabled;
+        #[cfg(test)] #[path = "const_use.rs"] mod test_const_use;
+        #[derive(Clone)]
+        enum Marker {
+            #[cfg(test)] Probe = { let _ = State::Idle; 1 },
+            Present = 2,
+        }
+        struct Header {
+            #[cfg(test)] field: [u8; { let _ = State::Idle; 0 }],
+        }
+        #[derive(Clone)]
+        struct GenericProbe<#[cfg(test)] const N: usize = { let _ = State::Idle; 0 }>;
+        fn configured_input(#[cfg(test)] _: [u8; { let _ = State::Idle; 0 }]) {}
+        pub mod fast_route { pub use crate::State as Selected; }
+        mod fallback {
+            pub enum Selected { Idle }
+            pub mod slow_route { pub use super::Selected; }
+            pub use self::slow_route as Route;
+        }
+        mod facade {
+            #[cfg(feature = "fast")] pub use crate::State as Selected;
+            #[cfg(feature = "fast")] pub use crate::fast_route as Route;
+            pub use crate::fallback::*;
+            pub use self::Route::Selected as Choice;
+        }
+        fn conditional_route() { let _ = facade::Selected::Idle; }
+        fn conditional_reexport() { let _ = facade::Choice::Idle; }
+        fn conditional_glob() { use facade::Selected::*; let _ = Idle; }
+        fn conditional_glob_type() { use facade::*; let _ = Selected::Idle; }
+        fn conditional_chained() { use facade::*; use Selected::*; let _ = Idle; }
+    "#;
+
+/// Only a resolved shipping expression discharges a variant's use obligation.
+#[test]
+fn designated_enum_requires_shipping_values_and_current_retentions() {
+    let source = ENUM_USAGE_FIXTURE;
+    let check = |source: &str, retentions: &[(&str, &str)]| {
+        let mut fixture = tree(source, enum_policy(retentions), 0);
+        fixture
+            .create_new(
+                &raf_source::RelPath::new("src/disabled.rs").unwrap(),
+                "fn disabled() -> crate::State { crate::State::Idle }".into(),
+            )
+            .unwrap();
+        fixture
+            .create_new(
+                &raf_source::RelPath::new("src/const_use.rs").unwrap(),
+                "use crate::State::Idle as Current; const _: crate::State = Current;".into(),
+            )
+            .unwrap();
+        Gate::workspace(".").check_tree(&fixture)
+    };
+    let missing = check(source, &[]).unwrap();
+    let [finding] = missing.findings() else {
+        panic!("expected one unused variant: {:?}", missing.findings());
+    };
+    assert!(finding.contains("demo::State::Idle: no confirmed shipping value use"));
+
+    let retained = [("Idle", "Reserved for the decoder")];
+    assert!(check(source, &retained).unwrap().is_clean());
+    let shipping = format!("{source}\nimpl StateAlias {{ fn idle() -> Self {{ Self::Idle }} }}");
+    assert!(check(&shipping, &[]).unwrap().is_clean());
+    let stale = check(&shipping, &retained).unwrap();
+    let [finding] = stale.findings() else {
+        panic!("expected one stale retention: {:?}", stale.findings());
+    };
+    assert!(finding.contains("demo::State::Idle: retention is stale"));
+    for route in [
+        "mod idle { pub use crate::State::Idle as Rest; } use idle::Rest;
+        fn copy(value: State) -> State { match value { Rest => Rest, other => other } }",
+        "mod exported { pub use crate::State::Idle; }
+        fn imported() -> State { use exported::*; Idle }",
+        "mod all { pub use crate::State::*; } mod other { pub enum Other { Idle { code: u8 } } }
+        mod front { pub use crate::all::*; pub use crate::other::Other::*; }
+        fn imported() -> State { front::Idle }",
+        "mod kinds { pub use crate::State; } mod api { pub use crate::kinds::*; }
+        fn imported() -> State { api::State::Idle }",
+        "mod outer { pub mod facade { pub use crate::State::Idle as Current; } }
+        fn imported() -> State { use outer::*; facade::Current }",
+        "mod outer { pub mod delivery { pub use crate::State::Idle as Current; } }
+        fn imported() -> State { use outer::*; use delivery::Current as Rest; Rest }",
+        "mod const_use;",
+        "#[derive(Clone)] #[repr(u8)]
+        enum UsesIdle { #[non_exhaustive] Present = { let _ = State::Idle; 0 } }",
+        "use crate as here; fn imported() -> State { here::State::Idle }",
+    ] {
+        let verdict = check(&format!("{source}\n{route}"), &[]).unwrap();
+        assert!(verdict.is_clean(), "{route}: {:?}", verdict.findings());
+    }
+
+    for (retentions, expected) in [
+        (
+            &[("Missing", "Reserved")][..],
+            "unknown variant demo::State::Missing",
+        ),
+        (&[("Idle", "")][..], "reason"),
+        (
+            &[("Idle", "Reserved"), ("r#Idle", "Also reserved")][..],
+            "retention for variant Idle",
+        ),
+    ] {
+        let error = check(source, retentions).unwrap_err().to_string();
+        assert!(error.contains(expected), "{error}");
+    }
+
+    let inert = source.replace(
+        "pub enum State",
+        "#[derive(Clone)] #[repr(u8)] pub enum State",
+    );
+    assert!(check(&inert, &retained).unwrap().is_clean());
+    let rewritten = source.replace("pub enum State", "#[replace_enum] pub enum State");
+    let error = check(&rewritten, &retained).unwrap_err().to_string();
+    assert!(
+        error.contains("attribute that may rewrite its enum roster"),
+        "{error}"
+    );
+}
+
+/// Destructuring constructor heads behave as patterns even in assignment syntax.
+#[test]
+fn enum_assignees_preserve_real_value_expressions_in_places() {
+    let source = r"
+        enum State { Pair(u8) }
+        fn unpack(value: State) {
+            let mut element;
+            State::Pair(element) = value;
+        }
+    ";
+    let check = |source| {
+        Gate::workspace(".")
+            .check_tree(&tree(source, enum_policy(&[]), 0))
+            .unwrap()
+    };
+    let report = check(source);
+    let [missing] = report.findings() else {
+        panic!("expected one unused constructor: {:?}", report.findings());
+    };
+    assert!(missing.contains("demo::State::Pair: no confirmed shipping value use"));
+
+    let shipping = format!(
+        "{source}\nfn write(array: &mut [u8], at: fn(State) -> usize) {{ array[at(State::Pair(0))] = 1; }}"
+    );
+    assert!(check(&shipping).is_clean());
+}
+
+pub(super) fn enum_policy(retentions: &[(&str, &str)]) -> super::Builder {
+    use super::vocab::REPORT;
+
+    let mut graph = base();
+    put(&mut graph, "", "enumUsage", Term::iri("#enum"));
+    put(
+        &mut graph,
+        "#enum",
+        "type",
+        Term::iri(format!("{REPORT}EnumUsage")),
+    );
+    put(
+        &mut graph,
+        "#enum",
+        "symbol",
+        Term::simple_literal("demo::State"),
+    );
+    for (index, (member, reason)) in retentions.iter().enumerate() {
+        let row = format!("#enum/retained-{index}");
+        put(&mut graph, "#enum", "retainedVariant", Term::iri(&row));
+        put(
+            &mut graph,
+            &row,
+            "type",
+            Term::iri(format!("{REPORT}EnumVariantRetention")),
+        );
+        put(
+            &mut graph,
+            &row,
+            "variantName",
+            Term::simple_literal(*member),
+        );
+        put(&mut graph, &row, "reason", Term::simple_literal(*reason));
+    }
+    graph
+}
 
 /// The required inventory coexists with numeric bounds, and job policy counts
 /// both arms in the home package.

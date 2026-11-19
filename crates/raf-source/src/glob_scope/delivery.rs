@@ -139,6 +139,7 @@ fn declaration() -> UseDecl {
         vis: Vis::Public,
         test: false,
         doc_hidden: false,
+        configuration: crate::facts::ConfigurationDependence::Unconditional,
         kind: crate::index::UseKind::Glob {
             segs: vec!["source".to_owned()],
         },

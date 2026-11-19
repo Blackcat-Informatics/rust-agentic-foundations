@@ -162,6 +162,14 @@ pub(crate) struct ItemDetail {
     pub(crate) alias_const_arity: Option<usize>,
     /// This method's generic parameters or where clause require applicability evidence.
     pub(crate) method_requires_inference: bool,
+    /// The written enum members when declaration attributes preserve their upper bound.
+    pub(crate) variants: Option<Box<[VariantFact]>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct VariantFact {
+    pub(crate) name: String,
+    pub(crate) shape: FieldShape,
 }
 
 /// A named item.
@@ -297,6 +305,27 @@ pub(crate) struct UseFact {
     pub(crate) test: TestRole,
     /// True when the declaration has `#[doc(hidden)]`.
     pub(crate) doc_hidden: bool,
+    /// Configuration can change whether this declaration is present.
+    pub(crate) configuration: ConfigurationDependence,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ConfigurationDependence {
+    Unconditional,
+    Conditional,
+}
+
+impl ConfigurationDependence {
+    pub(crate) fn of(attrs: &[AttrFact]) -> Self {
+        if attrs
+            .iter()
+            .any(|attr| matches!(attr.path.as_str(), "cfg" | "cfg_attr"))
+        {
+            Self::Conditional
+        } else {
+            Self::Unconditional
+        }
+    }
 }
 
 /// An `impl` block header and its items.
@@ -329,6 +358,32 @@ pub(crate) struct ImplFact {
     pub(crate) items: Vec<ItemFact>,
     /// The test role.
     pub(crate) test: TestRole,
+}
+
+fn nominal_const_arity(generics: &syn::Generics) -> Option<usize> {
+    (generics.where_clause.is_none()
+        && generics.params.iter().all(|parameter| matches!(parameter, syn::GenericParam::Const(parameter) if parameter.attrs.is_empty())))
+        .then_some(generics.params.len())
+}
+
+fn has_written_variant_roster(attrs: &[AttrFact]) -> bool {
+    attrs.iter().all(|attribute| {
+        matches!(
+            attribute.path.as_str(),
+            "allow"
+                | "cfg"
+                | "deny"
+                | "deprecated"
+                | "derive"
+                | "doc"
+                | "expect"
+                | "forbid"
+                | "must_use"
+                | "non_exhaustive"
+                | "repr"
+                | "warn"
+        )
+    })
 }
 
 fn alias_const_arity(alias: &syn::ItemType) -> Option<usize> {
@@ -1028,6 +1083,7 @@ fn use_role(attrs: &[Attribute], inherited: TestRole) -> Found<UseRole> {
     Ok(UseRole {
         test: role(summary.own_test, inherited),
         doc_hidden: summary.doc_hidden,
+        configuration: ConfigurationDependence::of(&summary.facts),
     })
 }
 
@@ -1036,6 +1092,7 @@ fn use_role(attrs: &[Attribute], inherited: TestRole) -> Found<UseRole> {
 struct UseRole {
     test: TestRole,
     doc_hidden: bool,
+    configuration: ConfigurationDependence,
 }
 
 struct Extractor<'t> {
@@ -1118,10 +1175,8 @@ impl Extractor<'_> {
             )?;
             fact.detail = Some(Arc::new(ItemDetail {
                 bindings: names,
-                initializer: None,
-                nominal_const_arity: None,
-                alias_const_arity: None,
                 method_requires_inference,
+                ..ItemDetail::default()
             }));
         }
         Ok(fact)
@@ -1138,11 +1193,8 @@ impl Extractor<'_> {
         let end = self.positions.span(semi)?.start_byte;
         self.meter.charge(size_of::<ItemDetail>(), fact.name_line)?;
         fact.detail = Some(Arc::new(ItemDetail {
-            bindings: Vec::new(),
             initializer: Some(start..end),
-            nominal_const_arity: None,
-            alias_const_arity: None,
-            method_requires_inference: false,
+            ..ItemDetail::default()
         }));
         Ok(fact)
     }
@@ -1164,12 +1216,54 @@ impl Extractor<'_> {
     }
 
     fn with_nominal(&self, mut fact: ItemFact, generics: &syn::Generics) -> Found<ItemFact> {
-        if generics.where_clause.is_some() || generics.params.iter().any(|parameter| !matches!(parameter, syn::GenericParam::Const(parameter) if parameter.attrs.is_empty())) {
+        let Some(arity) = nominal_const_arity(generics) else {
             return Ok(fact);
-        }
+        };
         self.meter.charge(size_of::<ItemDetail>(), fact.name_line)?;
         fact.detail = Some(Arc::new(ItemDetail {
-            nominal_const_arity: Some(generics.params.len()),
+            nominal_const_arity: Some(arity),
+            ..ItemDetail::default()
+        }));
+        Ok(fact)
+    }
+
+    fn enum_fact(
+        &self,
+        declaration: &syn::ItemEnum,
+        whole: proc_macro2::Span,
+        inherited: TestRole,
+    ) -> Found<ItemFact> {
+        let mut fact = self.item(
+            &declaration.ident,
+            ItemKind::Enum,
+            &declaration.vis,
+            &declaration.attrs,
+            whole,
+            Some(declaration.brace_token.span.join()),
+            inherited,
+            Vec::new(),
+        )?;
+        if !has_written_variant_roster(&fact.attrs) {
+            return self.with_nominal(fact, &declaration.generics);
+        }
+        self.meter.charge(
+            size_of::<ItemDetail>() + declaration.variants.len() * size_of::<VariantFact>(),
+            fact.name_line,
+        )?;
+        let mut variants = Vec::with_capacity(declaration.variants.len());
+        for variant in &declaration.variants {
+            let name = unraw(&variant.ident);
+            self.meter.charge(name.capacity(), fact.name_line)?;
+            let shape = match variant.fields {
+                syn::Fields::Named(_) => FieldShape::Named,
+                syn::Fields::Unnamed(_) => FieldShape::Tuple,
+                syn::Fields::Unit => FieldShape::Unit,
+            };
+            variants.push(VariantFact { name, shape });
+        }
+        fact.detail = Some(Arc::new(ItemDetail {
+            nominal_const_arity: nominal_const_arity(&declaration.generics),
+            variants: Some(variants.into_boxed_slice()),
             ..ItemDetail::default()
         }));
         Ok(fact)
@@ -1281,19 +1375,7 @@ impl Extractor<'_> {
                 self.with_bindings(fact, &f.sig, false)?
             }
             Item::Struct(s) => self.struct_fact(s, whole, inherited)?,
-            Item::Enum(e) => {
-                let fact = self.item(
-                    &e.ident,
-                    ItemKind::Enum,
-                    &e.vis,
-                    &e.attrs,
-                    whole,
-                    Some(e.brace_token.span.join()),
-                    inherited,
-                    Vec::new(),
-                )?;
-                self.with_nominal(fact, &e.generics)?
-            }
+            Item::Enum(e) => self.enum_fact(e, whole, inherited)?,
             Item::Union(u) => self.union_fact(u, whole, inherited)?,
             Item::Trait(t) => self.trait_fact(t, whole, inherited, body)?,
             Item::Type(t) => {
@@ -1542,6 +1624,7 @@ impl Extractor<'_> {
             tree: self.use_tree(tree, line)?,
             test: role.test,
             doc_hidden: role.doc_hidden,
+            configuration: role.configuration,
         })
     }
 

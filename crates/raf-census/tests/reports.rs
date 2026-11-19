@@ -1205,6 +1205,13 @@ fn declared_ledgers() -> [String; 2] {
             text("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
         ),
         ("#limit", "classification", text("structural")),
+        ("", "enumUsage", link("#enum")),
+        ("#enum", "type", property("EnumUsage")),
+        ("#enum", "symbol", text("demo::State")),
+        ("#enum", "retainedVariant", link("#retained")),
+        ("#retained", "type", property("EnumVariantRetention")),
+        ("#retained", "variantName", text("Reserved")),
+        ("#retained", "reason", text("Reserved for the decoder")),
     ];
     [ledger_from_facts(prior), ledger_from_facts(numeric)]
 }

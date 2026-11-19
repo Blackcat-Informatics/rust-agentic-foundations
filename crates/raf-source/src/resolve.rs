@@ -31,6 +31,7 @@ use crate::work::{self, Work};
 mod determinacy;
 mod glob_facts;
 mod observation;
+mod variant_import;
 pub use observation::ResolutionAttempt;
 
 /// The items a walk reached, and the modules a keyword path named.
@@ -509,6 +510,16 @@ fn push_source(
 
 fn strip_raw(segment: &str) -> &str {
     segment.strip_prefix("r#").map_or(segment, |plain| plain)
+}
+
+fn valid_code_segment(segment: &str) -> bool {
+    let name = strip_raw(segment);
+    let mut characters = name.chars();
+    !(matches!(name, "Self" | "_") || name != segment && matches!(name, "crate" | "self" | "super"))
+        && characters
+            .next()
+            .is_some_and(|first| first == '_' || unicode_ident::is_xid_start(first))
+        && characters.all(unicode_ident::is_xid_continue)
 }
 
 pub(crate) fn insert_module(
@@ -1113,16 +1124,31 @@ impl Index {
         leading_colon: bool,
         last_ns: Namespace,
         heads: Heads,
-        mut reads: Option<&mut Vec<Source>>,
+        reads: Option<&mut Vec<Source>>,
+        steps: Steps<'_>,
+    ) -> Result<Walked, Fail> {
+        // A `use` path reads each module as rustc resolves an import: only
+        // what the importing module can access counts.
+        let viewer = matches!(heads, Heads::Use { .. }).then_some(from);
+        self.walk_with_visibility(
+            from,
+            (segs, leading_colon, last_ns),
+            (heads, viewer, reads),
+            steps,
+        )
+    }
+
+    fn walk_with_visibility(
+        &self,
+        from: usize,
+        (segs, leading_colon, last_ns): (&[String], bool, Namespace),
+        (heads, viewer, mut reads): (Heads, Option<usize>, Option<&mut Vec<Source>>),
         steps: Steps<'_>,
     ) -> Result<Walked, Fail> {
         let (mut state, next_index) =
             self.start(from, segs, leading_colon, last_ns, heads, &mut reads, steps)?;
         Self::query_refusal(steps).map_err(Fail::Budget)?;
         self.one_crate(&state.modules, next_index, steps)?;
-        // A `use` path reads each module as rustc resolves an import: only
-        // what the importing module can access counts.
-        let viewer = matches!(heads, Heads::Use { .. }).then_some(from);
         for (offset, seg) in segs.iter().enumerate().skip(next_index) {
             let last = offset + 1 == segs.len();
             let ns = if last { last_ns } else { Namespace::Type };
@@ -2127,10 +2153,7 @@ impl Index {
             .split("::")
             .map(|s| strip_raw(s).to_owned())
             .collect();
-        let valid = |s: &String| {
-            !s.is_empty() && s != "Self" && s.chars().all(|c| c.is_alphanumeric() || c == '_')
-        };
-        if !segs.iter().all(valid) {
+        if !written.split("::").all(valid_code_segment) {
             return Err(ResolveError::Invalid(path.to_owned()));
         }
         let text = segs.join("::");

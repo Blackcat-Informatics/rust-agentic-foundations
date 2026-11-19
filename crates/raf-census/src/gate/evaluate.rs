@@ -28,7 +28,7 @@ pub(super) fn evaluate(
     let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
     let mut collected = rules::collect(
         (workspace, &code),
-        &census,
+        (&census, &references.consumers),
         &selected,
         &owners,
         ledger,
@@ -46,6 +46,7 @@ pub(super) fn evaluate(
     let hits = &collected.hits;
     let mut sink = ratchet::Sink::new(ledger, &collected.offsets);
     let mut findings = selected.findings(hits);
+    findings.append(&mut collected.enum_usage);
     let (numeric_bounds, numeric_debt) = if let Some(registry) = &ledger.numeric_bounds {
         std::mem::take(&mut collected.bounds).evaluate(
             workspace,
