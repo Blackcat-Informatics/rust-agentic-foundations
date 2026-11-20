@@ -3,6 +3,7 @@
 
 //! Admission of signed compiler captures and their committed schema closure.
 
+mod search;
 mod source;
 
 use std::{
@@ -16,12 +17,13 @@ use purrdf_core::ContentDigest;
 use purrdf_ed25519::{
     PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, SignatureError, VerifyingKey,
 };
-use raf_rdf::{Format, Graph, Node};
+use raf_rdf::{Format, Graph, Node, Value};
 use raf_source::{RelPath, Tree, TreeError};
 
 use crate::{ReportError, report::shape};
 
 use super::{DescriptorError, TypeId};
+use search::ImportSearch;
 
 const MAX_CAPTURE_BYTES: u64 = 128 * 1024;
 const MAX_SCHEMA_BYTES: u64 = 2 * 1024 * 1024;
@@ -129,6 +131,7 @@ pub(super) struct Capture {
     root: RelPath,
     version: String,
     sources: BTreeMap<RelPath, Digest>,
+    import_search: ImportSearch,
 }
 
 pub(super) fn load(
@@ -150,7 +153,11 @@ pub(super) fn load(
         .map_err(CaptureError::Signature)?;
     let text = str::from_utf8(&bytes).map_err(CaptureError::Encoding)?;
     let graph = Graph::from_text(text, Format::NTriples).map_err(ReportError::Ground)?;
-    Capture::from_graph(&graph, descriptor)
+    let capture = Capture::from_graph(&graph, descriptor)?;
+    capture
+        .import_search
+        .verify_directories(tree, &capture.root)?;
+    Ok(capture)
 }
 
 impl Capture {
@@ -158,18 +165,7 @@ impl Capture {
         let root = graph
             .get("")
             .ok_or_else(|| ReportError::Missing("capture root".into()))?;
-        fields(
-            &root,
-            "CapnpCaptureV1",
-            &[
-                "compilerSha256",
-                "compilerVersion",
-                "descriptorFile",
-                "descriptorSha256",
-                "schemaRoot",
-                "schemaSource",
-            ],
-        )?;
+        let import_search = ImportSearch::read(graph, &root)?;
         let descriptor_path = canonical_path(&shape::string(&root, "descriptorFile")?, false)?;
         let descriptor_digest = digest(&root, "descriptorSha256")?;
         if &descriptor_path != descriptor.0
@@ -187,15 +183,7 @@ impl Capture {
         let schema_root = canonical_path(&shape::string(&root, "schemaRoot")?, true)?;
         let mut sources = BTreeMap::new();
         for reference in root.values(&shape::property("schemaSource")) {
-            let id = reference
-                .iri()
-                .filter(|id| id.starts_with('#'))
-                .ok_or_else(|| {
-                    ReportError::Value("capture schemaSource must name an owned node".into())
-                })?;
-            let source = graph
-                .get(id)
-                .ok_or_else(|| ReportError::Dangling(id.into()))?;
+            let source = owned_node(graph, reference, "schemaSource")?;
             fields(&source, "CapnpSchemaSource", &["file", "sha256"])?;
             let path = canonical_path(&shape::string(&source, "file")?, false)?;
             if sources
@@ -205,7 +193,9 @@ impl Capture {
                 return Err(mismatch(format!("capture repeats schema path {path}")));
             }
         }
-        if sources.is_empty() || graph.nodes().count() != sources.len() + 1 {
+        if sources.is_empty()
+            || graph.nodes().count() != 1 + sources.len() + import_search.directories().len()
+        {
             return Err(mismatch(
                 "capture needs source rows and may contain only its referenced subjects",
             ));
@@ -214,6 +204,7 @@ impl Capture {
             root: schema_root,
             version,
             sources,
+            import_search,
         })
     }
 
@@ -279,6 +270,7 @@ impl Capture {
         }
         let mut remaining = MAX_LITERAL_IMPORTS;
         for (path, row) in requested.values() {
+            let mut reported_rooted = BTreeSet::new();
             for import in row.get_imports()? {
                 let id = TypeId(import.get_id());
                 let name = import.get_name()?;
@@ -287,8 +279,11 @@ impl Capture {
                 if expected != Some(&self.resolve_import(tree, path, name)?) {
                     return Err(unresolved_import(path, name).into());
                 }
+                if name.starts_with('/') && matches!(self.import_search, ImportSearch::Ordered(_)) {
+                    reported_rooted.insert(name);
+                }
             }
-            self.verify_source(tree, path, &mut remaining)?;
+            self.verify_source(tree, path, &reported_rooted, &mut remaining)?;
         }
         Ok(())
     }
@@ -297,6 +292,7 @@ impl Capture {
         &self,
         tree: &dyn Tree,
         from: &RelPath,
+        reported_rooted: &BTreeSet<&str>,
         remaining: &mut usize,
     ) -> Result<(), CaptureError> {
         let path = join(&self.root, from.as_str())?;
@@ -318,6 +314,14 @@ impl Capture {
             {
                 return Err(unresolved_import(from, name));
             }
+            if matches!(self.import_search, ImportSearch::Ordered(_))
+                && name.starts_with('/')
+                && !reported_rooted.contains(name)
+            {
+                return Err(mismatch(format!(
+                    "compiler request omits the file identity for rooted schema import {name:?} from {from}"
+                )));
+            }
             Ok(())
         })
     }
@@ -336,7 +340,13 @@ impl Capture {
         }
         let invalid = || unresolved_import(from, name);
         let raw = match rooted {
-            Some(rooted) => join(&RelPath::root(), rooted),
+            Some(suffix) => {
+                if let ImportSearch::Ordered(directories) = &self.import_search {
+                    return search::first_match(tree, &self.root, directories, suffix)?
+                        .ok_or_else(invalid);
+                }
+                join(&RelPath::root(), suffix)
+            }
             None => join(&from.parent().unwrap_or_else(RelPath::root), name),
         }
         .map_err(|_| invalid())?;
@@ -364,6 +374,20 @@ impl Capture {
 
 fn unresolved_import(from: &RelPath, name: &str) -> CaptureError {
     mismatch(format!("unresolved schema import {name:?} from {from}"))
+}
+
+fn owned_node<'a>(
+    graph: &'a Graph,
+    reference: Value<'_>,
+    property: &str,
+) -> Result<Node<'a>, ReportError> {
+    let id = reference
+        .iri()
+        .filter(|id| id.starts_with('#'))
+        .ok_or_else(|| ReportError::Value(format!("capture {property} must name an owned node")))?;
+    graph
+        .get(id)
+        .ok_or_else(|| ReportError::Dangling(id.into()))
 }
 
 fn fields(node: &Node<'_>, class: &str, keys: &[&str]) -> Result<(), ReportError> {

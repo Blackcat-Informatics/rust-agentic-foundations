@@ -38,6 +38,24 @@ const SOURCES: [(&str, &[u8]); 4] = [
         include_bytes!("fixtures/capnp/capture-aux/capture-spare.capnp"),
     ),
 ];
+const ORDERED_SOURCES: [(&str, &[u8]); 3] = [
+    (
+        "entry.capnp",
+        include_bytes!("fixtures/capnp/ordered/entry.capnp"),
+    ),
+    (
+        "first/shared.capnp",
+        include_bytes!("fixtures/capnp/ordered/first/shared.capnp"),
+    ),
+    (
+        "second/shared.capnp",
+        include_bytes!("fixtures/capnp/ordered/second/shared.capnp"),
+    ),
+];
+const ORDERED_FIRST: &[u8] = include_bytes!("fixtures/capnp/capture-ordered-first.bin");
+const FIRST_THEN_SECOND: &[(usize, &str)] = &[(0, "first"), (1, "second")];
+// Explicit positions determine priority even when the RDF subjects sort differently.
+const SECOND_THEN_FIRST: &[(usize, &str)] = &[(1, "first"), (0, "second")];
 
 fn digest(bytes: &[u8]) -> String {
     purrdf_hash::hex::encode(ContentDigest::of(bytes).as_bytes())
@@ -68,15 +86,26 @@ fn publish_capture(
     descriptor: &[u8],
     sources: &[(&str, &[u8])],
 ) -> String {
+    publish(root, key, descriptor, sources, None)
+}
+
+fn publish(
+    root: &Path,
+    key: &SigningKey,
+    descriptor: &[u8],
+    sources: &[(&str, &[u8])],
+    import_directories: Option<&[(usize, &str)]>,
+) -> String {
     fs::write(root.join("schema.bin"), descriptor).unwrap();
     let directory = root.join("schemas");
     fs::create_dir_all(&directory).unwrap();
     let mut graph = Builder::new();
+    let class = import_directories.map_or("CapnpCaptureV1", |_| "CapnpCaptureV2");
     put(
         &mut graph,
         "",
         vocab::TYPE,
-        TermValue::iri(format!("{}CapnpCaptureV1", vocab::REPORT)),
+        TermValue::iri(format!("{}{class}", vocab::REPORT)),
     );
     text(&mut graph, "", "compilerVersion", "1.5.0");
     text(
@@ -88,23 +117,25 @@ fn publish_capture(
     text(&mut graph, "", "descriptorFile", "schema.bin");
     text(&mut graph, "", "descriptorSha256", &digest(descriptor));
     text(&mut graph, "", "schemaRoot", "schemas");
+    if let Some(directories) = import_directories {
+        for (index, (position, path)) in directories.iter().enumerate() {
+            let id = format!("#directory-{index}");
+            row(&mut graph, &id, "importDirectory", "CapnpImportDirectory");
+            text(&mut graph, &id, "path", path);
+            put(
+                &mut graph,
+                &id,
+                &format!("{}position", vocab::REPORT),
+                TermValue::typed_literal(position.to_string(), vocab::INTEGER),
+            );
+        }
+    }
     for (index, (name, bytes)) in sources.iter().enumerate() {
         let path = directory.join(name);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, bytes).unwrap();
         let id = format!("#source-{index}");
-        put(
-            &mut graph,
-            "",
-            &format!("{}schemaSource", vocab::REPORT),
-            TermValue::iri(&id),
-        );
-        put(
-            &mut graph,
-            &id,
-            vocab::TYPE,
-            TermValue::iri(format!("{}CapnpSchemaSource", vocab::REPORT)),
-        );
+        row(&mut graph, &id, "schemaSource", "CapnpSchemaSource");
         text(&mut graph, &id, "file", name);
         text(&mut graph, &id, "sha256", &digest(bytes));
     }
@@ -116,6 +147,21 @@ fn publish_capture(
     .unwrap();
     fs::write(root.join("capture.nt"), capture).unwrap();
     git_repo::commit_all(root)
+}
+
+fn row(graph: &mut Builder, id: &str, property: &str, class: &str) {
+    put(
+        graph,
+        "",
+        &format!("{}{property}", vocab::REPORT),
+        TermValue::iri(id),
+    );
+    put(
+        graph,
+        id,
+        vocab::TYPE,
+        TermValue::iri(format!("{}{class}", vocab::REPORT)),
+    );
 }
 
 fn history(root: &Path, base: &str, current: &str, key: Option<&SigningKey>) -> Output {
@@ -156,6 +202,166 @@ fn assert_refused(output: Output, expected: &str) {
     assert!(output.stdout.is_empty(), "{output:?}");
     let diagnostic = String::from_utf8(output.stderr).unwrap();
     assert!(diagnostic.contains(expected), "{diagnostic}");
+}
+
+/// The authenticated search order changes which schema the compiler uses.
+#[test]
+fn capnp_capture_compares_layouts_with_ordered_import_directories() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let key = SigningKey::from_bytes(&[3; 32]);
+    let base = publish(
+        root,
+        &key,
+        ORDERED_FIRST,
+        &ORDERED_SOURCES,
+        Some(FIRST_THEN_SECOND),
+    );
+    let second = include_bytes!("fixtures/capnp/capture-ordered-second.bin");
+    let current = publish(
+        root,
+        &key,
+        second,
+        &ORDERED_SOURCES,
+        Some(SECOND_THEN_FIRST),
+    );
+    let comparison = history(root, &base, &current, Some(&key));
+    assert_eq!(comparison.status.code(), Some(1), "{comparison:?}");
+    assert!(comparison.stderr.is_empty(), "{comparison:?}");
+    assert_eq!(
+        comparison.stdout,
+        b"Cap'n Proto history for 0xfe3dcd67079854c3.value: type changed\n"
+    );
+
+    let stale = publish(
+        root,
+        &key,
+        second,
+        &ORDERED_SOURCES,
+        Some(FIRST_THEN_SECOND),
+    );
+    assert_refused(
+        history(root, &base, &stale, Some(&key)),
+        "unresolved schema import \"/shared.capnp\" from entry.capnp",
+    );
+    let aliased = publish(
+        root,
+        &key,
+        include_bytes!("fixtures/capnp/capture-ordered-aliased.bin"),
+        &ORDERED_SOURCES,
+        Some(FIRST_THEN_SECOND),
+    );
+    assert_refused(
+        history(root, &base, &aliased, Some(&key)),
+        "unrecorded requested schema shared.capnp",
+    );
+    let mut default_sources = ORDERED_SOURCES;
+    default_sources[0] = (
+        "default-user.capnp",
+        include_bytes!("fixtures/capnp/ordered/default-user.capnp"),
+    );
+    let default_without_identity = publish(
+        root,
+        &key,
+        include_bytes!("fixtures/capnp/capture-ordered-default.bin"),
+        &default_sources,
+        Some(SECOND_THEN_FIRST),
+    );
+    assert_refused(
+        history(root, &base, &default_without_identity, Some(&key)),
+        "compiler request omits the file identity for rooted schema import \"/shared.capnp\"",
+    );
+}
+
+/// An earlier committed candidate wins even if it is absent from the signed manifest.
+#[test]
+fn capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let key = SigningKey::from_bytes(&[3; 32]);
+    let earlier = root.join("schemas/first");
+    fs::create_dir_all(&earlier).unwrap();
+    fs::write(earlier.join("unrelated.txt"), b"directory exists").unwrap();
+    let base = publish(
+        root,
+        &key,
+        include_bytes!("fixtures/capnp/capture-ordered-second-only.bin"),
+        &[ORDERED_SOURCES[0], ORDERED_SOURCES[2]],
+        Some(FIRST_THEN_SECOND),
+    );
+    let clean = history(root, &base, &base, Some(&key));
+    assert!(clean.status.success(), "{clean:?}");
+
+    let shadow = earlier.join("shared.capnp");
+    fs::write(&shadow, ORDERED_SOURCES[1].1).unwrap();
+    let shadowed = git_repo::commit_all(root);
+    assert_refused(
+        history(root, &base, &shadowed, Some(&key)),
+        "unresolved schema import \"/shared.capnp\" from entry.capnp",
+    );
+
+    fs::remove_file(&shadow).unwrap();
+    fs::create_dir(&shadow).unwrap();
+    fs::write(shadow.join("unrelated.txt"), b"not a regular file").unwrap();
+    let nonregular = git_repo::commit_all(root);
+    assert_refused(
+        history(root, &base, &nonregular, Some(&key)),
+        "capture import candidate schemas/first/shared.capnp must be a committed regular file",
+    );
+}
+
+/// The signed order is a bounded sequence of distinct committed directory paths.
+#[test]
+fn capnp_capture_refuses_invalid_import_directory_declarations() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let key = SigningKey::from_bytes(&[3; 32]);
+    let base = publish(
+        root,
+        &key,
+        ORDERED_FIRST,
+        &ORDERED_SOURCES,
+        Some(FIRST_THEN_SECOND),
+    );
+    let names: Vec<_> = (0..17).map(|position| format!("dir-{position}")).collect();
+    let excess: Vec<_> = names.iter().map(String::as_str).enumerate().collect();
+    let cases: &[(&[(usize, &str)], &str)] = &[
+        (&[], "require contiguous positions starting at zero"),
+        (
+            &[(0, "first"), (2, "second")],
+            "require contiguous positions starting at zero",
+        ),
+        (
+            &[(0, "first"), (0, "second")],
+            "repeats an import directory or position",
+        ),
+        (
+            &[(0, "first"), (1, "first")],
+            "repeats an import directory or position",
+        ),
+        (
+            &[(0, "../first"), (1, "second")],
+            "must be canonical and inside its root",
+        ),
+        (
+            &[(0, "missing"), (1, "second")],
+            "schemas/missing must be a committed directory",
+        ),
+        (&excess, "admits at most 16 import directories"),
+    ];
+    for &(directories, expected) in cases {
+        let invalid = publish(
+            root,
+            &key,
+            ORDERED_FIRST,
+            &ORDERED_SOURCES,
+            Some(directories),
+        );
+        assert_refused(history(root, &base, &invalid, Some(&key)), expected);
+    }
 }
 
 /// Both snapshots need a statement from the selected signer over the exact

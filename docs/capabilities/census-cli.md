@@ -31,6 +31,9 @@ bindings:
     - cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs
     - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set
     - cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request
+    - cargo_census::test_crate::capnp_capture::capnp_capture_compares_layouts_with_ordered_import_directories
+    - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports
+    - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_invalid_import_directory_declarations
     - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape
     - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_oversized_inputs
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
@@ -114,6 +117,15 @@ With capture verification omitted, the caller selects the compiled
 inputs directly.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape,cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request -->
 
+An ordered capture signs the compiler's import directories. Census
+resolves slash-rooted imports at the first regular candidate in the
+declared order. The candidate must appear in the signed source set and
+the compiler's requested files. Each rooted source import needs an
+import row carrying its file ID. An earlier committed file takes
+precedence even if the capture omits it. An earlier nonregular candidate
+or refused lookup prevents a capture verdict.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_compares_layouts_with_ordered_import_directories,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports -->
+
 **Static contract.** `check` evaluates the native library Gate for the selected workspace. `index`, `job`, `count` and `fingerprint` derive complete native reports from that Gate. The CLI accepts no package/example executable selector and never invokes Cargo, tests, examples or custom repository binaries. Custom Rust registrations remain explicit library API operations performed by their caller; repository contents cannot instantiate them automatically.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
@@ -182,11 +194,17 @@ repository-relative paths `--base-capture PATH`,
 digits of the Ed25519 public key. Library callers set
 `HistoryOptions::capture` with the same key and both pairs of paths.
 
-Produce the request with every schema input explicitly listed. Use
+Produce the request with every schema input explicitly listed. For a
+single-root capture, use
 `capnp compile --no-standard-import --import-path=ROOT --src-prefix=ROOT -o-`
 followed by those paths. Use the selected schema directory for both
-options. Sign the exact canonical N-Triples bytes and store the raw
-64-byte Ed25519 signature as a separate committed blob.
+options. For an ordered capture, use `--no-standard-import` and
+`--src-prefix=ROOT` with one `--import-path` per declared directory
+in signed order. Request the rooted import targets before the files
+that import them, using their physical paths. Each requested filename
+must be relative to `ROOT` and match its physical path. Sign the exact
+canonical N-Triples bytes and store the raw 64-byte Ed25519 signature
+as a separate committed blob.
 
 Build the statement with `raf_rdf::Builder` and render it as
 `Format::NTriples`. Its class and properties use the
@@ -196,11 +214,14 @@ has one `rdf:type` and the following fields.
 | Class | Required properties |
 | --- | --- |
 | `CapnpCaptureV1` at the graph root | `compilerVersion` uses decimal major, minor and patch joined by dots. `compilerSha256` identifies the compiler artifact. `descriptorFile` is the descriptor path from the Git root and `descriptorSha256` covers its bytes. `schemaRoot` is the path from the Git root, with an empty string for the root itself. One or more `schemaSource` IRIs select owned source rows. |
+| `CapnpCaptureV2` at the graph root | The same properties as `CapnpCaptureV1` plus one or more `importDirectory` IRIs selecting owned directory rows. |
 | `CapnpSchemaSource` at an owned fragment | `file` is the requested filename relative to `schemaRoot`. `sha256` covers the source bytes. |
+| `CapnpImportDirectory` at an owned fragment | `path` is the directory relative to `schemaRoot`, with an empty string for that root itself. `position` is a canonical nonnegative `xsd:integer` giving its zero-based search position. |
 
-All scalar properties are strings with exactly one value. Digests
-use 64 lowercase hexadecimal digits. The Git-backed capture fixture
-builds and signs this record before the command reads it.
+Scalar properties have exactly one value. `position` uses the integer
+datatype and the other scalar properties use strings. Digests use 64
+lowercase hexadecimal digits. The Git-backed capture fixtures build
+and sign these records before the command reads them.
 
 The documented data path is illustrated by `raf_census::example_crate::registered` and `rust_agentic_foundations::example_crate::repository_census`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
@@ -240,10 +261,20 @@ A repository may contain a build script, example and test whose bodies write a m
 
 A capture uses UTF-8 schema source and double-quoted, unescaped import
 paths. The profile refuses `embed` expressions. A relative import resolves
-from its requesting file's directory. A slash-rooted import resolves from
-the signed schema root. Parent segments stay within that root and must
-resolve through the actual committed directory entries.
+from its requesting file's directory. Parent segments stay within the
+signed schema root and must resolve through the committed directory
+entries. A slash-rooted import in a single-root capture resolves from
+the signed schema root.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape,cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request -->
+
+An ordered capture declares one to 16 distinct committed import
+directories under the schema root, with consecutive positions starting
+at zero. Its slash-rooted import suffixes are canonical paths without
+parent segments. The pinned tree's work limits also apply to candidate
+lookups. The profile refuses rooted source imports missing from the
+compiler's import table, including a scalar default whose import the
+compiler omits. Ambient and external directories are outside the profile.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_compares_layouts_with_ordered_import_directories,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_invalid_import_directory_declarations -->
 
 A statement is limited to 128 KiB and an individual schema blob to
 two MiB, subject to the pinned tree's existing read limits. The source
@@ -270,6 +301,9 @@ the same source name. Census uses one bounded compiler request reader for
 capture corroboration and layout projection. Its source scan checks
 literal imports that the compiler can omit from its request, while the
 request can report implicit imports such as the streaming schema.
+The ordered profile checks the compiler's search order against the
+whole pinned tree, because a source absent from the signed set can
+take precedence over a signed file with the same relative name.
 
 ## Verification
 
@@ -303,6 +337,15 @@ both declared files and refuses the capture with the dependency
 omitted. It also exercises escaped import paths and an embed expression.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape,cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request -->
 
+Two compiler requests use opposite directory orders for the same
+rooted import. Both captures admit comparison and report the differing
+field type. The test also refuses an order inconsistent with the
+descriptor, a requested filename alias, and a rooted scalar-default
+import omitted from the compiler's import table. Other cases exercise
+an absent earlier candidate, an unrecorded earlier file, a nonregular
+candidate, and invalid directory declarations.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_compares_layouts_with_ordered_import_directories,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_invalid_import_directory_declarations -->
+
 Controlled fixtures protect native CLI parity, the self-test case list, the absence of consumer execution, report destination restrictions, migration carrier bounds, monotone debt writes and the declared reference options.
 
 <!-- raf:generated:verification-matrix -->
@@ -310,10 +353,13 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | --- | --- | --- |
 | `cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds` | test | [Contract](#contract) |
 | `cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::capnp_capture::capnp_capture_compares_layouts_with_ordered_import_directories` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set` | test | [Contract](#contract) |
 | `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_invalid_import_directory_declarations` | test | [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_oversized_inputs` | test | [Constraints](#constraints) |
+| `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |
