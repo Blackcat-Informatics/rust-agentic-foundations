@@ -1,0 +1,575 @@
+diff --git .github/workflows/ci.yaml .github/workflows/ci.yaml
+index 63b3871b..7022067b 100644
+--- .github/workflows/ci.yaml
++++ .github/workflows/ci.yaml
+@@ -168,7 +168,7 @@ jobs:
+       # from the registry cache, and a package-scoped test run stores only that
+       # package's closure. Fetch both lock files completely first.
+       - name: Fetch the complete locked set for the self-census gate
+-        if: matrix.package == 'rust-agentic-foundations'
++        if: matrix.package == 'rust-agentic-foundations' && contains(matrix.args, 'self_census')
+         run: |
+           cargo fetch --locked
+           cargo fetch --locked --manifest-path fuzz/Cargo.toml
+@@ -176,6 +176,12 @@ jobs:
+         run: |
+           jq -j '.[] | . + "\u0000"' <<< "$RAF_CI_ARGS" > "$RUNNER_TEMP/test-args"
+           mapfile -d '' -t args < "$RUNNER_TEMP/test-args"
++          # Keep the full round trip within the job budget with light optimization
++          # and without generating native debug line tables for this shard.
++          if [[ "$RAF_CI_PACKAGE" == rust-agentic-foundations && "${args[*]}" == '--test docs_contract' ]]; then
++            export CARGO_PROFILE_TEST_DEBUG=0
++            args+=(--config 'profile.test.opt-level=1')
++          fi
+           cargo test --locked --package "$RAF_CI_PACKAGE" "${args[@]}"
+           if test "$RAF_CI_DOCS" = true; then
+             cargo test --locked --package "$RAF_CI_PACKAGE" --doc
+diff --git crates/raf-okf/src/body/blocks.rs crates/raf-okf/src/body/blocks.rs
+index 13ac5a7e..8993f9e8 100644
+--- crates/raf-okf/src/body/blocks.rs
++++ crates/raf-okf/src/body/blocks.rs
+@@ -4,6 +4,7 @@
+ //! Coordinate projection of native authoring lines.
+ 
+ use crate::error::{ErrorKind, ParseError};
++use crate::frontmatter::reader::Fences;
+ 
+ /// Where a body starts in the whole text of its document.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+@@ -17,6 +18,14 @@ pub(crate) struct Origin {
+ impl Origin {
+     /// The origin of a text that is not part of a longer one.
+     pub(crate) const START: Self = Self { byte: 0, line: 1 };
++
++    /// Where the body starts after the validated frontmatter fences.
++    pub(crate) fn after_fences(fences: &Fences) -> Self {
++        Self {
++            byte: fences.body_start,
++            line: fences.fence_line + 1,
++        }
++    }
+ }
+ 
+ /// One line of the body. Offsets are local to the body text.
+diff --git crates/raf-okf/src/body/mod.rs crates/raf-okf/src/body/mod.rs
+index 4b49b15c..4340f358 100644
+--- crates/raf-okf/src/body/mod.rs
++++ crates/raf-okf/src/body/mod.rs
+@@ -163,19 +163,19 @@ impl Body {
+     /// no marker, block quotes and list items
+     /// nested over 64 levels, or a link destination or title over 4096 bytes.
+     pub fn parse(text: &str) -> Result<Self, ParseError> {
+-        let (start, line) = match locate_fences(text) {
+-            Ok(fences) => (fences.body_start, fences.fence_line + 1),
++        let origin = match locate_fences(text) {
++            Ok(fences) => Origin::after_fences(&fences),
+             Err(error)
+                 if matches!(
+                     error.kind(),
+                     ErrorKind::MissingFence | ErrorKind::UnclosedFence
+                 ) =>
+             {
+-                (0, 1)
++                Origin::START
+             }
+             Err(error) => return Err(error),
+         };
+-        Self::parse_at(&text[start..], Origin { byte: start, line })
++        Self::parse_at(&text[origin.byte..], origin)
+     }
+ 
+     /// Read the model of a body that starts at `origin` in its whole text.
+diff --git crates/raf-okf/src/dataset/read.rs crates/raf-okf/src/dataset/read.rs
+index 0a1411ef..2ca8b2f2 100644
+--- crates/raf-okf/src/dataset/read.rs
++++ crates/raf-okf/src/dataset/read.rs
+@@ -17,6 +17,9 @@ use crate::{
+ 
+ type Set = OrderedTable<TermId, ()>;
+ 
++/// Number of fields in the largest role shapes, Entry and Item.
++const MAX_ROLE_FIELDS: usize = 5;
++
+ fn insert(set: &mut Set, id: TermId) -> Result<bool, E> {
+     let mut resident = Resident;
+     Ok(set
+@@ -174,28 +177,27 @@ fn rooted(mut reader: Reader<'_>, path: &str, root: TermId) -> Result<(Document,
+             "unrelated or orphan structural subjects",
+         ));
+     }
+-    let document = Document::new(frontmatter.clone(), body).map_err(E::Construct)?;
++    let mut document = Document::new(frontmatter.clone(), body).map_err(E::Construct)?;
+     if document.frontmatter() != &frontmatter {
+         return Err(E::shape(
+             root_iri,
+             "representation changes under document normalization",
+         ));
+     }
+-    let parsed = Document::parse(&document.render()).map_err(E::Parse)?;
+-    if parsed != document {
++    if !document.read_rendered_head().map_err(E::Parse)? {
+         return Err(E::shape(
+             root_iri,
+             "styles, comments or values do not survive RAF rendering",
+         ));
+     }
+-    let typed = validate(&parsed, path)?;
+-    if identity(&parsed)? != root_iri {
++    let typed = validate(&document, path)?;
++    if identity(&document)? != root_iri {
+         return Err(E::shape(
+             root_iri,
+             "asserted identity disagrees with validated type/id",
+         ));
+     }
+-    Ok((parsed, typed))
++    Ok((document, typed))
+ }
+ 
+ fn rows(dataset: &RdfDataset, id: TermId) -> impl Iterator<Item = QuadIds> + '_ {
+@@ -244,7 +246,8 @@ impl<'a> Reader<'a> {
+                     language: None,
+                     direction: None,
+                 } => {
+-                    let expected = if predicate == property("ordinal") {
++                    let field = predicate.strip_prefix(VOCAB);
++                    let expected = if field == Some("ordinal") {
+                         INTEGER
+                     } else {
+                         STRING
+@@ -256,10 +259,7 @@ impl<'a> Reader<'a> {
+                             "canonical integer or string datatype required",
+                         ));
+                     }
+-                    if ["body", "key", "text", "trailing"]
+-                        .iter()
+-                        .any(|name| predicate == property(name))
+-                    {
++                    if matches!(field, Some("body" | "key" | "text" | "trailing")) {
+                         budget.text(lexical)?;
+                     }
+                 }
+@@ -283,11 +283,11 @@ impl<'a> Reader<'a> {
+     }
+ 
+     fn values(&self, id: TermId, key: &str) -> impl Iterator<Item = TermId> + '_ {
+-        let predicate = self.dataset.term_id_by_iri(&if key == "type" {
+-            TYPE.into()
++        let predicate = if key == "type" {
++            self.dataset.term_id_by_iri(TYPE)
+         } else {
+-            property(key)
+-        });
++            self.dataset.term_id_by_iri(&property(key))
++        };
+         self.rows(id)
+             .filter(move |quad| Some(quad.p) == predicate)
+             .map(|quad| quad.o)
+@@ -305,20 +305,25 @@ impl<'a> Reader<'a> {
+         let mut values = self.values(id, key);
+         match (values.next(), values.next()) {
+             (Some(value), None) => Ok(value),
+-            _ => Err(E::shape(
+-                self.iri(id)?,
+-                format!("exactly one {key} is required"),
+-            )),
++            _ => Err(Self::single_value_required(self.iri(id)?, key)),
+         }
+     }
+ 
++    fn single_value_required(subject: &str, key: &str) -> E {
++        E::shape(subject, format!("exactly one {key} is required"))
++    }
++
+     fn string(&self, id: TermId, key: &str) -> Result<&'a str, E> {
++        self.string_value(id, key, self.one(id, key)?)
++    }
++
++    fn string_value(&self, id: TermId, key: &str, value: TermId) -> Result<&'a str, E> {
+         if let TermRef::Literal {
+             lexical,
+             datatype,
+             language: None,
+             direction: None,
+-        } = self.dataset.resolve(self.one(id, key)?)
++        } = self.dataset.resolve(value)
+             && matches!(self.dataset.resolve(datatype), TermRef::Iri(value) if value == STRING)
+         {
+             Ok(lexical)
+@@ -336,7 +341,10 @@ impl<'a> Reader<'a> {
+ 
+     fn shape(&self, id: TermId) -> Result<(), E> {
+         let role = self.role(id)?;
+-        for quad in self.rows(id) {
++        let fields = role.fields();
++        let mut counts = [0; MAX_ROLE_FIELDS];
++        let mut rows = self.rows(id).peekable();
++        while let Some(quad) = rows.next() {
+             let predicate = self.iri(quad.p)?;
+             if predicate == TYPE {
+                 continue;
+@@ -347,12 +355,13 @@ impl<'a> Reader<'a> {
+                     "unknown predicate namespace",
+                 )
+             })?;
+-            if !role.fields().iter().any(|(name, _, _)| *name == key) {
++            let Some(index) = fields.iter().position(|(name, _, _)| *name == key) else {
+                 return Err(E::shape(
+                     self.iri(id)?,
+                     "unknown predicate on this role; use only the declared authoring fields",
+                 ));
+-            }
++            };
++            counts[index] += 1;
+             if [
+                 "frontmatter",
+                 "entry",
+@@ -372,15 +381,21 @@ impl<'a> Reader<'a> {
+                         format!("{key} requires an asserted structural subject"),
+                     ));
+                 }
+-            } else if key == "ordinal" {
+-                self.ordinal(id)?;
+             } else {
+-                self.string(id, key)?;
++                // For a fixed graph and subject, both the native GSPO probe
++                // and its SPOG scan yield each predicate as a contiguous run.
++                if rows.peek().is_some_and(|next| next.p == quad.p) {
++                    return Err(Self::single_value_required(self.iri(id)?, key));
++                }
++                if key == "ordinal" {
++                    self.ordinal_value(id, quad.o)?;
++                } else {
++                    self.string_value(id, key, quad.o)?;
++                }
+             }
+         }
+-        for (key, min, max) in role.fields() {
+-            let count = self.values(id, key).count();
+-            if count < *min || count > *max {
++        for (&(key, min, max), count) in fields.iter().zip(counts) {
++            if count < min || count > max {
+                 return Err(E::shape(
+                     self.iri(id)?,
+                     format!("{key} cardinality must be {min}..{max}"),
+@@ -407,12 +422,16 @@ impl<'a> Reader<'a> {
+     }
+ 
+     fn ordinal(&self, id: TermId) -> Result<usize, E> {
++        self.ordinal_value(id, self.one(id, "ordinal")?)
++    }
++
++    fn ordinal_value(&self, id: TermId, value: TermId) -> Result<usize, E> {
+         if let TermRef::Literal {
+             lexical,
+             datatype,
+             language: None,
+             direction: None,
+-        } = self.dataset.resolve(self.one(id, "ordinal")?)
++        } = self.dataset.resolve(value)
+             && matches!(self.dataset.resolve(datatype), TermRef::Iri(value) if value == INTEGER)
+             && lexical.len() <= 6
+             && let Ok(value) = lexical.parse::<usize>()
+@@ -462,7 +481,7 @@ impl<'a> Reader<'a> {
+         let trailing = self
+             .values(id, "trailing")
+             .next()
+-            .map(|_| self.string(id, "trailing").map(str::to_owned))
++            .map(|value| self.string_value(id, "trailing", value).map(str::to_owned))
+             .transpose()?;
+         Ok(Comments { leading, trailing })
+     }
+diff --git crates/raf-okf/src/document.rs crates/raf-okf/src/document.rs
+index 32afffba..f7980ccf 100644
+--- crates/raf-okf/src/document.rs
++++ crates/raf-okf/src/document.rs
+@@ -50,12 +50,13 @@ impl Document {
+     pub fn parse(text: &str) -> Result<Self, ParseError> {
+         let mut head = read_head(text)?;
+         sort_tags(&mut head.frontmatter);
+-        let body = Body::parse(text)?;
++        let origin = Origin::after_fences(&head.fences);
++        let body = Body::parse_at(&text[origin.byte..], origin)?;
+         Ok(Self {
+             frontmatter: head.frontmatter,
+             body,
+-            eol: head.eol,
+-            closing_newline: head.closing_newline,
++            eol: head.fences.eol,
++            closing_newline: head.fences.closing_newline,
+         })
+     }
+ 
+@@ -92,6 +93,29 @@ impl Document {
+         Ok(document)
+     }
+ 
++    /// Read a reconstructed head and install its parsed source positions.
++    ///
++    /// Return false if rendering changes the frontmatter or the body boundary.
++    pub(crate) fn read_rendered_head(&mut self) -> Result<bool, ParseError> {
++        let mut rendered = self.render_head();
++        let mut head = read_head(&rendered)?;
++        let origin = Origin::after_fences(&head.fences);
++        let span = self.body.span();
++        if origin.byte != span.bytes.start || origin.line != span.lines.start {
++            // An early closing fence makes part of the rendered head into
++            // Markdown. Preserve a parse error in that shifted body.
++            rendered.push_str(self.body.text());
++            Body::parse_at(&rendered[origin.byte..], origin)?;
++            return Ok(false);
++        }
++        sort_tags(&mut head.frontmatter);
++        if head.frontmatter != self.frontmatter {
++            return Ok(false);
++        }
++        self.frontmatter = head.frontmatter;
++        Ok(true)
++    }
++
+     /// Replace byte ranges of the body in one pass; see
+     /// [`Body::replace_spans`]. The spans are those the body model returned.
+     /// After a successful edit the body model is in the coordinates of the
+diff --git crates/raf-okf/src/frontmatter/reader.rs crates/raf-okf/src/frontmatter/reader.rs
+index 56f31b90..7372541c 100644
+--- crates/raf-okf/src/frontmatter/reader.rs
++++ crates/raf-okf/src/frontmatter/reader.rs
+@@ -40,10 +40,8 @@ impl LineEnding {
+ pub(crate) struct Head {
+     /// The frontmatter.
+     pub(crate) frontmatter: Frontmatter,
+-    /// The line ending of the fences and the frontmatter lines.
+-    pub(crate) eol: LineEnding,
+-    /// Whether the closing fence line ends with a line ending.
+-    pub(crate) closing_newline: bool,
++    /// The layout of the frontmatter and its fences.
++    pub(crate) fences: Fences,
+ }
+ 
+ /// One frontmatter line, without its line ending.
+@@ -174,32 +172,24 @@ pub(crate) fn locate_fences(text: &str) -> Result<Fences, ParseError> {
+ 
+ /// Read the fences and the frontmatter of `text`.
+ pub(crate) fn read_head(text: &str) -> Result<Head, ParseError> {
+-    let Fences {
+-        eol,
+-        front_start,
+-        fence_start,
+-        fence_line: number,
+-        closing_newline,
+-        body_start: _,
+-    } = locate_fences(text)?;
++    let fences = locate_fences(text)?;
+     let mut reader = Reader {
+         text,
+-        pos: front_start,
+-        end: fence_start,
++        pos: fences.front_start,
++        end: fences.fence_start,
+         number: 2,
+-        eol,
++        eol: fences.eol,
+         peeked: None,
+         pending: Vec::new(),
+     };
+-    let map = reader.top_level(number, fence_start)?;
++    let map = reader.top_level(fences.fence_line, fences.fence_start)?;
+     let trailing_comments = std::mem::take(&mut reader.pending);
+     Ok(Head {
+         frontmatter: Frontmatter {
+             map,
+             trailing_comments,
+         },
+-        eol,
+-        closing_newline,
++        fences,
+     })
+ }
+ 
+diff --git crates/raf-okf/tests/render.rs crates/raf-okf/tests/render.rs
+index 12c27cd5..43edbf46 100644
+--- crates/raf-okf/tests/render.rs
++++ crates/raf-okf/tests/render.rs
+@@ -303,6 +303,14 @@ fn dataset_refusals() {
+             )),
+             "ordinals repeat or have gaps",
+         ),
++        (
++            at("ordinal"),
++            RdfTerm::Literal(RdfLiteral::typed(
++                "00",
++                "http://www.w3.org/2001/XMLSchema#integer",
++            )),
++            "bounded canonical nonnegative ordinal required",
++        ),
+         (
+             at("style"),
+             RdfTerm::Literal(RdfLiteral::simple("unknown")),
+@@ -330,6 +338,17 @@ fn dataset_refusals() {
+             ),
+             "exactly one body is required",
+         ),
++        (
++            RdfQuad::new(
++                rows[at("ordinal")].subject.clone(),
++                format!("{NS}ordinal"),
++                RdfTerm::Literal(RdfLiteral::typed(
++                    "00",
++                    "http://www.w3.org/2001/XMLSchema#integer",
++                )),
++            ),
++            "exactly one ordinal is required",
++        ),
+         (
+             RdfQuad::new(
+                 root.clone(),
+@@ -404,15 +423,27 @@ fn dataset_refusals() {
+         .unwrap()
+         .subject
+         .clone();
++    let comment_text = rows
++        .iter()
++        .position(|q| q.subject == comment && q.predicate == format!("{NS}text"))
++        .unwrap();
+     let mut injection = rows.clone();
+-    injection
+-        .iter_mut()
+-        .find(|q| q.subject == comment && q.predicate == format!("{NS}text"))
+-        .unwrap()
+-        .object = RdfTerm::Literal(RdfLiteral::simple("injected\nkey: value"));
++    injection[comment_text].object = RdfTerm::Literal(RdfLiteral::simple("injected\nkey: value"));
+     assert!(
+-        matches!(Document::from_dataset(&dataset_rows(&injection), path), Err(raf_okf::DatasetError::Parse(error)) if error.kind() == &raf_okf::ErrorKind::NotAMapping)
++        matches!(Document::from_dataset(&dataset_rows(&injection), path), Err(raf_okf::DatasetError::Parse(error)) if error.kind() == &raf_okf::ErrorKind::NotAMapping && error.line() == 2)
+     );
++    // An embedded closing fence still reports a marker error in the shifted body.
++    injection[comment_text].object = RdfTerm::Literal(RdfLiteral::simple(
++        "# injected\nprefix: value\n---\n<!-- raf:unknown -->",
++    ));
++    let error = Document::from_dataset(&dataset_rows(&injection), path).unwrap_err();
++    assert!(
++        matches!(&error, raf_okf::DatasetError::Parse(error) if error.kind() == &raf_okf::ErrorKind::UnknownMarker && error.line() == 5),
++        "{error:?}"
++    );
++    injection[comment_text].object =
++        RdfTerm::Literal(RdfLiteral::simple("# injected\nprefix: value\n---"));
++    shape_refusal(&injection, path, "do not survive RAF rendering");
+     dataset_layer_refusal(&rows, path);
+     dataset_budget_refusals();
+     assert_eq!(Document::from_dataset(&dataset, path).unwrap(), document);
+@@ -483,11 +514,20 @@ fn dataset_round_trip(document: &Document, path: &str) {
+     let dataset = document
+         .to_dataset(path)
+         .expect("validated authoring dataset");
+-    assert_eq!(
+-        Document::from_dataset(&dataset, path).unwrap(),
+-        *document,
+-        "{path}"
+-    );
++    let decoded = Document::from_dataset(&dataset, path).unwrap();
++    assert_eq!(decoded, *document, "{path}");
++    // Dataset readers expose positions in the reconstructed Markdown.
++    assert_eq!(decoded.body().span(), document.body().span(), "{path}");
++    for entry in document.frontmatter().map().entries() {
++        let decoded = decoded.frontmatter().map().get(entry.key()).unwrap();
++        assert_eq!(decoded.line(), entry.line(), "{path}");
++        if let Some(list) = entry.value().as_list() {
++            let decoded_items = decoded.value().as_list().unwrap().items();
++            for (actual, expected) in decoded_items.iter().zip(list.items()) {
++                assert_eq!(actual.line(), expected.line(), "{path}");
++            }
++        }
++    }
+     let options = SerializeOptions {
+         selection: SerializeGraph::Dataset,
+         statement_layer: StatementLayer::Emit,
+diff --git docs/capabilities/okf-profile.md docs/capabilities/okf-profile.md
+index 73686eb3..fca172b4 100644
+--- docs/capabilities/okf-profile.md
++++ docs/capabilities/okf-profile.md
+@@ -892,6 +892,11 @@ survive. Reconstruction uses `Index::parse`, preserving its body locations.
+ `Document::to_dataset(path)` validates one of the eight RAF types and returns a
+ native PurRDF dataset. `Document::from_dataset(dataset, path)` recovers its model
+ through the existing constructors, Markdown writer, parser and profile validator.
++
++The decoder reads the rendered frontmatter and verifies that the closing fence
++places the body at its constructed byte and line. The reconstructed frontmatter
++and body model use those rendered source positions.
++
+ The model must remain equal after rendering and parsing. The body bytes, scalar
+ text and quoting style, list form, item order and multiplicity, comments and the
+ first mapping entry used by a list item survive. Mapping key order and source
+diff --git work/assessments/okf-profile-constraints.md work/assessments/okf-profile-constraints.md
+index 756d1620..d1ea6b9c 100644
+--- work/assessments/okf-profile-constraints.md
++++ work/assessments/okf-profile-constraints.md
+@@ -340,7 +340,7 @@ inputs:
+     digest: 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
+   - kind: symbol
+     name: raf_okf::dataset
+-    digest: 1b917f6878ff30dc4c0bbc4397f94f289117572c9037d13ebe2d23f5f594ad9a
++    digest: 44ed5ecc9e0310fb19d03506c04e7ef5a884b7530aab362a3f3b63efc42a8f8b
+   - kind: symbol
+     name: raf_okf::dataset_node_prefix
+     digest: f8af0ef8b56ba966d5d8be25e64e0adbf58b0a229b3046a1c00c5dac6e342fb6
+diff --git work/assessments/okf-profile-contract.md work/assessments/okf-profile-contract.md
+index 67582f6e..2ffec317 100644
+--- work/assessments/okf-profile-contract.md
++++ work/assessments/okf-profile-contract.md
+@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
+ inputs:
+   - kind: section
+     name: cap:okf-profile#contract
+-    digest: caa823574746362e7255de534390d6e33b9d333632ddad0b66c37b73473c8bd4
++    digest: eca2de570314174e3bd3340b860ef298de0b67252c9da29753593d3b371bb7eb
+   - kind: symbol
+     name: raf_okf::Actor
+     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
+@@ -184,7 +184,7 @@ inputs:
+     digest: a95d6a117b904aa4780c69a620325c5f2f63513dbf7628641dfb19d13ba9ddd6
+   - kind: symbol
+     name: raf_okf::dataset
+-    digest: 1b917f6878ff30dc4c0bbc4397f94f289117572c9037d13ebe2d23f5f594ad9a
++    digest: 44ed5ecc9e0310fb19d03506c04e7ef5a884b7530aab362a3f3b63efc42a8f8b
+   - kind: symbol
+     name: raf_okf::dataset_node_prefix
+     digest: f8af0ef8b56ba966d5d8be25e64e0adbf58b0a229b3046a1c00c5dac6e342fb6
+diff --git work/assessments/okf-profile-examples.md work/assessments/okf-profile-examples.md
+index 9766dba4..61b295c8 100644
+--- work/assessments/okf-profile-examples.md
++++ work/assessments/okf-profile-examples.md
+@@ -25,7 +25,7 @@ inputs:
+     digest: 81fbfbc362952f0b3e7e93bc94c77581a42f12c93671d99e78af2121ec42cb58
+   - kind: symbol
+     name: raf_okf::dataset
+-    digest: 1b917f6878ff30dc4c0bbc4397f94f289117572c9037d13ebe2d23f5f594ad9a
++    digest: 44ed5ecc9e0310fb19d03506c04e7ef5a884b7530aab362a3f3b63efc42a8f8b
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/okf-profile-explanation.md work/assessments/okf-profile-explanation.md
+index e9c2bdf5..6f07eb67 100644
+--- work/assessments/okf-profile-explanation.md
++++ work/assessments/okf-profile-explanation.md
+@@ -340,7 +340,7 @@ inputs:
+     digest: 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
+   - kind: symbol
+     name: raf_okf::dataset
+-    digest: 1b917f6878ff30dc4c0bbc4397f94f289117572c9037d13ebe2d23f5f594ad9a
++    digest: 44ed5ecc9e0310fb19d03506c04e7ef5a884b7530aab362a3f3b63efc42a8f8b
+   - kind: symbol
+     name: raf_okf::dataset_node_prefix
+     digest: f8af0ef8b56ba966d5d8be25e64e0adbf58b0a229b3046a1c00c5dac6e342fb6
+diff --git work/assessments/okf-profile-purpose.md work/assessments/okf-profile-purpose.md
+index ab338ebd..74b3312c 100644
+--- work/assessments/okf-profile-purpose.md
++++ work/assessments/okf-profile-purpose.md
+@@ -340,7 +340,7 @@ inputs:
+     digest: 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
+   - kind: symbol
+     name: raf_okf::dataset
+-    digest: 1b917f6878ff30dc4c0bbc4397f94f289117572c9037d13ebe2d23f5f594ad9a
++    digest: 44ed5ecc9e0310fb19d03506c04e7ef5a884b7530aab362a3f3b63efc42a8f8b
+   - kind: symbol
+     name: raf_okf::dataset_node_prefix
+     digest: f8af0ef8b56ba966d5d8be25e64e0adbf58b0a229b3046a1c00c5dac6e342fb6

@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "issue": 327,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "anon-read",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/327-census-compare-named-capn-proto-rpc",
+  "branch": "paudley/327-census-compare-named-capn-proto-rpc",
+  "slug": "census-compare-named-capn-proto-rpc",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/327-census-compare-named-capn-proto-rpc/.stage/census-compare-named-capn-proto-rpc",
+  "stage_tracked": true,
+  "base": "refs/remotes/origin/main",
+  "base_oid": "c7174eca7cc631715a57f4a2fc4b59d3a6fd4196",
+  "reused": false,
+  "adr_repo": false,
+  "created": [
+    "worktree:/home/paudley/Active/rust-agentic-foundations/.worktrees/327-census-compare-named-capn-proto-rpc",
+    "branch:paudley/327-census-compare-named-capn-proto-rpc",
+    "ignored:515 files (515 reflinked, 0 written)",
+    "rust-caches:reflinked /home/paudley/Active/rust-agentic-foundations/.worktrees/328-workplan-preserve-headroom-for-the-full caches into /home/paudley/Active/rust-agentic-foundations/.worktrees/327-census-compare-named-capn-proto-rpc plus 0 dependency units from 0 other checkouts in 7.9s; 1351 unchanged files keep their built mtimes; 39 other files take the seed time and rebuild; 6 units naming another checkout rebuild",
+    "stage:/home/paudley/Active/rust-agentic-foundations/.worktrees/327-census-compare-named-capn-proto-rpc/.stage/census-compare-named-capn-proto-rpc",
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/327-census-compare-named-capn-proto-rpc/.stage/census-compare-named-capn-proto-rpc/issue.md"
+  ],
+  "warnings": [],
+  "timestamp": "2026-11-20T06:58:59-0600",
+  "seed_error": ""
+}

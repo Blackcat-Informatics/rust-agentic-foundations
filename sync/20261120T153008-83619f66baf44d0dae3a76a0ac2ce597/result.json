@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/327-census-compare-named-capn-proto-rpc",
+  "branch": "paudley/327-census-compare-named-capn-proto-rpc",
+  "base_ref": "refs/remotes/origin/main",
+  "head": "d6188eec9cc40236930d8237f15a1b1539617042",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/327-census-compare-named-capn-proto-rpc/.stage/census-compare-named-capn-proto-rpc/sync/20261120T153008-83619f66baf44d0dae3a76a0ac2ce597",
+  "conflicts": [],
+  "status": "completed",
+  "base": "64dd933de14007c98dd12db38b37b8e25a271796",
+  "merge_bases": [
+    "c7174eca7cc631715a57f4a2fc4b59d3a6fd4196"
+  ],
+  "merge_index": "7e02fe97df32d5b037ff59834bff72665d43ecc8d5b36bb561201f58ff559c38",
+  "candidate_tree": "467f19be1879b5766fa38f0de0f29845088525e8",
+  "candidate_patch": "candidate-f4aadeae148d49beabeda4e4861d450f.patch",
+  "stdout_log": "commit-f4aadeae148d49beabeda4e4861d450f.stdout.log",
+  "stderr_log": "commit-f4aadeae148d49beabeda4e4861d450f.stderr.log",
+  "validation_records": [],
+  "commit_duration_seconds": 1398.9278807720111,
+  "commit": "869256dbabf06bbad279d5aaf20330196d0f9aa4",
+  "tree": "467f19be1879b5766fa38f0de0f29845088525e8",
+  "exit_code": 0
+}

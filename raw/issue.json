@@ -1,0 +1,27 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Capability\n\nCompare declared nongeneric struct endpoints of selected Cap\u2019n Proto RPC\nmethods. An interface may use named endpoints, inline parameter or result\nlists, or both, and several methods may share the same named struct.\n\n## Acceptance\n\n- Prove each named endpoint is a declared nongroup struct with reciprocal\n  lexical ownership and nongeneric ancestry. Refuse corrupt scope and generic\n  ancestry. Keep the existing single-owner rules for detached inline wrappers.\n- Report a changed endpoint ID or a switch between named and inline forms at\n  its method role. Project each retained named layout once through the usual\n  type closure, even when it serves several roles or is explicitly selected.\n- Use ordinary struct evolution for a named input. Accept a new optional field\n  with its implicit compiled default. Keep semantic default and presence\n  findings, and retain the explicit-default rule for appended inline inputs.\n- Compare controlled compiler requests with shared and mixed endpoint forms.\n  Verify the compatible named addition, one layout finding for a shared type,\n  changed endpoint identity and malformed scope refusals. Persisted data still\n  follows its existing declared struct and enum closure.\n\nParent #214 retains interface inheritance, generic methods and endpoints,\nmigration output admission, declaration payload contracts and the remaining\napplication and compiler profiles.\n\n[Cap\u2019n Proto evolution rules](https://capnproto.org/language.html#evolving-your-protocol)\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-11-20T12:26:30Z",
+  "labels": [
+    {
+      "id": "LA_kwDOVFffUs8AAAADEDcsCA",
+      "name": "raf-census",
+      "description": "",
+      "color": "ededed"
+    }
+  ],
+  "milestone": null,
+  "number": 327,
+  "state": "OPEN",
+  "title": "census: compare named Cap\u2019n Proto RPC endpoints",
+  "updatedAt": "2026-11-20T12:26:30Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/327"
+}

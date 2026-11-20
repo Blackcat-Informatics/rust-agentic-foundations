@@ -1,0 +1,16 @@
+{
+  "github:comment:IC_kwDOVFffUs8AAAABo60pzw": {
+    "resolution": "acknowledged",
+    "reason": "The latest automated review is rate limited. The named RPC delta is byte-identical after synchronization, including all fixtures. The prior substantive review remains applicable, and the synchronized tree passed the signed hook.",
+    "commit": null,
+    "reply_url": null,
+    "revision": {
+      "updated_at": "2026-11-20T15:54:30Z",
+      "state": null,
+      "commit": null,
+      "path": null,
+      "line": null,
+      "body_sha256": "d69b5977f4905f2c61974e9ab59f2d9764b8ea15d3816abd730159766e1b7dc1"
+    }
+  }
+}
