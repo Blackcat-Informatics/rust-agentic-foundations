@@ -13,8 +13,8 @@ use raf_source::RelPath;
 use super::{
     Error, TypeId,
     descriptor::{
-        Declaration, DeclarationBody, DeclarationKind, Endpoint, Interface, Method, Node, Schema,
-        Struct,
+        AnnotationTarget, Declaration, DeclarationBody, DeclarationKind, Endpoint, Interface,
+        Method, Node, Schema, Struct,
     },
 };
 
@@ -72,6 +72,13 @@ pub enum ChangeKind {
     },
     /// A retained constant has a different declared type.
     ChangedConstantType,
+    /// A retained annotation has a different declared type.
+    ChangedAnnotationType,
+    /// An annotation can no longer apply to a former target kind.
+    RemovedAnnotationTarget {
+        /// The kind no longer accepted by the annotation.
+        target: AnnotationTarget,
+    },
     /// A type changed between a struct, an enum and an RPC interface.
     ChangedKind,
     /// A direct superclass was removed from an RPC interface.
@@ -130,6 +137,10 @@ impl fmt::Display for ChangeKind {
                 return write!(f, "declaration kind changed from {previous} to {current}");
             }
             Self::ChangedConstantType => "constant declared type changed",
+            Self::ChangedAnnotationType => "annotation declared type changed",
+            Self::RemovedAnnotationTarget { target } => {
+                return write!(f, "annotation target {target} removed");
+            }
             Self::ChangedKind => "schema kind changed",
             Self::RemovedSuperclass { superclass } => {
                 return write!(f, "direct superclass {superclass} removed");
@@ -246,11 +257,32 @@ fn declaration_changes(
         let current = after.body.kind();
         if previous != current {
             emit(ChangeKind::ChangedDeclarationKind { previous, current })?;
-        } else if let (DeclarationBody::Constant(before), DeclarationBody::Constant(after)) =
-            (&before.body, &after.body)
-            && before != after
-        {
-            emit(ChangeKind::ChangedConstantType)?;
+            continue;
+        }
+        match (&before.body, &after.body) {
+            (DeclarationBody::Constant(before), DeclarationBody::Constant(after))
+                if before != after =>
+            {
+                emit(ChangeKind::ChangedConstantType)?;
+            }
+            (
+                DeclarationBody::Annotation {
+                    declared_type: before_type,
+                    targets: before_targets,
+                },
+                DeclarationBody::Annotation {
+                    declared_type: after_type,
+                    targets: after_targets,
+                },
+            ) => {
+                if before_type != after_type {
+                    emit(ChangeKind::ChangedAnnotationType)?;
+                }
+                for target in before_targets.removed_in(*after_targets) {
+                    emit(ChangeKind::RemovedAnnotationTarget { target })?;
+                }
+            }
+            _ => {}
         }
     }
     Ok(())

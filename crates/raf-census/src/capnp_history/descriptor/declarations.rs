@@ -8,7 +8,7 @@ use std::{
     fmt,
 };
 
-use capnp::schema_capnp::node;
+use capnp::schema_capnp::{node, type_};
 
 use super::{
     Declaration, DeclarationBody, Error, MAX_DEPTH, Nodes, Type, TypeId, layout, member_name,
@@ -38,6 +38,116 @@ impl fmt::Display for DeclarationKind {
             Self::Constant => "constant",
             Self::Annotation => "annotation",
         })
+    }
+}
+
+/// A compiler-defined declaration or member that can carry an annotation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AnnotationTarget {
+    /// A schema file.
+    File,
+    /// A constant declaration.
+    Const,
+    /// An enum declaration.
+    Enum,
+    /// An enumerant.
+    Enumerant,
+    /// A struct declaration.
+    Struct,
+    /// A struct field.
+    Field,
+    /// A named union.
+    Union,
+    /// A group.
+    Group,
+    /// An interface declaration.
+    Interface,
+    /// An interface method.
+    Method,
+    /// An RPC parameter.
+    Param,
+    /// An annotation declaration.
+    Annotation,
+}
+
+impl AnnotationTarget {
+    const ALL: [Self; 12] = [
+        Self::File,
+        Self::Const,
+        Self::Enum,
+        Self::Enumerant,
+        Self::Struct,
+        Self::Field,
+        Self::Union,
+        Self::Group,
+        Self::Interface,
+        Self::Method,
+        Self::Param,
+        Self::Annotation,
+    ];
+
+    const fn bit(self) -> u16 {
+        1 << self as u16
+    }
+
+    fn enabled(self, annotation: node::annotation::Reader<'_>) -> bool {
+        match self {
+            Self::File => annotation.get_targets_file(),
+            Self::Const => annotation.get_targets_const(),
+            Self::Enum => annotation.get_targets_enum(),
+            Self::Enumerant => annotation.get_targets_enumerant(),
+            Self::Struct => annotation.get_targets_struct(),
+            Self::Field => annotation.get_targets_field(),
+            Self::Union => annotation.get_targets_union(),
+            Self::Group => annotation.get_targets_group(),
+            Self::Interface => annotation.get_targets_interface(),
+            Self::Method => annotation.get_targets_method(),
+            Self::Param => annotation.get_targets_param(),
+            Self::Annotation => annotation.get_targets_annotation(),
+        }
+    }
+}
+
+impl fmt::Display for AnnotationTarget {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::File => "file",
+            Self::Const => "const",
+            Self::Enum => "enum",
+            Self::Enumerant => "enumerant",
+            Self::Struct => "struct",
+            Self::Field => "field",
+            Self::Union => "union",
+            Self::Group => "group",
+            Self::Interface => "interface",
+            Self::Method => "method",
+            Self::Param => "param",
+            Self::Annotation => "annotation",
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(in crate::capnp_history) struct AnnotationTargets(u16);
+
+impl AnnotationTargets {
+    fn read(annotation: node::annotation::Reader<'_>) -> Self {
+        Self(
+            AnnotationTarget::ALL
+                .into_iter()
+                .filter(|target| target.enabled(annotation))
+                .fold(0, |mask, target| mask | target.bit()),
+        )
+    }
+
+    pub(in crate::capnp_history) fn removed_in(
+        self,
+        current: Self,
+    ) -> impl Iterator<Item = AnnotationTarget> {
+        let removed = self.0 & !current.0;
+        AnnotationTarget::ALL
+            .into_iter()
+            .filter(move |target| removed & target.bit() != 0)
     }
 }
 
@@ -121,21 +231,23 @@ fn admit(nodes: &Nodes<'_>, id: TypeId, name: &str, scope: TypeId) -> Result<Dec
         node::Struct(data) if !data.get_is_group() => DeclarationBody::Struct,
         node::Enum(_) => DeclarationBody::Enum,
         node::Interface(_) => DeclarationBody::Interface,
-        node::Const(constant) => {
-            if !constant.has_type() {
-                return Err(layout(format!(
-                    "constant declaration {name} ({id}) has no type"
-                )));
-            }
-            // Type references validate nominal identity without selecting their layouts.
-            DeclarationBody::Constant(Type::read(
-                constant.get_type()?,
+        node::Const(constant) => DeclarationBody::Constant(declared_type(
+            constant.has_type().then(|| constant.get_type()),
+            nodes,
+            id,
+            name,
+            DeclarationKind::Constant,
+        )?),
+        node::Annotation(annotation) => DeclarationBody::Annotation {
+            declared_type: declared_type(
+                annotation.has_type().then(|| annotation.get_type()),
                 nodes,
                 id,
-                &mut BTreeSet::new(),
-            )?)
-        }
-        node::Annotation(_) => DeclarationBody::Annotation,
+                name,
+                DeclarationKind::Annotation,
+            )?,
+            targets: AnnotationTargets::read(annotation),
+        },
         _ => {
             return Err(layout(format!(
                 "scope {scope} must list a written declaration at {name} ({id})"
@@ -147,6 +259,19 @@ fn admit(nodes: &Nodes<'_>, id: TypeId, name: &str, scope: TypeId) -> Result<Dec
         scope,
         body,
     })
+}
+
+fn declared_type(
+    reader: Option<capnp::Result<type_::Reader<'_>>>,
+    nodes: &Nodes<'_>,
+    id: TypeId,
+    name: &str,
+    kind: DeclarationKind,
+) -> Result<Type, Error> {
+    let reader =
+        reader.ok_or_else(|| layout(format!("{kind} declaration {name} ({id}) has no type")))?;
+    // Type references validate nominal identity without selecting their layouts.
+    Type::read(reader?, nodes, id, &mut BTreeSet::new())
 }
 
 fn verify_other_nodes(

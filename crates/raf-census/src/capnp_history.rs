@@ -19,7 +19,7 @@ use raf_source::{LoadError, LoadOptions, PinnedGitTree, RelPath, Tree, TreeError
 
 pub use capture::{CaptureError, CaptureFiles, CaptureKey, CaptureVerification, InvalidCaptureKey};
 pub use compare::{Change, ChangeKind};
-pub use descriptor::DeclarationKind;
+pub use descriptor::{AnnotationTarget, DeclarationKind};
 
 /// Schema node ID in the compiler's 64-bit identity space.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
