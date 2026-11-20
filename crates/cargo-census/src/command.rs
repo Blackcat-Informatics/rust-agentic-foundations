@@ -4,11 +4,11 @@
 //! Host input adapter; Census policy lives in the repository target and library.
 
 use crate::cli::{
-    Args, Command, HistoryArgs, MigrationArgs, QueryTarget, RdfFormat, ReaderEvidenceArgs,
-    ReferenceArgs, RegistryArgs,
+    Args, Command, HistoryArgs, MigrationArgs, PersistenceArgs, QueryTarget, RdfFormat,
+    ReaderEvidenceArgs, ReferenceArgs, RegistryArgs, SchemaArgs,
 };
 use raf_census::capnp_history::{
-    self, CaptureFiles, CaptureVerification, HistoryOptions, Snapshot, reader_evidence,
+    self, CaptureFiles, CaptureVerification, HistoryOptions, Snapshot, persistence, reader_evidence,
 };
 use raf_census::{
     ArchiveCache, Census, CensusOptions, Error, ExternalReference, Gate, GateReport, LEDGER_FILE,
@@ -16,7 +16,7 @@ use raf_census::{
     migrate_index, migrate_legacy,
 };
 use raf_source::{DiskTree, RelPath, Tree as _};
-use std::{io::Write, path::Path};
+use std::{fmt::Display, io::Write, path::Path};
 
 pub(crate) fn run(
     args: &Args,
@@ -32,8 +32,8 @@ pub(crate) fn run(
         )
         .into());
     }
-    if let Command::CapnpReaderEvidence(evidence) = &args.command {
-        return verify_reader_evidence(&args.workspace, evidence, output);
+    if let Some(result) = pinned_command(args, output) {
+        return result;
     }
     if let Some(directory) = &args.reference.unpinned {
         warn_unpinned_reference(directory, diagnostics)?;
@@ -44,8 +44,10 @@ pub(crate) fn run(
         None => (gate, false),
     };
     match &args.command {
-        Command::CapnpReaderEvidence(_) => {
-            unreachable!("INVARIANT: reader evidence dispatches before Gate registration")
+        Command::CapnpReaderEvidence(_) | Command::CapnpPersistence(_) => {
+            unreachable!(
+                "INVARIANT: Cap'n Proto policy and evidence dispatch before Gate registration"
+            )
         }
         Command::CapnpHistory(history) => compare_schema_history(&args.workspace, history, output),
         Command::Embedded { command } => {
@@ -133,6 +135,18 @@ fn warn_unpinned_reference(directory: &Path, diagnostics: &mut dyn Write) -> Res
     })
 }
 
+fn pinned_command(args: &Args, output: &mut dyn Write) -> Option<Result<u8, crate::error::Error>> {
+    match &args.command {
+        Command::CapnpReaderEvidence(evidence) => {
+            Some(verify_reader_evidence(&args.workspace, evidence, output))
+        }
+        Command::CapnpPersistence(persistence) => {
+            Some(compare_persistence(&args.workspace, persistence, output))
+        }
+        _ => None,
+    }
+}
+
 fn verify_reader_evidence(
     root: &Path,
     args: &ReaderEvidenceArgs,
@@ -169,6 +183,49 @@ fn compare_schema_history(
     args: &HistoryArgs,
     output: &mut dyn Write,
 ) -> Result<u8, crate::error::Error> {
+    let findings = with_schema_inputs(&args.schema, |base, current, capture| {
+        Ok(capnp_history::check(
+            root,
+            base,
+            current,
+            HistoryOptions {
+                roots: &args.types,
+                required_annotation: args.schema.required_annotation,
+                capture,
+            },
+        )?)
+    })?;
+    write_findings(&findings, output)
+}
+
+fn compare_persistence(
+    root: &Path,
+    args: &PersistenceArgs,
+    output: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
+    let findings = with_schema_inputs(&args.schema, |base, current, capture| {
+        Ok(persistence::check(
+            root,
+            base,
+            current,
+            persistence::Options {
+                policy: &args.policy,
+                required_annotation: args.schema.required_annotation,
+                capture,
+            },
+        )?)
+    })?;
+    write_findings(&findings, output)
+}
+
+fn with_schema_inputs<T>(
+    args: &SchemaArgs,
+    analyze: impl FnOnce(
+        Snapshot<'_>,
+        Snapshot<'_>,
+        Option<CaptureVerification<'_>>,
+    ) -> Result<T, crate::error::Error>,
+) -> Result<T, crate::error::Error> {
     let base_descriptor =
         RelPath::new(&args.base_descriptor).map_err(|error| Error::Options(error.to_string()))?;
     let current_descriptor = RelPath::new(&args.current_descriptor)
@@ -200,8 +257,7 @@ fn compare_schema_history(
         )
         .into()),
     };
-    let findings = capnp_history::check(
-        root,
+    analyze(
         Snapshot {
             commit: &args.base,
             descriptor: &base_descriptor,
@@ -210,13 +266,15 @@ fn compare_schema_history(
             commit: &args.current,
             descriptor: &current_descriptor,
         },
-        HistoryOptions {
-            roots: &args.types,
-            required_annotation: args.required_annotation,
-            capture,
-        },
-    )?;
-    for finding in &findings {
+        capture,
+    )
+}
+
+fn write_findings(
+    findings: &[impl Display],
+    output: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
+    for finding in findings {
         writeln!(output, "{finding}").map_err(stdout)?;
     }
     Ok(u8::from(!findings.is_empty()))

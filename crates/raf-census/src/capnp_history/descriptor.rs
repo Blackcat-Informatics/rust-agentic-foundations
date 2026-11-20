@@ -78,11 +78,21 @@ pub(super) struct Nodes<'a>(BTreeMap<TypeId, node::Reader<'a>>);
 
 type DeclarationScopes = BTreeMap<TypeId, Vec<TypeId>>;
 
+#[derive(Clone, Copy)]
+pub(super) enum Roots<'a> {
+    /// Every selected root must exist in the base.
+    Require,
+    /// A missing selected root is a history finding in the current revision.
+    AllowMissing,
+    /// Admit all pinned declarations and project only the retained roots.
+    Declared(&'a BTreeSet<TypeId>),
+}
+
 pub(super) fn read(
     bytes: &[u8],
     roots: &BTreeSet<TypeId>,
     required_annotation: Option<TypeId>,
-    require_roots: bool,
+    mode: Roots<'_>,
     capture: Option<(&Capture, &dyn Tree)>,
 ) -> Result<Schema, Error> {
     let mut limits = ReaderOptions::new();
@@ -115,7 +125,21 @@ pub(super) fn read(
     if let Some(id) = required_annotation {
         nodes.validate_required_annotation(id, &mut scopes)?;
     }
-    nodes.project(roots, required_annotation, require_roots, &mut scopes)
+    if let Roots::Declared(declared) = mode {
+        for &id in declared {
+            nodes.validate_persisted_root(id, &mut scopes)?;
+        }
+    }
+    let projected = nodes.project(
+        roots,
+        required_annotation,
+        !matches!(mode, Roots::AllowMissing),
+        &mut scopes,
+    )?;
+    if let Roots::Declared(declared) = mode {
+        nodes.validate_other_layouts(declared, &projected, required_annotation, &mut scopes)?;
+    }
+    Ok(projected)
 }
 
 pub(super) fn layout(message: impl Into<String>) -> Error {
@@ -159,6 +183,24 @@ impl<'a> Nodes<'a> {
             .get(&id)
             .copied()
             .ok_or_else(|| layout(format!("missing schema node {id}")))
+    }
+
+    fn validate_persisted_root(
+        &self,
+        id: TypeId,
+        scopes: &mut DeclarationScopes,
+    ) -> Result<(), Error> {
+        let datatype = match self.node(id)?.which()? {
+            node::Struct(data) => !data.get_is_group(),
+            node::Enum(_) => true,
+            _ => false,
+        };
+        if !datatype || !self.is_declared(id, scopes)? {
+            return Err(layout(format!(
+                "persisted root {id} must be a declared schema struct or enum"
+            )));
+        }
+        Ok(())
     }
 
     fn is_declared(&self, id: TypeId, scopes: &mut DeclarationScopes) -> Result<bool, Error> {
@@ -257,32 +299,59 @@ impl<'a> Nodes<'a> {
             if nodes.contains_key(&id) {
                 continue;
             }
-            let data = match self.node(id)?.which()? {
-                node::Struct(data) if !data.get_is_group() => {
-                    let structure = self.structure(id, data, &mut needed, required_annotation)?;
-                    if required_annotation.is_some()
-                        && structure.slots.values().any(|slot| slot.required)
-                        && !self.is_declared(id, scopes)?
-                    {
-                        return Err(layout(format!(
-                            "required fields must belong to a declared struct; check node {id} and its enclosing scopes"
-                        )));
-                    }
-                    Node::Struct(structure)
-                }
-                node::Enum(data) => Node::Enum(enumerants(id, data)?),
-                _ => {
-                    return Err(layout(format!(
-                        "selected node {id} must be a data struct or enum"
-                    )));
-                }
-            };
-            nodes.insert(id, data);
+            nodes.insert(
+                id,
+                self.project_node(id, &mut needed, required_annotation, scopes)?,
+            );
         }
         Ok(Schema {
             roots: present,
             nodes,
         })
+    }
+
+    fn validate_other_layouts(
+        &self,
+        declared: &BTreeSet<TypeId>,
+        retained: &Schema,
+        required_annotation: Option<TypeId>,
+        scopes: &mut DeclarationScopes,
+    ) -> Result<(), Error> {
+        let mut needed = declared.clone();
+        let mut checked = BTreeSet::new();
+        while let Some(id) = needed.pop_first() {
+            if !retained.nodes.contains_key(&id) && checked.insert(id) {
+                self.project_node(id, &mut needed, required_annotation, scopes)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn project_node(
+        &self,
+        id: TypeId,
+        needed: &mut BTreeSet<TypeId>,
+        required_annotation: Option<TypeId>,
+        scopes: &mut DeclarationScopes,
+    ) -> Result<Node, Error> {
+        match self.node(id)?.which()? {
+            node::Struct(data) if !data.get_is_group() => {
+                let structure = self.structure(id, data, needed, required_annotation)?;
+                if required_annotation.is_some()
+                    && structure.slots.values().any(|slot| slot.required)
+                    && !self.is_declared(id, scopes)?
+                {
+                    return Err(layout(format!(
+                        "required fields must belong to a declared struct; check node {id} and its enclosing scopes"
+                    )));
+                }
+                Ok(Node::Struct(structure))
+            }
+            node::Enum(data) => Ok(Node::Enum(enumerants(id, data)?)),
+            _ => Err(layout(format!(
+                "selected node {id} must be a data struct or enum"
+            ))),
+        }
     }
 
     fn structure(

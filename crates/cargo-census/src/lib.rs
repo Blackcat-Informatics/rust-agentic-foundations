@@ -22,8 +22,9 @@ use std::{ffi::OsString, io::Write, process::ExitCode};
 /// and ledger extension validators on the Gate for the selected workspace.
 /// Configuration runs only after argument validation. In this mode,
 /// `baseline` validates registrations before rendering the default Census
-/// baseline. The reader-evidence command uses pinned Git independently of
-/// Gate registration. Use `None::<fn(Gate) -> Gate>` for the stock command line.
+/// baseline. The Cap'n Proto persistence and reader-evidence commands use
+/// pinned Git independently of Gate registration. Use `None::<fn(Gate) -> Gate>`
+/// for the stock command line.
 pub fn run(
     args: impl IntoIterator<Item = OsString>,
     configure: Option<impl FnOnce(Gate) -> Gate>,

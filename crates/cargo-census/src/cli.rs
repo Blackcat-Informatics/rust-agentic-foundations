@@ -31,6 +31,8 @@ pub(crate) struct Args {
 pub(crate) enum Command {
     /// Compare committed Cap'n Proto schema descriptors under the strict history policy.
     CapnpHistory(Box<HistoryArgs>),
+    /// Check strict Cap'n Proto history for committed persisted Rust declarations.
+    CapnpPersistence(Box<PersistenceArgs>),
     /// Verify signed reader acceptance for exact committed Cap'n Proto payloads.
     CapnpReaderEvidence(Box<ReaderEvidenceArgs>),
     /// Inspect verified embedded source regions without running consumer code.
@@ -106,6 +108,24 @@ pub(crate) enum Command {
 
 #[derive(ClapArgs)]
 pub(crate) struct HistoryArgs {
+    #[command(flatten)]
+    pub(crate) schema: SchemaArgs,
+    /// Selected struct or enum type ID. Repeat to select additional types.
+    #[arg(long = "type", required = true)]
+    pub(crate) types: Vec<raf_census::capnp_history::TypeId>,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct PersistenceArgs {
+    #[command(flatten)]
+    pub(crate) schema: SchemaArgs,
+    /// Canonical committed policy path shared by both revisions.
+    #[arg(long)]
+    pub(crate) policy: String,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct SchemaArgs {
     /// Full base commit ID.
     #[arg(long)]
     pub(crate) base: String,
@@ -118,9 +138,6 @@ pub(crate) struct HistoryArgs {
     /// Repository-relative path to the current compiler descriptor.
     #[arg(long)]
     pub(crate) current_descriptor: String,
-    /// Selected struct or enum type ID. Repeat to select additional types.
-    #[arg(long = "type", required = true)]
-    pub(crate) types: Vec<raf_census::capnp_history::TypeId>,
     /// Void field annotation that declares required pointer storage.
     #[arg(long)]
     pub(crate) required_annotation: Option<raf_census::capnp_history::TypeId>,
