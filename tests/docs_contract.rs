@@ -1115,6 +1115,201 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
     Ok(())
 }
 
+#[test]
+fn repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers()
+-> Result<(), Box<dyn Error>> {
+    const STATEMENT: &str = "Recorded café text.  \n";
+
+    let mut files = files();
+    let (_, capability) = files.iter_mut().find(|(path, _)| *path == DEMO).unwrap();
+    *capability = capability
+        .replace(
+            "type: Capability\nid: cap:demo\n",
+            "id: cap:demo\n\n# The written order is retained in the source coordinates.\ntype: Capability\n",
+        )
+        .replace(
+            "## Contract\n\n",
+            &format!(
+                "## Contract\n\n{STATEMENT}<!-- raf:claim evidence=ledger-sync-bound,missing-claim -->\n\n{STATEMENT}<!-- raf:claim evidence=ledger-sync-bound -->\n\n"
+            ),
+        );
+    let original = Document::parse(capability)?;
+    assert_ne!(original.render(), *capability);
+    let source_lines: Vec<_> = capability
+        .lines()
+        .enumerate()
+        .filter_map(|(line, text)| text.starts_with("<!-- raf:claim").then_some(line + 1))
+        .collect();
+    assert_eq!(source_lines.len(), 2);
+    files.push((
+        "work/evidence/ledger-sync-bound.md",
+        include_str!("../crates/raf-okf/tests/fixtures/evidence.md").to_owned(),
+    ));
+    let workspace = checkouts::source();
+    let tree = MemoryTree::try_from_iter(files.iter().map(|(path, text)| (*path, text.as_str())))?;
+    let plan = Workplan::load(&tree, &workspace);
+    let dataset = plan.authoring_dataset()?;
+    let restored = authoring::repository_from_dataset(&dataset)?;
+    let document = &restored.documents[&RelPath::new(DEMO)?];
+    assert_eq!(document, &original);
+    assert_eq!(
+        document
+            .body()
+            .claims()
+            .iter()
+            .map(raf_okf::Claim::line)
+            .collect::<Vec<_>>(),
+        source_lines,
+    );
+    assert!(restored.index.is_some());
+    let selected = plan.evidence_claims_dataset("ledger-sync-bound")?;
+    assert_repository_claim_projection(&dataset, &selected, &source_lines, STATEMENT)?;
+    assert_repository_claim_refusals(&dataset)
+}
+
+fn assert_repository_claim_projection(
+    dataset: &purrdf_core::RdfDataset,
+    selected: &purrdf_core::RdfDataset,
+    source_lines: &[usize],
+    statement: &str,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfAnnotation, RdfLiteral, RdfQuad, RdfTerm};
+    use raf_workplan::evidence::CLAIMS_VOCAB;
+
+    let reifiers: Vec<_> = dataset.owned_reifiers().collect();
+    assert_eq!(reifiers.len(), 2);
+    assert_ne!(reifiers[0].reifier, reifiers[1].reifier);
+    assert_eq!(reifiers[0].statement, reifiers[1].statement);
+    let selected: Vec<_> = selected.owned_reifiers().collect();
+    assert_eq!(selected.len(), reifiers.len());
+    let capability = DocType::Capability.document_iri("cap:demo")?;
+    let local = capability.strip_prefix(raf_okf::DOCUMENT_IRI_BASE).unwrap();
+    let inventory = RdfTerm::iri(format!(
+        "https://blackcatinformatics.ca/raf/workplan/repository/1/document/{local}"
+    ));
+    let supported_by = format!("{CLAIMS_VOCAB}supportedBy");
+    let evidence = RdfTerm::iri(DocType::Evidence.document_iri("evidence:ledger-sync-bound")?);
+    let absent = RdfTerm::iri(DocType::Evidence.document_iri("evidence:missing-claim")?);
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    let annotations: Vec<_> = dataset.owned_annotations().collect();
+    assert!(rows.iter().all(|row| row.subject != absent));
+    for (position, line) in source_lines.iter().enumerate() {
+        let suffix = format!("/{line}");
+        let reifier = reifiers
+            .iter()
+            .find(|row| matches!(&row.reifier, RdfTerm::Iri(iri) if iri.ends_with(&suffix)))
+            .unwrap();
+        assert!(selected.contains(reifier));
+        let quoted = &reifier.statement;
+        assert_eq!(quoted.subject, RdfTerm::iri(&capability));
+        assert_eq!(quoted.predicate, format!("{CLAIMS_VOCAB}claimedStatement"));
+        assert_eq!(
+            quoted.object,
+            RdfTerm::Literal(RdfLiteral::simple(statement))
+        );
+        assert!(!rows.contains(&RdfQuad::new(
+            quoted.subject.clone(),
+            &quoted.predicate,
+            quoted.object.clone()
+        )));
+        assert!(rows.contains(&RdfQuad::new(
+            inventory.clone(),
+            format!("{CLAIMS_VOCAB}occurrence"),
+            reifier.reifier.clone()
+        )));
+        for (property, object) in [
+            ("path", RdfLiteral::simple(DEMO)),
+            (
+                "line",
+                RdfLiteral::typed(line.to_string(), "http://www.w3.org/2001/XMLSchema#integer"),
+            ),
+            ("section", RdfLiteral::simple("contract")),
+        ] {
+            assert!(annotations.contains(&RdfAnnotation::new(
+                reifier.reifier.clone(),
+                format!("{CLAIMS_VOCAB}{property}"),
+                RdfTerm::Literal(object)
+            )));
+        }
+        let support: Vec<_> = annotations
+            .iter()
+            .filter(|row| row.reifier == reifier.reifier && row.predicate == supported_by)
+            .map(|row| &row.object)
+            .collect();
+        assert_eq!(support.len(), if position == 0 { 2 } else { 1 });
+        assert!(support.contains(&&evidence));
+        assert_eq!(support.contains(&&absent), position == 0);
+    }
+    Ok(())
+}
+
+fn assert_repository_claim_refusals(
+    dataset: &purrdf_core::RdfDataset,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfDatasetBuilder, RdfLiteral, RdfQuad, RdfTerm};
+
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    let reifiers: Vec<_> = dataset.owned_reifiers().collect();
+    let mut changed = reifiers.clone();
+    changed[0].statement.object = RdfTerm::Literal(RdfLiteral::simple("other statement"));
+    let mut extra = reifiers.clone();
+    extra.push(extra[0].clone());
+    extra.last_mut().unwrap().reifier = RdfTerm::iri("urn:extra-occurrence");
+    let mut owned = extra.clone();
+    owned.last_mut().unwrap().reifier = reifiers[0].statement.subject.clone();
+    for (layer, omit_annotation, expected) in [
+        (&reifiers[1..], false, "missing or changed reifier"),
+        (&changed, false, "missing or changed reifier"),
+        (&extra, false, "unexpected claim reifiers"),
+        (
+            &owned,
+            false,
+            "RDF statement layers are outside the authoring shape",
+        ),
+        (&reifiers, true, "missing or changed claim annotation"),
+    ] {
+        let mut builder = RdfDatasetBuilder::new();
+        for row in &rows {
+            builder.push_owned_quad(row)?;
+        }
+        for row in layer {
+            builder.push_owned_reifier(row)?;
+        }
+        for row in dataset
+            .owned_annotations()
+            .skip(usize::from(omit_annotation))
+        {
+            builder.push_owned_annotation(&row)?;
+        }
+        let graph = builder.freeze()?;
+        let refusal = authoring::repository_from_dataset(&graph).unwrap_err();
+        assert!(refusal.to_string().contains(expected), "{refusal}");
+    }
+    let mut builder = RdfDatasetBuilder::new();
+    builder.push_dataset(dataset)?;
+    let quoted = &reifiers[0].statement;
+    builder.push_owned_quad(&RdfQuad::new(
+        quoted.subject.clone(),
+        &quoted.predicate,
+        quoted.object.clone(),
+    ))?;
+    let asserted = builder.freeze()?;
+    assert!(
+        matches!(authoring::repository_from_dataset(&asserted), Err(authoring::Error::Document { path, .. }) if path == DEMO)
+    );
+
+    let mut builder = RdfDatasetBuilder::new();
+    builder.push_dataset(dataset)?;
+    let reifier = builder.intern_owned_term(&reifiers[0].reifier)?;
+    let predicate = builder.intern_iri("urn:unexpected-annotation")?;
+    builder.push_annotation(reifier, predicate, reifier)?;
+    let annotated = builder.freeze()?;
+    assert!(
+        matches!(authoring::repository_from_dataset(&annotated), Err(authoring::Error::Shape { reason, .. }) if reason.contains("unexpected claim annotations"))
+    );
+    Ok(())
+}
+
 fn input_records() -> [(&'static str, String); 3] {
     let evidence = include_str!("../crates/raf-okf/tests/fixtures/evidence.md")
         .replace("for: [cap:ledger-sync]", "for: [cap:missing, cap:demo]")

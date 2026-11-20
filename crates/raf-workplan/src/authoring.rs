@@ -7,11 +7,18 @@ use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use purrdf_core::{QuadIds, RdfDataset, TermId, TermRef};
 use raf_okf::{
-    Capability, DOCUMENT_IRI_BASE, DatasetError, DocType, Document, EvidenceRecord, Index, Input,
+    Body, Capability, CapabilitySection, DOCUMENT_IRI_BASE, DatasetError, DocType, Document,
+    EvidenceRecord, Index, Input,
 };
+use raf_rdf::vocab::REIFIES;
 use raf_source::RelPath;
 
-use crate::{Finding, Workplan, generated::INDEX_PATH, model::IndexSlot};
+use crate::{
+    Finding, Workplan,
+    evidence::{CLAIMED_STATEMENT, ClaimProjection, ClaimRow, Object, QuotedClaim, statement_text},
+    generated::INDEX_PATH,
+    model::IndexSlot,
+};
 
 mod read;
 mod write;
@@ -158,9 +165,10 @@ fn canonical_path(path: &str) -> Result<RelPath, Error> {
 }
 
 impl Workplan<'_> {
-    /// Project profile documents with their declared bindings, dependencies and
-    /// evidence relationships and record inputs into one closed, default-graph
-    /// native RDF 1.2 dataset, including the loaded navigation Index when present.
+    /// Project profile documents with their declared bindings, dependencies,
+    /// evidence relationships, record inputs and authored claim reifiers with
+    /// occurrence annotations into a closed default-graph RDF 1.2 dataset,
+    /// including the loaded navigation Index.
     ///
     /// The export uses the profile Document model and declared spellings. A
     /// missing capability target still has its declared IRI, and a binding
@@ -200,8 +208,8 @@ pub struct RepositoryAuthoring {
 ///
 /// # Errors
 /// Refuses missing, duplicate or unrelated subjects, malformed documents,
-/// invalid Index membership or carrier, inconsistent declarations, unsupported
-/// RDF layers and resource limits.
+/// invalid Index membership or carrier, inconsistent declarations or claim
+/// rows, unsupported RDF layers and resource limits.
 pub fn repository_from_dataset(dataset: &RdfDataset) -> Result<RepositoryAuthoring, Error> {
     read::repository(dataset)
 }
@@ -218,12 +226,6 @@ fn record_iri(root: &str) -> Result<String, Error> {
         )
     })?;
     Ok(format!("{FRAME}/document/{local}"))
-}
-
-#[derive(Clone, Copy)]
-enum Object<'a> {
-    Iri(&'a str),
-    Literal(&'a str, &'static str),
 }
 
 fn root_statements(
@@ -288,6 +290,35 @@ fn declarations(
             Object::Literal(&ordinal.to_string(), INTEGER),
         )?;
         emit(&row, &property("target"), Object::Iri(&target))?;
+    }
+    Ok(())
+}
+
+fn claims(
+    (path, capability): (&str, &str),
+    body: &Body,
+    mut emit: impl FnMut(ClaimRow<'_>) -> Result<(), Error>,
+) -> Result<(), Error> {
+    if body.claims().is_empty() {
+        return Ok(());
+    }
+    let record = record_iri(capability)?;
+    for marker in body.claims() {
+        let evidence = marker.evidence().iter().map(|slug| {
+            DocType::Evidence
+                .document_iri(&format!("{}{slug}", DocType::Evidence.id_prefix()))
+                .map_err(|source| Error::document(path, DatasetError::Identity(source)))
+        });
+        ClaimProjection {
+            quote: QuotedClaim {
+                capability,
+                statement: statement_text(body, marker),
+            },
+            path,
+            line: marker.line(),
+            section: marker.section().and_then(CapabilitySection::from_slug),
+        }
+        .rows(&record, evidence, &mut emit)?;
     }
     Ok(())
 }
@@ -366,18 +397,72 @@ struct Counts {
 }
 
 impl Counts {
-    fn row(&mut self, subject: &str, terms: [&str; 3]) -> Result<(), Error> {
+    fn row<const N: usize>(&mut self, subject: &str, terms: [&str; N]) -> Result<(), Error> {
         self.rows += 1;
         if self.rows > MAX_ROWS {
-            return Err(Error::limit(subject, "1048576 asserted rows"));
+            return Err(Error::limit(
+                subject,
+                "1048576 assertion, reifier and annotation rows",
+            ));
         }
         self.bytes = terms
             .iter()
             .fold(self.bytes, |sum, term| sum.saturating_add(term.len()));
         if self.bytes > MAX_LEXICAL_BYTES {
-            return Err(Error::limit(subject, "128 MiB of asserted lexical text"));
+            return Err(Error::limit(
+                subject,
+                "128 MiB of assertion, reifier and annotation lexical text",
+            ));
         }
         Ok(())
+    }
+
+    fn reifier(&mut self, subject: &str, quote: QuotedClaim<'_>) -> Result<(), Error> {
+        self.row(
+            subject,
+            [
+                subject,
+                REIFIES,
+                quote.capability,
+                CLAIMED_STATEMENT,
+                quote.statement,
+            ],
+        )
+    }
+
+    fn native_reifier(&mut self, dataset: &RdfDataset, row: QuadIds) -> Result<(), Error> {
+        let subject = iri(dataset, row.s)?;
+        let bad = || {
+            Error::shape(
+                subject,
+                "use a default-graph reifier of one authored claim triple term",
+            )
+        };
+        if row.g.is_some() {
+            return Err(bad());
+        }
+        let TermRef::Triple { s, p, o } = dataset.resolve(row.o) else {
+            return Err(bad());
+        };
+        let TermRef::Literal {
+            lexical,
+            datatype,
+            language: None,
+            direction: None,
+        } = dataset.resolve(o)
+        else {
+            return Err(bad());
+        };
+        if iri(dataset, p)? != CLAIMED_STATEMENT || iri(dataset, datatype)? != STRING {
+            return Err(bad());
+        }
+        self.reifier(
+            subject,
+            QuotedClaim {
+                capability: iri(dataset, s)?,
+                statement: lexical,
+            },
+        )
     }
 
     fn native(&mut self, dataset: &RdfDataset, row: QuadIds) -> Result<(), Error> {

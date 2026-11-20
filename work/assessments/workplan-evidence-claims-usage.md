@@ -10,10 +10,10 @@ inputs:
     digest: 92cef4cbfea4743f241fb8899bd3d47eeb3b41c13c33fc3fd9ef72cf68932274
   - kind: symbol
     name: raf_workplan::Workplan::evidence_claims
-    digest: a0a36a382dd896fa7bf881875233ddacef8bfeb167fe16ce3902877438282edf
+    digest: f93f4c330a28ce119ae3cc238bc40304db25c5c21135aa423df2644c02133f9a
   - kind: symbol
     name: raf_workplan::evidence
-    digest: a1ad819bde3fdf4280cfb4ea25fae7ec008b30ef17f744457b8d676716d03165
+    digest: abd5cda2a365df0050c0f4565b87d7b7ea9d024e040e8783f3f5ea42f59d892c
 verdict: accepted
 by: agent
 ---

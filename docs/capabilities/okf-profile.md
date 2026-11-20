@@ -136,6 +136,7 @@ bindings:
     - raf_okf::Number::exact
   tests:
     - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
+    - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers
     - rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile
     - raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync
     - raf_okf::test_crate::schema::timestamp_diagnostics_preserve_lexical_calendar_and_offset_order
@@ -891,10 +892,11 @@ survive. Reconstruction uses `Index::parse`, preserving its body locations.
 <!-- raf:tested-by raf_okf::test_crate::index::navigation_dataset_preserves_generated_bytes_through_native_formats,raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations -->
 
 `Index::from_dataset_subject(dataset, expected_iri)` applies the same
-decoder to all asserted rows of the selected Index subject. Workplan
-supplies the fixed Index IRI and checks repository membership and
-ownership across the shared graph.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
+decoder to the selected Index subject in a shared default graph. The
+selected subject admits only its asserted carrier rows. Reifiers and
+annotations owned by that subject refuse. Workplan supplies the fixed
+Index IRI and accounts for all other rows across the shared graph.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers -->
 
 `Document::to_dataset(path)` validates one of the eight RAF types and returns a
 native PurRDF dataset. `Document::from_dataset(dataset, path)` recovers its model
@@ -919,7 +921,7 @@ each position; a mapping item names its first Entry separately. Authoring values
 are native string literals, with canonical integer ordinals. Native RDF 1.2
 Turtle and N-Triples readers and canonical writers carry the dataset directly.
 
-The decoder refuses unknown predicates and roles, wrong cardinalities, dangling
+The whole-carrier decoder refuses unknown predicates and roles, wrong cardinalities, dangling
 references, cycles, shared children, gaps, unrelated nodes, identity disagreement,
 named graphs, blank nodes and statement layers. Both directions admit at most
 131072 structural nodes, 1048576 asserted triples and 1 MiB of aggregate authoring
@@ -930,11 +932,12 @@ The generated navigation `Index` uses its own dataset codec.
 and id. `DATASET_NODE_IRI_BASE` and `dataset_node_prefix` expose the existing
 owner prefix for structural subjects. `Document::from_dataset_subjects`
 validates a supplied root and its subject partition with the ordinary authoring
-decoder. Every child must belong to that partition. The caller accounts for
-the other subjects in the shared dataset. Workplan uses the scoped decoder
-for its closed repository graph.
+decoder. Every child must belong to that partition. Reifiers and annotations
+owned by one of its subjects refuse. The caller accounts for the remaining
+subjects and their statement-layer data. Workplan uses the scoped decoder for
+its closed repository graph.
 [Repository authoring graph](./workplan-document-model.md#repository-authoring-graph)
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
 The checked `document_iri` constructor on `DocType` exposes this same identity
 without constructing a document. It shares prefix, kebab-slug and singleton
@@ -1109,7 +1112,8 @@ Between `---` fences, with the seven sections as its body, at the path
 
 The Index codec refuses unknown predicates, wrong types, cardinality
 errors, retained duplicate assertions, blank nodes in the carrier, named
-graphs including empty declarations, reifiers and annotations. The
+graphs including empty declarations. The subject-scoped inverse refuses
+reifiers and annotations owned by the selected carrier subject. The
 whole-dataset inverse also refuses extra subjects. Both directions
 check combined IRI/body bytes against 1 MiB before carrier value copies
 or native construction. This is a text bound. Native failures retain
@@ -1611,5 +1615,6 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input` | test | [Contract](#contract), [Constraints](#constraints) |
+| `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

@@ -97,7 +97,7 @@ inputs:
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28
   - kind: symbol
     name: raf_workplan::Workplan::authoring_dataset
-    digest: f1a73026c1ce905ffea7d2b9f1a58ba0421c9a87bd77aa3fc0b6522aebb8838d
+    digest: 49e6c5c243133fcaca1eb69f3e780e62449791af8521bf7e9d0fd9d54499a669
   - kind: symbol
     name: raf_workplan::Workplan::check
     digest: 9b674e77e391affd8da9d3515a046247620c55bdbe0ccea501749a94abc324d3
@@ -127,7 +127,7 @@ inputs:
     digest: 116bcb10c96cebf7344e2a3ca0746921d0265d7a9e4fd01bfbfc96697e1ad64c
   - kind: symbol
     name: raf_workplan::authoring
-    digest: 19266376202f6803ab1a0c7aed164a2478b1eada2d078e4552901a0118d80f38
+    digest: 44f93002bde4a12b64bcc1a807c3aa407967045c2c02676743fdca0a606ca8a5
   - kind: symbol
     name: raf_workplan::authoring::Error
     digest: 7c03cebff9c2da2f34831a985850478f783a0baae71f5665d8507a2e926dc220
@@ -136,7 +136,7 @@ inputs:
     digest: 317c052fa7372432d0d047764167194f36ff3205845419cf414819da8bc43b54
   - kind: symbol
     name: raf_workplan::authoring::repository_from_dataset
-    digest: 68f732bde339202e551e814d154e26c51613da89ad8fd12a0e25462c1b1913d0
+    digest: be0a83448bcd0b123acb05af28ad2d3fe8aa5669fd78aebe0c2ab9e9164450f7
   - kind: symbol
     name: raf_workplan::digest
     digest: 46fd59d35f3febfd4c3fbed93630b2a1c07e73532a7f0e462365afee952421fc
