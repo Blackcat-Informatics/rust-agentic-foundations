@@ -304,6 +304,14 @@ fn dataset_refusals() {
             "ordinals repeat or have gaps",
         ),
         (
+            at("ordinal"),
+            RdfTerm::Literal(RdfLiteral::typed(
+                "00",
+                "http://www.w3.org/2001/XMLSchema#integer",
+            )),
+            "bounded canonical nonnegative ordinal required",
+        ),
+        (
             at("style"),
             RdfTerm::Literal(RdfLiteral::simple("unknown")),
             "unknown scalar style",
@@ -329,6 +337,17 @@ fn dataset_refusals() {
                 RdfTerm::Literal(RdfLiteral::simple("other")),
             ),
             "exactly one body is required",
+        ),
+        (
+            RdfQuad::new(
+                rows[at("ordinal")].subject.clone(),
+                format!("{NS}ordinal"),
+                RdfTerm::Literal(RdfLiteral::typed(
+                    "00",
+                    "http://www.w3.org/2001/XMLSchema#integer",
+                )),
+            ),
+            "exactly one ordinal is required",
         ),
         (
             RdfQuad::new(

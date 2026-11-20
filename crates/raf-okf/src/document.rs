@@ -50,7 +50,8 @@ impl Document {
     pub fn parse(text: &str) -> Result<Self, ParseError> {
         let mut head = read_head(text)?;
         sort_tags(&mut head.frontmatter);
-        let body = Body::parse(text)?;
+        let origin = Origin::after_fences(&head.fences);
+        let body = Body::parse_at(&text[origin.byte..], origin)?;
         Ok(Self {
             frontmatter: head.frontmatter,
             body,
@@ -98,10 +99,7 @@ impl Document {
     pub(crate) fn read_rendered_head(&mut self) -> Result<bool, ParseError> {
         let mut rendered = self.render_head();
         let mut head = read_head(&rendered)?;
-        let origin = Origin {
-            byte: head.fences.body_start,
-            line: head.fences.fence_line + 1,
-        };
+        let origin = Origin::after_fences(&head.fences);
         let span = self.body.span();
         if origin.byte != span.bytes.start || origin.line != span.lines.start {
             // An early closing fence makes part of the rendered head into
