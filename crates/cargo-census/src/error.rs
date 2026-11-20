@@ -8,6 +8,7 @@ use std::{error::Error as StdError, fmt};
 #[derive(Debug)]
 pub(crate) enum Error {
     CapnpHistory(raf_census::capnp_history::Error),
+    CapnpReaderEvidence(raf_census::capnp_history::reader_evidence::Error),
     Census(raf_census::Error),
     Embedded(raf_census::embedded::Error),
     Source(raf_source::LoadError),
@@ -16,6 +17,12 @@ pub(crate) enum Error {
 impl From<raf_census::capnp_history::Error> for Error {
     fn from(error: raf_census::capnp_history::Error) -> Self {
         Self::CapnpHistory(error)
+    }
+}
+
+impl From<raf_census::capnp_history::reader_evidence::Error> for Error {
+    fn from(error: raf_census::capnp_history::reader_evidence::Error) -> Self {
+        Self::CapnpReaderEvidence(error)
     }
 }
 
@@ -54,6 +61,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::CapnpHistory(error) => error.fmt(f),
+            Self::CapnpReaderEvidence(error) => error.fmt(f),
             Self::Census(error) => error.fmt(f),
             Self::Embedded(error) => error.fmt(f),
             Self::Source(error) => error.fmt(f),
@@ -65,6 +73,7 @@ impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             Self::CapnpHistory(error) => Some(error),
+            Self::CapnpReaderEvidence(error) => Some(error),
             Self::Census(error) => Some(error),
             Self::Embedded(error) => Some(error),
             Self::Source(error) => Some(error),

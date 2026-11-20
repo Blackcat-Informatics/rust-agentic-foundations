@@ -4,10 +4,11 @@
 //! Host input adapter; Census policy lives in the repository target and library.
 
 use crate::cli::{
-    Args, Command, HistoryArgs, MigrationArgs, QueryTarget, RdfFormat, ReferenceArgs, RegistryArgs,
+    Args, Command, HistoryArgs, MigrationArgs, QueryTarget, RdfFormat, ReaderEvidenceArgs,
+    ReferenceArgs, RegistryArgs,
 };
 use raf_census::capnp_history::{
-    self, CaptureFiles, CaptureVerification, HistoryOptions, Snapshot,
+    self, CaptureFiles, CaptureVerification, HistoryOptions, Snapshot, reader_evidence,
 };
 use raf_census::{
     ArchiveCache, Census, CensusOptions, Error, ExternalReference, Gate, GateReport, LEDGER_FILE,
@@ -31,16 +32,11 @@ pub(crate) fn run(
         )
         .into());
     }
+    if let Command::CapnpReaderEvidence(evidence) = &args.command {
+        return verify_reader_evidence(&args.workspace, evidence, output);
+    }
     if let Some(directory) = &args.reference.unpinned {
-        writeln!(
-            diagnostics,
-            "cargo-census: unpinned reference: the comparison reads the current files of {}, not a pinned commit",
-            directory.display()
-        )
-        .map_err(|source| Error::Io {
-            file: "<stderr>".into(),
-            source,
-        })?;
+        warn_unpinned_reference(directory, diagnostics)?;
     }
     let gate = Gate::workspace(&args.workspace).external_references(external);
     let (gate, registered) = match configure {
@@ -48,6 +44,9 @@ pub(crate) fn run(
         None => (gate, false),
     };
     match &args.command {
+        Command::CapnpReaderEvidence(_) => {
+            unreachable!("INVARIANT: reader evidence dispatches before Gate registration")
+        }
         Command::CapnpHistory(history) => compare_schema_history(&args.workspace, history, output),
         Command::Embedded { command } => {
             crate::embedded::run(&gate.root()?, command, output, diagnostics)
@@ -120,6 +119,49 @@ pub(crate) fn run(
         }
         Command::Migrate(args) => migrate(&gate, args, output),
     }
+}
+
+fn warn_unpinned_reference(directory: &Path, diagnostics: &mut dyn Write) -> Result<(), Error> {
+    writeln!(
+        diagnostics,
+        "cargo-census: unpinned reference: the comparison reads the current files of {}, not a pinned commit",
+        directory.display()
+    )
+    .map_err(|source| Error::Io {
+        file: "<stderr>".into(),
+        source,
+    })
+}
+
+fn verify_reader_evidence(
+    root: &Path,
+    args: &ReaderEvidenceArgs,
+    output: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
+    let paths = reader_evidence::verify(
+        root,
+        reader_evidence::Expected {
+            base: &args.base,
+            current: &args.current,
+            root: args.root,
+            entry_point: &args.reader_entry,
+            artifact: reader_evidence::artifact_digest(&args.reader_sha256)?,
+            payloads: &args.payloads,
+        },
+        reader_evidence::Evidence {
+            commit: &args.evidence_commit,
+            files: CaptureFiles {
+                statement: &args.statement,
+                signature: &args.signature,
+            },
+            key: &args.key,
+        },
+    )?;
+    writeln!(output, "verified signed reader acceptance claim").map_err(stdout)?;
+    for path in paths {
+        writeln!(output, "{path}").map_err(stdout)?;
+    }
+    Ok(0)
 }
 
 fn compare_schema_history(

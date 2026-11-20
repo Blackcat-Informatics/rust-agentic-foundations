@@ -16,7 +16,7 @@ enum Cargo {
 #[derive(ClapArgs)]
 #[command(version, arg_required_else_help = true, disable_help_subcommand = true)]
 pub(crate) struct Args {
-    /// Workspace directory, or the exact Git repository root for capnp-history.
+    /// Workspace directory, or the exact Git repository root for Cap'n Proto checks.
     #[arg(long, default_value = ".", global = true)]
     pub(crate) workspace: PathBuf,
     #[command(flatten)]
@@ -31,6 +31,8 @@ pub(crate) struct Args {
 pub(crate) enum Command {
     /// Compare committed Cap'n Proto schema descriptors under the strict history policy.
     CapnpHistory(Box<HistoryArgs>),
+    /// Verify signed reader acceptance for exact committed Cap'n Proto payloads.
+    CapnpReaderEvidence(Box<ReaderEvidenceArgs>),
     /// Inspect verified embedded source regions without running consumer code.
     Embedded {
         #[command(subcommand)]
@@ -137,6 +139,40 @@ pub(crate) struct HistoryArgs {
     /// Committed detached signature in the current revision.
     #[arg(long, requires = "capture_key", value_parser = raf_source::RelPath::new)]
     pub(crate) current_capture_signature: Option<raf_source::RelPath>,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct ReaderEvidenceArgs {
+    /// Full commit ID holding the original payload bytes.
+    #[arg(long)]
+    pub(crate) base: String,
+    /// Full commit ID of the reader revision.
+    #[arg(long)]
+    pub(crate) current: String,
+    /// Full commit ID holding the statement and signature.
+    #[arg(long)]
+    pub(crate) evidence_commit: String,
+    /// Canonical path of the statement in the evidence commit.
+    #[arg(long, value_parser = raf_census::capnp_history::reader_evidence::path)]
+    pub(crate) statement: raf_source::RelPath,
+    /// Canonical path of the detached signature in the evidence commit.
+    #[arg(long, value_parser = raf_census::capnp_history::reader_evidence::path)]
+    pub(crate) signature: raf_source::RelPath,
+    /// Caller-selected Ed25519 public key in lowercase hexadecimal.
+    #[arg(long)]
+    pub(crate) key: raf_census::capnp_history::CaptureKey,
+    /// Nominal Cap'n Proto schema root type.
+    #[arg(long = "type")]
+    pub(crate) root: raf_census::capnp_history::TypeId,
+    /// Exact identity of the reader entry point.
+    #[arg(long)]
+    pub(crate) reader_entry: String,
+    /// SHA-256 of the expected reader artifact in lowercase hexadecimal.
+    #[arg(long)]
+    pub(crate) reader_sha256: String,
+    /// Canonical base payload path. Repeat to select the exact set.
+    #[arg(long = "payload", required = true, value_parser = raf_census::capnp_history::reader_evidence::path)]
+    pub(crate) payloads: Vec<raf_source::RelPath>,
 }
 
 /// Gate requirements the caller selects for one run; nothing here is persisted

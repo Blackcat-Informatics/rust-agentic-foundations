@@ -30,7 +30,7 @@ const MAX_SCHEMA_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_PATH_BYTES: usize = 4096;
 const MAX_LITERAL_IMPORTS: usize = 8192;
 
-/// Public key supplied by the caller to verify a compiler capture.
+/// Public key supplied by the caller to verify a signed Cap'n Proto statement.
 #[derive(Clone, Debug)]
 pub struct CaptureKey(VerifyingKey);
 
@@ -79,7 +79,7 @@ pub struct CaptureVerification<'a> {
     pub current: CaptureFiles<'a>,
 }
 
-/// Failure to authenticate or corroborate a committed compiler capture.
+/// Failure to authenticate or corroborate a committed Cap'n Proto statement.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum CaptureError {
@@ -140,6 +140,19 @@ pub(super) fn load(
     key: &CaptureKey,
     descriptor: (&RelPath, &[u8]),
 ) -> Result<Capture, CaptureError> {
+    let graph = signed_graph(tree, files, key)?;
+    let capture = Capture::from_graph(&graph, descriptor)?;
+    capture
+        .import_search
+        .verify_directories(tree, &capture.root)?;
+    Ok(capture)
+}
+
+pub(super) fn signed_graph(
+    tree: &dyn Tree,
+    files: CaptureFiles<'_>,
+    key: &CaptureKey,
+) -> Result<Graph, CaptureError> {
     let bytes = tree
         .read_bytes(files.statement, MAX_CAPTURE_BYTES)
         .map_err(CaptureError::Read)?;
@@ -152,12 +165,9 @@ pub(super) fn load(
         .verify_strict(&bytes, &Signature::from_bytes(&signature))
         .map_err(CaptureError::Signature)?;
     let text = str::from_utf8(&bytes).map_err(CaptureError::Encoding)?;
-    let graph = Graph::from_text(text, Format::NTriples).map_err(ReportError::Ground)?;
-    let capture = Capture::from_graph(&graph, descriptor)?;
-    capture
-        .import_search
-        .verify_directories(tree, &capture.root)?;
-    Ok(capture)
+    Graph::from_text(text, Format::NTriples)
+        .map_err(ReportError::Ground)
+        .map_err(CaptureError::Profile)
 }
 
 impl Capture {
@@ -376,7 +386,7 @@ fn unresolved_import(from: &RelPath, name: &str) -> CaptureError {
     mismatch(format!("unresolved schema import {name:?} from {from}"))
 }
 
-fn owned_node<'a>(
+pub(super) fn owned_node<'a>(
     graph: &'a Graph,
     reference: Value<'_>,
     property: &str,
@@ -390,7 +400,7 @@ fn owned_node<'a>(
         .ok_or_else(|| ReportError::Dangling(id.into()))
 }
 
-fn fields(node: &Node<'_>, class: &str, keys: &[&str]) -> Result<(), ReportError> {
+pub(super) fn fields(node: &Node<'_>, class: &str, keys: &[&str]) -> Result<(), ReportError> {
     let found = shape::class(node)?;
     if found != class {
         return Err(ReportError::Kind {
@@ -409,14 +419,21 @@ fn fields(node: &Node<'_>, class: &str, keys: &[&str]) -> Result<(), ReportError
     Ok(())
 }
 
-fn digest(node: &Node<'_>, key: &str) -> Result<Digest, CaptureError> {
-    let mut bytes = [0; 32];
-    purrdf_hash::hex::decode_canonical_to_slice(&shape::string(node, key)?, &mut bytes)
-        .map_err(|_| mismatch(format!("capture {key} must be a lowercase SHA-256 digest")))?;
-    Ok(bytes)
+pub(super) fn digest(node: &Node<'_>, key: &str) -> Result<Digest, CaptureError> {
+    parse_digest(&shape::string(node, key)?)
+        .ok_or_else(|| mismatch(format!("capture {key} must be a lowercase SHA-256 digest")))
 }
 
-fn canonical_path(text: &str, root_allowed: bool) -> Result<RelPath, CaptureError> {
+pub(super) fn parse_digest(text: &str) -> Option<Digest> {
+    let mut bytes = [0; 32];
+    purrdf_hash::hex::decode_canonical_to_slice(text, &mut bytes).ok()?;
+    Some(bytes)
+}
+
+pub(super) fn canonical_path(text: &str, root_allowed: bool) -> Result<RelPath, CaptureError> {
+    if text.len() > MAX_PATH_BYTES {
+        return Err(mismatch("capture path exceeds its length bound"));
+    }
     if (!root_allowed && text.is_empty())
         || !RelPath::is_canonical(text)
         || text.split('/').any(|segment| segment == "..")

@@ -7,22 +7,22 @@ subject: cap:census-cli#constraints
 inputs:
   - kind: section
     name: cap:census-cli#constraints
-    digest: 25c9c5057dd1f7d8ecd25e097b364258923049308eac94a7dbfe476e72de9a32
+    digest: 8a1f41caac1107c0b34a06d52e45860819267b90dd6683caca6177c63b3e36c5
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
   - kind: symbol
     name: cargo_census::cli
-    digest: 80e3dc00c2948183f19d8d4c23fdb2944a25283094c09ec11dcead565f6f4a81
+    digest: 3092444334e05d72159c51d078f48dc8a61afee0a91c83bdb6f983be0af4afd2
   - kind: symbol
     name: cargo_census::command
-    digest: 9012265832810f45168726c42764868ac83623b207200f1cd9aec5776ffd3701
+    digest: 3a80dcee065e722655d4864f22057af6a09909bd8e8ef5829a53f683f164af29
   - kind: symbol
     name: cargo_census::error
-    digest: fc73ef64cd895b6b3b30b1b8b547c21e50ef07884ddb91c40f27451c88a63c10
+    digest: 57cd257e3115a7fbc0c5ddb22e885ae36d242880c89a950cc641944962a7a110
   - kind: symbol
     name: cargo_census::run
-    digest: 94bf9a49cb1bb78ff050243e9a7dfe1fec46892fb2efde5644ba998f2946ee2f
+    digest: 59446be0235222e1bf4a627d2db8ca5fcb4a1dc976f0a6869b6d5ec552381a0f
   - kind: symbol
     name: raf_census::CHECK_PROTOCOL_VERSION
     digest: f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f
@@ -58,7 +58,10 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: 64c4fd0742d2dc34e6f4dadc825701b5debb595b2ea844dc9cba6bc386ea7336
+    digest: 628cc083605aa07fb793f78fccbd713716be32a82df6afd96ba5c4bea30a755d
+  - kind: symbol
+    name: raf_census::capnp_history::reader_evidence::verify
+    digest: 650cd8b557b83363a5a92e3e06fe0b2433f5e3801b972e7d056e73a1579b189c
   - kind: symbol
     name: raf_census::registered
     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
