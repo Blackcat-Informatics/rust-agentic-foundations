@@ -637,6 +637,7 @@ struct Lookup<'a, 'w> {
     site: &'a Site<'a>,
     label: &'a str,
     visibility: Option<(&'a Workspace, PackageId)>,
+    receiver_workspace: Option<&'a Workspace>,
     enum_impl: Option<(&'a str, &'a [ImplBlock])>,
 }
 
@@ -930,6 +931,36 @@ impl Lookup<'_, '_> {
             }
         }
         Ok(glob_lookup)
+    }
+
+    fn receiver_reaches_binding(
+        &self,
+        scopes: &Scopes,
+        name: &[String],
+        binding_frame: usize,
+        limits: &mut MatchLimits,
+    ) -> Result<bool, Error> {
+        scopes.with_receiver_lookup(|| {
+            let mut eligible = |alias: &Alias, namespace| self.eligible(alias, namespace);
+            if !scopes.local(name, Namespace::Value, limits, &mut eligible)? {
+                return Ok(false);
+            }
+            // An import in a nearer block can hide a captured or enclosing local.
+            // A local in the import's own block takes precedence over its glob.
+            let glob = self.through_block_glob(
+                scopes,
+                name,
+                |frame| frame > binding_frame,
+                GlobRead {
+                    namespace: Namespace::Value,
+                    early: false,
+                    exclusion: None,
+                    keep_head: false,
+                },
+                limits,
+            )?;
+            Ok(glob.opaque.is_none() && glob.definition.is_none() && !glob.conditional_variant)
+        })
     }
 
     fn finish_glob(
@@ -1438,9 +1469,11 @@ impl Lookup<'_, '_> {
         sites: &[ItemId],
         limits: &mut MatchLimits,
     ) -> Result<GlobProvider, Error> {
-        let (workspace, _) = self
+        let workspace = self
             .visibility
-            .expect("INVARIANT: block globs are collected for visibility");
+            .map(|(workspace, _)| workspace)
+            .or(self.receiver_workspace)
+            .expect("INVARIANT: indexed block glob lookups have a workspace");
         let mut enums = WorkList::new();
         let mut modules = 0;
         for &id in sites {
@@ -2055,6 +2088,7 @@ fn cross_package_uses(
             site,
             label: VISIBILITY,
             visibility: Some((workspace, consumer)),
+            receiver_workspace: None,
             enum_impl: None,
         };
         let LexicalPath::Accessible(expanded) =
@@ -2319,6 +2353,7 @@ fn matches(
             site,
             label: &expected.pattern.id,
             visibility: None,
+            receiver_workspace: None,
             enum_impl: None,
         };
         let LexicalPath::Accessible(expanded) =

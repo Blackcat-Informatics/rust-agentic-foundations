@@ -308,6 +308,7 @@ fn enum_lookup<'a, 'w>(
         site,
         label,
         visibility: Some((workspace, target.package_id)),
+        receiver_workspace: None,
         enum_impl,
     })
 }
@@ -696,7 +697,8 @@ impl Paths<'_, '_, '_, '_> {
             .receiver_matcher
             .and_then(|_| receivers::binding(pattern, ty));
         let mut accepted = false;
-        let result = self.scopes.bind(pattern, |scopes, name| {
+        let live_binding = self.receiver_matcher.is_some();
+        let result = self.scopes.bind(pattern, live_binding, |scopes, name| {
             if let Some(inventory) = &self.enum_hits {
                 return enum_pattern_binding(
                     (self.workspace, self.code, self.file),
@@ -828,7 +830,9 @@ impl Paths<'_, '_, '_, '_> {
         if selected.peek().is_none() {
             return Ok(());
         }
-        let Some(binding) = self.scopes.written_receiver(&name, label, self.limits)? else {
+        let Some((binding_frame, binding)) =
+            self.scopes.written_receiver(&name, label, self.limits)?
+        else {
             return Ok(());
         };
         let site = Site::at(
@@ -849,6 +853,7 @@ impl Paths<'_, '_, '_, '_> {
             let reaches = binding.matching_owners(
                 expected,
                 (self.workspace, self.code, self.context),
+                (&self.scopes, binding_frame, std::slice::from_ref(&name)),
                 &site,
                 owners,
                 self.limits,
@@ -1467,6 +1472,10 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         if self.excludes_from_inventory(&node.attrs) {
             return;
         }
+        let matcher = self.receiver_matcher;
+        if matcher.is_some() && crate::syntax::definitely_excluded(&node.attrs) {
+            self.receiver_matcher = None;
+        }
         self.visit_pat(&node.pat);
         self.with_enum_attributes(&node.attrs, |this| {
             if let Some(initializer) = &node.init {
@@ -1477,6 +1486,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             }
         });
         self.bind(&node.pat);
+        self.receiver_matcher = matcher;
     }
 
     fn visit_expr_closure(&mut self, node: &'ast syn::ExprClosure) {
@@ -1952,6 +1962,7 @@ fn numeric_lookup<'a, 'w>(
         site,
         label: UNCLASSIFIED,
         visibility: Some((workspace, package)),
+        receiver_workspace: None,
         enum_impl: None,
     })
 }

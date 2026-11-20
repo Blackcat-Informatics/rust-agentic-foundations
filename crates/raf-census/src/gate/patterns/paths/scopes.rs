@@ -22,10 +22,13 @@ use syn::ext::IdentExt;
 struct Frame {
     globs: Vec<Glob>,
     names: Names,
+    receiver_imports: Names,
     values: BTreeSet<String>,
     types: BTreeSet<String>,
     macros: BTreeSet<String>,
-    local_values: BTreeSet<String>,
+    // Key presence serves syntactic path lookup. The value records whether
+    // the binding exists for runtime receiver lookup.
+    local_values: BTreeMap<String, bool>,
     written_receivers: BTreeMap<String, ReceiverBinding>,
     generic_types: BTreeSet<String>,
     settled: RefCell<GlobCache>,
@@ -53,13 +56,18 @@ impl Frame {
         });
     }
 
-    fn local(&self, head: &str, namespace: Namespace, runtime: bool) -> bool {
+    fn local(&self, head: &str, namespace: Namespace, runtime: bool, receiver: bool) -> bool {
         match namespace {
             Namespace::Type => {
                 self.types.contains(head) || runtime && self.generic_types.contains(head)
             }
             Namespace::Value => {
-                self.values.contains(head) || runtime && self.local_values.contains(head)
+                self.values.contains(head)
+                    || runtime
+                        && self
+                            .local_values
+                            .get(head)
+                            .is_some_and(|&live| !receiver || live)
             }
             Namespace::Macro => self.macros.contains(head),
             _ => unreachable!("syntax classification passes only known namespaces"),
@@ -122,7 +130,7 @@ enum WrittenBinding<'a> {
 }
 
 fn binding<'a>(
-    (index, frame): (usize, &'a Frame),
+    (index, frame, receiver_imports): (usize, &'a Frame, bool),
     head: &str,
     namespace: Namespace,
     own: Option<&Alias>,
@@ -132,7 +140,12 @@ fn binding<'a>(
 ) -> Result<Option<WrittenBinding<'a>>, LookupError<'a>> {
     let mut selected: Option<&Alias> = None;
     let mut uncertain = false;
-    for alias in frame.names.aliases.get(head).into_iter().flatten() {
+    let inventories =
+        std::iter::once(&frame.names).chain(receiver_imports.then_some(&frame.receiver_imports));
+    for alias in inventories
+        .filter_map(|names| names.aliases.get(head))
+        .flatten()
+    {
         if own.is_some_and(|own| std::ptr::eq(own, alias))
             || alias.type_only && namespace != Namespace::Type
         {
@@ -280,6 +293,7 @@ pub(in crate::gate) struct Scopes {
     glob_states: Cell<usize>,
     module_globs: bool,
     track_written_receivers: bool,
+    read_receiver_imports: Cell<bool>,
     receiver_floor: usize,
     receiver_states: usize,
 }
@@ -343,6 +357,10 @@ impl Scopes {
                     }
                     if track_globs {
                         frame.names.import_tree(tree, absolute, attributes);
+                    } else if keep_globs {
+                        frame
+                            .receiver_imports
+                            .import_tree(tree, absolute, attributes);
                     }
                     if keep_globs {
                         frame.import_globs(tree, absolute, trusted(attributes));
@@ -413,6 +431,13 @@ impl Scopes {
         std::mem::replace(&mut self.receiver_floor, self.frames.len())
     }
 
+    pub(super) fn with_receiver_lookup<T>(&self, query: impl FnOnce() -> T) -> T {
+        let previous = self.read_receiver_imports.replace(true);
+        let result = query();
+        self.read_receiver_imports.set(previous);
+        result
+    }
+
     pub(super) fn end_receiver_boundary(&mut self, floor: usize) {
         self.receiver_floor = floor;
     }
@@ -457,9 +482,9 @@ impl Scopes {
         name: &str,
         label: &str,
         limits: &mut MatchLimits,
-    ) -> Result<Option<&ReceiverBinding>, Error> {
-        let depth = self.frames.len().saturating_sub(self.receiver_floor);
-        for frame in self.frames.iter().rev().take(depth) {
+    ) -> Result<Option<(usize, &ReceiverBinding)>, Error> {
+        let frames = self.receiver_floor..self.frames.len();
+        for (index, frame) in frames.rev().zip(self.frames.iter().rev()) {
             let entries = frame
                 .written_receivers
                 .len()
@@ -471,9 +496,9 @@ impl Scopes {
                 .saturating_mul(entries.bit_width() as usize + 1);
             charge(label, limits, work.try_into().unwrap_or(u64::MAX))?;
             if let Some(binding) = frame.written_receivers.get(name) {
-                return Ok(Some(binding));
+                return Ok(Some((index, binding)));
             }
-            if frame.local_values.contains(name) || frame.values.contains(name) {
+            if frame.local_values.get(name) == Some(&true) || frame.values.contains(name) {
                 break;
             }
         }
@@ -528,16 +553,15 @@ impl Scopes {
             limits,
             frame.saturating_add(1).try_into().unwrap_or(u64::MAX),
         )?;
-        Ok(self
-            .frames
-            .iter()
-            .nth(frame)
-            .is_some_and(|frame| frame.local_values.contains(name) && !frame.values.contains(name)))
+        Ok(self.frames.iter().nth(frame).is_some_and(|frame| {
+            frame.local_values.contains_key(name) && !frame.values.contains(name)
+        }))
     }
 
     pub(in crate::gate) fn bind(
         &mut self,
         pattern: &syn::Pat,
+        live_binding: bool,
         mut include: impl FnMut(&Self, &syn::Ident) -> Result<bool, Error>,
     ) -> Result<(), Error> {
         let mut failure = None;
@@ -552,10 +576,14 @@ impl Scopes {
                         .top_mut()
                         .expect("INVARIANT: entered lexical scope");
                     let name = name.unraw().to_string();
-                    if let Some(previous) = frame.written_receivers.remove(&name) {
-                        self.receiver_states -= previous.states();
+                    if live_binding {
+                        if let Some(previous) = frame.written_receivers.remove(&name) {
+                            self.receiver_states -= previous.states();
+                        }
+                        frame.local_values.insert(name, true);
+                    } else {
+                        frame.local_values.entry(name).or_insert(false);
                     }
-                    frame.local_values.insert(name);
                 }
                 Ok(false) => {}
                 Err(error) => failure = Some(error),
@@ -569,7 +597,7 @@ impl Scopes {
             .top_mut()
             .expect("entered lexical scope")
             .local_values
-            .insert("self".into());
+            .insert("self".into(), true);
     }
 
     pub(in crate::gate) fn macro_name(&mut self, name: &syn::Ident) {
@@ -605,7 +633,9 @@ impl Scopes {
                     frame.generic_types.insert(ty.ident.unraw().to_string());
                 }
                 syn::GenericParam::Const(value) => {
-                    frame.local_values.insert(value.ident.unraw().to_string());
+                    frame
+                        .local_values
+                        .insert(value.ident.unraw().to_string(), true);
                 }
                 syn::GenericParam::Lifetime(_) => {}
             }
@@ -625,12 +655,12 @@ impl Scopes {
         let namespace = head_namespace(path, namespace);
         for (index, frame) in (0..self.frames.len()).rev().zip(self.frames.iter().rev()) {
             charge("paths", limits, 1)?;
-            if frame.local(head, namespace, true) {
+            if frame.local(head, namespace, true, self.read_receiver_imports.get()) {
                 return Ok(true);
             }
             if frame.module
                 || binding(
-                    (index, frame),
+                    (index, frame, self.read_receiver_imports.get()),
                     head,
                     namespace,
                     None,
@@ -677,7 +707,7 @@ impl Scopes {
                 if index >= frame_limit {
                     continue;
                 }
-                if frame.local(head, namespace, runtime) {
+                if frame.local(head, namespace, runtime, self.read_receiver_imports.get()) {
                     expanded.first_frame.get_or_insert(index);
                     expanded.shadowing = Some(if frame.module {
                         Shadowing::Module
@@ -688,7 +718,7 @@ impl Scopes {
                     return Ok(Some(expanded));
                 }
                 if let Some(alias) = binding(
-                    (index, frame),
+                    (index, frame, self.read_receiver_imports.get()),
                     head,
                     namespace,
                     own,

@@ -80,9 +80,12 @@ impl ReceiverBinding {
                 site: &site,
                 label,
                 visibility: None,
+                receiver_workspace: Some(workspace),
                 enum_impl: None,
             };
-            let proof = match nominal(&lookup, scopes, &ty.path, workspace, limits) {
+            let proof = match scopes
+                .with_receiver_lookup(|| nominal(&lookup, scopes, &ty.path, workspace, limits))
+            {
                 Ok(Some(id)) => Ok(id),
                 Ok(None) => continue,
                 Err(Error::CodePath { source, .. }) => Err(RefCell::new(Some(source))),
@@ -104,6 +107,7 @@ impl ReceiverBinding {
             &raf_source::CodeResolver<'_>,
             Option<&crate::FileCtx>,
         ),
+        binding: (&Scopes, usize, &[String]),
         site: &Site<'_>,
         owners: &[&Item],
         limits: &mut MatchLimits,
@@ -118,16 +122,30 @@ impl ReceiverBinding {
                 .saturating_add(types.len().bit_width() as usize + 1),
         );
         charge(label, limits, work.try_into().unwrap_or(u64::MAX))?;
+        let (workspace, code, file_context) = context;
+        let (scopes, binding_frame, name) = binding;
         let mut matched = Vec::new();
         for reach in &self.0 {
-            if !owners.iter().any(|owner| owner.id == reach.owner) {
+            if !owners.iter().any(|owner| owner.id == reach.owner)
+                || reach.proof.as_ref().is_ok_and(|id| !types.contains(id))
+            {
+                continue;
+            }
+            let lookup = Lookup {
+                code,
+                owner: PathOwner::Item(reach.owner),
+                site,
+                label,
+                visibility: None,
+                receiver_workspace: Some(workspace),
+                enum_impl: None,
+            };
+            if !lookup.receiver_reaches_binding(scopes, name, binding_frame, limits)? {
                 continue;
             }
             match &reach.proof {
-                Ok(id) if types.contains(id) => matched.push(reach.owner),
-                Ok(_) => {}
+                Ok(_) => matched.push(reach.owner),
                 Err(source) => {
-                    let (workspace, code, file_context) = context;
                     if crate::gate::evaluate::in_scope(
                         pattern.pattern,
                         (&site.file.path, site.byte, site.line),

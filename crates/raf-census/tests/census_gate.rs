@@ -174,7 +174,7 @@ fn declared_pattern(matcher: Option<&str>, referenced: bool) -> Builder {
             &mut graph,
             "#pattern",
             matcher,
-            Term::simple_literal("demo::home"),
+            Term::simple_literal(pattern_fixture_selector(matcher)),
         );
     }
     if referenced {
@@ -362,6 +362,14 @@ fn ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_nei
     Ledger::from_turtle(&exact).unwrap();
 }
 
+fn pattern_fixture_selector(matcher: &str) -> &'static str {
+    if matcher == "methodOn" {
+        "demo::Receiver::run"
+    } else {
+        "demo::home"
+    }
+}
+
 fn ledger_vocabulary_matches_validated_graphs() {
     let mut builders = vec![
         variant("src/lib.rs"),
@@ -385,6 +393,7 @@ fn ledger_vocabulary_matches_validated_graphs() {
             "path",
             "macro",
             "typePath",
+            "methodOn",
             "literalRegex",
             "tokens",
         ]
@@ -471,6 +480,7 @@ fn ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_prese
         "path",
         "macro",
         "typePath",
+        "methodOn",
         "literalRegex",
         "tokens",
     ] {
@@ -482,7 +492,14 @@ fn ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_prese
         layout::assert_upgrade(raf_census::ReportKind::Ledger, &turtle, Format::Turtle);
         layout::assert_upgrade(raf_census::ReportKind::Ledger, &native, Format::NTriples);
         assert_eq!(Ledger::from_ntriples(&native).unwrap().patterns().len(), 1);
-        let tree = tree(SOURCE, Builder::from_graph(&graph), 0);
+        let receiver_source;
+        let source = if matcher == "methodOn" {
+            receiver_source = format!("{SOURCE}\npub struct Receiver;");
+            &receiver_source
+        } else {
+            SOURCE
+        };
+        let tree = tree(source, Builder::from_graph(&graph), 0);
         let result = Gate::workspace(".").check_tree(&tree);
         let report = result.expect("each declared matcher executes");
         assert!(
@@ -1541,7 +1558,11 @@ fn lexical_pattern_tree(source: &str, matcher: &str, expression: &str) -> Memory
 fn lexical_pattern_graph(matcher: &str, expression: &str) -> Builder {
     let mut graph = declared_pattern(Some(matcher), true);
     for (node, key, value) in [
-        ("#pattern", matcher, Term::simple_literal("demo::home")),
+        (
+            "#pattern",
+            matcher,
+            Term::simple_literal(pattern_fixture_selector(matcher)),
+        ),
         (
             "#job",
             "forbiddenConstant",
@@ -1796,29 +1817,46 @@ fn written_receiver_methods_keep_declaration_identity_and_runtime_shadowing() {
 pub mod home {
     pub struct Banned;
     pub struct Other;
+    pub struct TypeOnly { field: u8 }
     pub type First = Banned;
     pub type Last = First;
     impl Banned { pub fn run(&mut self) -> bool { true } }
     impl Other { pub fn run(&self) -> bool { true } }
+    pub fn exported_value() -> u8 { 0 }
     pub fn sanctioned(mut value: Banned) { value.run(); }
 }
 pub use home as alias;
 pub use home::Last as Selected;
+mod imported { pub fn value() -> u8 { 0 } }
 #[allow(dead_code)]
 pub fn outside(mut value: Selected, other: home::Other) {
     value
         .run(); // hit
     other.run();
     { use home::Banned as Local; let mut local: Local = home::Banned; local.run(); } // hit
+    {
+        use { ::std::fmt::Debug as D, crate::home::Banned as Grouped };
+        let mut local: Grouped = home::Banned;
+        local.run(); // hit
+    }
     { mod home { pub struct Banned; } use home::Banned as Local; let local: Local = home::Banned; local.run(); }
     { use opaque::*; use home::Banned as Local; let local: Local = home::Banned; local.run(); }
     { use home::Other as Selected; value.run(); } // hit
+    { use crate::home::exported_value as value; value.run(); }
+    { use crate::home::TypeOnly as value; value.run(); } // hit
+    { use crate::imported::*; value.run(); }
+    { use crate::home::*; value.run(); } // hit
+    { use opaque::*; value.run(); }
+    { use opaque::*; let mut value: crate::home::Banned = home::Banned; value.run(); } // hit
     let mut capture = || value.run(); // hit
     let _ = capture();
     let _ = |mut value: Selected| value.run(); // hit
     { let ref value: Selected = home::Banned; value.run(); }
     { let (value,): (home::Other,) = (home::Other,); value.run(); }
     { let value = home::Other; value.run(); }
+    { #[cfg(any())] let value = home::Other; value.run(); } // hit
+    { let mut value: Selected = home::Banned; #[cfg(any())] let value = home::Other; value.run(); } // hit
+    #[cfg(any())] let disabled = value.run();
     { use opaque::*; let mut value: Selected = home::Banned; value.run(); }
     const { value.run(); }
     fn nested() { value.run(); }
@@ -1850,26 +1888,90 @@ pub fn outside(mut value: Selected, other: home::Other) {
         .collect();
     assert_eq!(actual, expected, "{:?}", report.findings());
     assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
+    assert_mixed_policy_keeps_type_path_findings(source);
+}
+
+fn assert_mixed_policy_keeps_type_path_findings(source: &str) {
+    let graph = lexical_pattern_graph("typePath", "demo::home::Banned")
+        .finish()
+        .unwrap();
+    let gate = Gate::workspace(".");
+    let ordinary = gate
+        .check_tree(&tree(source, Builder::from_graph(&graph), 0))
+        .unwrap();
+    let mut mixed = Builder::from_graph(&graph);
+    for (node, key, value) in [
+        ("", "pattern", Term::iri("#method")),
+        (
+            "#job",
+            "forbiddenPattern",
+            Term::simple_literal("written-receiver"),
+        ),
+        (
+            "#method",
+            "type",
+            Term::iri(format!("{}Pattern", vocab::REPORT)),
+        ),
+        (
+            "#method",
+            "patternId",
+            Term::simple_literal("written-receiver"),
+        ),
+        (
+            "#method",
+            "summary",
+            Term::simple_literal("Written receiver call"),
+        ),
+        (
+            "#method",
+            "methodOn",
+            Term::simple_literal("demo::home::Banned::run"),
+        ),
+    ] {
+        put(&mut mixed, node, key, value);
+    }
+    let mixed = gate.check_tree(&tree(source, mixed, 0)).unwrap();
+    let ordinary_findings = ordinary
+        .findings()
+        .iter()
+        .filter(|finding| finding.contains("rule approved-call:"));
+    assert!(
+        ordinary_findings.clone().next().is_some(),
+        "{:?}",
+        ordinary.findings()
+    );
+    assert!(
+        ordinary_findings.eq(mixed
+            .findings()
+            .iter()
+            .filter(|finding| finding.contains("rule approved-call:"))),
+        "ordinary {:?}, mixed {:?}",
+        ordinary.findings(),
+        mixed.findings()
+    );
 }
 
 #[test]
 fn written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file() {
     // A non-shipping reach cannot contribute its receiver proof to a
     // shipping reach, and two proofs still count one physical location.
-    let mut ledger = lexical_pattern_graph("methodOn", "demo::home::Banned::run");
-    put(&mut ledger, "#pattern", "shippingOnly", Term::boolean(true));
-    let graph = ledger.finish().unwrap().to_text(Format::Turtle).unwrap();
-    for (shipping, tests, copies) in [
-        ("Other", "Banned", 0),
-        ("Banned", "Other", 1),
-        ("Banned", "Banned", 1),
+    for (shipping_only, shipping, tests, copies) in [
+        (true, "Other", "Banned", 0),
+        (true, "Banned", "Other", 1),
+        (true, "Banned", "Banned", 1),
+        (false, "Banned", "Banned", 1),
     ] {
+        let mut ledger = lexical_pattern_graph("methodOn", "demo::home::Banned::run");
+        if shipping_only {
+            put(&mut ledger, "#pattern", "shippingOnly", Term::boolean(true));
+        }
+        let graph = ledger.finish().unwrap().to_text(Format::Turtle).unwrap();
         let tree: MemoryTree = [
             (
                 "Cargo.toml",
                 "[package]\nname='demo'\nversion='0.1.0'\nedition='2024'\n".to_owned(),
             ),
-            ("helpers-ledger.ttl", graph.clone()),
+            ("helpers-ledger.ttl", graph),
             (
                 "src/lib.rs",
                 format!(

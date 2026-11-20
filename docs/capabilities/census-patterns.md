@@ -178,13 +178,18 @@ module as the owner's resolution.
 physical first-party struct, enum or union and a method identifier. The selector
 admits an optional leading `::` and a raw method identifier. A simple named
 local or an ordinary function or closure parameter needs a bare written type
-path. Census follows admitted imports, reexports and unconditional nominal
-aliases at the binding declaration. An opaque block wildcard on that route
-prevents attribution.
+path. Census follows admitted imports, including supported grouped block
+imports, reexports and unconditional nominal aliases at the binding
+declaration. An opaque block wildcard on that route prevents attribution.
 
 The receiver expression must be a plain local identifier. A nearer untyped or
-unsupported binding shadows older proof. A local initializer and its `else`
-block are read before the local binds. Closures can capture enclosing bindings.
+unsupported binding shadows older proof. The matcher skips definitely excluded
+local declarations and their initializers. A local initializer and its `else`
+block are read before the local binds. A nearer block import in the Value
+namespace can shadow an enclosing receiver, including a name from a wildcard.
+An opaque wildcard in a nearer block stops lookup across that block. A local
+binding takes precedence over a wildcard in its own block. Closures can
+capture enclosing bindings.
 Nested items and inline constants have independent runtime bindings.
 Each source reach supplies its own proof. The method token supplies the report
 location and scope, and matching reaches count once per physical occurrence.
