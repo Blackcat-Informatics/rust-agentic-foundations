@@ -76,7 +76,12 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
                     "docs export requires --format turtle or --format ntriples and refuses --quiet",
                 ));
             }
-            export(&root()?, &export_args.path, export_args.iri.as_deref())
+            if let Some(path) = export_args.path.as_deref() {
+                export(&root()?, path, export_args.iri.as_deref())
+            } else {
+                let opened = Gate::workspace(&root()?).open()?;
+                Ok(Report::document(opened.workplan().authoring_dataset()?))
+            }
         }
         Command::Change(Change::New(new_args)) => change::new(&root()?, new_args),
         Command::Change(Change::Impact(slug)) => change::impact(&root()?, &slug.slug),

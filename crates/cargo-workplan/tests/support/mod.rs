@@ -52,8 +52,12 @@ impl Scratch {
         // canonical form is a verbatim path that not every program takes.
         #[cfg(unix)]
         let parent = fs::canonicalize(parent).expect("a canonical temporary parent");
+        Self::in_dir(&parent, tag)
+    }
+
+    fn in_dir(parent: &Path, tag: &str) -> Self {
         let directory = || {
-            purrdf_testkit::TempDir::new_in(&parent)
+            purrdf_testkit::TempDir::new_in(parent)
                 .unwrap_or_else(|error| panic!("create {tag} fixture directory: {error}"))
         };
         Self(directory(), directory())
@@ -93,9 +97,16 @@ pub(crate) struct Repo {
 impl Repo {
     /// A workspace with the package `demo` and no document.
     pub(crate) fn bare(tag: &str) -> Self {
-        let repo = Self {
-            scratch: Scratch::new(tag),
-        };
+        Self::bare_with(Scratch::new(tag))
+    }
+
+    /// A workspace located under an explicit fixture directory.
+    pub(crate) fn bare_in(parent: &Path, tag: &str) -> Self {
+        Self::bare_with(Scratch::in_dir(parent, tag))
+    }
+
+    fn bare_with(scratch: Scratch) -> Self {
+        let repo = Self { scratch };
         repo.put(
             "Cargo.toml",
             "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",

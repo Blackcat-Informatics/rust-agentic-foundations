@@ -448,7 +448,7 @@ pub(crate) enum Docs {
     Build(DocsBuild),
     /// Run the mdBook JSON preprocessor, or probe renderer support.
     Mdbook(MdbookArgs),
-    /// Export one authoring document as native RDF. Requires an explicit RDF
+    /// Export a document or the repository authoring graph as native RDF. Requires an explicit RDF
     /// format and refuses quiet mode. Writes no repository file.
     Export(ExportArgs),
     /// Rewrite the generated blocks, and create the capability index when it
@@ -566,14 +566,18 @@ pub(crate) enum MdbookCommand {
     },
 }
 
-/// The selected authoring document, relative to the workspace root.
+/// Select a document path or the authoring graph of the repository.
 #[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+#[command(group(ArgGroup::new("selection").required(true).multiple(false)))]
 pub(crate) struct ExportArgs {
     /// The repository-relative path of a RAF Document or the navigation Index.
-    #[arg(value_name = "path")]
-    pub(crate) path: String,
+    #[arg(value_name = "path", group = "selection")]
+    pub(crate) path: Option<String>,
+    /// Export the Workplan authoring graph of the repository.
+    #[arg(long, group = "selection")]
+    pub(crate) repository: bool,
     /// The caller-owned absolute IRI, required only for the navigation Index.
-    #[arg(long, value_name = "ABSOLUTE_IRI")]
+    #[arg(long, value_name = "ABSOLUTE_IRI", conflicts_with = "repository")]
     pub(crate) iri: Option<String>,
 }
 

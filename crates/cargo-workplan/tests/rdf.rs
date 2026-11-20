@@ -346,6 +346,92 @@ fn exported_authoring_documents(repo: &Repo) {
 }
 
 #[test]
+fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
+    use purrdf_rdf::{ParseOptions, parse_dataset_with};
+    use raf_okf::Document;
+    use raf_source::RelPath;
+    use raf_workplan::authoring::documents_from_dataset;
+
+    // A missing dependency and binding remain in the recovered declarations.
+    let fixture_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let repo = Repo::bare_in(fixture_dir, "repository-export");
+    let alpha = "docs/capabilities/alpha.md";
+    let beta = "docs/capabilities/beta.md";
+    repo.put(
+        alpha,
+        &support::capability(
+            "alpha",
+            "implementing",
+            ["[demo::real, demo::missing]", "[]", "[]"],
+            "[cap:beta, cap:missing]",
+            &[],
+        ),
+    );
+    repo.put(
+        beta,
+        &support::capability("beta", "considered", ["[]"; 3], "[]", &[]),
+    );
+    let expected: BTreeMap<_, _> = [alpha, beta, support::COVERAGE]
+        .into_iter()
+        .map(|path| {
+            (
+                RelPath::new(path).unwrap(),
+                Document::parse(&repo.read(path)).unwrap(),
+            )
+        })
+        .collect();
+    let before = repo.snapshot();
+    for (format, media) in [
+        ("turtle", "text/turtle"),
+        ("ntriples", "application/n-triples"),
+    ] {
+        let args = ["--format", format, "docs", "export", "--repository"];
+        let run = repo.both(&args).expect(0);
+        assert_eq!(run.stderr, "");
+        let parsed =
+            parse_dataset_with(run.stdout.as_bytes(), media, None, &ParseOptions::default())
+                .unwrap();
+        assert_eq!(documents_from_dataset(&parsed.dataset).unwrap(), expected);
+
+        let root = repo.root().to_str().unwrap();
+        let explicit: Vec<_> = ["--root", root].into_iter().chain(args).collect();
+        assert_eq!(support::run_both(fixture_dir, &explicit).expect(0), run);
+    }
+    for (selection, expected) in [
+        (&[][..], "--repository"),
+        (&[alpha, "--repository"][..], "cannot be used with"),
+        (
+            &["--repository", "--iri", "https://example.org/repository"][..],
+            "cannot be used with",
+        ),
+    ] {
+        let args: Vec<_> = ["--format", "turtle", "docs", "export"]
+            .into_iter()
+            .chain(selection.iter().copied())
+            .collect();
+        let run = repo.both(&args).expect(2);
+        assert_eq!(run.stdout, "");
+        assert!(run.stderr.contains(expected), "{run:#?}");
+    }
+    assert_eq!(repo.snapshot(), before);
+
+    repo.put(alpha, "---\ntype: Capability\n");
+    let malformed = repo.snapshot();
+    let run = repo
+        .both(&["--format", "ntriples", "docs", "export", "--repository"])
+        .expect(2);
+    assert_eq!(run.stdout, "");
+    assert!(
+        run.stderr.contains(alpha) && run.stderr.contains("fence"),
+        "{run:#?}"
+    );
+    assert_eq!(repo.snapshot(), malformed);
+}
+
+#[test]
 fn failures_have_no_machine_output_and_json_is_rejected_before_root_loading() {
     let repo = Repo::bare("rdf-failure");
     for format in ["turtle", "ntriples"] {

@@ -69,6 +69,7 @@ bindings:
     - raf_workplan::Workplan::debt
   tests:
     - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
+    - cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input
     - rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile
     - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
     - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
@@ -588,6 +589,11 @@ asserted default-graph statements with IRI subjects and predicates and
 IRI or untagged literal objects.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
+`docs export --repository` serializes the same dataset in Turtle or
+N-Triples. The library inverse recovers the ordered authoring declarations
+from either carrier.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
 ### Record and proof edges
 <!-- raf:tested-by raf_workplan::test_crate::records::the_records_are_nodes_with_their_edges,raf_workplan::test_crate::records::claims_are_section_granular_and_one_edge_per_named_record,raf_workplan::test_crate::records::each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding,raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved,raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge -->
 
@@ -962,6 +968,11 @@ touches, and the obligations those sections receive are defined by
 
 ## Verification
 
+The repository export round trip recovers the exact document inventory in
+both RDF carriers, including declared bindings and an absent dependency
+target.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
 Native disk fixtures refuse changed real-directory bindings, retain the requested
 record path and original Source cause when opening fails, and permit ordinary
 replacement after restoring the original directory.
@@ -1060,6 +1071,7 @@ document writes and unchanged source and Git state beside successful completion.
 | --- | --- | --- |
 | `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input` | test | [Contract](#contract) |
 | `raf_workplan::Gate` | doctest | [Usage](#usage) |
 | `raf_workplan::LinkContext` | doctest | [Verification](#verification) |
 | `raf_workplan::bindings::tests::the_invocations_of_a_module_are_listed_once_however_many_bindings_miss` | test | [Verification](#verification) |

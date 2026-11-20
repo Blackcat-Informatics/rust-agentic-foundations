@@ -141,6 +141,7 @@ bindings:
     - cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts
     - cargo_workplan::test_crate::process::a_usage_error_of_the_change_commands_starts_no_process
     - cargo_workplan::test_crate::process::root_starts_no_cargo_at_all
+    - cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input
     - cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two
     - cargo_workplan::test_crate::reconcile::rdf_preserves_each_obligation_and_optional_location_in_library_order
     - cargo_workplan::test_crate::reconcile::quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding
@@ -253,6 +254,15 @@ non-RDF formats refuse before loading inputs. Failed validation emits no machine
 output, and diagnostics name the inspected path. Export changes no input.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
+`docs export --repository` renders the closed Workplan authoring dataset.
+It uses the ordinary Workplan repository load and includes each admitted
+profile document and its declared relationships. A dependency can name an
+absent target. Select the repository with `--repository` or give one
+document path. The navigation Index export takes its explicit IRI with
+the path. An incomplete profile load exits with a diagnostic and emits
+no RDF.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input,cargo_workplan::test_crate::process::a_usage_error_starts_no_process -->
+
 `docs fragment` returns complete raw Markdown for one imported Cargo library, an explicit public receiving module, capability and existing named diagram. Every code binding of that capability is required. The native static fragment API checks source and imported library identities and refuses private, hidden, unresolved or ambiguous references before emitting output. Diagnostics use stderr. Quiet mode and non-text formats refuse before input loading.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
@@ -279,6 +289,11 @@ unchanged; a non-root URL prefix is supported.
 
 Use `cargo workplan --format turtle docs export docs/capabilities/index.md
 --iri https://example.org/navigation`. Ordinary Document export omits `--iri`.
+
+Use `cargo workplan --format ntriples docs export --repository` to export
+the authoring graph. Select `--format turtle` for its Turtle carrier.
+Run from the workspace or select it with `--root`.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 The documented data path is illustrated by `raf_workplan::example_crate::docs_sync`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
@@ -359,6 +374,12 @@ options. Existing fixtures retain all eight Document round trips and refusals.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
 
 The CLI fragment fixture exercises crate and nested-module output, public aliases and complete bindings, imported source mismatch, private, hidden, missing and ambiguous references, input preservation, missing compiler tools and early output-carrier refusals in both invocation forms.
+
+The repository export fixture exercises both invocation forms, both RDF
+carriers, explicit root selection, conflicting selections and incomplete
+profile input. The process-admission fixture checks repository export with
+the consumer tools replaced by recording stubs.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input,cargo_workplan::test_crate::process::root_starts_no_cargo_at_all -->
 
 CLI fixtures compare static verification with the library, exercise prospective completion and refusal, reject missing trust before discovery, and keep stored commands inert.
 
@@ -497,6 +518,7 @@ CLI fixtures compare static verification with the library, exercise prospective 
 | `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes` | test | [Verification](#verification) |
