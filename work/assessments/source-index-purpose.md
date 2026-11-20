@@ -487,7 +487,7 @@ inputs:
     digest: f84151b4e181d69f1c3ca5b7798c7f22042fe8e3b96979b6f27873c31a5ce093
   - kind: symbol
     name: raf_source::Workspace::par_load
-    digest: 712a1eed4eb212f40ca664dbf0cad603e2d9ba1a2f17042d606f3bde528b1859
+    digest: 291fdcb8347d4ebecabdd2c8f49093517e72fcdbee26c1a00b374528df967ee2
   - kind: symbol
     name: raf_source::Workspace::parallel_usage
     digest: d82fed6c5996903beb472bcb1d8ede03f3a671c91b4433cb3a5ab84ad9b0d7b1

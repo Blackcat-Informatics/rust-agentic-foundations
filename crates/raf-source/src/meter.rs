@@ -560,11 +560,19 @@ impl Meter {
         meter
     }
 
+    /// Snapshot the two counters a configuration callback can spend.
+    pub(crate) fn configuration_usage(&self) -> ConfigurationUsage {
+        ConfigurationUsage {
+            item_bytes: self.item_bytes.get(),
+            work: self.work.get(),
+        }
+    }
+
     /// Commit only actual configuration scratch/work spent by a completed callback.
     pub(crate) fn configuration_spent(
         &self,
         before: Usage,
-        after: Usage,
+        after: ConfigurationUsage,
         file: &RelPath,
     ) -> Result<(), LoadError> {
         let backwards = || {
@@ -825,6 +833,12 @@ pub(crate) struct FactAllowance {
     pub(crate) spent: usize,
     /// The limit of the load.
     pub(crate) limit: usize,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct ConfigurationUsage {
+    item_bytes: usize,
+    work: usize,
 }
 
 #[cfg(test)]

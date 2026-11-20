@@ -4,14 +4,13 @@
 //! Coordinator-owned speculation; native syntax never leaves its fresh worker.
 
 use super::{
-    Candidate, Extracted as Parsed, PARSE_STACK_BYTES, Parser, PreparedSource, parse_syntax,
-    storage,
+    Candidate, Extracted as Parsed, PARSE_STACK_BYTES, Parser, PreparedSource, extract_head,
+    parse_syntax, storage,
 };
-use crate::facts::extract;
-use crate::meter::FactAllowance;
+use crate::meter::{FactAllowance, Usage};
 use crate::{
-    DiskTree, FileId, LoadError, LoadErrorKind, LoadOptions, MemoryTree, Opened, RelPath, Tree,
-    TreeError,
+    ActiveConfiguration, DiskTree, FileId, LoadError, LoadErrorKind, LoadOptions, MemoryTree,
+    Opened, RelPath, Tree, TreeError,
 };
 #[cfg(test)]
 use purrdf_lex::allocation::Shared;
@@ -153,8 +152,14 @@ pub struct ParallelUsage {
 enum Grant {
     #[default]
     Pending,
-    Extract(FactAllowance),
+    Extract(HeadGrant),
     Cancel,
+}
+
+struct HeadGrant {
+    path: RelPath,
+    allowance: FactAllowance,
+    usage: Usage,
 }
 
 #[derive(Default)]
@@ -170,6 +175,7 @@ struct WorkerInput<'a> {
     text: String,
     scan: crate::prescan::Scan,
     control: &'a Control,
+    configuration: Option<(&'a ActiveConfiguration, &'a LoadOptions)>,
     #[cfg(test)]
     probe: Option<Shared<tests::Probe>>,
 }
@@ -182,17 +188,24 @@ impl WorkerInput<'_> {
         let syntax = parse_syntax(&self.file, &self.text);
         #[cfg(test)]
         tests::parsed(&self.file);
-        let Some(allowance) = self.control.wait() else {
+        let Some(grant) = self.control.wait() else {
             return syntax.map(|_| None);
         };
-        let tree = syntax?;
+        let mut tree = syntax?;
         #[cfg(test)]
-        tests::extracting(&self.file);
-        let facts = extract(&tree, &self.text, allowance);
+        tests::extracting(&grant.path);
+        let head = extract_head(
+            &mut tree,
+            &grant.path,
+            &self.text,
+            grant.allowance,
+            self.configuration
+                .map(|(active, options)| (active, options, grant.usage)),
+        );
         drop(tree);
         Ok(Some(Parsed {
             text: self.text,
-            facts,
+            head,
             scan: self.scan,
         }))
     }
@@ -208,7 +221,7 @@ impl Control {
         self.changed.notify_one();
     }
 
-    fn wait(&self) -> Option<FactAllowance> {
+    fn wait(&self) -> Option<HeadGrant> {
         // Only fixed state assignments occur under this lock.
         let mut grant = self
             .grant
@@ -351,6 +364,7 @@ pub(crate) struct Executor<'scope, 'env> {
     scope: &'scope Scope<'scope, 'env>,
     controls: &'scope [Control],
     account: &'scope RefCell<Account>,
+    configuration: Option<(&'scope ActiveConfiguration, &'scope LoadOptions)>,
     state: RefCell<State<'scope>>,
     #[cfg(test)]
     probe: Option<Shared<tests::Probe>>,
@@ -361,6 +375,7 @@ impl<'scope, 'env> Executor<'scope, 'env> {
         scope: &'scope Scope<'scope, 'env>,
         resources: &'scope Resources,
         options: &ParallelOptions,
+        configuration: Option<(&'scope ActiveConfiguration, &'scope LoadOptions)>,
     ) -> Result<Self, LoadError> {
         let mut tasks = Vec::new();
         resources
@@ -373,6 +388,7 @@ impl<'scope, 'env> Executor<'scope, 'env> {
             scope,
             controls: &resources.controls,
             account: &resources.account,
+            configuration,
             state: RefCell::new(State {
                 tasks,
                 live_jobs: 0,
@@ -564,6 +580,7 @@ impl<'scope, 'env> Executor<'scope, 'env> {
                     text,
                     scan,
                     control,
+                    configuration: self.configuration,
                     #[cfg(test)]
                     probe: self.probe.clone(),
                 };
@@ -688,6 +705,7 @@ impl Parser for Executor<'_, '_> {
         text: String,
         options: &LoadOptions,
         allowance: FactAllowance,
+        usage: Usage,
     ) -> Result<Parsed, LoadError> {
         let (slot, task, observed) = {
             let mut state = self.state.borrow_mut();
@@ -716,7 +734,11 @@ impl Parser for Executor<'_, '_> {
                 (0, task, None)
             }
         };
-        self.controls[slot].set(Grant::Extract(allowance));
+        self.controls[slot].set(Grant::Extract(HeadGrant {
+            path: path.clone(),
+            allowance,
+            usage,
+        }));
         let result = match task.running {
             Running::Failed(error) => Err(error),
             Running::Worker(worker) => {

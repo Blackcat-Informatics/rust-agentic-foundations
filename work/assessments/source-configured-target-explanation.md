@@ -7,10 +7,13 @@ subject: cap:source-configured-target#explanation
 inputs:
   - kind: section
     name: cap:source-configured-target#explanation
-    digest: 36da443f68950f991704d8ecf26f1de3f1fb4f2e5760ab3d814e127d2d324e84
+    digest: 1d388c81316ca4815b91720d02938c222285fa1ce3e34b026513e8a859b42589
   - kind: symbol
     name: raf_source::Workspace::load_configured_target
-    digest: af387d03f2d7ae229a5566ad96188e025ee0d19c98c7665be283bae952da442a
+    digest: 4d8063c4437aca30f71c041c0623f88ae9e69890db2a1cb0a67f32901ee34a03
+  - kind: symbol
+    name: raf_source::Workspace::par_load_configured_target
+    digest: d7af4d436b31eb446f697f39b2bb053d9664f83ad4417c7a1f216eb6569fa246
 verdict: accepted
 by: agent
 ---

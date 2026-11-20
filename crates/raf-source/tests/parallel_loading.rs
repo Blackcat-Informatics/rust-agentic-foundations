@@ -9,10 +9,12 @@ use std::fmt;
 use std::io;
 use std::num::NonZeroUsize;
 use std::panic::{self, AssertUnwindSafe};
+use std::sync::Mutex;
 
 use raf_source::{
-    Entry, EntryKind, FileId, LoadErrorKind, LoadOptions, MemoryTree, Opened, ParallelOptions,
-    ParallelTree, RelPath, Tree, TreeError, Workspace,
+    Budget, DeclaredCfg, DeclaredConfiguration, Entry, EntryKind, FileId, LoadErrorKind,
+    LoadOptions, MemoryTree, Opened, ParallelOptions, ParallelTree, RelPath, TargetKind, Tree,
+    TreeError, Workspace,
 };
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
@@ -229,7 +231,141 @@ fn canonical_fact_allowances_refuse_the_exact_serial_position_beside_the_valid_l
     assert!(matches!(
         parallel.kind,
         LoadErrorKind::Budget {
-            budget: raf_source::Budget::FactBytes,
+            budget: Budget::FactBytes,
+            ..
+        }
+    ));
+}
+
+struct ConfiguredTree {
+    tree: MemoryTree,
+    opened: Mutex<Vec<RelPath>>,
+}
+
+impl ConfiguredTree {
+    fn new(shared: &str) -> Self {
+        Self {
+            tree: MemoryTree::from([
+                ("Cargo.toml", MANIFEST),
+                ("src/lib.rs", "#[cfg(test)] mod inactive; mod a; mod b;"),
+                ("src/a.rs", "mod child;"),
+                ("src/a/child.rs", shared),
+                ("src/b.rs", shared),
+                ("src/inactive.rs", "fn this_should_not_parse("),
+            ]),
+            opened: Mutex::default(),
+        }
+    }
+
+    fn take_opened(&self) -> Vec<RelPath> {
+        std::mem::take(&mut *self.opened.lock().expect("observation lock"))
+    }
+}
+
+impl Tree for ConfiguredTree {
+    fn read(&self, path: &RelPath, maximum: u64) -> Result<String, TreeError> {
+        self.opened
+            .lock()
+            .expect("observation lock")
+            .push(path.clone());
+        self.tree.read(path, maximum)
+    }
+
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        maximum: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<Opened, TreeError> {
+        if matches!(path.as_str(), "src/a/child.rs" | "src/b.rs") {
+            let id = FileId::from_key("configured-shared");
+            if seen(&id) {
+                return Ok(Opened::Seen(id));
+            }
+            return self
+                .read(path, maximum)
+                .map(|text| Opened::Read { id, text });
+        }
+        self.opened
+            .lock()
+            .expect("observation lock")
+            .push(path.clone());
+        self.tree.read_unseen(path, maximum, seen)
+    }
+
+    fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
+        self.tree.list(path)
+    }
+
+    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
+        self.tree.entry(path)
+    }
+}
+
+impl ParallelTree for ConfiguredTree {}
+
+#[test]
+fn configured_parallel_ignores_inactive_paths_and_locates_a_reused_alias_at_its_canonical_reach() {
+    // A speculative spelling shares its syntax with the canonical descendant.
+    // Configuration and fact refusals use the descendant's path and grant.
+    let manifest = RelPath::new("Cargo.toml").expect("manifest path");
+    let declared = DeclaredConfiguration::new(
+        DeclaredCfg::complete("configured-parser-fixture", &[]),
+        &[],
+        TargetKind::Lib,
+        "demo",
+    );
+    let parallel_options = options(2);
+    let serial = |tree: &ConfiguredTree, load: &LoadOptions| {
+        Workspace::load_configured_target(tree, &manifest, declared, load)
+    };
+    let parallel = |tree: &ConfiguredTree, load: &LoadOptions| {
+        Workspace::par_load_configured_target(tree, &manifest, declared, load, &parallel_options)
+    };
+    let good = ConfiguredTree::new("#[cfg(not(test))] pub fn shared_alias() {}");
+    let mut load = LoadOptions::default();
+    let expected = serial(&good, &load).expect("serial configured fixture");
+    drop(good.take_opened());
+    load.max_fact_bytes = expected.usage().fact_bytes;
+    let actual = parallel(&good, &load).expect("exact canonical fact grant");
+    assert_eq!(expected, actual);
+    assert_eq!(expected.usage(), actual.usage());
+    let opened = good.take_opened();
+    assert!(!opened.iter().any(|path| path.as_str() == "src/inactive.rs"));
+    let position = |name| {
+        opened
+            .iter()
+            .position(|path| path.as_str() == name)
+            .expect("active read")
+    };
+    assert!(
+        position("src/b.rs") < position("src/a/child.rs"),
+        "alias parsed speculatively"
+    );
+
+    load.max_fact_bytes -= 1;
+    let serial_error = serial(&good, &load).expect_err("one byte below canonical fact grant");
+    let parallel_error = parallel(&good, &load).expect_err("same canonical fact refusal");
+    assert_eq!(serial_error.to_string(), parallel_error.to_string());
+    assert_eq!(parallel_error.file.as_str(), "src/a/child.rs");
+    assert!(matches!(
+        parallel_error.kind,
+        LoadErrorKind::Budget {
+            budget: Budget::FactBytes,
+            ..
+        }
+    ));
+
+    load.max_fact_bytes += 1;
+    let bad = ConfiguredTree::new("#[cfg(not(test, test))] pub fn shared_alias() {}");
+    let serial_error = serial(&bad, &load).expect_err("invalid configured predicate");
+    let parallel_error = parallel(&bad, &load).expect_err("same configured predicate refusal");
+    assert_eq!(serial_error.to_string(), parallel_error.to_string());
+    assert_eq!(parallel_error.file.as_str(), "src/a/child.rs");
+    assert!(matches!(
+        parallel_error.kind,
+        LoadErrorKind::Locked {
+            field: "configuration",
             ..
         }
     ));

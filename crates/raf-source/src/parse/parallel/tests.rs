@@ -13,7 +13,8 @@ use std::sync::{Condvar, Mutex};
 
 use super::{ParallelOptions, ParallelTree};
 use crate::{
-    Entry, EntryKind, FileId, LoadOptions, MemoryTree, Opened, RelPath, Tree, TreeError, Workspace,
+    DeclaredCfg, DeclaredConfiguration, Entry, EntryKind, FileId, LoadOptions, MemoryTree, Opened,
+    RelPath, TargetKind, Tree, TreeError, Workspace,
 };
 
 #[global_allocator]
@@ -214,6 +215,55 @@ fn native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling
     assert_eq!(state.started, state.joined);
 }
 
+#[test]
+fn configured_target_parses_siblings_concurrently_and_extracts_in_canonical_order() {
+    // Selected siblings overlap in native syntax; their facts still follow the
+    // serial module walk and only include active declarations.
+    let tree = MemoryTree::from([
+        ("Cargo.toml", MANIFEST),
+        (
+            "src/lib.rs",
+            "#[cfg_attr(not(test), path = \"a.rs\")] mod a; #[cfg(not(test))] mod b;",
+        ),
+        ("src/a.rs", "mod child;"),
+        ("src/child.rs", "pub fn child() {}"),
+        (
+            "src/b.rs",
+            "#[cfg(test)] pub fn disabled() {} pub fn b() {}",
+        ),
+    ]);
+    let manifest = RelPath::new("Cargo.toml").expect("manifest path");
+    let declared = DeclaredConfiguration::new(
+        DeclaredCfg::complete("configured-parser-fixture", &[]),
+        &[],
+        TargetKind::Lib,
+        "demo",
+    );
+    let options = LoadOptions::default();
+    let serial = Workspace::load_configured_target(&tree, &manifest, declared, &options)
+        .expect("serial configured load");
+    let probe = Probe::new(true, false);
+    let _installed = install(Some(probe.clone()));
+    let parallel = Workspace::par_load_configured_target(
+        &tree,
+        &manifest,
+        declared,
+        &options,
+        &ParallelOptions::default(),
+    )
+    .expect("parallel configured load");
+    assert_eq!(serial, parallel);
+    assert_eq!(serial.usage(), parallel.usage());
+    assert!(parallel.resolve("demo::b::disabled").is_err());
+    let state = probe.observed.lock().expect("probe lock");
+    assert!(state.peak_parsers >= 2);
+    assert_eq!(
+        state.extraction,
+        ["src/lib.rs", "src/a.rs", "src/child.rs", "src/b.rs"]
+    );
+    assert_eq!(state.started, state.joined);
+}
+
 /// Run one parallel worker body on a fresh thread. The released control makes a
 /// parsed file end its body without extraction, so `Ok(None)` is a parse.
 fn run_worker(file: &RelPath) -> Result<bool, crate::LoadError> {
@@ -226,6 +276,7 @@ fn run_worker(file: &RelPath) -> Result<bool, crate::LoadError> {
         text,
         scan,
         control: &control,
+        configuration: None,
         probe: None,
     };
     std::thread::scope(|scope| {

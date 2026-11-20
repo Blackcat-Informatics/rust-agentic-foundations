@@ -197,7 +197,7 @@ pub(crate) fn admit(
         crate::parse::parse_counted(path, "", options.max_file_tokens, |_tree| {
             let local = Meter::resume(&options, before);
             let result = admit_inner(input, graph, deps, &local, path);
-            (result, local.usage())
+            (result, local.configuration_usage())
         })?;
     meter.configuration_spent(before, after, path)?;
     result
@@ -526,7 +526,7 @@ pub(crate) fn condition(
                     .map_err(|error| failure(path, &error.to_string()))?;
                 predicate(&meta, cfg, true, &local, path)
             })();
-            (result, local.usage())
+            (result, local.configuration_usage())
         })?;
     meter.configuration_spent(before, after, path)?;
     meter.scanned(scan);

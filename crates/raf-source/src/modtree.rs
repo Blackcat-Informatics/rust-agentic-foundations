@@ -38,11 +38,13 @@ use std::rc::Rc;
 use crate::budget::Budget;
 use crate::cost::{btree_entry, hash_entry, shared_text, vec_first, vec_slot};
 use crate::error::{LoadError, LoadErrorKind, Origin, TreeError};
-use crate::facts::{ExtractError, FileFacts, ModBody, ModFact, TestRole, extract};
+use crate::facts::{ExtractError, FileFacts, ModBody, ModFact, TestRole};
 use crate::intern::Interner;
 use crate::item::{ItemId, SharedStr};
 use crate::meter::{Meter, over_budget};
-use crate::parse::{Candidate, Parser, parse_counted, parse_counted_mut, storage};
+use crate::parse::{
+    Candidate, Extracted, ExtractionError, Parser, extract_head, parse_counted_mut, storage,
+};
 use crate::path::RelPath;
 use crate::tree::{EntryKind, FileId, Opened, Tree};
 use crate::workspace::SourceFile;
@@ -877,44 +879,17 @@ impl<'a> Walker<'a> {
         self.meter
             .read(path, &text)
             .map_err(|error| error.reached_by(origin))?;
-        let allowance = self.meter.fact_allowance();
-        let (text, (facts, fact_bytes), scan) = if let Some((_, configuration)) = self.configuration
-        {
-            let before = self.meter.usage();
-            let options = self.meter.options().clone();
-            let ((result, after), scan) =
-                parse_counted_mut(path, &text, options.max_file_tokens, |tree| {
-                    let local = Meter::resume(&options, before);
-                    let result = crate::configuration::filter(tree, configuration, &local, path)
-                        .and_then(|()| {
-                            extract(tree, &text, allowance)
-                                .map_err(|problem| extract_error(path, origin, problem))
-                        });
-                    (result, local.usage())
-                })
-                .map_err(|error| error.reached_by(origin))?;
+        let before = self.meter.usage();
+        let Extracted { text, head, scan } = self
+            .extract(path, &id, text, before)
+            .map_err(|error| error.reached_by(origin))?;
+        if let Some(after) = head.configuration_usage {
             self.meter.configuration_spent(before, after, path)?;
-            (text, result?, scan)
-        } else if let Some(parser) = self.parser {
-            let extracted = parser
-                .parse(path, &id, text, self.meter.options(), allowance)
-                .map_err(|error| error.reached_by(origin))?;
-            let facts = extracted
-                .facts
-                .map_err(|problem| extract_error(path, origin, problem))?;
-            (extracted.text, facts, extracted.scan)
-        } else {
-            let (extracted, scan) =
-                parse_counted(path, &text, self.meter.options().max_file_tokens, |tree| {
-                    extract(tree, &text, allowance)
-                })
-                .map_err(|error| error.reached_by(origin))?;
-            (
-                text,
-                extracted.map_err(|problem| extract_error(path, origin, problem))?,
-                scan,
-            )
-        };
+        }
+        let (facts, fact_bytes) = head.facts.map_err(|problem| match problem {
+            ExtractionError::Configuration(error) => error,
+            ExtractionError::Facts(error) => extract_error(path, origin, error),
+        })?;
         self.meter.facts(fact_bytes, path)?;
         self.meter.scanned(scan);
         self.meter
@@ -931,6 +906,27 @@ impl<'a> Walker<'a> {
         });
         self.by_id.insert(id, position);
         Ok(parsed)
+    }
+
+    fn extract(
+        &self,
+        path: &RelPath,
+        id: &FileId,
+        text: String,
+        before: crate::Usage,
+    ) -> Result<Extracted, LoadError> {
+        let options = self.meter.options();
+        let allowance = self.meter.fact_allowance();
+        if let Some(parser) = self.parser {
+            return parser.parse(path, id, text, options, allowance, before);
+        }
+        let configuration = self
+            .configuration
+            .map(|(_, active)| (active, options, before));
+        let (head, scan) = parse_counted_mut(path, &text, options.max_file_tokens, |tree| {
+            extract_head(tree, path, &text, allowance, configuration)
+        })?;
+        Ok(Extracted { text, head, scan })
     }
 
     /// Count one module walk (a file arrival or an inline body) against the

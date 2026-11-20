@@ -7,10 +7,10 @@ subject: cap:source-configured-target#usage
 inputs:
   - kind: section
     name: cap:source-configured-target#usage
-    digest: 557a71f680c69ea81d0f9300ec8cd97b9b1a4233495d0f20b3c5c4a1faf0d3cc
+    digest: 21b1b651c5b6c412fa62807928d20c44973f4c6bedcdb4a54af8ade515c6dbd6
   - kind: symbol
     name: raf_source::Workspace::load_configured_target
-    digest: af387d03f2d7ae229a5566ad96188e025ee0d19c98c7665be283bae952da442a
+    digest: 4d8063c4437aca30f71c041c0623f88ae9e69890db2a1cb0a67f32901ee34a03
 verdict: accepted
 by: agent
 ---
