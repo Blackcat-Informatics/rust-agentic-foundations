@@ -10,7 +10,9 @@ use std::{
 
 use capnp::schema_capnp::node;
 
-use super::{Declaration, Error, MAX_DEPTH, Nodes, TypeId, layout, member_name};
+use super::{
+    Declaration, DeclarationBody, Error, MAX_DEPTH, Nodes, Type, TypeId, layout, member_name,
+};
 
 /// Kind of a written Cap'n Proto declaration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,8 +66,8 @@ pub(super) fn project(
         }
         if declarations.get(&owner).is_some_and(|decl: &Declaration| {
             !matches!(
-                decl.kind,
-                DeclarationKind::Struct | DeclarationKind::Interface
+                decl.body,
+                DeclarationBody::Struct | DeclarationBody::Interface
             )
         }) {
             return Err(layout(format!(
@@ -115,12 +117,25 @@ fn admit(nodes: &Nodes<'_>, id: TypeId, name: &str, scope: TypeId) -> Result<Dec
             "declaration {name} ({id}) disagrees with listing scope {scope}"
         )));
     }
-    let kind = match child.which()? {
-        node::Struct(data) if !data.get_is_group() => DeclarationKind::Struct,
-        node::Enum(_) => DeclarationKind::Enum,
-        node::Interface(_) => DeclarationKind::Interface,
-        node::Const(_) => DeclarationKind::Constant,
-        node::Annotation(_) => DeclarationKind::Annotation,
+    let body = match child.which()? {
+        node::Struct(data) if !data.get_is_group() => DeclarationBody::Struct,
+        node::Enum(_) => DeclarationBody::Enum,
+        node::Interface(_) => DeclarationBody::Interface,
+        node::Const(constant) => {
+            if !constant.has_type() {
+                return Err(layout(format!(
+                    "constant declaration {name} ({id}) has no type"
+                )));
+            }
+            // Type references validate nominal identity without selecting their layouts.
+            DeclarationBody::Constant(Type::read(
+                constant.get_type()?,
+                nodes,
+                id,
+                &mut BTreeSet::new(),
+            )?)
+        }
+        node::Annotation(_) => DeclarationBody::Annotation,
         _ => {
             return Err(layout(format!(
                 "scope {scope} must list a written declaration at {name} ({id})"
@@ -130,7 +145,7 @@ fn admit(nodes: &Nodes<'_>, id: TypeId, name: &str, scope: TypeId) -> Result<Dec
     Ok(Declaration {
         name: name.to_owned(),
         scope,
-        kind,
+        body,
     })
 }
 
@@ -148,7 +163,7 @@ fn verify_other_nodes(
         if reached(scope) {
             let group_owner = declarations
                 .get(&scope)
-                .is_some_and(|declaration| declaration.kind == DeclarationKind::Struct);
+                .is_some_and(|declaration| matches!(declaration.body, DeclarationBody::Struct));
             if !group_owner || !matches!(reader.which()?, node::Struct(data) if data.get_is_group())
             {
                 return Err(layout(format!(

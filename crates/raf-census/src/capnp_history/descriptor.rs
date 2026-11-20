@@ -55,7 +55,28 @@ pub use declarations::DeclarationKind;
 pub(super) struct Declaration {
     pub(super) name: String,
     pub(super) scope: TypeId,
-    pub(super) kind: DeclarationKind,
+    pub(super) body: DeclarationBody,
+}
+
+#[derive(Debug)]
+pub(super) enum DeclarationBody {
+    Struct,
+    Enum,
+    Interface,
+    Constant(Type),
+    Annotation,
+}
+
+impl DeclarationBody {
+    pub(super) const fn kind(&self) -> DeclarationKind {
+        match self {
+            Self::Struct => DeclarationKind::Struct,
+            Self::Enum => DeclarationKind::Enum,
+            Self::Interface => DeclarationKind::Interface,
+            Self::Constant(_) => DeclarationKind::Constant,
+            Self::Annotation => DeclarationKind::Annotation,
+        }
+    }
 }
 
 #[derive(Debug)]

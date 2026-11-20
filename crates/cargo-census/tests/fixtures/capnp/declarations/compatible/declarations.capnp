@@ -13,6 +13,7 @@ struct Outer @0xeec1000000000001 {
     name @0 :Data;
   }
   const limit :UInt16 = 17;
+  const children :List(Child) = [];
 }
 
 struct Holder @0xeec1000000000003 {}
@@ -28,6 +29,8 @@ enum State {
 annotation marker(field) :Void;
 annotation obsoleteMarker(field) :Void;
 const obsoleteLimit :UInt16 = 8;
+const imported :List(Dependency.Wanted) = [];
+const addedLimit :Void = void;
 using ChangedAlias = Outer.Child;
 
 interface Reader @0xeec1000000000007 {

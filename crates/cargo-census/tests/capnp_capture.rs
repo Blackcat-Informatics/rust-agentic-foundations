@@ -25,7 +25,7 @@ use capnp::{
 };
 use purrdf_core::ContentDigest;
 use purrdf_ed25519::SigningKey;
-use raf_fixtures::git_repo;
+use raf_fixtures::git_repo::{self, assert_census_refused as assert_refused};
 use raf_rdf::{Builder, Format, TermValue, Triple, vocab};
 
 const DESCRIPTOR: &[u8] = include_bytes!("fixtures/capnp/capture-closed.bin");
@@ -208,13 +208,6 @@ fn history(root: &Path, base: &str, current: &str, key: Option<&SigningKey>) -> 
         ]);
     }
     command.output().unwrap()
-}
-
-fn assert_refused(output: Output, expected: &str) {
-    assert_eq!(output.status.code(), Some(1), "{output:?}");
-    assert!(output.stdout.is_empty(), "{output:?}");
-    let diagnostic = String::from_utf8(output.stderr).unwrap();
-    assert!(diagnostic.contains(expected), "{diagnostic}");
 }
 
 /// The authenticated search order changes which schema the compiler uses.

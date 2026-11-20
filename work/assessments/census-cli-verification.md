@@ -7,7 +7,7 @@ subject: cap:census-cli#verification
 inputs:
   - kind: section
     name: cap:census-cli#verification
-    digest: 96574b8c8f10e3ab6d180cf648f5d383b4d1e485d8e1554638913ffa928e6135
+    digest: c2377d58dc061ce787794c33e269cacd577b804c86e3b5dc597cd7ece2380abb
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
@@ -58,7 +58,7 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: 4e3350faf8999d7b3f05d9d12db277b823abfab789d1e4c0739cd5bab1faef49
+    digest: 5ddf31c743305dcd0fc8e204856dcac419bbf27913326f9d993ddb9235c738a1
   - kind: symbol
     name: raf_census::capnp_history::persistence::admission::check
     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6

@@ -12,7 +12,10 @@ use raf_source::RelPath;
 
 use super::{
     Error, TypeId,
-    descriptor::{Declaration, DeclarationKind, Endpoint, Interface, Method, Node, Schema, Struct},
+    descriptor::{
+        Declaration, DeclarationBody, DeclarationKind, Endpoint, Interface, Method, Node, Schema,
+        Struct,
+    },
 };
 
 const MAX_FINDING_BYTES: usize = 2 * 1024 * 1024;
@@ -67,6 +70,8 @@ pub enum ChangeKind {
         /// The kind in the current descriptor.
         current: DeclarationKind,
     },
+    /// A retained constant has a different declared type.
+    ChangedConstantType,
     /// A type changed between a struct, an enum and an RPC interface.
     ChangedKind,
     /// A direct superclass was removed from an RPC interface.
@@ -124,6 +129,7 @@ impl fmt::Display for ChangeKind {
             Self::ChangedDeclarationKind { previous, current } => {
                 return write!(f, "declaration kind changed from {previous} to {current}");
             }
+            Self::ChangedConstantType => "constant declared type changed",
             Self::ChangedKind => "schema kind changed",
             Self::RemovedSuperclass { superclass } => {
                 return write!(f, "direct superclass {superclass} removed");
@@ -236,11 +242,15 @@ fn declaration_changes(
                 current: after.scope,
             })?;
         }
-        if before.kind != after.kind {
-            emit(ChangeKind::ChangedDeclarationKind {
-                previous: before.kind,
-                current: after.kind,
-            })?;
+        let previous = before.body.kind();
+        let current = after.body.kind();
+        if previous != current {
+            emit(ChangeKind::ChangedDeclarationKind { previous, current })?;
+        } else if let (DeclarationBody::Constant(before), DeclarationBody::Constant(after)) =
+            (&before.body, &after.body)
+            && before != after
+        {
+            emit(ChangeKind::ChangedConstantType)?;
         }
     }
     Ok(())

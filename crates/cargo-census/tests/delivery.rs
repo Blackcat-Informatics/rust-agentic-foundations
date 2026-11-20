@@ -3,7 +3,7 @@
 
 //! Actual migration and debt commands, with read-only inputs and refusal neighbours.
 
-use raf_fixtures::{files, git_repo, layout};
+use raf_fixtures::{files, git_repo, git_repo::assert_census_refused, layout};
 
 use raf_census::{
     Baseline, Census, CensusOptions, DebtRecord, Gate, Ledger, LedgerExtension,
@@ -264,8 +264,8 @@ const DECLARATIONS_PATH: &str = "declarations.capnp";
 const DECLARATION_ARGS: &[&str] = &["--file-id", "0xeec1000000000000"];
 const DECLARATIONS_BASE: &[u8] = include_bytes!("fixtures/capnp/declarations-base.bin");
 
-/// Stable IDs preserve each declaration's local name, scope and kind.
-/// Layout selection is independent, and imported namespaces can be partial.
+/// Stable IDs preserve declaration identity and constant type. Values and
+/// referenced layouts evolve independently, including in partial imports.
 #[test]
 fn capnp_history_compares_file_declaration_identities() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -307,6 +307,7 @@ fn capnp_history_compares_file_declaration_identities() {
         "0xeec1000000000005.Leaving: declaration removed from selected files",
         "0xeec1000000000006.Externalize: declaration removed from selected files",
         "0xeec1000000000007.Reader: declaration renamed to Fetcher",
+        ".limit: constant declared type changed",
         ".obsoleteLimit: declaration removed from selected files",
         ".obsoleteMarker: declaration removed from selected files",
     ];
@@ -322,6 +323,11 @@ enum FixtureDeclarationKind {
     Struct,
     Enum,
     Group,
+    StructWithInvalidUnion,
+    Constant {
+        target: Option<u64>,
+        invalid_brand: bool,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -355,6 +361,25 @@ fn declaration_request(declarations: &[FixtureDeclaration<'_>]) -> Vec<u8> {
                 FixtureDeclarationKind::Group => {
                     node.reborrow().init_struct().set_is_group(true);
                 }
+                FixtureDeclarationKind::StructWithInvalidUnion => {
+                    node.reborrow().init_struct().set_discriminant_count(1);
+                }
+                FixtureDeclarationKind::Constant {
+                    target,
+                    invalid_brand,
+                } => {
+                    let constant = node.reborrow().init_const();
+                    if let Some(target) = target {
+                        let mut ty = constant.init_type().init_struct();
+                        ty.set_type_id(target);
+                        if invalid_brand {
+                            let mut scopes = ty.init_brand().init_scopes(1);
+                            let mut scope = scopes.reborrow().get(0);
+                            scope.set_scope_id(target);
+                            scope.init_bind(1).get(0).set_unbound(());
+                        }
+                    }
+                }
             }
             let mut children =
                 node.init_nested_nodes(u32::try_from(declaration.children.len()).unwrap());
@@ -372,6 +397,89 @@ fn declaration_request(declarations: &[FixtureDeclaration<'_>]) -> Vec<u8> {
         };
         request_files(request, requested);
     })
+}
+
+/// A selected constant requires a type and a well-formed nominal reference.
+/// Foreign scopes and layouts outside the selection can remain partial.
+#[test]
+fn capnp_history_refuses_malformed_constant_types() {
+    const CONSTANT: u64 = DECLARATIONS_FILE + 1;
+    const FOREIGN: u64 = DECLARATIONS_FILE + 2;
+    const TARGET: u64 = DECLARATIONS_FILE + 3;
+    const UNRELATED: u64 = DECLARATIONS_FILE + 4;
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let file = FixtureDeclaration {
+        id: DECLARATIONS_FILE,
+        scope: 0,
+        kind: FixtureDeclarationKind::File,
+        children: &[(CONSTANT, "constant")],
+    };
+    let foreign = FixtureDeclaration {
+        id: FOREIGN,
+        scope: 0,
+        kind: FixtureDeclarationKind::Struct,
+        children: &[(TARGET, "Target"), (UNRELATED, "Absent")],
+    };
+    let target = FixtureDeclaration {
+        id: TARGET,
+        scope: FOREIGN,
+        kind: FixtureDeclarationKind::StructWithInvalidUnion,
+        children: &[],
+    };
+    let constant = |target, invalid_brand| FixtureDeclaration {
+        id: CONSTANT,
+        scope: DECLARATIONS_FILE,
+        kind: FixtureDeclarationKind::Constant {
+            target,
+            invalid_brand,
+        },
+        children: &[],
+    };
+    let valid = [file, constant(Some(TARGET), false), foreign, target];
+    let base = commit_capnp_descriptor(root, &declaration_request(&valid));
+    let clean = capnp_history(root, &base, &base, &[], DECLARATION_ARGS);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(clean.stdout.is_empty(), "{clean:?}");
+    assert!(clean.stderr.is_empty(), "{clean:?}");
+    let invalid_layout = capnp_history(
+        root,
+        &base,
+        &base,
+        &[&format!("{TARGET:#018x}")],
+        DECLARATION_ARGS,
+    );
+    assert_census_refused(invalid_layout, "invalid union tag layout");
+
+    let wrong_kind = FixtureDeclaration {
+        kind: FixtureDeclarationKind::Enum,
+        ..target
+    };
+    for (fixture, expected) in [
+        (
+            &[file, constant(None, false)][..],
+            "constant declaration constant (0xeec1000000000001) has no type",
+        ),
+        (
+            &[file, constant(Some(TARGET), false), foreign],
+            "missing schema node 0xeec1000000000003",
+        ),
+        (
+            &[file, constant(Some(TARGET), false), foreign, wrong_kind],
+            "node 0xeec1000000000003 is not a referenced Struct",
+        ),
+        (
+            &[file, constant(Some(TARGET), true), foreign, target],
+            "too many brand bindings for scope 0xeec1000000000003",
+        ),
+    ] {
+        let invalid = commit_capnp_descriptor(root, &declaration_request(fixture));
+        assert_census_refused(
+            capnp_history(root, &base, &invalid, &[], DECLARATION_ARGS),
+            expected,
+        );
+    }
 }
 
 /// A selected scope's declarations require reciprocal, unique ownership.
@@ -455,11 +563,10 @@ fn capnp_history_refuses_invalid_declaration_ownership() {
         ),
     ] {
         let invalid = commit_capnp_descriptor(root, &declaration_request(nodes));
-        let refused = capnp_history(root, &base, &invalid, &[], DECLARATION_ARGS);
-        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
-        assert!(refused.stdout.is_empty(), "{refused:?}");
-        let diagnostic = String::from_utf8(refused.stderr).unwrap();
-        assert!(diagnostic.contains(expected), "{diagnostic}");
+        assert_census_refused(
+            capnp_history(root, &base, &invalid, &[], DECLARATION_ARGS),
+            expected,
+        );
     }
 }
 
