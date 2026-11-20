@@ -7,7 +7,7 @@ subject: cap:census-cli#usage
 inputs:
   - kind: section
     name: cap:census-cli#usage
-    digest: fa0de8c54d198e4f4cf112136f5e3fe6ff93eb15d9603ec406df03d7cadc70c7
+    digest: 00ce99bdaa8921018d6de355405c897d42e3c53d00dcba3f4918b0d76e6a54bf
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
@@ -16,10 +16,13 @@ inputs:
     digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86
   - kind: symbol
     name: raf_census::capnp_history::persistence::admission::check
-    digest: d48ff88f11f33c01b6de01d3b4c282da8041ff6e2c67a586921ab8f7227720db
+    digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
   - kind: symbol
     name: raf_census::capnp_history::persistence::check
     digest: 2aea35e5b521469c9193a2fc098d2016796854bed2a2e6fc6692a5dd8ab7d23d
+  - kind: symbol
+    name: raf_census::capnp_history::persistence::migration::check
+    digest: 84f5897595215f0580e430f73fc966829cb20b6a3e95674a59b6604e3c8aa13a
   - kind: symbol
     name: raf_census::capnp_history::reader_evidence::verify
     digest: 7cac3d238e4d3f80bea5edbe07e4480741c1271cee171b295fb4cf1b7f91a063

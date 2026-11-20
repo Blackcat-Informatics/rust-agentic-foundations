@@ -3,6 +3,8 @@
 
 //! The shipped history command admits only signed, closed compiler captures.
 
+#[path = "capnp_capture/migration_admission.rs"]
+mod migration_admission;
 #[path = "capnp_capture/persistence.rs"]
 mod persistence;
 #[path = "capnp_capture/reader_admission.rs"]

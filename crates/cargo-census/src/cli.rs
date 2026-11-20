@@ -35,6 +35,8 @@ pub(crate) enum Command {
     CapnpPersistence(Box<PersistenceArgs>),
     /// Assess reader admission for one committed Cap'n Proto declaration.
     CapnpReaderAdmission(Box<ReaderAdmissionArgs>),
+    /// Assess migration admission for one committed Cap'n Proto declaration.
+    CapnpMigrationAdmission(Box<MigrationAdmissionArgs>),
     /// Verify signed reader acceptance for exact committed Cap'n Proto payloads.
     CapnpReaderEvidence(Box<ReaderEvidenceArgs>),
     /// Inspect verified embedded source regions without running consumer code.
@@ -130,14 +132,34 @@ pub(crate) struct PersistenceArgs {
 }
 
 #[derive(ClapArgs)]
+#[command(group(clap::ArgGroup::new("reader_evidence").arg("evidence_commit").requires("reader_sha256")))]
 pub(crate) struct ReaderAdmissionArgs {
+    #[command(flatten)]
+    pub(crate) selection: AdmissionArgs,
+    /// SHA-256 of the expected reader artifact in lowercase hexadecimal.
+    #[arg(long, requires = "evidence_commit")]
+    pub(crate) reader_sha256: Option<String>,
+}
+
+#[derive(ClapArgs)]
+#[command(group(clap::ArgGroup::new("migration_evidence").arg("evidence_commit").requires("migration_sha256")))]
+pub(crate) struct MigrationAdmissionArgs {
+    #[command(flatten)]
+    pub(crate) selection: AdmissionArgs,
+    /// SHA-256 of the expected migration artifact in lowercase hexadecimal.
+    #[arg(long, requires = "evidence_commit")]
+    pub(crate) migration_sha256: Option<String>,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct AdmissionArgs {
     #[command(flatten)]
     pub(crate) persistence: PersistenceArgs,
     /// Stable persistence declaration slug.
     #[arg(long)]
     pub(crate) declaration: String,
     /// Separate committed evidence revision.
-    #[arg(long, requires_all = ["statement", "signature", "key", "reader_sha256"])]
+    #[arg(long, requires_all = ["statement", "signature", "key"])]
     pub(crate) evidence_commit: Option<String>,
     /// Canonical signed statement path in the evidence commit.
     #[arg(long, requires = "evidence_commit", value_parser = raf_census::capnp_history::reader_evidence::path)]
@@ -148,9 +170,6 @@ pub(crate) struct ReaderAdmissionArgs {
     /// Caller-selected Ed25519 public key.
     #[arg(long, requires = "evidence_commit")]
     pub(crate) key: Option<raf_census::capnp_history::CaptureKey>,
-    /// SHA-256 of the expected reader artifact in lowercase hexadecimal.
-    #[arg(long, requires = "evidence_commit")]
-    pub(crate) reader_sha256: Option<String>,
 }
 
 #[derive(ClapArgs)]

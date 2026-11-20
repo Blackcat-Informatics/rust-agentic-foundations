@@ -4,10 +4,11 @@
 //! Host input adapter; Census policy lives in the repository target and library.
 
 use crate::cli::{
-    Args, Command, HistoryArgs, MigrationArgs, PersistenceArgs, QueryTarget, RdfFormat,
-    ReaderAdmissionArgs, ReaderEvidenceArgs, ReferenceArgs, RegistryArgs, SchemaArgs,
+    AdmissionArgs, Args, Command, HistoryArgs, MigrationAdmissionArgs, MigrationArgs,
+    PersistenceArgs, QueryTarget, RdfFormat, ReaderAdmissionArgs, ReaderEvidenceArgs,
+    ReferenceArgs, RegistryArgs, SchemaArgs,
 };
-use raf_census::capnp_history::persistence::admission;
+use raf_census::capnp_history::persistence::{admission, migration};
 use raf_census::capnp_history::{
     self, CaptureFiles, CaptureVerification, HistoryOptions, Snapshot, persistence, reader_evidence,
 };
@@ -47,6 +48,7 @@ pub(crate) fn run(
     match &args.command {
         Command::CapnpReaderEvidence(_)
         | Command::CapnpReaderAdmission(_)
+        | Command::CapnpMigrationAdmission(_)
         | Command::CapnpPersistence(_) => {
             unreachable!(
                 "INVARIANT: Cap'n Proto policy and evidence dispatch before Gate registration"
@@ -149,6 +151,11 @@ fn pinned_command(args: &Args, output: &mut dyn Write) -> Option<Result<u8, crat
         Command::CapnpReaderAdmission(admission) => {
             Some(compare_reader_admission(&args.workspace, admission, output))
         }
+        Command::CapnpMigrationAdmission(admission) => Some(compare_migration_admission(
+            &args.workspace,
+            admission,
+            output,
+        )),
         _ => None,
     }
 }
@@ -216,12 +223,7 @@ fn compare_persistence(
             root,
             base,
             current,
-            persistence::Options {
-                policy: &args.policy,
-                required_annotation: args.schema.required_annotation,
-                paired_presence_annotation: args.schema.paired_presence_annotation,
-                capture,
-            },
+            persistence_options(args, capture),
         )?)
     })?;
     write_findings(&findings, output)
@@ -232,48 +234,26 @@ fn compare_reader_admission(
     args: &ReaderAdmissionArgs,
     output: &mut dyn Write,
 ) -> Result<u8, crate::error::Error> {
-    let policy = &args.persistence;
-    let claim = match (
-        &args.evidence_commit,
-        &args.statement,
-        &args.signature,
-        &args.key,
-        &args.reader_sha256,
-    ) {
-        (Some(commit), Some(statement), Some(signature), Some(key), Some(digest)) => {
-            Some(admission::Claim {
+    let selection = &args.selection;
+    let policy = &selection.persistence;
+    let claim = selected_evidence(
+        selection,
+        args.reader_sha256.as_deref(),
+        |digest, evidence| {
+            Ok(admission::Claim {
                 artifact: reader_evidence::artifact_digest(digest)?,
-                evidence: reader_evidence::Evidence {
-                    commit,
-                    files: CaptureFiles {
-                        statement,
-                        signature,
-                    },
-                    key,
-                },
+                evidence,
             })
-        }
-        (None, None, None, None, None) => None,
-        _ => {
-            return Err(Error::Options(
-                "supply all reader admission evidence options together".into(),
-            )
-            .into());
-        }
-    };
+        },
+    )?;
     let report = with_schema_inputs(&policy.schema, |base, current, capture| {
         Ok(admission::check(
             root,
             admission::Request {
                 base,
                 current,
-                options: persistence::Options {
-                    policy: &policy.policy,
-                    required_annotation: policy.schema.required_annotation,
-                    paired_presence_annotation: policy.schema.paired_presence_annotation,
-                    capture,
-                },
-                declaration: &args.declaration,
+                options: persistence_options(policy, capture),
+                declaration: &selection.declaration,
                 claim,
             },
         )?)
@@ -293,7 +273,7 @@ fn compare_reader_admission(
             writeln!(
                 output,
                 "admitted signed old-shape reader claim for {}",
-                args.declaration
+                selection.declaration
             )
             .map_err(stdout)?;
             for path in specimens {
@@ -301,6 +281,103 @@ fn compare_reader_admission(
             }
             Ok(0)
         }
+    }
+}
+
+fn compare_migration_admission(
+    root: &Path,
+    args: &MigrationAdmissionArgs,
+    output: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
+    let selection = &args.selection;
+    let policy = &selection.persistence;
+    let claim = selected_evidence(
+        selection,
+        args.migration_sha256.as_deref(),
+        |digest, evidence| {
+            Ok(migration::Claim {
+                artifact: reader_evidence::artifact_digest(digest)?,
+                evidence,
+            })
+        },
+    )?;
+    let report = with_schema_inputs(&policy.schema, |base, current, capture| {
+        Ok(migration::check(
+            root,
+            migration::Request {
+                base,
+                current,
+                options: persistence_options(policy, capture),
+                declaration: &selection.declaration,
+                claim,
+            },
+        )?)
+    })?;
+    write_findings(&report.findings, output)?;
+    match report.verdict {
+        migration::Verdict::Clean => Ok(0),
+        migration::Verdict::Uncovered => {
+            writeln!(
+                output,
+                "strict findings remain without admitted migration coverage"
+            )
+            .map_err(stdout)?;
+            Ok(1)
+        }
+        migration::Verdict::Admitted { pairs } => {
+            writeln!(
+                output,
+                "admitted signed migration claim for {}",
+                selection.declaration
+            )
+            .map_err(stdout)?;
+            for pair in pairs {
+                writeln!(output, "{}\t{}", pair.input, pair.output).map_err(stdout)?;
+            }
+            Ok(0)
+        }
+    }
+}
+
+fn persistence_options<'a>(
+    args: &'a PersistenceArgs,
+    capture: Option<CaptureVerification<'a>>,
+) -> persistence::Options<'a> {
+    persistence::Options {
+        policy: &args.policy,
+        required_annotation: args.schema.required_annotation,
+        paired_presence_annotation: args.schema.paired_presence_annotation,
+        capture,
+    }
+}
+
+fn selected_evidence<'a, T>(
+    args: &'a AdmissionArgs,
+    artifact: Option<&str>,
+    claim: impl FnOnce(&str, reader_evidence::Evidence<'a>) -> Result<T, reader_evidence::Error>,
+) -> Result<Option<T>, crate::error::Error> {
+    match (
+        &args.evidence_commit,
+        &args.statement,
+        &args.signature,
+        &args.key,
+        artifact,
+    ) {
+        (Some(commit), Some(statement), Some(signature), Some(key), Some(digest)) => {
+            Ok(Some(claim(
+                digest,
+                reader_evidence::Evidence {
+                    commit,
+                    files: CaptureFiles {
+                        statement,
+                        signature,
+                    },
+                    key,
+                },
+            )?))
+        }
+        (None, None, None, None, None) => Ok(None),
+        _ => Err(Error::Options("supply all admission evidence options together".into()).into()),
     }
 }
 

@@ -7,19 +7,19 @@ subject: cap:census-cli#verification
 inputs:
   - kind: section
     name: cap:census-cli#verification
-    digest: b05ea41cb3a7620773fd44c168fdfcd5a5184d66f1427682150ff35796929e80
+    digest: 3029bbd77ae9a2c0fef03e29a563b6f50893db8b5ebbe9014957da20f45129b8
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
   - kind: symbol
     name: cargo_census::cli
-    digest: 09888482b2c9afe46ab51526df23d4fd57cdae3f0179e636f86a14c7a813c644
+    digest: 4023381cf1bfb714064091a2bac7086b5c3ce3a9a5b7dda292a125b0a9821638
   - kind: symbol
     name: cargo_census::command
-    digest: 7bf283f0a199016779fa9bc4db2e112ce855c7d227975b0834ffc09280b9824a
+    digest: f4858184ebce29565146e4cc232e8842f313cc421154793810801539e73e1329
   - kind: symbol
     name: cargo_census::error
-    digest: 07bec80a81e406f232a6a4a592e6c5c378c60ba17b51f86a9966c4366b12937f
+    digest: d368c2653a7adfc685940b91a52e1ca7e946b508577849e120a7628a9dfa0f96
   - kind: symbol
     name: cargo_census::run
     digest: b32049f8a2619291edf0a2a43585c53654afca013fc0074ed2898c73a9c661fd
@@ -58,13 +58,16 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: c0a9886eb7ffcb17ac779cda5e665f05eab98c39d293e1671ab6477ededd93f2
+    digest: b1195007a7c4b8a1fc13fb9e75c61ea15ad86979c8e44a021cc9688c9da35685
   - kind: symbol
     name: raf_census::capnp_history::persistence::admission::check
-    digest: d48ff88f11f33c01b6de01d3b4c282da8041ff6e2c67a586921ab8f7227720db
+    digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
   - kind: symbol
     name: raf_census::capnp_history::persistence::check
     digest: 2aea35e5b521469c9193a2fc098d2016796854bed2a2e6fc6692a5dd8ab7d23d
+  - kind: symbol
+    name: raf_census::capnp_history::persistence::migration::check
+    digest: 84f5897595215f0580e430f73fc966829cb20b6a3e95674a59b6604e3c8aa13a
   - kind: symbol
     name: raf_census::capnp_history::reader_evidence::verify
     digest: 7cac3d238e4d3f80bea5edbe07e4480741c1271cee171b295fb4cf1b7f91a063

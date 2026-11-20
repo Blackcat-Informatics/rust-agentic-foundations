@@ -4,6 +4,7 @@
 //! Committed declarations selecting strict history for persisted Rust types.
 
 pub mod admission;
+pub mod migration;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -181,6 +182,7 @@ struct Declaration {
     symbol: String,
     root: TypeId,
     reader: Option<String>,
+    migration: Option<String>,
     specimens: Vec<RelPath>,
 }
 
@@ -342,6 +344,7 @@ fn read_policy(tree: &dyn Tree, path: &RelPath) -> Result<Policy, CaptureError> 
                 "symbol",
                 "rootType",
                 "readerEntry",
+                "migrationEntry",
                 "specimenPath",
             ],
         )?;
@@ -363,7 +366,8 @@ fn read_policy(tree: &dyn Tree, path: &RelPath) -> Result<Policy, CaptureError> 
                 package: source_name(&row, "package")?,
                 symbol: source_name(&row, "symbol")?,
                 root: root_id,
-                reader: optional_reader(&row)?,
+                reader: optional_entry(&row, "readerEntry")?,
+                migration: optional_entry(&row, "migrationEntry")?,
                 specimens: specimen_paths(&row)?,
             },
         );
@@ -377,9 +381,9 @@ fn read_policy(tree: &dyn Tree, path: &RelPath) -> Result<Policy, CaptureError> 
     Ok(policy)
 }
 
-fn optional_reader(row: &raf_rdf::Node<'_>) -> Result<Option<String>, ReportError> {
-    if row.values(&shape::property("readerEntry")).next().is_some() {
-        source_name(row, "readerEntry").map(Some)
+fn optional_entry(row: &raf_rdf::Node<'_>, key: &str) -> Result<Option<String>, ReportError> {
+    if row.values(&shape::property(key)).next().is_some() {
+        source_name(row, key).map(Some)
     } else {
         Ok(None)
     }
