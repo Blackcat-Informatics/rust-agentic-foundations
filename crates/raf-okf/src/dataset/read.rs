@@ -17,6 +17,9 @@ use crate::{
 
 type Set = OrderedTable<TermId, ()>;
 
+/// Number of fields in the largest role shapes, Entry and Item.
+const MAX_ROLE_FIELDS: usize = 5;
+
 fn insert(set: &mut Set, id: TermId) -> Result<bool, E> {
     let mut resident = Resident;
     Ok(set
@@ -174,28 +177,27 @@ fn rooted(mut reader: Reader<'_>, path: &str, root: TermId) -> Result<(Document,
             "unrelated or orphan structural subjects",
         ));
     }
-    let document = Document::new(frontmatter.clone(), body).map_err(E::Construct)?;
+    let mut document = Document::new(frontmatter.clone(), body).map_err(E::Construct)?;
     if document.frontmatter() != &frontmatter {
         return Err(E::shape(
             root_iri,
             "representation changes under document normalization",
         ));
     }
-    let parsed = Document::parse(&document.render()).map_err(E::Parse)?;
-    if parsed != document {
+    if !document.read_rendered_head().map_err(E::Parse)? {
         return Err(E::shape(
             root_iri,
             "styles, comments or values do not survive RAF rendering",
         ));
     }
-    let typed = validate(&parsed, path)?;
-    if identity(&parsed)? != root_iri {
+    let typed = validate(&document, path)?;
+    if identity(&document)? != root_iri {
         return Err(E::shape(
             root_iri,
             "asserted identity disagrees with validated type/id",
         ));
     }
-    Ok((parsed, typed))
+    Ok((document, typed))
 }
 
 fn rows(dataset: &RdfDataset, id: TermId) -> impl Iterator<Item = QuadIds> + '_ {
@@ -244,7 +246,8 @@ impl<'a> Reader<'a> {
                     language: None,
                     direction: None,
                 } => {
-                    let expected = if predicate == property("ordinal") {
+                    let field = predicate.strip_prefix(VOCAB);
+                    let expected = if field == Some("ordinal") {
                         INTEGER
                     } else {
                         STRING
@@ -256,10 +259,7 @@ impl<'a> Reader<'a> {
                             "canonical integer or string datatype required",
                         ));
                     }
-                    if ["body", "key", "text", "trailing"]
-                        .iter()
-                        .any(|name| predicate == property(name))
-                    {
+                    if matches!(field, Some("body" | "key" | "text" | "trailing")) {
                         budget.text(lexical)?;
                     }
                 }
@@ -283,11 +283,11 @@ impl<'a> Reader<'a> {
     }
 
     fn values(&self, id: TermId, key: &str) -> impl Iterator<Item = TermId> + '_ {
-        let predicate = self.dataset.term_id_by_iri(&if key == "type" {
-            TYPE.into()
+        let predicate = if key == "type" {
+            self.dataset.term_id_by_iri(TYPE)
         } else {
-            property(key)
-        });
+            self.dataset.term_id_by_iri(&property(key))
+        };
         self.rows(id)
             .filter(move |quad| Some(quad.p) == predicate)
             .map(|quad| quad.o)
@@ -305,20 +305,25 @@ impl<'a> Reader<'a> {
         let mut values = self.values(id, key);
         match (values.next(), values.next()) {
             (Some(value), None) => Ok(value),
-            _ => Err(E::shape(
-                self.iri(id)?,
-                format!("exactly one {key} is required"),
-            )),
+            _ => Err(Self::single_value_required(self.iri(id)?, key)),
         }
     }
 
+    fn single_value_required(subject: &str, key: &str) -> E {
+        E::shape(subject, format!("exactly one {key} is required"))
+    }
+
     fn string(&self, id: TermId, key: &str) -> Result<&'a str, E> {
+        self.string_value(id, key, self.one(id, key)?)
+    }
+
+    fn string_value(&self, id: TermId, key: &str, value: TermId) -> Result<&'a str, E> {
         if let TermRef::Literal {
             lexical,
             datatype,
             language: None,
             direction: None,
-        } = self.dataset.resolve(self.one(id, key)?)
+        } = self.dataset.resolve(value)
             && matches!(self.dataset.resolve(datatype), TermRef::Iri(value) if value == STRING)
         {
             Ok(lexical)
@@ -336,7 +341,10 @@ impl<'a> Reader<'a> {
 
     fn shape(&self, id: TermId) -> Result<(), E> {
         let role = self.role(id)?;
-        for quad in self.rows(id) {
+        let fields = role.fields();
+        let mut counts = [0; MAX_ROLE_FIELDS];
+        let mut rows = self.rows(id).peekable();
+        while let Some(quad) = rows.next() {
             let predicate = self.iri(quad.p)?;
             if predicate == TYPE {
                 continue;
@@ -347,12 +355,13 @@ impl<'a> Reader<'a> {
                     "unknown predicate namespace",
                 )
             })?;
-            if !role.fields().iter().any(|(name, _, _)| *name == key) {
+            let Some(index) = fields.iter().position(|(name, _, _)| *name == key) else {
                 return Err(E::shape(
                     self.iri(id)?,
                     "unknown predicate on this role; use only the declared authoring fields",
                 ));
-            }
+            };
+            counts[index] += 1;
             if [
                 "frontmatter",
                 "entry",
@@ -372,15 +381,21 @@ impl<'a> Reader<'a> {
                         format!("{key} requires an asserted structural subject"),
                     ));
                 }
-            } else if key == "ordinal" {
-                self.ordinal(id)?;
             } else {
-                self.string(id, key)?;
+                // For a fixed graph and subject, both the native GSPO probe
+                // and its SPOG scan yield each predicate as a contiguous run.
+                if rows.peek().is_some_and(|next| next.p == quad.p) {
+                    return Err(Self::single_value_required(self.iri(id)?, key));
+                }
+                if key == "ordinal" {
+                    self.ordinal_value(id, quad.o)?;
+                } else {
+                    self.string_value(id, key, quad.o)?;
+                }
             }
         }
-        for (key, min, max) in role.fields() {
-            let count = self.values(id, key).count();
-            if count < *min || count > *max {
+        for (&(key, min, max), count) in fields.iter().zip(counts) {
+            if count < min || count > max {
                 return Err(E::shape(
                     self.iri(id)?,
                     format!("{key} cardinality must be {min}..{max}"),
@@ -407,12 +422,16 @@ impl<'a> Reader<'a> {
     }
 
     fn ordinal(&self, id: TermId) -> Result<usize, E> {
+        self.ordinal_value(id, self.one(id, "ordinal")?)
+    }
+
+    fn ordinal_value(&self, id: TermId, value: TermId) -> Result<usize, E> {
         if let TermRef::Literal {
             lexical,
             datatype,
             language: None,
             direction: None,
-        } = self.dataset.resolve(self.one(id, "ordinal")?)
+        } = self.dataset.resolve(value)
             && matches!(self.dataset.resolve(datatype), TermRef::Iri(value) if value == INTEGER)
             && lexical.len() <= 6
             && let Ok(value) = lexical.parse::<usize>()
@@ -462,7 +481,7 @@ impl<'a> Reader<'a> {
         let trailing = self
             .values(id, "trailing")
             .next()
-            .map(|_| self.string(id, "trailing").map(str::to_owned))
+            .map(|value| self.string_value(id, "trailing", value).map(str::to_owned))
             .transpose()?;
         Ok(Comments { leading, trailing })
     }

@@ -892,6 +892,11 @@ survive. Reconstruction uses `Index::parse`, preserving its body locations.
 `Document::to_dataset(path)` validates one of the eight RAF types and returns a
 native PurRDF dataset. `Document::from_dataset(dataset, path)` recovers its model
 through the existing constructors, Markdown writer, parser and profile validator.
+
+The decoder reads the rendered frontmatter and verifies that the closing fence
+places the body at its constructed byte and line. The reconstructed frontmatter
+and body model use those rendered source positions.
+
 The model must remain equal after rendering and parsing. The body bytes, scalar
 text and quoting style, list form, item order and multiplicity, comments and the
 first mapping entry used by a list item survive. Mapping key order and source

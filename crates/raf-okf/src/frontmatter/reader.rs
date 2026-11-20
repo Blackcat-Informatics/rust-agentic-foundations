@@ -40,10 +40,8 @@ impl LineEnding {
 pub(crate) struct Head {
     /// The frontmatter.
     pub(crate) frontmatter: Frontmatter,
-    /// The line ending of the fences and the frontmatter lines.
-    pub(crate) eol: LineEnding,
-    /// Whether the closing fence line ends with a line ending.
-    pub(crate) closing_newline: bool,
+    /// The layout of the frontmatter and its fences.
+    pub(crate) fences: Fences,
 }
 
 /// One frontmatter line, without its line ending.
@@ -174,32 +172,24 @@ pub(crate) fn locate_fences(text: &str) -> Result<Fences, ParseError> {
 
 /// Read the fences and the frontmatter of `text`.
 pub(crate) fn read_head(text: &str) -> Result<Head, ParseError> {
-    let Fences {
-        eol,
-        front_start,
-        fence_start,
-        fence_line: number,
-        closing_newline,
-        body_start: _,
-    } = locate_fences(text)?;
+    let fences = locate_fences(text)?;
     let mut reader = Reader {
         text,
-        pos: front_start,
-        end: fence_start,
+        pos: fences.front_start,
+        end: fences.fence_start,
         number: 2,
-        eol,
+        eol: fences.eol,
         peeked: None,
         pending: Vec::new(),
     };
-    let map = reader.top_level(number, fence_start)?;
+    let map = reader.top_level(fences.fence_line, fences.fence_start)?;
     let trailing_comments = std::mem::take(&mut reader.pending);
     Ok(Head {
         frontmatter: Frontmatter {
             map,
             trailing_comments,
         },
-        eol,
-        closing_newline,
+        fences,
     })
 }
 

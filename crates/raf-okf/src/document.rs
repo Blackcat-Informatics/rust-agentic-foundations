@@ -50,12 +50,13 @@ impl Document {
     pub fn parse(text: &str) -> Result<Self, ParseError> {
         let mut head = read_head(text)?;
         sort_tags(&mut head.frontmatter);
-        let body = Body::parse(text)?;
+        let origin = Origin::after_fences(&head.fences);
+        let body = Body::parse_at(&text[origin.byte..], origin)?;
         Ok(Self {
             frontmatter: head.frontmatter,
             body,
-            eol: head.eol,
-            closing_newline: head.closing_newline,
+            eol: head.fences.eol,
+            closing_newline: head.fences.closing_newline,
         })
     }
 
@@ -90,6 +91,29 @@ impl Document {
         // carries the line and offset of that text.
         document.body = Body::parse_at(&body_text, origin).map_err(ConstructError::Body)?;
         Ok(document)
+    }
+
+    /// Read a reconstructed head and install its parsed source positions.
+    ///
+    /// Return false if rendering changes the frontmatter or the body boundary.
+    pub(crate) fn read_rendered_head(&mut self) -> Result<bool, ParseError> {
+        let mut rendered = self.render_head();
+        let mut head = read_head(&rendered)?;
+        let origin = Origin::after_fences(&head.fences);
+        let span = self.body.span();
+        if origin.byte != span.bytes.start || origin.line != span.lines.start {
+            // An early closing fence makes part of the rendered head into
+            // Markdown. Preserve a parse error in that shifted body.
+            rendered.push_str(self.body.text());
+            Body::parse_at(&rendered[origin.byte..], origin)?;
+            return Ok(false);
+        }
+        sort_tags(&mut head.frontmatter);
+        if head.frontmatter != self.frontmatter {
+            return Ok(false);
+        }
+        self.frontmatter = head.frontmatter;
+        Ok(true)
     }
 
     /// Replace byte ranges of the body in one pass; see

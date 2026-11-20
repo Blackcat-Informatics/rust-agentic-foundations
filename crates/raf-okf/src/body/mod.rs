@@ -163,19 +163,19 @@ impl Body {
     /// no marker, block quotes and list items
     /// nested over 64 levels, or a link destination or title over 4096 bytes.
     pub fn parse(text: &str) -> Result<Self, ParseError> {
-        let (start, line) = match locate_fences(text) {
-            Ok(fences) => (fences.body_start, fences.fence_line + 1),
+        let origin = match locate_fences(text) {
+            Ok(fences) => Origin::after_fences(&fences),
             Err(error)
                 if matches!(
                     error.kind(),
                     ErrorKind::MissingFence | ErrorKind::UnclosedFence
                 ) =>
             {
-                (0, 1)
+                Origin::START
             }
             Err(error) => return Err(error),
         };
-        Self::parse_at(&text[start..], Origin { byte: start, line })
+        Self::parse_at(&text[origin.byte..], origin)
     }
 
     /// Read the model of a body that starts at `origin` in its whole text.
