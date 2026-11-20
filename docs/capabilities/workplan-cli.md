@@ -269,6 +269,11 @@ order. The target IRI identifies the declared capability, including
 when its document is absent.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
+Repository export includes the declared input relationships from Evidence,
+Assessment and Review Documents. It preserves the recorded digests for stale
+or unavailable inputs.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
 `docs fragment` returns complete raw Markdown for one imported Cargo library, an explicit public receiving module, capability and existing named diagram. Every code binding of that capability is required. The native static fragment API checks source and imported library identities and refuses private, hidden, unresolved or ambiguous references before emitting output. Diagnostics use stderr. Quiet mode and non-text formats refuse before input loading.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
@@ -395,6 +400,11 @@ each produce a path diagnostic with empty stdout.
 In both RDF carriers the fixture checks the original Evidence Document
 and the separate target statements at their authored positions, with
 an absent target before an available one.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
+The fixture also checks authored input positions and exact name and digest
+assertions for all three input-bearing document types, including an absent
+artifact. Both RDF carriers recover the original Documents.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 CLI fixtures compare static verification with the library, exercise prospective completion and refusal, reject missing trust before discovery, and keep stored commands inert.

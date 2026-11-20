@@ -52,6 +52,8 @@ pub(super) fn repository(dataset: &RdfDataset) -> Result<RepositoryAuthoring, Er
         let declared = match &typed {
             RafDocument::Capability(capability) => Declarations::Capability(capability),
             RafDocument::Evidence(evidence) => Declarations::Evidence(evidence),
+            RafDocument::Assessment(assessment) => Declarations::Inputs(&assessment.inputs),
+            RafDocument::Review(review) => Declarations::Inputs(&review.inputs),
             _ => Declarations::None,
         };
         declarations((group.path, iri(dataset, id)?), declared, |s, p, o| {

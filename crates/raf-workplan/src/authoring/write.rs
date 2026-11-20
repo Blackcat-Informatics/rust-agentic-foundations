@@ -50,8 +50,12 @@ pub(super) fn repository(
     for evidence in plan.evidence() {
         writer.document(evidence, Declarations::Evidence(evidence.value()))?;
     }
-    writer.documents(plan.assessments())?;
-    writer.documents(plan.reviews())?;
+    for assessment in plan.assessments() {
+        writer.document(assessment, Declarations::Inputs(&assessment.value().inputs))?;
+    }
+    for review in plan.reviews() {
+        writer.document(review, Declarations::Inputs(&review.value().inputs))?;
+    }
     writer.documents(plan.coverage())?;
     writer.documents(plan.debt())?;
     writer
