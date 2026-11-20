@@ -152,7 +152,7 @@ pub(crate) enum AliasAttributes {
 }
 
 impl AliasAttributes {
-    fn of(attributes: &[syn::Attribute]) -> Self {
+    pub(crate) fn of(attributes: &[syn::Attribute]) -> Self {
         if inert_attributes(attributes) {
             Self::Inert
         } else if definitely_excluded(attributes) {
