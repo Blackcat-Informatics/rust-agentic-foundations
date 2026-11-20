@@ -249,11 +249,18 @@ fn capnp_persistence_refuses_invalid_bindings_and_policy_rows() {
         "persist_fixture::Packet",
         PACKET,
     );
-    let current = commit(root, super::DESCRIPTOR, policy(&[row]));
-    assert_refused(
-        check(root, &base, &current),
-        "must be a declared schema struct or enum",
-    );
+    let rpc = include_bytes!("../fixtures/capnp/rpc-base.bin");
+    for (descriptor, node) in [
+        (super::DESCRIPTOR, row.3),
+        (rpc, "0xcad554910d7a67ab"),
+        (rpc, "0xd766b858756a10ab"),
+    ] {
+        let current = commit(root, descriptor, policy(&[(row.0, row.1, row.2, node)]));
+        assert_refused(
+            check(root, &base, &current),
+            "must be a declared schema struct or enum",
+        );
+    }
 
     let current = commit(
         root,

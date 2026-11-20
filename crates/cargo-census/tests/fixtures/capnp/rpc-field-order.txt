@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+(nodes = [
+  (id = 15071537874134956353,
+   file = void,
+   nestedNodes = [
+     (name = "ByteReader", id = 14615681147673929643),
+     (name = "ImplicitResult", id = 10376293541461622787)]),
+  (id = 14615681147673929643,
+   scopeId = 15071537874134956353,
+   interface = (methods = [
+     (name = "read",
+      paramStructType = 10376293541461622785,
+      resultStructType = 10376293541461622786)])),
+  (id = 10376293541461622787,
+   scopeId = 15071537874134956353,
+   interface = (methods = [
+     (name = "read",
+      paramStructType = 10376293541461622788,
+      resultStructType = 10376293541461622789)])),
+  (id = 10376293541461622785,
+   struct = (dataWordCount = 1, preferredListEncoding = inlineComposite, fields = [
+     (name = "offset", codeOrder = 1, ordinal = (explicit = 1),
+      slot = (offset = 1, type = (uint32 = void), defaultValue = (uint32 = 0))),
+     (name = "size", ordinal = (explicit = 0),
+      slot = (type = (uint32 = void), defaultValue = (uint32 = 0)))])),
+  (id = 10376293541461622786, struct = ()),
+  (id = 10376293541461622788, struct = ()),
+  (id = 10376293541461622789,
+   struct = (dataWordCount = 1, preferredListEncoding = inlineComposite, fields = [
+     (name = "ready",
+      slot = (type = (bool = void), defaultValue = (bool = false)))]))])

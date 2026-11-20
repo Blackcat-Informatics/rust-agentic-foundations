@@ -13,7 +13,7 @@ inputs:
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
   - kind: symbol
     name: cargo_census::cli
-    digest: 83a1fddf7d1b9ab3cada74023f4c70f3589179a9a83b1c5373cc9ad08d3ea4e0
+    digest: 5636ff5948ceb22d97290e7fa72743bec5e8266d42893083710057510833bef0
   - kind: symbol
     name: cargo_census::command
     digest: 70966d9a9e870dc1c8aef5134165da8ef6d23ed60beabe7a96a3cbf130e08998
@@ -58,7 +58,7 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: b58d89bd8eadee7ca509a8f80e371615e90ddbb23f593082b9b0c051f5ce4639
+    digest: f55deae013580cf8e02267eee6e92a41b802538a289f058668c77d7809d4f98b
   - kind: symbol
     name: raf_census::capnp_history::persistence::admission::check
     digest: d48ff88f11f33c01b6de01d3b4c282da8041ff6e2c67a586921ab8f7227720db

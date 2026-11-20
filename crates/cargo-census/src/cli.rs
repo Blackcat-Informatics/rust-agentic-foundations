@@ -112,7 +112,7 @@ pub(crate) enum Command {
 pub(crate) struct HistoryArgs {
     #[command(flatten)]
     pub(crate) schema: SchemaArgs,
-    /// Selected struct or enum type ID. Repeat to select additional types.
+    /// Selected struct, enum or supported RPC interface ID. Repeat for additional types.
     #[arg(long = "type", required = true)]
     pub(crate) types: Vec<raf_census::capnp_history::TypeId>,
 }

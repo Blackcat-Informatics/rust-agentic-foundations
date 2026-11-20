@@ -164,6 +164,114 @@ fn commit_capnp_descriptor(root: &Path, bytes: &[u8]) -> String {
     git_repo::commit_all(root)
 }
 
+const RPC_READER: &str = "0xcad554910d7a67ab";
+const RPC_BASE: &[u8] = include_bytes!("fixtures/capnp/rpc-base.bin");
+
+/// Method ordinals, endpoint layouts and input defaults all survive comparison
+/// through the committed descriptors. Named dependencies keep their history.
+#[test]
+fn capnp_history_checks_inline_rpc_methods() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let commit = |bytes| commit_capnp_descriptor(root, bytes);
+    let base = commit(RPC_BASE);
+    let compatible = commit(include_bytes!("fixtures/capnp/rpc-compatible.bin"));
+    let changed = commit(include_bytes!("fixtures/capnp/rpc-changed.bin"));
+    let history = |after| capnp_history(root, &base, after, &[RPC_READER], &[]);
+    let clean = history(&compatible);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(clean.stdout.is_empty(), "{clean:?}");
+
+    let changed = history(&changed);
+    assert_eq!(changed.status.code(), Some(1), "{changed:?}");
+    assert!(changed.stderr.is_empty(), "{changed:?}");
+    let findings = String::from_utf8(changed.stdout).unwrap();
+    for expected in [
+        ".read: member renamed to fetch",
+        ".status: ordinal changed",
+        ".watch: ordinal changed",
+        ".finish: member removed",
+        ".status.parameters: type changed",
+        ".status.results: type changed",
+        ".read.parameters.size: default changed",
+        ".read.parameters.offset: appended input parameter needs an explicit default",
+        ".read.results.ready: type changed",
+        "0xf7d9fae829b17495.value: member renamed to label",
+    ] {
+        assert!(findings.contains(expected), "{findings}");
+    }
+}
+
+/// Detached endpoints belong to exactly one method and role across the request.
+/// Explicit interface roots require a supported, inline nongeneric signature.
+#[test]
+fn capnp_history_refuses_unsupported_rpc_endpoints() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, RPC_BASE);
+    let unsupported =
+        commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-unsupported.bin"));
+    let shared = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-shared-endpoint.bin"),
+    );
+    let field_order =
+        commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-field-order.bin"));
+    for (before, after, selected, expected) in [
+        (&base, &shared, RPC_READER, "exactly one owning method role"),
+        (
+            &field_order,
+            &field_order,
+            RPC_READER,
+            "must list inline fields in order with explicit ordinals from zero",
+        ),
+        (
+            &field_order,
+            &field_order,
+            "0x9000000000000003",
+            "must list inline fields in order with explicit ordinals from zero",
+        ),
+        (
+            &base,
+            &base,
+            "0xd766b858756a10ab",
+            "must be selected through its owning method",
+        ),
+        (
+            &unsupported,
+            &unsupported,
+            "0xf8e70893fb8da3a6",
+            "no superinterfaces",
+        ),
+        (
+            &unsupported,
+            &unsupported,
+            "0xa6615df804a45ef7",
+            "must be nongeneric",
+        ),
+        (
+            &unsupported,
+            &unsupported,
+            "0xba6c33c22a5d3e73",
+            "must use nongeneric endpoints",
+        ),
+        (
+            &unsupported,
+            &unsupported,
+            "0xadb4bfe48ad45105",
+            "must be a detached nongeneric struct",
+        ),
+    ] {
+        let refused = capnp_history(root, before, after, &[selected], &[]);
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert!(refused.stdout.is_empty(), "{refused:?}");
+        let diagnostic = String::from_utf8(refused.stderr).unwrap();
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+}
+
 /// The shipped command follows compiled references from the selected type and
 /// compares the committed layouts even when the worktree contains other bytes.
 #[test]
@@ -337,7 +445,7 @@ fn capnp_history_compares_required_pointer_fields_in_committed_descriptors() {
         (
             &mixed,
             &mixed,
-            "0xbedd0c5585e38aff",
+            "0x96ac3c3492efd765",
             MARKER,
             "must belong to a declared struct",
         ),
