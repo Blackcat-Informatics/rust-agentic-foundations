@@ -16,7 +16,14 @@
      (name = "ClaimedInput", id = 17204595001485426701),
      (name = "Result", id = 17204595001485426702),
      (name = "GroupEndpoint", id = 17204595001485426703),
-     (name = "Group", id = 17204595001485426704)]),
+     (name = "Group", id = 17204595001485426704),
+     (name = "IncompleteBrand", id = 17204595001485426705),
+     (name = "GenericInput", id = 17204595001485426706),
+     (name = "CompetingBrand", id = 17204595001485426707),
+     (name = "AmbiguousInput", id = 17204595001485426708),
+     (name = "AmbiguousAlias", id = 17204595001485426708),
+     (name = "UnboundAfterBound", id = 17204595001485426709),
+     (name = "IncompleteNestedBrand", id = 17204595001485426710)]),
   (id = 17204595001485426689, scopeId = 17204595001485426688,
    interface = (methods = [
      (name = "read", paramStructType = 17204595001485426690, resultStructType = 17204595001485426690)])),
@@ -47,4 +54,28 @@
   (id = 17204595001485426703, scopeId = 17204595001485426688,
    interface = (methods = [
      (name = "read", paramStructType = 17204595001485426704, resultStructType = 17204595001485426702)])),
-  (id = 17204595001485426704, scopeId = 17204595001485426688, struct = (isGroup = true))])
+  (id = 17204595001485426704, scopeId = 17204595001485426688, struct = (isGroup = true)),
+  (id = 17204595001485426705, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426706, resultStructType = 17204595001485426702,
+      paramBrand = (scopes = [(scopeId = 17204595001485426706, bind = [(type = (text = void))])]))])),
+  (id = 17204595001485426706, scopeId = 17204595001485426688,
+   isGeneric = true, parameters = [(name = "T"), (name = "U")], struct = ()),
+  (id = 17204595001485426707, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426708, resultStructType = 17204595001485426702,
+      paramBrand = (scopes = [(scopeId = 17204595001485426708, bind = [(type = (text = void))])]))])),
+  (id = 17204595001485426708, scopeId = 17204595001485426688,
+   isGeneric = true, parameters = [(name = "T")], struct = ()),
+  (id = 17204595001485426709, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "bound", paramStructType = 17204595001485426706, resultStructType = 17204595001485426702,
+      paramBrand = (scopes = [(scopeId = 17204595001485426706, bind = [(type = (text = void)), (type = (data = void))])])),
+     (name = "unbound", paramStructType = 17204595001485426706, resultStructType = 17204595001485426702)])),
+  (id = 17204595001485426710, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426706, resultStructType = 17204595001485426702,
+      paramBrand = (scopes = [(scopeId = 17204595001485426706, bind = [
+        (type = (struct = (typeId = 17204595001485426706, brand = (scopes = [
+          (scopeId = 17204595001485426706, bind = [(type = (text = void))])])))),
+        (type = (data = void))])]))]))])

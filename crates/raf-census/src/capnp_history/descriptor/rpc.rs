@@ -5,12 +5,13 @@
 
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 
-use capnp::schema_capnp::{field, node};
+use capnp::schema_capnp::{brand, field, node};
 
 use super::{
     Annotations, DeclarationScopes, Endpoint, Error, Interface, Kind, Method, Node, Nodes, TypeId,
     layout, member_name,
 };
+use crate::capnp_history::shape::{self, Arguments, Pointer, Type};
 
 // A present entry with no owner records an invalid or competing declaration.
 type Owners = BTreeMap<TypeId, Option<TypeId>>;
@@ -125,8 +126,23 @@ impl Projection {
         id: TypeId,
         scopes: &mut DeclarationScopes,
     ) -> Result<(), Error> {
+        if !self.reciprocal_declaration(nodes, id, false, scopes)? {
+            return Err(layout(format!(
+                "RPC inheritance interface {id} requires a reciprocal nongeneric declaration chain"
+            )));
+        }
+        Ok(())
+    }
+
+    fn reciprocal_declaration(
+        &mut self,
+        nodes: &Nodes<'_>,
+        id: TypeId,
+        generic_endpoint: bool,
+        scopes: &mut DeclarationScopes,
+    ) -> Result<bool, Error> {
         if self.proved_declarations.contains(&id) {
-            return Ok(());
+            return Ok(true);
         }
         let owners = match self.owners {
             Some(ref owners) => owners,
@@ -140,14 +156,13 @@ impl Projection {
             } else {
                 owner == Some(&Some(parent))
             };
-            Ok(reciprocal && nongeneric(reader)?)
+            Ok(reciprocal
+                && ((generic_endpoint && TypeId(reader.get_id()) == id) || nongeneric(reader)?))
         })? {
-            return Err(layout(format!(
-                "RPC inheritance interface {id} requires a reciprocal nongeneric declaration chain"
-            )));
+            return Ok(false);
         }
         self.proved_declarations.insert(id);
-        Ok(())
+        Ok(true)
     }
 
     fn methods<'a>(
@@ -173,19 +188,19 @@ impl Projection {
                 return Err(layout(format!("repeated RPC method {id}.{name}")));
             }
             let location = || format!("RPC interface {id} method @{ordinal} {name}");
-            if !method.get_implicit_parameters()?.is_empty()
-                || !method.get_param_brand()?.get_scopes()?.is_empty()
-                || !method.get_result_brand()?.get_scopes()?.is_empty()
-            {
+            if !method.get_implicit_parameters()?.is_empty() {
                 return Err(layout(format!(
-                    "{} must use nongeneric endpoints",
+                    "{} must have no implicit method type parameters",
                     location()
                 )));
             }
-            let mut endpoint = |id, role| -> Result<Endpoint, Error> {
-                let reader = nodes.node(id)?;
+            let mut endpoint = |target,
+                                brand: brand::Reader<'_>,
+                                role|
+             -> Result<Endpoint, Error> {
+                let reader = nodes.node(target)?;
                 let error =
-                    |reason: &str| layout(format!("{} {role} node {id} {reason}", location()));
+                    |reason: &str| layout(format!("{} {role} node {target} {reason}", location()));
                 let node::Struct(data) = reader.which()? else {
                     return Err(error("must be a nongroup struct"));
                 };
@@ -193,26 +208,47 @@ impl Projection {
                     return Err(error("must be a nongroup struct"));
                 }
                 if reader.get_scope_id() == 0 {
+                    if !brand.get_scopes()?.is_empty() {
+                        return Err(error("must have an empty inline endpoint brand"));
+                    }
                     self.inline(reader, data, error)?;
-                    if self.has_declaring_scope(nodes, id)? {
+                    if self.has_declaring_scope(nodes, target)? {
                         return Err(error(
                             "has a lexical declaration claim despite its zero scope",
                         ));
                     }
-                    let structure = nodes.structure(id, data, needed, annotations, scopes)?;
-                    return Ok(Endpoint::Inline { id, structure });
+                    let structure = nodes.structure(target, data, needed, annotations, scopes)?;
+                    return Ok(Endpoint::Inline {
+                        id: target,
+                        structure,
+                    });
                 }
-                if !self.named.contains(&id) {
-                    if !nodes.declaration_chain(id, scopes, nongeneric)? {
+                let endpoint = if brand.get_scopes()?.is_empty() {
+                    if !nongeneric(reader)?
+                        || (!self.named.contains(&target)
+                            && !nodes.declaration_chain(target, scopes, nongeneric)?)
+                    {
                         return Err(error("requires a reciprocal nongeneric declaration chain"));
                     }
-                    self.named.insert(id);
-                    needed.insert(id);
+                    Type::Named(Kind::Struct, target, BTreeMap::new())
+                } else {
+                    self.branded_endpoint(nodes, (id, reader), brand, needed, scopes, error)?
+                };
+                if self.named.insert(target) {
+                    needed.insert(target);
                 }
-                Ok(Endpoint::Named(id))
+                Ok(Endpoint::Named(endpoint))
             };
-            let params = endpoint(TypeId(method.get_param_struct_type()), "parameters")?;
-            let results = endpoint(TypeId(method.get_result_struct_type()), "results")?;
+            let params = endpoint(
+                TypeId(method.get_param_struct_type()),
+                method.get_param_brand()?,
+                "parameters",
+            )?;
+            let results = endpoint(
+                TypeId(method.get_result_struct_type()),
+                method.get_result_brand()?,
+                "results",
+            )?;
             methods.push(Method {
                 name: name.to_owned(),
                 params,
@@ -220,6 +256,39 @@ impl Projection {
             });
         }
         Ok(methods)
+    }
+
+    fn branded_endpoint(
+        &mut self,
+        nodes: &Nodes<'_>,
+        (interface, endpoint): (TypeId, node::Reader<'_>),
+        brand: brand::Reader<'_>,
+        needed: &mut BTreeSet<TypeId>,
+        scopes: &mut DeclarationScopes,
+        error: impl Fn(&str) -> Error,
+    ) -> Result<Type, Error> {
+        let id = TypeId(endpoint.get_id());
+        if !endpoint.get_is_generic() || endpoint.get_parameters()?.is_empty() {
+            return Err(error(
+                "must have an empty brand for a nongeneric declaration",
+            ));
+        }
+        if !self.reciprocal_declaration(nodes, interface, false, scopes)?
+            || !self.reciprocal_declaration(nodes, id, true, scopes)?
+        {
+            return Err(error(
+                "requires unique reciprocal declarations in nongeneric enclosing scopes",
+            ));
+        }
+        let declared = brand.get_scopes()?;
+        if declared.len() != 1 || declared.get(0).get_scope_id() != id.0 {
+            return Err(error("requires one explicit brand scope for the endpoint"));
+        }
+        let brand = shape::read_brand(brand, nodes, (interface, id), needed)?;
+        if !concrete_brand(nodes, id, &brand)? {
+            return Err(error("requires a complete concrete endpoint brand"));
+        }
+        Ok(Type::Named(Kind::Struct, id, brand))
     }
 
     fn has_declaring_scope(&mut self, nodes: &Nodes<'_>, id: TypeId) -> Result<bool, Error> {
@@ -279,6 +348,44 @@ impl Projection {
 
 fn nongeneric(reader: node::Reader<'_>) -> Result<bool, Error> {
     Ok(!reader.get_is_generic() && reader.get_parameters()?.is_empty())
+}
+
+fn concrete_brand(
+    nodes: &Nodes<'_>,
+    mut id: TypeId,
+    brand: &BTreeMap<TypeId, Arguments>,
+) -> Result<bool, Error> {
+    for _ in 0..=super::MAX_DEPTH {
+        let node = nodes.node(id)?;
+        let count = node.get_parameters()?.len();
+        if count != 0 {
+            let Some(Arguments::Bound(values)) = brand.get(&id) else {
+                return Ok(false);
+            };
+            if u32::try_from(values.len()) != Ok(count) {
+                return Ok(false);
+            }
+            for value in values {
+                if !concrete_type(nodes, value)? {
+                    return Ok(false);
+                }
+            }
+        }
+        id = TypeId(node.get_scope_id());
+        if id.0 == 0 {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn concrete_type(nodes: &Nodes<'_>, ty: &Type) -> Result<bool, Error> {
+    match ty {
+        Type::Named(_, id, brand) => concrete_brand(nodes, *id, brand),
+        Type::List(element) => concrete_type(nodes, element),
+        Type::Pointer(Pointer::Any | Pointer::Parameter(..)) => Ok(false),
+        Type::Atom(_) | Type::Pointer(_) => Ok(true),
+    }
 }
 
 fn lexical_owners(nodes: &Nodes<'_>) -> Result<Owners, Error> {
