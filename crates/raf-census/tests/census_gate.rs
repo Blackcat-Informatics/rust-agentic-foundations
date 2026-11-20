@@ -1919,39 +1919,112 @@ pub fn outside(mut value: Selected, other: home::Other) {
 }
 "#;
 
+const CONSTRUCTOR_RECEIVER_SOURCE: &str = r#"
+pub mod home {
+    pub struct Banned {}
+    pub type Alias = Banned;
+    impl Banned { pub fn run(&mut self) {} }
+    pub fn sanctioned(mut value: Banned) { value.run(); }
+}
+pub mod other {
+    pub struct Banned {}
+    impl Banned { pub fn run(&mut self) {} }
+}
+pub use home as alias;
+pub use home::Alias as Reexport;
+pub use other::Banned as Choice;
+fn factory() -> home::Banned { home::Banned {} }
+
+pub fn outside() {
+    use crate::Reexport as Constructor;
+    #[allow(non_snake_case)]
+    fn Constructor() {}
+    let mut annotated: Constructor = factory();
+    annotated.run(); // hit
+    let mut value = Constructor {};
+    value.run(); // hit
+    let mut value = Constructor { ..{ value.run(); Constructor {} } }; // hit
+    value.run(); // hit
+    { let mut value = other::Banned {}; value.run(); }
+    { let mut value = factory(); value.run(); }
+    { let mut value: _ = Constructor {}; value.run(); }
+    { let ref mut value = Constructor {}; value.run(); }
+    { let value = &mut Constructor {}; value.run(); }
+    {
+        #[cfg(any())] use crate::home::Banned as Choice;
+        let mut value = Choice {};
+        value.run();
+    }
+    {
+        #[cfg(any())] use crate::other::Banned as Constructor;
+        let mut value = Constructor {};
+        value.run(); // hit
+    }
+    {
+        #[cfg(feature = "alternate")] use crate::other::Banned as Constructor;
+        let mut value = Constructor {};
+        value.run();
+    }
+    { #[cfg(any())] let mut value = other::Banned {}; value.run(); } // hit
+    { let mut value = other::Banned {}; #[cfg(feature = "alternate")] let mut value = Constructor {}; value.run(); }
+    let _ = || value.run(); // hit
+}
+"#;
+
+const TUPLE_RECEIVER_SOURCE: &str = r"
+pub mod home {
+    pub struct Banned(pub u8);
+    impl Banned { pub fn run(&self) {} }
+    pub fn sanctioned(value: Banned) { value.run(); }
+}
+pub use home as alias;
+
+pub fn outside() {
+    let typed: home::Banned = home::Banned { 0: 1 };
+    typed.run(); // hit
+    let inferred = home::Banned { 0: 2 };
+    inferred.run();
+}
+";
+
 #[test]
 fn written_receiver_methods_keep_declaration_identity_and_runtime_shadowing() {
     use std::collections::BTreeSet;
 
-    // A method token is reported only when a written local type or parameter
-    // proves the selected nominal identity in the binding's own scope.
-    let source = WRITTEN_RECEIVER_SOURCE;
-    let report = Gate::workspace(".")
-        .check_tree(&lexical_pattern_tree(
-            source,
-            "methodOn",
-            "demo::home::Banned::run",
-        ))
-        .unwrap();
-    let expected: BTreeSet<_> = source
-        .lines()
-        .enumerate()
-        .filter(|(_, line)| line.contains("// hit"))
-        .map(|(line, _)| line + 1)
-        .collect();
-    let mixed = mixed_policy_keeps_type_path_findings(source);
-    for (report, rule) in [(&report, "approved-call"), (&mixed, "written-receiver")] {
-        let rule = format!(", rule {rule}:");
-        let actual: BTreeSet<_> = report
-            .findings()
-            .iter()
-            .filter(|finding| finding.contains(&rule))
-            .filter_map(|finding| finding.strip_prefix("src/lib.rs:"))
-            .map(|finding| finding.split(':').next().unwrap().parse::<usize>().unwrap())
+    // The declaration supplies nominal identity, and a nearer binding can
+    // shadow that proof whether it has a supported type or initializer.
+    for source in [
+        WRITTEN_RECEIVER_SOURCE,
+        CONSTRUCTOR_RECEIVER_SOURCE,
+        TUPLE_RECEIVER_SOURCE,
+    ] {
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(
+                source,
+                "methodOn",
+                "demo::home::Banned::run",
+            ))
+            .unwrap();
+        let expected: BTreeSet<_> = source
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| line.contains("// hit"))
+            .map(|(line, _)| line + 1)
             .collect();
-        assert_eq!(actual, expected, "{:?}", report.findings());
+        let mixed = mixed_policy_keeps_type_path_findings(source);
+        for (report, rule) in [(&report, "approved-call"), (&mixed, "written-receiver")] {
+            let rule = format!(", rule {rule}:");
+            let actual: BTreeSet<_> = report
+                .findings()
+                .iter()
+                .filter(|finding| finding.contains(&rule))
+                .filter_map(|finding| finding.strip_prefix("src/lib.rs:"))
+                .map(|finding| finding.split(':').next().unwrap().parse::<usize>().unwrap())
+                .collect();
+            assert_eq!(actual, expected, "{:?}", report.findings());
+        }
+        assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
     }
-    assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
 }
 
 fn mixed_policy_keeps_type_path_findings(source: &str) -> raf_census::GateReport {
@@ -2041,8 +2114,8 @@ fn written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file() {
                 format!(
                     r#"
 pub mod home {{
-    pub struct Banned;
-    pub struct Other;
+    pub struct Banned {{}}
+    pub struct Other {{}}
     pub fn sanctioned(value: Banned) {{ value.run(); }}
 }}
 pub use home as alias;
@@ -2059,7 +2132,12 @@ pub mod shipping {{
             ),
             (
                 "src/shared.rs",
-                "pub fn copy(value: super::Choice) { value.run(); }".to_owned(),
+                "pub fn copy(value: super::Choice) {
+    value.run();
+    let inferred = super::Choice {};
+    inferred.run();
+}"
+                .to_owned(),
             ),
         ]
         .into_iter()
@@ -2071,16 +2149,18 @@ pub mod shipping {{
             "{shipping} {tests}: {:?}",
             report.findings()
         );
-        assert_eq!(
-            report
-                .findings()
-                .iter()
-                .filter(|line| line.contains("shared.rs:1: job"))
-                .count(),
-            copies,
-            "{shipping} {tests}: {:?}",
-            report.findings()
-        );
+        for position in ["shared.rs:2: job", "shared.rs:4: job"] {
+            assert_eq!(
+                report
+                    .findings()
+                    .iter()
+                    .filter(|line| line.contains(position))
+                    .count(),
+                copies,
+                "{shipping} {tests}: {:?}",
+                report.findings()
+            );
+        }
     }
 }
 

@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use purrdf_jsonschema::ecma::MatchLimits;
 use purrdf_lex::allocation::{Memory, Resident};
 use raf_source::{
-    CodeResolveError, Item, ItemId, Namespace, SourceAuthorityId, SymbolKind, Workspace,
+    CodeResolveError, FieldShape, Item, ItemId, Namespace, SourceAuthorityId, SymbolKind, Workspace,
 };
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
@@ -29,6 +29,30 @@ struct ReceiverReach {
     proof: Result<ItemId, RefCell<Option<Box<CodeResolveError>>>>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum ReceiverPath<'a> {
+    Written(&'a syn::Path),
+    Constructor(&'a syn::Path),
+}
+
+impl<'a> ReceiverPath<'a> {
+    pub(super) fn path(self) -> &'a syn::Path {
+        match self {
+            Self::Written(path) | Self::Constructor(path) => path,
+        }
+    }
+
+    fn admits(self, item: &Item) -> bool {
+        first_party_nominal(item)
+            && match self {
+                Self::Written(_) => true,
+                Self::Constructor(_) => {
+                    item.kind == SymbolKind::Struct && item.shape == Some(FieldShape::Named)
+                }
+            }
+    }
+}
+
 impl ReceiverBinding {
     pub(super) fn states(&self) -> usize {
         self.0.capacity() + 1
@@ -38,9 +62,9 @@ impl ReceiverBinding {
         self.0.is_empty()
     }
 
-    pub(super) fn write(
+    pub(super) fn prove(
         identifier: &syn::Ident,
-        ty: &syn::Type,
+        receiver: ReceiverPath<'_>,
         label: &str,
         context: (&Workspace, &raf_source::CodeResolver<'_>, &Scopes),
         location: (&raf_source::SourceFile, &[&Item]),
@@ -48,25 +72,13 @@ impl ReceiverBinding {
     ) -> Result<Self, Error> {
         let (workspace, code, scopes) = context;
         let (file, owners) = location;
-        let syn::Type::Path(ty) = ty else {
-            return Ok(Self::default());
-        };
-        if ty.qself.is_some()
-            || ty
-                .path
-                .segments
-                .iter()
-                .any(|segment| !segment.arguments.is_empty())
-        {
-            return Ok(Self::default());
-        }
         scopes.admit_receiver(label, owners.len().saturating_add(1), limits)?;
         let mut reaches = Vec::new();
         Memory::new(&mut Resident)
             .reserve(&mut reaches, owners.len())
             .map_err(|source| Error::PatternIndexStorage { source })?;
         scopes.admit_receiver(label, reaches.capacity().saturating_add(1), limits)?;
-        let span = ty.span();
+        let span = receiver.path().span();
         let site = Site::at(file, span, Role::ReceiverType, Namespace::Type, false);
         let work = span
             .byte_range()
@@ -84,7 +96,7 @@ impl ReceiverBinding {
                 enum_impl: None,
             };
             let proof = match scopes
-                .with_receiver_lookup(|| nominal(&lookup, scopes, &ty.path, workspace, limits))
+                .with_receiver_lookup(|| nominal(&lookup, scopes, receiver, workspace, limits))
             {
                 Ok(Some(id)) => Ok(id),
                 Ok(None) => continue,
@@ -175,23 +187,26 @@ impl ReceiverBinding {
 fn nominal(
     lookup: &Lookup<'_, '_>,
     scopes: &Scopes,
-    path: &syn::Path,
+    receiver: ReceiverPath<'_>,
     workspace: &Workspace,
     limits: &mut MatchLimits,
 ) -> Result<Option<ItemId>, Error> {
-    let sites = indexed_definitions(lookup, scopes, path, limits)?;
+    let sites = indexed_definitions(lookup, scopes, receiver.path(), limits)?;
     let [id] = sites.as_slice() else {
         return Ok(None);
     };
     let Some(item) = workspace.item(*id) else {
         return Ok(None);
     };
-    if first_party_nominal(item) {
+    if receiver.admits(item) {
         return Ok(Some(*id));
     }
     if item.kind == SymbolKind::TypeAlias && item.file.authority() == SourceAuthorityId::FIRST_PARTY
     {
-        return lookup.nominal_alias(*id, limits);
+        let target = lookup.nominal_alias(*id, limits)?;
+        return Ok(
+            target.filter(|&id| workspace.item(id).is_some_and(|item| receiver.admits(item)))
+        );
     }
     Ok(None)
 }
@@ -199,16 +214,33 @@ fn nominal(
 pub(super) fn binding<'a>(
     pattern: &'a syn::Pat,
     ty: Option<&'a syn::Type>,
-) -> Option<(&'a syn::Ident, &'a syn::Type)> {
+    initializer: Option<&'a syn::ExprStruct>,
+) -> Option<(&'a syn::Ident, ReceiverPath<'a>)> {
     let (pattern, ty) = match (pattern, ty) {
-        (syn::Pat::Type(typed), None) => (&*typed.pat, &*typed.ty),
-        (pattern, Some(ty)) => (pattern, ty),
-        _ => return None,
+        (syn::Pat::Type(typed), None) => (&*typed.pat, Some(&*typed.ty)),
+        (pattern, ty) => (pattern, ty),
     };
     let syn::Pat::Ident(identifier) = pattern else {
         return None;
     };
-    (identifier.by_ref.is_none() && identifier.subpat.is_none()).then_some((&identifier.ident, ty))
+    if identifier.by_ref.is_some() || identifier.subpat.is_some() {
+        return None;
+    }
+    let receiver = match (ty, initializer) {
+        (Some(syn::Type::Path(ty)), _) if ty.qself.is_none() => ReceiverPath::Written(&ty.path),
+        (None, Some(expr))
+            if expr.qself.is_none() && crate::syntax::inert_attributes(&expr.attrs) =>
+        {
+            ReceiverPath::Constructor(&expr.path)
+        }
+        _ => return None,
+    };
+    receiver
+        .path()
+        .segments
+        .iter()
+        .all(|segment| segment.arguments.is_empty())
+        .then_some((&identifier.ident, receiver))
 }
 
 pub(super) fn local(receiver: &syn::Expr) -> Option<String> {
