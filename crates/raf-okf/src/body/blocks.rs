@@ -4,6 +4,7 @@
 //! Coordinate projection of native authoring lines.
 
 use crate::error::{ErrorKind, ParseError};
+use crate::frontmatter::reader::Fences;
 
 /// Where a body starts in the whole text of its document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,6 +18,14 @@ pub(crate) struct Origin {
 impl Origin {
     /// The origin of a text that is not part of a longer one.
     pub(crate) const START: Self = Self { byte: 0, line: 1 };
+
+    /// Where the body starts after the validated frontmatter fences.
+    pub(crate) fn after_fences(fences: &Fences) -> Self {
+        Self {
+            byte: fences.body_start,
+            line: fences.fence_line + 1,
+        }
+    }
 }
 
 /// One line of the body. Offsets are local to the body text.

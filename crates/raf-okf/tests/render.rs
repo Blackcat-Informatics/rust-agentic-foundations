@@ -304,6 +304,14 @@ fn dataset_refusals() {
             "ordinals repeat or have gaps",
         ),
         (
+            at("ordinal"),
+            RdfTerm::Literal(RdfLiteral::typed(
+                "00",
+                "http://www.w3.org/2001/XMLSchema#integer",
+            )),
+            "bounded canonical nonnegative ordinal required",
+        ),
+        (
             at("style"),
             RdfTerm::Literal(RdfLiteral::simple("unknown")),
             "unknown scalar style",
@@ -329,6 +337,17 @@ fn dataset_refusals() {
                 RdfTerm::Literal(RdfLiteral::simple("other")),
             ),
             "exactly one body is required",
+        ),
+        (
+            RdfQuad::new(
+                rows[at("ordinal")].subject.clone(),
+                format!("{NS}ordinal"),
+                RdfTerm::Literal(RdfLiteral::typed(
+                    "00",
+                    "http://www.w3.org/2001/XMLSchema#integer",
+                )),
+            ),
+            "exactly one ordinal is required",
         ),
         (
             RdfQuad::new(
@@ -404,15 +423,27 @@ fn dataset_refusals() {
         .unwrap()
         .subject
         .clone();
+    let comment_text = rows
+        .iter()
+        .position(|q| q.subject == comment && q.predicate == format!("{NS}text"))
+        .unwrap();
     let mut injection = rows.clone();
-    injection
-        .iter_mut()
-        .find(|q| q.subject == comment && q.predicate == format!("{NS}text"))
-        .unwrap()
-        .object = RdfTerm::Literal(RdfLiteral::simple("injected\nkey: value"));
+    injection[comment_text].object = RdfTerm::Literal(RdfLiteral::simple("injected\nkey: value"));
     assert!(
-        matches!(Document::from_dataset(&dataset_rows(&injection), path), Err(raf_okf::DatasetError::Parse(error)) if error.kind() == &raf_okf::ErrorKind::NotAMapping)
+        matches!(Document::from_dataset(&dataset_rows(&injection), path), Err(raf_okf::DatasetError::Parse(error)) if error.kind() == &raf_okf::ErrorKind::NotAMapping && error.line() == 2)
     );
+    // An embedded closing fence still reports a marker error in the shifted body.
+    injection[comment_text].object = RdfTerm::Literal(RdfLiteral::simple(
+        "# injected\nprefix: value\n---\n<!-- raf:unknown -->",
+    ));
+    let error = Document::from_dataset(&dataset_rows(&injection), path).unwrap_err();
+    assert!(
+        matches!(&error, raf_okf::DatasetError::Parse(error) if error.kind() == &raf_okf::ErrorKind::UnknownMarker && error.line() == 5),
+        "{error:?}"
+    );
+    injection[comment_text].object =
+        RdfTerm::Literal(RdfLiteral::simple("# injected\nprefix: value\n---"));
+    shape_refusal(&injection, path, "do not survive RAF rendering");
     dataset_layer_refusal(&rows, path);
     dataset_budget_refusals();
     assert_eq!(Document::from_dataset(&dataset, path).unwrap(), document);
@@ -483,11 +514,20 @@ fn dataset_round_trip(document: &Document, path: &str) {
     let dataset = document
         .to_dataset(path)
         .expect("validated authoring dataset");
-    assert_eq!(
-        Document::from_dataset(&dataset, path).unwrap(),
-        *document,
-        "{path}"
-    );
+    let decoded = Document::from_dataset(&dataset, path).unwrap();
+    assert_eq!(decoded, *document, "{path}");
+    // Dataset readers expose positions in the reconstructed Markdown.
+    assert_eq!(decoded.body().span(), document.body().span(), "{path}");
+    for entry in document.frontmatter().map().entries() {
+        let decoded = decoded.frontmatter().map().get(entry.key()).unwrap();
+        assert_eq!(decoded.line(), entry.line(), "{path}");
+        if let Some(list) = entry.value().as_list() {
+            let decoded_items = decoded.value().as_list().unwrap().items();
+            for (actual, expected) in decoded_items.iter().zip(list.items()) {
+                assert_eq!(actual.line(), expected.line(), "{path}");
+            }
+        }
+    }
     let options = SerializeOptions {
         selection: SerializeGraph::Dataset,
         statement_layer: StatementLayer::Emit,

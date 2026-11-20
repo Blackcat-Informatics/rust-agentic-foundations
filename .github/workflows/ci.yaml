@@ -168,7 +168,7 @@ jobs:
       # from the registry cache, and a package-scoped test run stores only that
       # package's closure. Fetch both lock files completely first.
       - name: Fetch the complete locked set for the self-census gate
-        if: matrix.package == 'rust-agentic-foundations'
+        if: matrix.package == 'rust-agentic-foundations' && contains(matrix.args, 'self_census')
         run: |
           cargo fetch --locked
           cargo fetch --locked --manifest-path fuzz/Cargo.toml
@@ -176,6 +176,12 @@ jobs:
         run: |
           jq -j '.[] | . + "\u0000"' <<< "$RAF_CI_ARGS" > "$RUNNER_TEMP/test-args"
           mapfile -d '' -t args < "$RUNNER_TEMP/test-args"
+          # Keep the full round trip within the job budget with light optimization
+          # and without generating native debug line tables for this shard.
+          if [[ "$RAF_CI_PACKAGE" == rust-agentic-foundations && "${args[*]}" == '--test docs_contract' ]]; then
+            export CARGO_PROFILE_TEST_DEBUG=0
+            args+=(--config 'profile.test.opt-level=1')
+          fi
           cargo test --locked --package "$RAF_CI_PACKAGE" "${args[@]}"
           if test "$RAF_CI_DOCS" = true; then
             cargo test --locked --package "$RAF_CI_PACKAGE" --doc
