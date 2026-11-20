@@ -3,6 +3,8 @@
 
 //! Admitted schema nodes and their projected data-layout closure.
 
+mod rpc;
+
 use std::{
     collections::{BTreeMap, BTreeSet, btree_map::Entry},
     ops::Range,
@@ -47,6 +49,20 @@ pub(super) struct Schema {
 pub(super) enum Node {
     Struct(Struct),
     Enum(Vec<String>),
+    Interface(Vec<Method>),
+}
+
+#[derive(Debug)]
+pub(super) struct Method {
+    pub(super) name: String,
+    pub(super) params: Endpoint,
+    pub(super) results: Endpoint,
+}
+
+#[derive(Debug)]
+pub(super) struct Endpoint {
+    pub(super) id: TypeId,
+    pub(super) structure: Struct,
 }
 
 #[derive(Debug)]
@@ -72,6 +88,7 @@ pub(super) struct Slot {
     pub(super) discriminant: Option<u16>,
     pub(super) ty: Type,
     pub(super) default: DefaultValue,
+    pub(super) explicit_default: bool,
     pub(super) required: bool,
 }
 
@@ -322,11 +339,15 @@ impl<'a> Nodes<'a> {
             }
         }
         let mut nodes = BTreeMap::new();
+        let mut rpc = None;
         while let Some(id) = needed.pop_first() {
             if nodes.contains_key(&id) {
                 continue;
             }
-            nodes.insert(id, self.project_node(id, &mut needed, annotations, scopes)?);
+            nodes.insert(
+                id,
+                self.project_node(id, &mut needed, annotations, scopes, &mut rpc)?,
+            );
         }
         Ok(Schema {
             roots: present,
@@ -343,9 +364,10 @@ impl<'a> Nodes<'a> {
     ) -> Result<(), Error> {
         let mut needed = declared.clone();
         let mut checked = BTreeSet::new();
+        let mut rpc = None;
         while let Some(id) = needed.pop_first() {
             if !retained.nodes.contains_key(&id) && checked.insert(id) {
-                self.project_node(id, &mut needed, annotations, scopes)?;
+                self.project_node(id, &mut needed, annotations, scopes, &mut rpc)?;
             }
         }
         Ok(())
@@ -357,33 +379,55 @@ impl<'a> Nodes<'a> {
         needed: &mut BTreeSet<TypeId>,
         annotations: Annotations,
         scopes: &mut DeclarationScopes,
+        rpc: &mut Option<rpc::Owners>,
     ) -> Result<Node, Error> {
-        match self.node(id)?.which()? {
+        let node = self.node(id)?;
+        match node.which()? {
             node::Struct(data) if !data.get_is_group() => {
-                let structure = self.structure(id, data, needed, annotations)?;
-                let declared_constraint = if !structure.pairs.is_empty() {
-                    Some("paired presence fields")
-                } else if annotations.required.is_some()
-                    && structure.slots.values().any(|slot| slot.required)
-                {
-                    Some("required fields")
-                } else {
-                    None
-                };
-                if let Some(constraint) = declared_constraint
-                    && !self.is_declared(id, scopes)?
-                {
+                if node.get_scope_id() == 0 && self.method_owners(rpc)?.contains(id) {
                     return Err(layout(format!(
-                        "{constraint} must belong to a declared struct; check node {id} and its enclosing scopes"
+                        "detached RPC node {id} must be selected through its owning method"
                     )));
                 }
-                Ok(Node::Struct(structure))
+                Ok(Node::Struct(self.structure(
+                    id,
+                    data,
+                    needed,
+                    annotations,
+                    scopes,
+                )?))
             }
             node::Enum(data) => Ok(Node::Enum(enumerants(id, data)?)),
+            node::Interface(data) => {
+                if !self.is_declared(id, scopes)? {
+                    return Err(layout(format!(
+                        "RPC interface {id} must be declared in the schema"
+                    )));
+                }
+                let methods = self.method_owners(rpc)?.methods(
+                    self,
+                    node,
+                    data,
+                    needed,
+                    annotations,
+                    scopes,
+                )?;
+                Ok(Node::Interface(methods))
+            }
             _ => Err(layout(format!(
-                "selected node {id} must be a data struct or enum"
+                "selected node {id} must be a data struct, enum or supported RPC interface"
             ))),
         }
+    }
+
+    fn method_owners<'b>(
+        &self,
+        cache: &'b mut Option<rpc::Owners>,
+    ) -> Result<&'b rpc::Owners, Error> {
+        if let Some(owners) = cache {
+            return Ok(owners);
+        }
+        Ok(cache.insert(rpc::Owners::read(self)?))
     }
 
     fn structure(
@@ -392,6 +436,7 @@ impl<'a> Nodes<'a> {
         reader: node::struct_::Reader<'a>,
         needed: &mut BTreeSet<TypeId>,
         annotations: Annotations,
+        scopes: &mut DeclarationScopes,
     ) -> Result<Struct, Error> {
         let mut collector = Fields {
             nodes: self,
@@ -413,6 +458,22 @@ impl<'a> Nodes<'a> {
         {
             return Err(layout(format!(
                 "ordinals of struct {id} are not consecutive from zero"
+            )));
+        }
+        let declared_constraint = if !collector.pairs.is_empty() {
+            Some("paired presence fields")
+        } else if annotations.required.is_some()
+            && collector.slots.values().any(|slot| slot.required)
+        {
+            Some("required fields")
+        } else {
+            None
+        };
+        if let Some(constraint) = declared_constraint
+            && !self.is_declared(id, scopes)?
+        {
+            return Err(layout(format!(
+                "{constraint} must belong to a declared struct; check node {id} and its enclosing scopes"
             )));
         }
         Ok(Struct {
@@ -745,6 +806,7 @@ impl<'a> Fields<'a, '_> {
             discriminant,
             ty,
             default,
+            explicit_default: slot.get_had_explicit_default(),
             required,
         };
         self.slots.insert(ordinal, slot);

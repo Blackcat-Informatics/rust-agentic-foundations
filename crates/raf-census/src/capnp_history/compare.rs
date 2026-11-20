@@ -10,7 +10,7 @@ use std::{
 
 use super::{
     Error, TypeId,
-    descriptor::{Node, Schema, Struct},
+    descriptor::{Method, Node, Schema, Struct},
 };
 
 const MAX_FINDING_BYTES: usize = 2 * 1024 * 1024;
@@ -20,7 +20,7 @@ const MAX_FINDING_BYTES: usize = 2 * 1024 * 1024;
 pub struct Change {
     /// Nominal schema node that owns the history.
     pub node: TypeId,
-    /// Group-qualified member, or no member for a type-level change.
+    /// Qualified path of a field, enumerant or RPC method.
     pub member: Option<String>,
     /// The history rule that failed.
     pub kind: ChangeKind,
@@ -32,7 +32,7 @@ pub struct Change {
 pub enum ChangeKind {
     /// A selected root disappeared.
     RemovedRoot,
-    /// A struct became an enum or an enum became a struct.
+    /// A type changed between a struct, an enum and an RPC interface.
     ChangedKind,
     /// The count of a struct's own type parameters changed.
     ChangedParameters,
@@ -53,8 +53,10 @@ pub enum ChangeKind {
     ChangedDiscriminant,
     /// The type expression changed, including type arguments.
     ChangedType,
-    /// The default changed in the compiled descriptor.
+    /// A compiled default changed, or an RPC input gained or lost an explicit default.
     ChangedDefault,
+    /// An appended input parameter lacks an explicit default.
+    MissingParameterDefault,
     /// A pointer slot became required in an existing struct.
     RequiredField,
     /// Two pointer slots became subject to the same presence requirement.
@@ -78,6 +80,7 @@ impl fmt::Display for ChangeKind {
             Self::ChangedDiscriminant => "union discriminant changed",
             Self::ChangedType => "type changed",
             Self::ChangedDefault => "default changed",
+            Self::MissingParameterDefault => "appended input parameter needs an explicit default",
             Self::RequiredField => "pointer field became required",
             Self::PairedPresence { peer } => {
                 return write!(f, "pointer field became paired with {peer}");
@@ -120,8 +123,19 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
         };
         let mut emit = |member, kind| push(node, member, kind);
         match (before, after) {
-            (Node::Struct(before), Node::Struct(after)) => structure(before, after, &mut emit),
-            (Node::Enum(before), Node::Enum(after)) => enumeration(before, after, &mut emit),
+            (Node::Struct(before), Node::Struct(after)) => {
+                structure(before, after, false, &mut emit)
+            }
+            (Node::Enum(before), Node::Enum(after)) => {
+                ordinals(before, after, String::as_str, &mut emit, |_, _, _| Ok(()))
+            }
+            (Node::Interface(before), Node::Interface(after)) => ordinals(
+                before,
+                after,
+                |method| method.name.as_str(),
+                &mut emit,
+                method,
+            ),
             _ => emit(None, ChangeKind::ChangedKind),
         }?;
     }
@@ -138,6 +152,7 @@ fn member_name(group: &[std::rc::Rc<str>], name: &str) -> String {
 fn structure(
     before: &Struct,
     after: &Struct,
+    input_defaults: bool,
     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
 ) -> Result<(), Error> {
     if before.parameters != after.parameters {
@@ -209,7 +224,9 @@ fn structure(
         if slot.discriminant != current.discriminant {
             emit(name(), ChangeKind::ChangedDiscriminant)?;
         }
-        if slot.default != current.default {
+        if slot.default != current.default
+            || (input_defaults && slot.explicit_default != current.explicit_default)
+        {
             emit(name(), ChangeKind::ChangedDefault)?;
         }
     }
@@ -232,32 +249,81 @@ fn structure(
     Ok(())
 }
 
-fn enumeration(
-    before: &[String],
-    after: &[String],
-    emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
-) -> Result<(), Error> {
-    let previous: BTreeSet<_> = before.iter().collect();
+fn ordinals<T, Emit>(
+    before: &[T],
+    after: &[T],
+    name: impl Fn(&T) -> &str,
+    emit: &mut Emit,
+    mut retained: impl FnMut(&T, &T, &mut Emit) -> Result<(), Error>,
+) -> Result<(), Error>
+where
+    Emit: FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
+{
+    let previous: BTreeSet<_> = before.iter().map(&name).collect();
     let current_ordinals: BTreeMap<_, _> = after
         .iter()
         .enumerate()
-        .map(|(ordinal, name)| (name, ordinal))
+        .map(|(ordinal, member)| (name(member), ordinal))
         .collect();
-    for (ordinal, name) in before.iter().enumerate() {
-        let kind = match current_ordinals.get(name) {
-            Some(&current) if current == ordinal => continue,
-            Some(_) => ChangeKind::ChangedOrdinal,
-            None => match after
-                .get(ordinal)
-                .filter(|current| !previous.contains(current))
-            {
-                Some(current) => ChangeKind::RenamedMember {
-                    current: current.clone(),
-                },
-                None => ChangeKind::RemovedMember,
+    for (ordinal, member) in before.iter().enumerate() {
+        let label = name(member);
+        if let Some(&current) = current_ordinals.get(label) {
+            if current != ordinal {
+                emit(Some(label.to_owned()), ChangeKind::ChangedOrdinal)?;
+            }
+            retained(member, &after[current], emit)?;
+            continue;
+        }
+        let kind = match after
+            .get(ordinal)
+            .map(&name)
+            .filter(|current| !previous.contains(current))
+        {
+            Some(current) => ChangeKind::RenamedMember {
+                current: current.to_owned(),
             },
+            None => ChangeKind::RemovedMember,
         };
-        emit(Some(name.clone()), kind)?;
+        emit(Some(label.to_owned()), kind)?;
+    }
+    Ok(())
+}
+
+fn method(
+    old: &Method,
+    new: &Method,
+    emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
+) -> Result<(), Error> {
+    for (before, after, role, input) in [
+        (&old.params, &new.params, "parameters", true),
+        (&old.results, &new.results, "results", false),
+    ] {
+        let mut emit = |member: Option<String>, kind| {
+            let name = &old.name;
+            let path = match member {
+                Some(member) => format!("{name}.{role}.{member}"),
+                None => format!("{name}.{role}"),
+            };
+            emit(Some(path), kind)
+        };
+        if before.id != after.id {
+            emit(None, ChangeKind::ChangedType)?;
+        }
+        structure(&before.structure, &after.structure, input, &mut emit)?;
+        if input {
+            // Inline lists have only consecutive slots, so every ordinal
+            // at or beyond the old length is an appended parameter.
+            for slot in after
+                .structure
+                .slots
+                .values()
+                .skip(before.structure.slots.len())
+            {
+                if !slot.explicit_default {
+                    emit(Some(slot.name.clone()), ChangeKind::MissingParameterDefault)?;
+                }
+            }
+        }
     }
     Ok(())
 }

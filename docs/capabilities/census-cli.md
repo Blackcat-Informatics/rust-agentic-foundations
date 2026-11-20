@@ -50,6 +50,8 @@ bindings:
     - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope
     - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
+    - cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods
+    - cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
     - cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs
     - raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse
@@ -107,6 +109,23 @@ types. Struct-valued defaults are checked as native containers and
 compared by their canonical pointer bytes. The caller verifies
 acceptance by application readers.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
+
+The strict history check also accepts explicitly selected nongeneric
+interfaces with inline parameter and result lists and no superinterfaces.
+A compiler-generated list belongs to one method ordinal and endpoint
+role. It must be a detached nongeneric struct. Its fields use the same
+layout checks as ordinary data, including checks on referenced data
+types. Census reports removed, renamed or moved methods and changes to
+their parameter and result identities or retained layouts. It also
+checks the compiler's explicit-default marker on retained input
+parameters. An appended input parameter needs an explicit default.
+A new trailing method with a valid layout is allowed.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods -->
+
+The interface profile refuses generic methods, named endpoints, direct
+selection of a detached endpoint and wrappers shared across method roles.
+Persistence declarations bind declared data structs and enums.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints,cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_refuses_invalid_bindings_and_policy_rows -->
 
 A caller can select a compiler-declared Void field annotation for
 required pointer presence. Census validates the marker in both
@@ -239,6 +258,10 @@ Capture the compiler request with `capnp compile -o- SCHEMA` and commit
 it with the schema. Library consumers call `raf_census::capnp_history::check`.
 The command exits 0 for a clean comparison or 1 with findings on stdout.
 An input or resource refusal exits 1 with a diagnostic on stderr.
+
+To check an interface, pass its declared type ID to `--type`.
+The method comparison follows its inline parameter and result structs
+from the descriptor. Select each interface whose method history matters.
 
 Add `--required-annotation 0xID` to compare required pointer presence
 or `--paired-presence-annotation 0xID` to compare paired pointer
@@ -561,8 +584,10 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target` | test | [Constraints](#constraints) |

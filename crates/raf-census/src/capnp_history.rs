@@ -70,7 +70,7 @@ pub struct Snapshot<'a> {
 /// Selected schema roots and optional policies for one comparison.
 #[derive(Clone, Copy, Debug)]
 pub struct HistoryOptions<'a> {
-    /// Struct or enum IDs whose data references define the comparison closure.
+    /// Struct, enum or supported RPC interface IDs whose references define the comparison closure.
     pub roots: &'a [TypeId],
     /// Void field annotation identifying required pointer fields, if selected.
     pub required_annotation: Option<TypeId>,
