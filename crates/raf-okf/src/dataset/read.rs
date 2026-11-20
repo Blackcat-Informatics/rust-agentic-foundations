@@ -174,28 +174,27 @@ fn rooted(mut reader: Reader<'_>, path: &str, root: TermId) -> Result<(Document,
             "unrelated or orphan structural subjects",
         ));
     }
-    let document = Document::new(frontmatter.clone(), body).map_err(E::Construct)?;
+    let mut document = Document::new(frontmatter.clone(), body).map_err(E::Construct)?;
     if document.frontmatter() != &frontmatter {
         return Err(E::shape(
             root_iri,
             "representation changes under document normalization",
         ));
     }
-    let parsed = Document::parse(&document.render()).map_err(E::Parse)?;
-    if parsed != document {
+    if !document.read_rendered_head().map_err(E::Parse)? {
         return Err(E::shape(
             root_iri,
             "styles, comments or values do not survive RAF rendering",
         ));
     }
-    let typed = validate(&parsed, path)?;
-    if identity(&parsed)? != root_iri {
+    let typed = validate(&document, path)?;
+    if identity(&document)? != root_iri {
         return Err(E::shape(
             root_iri,
             "asserted identity disagrees with validated type/id",
         ));
     }
-    Ok((parsed, typed))
+    Ok((document, typed))
 }
 
 fn rows(dataset: &RdfDataset, id: TermId) -> impl Iterator<Item = QuadIds> + '_ {

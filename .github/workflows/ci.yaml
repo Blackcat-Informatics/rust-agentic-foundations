@@ -168,7 +168,7 @@ jobs:
       # from the registry cache, and a package-scoped test run stores only that
       # package's closure. Fetch both lock files completely first.
       - name: Fetch the complete locked set for the self-census gate
-        if: matrix.package == 'rust-agentic-foundations'
+        if: matrix.package == 'rust-agentic-foundations' && contains(matrix.args, 'self_census')
         run: |
           cargo fetch --locked
           cargo fetch --locked --manifest-path fuzz/Cargo.toml
