@@ -97,7 +97,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
         &neighbor,
         &roots,
         descriptor::Annotations::default(),
-        descriptor::Roots::Require,
+        descriptor::Roots::Require(&BTreeSet::new()),
         None,
     )
     .unwrap();
@@ -110,7 +110,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
             &descriptor_bytes(last),
             &roots,
             descriptor::Annotations::default(),
-            descriptor::Roots::Require,
+            descriptor::Roots::Require(&BTreeSet::new()),
             None,
         )
         .unwrap_err();
@@ -118,7 +118,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
     }
     let ordinal = deeply_grouped_descriptor("slot", 3, Some(3));
     assert!(matches!(
-        descriptor::read(&ordinal, &roots, descriptor::Annotations::default(), descriptor::Roots::AllowMissing, None),
+        descriptor::read(&ordinal, &roots, descriptor::Annotations::default(), descriptor::Roots::AllowMissing(&BTreeSet::new()), None),
         Err(DescriptorError::Layout(message)) if message.contains("ordinary group")
     ));
     let valid_list = descriptor_bytes(LastField::NumericList);
@@ -127,7 +127,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
             &valid_list,
             &roots,
             descriptor::Annotations::default(),
-            descriptor::Roots::AllowMissing,
+            descriptor::Roots::AllowMissing(&BTreeSet::new()),
             None
         )
         .is_ok()
@@ -138,7 +138,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
             &invalid_list,
             &roots,
             descriptor::Annotations::default(),
-            descriptor::Roots::AllowMissing,
+            descriptor::Roots::AllowMissing(&BTreeSet::new()),
             None
         ),
         Err(DescriptorError::Wire(_))
@@ -147,7 +147,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
     let _ = message.init_root::<any_pointer::Builder<'_>>();
     let null = serialize::write_message_to_words(&message);
     assert!(matches!(
-        descriptor::read(&null, &roots, descriptor::Annotations::default(), descriptor::Roots::AllowMissing, None),
+        descriptor::read(&null, &roots, descriptor::Annotations::default(), descriptor::Roots::AllowMissing(&BTreeSet::new()), None),
         Err(DescriptorError::Layout(message)) if message.contains("null root")
     ));
     let _ = message.init_root::<code_generator_request::Builder<'_>>();
@@ -156,7 +156,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
         &empty,
         &roots,
         descriptor::Annotations::default(),
-        descriptor::Roots::AllowMissing,
+        descriptor::Roots::AllowMissing(&BTreeSet::new()),
         None,
     )
     .unwrap();
@@ -216,7 +216,7 @@ fn deep_group_findings_refuse_as_a_whole_above_the_payload_limit() {
             &deeply_grouped_descriptor("old", slots, None),
             &roots,
             descriptor::Annotations::default(),
-            descriptor::Roots::Require,
+            descriptor::Roots::Require(&BTreeSet::new()),
             None,
         )
         .unwrap();
@@ -224,7 +224,7 @@ fn deep_group_findings_refuse_as_a_whole_above_the_payload_limit() {
             &deeply_grouped_descriptor("new", slots, None),
             &roots,
             descriptor::Annotations::default(),
-            descriptor::Roots::AllowMissing,
+            descriptor::Roots::AllowMissing(&BTreeSet::new()),
             None,
         )
         .unwrap();
@@ -365,7 +365,7 @@ fn required_annotation_refuses_invalid_values_and_undeclared_structs() {
                 required: Some(REQUIRED_MARKER),
                 paired_presence: None,
             },
-            descriptor::Roots::Require,
+            descriptor::Roots::Require(&BTreeSet::new()),
             None,
         );
         if let Some(diagnostic) = diagnostic {

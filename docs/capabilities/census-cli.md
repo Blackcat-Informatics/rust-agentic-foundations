@@ -50,6 +50,8 @@ bindings:
     - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope
     - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
+    - cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities
+    - cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities
     - cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods
     - cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
@@ -127,6 +129,19 @@ The interface profile refuses generic methods, named endpoints, direct
 selection of a detached endpoint and wrappers shared across method roles.
 Persistence declarations bind declared data structs and enums.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints,cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_refuses_invalid_bindings_and_policy_rows -->
+
+Strict history can also select compiler file IDs. Each selected base ID
+must have one requested-file row with a canonical repository-relative
+filename and a file node with the same display name. A retained file
+reports a changed filename. When both the requested row and its node
+disappear, Census reports removal even if a different file ID uses the
+old filename. Additional unrelated file requests can coexist with the
+selected IDs.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities -->
+
+A selected file with a missing row or node, a conflicting path owner,
+a non-file node or an inconsistent name refuses the descriptor.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities -->
 
 A caller can select a compiler-declared Void field annotation for
 required pointer presence. Census validates the marker in both
@@ -250,9 +265,9 @@ The cases, in the order they run:
 ## Usage
 
 Run `cargo census capnp-history --base BASE --current CURRENT` with
-`--base-descriptor PATH --current-descriptor PATH` and one or more
-`--type 0xID` options. Commit IDs use all 40 lowercase hexadecimal
-digits. Type IDs use a `0x` prefix followed by 16 lowercase hexadecimal
+`--base-descriptor PATH --current-descriptor PATH`. Select at least one
+type or file ID. Commit IDs use all 40 lowercase hexadecimal digits.
+Type and file IDs use a `0x` prefix followed by 16 lowercase hexadecimal
 digits with the high bit set. Descriptor paths are relative to the Git
 repository root. Run from that root or name it with `--workspace`.
 Capture the compiler request with `capnp compile -o- SCHEMA` and commit
@@ -260,14 +275,18 @@ it with the schema. Library consumers call `raf_census::capnp_history::check`.
 The command exits 0 for a clean comparison or 1 with findings on stdout.
 An input or resource refusal exits 1 with a diagnostic on stderr.
 
-To check an interface, pass its declared type ID to `--type`.
-The method comparison follows its inline parameter and result structs
-from the descriptor. Select each interface whose method history matters.
+Use `--type 0xID` to select a struct, enum or supported interface.
+For an interface, the comparison follows its inline parameter and result
+structs. Select each interface whose method history matters.
+
+Use `--file-id 0xID` to compare a requested schema file. Repeat `--file-id`
+for each selected file. `--type` and `--file-id` may be used together.
+Use each selected ID once.
 
 Add `--required-annotation 0xID` to compare required pointer presence
 or `--paired-presence-annotation 0xID` to compare paired pointer
 presence. Both options can be used together. Library callers supply
-the selected roots and annotation IDs through `HistoryOptions`.
+the selections and annotation IDs through `HistoryOptions`.
 
 To authenticate captures, supply `--capture-key HEX` and the four
 repository-relative paths `--base-capture PATH`,
@@ -585,9 +604,11 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |

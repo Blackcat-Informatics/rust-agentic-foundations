@@ -67,11 +67,13 @@ pub struct Snapshot<'a> {
     pub descriptor: &'a RelPath,
 }
 
-/// Selected schema roots and optional policies for one comparison.
+/// Selected schema roots, file identities and optional policies for one comparison.
 #[derive(Clone, Copy, Debug)]
 pub struct HistoryOptions<'a> {
     /// Struct, enum or supported RPC interface IDs whose references define the comparison closure.
     pub roots: &'a [TypeId],
+    /// File IDs whose canonical compiler request filenames are compared.
+    pub file_ids: &'a [TypeId],
     /// Void field annotation identifying required pointer fields, if selected.
     pub required_annotation: Option<TypeId>,
     /// Field annotation with a `UInt16` peer ordinal for paired pointer presence.
@@ -83,7 +85,7 @@ pub struct HistoryOptions<'a> {
 /// An input that prevented a complete strict history verdict.
 #[derive(Debug)]
 pub enum Error {
-    /// No root types were declared, or a root was selected more than once.
+    /// No type or file ID was selected, or an ID was selected more than once.
     Roots,
     /// A complete verdict would exceed the retained finding allowance.
     FindingLimit,
@@ -178,10 +180,10 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Roots => {
-                f.write_str("declare at least one Cap'n Proto root type ID without repeats")
+                f.write_str("select at least one Cap'n Proto type or file ID without repeats")
             }
             Self::FindingLimit => f.write_str(
-                "Cap'n Proto history findings exceed the two MiB allowance; compare fewer selected roots",
+                "Cap'n Proto history findings exceed the two MiB allowance; compare fewer selected types or files",
             ),
             Self::Revision { commit, source } => {
                 write!(f, "Cap'n Proto revision {commit}: {source}")
@@ -229,7 +231,7 @@ impl std::error::Error for Error {
 ///
 /// # Errors
 ///
-/// Refuses missing or repeated roots, unavailable commits or blobs, and
+/// Refuses missing or repeated selections, unavailable commits or blobs, and
 /// malformed, incomplete, or unsupported layout or capture inputs.
 pub fn check(
     repository: impl AsRef<Path>,
@@ -238,7 +240,12 @@ pub fn check(
     options: HistoryOptions<'_>,
 ) -> Result<Vec<Change>, Error> {
     let selected: BTreeSet<_> = options.roots.iter().copied().collect();
-    if selected.is_empty() || selected.len() != options.roots.len() {
+    let files: BTreeSet<_> = options.file_ids.iter().copied().collect();
+    if (selected.is_empty() && files.is_empty())
+        || selected.len() != options.roots.len()
+        || files.len() != options.file_ids.len()
+        || !selected.is_disjoint(&files)
+    {
         return Err(Error::Roots);
     }
     let annotations = descriptor::Annotations {
@@ -250,7 +257,7 @@ pub fn check(
         base,
         &selected,
         annotations,
-        descriptor::Roots::Require,
+        descriptor::Roots::Require(&files),
         options.capture.map(|capture| (capture.key, capture.base)),
     )?;
     let current = load(
@@ -258,7 +265,7 @@ pub fn check(
         current,
         &selected,
         annotations,
-        descriptor::Roots::AllowMissing,
+        descriptor::Roots::AllowMissing(&files),
         options
             .capture
             .map(|capture| (capture.key, capture.current)),

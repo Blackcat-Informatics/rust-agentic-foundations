@@ -166,6 +166,167 @@ fn commit_capnp_descriptor(root: &Path, bytes: &[u8]) -> String {
 
 const RPC_READER: &str = "0xcad554910d7a67ab";
 const RPC_BASE: &[u8] = include_bytes!("fixtures/capnp/rpc-base.bin");
+const RPC_FILE: &str = "0xd128dbd816a8f941";
+const RPC_FILE_ID: u64 = 0xd128_dbd8_16a8_f941;
+const RPC_PATH: &str = "rpc-base.capnp";
+const OTHER_FILE_ID: u64 = 0xa7c2_bc02_a14a_f2d0;
+
+fn file_descriptor(nodes: &[(u64, Option<&str>)], requests: &[(u64, &str)]) -> Vec<u8> {
+    use capnp::{message::Builder, schema_capnp::code_generator_request, serialize};
+
+    let mut message = Builder::new_default();
+    let mut request = message.init_root::<code_generator_request::Builder<'_>>();
+    let mut schema = request
+        .reborrow()
+        .init_nodes(u32::try_from(nodes.len()).unwrap());
+    for (index, &(id, name)) in (0..).zip(nodes) {
+        let mut node = schema.reborrow().get(index);
+        node.set_id(id);
+        if let Some(name) = name {
+            node.set_file(());
+            node.set_display_name(name);
+        } else {
+            node.init_struct();
+        }
+    }
+    let mut rows = request.init_requested_files(u32::try_from(requests.len()).unwrap());
+    for (index, &(id, filename)) in (0..).zip(requests) {
+        let mut row = rows.reborrow().get(index);
+        row.set_id(id);
+        row.set_filename(filename);
+    }
+    serialize::write_message_to_words(&message)
+}
+
+/// File history follows the selected ID through filename changes and path reuse.
+/// A request can select files alone or alongside compatible layouts.
+#[test]
+fn capnp_history_checks_committed_file_identities() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, RPC_BASE);
+    let stable = commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/file-unrelated.bin"));
+    let renamed =
+        commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-compatible.bin"));
+    let reoccupied = commit_capnp_descriptor(
+        root,
+        &file_descriptor(
+            &[(OTHER_FILE_ID, Some(RPC_PATH))],
+            &[(OTHER_FILE_ID, RPC_PATH)],
+        ),
+    );
+    fs::write(root.join("schema.bin"), b"uncommitted bytes").unwrap();
+
+    let file = ["--file-id", RPC_FILE];
+    let clean = capnp_history(root, &base, &stable, &[], &file);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(clean.stdout.is_empty(), "{clean:?}");
+
+    let two_files = ["--file-id", RPC_FILE, "--file-id", "0xa7c2bc02a14af2d0"];
+    let clean = capnp_history(root, &stable, &stable, &[RPC_READER], &two_files);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(clean.stdout.is_empty(), "{clean:?}");
+
+    for (current, types, finding) in [
+        (
+            &renamed,
+            &[RPC_READER][..],
+            "selected file renamed from rpc-base.capnp to rpc-compatible.capnp",
+        ),
+        (&reoccupied, &[][..], "selected file rpc-base.capnp removed"),
+    ] {
+        let result = capnp_history(root, &base, current, types, &file);
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+        assert!(result.stderr.is_empty(), "{result:?}");
+        assert_eq!(
+            String::from_utf8(result.stdout).unwrap(),
+            format!("Cap'n Proto history for {RPC_FILE}: {finding}\n")
+        );
+    }
+}
+
+/// A requested file row must match one file node and uniquely own its path.
+/// Incomplete, ambiguous, and noncanonical inputs refuse the whole verdict.
+#[test]
+fn capnp_history_refuses_inconsistent_file_identities() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, RPC_BASE);
+    let file = (RPC_FILE_ID, Some(RPC_PATH));
+    let row = (RPC_FILE_ID, RPC_PATH);
+    let flag = ["--file-id", RPC_FILE];
+    for (nodes, rows, expected) in [
+        (&[][..], &[row][..], "is missing its file node"),
+        (&[file][..], &[][..], "is missing its request row"),
+        (&[(RPC_FILE_ID, None)], &[row], "requires a file node"),
+        (
+            &[(RPC_FILE_ID, Some("different.capnp"))],
+            &[row],
+            "file node name differs from requested filename",
+        ),
+        (&[file], &[row, row], "has repeated request rows"),
+        (
+            &[file],
+            &[row, (OTHER_FILE_ID, RPC_PATH)],
+            "has competing file IDs",
+        ),
+        (
+            &[(RPC_FILE_ID, Some("./rpc-base.capnp"))],
+            &[(RPC_FILE_ID, "./rpc-base.capnp")],
+            "has an invalid requested filename",
+        ),
+    ] {
+        let invalid = commit_capnp_descriptor(root, &file_descriptor(nodes, rows));
+        let result = capnp_history(root, &base, &invalid, &[], &flag);
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+        assert!(result.stdout.is_empty(), "{result:?}");
+        let diagnostic = String::from_utf8(result.stderr).unwrap();
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+
+    let no_files = commit_capnp_descriptor(root, &file_descriptor(&[], &[]));
+    for (before, types, options, expected) in [
+        (&no_files, &[][..], &flag[..], "is missing its request row"),
+        (
+            &base,
+            &[][..],
+            &["--file-id", RPC_FILE, "--file-id", RPC_FILE],
+            "select at least one Cap'n Proto type or file ID without repeats",
+        ),
+        (
+            &base,
+            &[RPC_FILE][..],
+            &flag[..],
+            "select at least one Cap'n Proto type or file ID without repeats",
+        ),
+    ] {
+        let result = capnp_history(root, before, &base, types, options);
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+        assert!(result.stdout.is_empty(), "{result:?}");
+        let diagnostic = String::from_utf8(result.stderr).unwrap();
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+
+    let missing_selection = capnp_history(root, &base, &base, &[], &[]);
+    assert!(!missing_selection.status.success(), "{missing_selection:?}");
+    assert!(missing_selection.stdout.is_empty(), "{missing_selection:?}");
+
+    let unrelated_rows = commit_capnp_descriptor(
+        root,
+        &file_descriptor(&[file, (OTHER_FILE_ID, None)], &[row, row]),
+    );
+    let ordinary_type = capnp_history(
+        root,
+        &unrelated_rows,
+        &unrelated_rows,
+        &["0xa7c2bc02a14af2d0"],
+        &[],
+    );
+    assert!(ordinary_type.status.success(), "{ordinary_type:?}");
+    assert!(ordinary_type.stdout.is_empty(), "{ordinary_type:?}");
+}
 
 /// Method ordinals, endpoint layouts and input defaults all survive comparison
 /// through the committed descriptors. Named dependencies keep their history.
