@@ -115,7 +115,7 @@ pub(crate) struct HistoryArgs {
     /// Selected struct, enum or supported RPC interface ID. Repeat for additional types.
     #[arg(long = "type", required_unless_present = "file_ids")]
     pub(crate) types: Vec<raf_census::capnp_history::TypeId>,
-    /// Selected requested schema file ID. Repeat for additional files.
+    /// Select a requested schema file and its declarations by ID. Repeat for additional files.
     #[arg(long = "file-id", required_unless_present = "types")]
     pub(crate) file_ids: Vec<raf_census::capnp_history::TypeId>,
 }

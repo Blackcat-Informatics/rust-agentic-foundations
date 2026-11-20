@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Strict history findings for old members and their compiled layout.
+//! Strict history findings for declarations, members, and compiled layouts.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -12,7 +12,7 @@ use raf_source::RelPath;
 
 use super::{
     Error, TypeId,
-    descriptor::{Method, Node, Schema, Struct},
+    descriptor::{Declaration, DeclarationKind, Method, Node, Schema, Struct},
 };
 
 const MAX_FINDING_BYTES: usize = 2 * 1024 * 1024;
@@ -22,7 +22,7 @@ const MAX_FINDING_BYTES: usize = 2 * 1024 * 1024;
 pub struct Change {
     /// Nominal schema node that owns the history.
     pub node: TypeId,
-    /// Qualified path of a field, enumerant or RPC method.
+    /// Local declaration name or qualified path of a field, enumerant or RPC method.
     pub member: Option<String>,
     /// The history rule that failed.
     pub kind: ChangeKind,
@@ -45,6 +45,27 @@ pub enum ChangeKind {
         previous: RelPath,
         /// The canonical requested filename in the current descriptor.
         current: RelPath,
+    },
+    /// An old declaration ID left the selected files.
+    RemovedDeclaration,
+    /// A retained declaration ID has a different local name.
+    RenamedDeclaration {
+        /// The unqualified name in the current descriptor.
+        current: String,
+    },
+    /// A retained declaration ID has a different immediate lexical owner.
+    MovedDeclaration {
+        /// The immediate owner in the base descriptor.
+        previous: TypeId,
+        /// The immediate owner in the current descriptor.
+        current: TypeId,
+    },
+    /// A retained declaration ID has a different declared kind.
+    ChangedDeclarationKind {
+        /// The kind in the base descriptor.
+        previous: DeclarationKind,
+        /// The kind in the current descriptor.
+        current: DeclarationKind,
     },
     /// A type changed between a struct, an enum and an RPC interface.
     ChangedKind,
@@ -88,6 +109,16 @@ impl fmt::Display for ChangeKind {
             Self::RenamedFile { previous, current } => {
                 return write!(f, "selected file renamed from {previous} to {current}");
             }
+            Self::RemovedDeclaration => "declaration removed from selected files",
+            Self::RenamedDeclaration { current } => {
+                return write!(f, "declaration renamed to {current}");
+            }
+            Self::MovedDeclaration { previous, current } => {
+                return write!(f, "declaration moved from scope {previous} to {current}");
+            }
+            Self::ChangedDeclarationKind { previous, current } => {
+                return write!(f, "declaration kind changed from {previous} to {current}");
+            }
             Self::ChangedKind => "schema kind changed",
             Self::ChangedParameters => "type parameter count changed",
             Self::RemovedMember => "member removed",
@@ -123,6 +154,7 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
     let mut push = |node, member: Option<String>, kind| {
         let extra = match &kind {
             ChangeKind::RenamedMember { current: name }
+            | ChangeKind::RenamedDeclaration { current: name }
             | ChangeKind::PairedPresence { peer: name } => name.len(),
             ChangeKind::RemovedFile { previous } => previous.as_str().len(),
             ChangeKind::RenamedFile { previous, current } => {
@@ -152,6 +184,7 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
         };
         push(id, None, kind)?;
     }
+    declaration_changes(&base.declarations, &current.declarations, &mut push)?;
     for (&node, before) in &base.nodes {
         let Some(after) = current.nodes.get(&node) else {
             continue;
@@ -175,6 +208,38 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
         }?;
     }
     Ok(findings)
+}
+
+fn declaration_changes(
+    base: &BTreeMap<TypeId, Declaration>,
+    current: &BTreeMap<TypeId, Declaration>,
+    push: &mut impl FnMut(TypeId, Option<String>, ChangeKind) -> Result<(), Error>,
+) -> Result<(), Error> {
+    for (&id, before) in base {
+        let mut emit = |kind| push(id, Some(before.name.clone()), kind);
+        let Some(after) = current.get(&id) else {
+            emit(ChangeKind::RemovedDeclaration)?;
+            continue;
+        };
+        if before.name != after.name {
+            emit(ChangeKind::RenamedDeclaration {
+                current: after.name.clone(),
+            })?;
+        }
+        if before.scope != after.scope {
+            emit(ChangeKind::MovedDeclaration {
+                previous: before.scope,
+                current: after.scope,
+            })?;
+        }
+        if before.kind != after.kind {
+            emit(ChangeKind::ChangedDeclarationKind {
+                previous: before.kind,
+                current: after.kind,
+            })?;
+        }
+    }
+    Ok(())
 }
 
 fn member_name(group: &[std::rc::Rc<str>], name: &str) -> String {

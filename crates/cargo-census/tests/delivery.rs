@@ -172,30 +172,42 @@ const RPC_PATH: &str = "rpc-base.capnp";
 const OTHER_FILE_ID: u64 = 0xa7c2_bc02_a14a_f2d0;
 
 fn file_descriptor(nodes: &[(u64, Option<&str>)], requests: &[(u64, &str)]) -> Vec<u8> {
-    use capnp::{message::Builder, schema_capnp::code_generator_request, serialize};
-
-    let mut message = Builder::new_default();
-    let mut request = message.init_root::<code_generator_request::Builder<'_>>();
-    let mut schema = request
-        .reborrow()
-        .init_nodes(u32::try_from(nodes.len()).unwrap());
-    for (index, &(id, name)) in (0..).zip(nodes) {
-        let mut node = schema.reborrow().get(index);
-        node.set_id(id);
-        if let Some(name) = name {
-            node.set_file(());
-            node.set_display_name(name);
-        } else {
-            node.init_struct();
+    compiler_request(|mut request| {
+        let mut schema = request
+            .reborrow()
+            .init_nodes(u32::try_from(nodes.len()).unwrap());
+        for (index, &(id, name)) in (0..).zip(nodes) {
+            let mut node = schema.reborrow().get(index);
+            node.set_id(id);
+            if let Some(name) = name {
+                node.set_file(());
+                node.set_display_name(name);
+            } else {
+                node.init_struct();
+            }
         }
-    }
+        request_files(request, requests);
+    })
+}
+
+fn compiler_request(
+    write: impl FnOnce(capnp::schema_capnp::code_generator_request::Builder<'_>),
+) -> Vec<u8> {
+    let mut message = capnp::message::Builder::new_default();
+    write(message.init_root());
+    capnp::serialize::write_message_to_words(&message)
+}
+
+fn request_files(
+    request: capnp::schema_capnp::code_generator_request::Builder<'_>,
+    requests: &[(u64, &str)],
+) {
     let mut rows = request.init_requested_files(u32::try_from(requests.len()).unwrap());
     for (index, &(id, filename)) in (0..).zip(requests) {
         let mut row = rows.reborrow().get(index);
         row.set_id(id);
         row.set_filename(filename);
     }
-    serialize::write_message_to_words(&message)
 }
 
 /// File history follows the selected ID through filename changes and path reuse.
@@ -228,22 +240,271 @@ fn capnp_history_checks_committed_file_identities() {
     assert!(clean.status.success(), "{clean:?}");
     assert!(clean.stdout.is_empty(), "{clean:?}");
 
-    for (current, types, finding) in [
-        (
-            &renamed,
-            &[RPC_READER][..],
-            "selected file renamed from rpc-base.capnp to rpc-compatible.capnp",
-        ),
-        (&reoccupied, &[][..], "selected file rpc-base.capnp removed"),
+    let renamed_report = format!(
+        "Cap'n Proto history for {RPC_FILE}: selected file renamed from rpc-base.capnp to rpc-compatible.capnp\n"
+    );
+    let removed_report = format!(
+        "Cap'n Proto history for {RPC_FILE}: selected file rpc-base.capnp removed\n\
+         Cap'n Proto history for {RPC_READER}.ByteReader: declaration removed from selected files\n\
+         Cap'n Proto history for 0xf7d9fae829b17495.Payload: declaration removed from selected files\n"
+    );
+    for (current, types, expected) in [
+        (&renamed, &[RPC_READER][..], renamed_report),
+        (&reoccupied, &[][..], removed_report),
     ] {
         let result = capnp_history(root, &base, current, types, &file);
         assert_eq!(result.status.code(), Some(1), "{result:?}");
         assert!(result.stderr.is_empty(), "{result:?}");
-        assert_eq!(
-            String::from_utf8(result.stdout).unwrap(),
-            format!("Cap'n Proto history for {RPC_FILE}: {finding}\n")
-        );
+        assert_eq!(String::from_utf8(result.stdout).unwrap(), expected);
     }
+}
+
+const DECLARATIONS_FILE: u64 = 0xeec1_0000_0000_0000;
+const DECLARATIONS_PATH: &str = "declarations.capnp";
+const DECLARATION_ARGS: &[&str] = &["--file-id", "0xeec1000000000000"];
+const DECLARATIONS_BASE: &[u8] = include_bytes!("fixtures/capnp/declarations-base.bin");
+
+/// Stable IDs preserve each declaration's local name, scope and kind.
+/// Layout selection is independent, and imported namespaces can be partial.
+#[test]
+fn capnp_history_compares_file_declaration_identities() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, DECLARATIONS_BASE);
+    let compatible = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/declarations-compatible.bin"),
+    );
+    let changed = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/declarations-changed.bin"),
+    );
+    let compare = |current: &str, types: &[&str]| {
+        capnp_history(root, &base, current, types, DECLARATION_ARGS)
+    };
+    let clean = compare(&compatible, &[]);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(clean.stdout.is_empty(), "{clean:?}");
+
+    let layout = compare(&compatible, &["0xeec1000000000002"]);
+    assert_eq!(layout.status.code(), Some(1), "{layout:?}");
+    assert!(layout.stderr.is_empty(), "{layout:?}");
+    assert!(
+        String::from_utf8(layout.stdout)
+            .unwrap()
+            .contains("0xeec1000000000002.name: type changed")
+    );
+
+    let result = compare(&changed, &[]);
+    assert_eq!(result.status.code(), Some(1), "{result:?}");
+    assert!(result.stderr.is_empty(), "{result:?}");
+    let report = String::from_utf8(result.stdout).unwrap();
+    let expected = [
+        "0xeec1000000000001.Outer: declaration renamed to Moved",
+        "0xeec1000000000001.Outer: declaration moved from scope 0xeec1000000000000 to 0xeec1000000000003",
+        "0xeec1000000000004.Shape: declaration kind changed from struct to enum",
+        "0xeec1000000000005.Leaving: declaration removed from selected files",
+        "0xeec1000000000006.Externalize: declaration removed from selected files",
+        "0xeec1000000000007.Reader: declaration renamed to Fetcher",
+        ".obsoleteLimit: declaration removed from selected files",
+        ".obsoleteMarker: declaration removed from selected files",
+    ];
+    assert_eq!(report.lines().count(), expected.len(), "{report}");
+    for finding in expected {
+        assert!(report.contains(finding), "{report}");
+    }
+}
+
+#[derive(Clone, Copy)]
+enum FixtureDeclarationKind {
+    File,
+    Struct,
+    Enum,
+    Group,
+}
+
+#[derive(Clone, Copy)]
+struct FixtureDeclaration<'a> {
+    id: u64,
+    scope: u64,
+    kind: FixtureDeclarationKind,
+    children: &'a [(u64, &'a str)],
+}
+
+fn declaration_request(declarations: &[FixtureDeclaration<'_>]) -> Vec<u8> {
+    compiler_request(|mut request| {
+        let mut nodes = request
+            .reborrow()
+            .init_nodes(u32::try_from(declarations.len()).unwrap());
+        for (index, declaration) in (0..).zip(declarations) {
+            let mut node = nodes.reborrow().get(index);
+            node.set_id(declaration.id);
+            node.set_scope_id(declaration.scope);
+            match declaration.kind {
+                FixtureDeclarationKind::File => {
+                    node.set_file(());
+                    node.set_display_name(DECLARATIONS_PATH);
+                }
+                FixtureDeclarationKind::Struct => {
+                    node.reborrow().init_struct();
+                }
+                FixtureDeclarationKind::Enum => {
+                    node.reborrow().init_enum();
+                }
+                FixtureDeclarationKind::Group => {
+                    node.reborrow().init_struct().set_is_group(true);
+                }
+            }
+            let mut children =
+                node.init_nested_nodes(u32::try_from(declaration.children.len()).unwrap());
+            for (index, &(id, name)) in (0..).zip(declaration.children) {
+                let mut child = children.reborrow().get(index);
+                child.set_id(id);
+                child.set_name(name);
+            }
+        }
+        let files = [(DECLARATIONS_FILE, DECLARATIONS_PATH)];
+        let requested = if declarations.iter().any(|node| node.id == DECLARATIONS_FILE) {
+            files.as_slice()
+        } else {
+            &[]
+        };
+        request_files(request, requested);
+    })
+}
+
+/// A selected scope's declarations require reciprocal, unique ownership.
+/// Unrelated namespaces cannot claim a selected declaration.
+#[test]
+fn capnp_history_refuses_invalid_declaration_ownership() {
+    const CHILD: u64 = DECLARATIONS_FILE + 1;
+    const OTHER: u64 = DECLARATIONS_FILE + 2;
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, DECLARATIONS_BASE);
+    let file = FixtureDeclaration {
+        id: DECLARATIONS_FILE,
+        scope: 0,
+        kind: FixtureDeclarationKind::File,
+        children: &[(CHILD, "Child")],
+    };
+    let child = FixtureDeclaration {
+        id: CHILD,
+        scope: DECLARATIONS_FILE,
+        kind: FixtureDeclarationKind::Struct,
+        children: &[],
+    };
+    let other = FixtureDeclaration { id: OTHER, ..child };
+    let empty = FixtureDeclaration {
+        children: &[],
+        ..file
+    };
+    let wrong_name = FixtureDeclaration {
+        children: &[(CHILD, "Child"), (OTHER, "Child")],
+        ..file
+    };
+    let cycle = FixtureDeclaration {
+        children: &[(CHILD, "Child")],
+        ..child
+    };
+    let leaf = FixtureDeclaration {
+        kind: FixtureDeclarationKind::Enum,
+        ..cycle
+    };
+    let group = FixtureDeclaration {
+        kind: FixtureDeclarationKind::Group,
+        ..child
+    };
+    let outside = FixtureDeclaration {
+        scope: 0,
+        children: &[(CHILD, "Foreign")],
+        ..other
+    };
+    let outside_file_claim = FixtureDeclaration {
+        children: &[(DECLARATIONS_FILE, "File")],
+        ..outside
+    };
+    for (nodes, expected) in [
+        (&[file][..], "lists missing declaration"),
+        (
+            &[file, FixtureDeclaration { scope: 0, ..child }],
+            "disagrees with listing scope",
+        ),
+        (&[wrong_name, child, other], "repeats declaration name"),
+        (&[file, cycle], "lists an already owned declaration"),
+        (&[file, leaf], "cannot own declarations"),
+        (&[file, group], "must list a written declaration"),
+        (
+            &[file, child, outside],
+            "competes for selected file or declaration",
+        ),
+        (
+            &[empty, outside_file_claim],
+            "competes for selected file or declaration",
+        ),
+        (&[empty, child], "claims selected scope"),
+        (&[child], "claims selected scope"),
+        (
+            &[FixtureDeclaration {
+                scope: OTHER,
+                ..empty
+            }],
+            "must have scope zero",
+        ),
+    ] {
+        let invalid = commit_capnp_descriptor(root, &declaration_request(nodes));
+        let refused = capnp_history(root, &base, &invalid, &[], DECLARATION_ARGS);
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert!(refused.stdout.is_empty(), "{refused:?}");
+        let diagnostic = String::from_utf8(refused.stderr).unwrap();
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+}
+
+/// The bound on nominal declaration nesting applies across flat descriptor IDs.
+#[test]
+fn capnp_history_bounds_file_declaration_nesting() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let commit_chain = |depth| {
+        let edges: Vec<_> = (1..=depth)
+            .map(|index| [(DECLARATIONS_FILE + u64::try_from(index).unwrap(), "Child")])
+            .collect();
+        let nodes: Vec<_> = (0..=depth)
+            .map(|index| {
+                let id = DECLARATIONS_FILE + u64::try_from(index).unwrap();
+                let (kind, scope) = if index == 0 {
+                    (FixtureDeclarationKind::File, 0)
+                } else {
+                    (FixtureDeclarationKind::Struct, id - 1)
+                };
+                FixtureDeclaration {
+                    id,
+                    scope,
+                    kind,
+                    children: edges.get(index).map_or(&[], |edge| edge.as_slice()),
+                }
+            })
+            .collect();
+        commit_capnp_descriptor(root, &declaration_request(&nodes))
+    };
+    let accepted = commit_chain(64);
+    let clean = capnp_history(root, &accepted, &accepted, &[], DECLARATION_ARGS);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(clean.stdout.is_empty(), "{clean:?}");
+
+    let refused = commit_chain(65);
+    let result = capnp_history(root, &accepted, &refused, &[], DECLARATION_ARGS);
+    assert_eq!(result.status.code(), Some(1), "{result:?}");
+    assert!(result.stdout.is_empty(), "{result:?}");
+    let diagnostic = String::from_utf8(result.stderr).unwrap();
+    assert!(
+        diagnostic.contains("exceeds the 64-level nesting bound"),
+        "{diagnostic}"
+    );
 }
 
 /// A requested file row must match one file node and uniquely own its path.
