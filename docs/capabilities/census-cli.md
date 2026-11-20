@@ -52,6 +52,9 @@ bindings:
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities
     - cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities
+    - cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities
+    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership
+    - cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting
     - cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods
     - cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
@@ -142,6 +145,21 @@ selected IDs.
 A selected file with a missing row or node, a conflicting path owner,
 a non-file node or an inconsistent name refuses the descriptor.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities -->
+
+**Declaration identities.** File selection also follows written structs, enums,
+interfaces, constants and annotations by compiler ID. Census reports each old
+declaration that leaves the selected files or changes its local name, immediate
+enclosing scope or kind. Additional declarations can coexist with the old
+inventory. Renaming a file or moving a parent preserves the local name and
+immediate scope of an otherwise unchanged descendant.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities,cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities -->
+
+The compiler supplies each declaration's name and owner through `nestedNodes`
+and `scopeId`. Census requires reciprocal ownership and unique names in each
+selected scope, including when a file is removed. It refuses competing claims
+from an unrelated namespace. Partial unrelated namespaces can otherwise coexist
+with the selected inventory. Each file admits up to 64 declaration levels.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership,cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting -->
 
 A caller can select a compiler-declared Void field annotation for
 required pointer presence. Census validates the marker in both
@@ -279,9 +297,11 @@ Use `--type 0xID` to select a struct, enum or supported interface.
 For an interface, the comparison follows its inline parameter and result
 structs. Select each interface whose method history matters.
 
-Use `--file-id 0xID` to compare a requested schema file. Repeat `--file-id`
-for each selected file. `--type` and `--file-id` may be used together.
-Use each selected ID once.
+Use `--file-id 0xID` to compare a requested schema file and its written
+declarations. Repeat `--file-id` for each selected file. Use `--type` to
+compare compiled layouts, including generated group and inline method data
+where their type or interface is selected. `--type` and `--file-id` may be
+used together. Use each selected ID once.
 
 Add `--required-annotation 0xID` to compare required pointer presence
 or `--paired-presence-annotation 0xID` to compare paired pointer
@@ -579,6 +599,10 @@ They also preserve a policy removal finding with a supplied claim.
 
 Controlled fixtures protect native CLI parity, the self-test case list, the absence of consumer execution, report destination restrictions, migration carrier bounds, monotone debt writes and the declared reference options.
 
+The declaration history fixtures cover compatible additions, a partial import,
+local identity changes and the independent type layout verdict. Malformed scope
+claims and excessive nominal nesting refuse without a partial report.
+
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
@@ -603,12 +627,15 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |

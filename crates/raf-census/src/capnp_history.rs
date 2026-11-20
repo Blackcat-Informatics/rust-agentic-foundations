@@ -19,6 +19,7 @@ use raf_source::{LoadError, LoadOptions, PinnedGitTree, RelPath, Tree, TreeError
 
 pub use capture::{CaptureError, CaptureFiles, CaptureKey, CaptureVerification, InvalidCaptureKey};
 pub use compare::{Change, ChangeKind};
+pub use descriptor::DeclarationKind;
 
 /// Schema node ID in the compiler's 64-bit identity space.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -72,7 +73,7 @@ pub struct Snapshot<'a> {
 pub struct HistoryOptions<'a> {
     /// Struct, enum or supported RPC interface IDs whose references define the comparison closure.
     pub roots: &'a [TypeId],
-    /// File IDs whose canonical compiler request filenames are compared.
+    /// File IDs whose canonical filenames and written declarations are compared.
     pub file_ids: &'a [TypeId],
     /// Void field annotation identifying required pointer fields, if selected.
     pub required_annotation: Option<TypeId>,

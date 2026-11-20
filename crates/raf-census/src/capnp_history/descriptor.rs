@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Admitted schema nodes and their projected data-layout closure.
+//! Admitted schema nodes, file declarations, and projected data layouts.
 
+mod declarations;
 mod files;
 mod rpc;
 
@@ -45,6 +46,16 @@ pub(super) struct Schema {
     pub(super) roots: BTreeSet<TypeId>,
     pub(super) nodes: BTreeMap<TypeId, Node>,
     pub(super) files: BTreeMap<TypeId, RelPath>,
+    pub(super) declarations: BTreeMap<TypeId, Declaration>,
+}
+
+pub use declarations::DeclarationKind;
+
+#[derive(Debug)]
+pub(super) struct Declaration {
+    pub(super) name: String,
+    pub(super) scope: TypeId,
+    pub(super) kind: DeclarationKind,
 }
 
 #[derive(Debug)]
@@ -175,6 +186,7 @@ pub(super) fn read(
         }
         Roots::Require(selected) | Roots::AllowMissing(selected) => {
             projected.files = files::project(request, &nodes, selected, require_roots)?;
+            projected.declarations = declarations::project(&nodes, selected)?;
         }
     }
     Ok(projected)
@@ -356,6 +368,7 @@ impl<'a> Nodes<'a> {
             roots: present,
             nodes,
             files: BTreeMap::new(),
+            declarations: BTreeMap::new(),
         })
     }
 
