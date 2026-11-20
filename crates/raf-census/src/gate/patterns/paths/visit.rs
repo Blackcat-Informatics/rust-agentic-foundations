@@ -10,7 +10,7 @@ use crate::detectors::{ReceiverMode, receiver_mode};
 use crate::gate::bounds::{BoundRole, Scan, syntax};
 use crate::report::bounds::UNCLASSIFIED;
 use crate::{
-    Error,
+    Error, FileCtx,
     detectors::{ENUM_CATCH_ALL, RawHit},
     syntax::{ImportLeaf, visit_import_paths},
 };
@@ -61,6 +61,7 @@ pub(in crate::gate) fn functions(
 ) -> Result<(), Error> {
     let mut visitor = Paths {
         compiled: &[],
+        context: None,
         workspace,
         code,
         file,
@@ -117,12 +118,13 @@ pub(super) fn collect<'p, 'w>(
     compiled: &[Compiled<'p>],
     workspace: &'w Workspace,
     code: &CodeResolver<'_>,
-    file: &'w SourceFile,
+    (file, context): (&'w SourceFile, &FileCtx),
     syntax: &syn::File,
     limits: &mut MatchLimits,
 ) -> Result<Vec<Found<'p, 'w>>, Error> {
     let mut visitor = Paths {
         compiled,
+        context: Some(context),
         workspace,
         code,
         file,
@@ -156,6 +158,7 @@ pub(in crate::gate) fn references(
 ) -> Result<(), Error> {
     let mut visitor = Paths {
         compiled: &[],
+        context: None,
         workspace,
         code,
         file,
@@ -195,6 +198,7 @@ pub(in crate::gate) fn enum_inventory<'w>(
     let mut hits = Vec::new();
     let mut visitor = Paths {
         compiled: &[],
+        context: None,
         workspace,
         code,
         file,
@@ -356,6 +360,7 @@ fn enum_pattern_binding<'w>(
 
 struct Paths<'a, 'p, 'w, 'c> {
     compiled: &'a [Compiled<'p>],
+    context: Option<&'a FileCtx>,
     workspace: &'w Workspace,
     code: &'c CodeResolver<'c>,
     file: &'w SourceFile,
@@ -792,6 +797,7 @@ impl Paths<'_, '_, '_, '_> {
             .err();
             return;
         }
+        let alias_context = self.context.map(|context| (self.workspace, context));
         for expected in self.compiled {
             if !expected.selects(role)
                 || self
@@ -805,8 +811,8 @@ impl Paths<'_, '_, '_, '_> {
                 self.code,
                 &self.scopes,
                 expected,
-                path,
-                &site,
+                (path, &site),
+                alias_context,
                 self.limits,
             );
             match matched {
@@ -820,8 +826,8 @@ impl Paths<'_, '_, '_, '_> {
                             self.code,
                             &self.scopes,
                             expected,
-                            path,
-                            &site,
+                            (path, &site),
+                            alias_context,
                             self.limits,
                         ) {
                             Ok(ids) => Some(ids),
@@ -1592,8 +1598,8 @@ fn matching_owners(
     code: &CodeResolver<'_>,
     scopes: &Scopes,
     expected: &Compiled<'_>,
-    path: &syn::Path,
-    site: &Site<'_>,
+    occurrence: (&syn::Path, &Site<'_>),
+    alias_context: Option<(&Workspace, &FileCtx)>,
     limits: &mut MatchLimits,
 ) -> Result<Vec<ItemId>, Error> {
     let mut ids = Vec::new();
@@ -1603,8 +1609,8 @@ fn matching_owners(
             code,
             scopes,
             expected,
-            path,
-            site,
+            occurrence,
+            alias_context,
             limits,
         )? {
             ids.push(owner.id);
@@ -1623,6 +1629,7 @@ pub(in crate::gate) fn numeric_calls(
 ) -> Result<(), Error> {
     let mut visitor = Paths {
         compiled: &[],
+        context: None,
         workspace,
         code,
         file,

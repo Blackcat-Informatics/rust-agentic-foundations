@@ -6,12 +6,78 @@
 use purrdf_lex::allocation::{Admission, Memory, StorageError};
 
 use super::{CodeResolveError, CodeResolver, Heads, ItemAdmission, Meter};
+use crate::facts::PathFact;
 use crate::meter::Steps;
-use crate::{ItemId, Namespace, Resolution, ResolveError, SymbolKind, TestRole, Usage};
+use crate::{
+    ItemId, Namespace, Resolution, ResolveError, SourceAuthorityId, SymbolKind, TestRole, Usage,
+};
 
 enum Failure {
     Code(CodeResolveError),
     Storage(StorageError),
+    Outside(CodeResolveError),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AliasPurpose {
+    Member,
+    Enum,
+    FirstParty,
+}
+
+enum Destination {
+    Alias,
+    Nominal(usize),
+    Outside(&'static str),
+}
+
+const ALIAS_SYNTAX: &str = "supply a zero-parameter plain alias with literal const arguments; general alias substitution is not modeled";
+const NOMINAL_ARITY: &str = "alias arguments do not establish the nominal const arity";
+
+fn alias_arity(item: &crate::Item) -> Option<usize> {
+    item.detail.as_ref()?.alias_const_arity
+}
+
+fn destination(item: &crate::Item, arguments: usize, purpose: AliasPurpose) -> Destination {
+    if purpose == AliasPurpose::FirstParty
+        && item.file.authority() != SourceAuthorityId::FIRST_PARTY
+    {
+        return Destination::Outside("target is outside the first-party source");
+    }
+    match item.kind {
+        SymbolKind::TypeAlias if arguments != 0 => Destination::Outside(
+            "generic arguments on an alias need explicit substitution evidence",
+        ),
+        SymbolKind::TypeAlias
+            if purpose == AliasPurpose::FirstParty && alias_arity(item).is_none() =>
+        {
+            Destination::Outside(ALIAS_SYNTAX)
+        }
+        SymbolKind::TypeAlias => Destination::Alias,
+        SymbolKind::Struct | SymbolKind::Enum | SymbolKind::Union => item
+            .detail
+            .as_ref()
+            .and_then(|detail| detail.nominal_const_arity)
+            .map_or(Destination::Outside(NOMINAL_ARITY), Destination::Nominal),
+        _ => Destination::Outside(NOMINAL_ARITY),
+    }
+}
+
+fn alias_path<S: Admission + ?Sized>(
+    rhs: &PathFact,
+    memory: &mut Memory<'_, S>,
+) -> Result<String, StorageError> {
+    let mut path = String::new();
+    if rhs.leading_colon {
+        memory.push_str(&mut path, "::")?;
+    }
+    for (index, segment) in rhs.segments.iter().enumerate() {
+        if index > 0 {
+            memory.push_str(&mut path, "::")?;
+        }
+        memory.push_str(&mut path, segment)?;
+    }
+    Ok(path)
 }
 
 impl From<CodeResolveError> for Failure {
@@ -48,13 +114,40 @@ impl CodeResolver<'_> {
         &self,
         alias: ItemId,
     ) -> Result<Option<ItemId>, CodeResolveError> {
+        self.unconditional_alias(alias, AliasPurpose::Enum)
+            .map(|(nominal, _)| {
+                nominal.filter(|id| self.index.items[id.index()].kind == SymbolKind::Enum)
+            })
+    }
+
+    /// Resolve a written first-party alias to its indexed struct, enum or union.
+    ///
+    /// Returns no identity for an unindexed target or a form outside the
+    /// zero-parameter named alias and literal const argument profile. The
+    /// returned usage includes the work of an unsuccessful supported probe.
+    ///
+    /// # Errors
+    /// Refuses absent items, ambiguous, cyclic or conditional indexed routes,
+    /// broken explicitly local paths and exhausted query resources.
+    pub fn unconditional_nominal_alias(
+        &self,
+        alias: ItemId,
+    ) -> Result<(Option<ItemId>, Usage), CodeResolveError> {
+        self.unconditional_alias(alias, AliasPurpose::FirstParty)
+    }
+
+    fn unconditional_alias(
+        &self,
+        alias: ItemId,
+        purpose: AliasPurpose,
+    ) -> Result<(Option<ItemId>, Usage), CodeResolveError> {
         let item = self
             .index
             .items
             .get(alias.index())
             .ok_or(CodeResolveError::UnknownItem(alias))?;
         if item.kind != SymbolKind::TypeAlias {
-            return Ok(None);
+            return Ok((None, Usage::default()));
         }
         let meter = Meter::resume_query(
             self.options,
@@ -71,17 +164,22 @@ impl CodeResolver<'_> {
         let mut admission = ItemAdmission::new(&meter, &item.file);
         let result = self.alias_nominal(
             alias,
-            "enum",
+            if purpose == AliasPurpose::Enum {
+                "enum"
+            } else {
+                "type"
+            },
             &meter,
             &mut Memory::new(&mut admission),
             steps,
-            true,
+            purpose,
         );
         match result {
-            Ok((id, _, _)) => {
-                Ok((self.index.items[id.index()].kind == SymbolKind::Enum).then_some(id))
+            Ok((id, _, _)) => Ok((Some(id), meter.usage())),
+            Err(Failure::Outside(_)) if purpose == AliasPurpose::FirstParty => {
+                Ok((None, meter.usage()))
             }
-            Err(Failure::Code(error)) => Err(error),
+            Err(Failure::Code(error) | Failure::Outside(error)) => Err(error),
             Err(Failure::Storage(error)) => Err(budget(admission.error(error))),
         }
     }
@@ -220,7 +318,7 @@ impl CodeResolver<'_> {
                 resolution.via_glob |= prefix.via_glob;
                 Ok((resolution, meter.usage()))
             }
-            Err(Failure::Code(error)) => Err(error),
+            Err(Failure::Code(error) | Failure::Outside(error)) => Err(error),
             Err(Failure::Storage(error)) => Err(budget(admission.error(error))),
         }
     }
@@ -234,7 +332,7 @@ impl CodeResolver<'_> {
         steps: Steps<'_>,
     ) -> Result<Resolution, Failure> {
         let (nominal, aliases, carried) =
-            self.alias_nominal(first, member, meter, memory, steps, false)?;
+            self.alias_nominal(first, member, meter, memory, steps, AliasPurpose::Member)?;
         let item = &self.index.items[nominal.index()];
         let home = self.homes[nominal.index()]
             .module()
@@ -278,7 +376,7 @@ impl CodeResolver<'_> {
         meter: &Meter,
         memory: &mut Memory<'_, S>,
         steps: Steps<'_>,
-        unconditional: bool,
+        purpose: AliasPurpose,
     ) -> Result<(ItemId, Vec<ItemId>, bool), Failure> {
         let mut current = first;
         let mut aliases = Vec::new();
@@ -289,36 +387,46 @@ impl CodeResolver<'_> {
             meter
                 .work(aliases.len().saturating_add(1), &item.file, None)
                 .map_err(budget)?;
+            if purpose == AliasPurpose::FirstParty
+                && item.file.authority() != SourceAuthorityId::FIRST_PARTY
+            {
+                return Err(Failure::Outside(unsupported(
+                    current,
+                    member,
+                    "alias is outside the first-party source",
+                )));
+            }
             if aliases.contains(&current) {
                 return Err(
                     CodeResolveError::Resolve(ResolveError::Cyclic(item.path.to_string())).into(),
                 );
             }
-            let arguments = item.detail.as_ref().and_then(|detail| detail.alias_const_arity).ok_or_else(|| unsupported(current, member, "supply a zero-parameter plain alias with literal const arguments; general alias substitution is not modeled"))?;
+            let arguments = alias_arity(item)
+                .ok_or_else(|| Failure::Outside(unsupported(current, member, ALIAS_SYNTAX)))?;
             let (home, rhs, configuration) = self
                 .index
                 .aliases
                 .get(&current)
                 .ok_or_else(|| unsupported(current, member, "plain alias target is absent"))?;
             memory.push(&mut aliases, current)?;
-            let mut path = String::new();
-            if rhs.leading_colon {
-                memory.push_str(&mut path, "::")?;
-            }
-            for (index, segment) in rhs.segments.iter().enumerate() {
-                if index > 0 {
-                    memory.push_str(&mut path, "::")?;
-                }
-                memory.push_str(&mut path, segment)?;
-            }
+            let path = alias_path(rhs, memory)?;
             meter.work(path.len(), &item.file, None).map_err(budget)?;
             let heads = Heads::Code {
                 test: item.test != TestRole::None,
             };
-            let resolution = self
-                .index
-                .resolve_at(*home, &path, Some(Namespace::Type), heads, steps)
-                .map_err(CodeResolveError::Resolve)?;
+            let resolution =
+                match self
+                    .index
+                    .resolve_at(*home, &path, Some(Namespace::Type), heads, steps)
+                {
+                    Err(error @ ResolveError::NotFound(_))
+                        if purpose == AliasPurpose::FirstParty
+                            && !self.indexed_alias_head(*home, &path, heads, steps)? =>
+                    {
+                        return Err(Failure::Outside(CodeResolveError::Resolve(error)));
+                    }
+                    result => result.map_err(CodeResolveError::Resolve)?,
+                };
             if resolution.sites.len() != 1 {
                 return Err(
                     CodeResolveError::Resolve(ResolveError::Ambiguous(resolution.sites)).into(),
@@ -326,7 +434,14 @@ impl CodeResolver<'_> {
             }
             carried |= resolution.via_glob;
             current = resolution.sites[0];
-            if unconditional
+            let target = &self.index.items[current.index()];
+            let next = destination(target, arguments, purpose);
+            if purpose == AliasPurpose::FirstParty
+                && let Destination::Outside(reason) = next
+            {
+                return Err(Failure::Outside(unsupported(declared, member, reason)));
+            }
+            if purpose != AliasPurpose::Member
                 && (*configuration == crate::facts::ConfigurationDependence::Conditional
                     || !self
                         .index
@@ -345,35 +460,45 @@ impl CodeResolver<'_> {
                 )
                 .into());
             }
-            let target = &self.index.items[current.index()];
-            if target.kind == SymbolKind::TypeAlias {
-                if arguments != 0 {
-                    return Err(unsupported(
-                        declared,
-                        member,
-                        "generic arguments on an alias need explicit substitution evidence",
-                    )
-                    .into());
+            match next {
+                Destination::Alias => {}
+                Destination::Nominal(arity) if arity == arguments => {
+                    return Ok((current, aliases, carried));
                 }
-                continue;
+                Destination::Nominal(_) => {
+                    return Err(unsupported(declared, member, NOMINAL_ARITY).into());
+                }
+                Destination::Outside(reason) => {
+                    return Err(Failure::Outside(unsupported(declared, member, reason)));
+                }
             }
-            if !matches!(
-                target.kind,
-                SymbolKind::Struct | SymbolKind::Enum | SymbolKind::Union
-            ) || target
-                .detail
-                .as_ref()
-                .and_then(|detail| detail.nominal_const_arity)
-                != Some(arguments)
-            {
-                return Err(unsupported(
-                    declared,
-                    member,
-                    "alias arguments do not establish the nominal const arity",
-                )
-                .into());
-            }
-            return Ok((current, aliases, carried));
+        }
+    }
+
+    fn indexed_alias_head(
+        &self,
+        home: usize,
+        path: &str,
+        heads: Heads,
+        steps: Steps<'_>,
+    ) -> Result<bool, CodeResolveError> {
+        let written = path.strip_prefix("::").unwrap_or(path);
+        let Some((head, _)) = written.split_once("::") else {
+            return Ok(false);
+        };
+        if matches!(head, "crate" | "self" | "super") {
+            return Ok(true);
+        }
+        let head = &path[..path.len() - written.len() + head.len()];
+        match self
+            .index
+            .resolve_at(home, head, Some(Namespace::Type), heads, steps)
+        {
+            Ok(resolution) => Ok(resolution.sites.iter().any(|id| {
+                self.index.items[id.index()].file.authority() == SourceAuthorityId::FIRST_PARTY
+            })),
+            Err(ResolveError::NotFound(_)) => Ok(false),
+            Err(error) => Err(CodeResolveError::Resolve(error)),
         }
     }
 }

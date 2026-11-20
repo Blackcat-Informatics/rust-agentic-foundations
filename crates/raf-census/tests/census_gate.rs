@@ -1714,6 +1714,139 @@ fn type_patterns_follow_aliases_without_capturing_generic_or_module_shadows() {
 }
 
 #[test]
+fn indexed_type_patterns_follow_written_aliases_at_their_uses() {
+    let home = "
+pub mod home {
+    pub struct Banned;
+    pub struct Other;
+    pub type First = Banned;
+    pub type Last = First;
+    pub type Unrelated = Other;
+    pub type Primitive = u8;
+    pub type External = std::time::Duration;
+    pub type Applied<T> = (T,);
+    pub type Tuple = (u8,);
+    #[cfg(unix)] pub type ConditionalOutside = Tuple;
+}
+pub use home as alias;
+pub use home::Last as Exported;
+use Exported as Through;
+";
+    for (outside, copies) in [
+        ("pub fn outside(_: Through) {}", 1),
+        ("pub fn outside<Through>(_: Through) {}", 0),
+        (
+            "pub fn outside(_: home::Unrelated, _: home::Primitive, _: home::External, _: home::Applied<u8>, _: home::ConditionalOutside) {}",
+            0,
+        ),
+    ] {
+        let source = format!("{outside}\n{home}");
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(
+                &source,
+                "typePath",
+                "demo::home::Banned",
+            ))
+            .unwrap();
+        let job = &report.jobs()[0];
+        assert_eq!(job.copies, copies, "{outside}: {:?}", report.findings());
+        assert_eq!(report.is_clean(), copies == 0);
+        if copies != 0 {
+            assert!(job.matches.iter().any(|found| {
+                found.symbol == "demo::outside" && found.class == MatchClass::Copy
+            }));
+        }
+    }
+    // The use precedes both alias declarations in the file, so a refusal at
+    // line one proves the use queried the chain, rather than scanning its RHS.
+    let ambiguous = "pub fn outside(_: home::End) {}
+pub mod home {
+    pub struct Banned;
+    pub type End = Link;
+    pub type Link = Choice;
+    #[cfg(unix)] pub struct Choice;
+    #[cfg(windows)] pub struct Choice;
+}
+pub use home as alias;
+";
+    let error = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(
+            ambiguous,
+            "typePath",
+            "demo::home::Banned",
+        ))
+        .unwrap_err();
+    assert!(
+        matches!(
+            &error,
+            raf_census::Error::CodePath { line: 1, source, .. }
+                if matches!(source.as_ref(), raf_source::CodeResolveError::Resolve(raf_source::ResolveError::Ambiguous(_)))
+        ),
+        "{error}"
+    );
+}
+
+#[test]
+fn written_type_alias_hits_share_physical_sites_and_respect_shipping_scope() {
+    let mut ledger = lexical_pattern_graph("typePath", "demo::home::Banned");
+    put(&mut ledger, "#pattern", "shippingOnly", Term::boolean(true));
+    let graph = ledger.finish().unwrap().to_text(Format::Turtle).unwrap();
+    let mut tree: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[package]\nname='demo'\nversion='0.1.0'\nedition='2024'\n".into(),
+        ),
+        ("helpers-ledger.ttl", graph),
+        (
+            "src/lib.rs",
+            "
+pub mod home {
+    pub struct Banned;
+    pub type Through = Banned;
+    #[cfg(unix)] pub type Conditional = Banned;
+}
+pub use home as alias;
+macro_rules! observe { ($e:expr) => {} }
+#[cfg(test)] observe!({ let _: home::Conditional; });
+#[path=\"shared.rs\"] mod first;
+#[path=\"shared.rs\"] mod second;
+"
+            .into(),
+        ),
+        (
+            "src/shared.rs",
+            "use crate::home::Through; pub fn copy(_: Through) {}".into(),
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let report = Gate::workspace(".").check_tree(&tree).unwrap();
+    assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
+
+    // The same parsed macro argument is a refused conditional alias when the
+    // invocation is in scope, even though its enclosing item is the crate.
+    let unscoped = lexical_pattern_graph("typePath", "demo::home::Banned")
+        .finish()
+        .unwrap()
+        .to_text(Format::Turtle)
+        .unwrap();
+    tree.replace(
+        &raf_source::RelPath::new("helpers-ledger.ttl").unwrap(),
+        unscoped,
+    )
+    .unwrap();
+    let error = Gate::workspace(".").check_tree(&tree).unwrap_err();
+    assert!(
+        matches!(
+            &error,
+            raf_census::Error::CodePath { line: 9, source, .. }
+                if matches!(source.as_ref(), raf_source::CodeResolveError::AliasMember { .. })
+        ),
+        "{error}"
+    );
+}
+
+#[test]
 fn workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites() {
     selected_reference_patterns_follow_actual_exports();
     let graph = lexical_pattern_graph("call", "demo::work")

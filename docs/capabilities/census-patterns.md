@@ -38,6 +38,8 @@ bindings:
     - raf_census::test_crate::census_gate::ratchet::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched
     - raf_census::test_crate::census_gate::lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run
     - raf_census::test_crate::census_gate::lexical_patterns_reuse_local_normalization_and_keep_parameter_context
+    - raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses
+    - raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope
     - raf_census::test_crate::census_gate::lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes
     - raf_census::test_crate::census_gate::lexical_patterns_do_not_mistake_a_file_root_for_its_first_written_unit
     - raf_census::test_crate::census_gate::lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans
@@ -153,6 +155,17 @@ An unrelated module with the same written prefix cannot suppress a real match.
 Namespace dependencies use the same bounded expansion engine without recursive
 Rust calls, and cyclic dependencies refuse beside acyclic chains.
 <!-- raf:tested-by raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace,raf_census::test_crate::census_gate::namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains,raf_census::test_crate::census_gate::import_targets_keep_their_declaration_frame -->
+
+A type path pattern that selects an indexed first-party struct, enum or union
+also matches written module-level aliases of that definition. Census resolves
+the occurrence in its own lexical scope, then follows a zero-parameter named
+alias chain in each declaration's context. The terminal nominal type admits
+the literal const argument forms proved by Source. Ambiguous, cyclic and
+conditional routes in that profile refuse at an in-scope occurrence.
+Generic substitution, block-local type aliases and unindexed targets
+remain outside this identity proof. A shared file contributes one physical
+hit, with scope judged against the matching reaches.
+<!-- raf:tested-by raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses,raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope -->
 
 **Physical ownership.** Each physical source owner counts once. HOME covers actual module definitions,
 including relocated macro exports and implementation members whose displayed
@@ -333,6 +346,7 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases` | test | [Explanation](#explanation) |
 | `raf_census::test_crate::census_gate::general_path_patterns_include_grouped_renamed_imports_in_their_actual_module_scope` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::import_targets_keep_their_declaration_frame` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::lexical_pattern_module_homes_include_macros_exported_from_their_actual_source_scope` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::lexical_pattern_module_homes_own_source_subjects_without_sanctioning_the_file_root` | test | [Contract](#contract) |
@@ -363,4 +377,5 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
+| `raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

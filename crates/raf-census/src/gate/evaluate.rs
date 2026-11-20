@@ -296,8 +296,8 @@ fn collect_patterns(
             found.byte,
             found.owners.as_deref(),
             workspace,
-            census,
-        ) {
+            census.source_context(found.file),
+        )? {
             continue;
         }
         rules::record_hit(
@@ -869,37 +869,76 @@ fn in_scope(
     byte: usize,
     owners: Option<&[raf_source::ItemId]>,
     workspace: &Workspace,
-    census: &Census,
-) -> bool {
-    let scope = &pattern.scope;
-    if scope.is_unscoped() {
-        return true;
-    }
-    let Some(context) = census.source_context(file) else {
-        return false;
-    };
-    if !scope.admits_file(context, file) {
-        return false;
-    }
-    let spans = workspace.unexpanded().iter().filter(|record| {
-        record.file == *file && record.span.start_byte <= byte && byte < record.span.end_byte
-    });
-    let mut invocations = spans.peekable();
-    if invocations.peek().is_some() {
-        return invocations.any(|record| {
-            workspace
-                .target(record.target)
-                .is_some_and(|target| scope.admits_item(target.kind, record.test == TestRole::None))
-        });
+    context: Option<&crate::FileCtx>,
+) -> Result<bool, Error> {
+    if let Some(decision) = file_scope(pattern, file, byte, workspace, context, None)? {
+        return Ok(decision);
     }
     let items = workspace.item_at(file, byte);
-    items.is_empty()
+    Ok(items.is_empty()
         || items
             .iter()
             .filter(|item| owners.is_none_or(|ids| ids.contains(&item.id)))
             .any(|item| {
                 workspace.target(item.target).is_some_and(|target| {
-                    scope.admits_item(target.kind, workspace.is_shipping(item))
+                    pattern
+                        .scope
+                        .admits_item(target.kind, workspace.is_shipping(item))
                 })
-            })
+            }))
+}
+
+/// Common file and macro-reach scope. Without a containing macro invocation,
+/// an admitted file needs the caller's actual occurrence owners.
+pub(super) fn file_scope(
+    pattern: &crate::LedgerPattern,
+    file: &RelPath,
+    byte: usize,
+    workspace: &Workspace,
+    context: Option<&crate::FileCtx>,
+    mut limits: Option<&mut MatchLimits>,
+) -> Result<Option<bool>, Error> {
+    let scope = &pattern.scope;
+    if scope.is_unscoped() {
+        return Ok(Some(true));
+    }
+    let Some(context) = context else {
+        return Ok(Some(false));
+    };
+    if !scope.admits_file(context, file) {
+        return Ok(Some(false));
+    }
+    let records = workspace.unexpanded();
+    if let Some(limits) = limits.as_deref_mut() {
+        let comparisons = u64::from(records.len().bit_width()) * 2 + 2;
+        let path_bytes = u64::try_from(file.as_str().len()).unwrap_or(u64::MAX);
+        super::patterns::charge(
+            &pattern.id,
+            limits,
+            comparisons.saturating_mul(path_bytes.saturating_add(1)),
+        )?;
+    }
+    // Native Source orders these records by file and start byte.
+    let first = records.partition_point(|record| record.file < *file);
+    let end =
+        records.partition_point(|record| (&record.file, record.span.start_byte) <= (file, byte));
+    if let Some(limits) = limits {
+        super::patterns::charge(
+            &pattern.id,
+            limits,
+            u64::try_from(end - first).unwrap_or(u64::MAX),
+        )?;
+    }
+    let spans = records[first..end]
+        .iter()
+        .filter(|record| byte < record.span.end_byte);
+    let mut invocations = spans.peekable();
+    if invocations.peek().is_some() {
+        return Ok(Some(invocations.any(|record| {
+            workspace
+                .target(record.target)
+                .is_some_and(|target| scope.admits_item(target.kind, record.test == TestRole::None))
+        })));
+    }
+    Ok(None)
 }

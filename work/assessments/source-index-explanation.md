@@ -58,7 +58,10 @@ inputs:
     digest: a61d9e4cb341fd01556b6d44638263e0795814b7edbeb5f479fcefe1e9ce5787
   - kind: symbol
     name: raf_source::CodeResolver::unconditional_enum_alias
-    digest: 609c568fab4b31a7808e82c81c7682d9ce8fcd67189f6d6e968bc2ee52a694c7
+    digest: 1c422baa3dbf605beb79460d9ec99faf867e6065ab82474d42dcac87e7159e9f
+  - kind: symbol
+    name: raf_source::CodeResolver::unconditional_nominal_alias
+    digest: fb1ff8f9017ddf55af02b0cf91f4bda9362db0668bcb74e006269bab15667f2d
   - kind: symbol
     name: raf_source::CodeResolver::unconditional_type_from_file_reach
     digest: fb646f972a31b10e2620595a991c8619ce4243d6451bdb337b03ad558e68d484
@@ -526,7 +529,7 @@ inputs:
     digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
   - kind: symbol
     name: raf_source::code
-    digest: 8de1463468ed0c5eb8cac86caa93610eee1c8600cb9655581399f23098e62831
+    digest: 212579f362e3f2c911f915ad55f9da91e8adee0302816c64d830533a98219986
   - kind: symbol
     name: raf_source::cost::shared_text
     digest: 417543dec94f58efe64575df018bc4b13589e906d90c4db5a4f0693d372ab4f1
