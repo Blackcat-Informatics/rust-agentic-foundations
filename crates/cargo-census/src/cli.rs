@@ -167,6 +167,9 @@ pub(crate) struct SchemaArgs {
     /// Void field annotation that declares required pointer storage.
     #[arg(long)]
     pub(crate) required_annotation: Option<raf_census::capnp_history::TypeId>,
+    /// Field annotation with a `UInt16` peer ordinal declaring paired pointer presence.
+    #[arg(long)]
+    pub(crate) paired_presence_annotation: Option<raf_census::capnp_history::TypeId>,
     /// Trusted Ed25519 public key as lowercase hexadecimal digits.
     #[arg(long, requires_all = ["base_capture", "base_capture_signature", "current_capture", "current_capture_signature"])]
     pub(crate) capture_key: Option<raf_census::capnp_history::CaptureKey>,

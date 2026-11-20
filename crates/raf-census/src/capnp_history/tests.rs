@@ -93,7 +93,14 @@ fn scalar(mut field: field::Builder<'_>, name: &str, ordinal: u16, offset: u32) 
 fn invalid_slot_layouts_and_missing_references_refuse() {
     let roots = BTreeSet::from([ROOT]);
     let neighbor = descriptor_bytes(LastField::Independent);
-    let base = descriptor::read(&neighbor, &roots, None, descriptor::Roots::Require, None).unwrap();
+    let base = descriptor::read(
+        &neighbor,
+        &roots,
+        descriptor::Annotations::default(),
+        descriptor::Roots::Require,
+        None,
+    )
+    .unwrap();
     for (last, expected) in [
         (LastField::Overlap, "overlaps active storage"),
         (LastField::Gap, "not consecutive from zero"),
@@ -102,7 +109,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
         let failure = descriptor::read(
             &descriptor_bytes(last),
             &roots,
-            None,
+            descriptor::Annotations::default(),
             descriptor::Roots::Require,
             None,
         )
@@ -111,7 +118,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
     }
     let ordinal = deeply_grouped_descriptor("slot", 3, Some(3));
     assert!(matches!(
-        descriptor::read(&ordinal, &roots, None, descriptor::Roots::AllowMissing, None),
+        descriptor::read(&ordinal, &roots, descriptor::Annotations::default(), descriptor::Roots::AllowMissing, None),
         Err(DescriptorError::Layout(message)) if message.contains("ordinary group")
     ));
     let valid_list = descriptor_bytes(LastField::NumericList);
@@ -119,7 +126,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
         descriptor::read(
             &valid_list,
             &roots,
-            None,
+            descriptor::Annotations::default(),
             descriptor::Roots::AllowMissing,
             None
         )
@@ -130,7 +137,7 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
         descriptor::read(
             &invalid_list,
             &roots,
-            None,
+            descriptor::Annotations::default(),
             descriptor::Roots::AllowMissing,
             None
         ),
@@ -140,13 +147,19 @@ fn invalid_slot_layouts_and_missing_references_refuse() {
     let _ = message.init_root::<any_pointer::Builder<'_>>();
     let null = serialize::write_message_to_words(&message);
     assert!(matches!(
-        descriptor::read(&null, &roots, None, descriptor::Roots::AllowMissing, None),
+        descriptor::read(&null, &roots, descriptor::Annotations::default(), descriptor::Roots::AllowMissing, None),
         Err(DescriptorError::Layout(message)) if message.contains("null root")
     ));
     let _ = message.init_root::<code_generator_request::Builder<'_>>();
     let empty = serialize::write_message_to_words(&message);
-    let current =
-        descriptor::read(&empty, &roots, None, descriptor::Roots::AllowMissing, None).unwrap();
+    let current = descriptor::read(
+        &empty,
+        &roots,
+        descriptor::Annotations::default(),
+        descriptor::Roots::AllowMissing,
+        None,
+    )
+    .unwrap();
     let findings = compare::changes(&base, &current).unwrap();
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].kind, ChangeKind::RemovedRoot);
@@ -202,7 +215,7 @@ fn deep_group_findings_refuse_as_a_whole_above_the_payload_limit() {
         let base = descriptor::read(
             &deeply_grouped_descriptor("old", slots, None),
             &roots,
-            None,
+            descriptor::Annotations::default(),
             descriptor::Roots::Require,
             None,
         )
@@ -210,7 +223,7 @@ fn deep_group_findings_refuse_as_a_whole_above_the_payload_limit() {
         let current = descriptor::read(
             &deeply_grouped_descriptor("new", slots, None),
             &roots,
-            None,
+            descriptor::Annotations::default(),
             descriptor::Roots::AllowMissing,
             None,
         )
@@ -348,7 +361,10 @@ fn required_annotation_refuses_invalid_values_and_undeclared_structs() {
         let read = descriptor::read(
             &bytes,
             &roots,
-            Some(REQUIRED_MARKER),
+            descriptor::Annotations {
+                required: Some(REQUIRED_MARKER),
+                paired_presence: None,
+            },
             descriptor::Roots::Require,
             None,
         );

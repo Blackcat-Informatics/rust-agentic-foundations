@@ -13,10 +13,10 @@ inputs:
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
   - kind: symbol
     name: cargo_census::cli
-    digest: e63fc8fa00f6dc6082be621edf8cef806867d813daeee143ad38b65935985976
+    digest: 83a1fddf7d1b9ab3cada74023f4c70f3589179a9a83b1c5373cc9ad08d3ea4e0
   - kind: symbol
     name: cargo_census::command
-    digest: ff67e47871a04d622f01f1c294b9dd96676cca60b36316e50a4b1dcfe572c9ac
+    digest: 70966d9a9e870dc1c8aef5134165da8ef6d23ed60beabe7a96a3cbf130e08998
   - kind: symbol
     name: cargo_census::error
     digest: 07bec80a81e406f232a6a4a592e6c5c378c60ba17b51f86a9966c4366b12937f
@@ -58,13 +58,13 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: 8ab60376c0955cfba3bfb113425ac572f8e004881bb4591eeb9cc5dac4d18e60
+    digest: b58d89bd8eadee7ca509a8f80e371615e90ddbb23f593082b9b0c051f5ce4639
   - kind: symbol
     name: raf_census::capnp_history::persistence::admission::check
     digest: d48ff88f11f33c01b6de01d3b4c282da8041ff6e2c67a586921ab8f7227720db
   - kind: symbol
     name: raf_census::capnp_history::persistence::check
-    digest: 20abd512768570c0fe638d0fca777ddf497d865220ec053dab561253a8f1eae0
+    digest: 2aea35e5b521469c9193a2fc098d2016796854bed2a2e6fc6692a5dd8ab7d23d
   - kind: symbol
     name: raf_census::capnp_history::reader_evidence::verify
     digest: 7cac3d238e4d3f80bea5edbe07e4480741c1271cee171b295fb4cf1b7f91a063

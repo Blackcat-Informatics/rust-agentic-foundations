@@ -57,6 +57,11 @@ pub enum ChangeKind {
     ChangedDefault,
     /// A pointer slot became required in an existing struct.
     RequiredField,
+    /// Two pointer slots became subject to the same presence requirement.
+    PairedPresence {
+        /// The second field in ascending ordinal order.
+        peer: String,
+    },
 }
 
 impl fmt::Display for ChangeKind {
@@ -74,6 +79,9 @@ impl fmt::Display for ChangeKind {
             Self::ChangedType => "type changed",
             Self::ChangedDefault => "default changed",
             Self::RequiredField => "pointer field became required",
+            Self::PairedPresence { peer } => {
+                return write!(f, "pointer field became paired with {peer}");
+            }
         })
     }
 }
@@ -93,7 +101,8 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
     let mut available = MAX_FINDING_BYTES;
     let mut push = |node, member: Option<String>, kind| {
         let extra = match &kind {
-            ChangeKind::RenamedMember { current } => current.len(),
+            ChangeKind::RenamedMember { current: name }
+            | ChangeKind::PairedPresence { peer: name } => name.len(),
             _ => 0,
         };
         let bytes = size_of::<Change>() + member.as_ref().map_or(0, String::len) + extra;
@@ -211,6 +220,14 @@ fn structure(
                 ChangeKind::RequiredField,
             )?;
         }
+    }
+    for &(source, peer) in after.pairs.difference(&before.pairs) {
+        emit(
+            Some(after.slots[&source].name.clone()),
+            ChangeKind::PairedPresence {
+                peer: after.slots[&peer].name.clone(),
+            },
+        )?;
     }
     Ok(())
 }

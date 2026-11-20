@@ -197,6 +197,7 @@ fn compare_schema_history(
             HistoryOptions {
                 roots: &args.types,
                 required_annotation: args.schema.required_annotation,
+                paired_presence_annotation: args.schema.paired_presence_annotation,
                 capture,
             },
         )?)
@@ -217,6 +218,7 @@ fn compare_persistence(
             persistence::Options {
                 policy: &args.policy,
                 required_annotation: args.schema.required_annotation,
+                paired_presence_annotation: args.schema.paired_presence_annotation,
                 capture,
             },
         )?)
@@ -267,6 +269,7 @@ fn compare_reader_admission(
                 options: persistence::Options {
                     policy: &policy.policy,
                     required_annotation: policy.schema.required_annotation,
+                    paired_presence_annotation: policy.schema.paired_presence_annotation,
                     capture,
                 },
                 declaration: &args.declaration,

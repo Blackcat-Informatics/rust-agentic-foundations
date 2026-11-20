@@ -37,8 +37,19 @@ pub struct Options<'a> {
     pub policy: &'a str,
     /// Void field annotation identifying required pointer fields, if selected.
     pub required_annotation: Option<TypeId>,
+    /// Field annotation with a `UInt16` peer ordinal for paired pointer presence.
+    pub paired_presence_annotation: Option<TypeId>,
     /// Authenticate and corroborate both compiled inputs, if selected.
     pub capture: Option<CaptureVerification<'a>>,
+}
+
+impl Options<'_> {
+    fn annotations(&self) -> descriptor::Annotations {
+        descriptor::Annotations {
+            required: self.required_annotation,
+            paired_presence: self.paired_presence_annotation,
+        }
+    }
 }
 
 /// A violation of declaration continuity or strict compiled history.
@@ -203,7 +214,7 @@ pub fn check(
         base,
         &base_policy,
         &retained,
-        options.required_annotation,
+        options.annotations(),
         options.capture.map(|capture| (capture.key, capture.base)),
     )?;
     let current_schema = load_policy_descriptor(
@@ -211,7 +222,7 @@ pub fn check(
         current,
         &current_policy,
         &retained,
-        options.required_annotation,
+        options.annotations(),
         options
             .capture
             .map(|capture| (capture.key, capture.current)),
@@ -229,7 +240,7 @@ fn load_policy_descriptor(
     snapshot: Snapshot<'_>,
     policy: &Policy,
     retained: &BTreeSet<TypeId>,
-    required_annotation: Option<TypeId>,
+    annotations: descriptor::Annotations,
     capture: Option<(&super::CaptureKey, super::CaptureFiles<'_>)>,
 ) -> Result<descriptor::Schema, super::Error> {
     let declared = policy.values().map(|row| row.root).collect();
@@ -237,7 +248,7 @@ fn load_policy_descriptor(
         tree,
         snapshot,
         retained,
-        required_annotation,
+        annotations,
         descriptor::Roots::Declared(&declared),
         capture,
     )

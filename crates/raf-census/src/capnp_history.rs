@@ -74,6 +74,8 @@ pub struct HistoryOptions<'a> {
     pub roots: &'a [TypeId],
     /// Void field annotation identifying required pointer fields, if selected.
     pub required_annotation: Option<TypeId>,
+    /// Field annotation with a `UInt16` peer ordinal for paired pointer presence.
+    pub paired_presence_annotation: Option<TypeId>,
     /// Authenticate and corroborate both committed compiler captures, if selected.
     pub capture: Option<CaptureVerification<'a>>,
 }
@@ -239,11 +241,15 @@ pub fn check(
     if selected.is_empty() || selected.len() != options.roots.len() {
         return Err(Error::Roots);
     }
+    let annotations = descriptor::Annotations {
+        required: options.required_annotation,
+        paired_presence: options.paired_presence_annotation,
+    };
     let base = load(
         repository.as_ref(),
         base,
         &selected,
-        options.required_annotation,
+        annotations,
         descriptor::Roots::Require,
         options.capture.map(|capture| (capture.key, capture.base)),
     )?;
@@ -251,7 +257,7 @@ pub fn check(
         repository.as_ref(),
         current,
         &selected,
-        options.required_annotation,
+        annotations,
         descriptor::Roots::AllowMissing,
         options
             .capture
@@ -264,19 +270,12 @@ fn load(
     repository: &Path,
     snapshot: Snapshot<'_>,
     roots: &BTreeSet<TypeId>,
-    required_annotation: Option<TypeId>,
+    annotations: descriptor::Annotations,
     mode: descriptor::Roots<'_>,
     verification: Option<(&CaptureKey, CaptureFiles<'_>)>,
 ) -> Result<descriptor::Schema, Error> {
     let tree = open_tree(repository, snapshot.commit)?;
-    load_descriptor(
-        &tree,
-        snapshot,
-        roots,
-        required_annotation,
-        mode,
-        verification,
-    )
+    load_descriptor(&tree, snapshot, roots, annotations, mode, verification)
 }
 
 fn open_tree(repository: &Path, commit: &str) -> Result<PinnedGitTree<'static>, Error> {
@@ -292,7 +291,7 @@ fn load_descriptor(
     tree: &dyn Tree,
     snapshot: Snapshot<'_>,
     roots: &BTreeSet<TypeId>,
-    required_annotation: Option<TypeId>,
+    annotations: descriptor::Annotations,
     mode: descriptor::Roots<'_>,
     verification: Option<(&CaptureKey, CaptureFiles<'_>)>,
 ) -> Result<descriptor::Schema, Error> {
@@ -300,7 +299,7 @@ fn load_descriptor(
         tree,
         snapshot,
         roots,
-        required_annotation,
+        annotations,
         mode,
         verification,
         |_| (),
@@ -312,7 +311,7 @@ fn decode_descriptor<T>(
     tree: &dyn Tree,
     snapshot: Snapshot<'_>,
     roots: &BTreeSet<TypeId>,
-    required_annotation: Option<TypeId>,
+    annotations: descriptor::Annotations,
     mode: descriptor::Roots<'_>,
     verification: Option<(&CaptureKey, CaptureFiles<'_>)>,
     identify: impl FnOnce(&[u8]) -> T,
@@ -337,7 +336,7 @@ fn decode_descriptor<T>(
     let schema = descriptor::read(
         &bytes,
         roots,
-        required_annotation,
+        annotations,
         mode,
         capture.as_ref().map(|capture| (capture, tree)),
     )
