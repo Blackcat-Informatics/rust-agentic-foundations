@@ -122,7 +122,10 @@ pub use body::{
     Body, Claim, FencedBlock, GeneratedBlock, Heading, Link, LinkError, LinkForm, LinkTarget,
     ProposedBlock, ProseLine, Section, SplitLink, TestedBy, is_kebab,
 };
-pub use dataset::{DOCUMENT_IRI_BASE, DatasetError, MAX_DATASET_NODES, MAX_DATASET_TRIPLES};
+pub use dataset::{
+    DATASET_NODE_IRI_BASE, DOCUMENT_IRI_BASE, DatasetError, MAX_DATASET_NODES, MAX_DATASET_TRIPLES,
+    dataset_node_prefix,
+};
 pub use document::Document;
 pub use error::{ConstructError, ErrorKind, ErrorTag, ParseError, SpliceError};
 pub use frontmatter::scalar::{ESCAPES, plain_ok};

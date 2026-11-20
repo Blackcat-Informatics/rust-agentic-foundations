@@ -9,12 +9,14 @@ mod write;
 
 use std::{error::Error, fmt, sync::Arc};
 
-use purrdf_core::RdfDataset;
+use purrdf_core::{RdfDataset, TermId};
 
-use crate::{ConstructError, Document, ParseError, Profile, Violation};
+use crate::{ConstructError, Document, ParseError, Profile, RafDocument, Violation};
 
 /// Stable asserted identities: document type name in lowercase, then encoded id.
 pub const DOCUMENT_IRI_BASE: &str = "https://blackcatinformatics.ca/raf/okf/document/";
+/// Namespace of structural subjects owned by asserted document identities.
+pub const DATASET_NODE_IRI_BASE: &str = "https://blackcatinformatics.ca/raf/okf/node/";
 /// Maximum structural subjects of one authoring dataset, including its document.
 pub const MAX_DATASET_NODES: usize = 131_072;
 /// Maximum asserted triples of one authoring dataset.
@@ -102,6 +104,14 @@ impl DatasetError {
 }
 
 impl Document {
+    /// The asserted dataset IRI derived from the authored type and id.
+    ///
+    /// # Errors
+    /// Refuses an absent or invalid type or id.
+    pub fn dataset_iri(&self) -> Result<String, DatasetError> {
+        identity(self)
+    }
+
     /// Project this validated authoring model into native RDF 1.2 storage.
     ///
     /// The stable asserted identity derives from the validated type/id. Values,
@@ -130,15 +140,35 @@ impl Document {
         }
         read::document(dataset, path)
     }
+
+    /// Decode one rooted document's subject partition in a shared dataset.
+    ///
+    /// Supply the root and every structural subject owned by that document.
+    /// The decoder checks the partition's closure and profile. The caller
+    /// accounts for subjects in the rest of the dataset.
+    ///
+    /// # Errors
+    /// Refuses absent, duplicate or unrelated subjects, malformed documents,
+    /// unsupported RDF layers and native or profile refusals.
+    pub fn from_dataset_subjects(
+        dataset: &RdfDataset,
+        path: &str,
+        root: TermId,
+        subjects: &[TermId],
+    ) -> Result<(Self, RafDocument), DatasetError> {
+        if crate::is_capability_index(path) {
+            return Err(DatasetError::NavigationIndex);
+        }
+        read::partition(dataset, path, root, subjects)
+    }
 }
 
-fn validate(document: &Document, path: &str) -> Result<(), DatasetError> {
+fn validate(document: &Document, path: &str) -> Result<RafDocument, DatasetError> {
     if crate::is_capability_index(path) {
         return Err(DatasetError::NavigationIndex);
     }
     Profile
         .validate(document, path)
-        .map(|_| ())
         .map_err(|violations| DatasetError::Profile {
             path: path.into(),
             violations,
@@ -159,9 +189,11 @@ fn identity(document: &Document) -> Result<String, DatasetError> {
     kind.document_iri(id).map_err(DatasetError::Identity)
 }
 
-fn descendants(root: &str) -> String {
+/// The stable structural-subject prefix for an asserted document IRI.
+#[must_use]
+pub fn dataset_node_prefix(root: &str) -> String {
     format!(
-        "https://blackcatinformatics.ca/raf/okf/node/{}/",
+        "{DATASET_NODE_IRI_BASE}{}/",
         purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(root.as_bytes()).as_bytes())
     )
 }

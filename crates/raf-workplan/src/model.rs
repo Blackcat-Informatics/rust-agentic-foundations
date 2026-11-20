@@ -111,6 +111,8 @@ pub struct Workplan<'s> {
     /// most one.
     pub(crate) debt: Option<Loaded<DebtRecord>>,
     pub(crate) findings: Vec<Finding>,
+    /// The first refusal that prevents a complete authoring inventory.
+    pub(crate) authoring_fault: Option<Finding>,
     // Native loading, graph and binding findings precede delivery-state rules.
     // Reconciled previews do not mutate states merely to render their graph.
     pub(crate) semantic_findings: usize,
@@ -181,6 +183,7 @@ impl<'s> Workplan<'s> {
             coverage: None,
             debt: None,
             findings: Vec::new(),
+            authoring_fault: None,
             semantic_findings: 0,
             present: BTreeSet::new(),
             unvalidated_blocks: Vec::new(),

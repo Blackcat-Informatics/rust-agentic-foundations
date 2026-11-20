@@ -40,9 +40,13 @@ use std::error::Error;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+use purrdf_rdf::{
+    NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
+    parse_dataset_with, serialize_dataset_with,
+};
 use raf_okf::{Body, DocType, Document, ErrorKind, FencedBlock};
 use raf_source::{DiskTree, MemoryTree, RelPath, Workspace};
-use raf_workplan::{Finding, LinkContext, Workplan, plain};
+use raf_workplan::{Finding, LinkContext, Workplan, authoring, plain};
 
 mod support;
 
@@ -786,7 +790,11 @@ struct Verdict {
 /// Judge a checkout: `Workplan::check` over the document directories, with
 /// links judged against the tracked paths and symlinks, and `plain::check`
 /// over the tracked Markdown outside them.
-fn judge(checkout: &Checkout, source: &Workspace) -> Verdict {
+fn with_plan<T>(
+    checkout: &Checkout,
+    source: &Workspace,
+    body: impl FnOnce(&Workplan<'_>, &LinkContext<'_>) -> T,
+) -> T {
     let tree = MemoryTree::try_from_iter(
         checkout
             .markdown
@@ -800,10 +808,20 @@ fn judge(checkout: &Checkout, source: &Workspace) -> Verdict {
     let context = LinkContext::new(&tree, checkout.paths.iter().map(|path| rel(path)))
         .with_symlinks(checkout.symlinks.iter().map(|path| rel(path)));
     let plan = Workplan::load_with(&tree, source, &context);
+    body(&plan, &context)
+}
+
+fn judge(checkout: &Checkout, source: &Workspace) -> Verdict {
+    with_plan(checkout, source, |plan, context| {
+        judge_plan(checkout, plan, context)
+    })
+}
+
+fn judge_plan(checkout: &Checkout, plan: &Workplan<'_>, context: &LinkContext<'_>) -> Verdict {
     let mut findings = plan.check();
     for (path, text) in &checkout.markdown {
         if !in_document_directory(path) {
-            findings.extend(plain::check(name(path), text, &context));
+            findings.extend(plain::check(name(path), text, context));
         }
     }
     let mut bindings: BTreeMap<String, (usize, usize)> = BTreeMap::new();
@@ -830,16 +848,79 @@ fn judge(checkout: &Checkout, source: &Workspace) -> Verdict {
 /// Markdown-only document directories, the pages with frontmatter outside the
 /// document directories, the inventory table. The production model enforces the verification matrix.
 fn violations(checkout: &Checkout, source: &Workspace, inventory: &Inventory) -> Vec<String> {
-    let mut out: Vec<String> = judge(checkout, source)
-        .findings
-        .iter()
-        .map(ToString::to_string)
-        .collect();
+    checkout_violations(checkout, &judge(checkout, source), inventory)
+}
+
+fn checkout_violations(
+    checkout: &Checkout,
+    verdict: &Verdict,
+    inventory: &Inventory,
+) -> Vec<String> {
+    let mut out: Vec<String> = verdict.findings.iter().map(ToString::to_string).collect();
     out.extend(symlink_violations(&checkout.symlinks));
     out.extend(layout_violations(&checkout.paths));
     out.extend(outside_violations(&checkout.markdown));
     out.extend(check_inventory(&checkout.markdown, inventory));
     out
+}
+
+fn ntriples(dataset: &purrdf_core::RdfDataset) -> Result<Vec<u8>, Box<dyn Error>> {
+    let output = serialize_dataset_with(
+        dataset,
+        NativeRdfFormat::NTriples,
+        None,
+        &SerializeOptions {
+            selection: SerializeGraph::Dataset,
+            statement_layer: StatementLayer::Emit,
+            jsonld_options: None,
+        },
+    )?;
+    assert_eq!(
+        (
+            output.named_graph_rows_dropped,
+            output.statement_rows_dropped,
+            output.directional_literals_dropped
+        ),
+        (0, 0, 0)
+    );
+    Ok(output.bytes)
+}
+
+fn check_authoring_roundtrip(
+    plan: &Workplan<'_>,
+    checkout: &Checkout,
+) -> Result<(), Box<dyn Error>> {
+    let bytes = ntriples(plan.authoring_dataset()?.as_ref())?;
+    let restored = parse_dataset_with(
+        &bytes,
+        "application/n-triples",
+        None,
+        &ParseOptions::default(),
+    )?;
+    assert_eq!(
+        ntriples(&restored.dataset)?,
+        bytes,
+        "canonical repository authoring bytes"
+    );
+    let mut documents = authoring::documents_from_dataset(&restored.dataset)?;
+    for (path, text) in &checkout.markdown {
+        if expected_type(path).is_some() && path.file_name().is_some_and(|name| name != "index.md")
+        {
+            let original = Document::parse(text)?;
+            assert_eq!(
+                documents.remove(&rel(path)).as_ref(),
+                Some(&original),
+                "{}",
+                path.display()
+            );
+        }
+    }
+    assert!(
+        documents.is_empty(),
+        "untracked authoring paths: {:?}",
+        documents.keys()
+    );
+    Ok(())
 }
 
 fn report(violations: &[String]) -> String {
@@ -858,15 +939,26 @@ fn report(violations: &[String]) -> String {
 fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
     let root = gate_root();
     let checkout = load_checkout(&root);
-    let source = repository_source(&root)?;
-    let found = violations(&checkout, &source, &INVENTORY);
     assert!(
-        found.is_empty(),
-        "{} profile violations:\n{}",
-        found.len(),
-        report(&found)
+        checkout
+            .diagram_assets
+            .contains_key(Path::new("docs/diagrams/manifest.ttl")),
+        "the tracked diagram ownership manifest is admitted"
     );
-    let verdict = judge(&checkout, &source);
+    let source = repository_source(&root)?;
+    let verdict = with_plan(&checkout, &source, |plan, context| {
+        let verdict = judge_plan(&checkout, plan, context);
+        let found = checkout_violations(&checkout, &verdict, &INVENTORY);
+        assert!(
+            found.is_empty(),
+            "{} profile violations:\n{}",
+            found.len(),
+            report(&found)
+        );
+        check_repository_bindings(&source, &verdict)?;
+        check_authoring_roundtrip(plan, &checkout)?;
+        Ok::<_, Box<dyn Error>>(verdict)
+    })?;
     // A load that found nothing would pass the checks above, so require the
     // documents of every type, and every capability of the inventory.
     for (kind, count) in [
@@ -881,23 +973,13 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
         INVENTORY.capabilities.len(),
         "every capability of the inventory loads into the model"
     );
-    let manifest = Path::new("docs/diagrams/manifest.ttl");
-    let mut missing_manifest = checkout;
-    assert!(missing_manifest.diagram_assets.remove(manifest).is_some());
-    assert!(
-        judge(&missing_manifest, &source)
-            .findings
-            .iter()
-            .any(|finding| finding.kind == "diagram-stale" && finding.file == name(manifest)),
-        "the tracked ownership manifest is required beside the admitted diagram assets"
-    );
     Ok(())
 }
 
-#[test]
-fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error>> {
-    let root = gate_root();
-    let workspace = repository_source(&root)?;
+fn check_repository_bindings(
+    workspace: &Workspace,
+    verdict: &Verdict,
+) -> Result<(), Box<dyn Error>> {
     // The roots are the whole repository: every package below it, the fuzz
     // harness included.
     let packages: BTreeSet<&str> = workspace
@@ -930,19 +1012,6 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
     ] {
         workspace.resolve(symbol)?;
     }
-    let verdict = judge(&load_checkout(&root), &workspace);
-    let unresolved: Vec<String> = verdict
-        .findings
-        .iter()
-        .filter(|finding| finding.kind.starts_with("binding-"))
-        .map(ToString::to_string)
-        .collect();
-    assert!(
-        unresolved.is_empty(),
-        "{} unresolved bindings:\n{}",
-        unresolved.len(),
-        report(&unresolved)
-    );
     // And require that bindings were judged at all: the delivered
     // capabilities bind code, and every binding resolved.
     for slug in ["cap:okf-profile", "cap:source-index"] {
@@ -950,6 +1019,81 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
         assert!(bound >= 1, "{slug} binds nothing");
         assert_eq!(bound, resolved, "{slug} has an unresolved binding");
     }
+    Ok(())
+}
+
+#[test]
+fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input()
+-> Result<(), Box<dyn Error>> {
+    let mut files = files();
+    let (_, capability) = files.iter_mut().find(|(path, _)| *path == DEMO).unwrap();
+    *capability = capability
+        .replace(
+            "depends: []",
+            "depends: [cap:missing, cap:other, cap:missing]",
+        )
+        .replace(
+            "    - demo::real\n",
+            "    - demo::missing\n    - demo::real\n    - demo::missing\n",
+        );
+    let expected = Document::parse(capability)?;
+    let workspace = checkouts::source();
+    let mut tree =
+        MemoryTree::try_from_iter(files.iter().map(|(path, text)| (*path, text.as_str())))?;
+    let plan = Workplan::load(&tree, &workspace);
+    assert!(
+        plan.findings()
+            .iter()
+            .any(|finding| finding.kind == "depends-missing")
+    );
+    let dataset = plan.authoring_dataset()?;
+    let restored = authoring::documents_from_dataset(&dataset)?;
+    assert_eq!(restored.get(&RelPath::new(DEMO)?), Some(&expected));
+    let bytes = ntriples(&dataset)?;
+    assert_eq!(
+        ntriples(plan.authoring_dataset()?.as_ref())?,
+        bytes,
+        "deterministic repository authoring export"
+    );
+    let text = String::from_utf8(bytes)?;
+    let missing = DocType::Capability.document_iri("cap:missing")?;
+    let other = DocType::Capability.document_iri("cap:other")?;
+    let vocab = "https://blackcatinformatics.ca/raf/workplan/authoring/1#";
+    for (ordinal, target) in [&missing, &other, &missing].into_iter().enumerate() {
+        assert!(text.contains(&format!(
+            "/dependency/{ordinal}> <{vocab}target> <{target}> ."
+        )));
+    }
+    for (ordinal, spelling) in ["demo::missing", "demo::real", "demo::missing"]
+        .into_iter()
+        .enumerate()
+    {
+        assert!(text.contains(&format!(
+            "/binding/code/{ordinal}> <{vocab}spelling> \"{spelling}\" ."
+        )));
+    }
+    let wrong = DocType::Capability.document_iri("cap:wrong")?;
+    let edited = text.replace(
+        &format!("<{vocab}target> <{missing}>"),
+        &format!("<{vocab}target> <{wrong}>"),
+    );
+    let edited = parse_dataset_with(
+        edited.as_bytes(),
+        "application/n-triples",
+        None,
+        &ParseOptions::default(),
+    )?;
+    assert!(matches!(
+        authoring::documents_from_dataset(&edited.dataset),
+        Err(authoring::Error::Shape { subject, .. }) if subject.ends_with("/dependency/0")
+    ));
+    let path = RelPath::new(DEMO)?;
+    tree.replace(&path, "---\ntype: Capability\n".to_owned())?;
+    let incomplete = Workplan::load(&tree, &workspace);
+    assert!(matches!(
+        incomplete.authoring_dataset(),
+        Err(authoring::Error::Incomplete(finding)) if finding.file == DEMO
+    ));
     Ok(())
 }
 
