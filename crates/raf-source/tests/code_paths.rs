@@ -25,6 +25,63 @@ fn owner(workspace: &Workspace, symbol: &str) -> raf_source::ItemId {
     resolution.sites[0]
 }
 
+#[test]
+fn nominal_aliases_distinguish_opaque_reexports_from_broken_local_routes() {
+    let check = |source: &str, symbol, outside| {
+        let workspace = Workspace::load(&tree("2024", source), &["."]).unwrap();
+        let alias = workspace.resolve_in(symbol, Namespace::Type).unwrap().sites[0];
+        let resolver = workspace.code_resolver().unwrap();
+        match resolver.unconditional_nominal_alias(alias) {
+            Ok((None, _)) if outside => {}
+            Err(CodeResolveError::Resolve(raf_source::ResolveError::NotFound(_))) if !outside => {}
+            result => panic!("{source}: {result:?}"),
+        }
+    };
+    // A visible chain of named imports can lead outside the index.
+    for (bridge, facade, outside) in [
+        ("", "pub use std::path::PathBuf as Selected;", true),
+        ("", "pub use self::missing::Selected;", false),
+        ("", "use std::path::PathBuf as Selected;", false),
+        (
+            "",
+            "mod std {} pub use std::path::PathBuf as Selected;",
+            false,
+        ),
+        (
+            "mod bridge { pub use std::path::PathBuf as Selected; }",
+            "pub use crate::bridge::Selected;",
+            true,
+        ),
+        (
+            "mod bridge { use std::path::PathBuf as Selected; }",
+            "pub use crate::bridge::Selected;",
+            false,
+        ),
+        (
+            "mod bridge { pub use crate::missing::Selected; }",
+            "pub use crate::bridge::Selected;",
+            false,
+        ),
+    ] {
+        let source =
+            format!("{bridge} pub mod facade {{ {facade} }} pub type Alias = facade::Selected;");
+        check(&source, "demo::Alias", outside);
+    }
+    check(
+        "mod outer { mod hidden { pub use std::path::PathBuf as Selected; } }
+         mod consumer { pub type Alias = crate::outer::hidden::Selected; }",
+        "demo::consumer::Alias",
+        false,
+    );
+    check(
+        "#[cfg(unix)] mod outer { pub mod inner { pub use std::path::PathBuf as Selected; } }
+         #[cfg(windows)] mod outer {}
+         type Alias = outer::inner::Selected;",
+        "demo::Alias",
+        false,
+    );
+}
+
 fn query_budget(error: &CodeResolveError) -> Option<Budget> {
     match error {
         CodeResolveError::Resolve(raf_source::ResolveError::Budget { budget, .. }) => Some(*budget),

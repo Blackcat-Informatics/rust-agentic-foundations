@@ -292,12 +292,12 @@ fn collect_patterns(
     )? {
         if !in_scope(
             found.pattern,
-            found.file,
-            found.byte,
+            (found.file, found.byte, found.line),
             found.owners.as_deref(),
-            workspace,
-            census,
-        ) {
+            (workspace, code),
+            census.source_context(found.file),
+            limits,
+        )? {
             continue;
         }
         rules::record_hit(
@@ -865,41 +865,109 @@ fn evidence_links(
 /// is never scoped in.
 fn in_scope(
     pattern: &crate::LedgerPattern,
-    file: &RelPath,
-    byte: usize,
+    location: (&RelPath, usize, usize),
     owners: Option<&[raf_source::ItemId]>,
-    workspace: &Workspace,
-    census: &Census,
-) -> bool {
-    let scope = &pattern.scope;
-    if scope.is_unscoped() {
-        return true;
+    source: (&Workspace, &raf_source::CodeResolver<'_>),
+    context: Option<&crate::FileCtx>,
+    limits: &mut MatchLimits,
+) -> Result<bool, Error> {
+    if let Some(decision) = file_scope(pattern, location, owners, source, context, limits)? {
+        return Ok(decision);
     }
-    let Some(context) = census.source_context(file) else {
-        return false;
-    };
-    if !scope.admits_file(context, file) {
-        return false;
-    }
-    let spans = workspace.unexpanded().iter().filter(|record| {
-        record.file == *file && record.span.start_byte <= byte && byte < record.span.end_byte
-    });
-    let mut invocations = spans.peekable();
-    if invocations.peek().is_some() {
-        return invocations.any(|record| {
-            workspace
-                .target(record.target)
-                .is_some_and(|target| scope.admits_item(target.kind, record.test == TestRole::None))
-        });
-    }
+    let (file, byte, _) = location;
+    let (workspace, _) = source;
     let items = workspace.item_at(file, byte);
-    items.is_empty()
+    Ok(items.is_empty()
         || items
             .iter()
             .filter(|item| owners.is_none_or(|ids| ids.contains(&item.id)))
             .any(|item| {
                 workspace.target(item.target).is_some_and(|target| {
-                    scope.admits_item(target.kind, workspace.is_shipping(item))
+                    pattern
+                        .scope
+                        .admits_item(target.kind, workspace.is_shipping(item))
                 })
-            })
+            }))
+}
+
+/// Common file and macro-reach scope. Without a containing macro invocation,
+/// an admitted file needs the caller's actual occurrence owners.
+pub(super) fn file_scope(
+    pattern: &crate::LedgerPattern,
+    (file, byte, line): (&RelPath, usize, usize),
+    owners: Option<&[raf_source::ItemId]>,
+    (workspace, code): (&Workspace, &raf_source::CodeResolver<'_>),
+    context: Option<&crate::FileCtx>,
+    limits: &mut MatchLimits,
+) -> Result<Option<bool>, Error> {
+    let scope = &pattern.scope;
+    if scope.is_unscoped() {
+        return Ok(Some(true));
+    }
+    let Some(context) = context else {
+        return Ok(Some(false));
+    };
+    if !scope.admits_file(context, file) {
+        return Ok(Some(false));
+    }
+    let records = workspace.unexpanded();
+    let comparisons = u64::from(records.len().bit_width()) * 2 + 2;
+    let path_bytes = u64::try_from(file.as_str().len()).unwrap_or(u64::MAX);
+    super::patterns::charge(
+        &pattern.id,
+        limits,
+        comparisons.saturating_mul(path_bytes.saturating_add(1)),
+    )?;
+    // Native Source orders these records by file and start byte.
+    let first = records.partition_point(|record| record.file < *file);
+    let end =
+        records.partition_point(|record| (&record.file, record.span.start_byte) <= (file, byte));
+    super::patterns::charge(
+        &pattern.id,
+        limits,
+        u64::try_from(end - first).unwrap_or(u64::MAX),
+    )?;
+    let mut containing = false;
+    for record in &records[first..end] {
+        if byte >= record.span.end_byte {
+            continue;
+        }
+        containing = true;
+        if !workspace
+            .target(record.target)
+            .is_some_and(|target| scope.admits_item(target.kind, record.test == TestRole::None))
+        {
+            continue;
+        }
+        let Some(owners) = owners else {
+            return Ok(Some(true));
+        };
+        for &id in owners {
+            super::patterns::charge(&pattern.id, limits, 1)?;
+            if workspace
+                .item(id)
+                .is_none_or(|item| item.target != record.target)
+            {
+                continue;
+            }
+            let module = code
+                .reading_module(id, byte)
+                .map_err(|source| Error::CodePath {
+                    pattern: pattern.id.clone(),
+                    file: file.to_string(),
+                    line,
+                    source: Box::new(source),
+                })?;
+            let module_bytes = module.len().min(record.module.as_str().len());
+            super::patterns::charge(
+                &pattern.id,
+                limits,
+                u64::try_from(module_bytes).unwrap_or(u64::MAX),
+            )?;
+            if module == record.module.as_str() {
+                return Ok(Some(true));
+            }
+        }
+    }
+    Ok(containing.then_some(false))
 }

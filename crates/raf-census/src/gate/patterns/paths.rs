@@ -17,14 +17,15 @@ use purrdf_jsonschema::ecma::MatchLimits;
 use purrdf_lex::walk::WorkList;
 use raf_source::{
     CodeResolveError, CodeResolver, ImplBlock, ItemId, Namespace, PackageId, Resolution,
-    ResolutionAttempt, ResolveError, SourceFile, SymbolKind, TargetId, TargetKind, Workspace,
+    ResolutionAttempt, ResolveError, SourceAuthorityId, SourceFile, SymbolKind, TargetId,
+    TargetKind, Workspace,
 };
 use syn::Fields;
 use syn::ext::IdentExt;
 
 use super::{Found, charge, failure, push};
 use crate::syntax::{Alias, path_text};
-use crate::{Census, Error, LedgerPattern, PatternMatcher, VisibilityError};
+use crate::{Census, Error, FileCtx, LedgerPattern, PatternMatcher, VisibilityError};
 use cache::OwnerCache;
 use scopes::{AliasTarget, Expanded, Glob, Scopes};
 
@@ -51,6 +52,7 @@ struct Compiled<'p> {
     role: Role,
     spelling: Vec<String>,
     sites: BTreeMap<Namespace, BTreeSet<ItemId>>,
+    follows_written_aliases: bool,
 }
 
 impl Compiled<'_> {
@@ -73,11 +75,11 @@ pub(super) fn collect<'p, 'w>(
     let compiled = compile(patterns, workspace, references, limits)?;
     let mut found = Vec::new();
     for file in workspace.files() {
-        if census.source_context(&file.path).is_none() {
+        let Some(context) = census.source_context(&file.path) else {
             continue;
-        }
+        };
         let hits = raf_source::parse_source(&file.path, &file.text, |syntax| {
-            visit::collect(&compiled, workspace, code, file, syntax, limits)
+            visit::collect(&compiled, workspace, code, (file, context), syntax, limits)
         })??;
         for hit in hits {
             super::retain(
@@ -114,7 +116,7 @@ fn compile<'p>(
                 ));
             }
         };
-        let mut sites = BTreeMap::new();
+        let mut sites: BTreeMap<Namespace, BTreeSet<ItemId>> = BTreeMap::new();
         let mut selected_reference = false;
         for namespace in Namespace::ALL {
             charge(
@@ -161,6 +163,18 @@ fn compile<'p>(
                 ),
             ));
         }
+        let follows_written_aliases = role == Role::Type
+            && sites.get(&Namespace::Type).is_some_and(|types| {
+                types.iter().any(|id| {
+                    workspace.item(*id).is_some_and(|item| {
+                        item.file.authority() == SourceAuthorityId::FIRST_PARTY
+                            && matches!(
+                                item.kind,
+                                SymbolKind::Struct | SymbolKind::Enum | SymbolKind::Union
+                            )
+                    })
+                })
+            });
         compiled.push(Compiled {
             pattern,
             role,
@@ -170,6 +184,7 @@ fn compile<'p>(
                 .map(|part| part.strip_prefix("r#").unwrap_or(part).to_owned())
                 .collect(),
             sites,
+            follows_written_aliases,
         });
     }
     Ok(compiled)
@@ -2137,13 +2152,79 @@ fn constant<'w>(
     Ok(classified.unwrap_or(false))
 }
 
+fn alias_matches(
+    lookup: &Lookup<'_, '_>,
+    expected: &Compiled<'_>,
+    actual: &[ItemId],
+    owner: &raf_source::Item,
+    alias_context: Option<(&Workspace, &FileCtx)>,
+    limits: &mut MatchLimits,
+) -> Result<bool, Error> {
+    let Some((workspace, context)) = alias_context else {
+        return Ok(false);
+    };
+    let Some(targets) = expected.sites.get(&Namespace::Type) else {
+        return Ok(false);
+    };
+    if !expected.follows_written_aliases || lookup.site.namespace != Namespace::Type {
+        return Ok(false);
+    }
+    let mut aliases = actual
+        .iter()
+        .copied()
+        .filter(|id| {
+            workspace.item(*id).is_some_and(|item| {
+                item.kind == SymbolKind::TypeAlias
+                    && item.file.authority() == SourceAuthorityId::FIRST_PARTY
+            })
+        })
+        .peekable();
+    if aliases.peek().is_none() {
+        return Ok(false);
+    }
+    let admitted = crate::gate::evaluate::file_scope(
+        expected.pattern,
+        (&lookup.site.file.path, lookup.site.byte, lookup.site.line),
+        Some(std::slice::from_ref(&owner.id)),
+        (workspace, lookup.code),
+        Some(context),
+        limits,
+    )?
+    .unwrap_or_else(|| {
+        workspace.target(owner.target).is_some_and(|target| {
+            expected
+                .pattern
+                .scope
+                .admits_item(target.kind, workspace.is_shipping(owner))
+        })
+    });
+    if !admitted {
+        return Ok(false);
+    }
+    for id in aliases {
+        let (target, usage) = lookup
+            .code
+            .unconditional_nominal_alias(id)
+            .map_err(|error| query_error(lookup.label, lookup.site, error))?;
+        charge(
+            lookup.label,
+            limits,
+            usage.work.try_into().unwrap_or(u64::MAX),
+        )?;
+        if target.is_some_and(|id| targets.contains(&id)) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn matches(
     owners: &[&raf_source::Item],
     code: &CodeResolver<'_>,
     scopes: &Scopes,
     expected: &Compiled<'_>,
-    path: &syn::Path,
-    site: &Site<'_>,
+    (path, site): (&syn::Path, &Site<'_>),
+    alias_context: Option<(&Workspace, &FileCtx)>,
     limits: &mut MatchLimits,
 ) -> Result<bool, Error> {
     let written = segments(path);
@@ -2194,8 +2275,12 @@ fn matches(
                     || (expected.spelling.len() == 1
                         && expected.sites.is_empty()
                         && written == expected.spelling)
+                    || alias_matches(&lookup, expected, &actual, owner, alias_context, limits)?
             }
-            PathDefinition::Expanded(actual) => declares(&actual),
+            PathDefinition::Expanded(actual) => {
+                declares(&actual)
+                    || alias_matches(&lookup, expected, &actual, owner, alias_context, limits)?
+            }
             PathDefinition::Unverified(spelling) => {
                 expected.sites.is_empty() && spelling == expected.spelling
             }
