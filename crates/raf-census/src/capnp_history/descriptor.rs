@@ -49,7 +49,8 @@ pub(super) struct Schema {
     pub(super) declarations: BTreeMap<TypeId, Declaration>,
 }
 
-pub use declarations::DeclarationKind;
+use declarations::AnnotationTargets;
+pub use declarations::{AnnotationTarget, DeclarationKind};
 
 #[derive(Debug)]
 pub(super) struct Declaration {
@@ -64,7 +65,10 @@ pub(super) enum DeclarationBody {
     Enum,
     Interface,
     Constant(Type),
-    Annotation,
+    Annotation {
+        declared_type: Type,
+        targets: AnnotationTargets,
+    },
 }
 
 impl DeclarationBody {
@@ -74,7 +78,7 @@ impl DeclarationBody {
             Self::Enum => DeclarationKind::Enum,
             Self::Interface => DeclarationKind::Interface,
             Self::Constant(_) => DeclarationKind::Constant,
-            Self::Annotation => DeclarationKind::Annotation,
+            Self::Annotation { .. } => DeclarationKind::Annotation,
         }
     }
 }

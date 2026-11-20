@@ -26,7 +26,10 @@ enum State {
   ready @0;
 }
 
-annotation marker(field) :Void;
+annotation marker(field) :UInt16;
+annotation onAnything() :Void;
+annotation onNothing() :Void;
+annotation typed(struct) :List(Holder.Moved.Child);
 const imported :List(Dependency.Wanted) = [];
 using Alias = Holder.Moved.Child;
 

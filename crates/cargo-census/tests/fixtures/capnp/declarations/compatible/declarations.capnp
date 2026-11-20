@@ -26,8 +26,13 @@ enum State {
   ready @0;
 }
 
-annotation marker(field) :Void;
+annotation marker(field, group) :Void;
 annotation obsoleteMarker(field) :Void;
+annotation onAnything(file, const, enum, enumerant, struct, field, union, group,
+                      interface, method, param, annotation) :Void;
+annotation onNothing() :Void;
+annotation typed(struct) :List(Outer.Child);
+annotation added(annotation) :Void;
 const obsoleteLimit :UInt16 = 8;
 const imported :List(Dependency.Wanted) = [];
 const addedLimit :Void = void;

@@ -27,6 +27,9 @@ enum State {
 
 annotation marker(field) :Void;
 annotation obsoleteMarker(field) :Void;
+annotation onAnything(*) :Void;
+annotation onNothing() :Void;
+annotation typed(struct) :List(Outer.Child);
 const obsoleteLimit :UInt16 = 8;
 const imported :List(Dependency.Wanted) = [];
 using Alias = Outer.Child;

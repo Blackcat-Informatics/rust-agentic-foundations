@@ -264,8 +264,8 @@ const DECLARATIONS_PATH: &str = "declarations.capnp";
 const DECLARATION_ARGS: &[&str] = &["--file-id", "0xeec1000000000000"];
 const DECLARATIONS_BASE: &[u8] = include_bytes!("fixtures/capnp/declarations-base.bin");
 
-/// Stable IDs preserve declaration identity and constant type. Values and
-/// referenced layouts evolve independently, including in partial imports.
+/// Stable IDs preserve declaration identity, declared types and annotation targets.
+/// Values and referenced layouts evolve independently, including in partial imports.
 #[test]
 fn capnp_history_compares_file_declaration_identities() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -310,6 +310,19 @@ fn capnp_history_compares_file_declaration_identities() {
         ".limit: constant declared type changed",
         ".obsoleteLimit: declaration removed from selected files",
         ".obsoleteMarker: declaration removed from selected files",
+        ".marker: annotation declared type changed",
+        ".onAnything: annotation target file removed",
+        ".onAnything: annotation target const removed",
+        ".onAnything: annotation target enum removed",
+        ".onAnything: annotation target enumerant removed",
+        ".onAnything: annotation target struct removed",
+        ".onAnything: annotation target field removed",
+        ".onAnything: annotation target union removed",
+        ".onAnything: annotation target group removed",
+        ".onAnything: annotation target interface removed",
+        ".onAnything: annotation target method removed",
+        ".onAnything: annotation target param removed",
+        ".onAnything: annotation target annotation removed",
     ];
     assert_eq!(report.lines().count(), expected.len(), "{report}");
     for finding in expected {
@@ -324,7 +337,8 @@ enum FixtureDeclarationKind {
     Enum,
     Group,
     StructWithInvalidUnion,
-    Constant {
+    DeclaredType {
+        annotation: bool,
         target: Option<u64>,
         invalid_brand: bool,
     },
@@ -364,13 +378,19 @@ fn declaration_request(declarations: &[FixtureDeclaration<'_>]) -> Vec<u8> {
                 FixtureDeclarationKind::StructWithInvalidUnion => {
                     node.reborrow().init_struct().set_discriminant_count(1);
                 }
-                FixtureDeclarationKind::Constant {
+                FixtureDeclarationKind::DeclaredType {
+                    annotation,
                     target,
                     invalid_brand,
                 } => {
-                    let constant = node.reborrow().init_const();
+                    let node = node.reborrow();
                     if let Some(target) = target {
-                        let mut ty = constant.init_type().init_struct();
+                        let type_builder = if annotation {
+                            node.init_annotation().init_type()
+                        } else {
+                            node.init_const().init_type()
+                        };
+                        let mut ty = type_builder.init_struct();
                         ty.set_type_id(target);
                         if invalid_brand {
                             let mut scopes = ty.init_brand().init_scopes(1);
@@ -378,6 +398,10 @@ fn declaration_request(declarations: &[FixtureDeclaration<'_>]) -> Vec<u8> {
                             scope.set_scope_id(target);
                             scope.init_bind(1).get(0).set_unbound(());
                         }
+                    } else if annotation {
+                        node.init_annotation();
+                    } else {
+                        node.init_const();
                     }
                 }
             }
@@ -431,7 +455,8 @@ fn capnp_history_refuses_malformed_constant_types() {
     let constant = |target, invalid_brand| FixtureDeclaration {
         id: CONSTANT,
         scope: DECLARATIONS_FILE,
-        kind: FixtureDeclarationKind::Constant {
+        kind: FixtureDeclarationKind::DeclaredType {
+            annotation: false,
             target,
             invalid_brand,
         },
@@ -475,6 +500,65 @@ fn capnp_history_refuses_malformed_constant_types() {
         ),
     ] {
         let invalid = commit_capnp_descriptor(root, &declaration_request(fixture));
+        assert_census_refused(
+            capnp_history(root, &base, &invalid, &[], DECLARATION_ARGS),
+            expected,
+        );
+    }
+}
+
+/// An annotation requires an explicit and valid nominal type without selecting
+/// the referenced layout.
+#[test]
+fn capnp_history_refuses_malformed_annotation_types() {
+    const ANNOTATION: u64 = DECLARATIONS_FILE + 1;
+    const TARGET: u64 = DECLARATIONS_FILE + 2;
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let file = FixtureDeclaration {
+        id: DECLARATIONS_FILE,
+        scope: 0,
+        kind: FixtureDeclarationKind::File,
+        children: &[(ANNOTATION, "marker"), (TARGET, "Target")],
+    };
+    let annotation = |target, invalid_brand| FixtureDeclaration {
+        id: ANNOTATION,
+        scope: DECLARATIONS_FILE,
+        kind: FixtureDeclarationKind::DeclaredType {
+            annotation: true,
+            target,
+            invalid_brand,
+        },
+        children: &[],
+    };
+    let target = FixtureDeclaration {
+        id: TARGET,
+        scope: DECLARATIONS_FILE,
+        kind: FixtureDeclarationKind::StructWithInvalidUnion,
+        children: &[],
+    };
+    let base = commit_capnp_descriptor(
+        root,
+        &declaration_request(&[file, annotation(Some(TARGET), false), target]),
+    );
+    let clean = capnp_history(root, &base, &base, &[], DECLARATION_ARGS);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(clean.stdout.is_empty(), "{clean:?}");
+    assert!(clean.stderr.is_empty(), "{clean:?}");
+
+    for (annotation, expected) in [
+        (
+            annotation(None, false),
+            "annotation declaration marker (0xeec1000000000001) has no type",
+        ),
+        (
+            annotation(Some(TARGET), true),
+            "too many brand bindings for scope 0xeec1000000000002",
+        ),
+    ] {
+        let invalid =
+            commit_capnp_descriptor(root, &declaration_request(&[file, annotation, target]));
         assert_census_refused(
             capnp_history(root, &base, &invalid, &[], DECLARATION_ARGS),
             expected,

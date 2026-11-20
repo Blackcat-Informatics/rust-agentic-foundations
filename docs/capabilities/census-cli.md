@@ -59,6 +59,7 @@ bindings:
     - cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities
     - cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities
     - cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types
+    - cargo_census::test_crate::delivery::capnp_history_refuses_malformed_annotation_types
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership
     - cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting
     - cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods
@@ -203,6 +204,16 @@ the descriptor type reader. The type comparison uses only the needed
 declaration metadata. Layout checks follow the independent `--type`
 selection.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities,cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types -->
+
+**Annotation declarations.** Strict file history compares each retained
+annotation's declared type and reports each removed applicability
+target. An added target or valid annotation is compatible. Census reads
+the compiler's twelve target flags as a set. The wildcard and the
+equivalent explicit list yield the same set, and the empty set is valid.
+A selected annotation requires an explicit declared type with valid
+nominal references and brands. Layout checks follow the independent
+`--type` selection.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities,cargo_census::test_crate::delivery::capnp_history_refuses_malformed_annotation_types -->
 
 A caller can select a compiler-declared Void field annotation for
 required pointer presence. Census validates the marker in both
@@ -624,6 +635,13 @@ leaves unrelated declarations and the nominal layout outside the file
 comparison. A separate selection checks that layout.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities,cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types -->
 
+The annotation compiler fixtures admit widening, a valid addition and
+equivalent target sets. They report a retained type change and each of
+the twelve targets removed when a declaration narrows to the empty set.
+A controlled descriptor compares a valid nominal type beside an absent
+type and a malformed brand.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities,cargo_census::test_crate::delivery::capnp_history_refuses_malformed_annotation_types -->
+
 The compiler-produced RPC diamond accepts reordered and added direct bases.
 It reports one changed inherited method default and one removed direct base
 when a transitive route still reaches the formerly direct base. Controlled requests pair a
@@ -753,6 +771,7 @@ inheritance and method layouts.
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_annotation_types` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
