@@ -902,7 +902,12 @@ fn check_authoring_roundtrip(
         bytes,
         "canonical repository authoring bytes"
     );
-    let mut documents = authoring::documents_from_dataset(&restored.dataset)?;
+    let authoring::RepositoryAuthoring {
+        mut documents,
+        index,
+    } = authoring::repository_from_dataset(&restored.dataset)?;
+    let index = index.expect("the tracked navigation Index is in the authoring graph");
+    assert_eq!(index.body().text(), checkout.markdown[Path::new(INDEX)]);
     for (path, text) in &checkout.markdown {
         if expected_type(path).is_some() && path.file_name().is_some_and(|name| name != "index.md")
         {
@@ -1047,8 +1052,23 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
             .any(|finding| finding.kind == "depends-missing")
     );
     let dataset = plan.authoring_dataset()?;
-    let restored = authoring::documents_from_dataset(&dataset)?;
-    assert_eq!(restored.get(&RelPath::new(DEMO)?), Some(&expected));
+    let restored = authoring::repository_from_dataset(&dataset)?;
+    assert_eq!(
+        restored.documents.get(&RelPath::new(DEMO)?),
+        Some(&expected)
+    );
+    let (_, index_text) = files.iter().find(|(path, _)| *path == INDEX).unwrap();
+    assert_eq!(restored.index.unwrap().body().text(), index_text);
+    let no_index = MemoryTree::try_from_iter(
+        files
+            .iter()
+            .filter(|(path, _)| *path != INDEX)
+            .map(|(path, text)| (*path, text.as_str())),
+    )?;
+    let documents_only = Workplan::load(&no_index, &workspace).authoring_dataset()?;
+    let documents_only = authoring::repository_from_dataset(&documents_only)?;
+    assert!(documents_only.index.is_none());
+    assert_eq!(documents_only.documents, restored.documents);
     let bytes = ntriples(&dataset)?;
     assert_eq!(
         ntriples(plan.authoring_dataset()?.as_ref())?,
@@ -1059,6 +1079,7 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
     let missing = DocType::Capability.document_iri("cap:missing")?;
     let other = DocType::Capability.document_iri("cap:other")?;
     let vocab = "https://blackcatinformatics.ca/raf/workplan/authoring/1#";
+    assert_index_refusals(&dataset, vocab)?;
     for (ordinal, target) in [&missing, &other, &missing].into_iter().enumerate() {
         assert!(text.contains(&format!(
             "/dependency/{ordinal}> <{vocab}target> <{target}> ."
@@ -1084,7 +1105,7 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
         &ParseOptions::default(),
     )?;
     assert!(matches!(
-        authoring::documents_from_dataset(&edited.dataset),
+        authoring::repository_from_dataset(&edited.dataset),
         Err(authoring::Error::Shape { subject, .. }) if subject.ends_with("/dependency/0")
     ));
     let path = RelPath::new(DEMO)?;
@@ -1094,6 +1115,68 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
         incomplete.authoring_dataset(),
         Err(authoring::Error::Incomplete(finding)) if finding.file == DEMO
     ));
+    Ok(())
+}
+
+fn assert_index_refusals(
+    dataset: &purrdf_core::RdfDataset,
+    vocab: &str,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfDatasetBuilder, RdfLiteral, RdfQuad, RdfTerm};
+
+    // Each edited graph keeps the valid documents so Index closure decides the refusal.
+    let frame = "https://blackcatinformatics.ca/raf/workplan/repository/1";
+    let index = RdfTerm::iri(format!("{frame}/index"));
+    let edge = format!("{vocab}index");
+    let membership = RdfQuad::new(RdfTerm::iri(frame), &edge, index.clone());
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    assert!(rows.contains(&membership));
+    let mut orphan_carrier = rows.clone();
+    orphan_carrier.retain(|row| *row != membership);
+    let mut orphan_edge = rows.clone();
+    orphan_edge.retain(|row| row.subject != index);
+    let mut second_edge = rows.clone();
+    second_edge.push(RdfQuad::new(
+        RdfTerm::iri(frame),
+        edge,
+        RdfTerm::iri(format!("{frame}/other")),
+    ));
+    let mut extra_row = rows.clone();
+    extra_row.push(RdfQuad::new(
+        index.clone(),
+        format!("{vocab}other"),
+        RdfTerm::iri(frame),
+    ));
+    let mut invalid_body = rows;
+    let body_row = invalid_body
+        .iter_mut()
+        .find(|row| {
+            row.subject == index && row.predicate == "https://blackcatinformatics.ca/raf/okf/1#body"
+        })
+        .unwrap();
+    body_row.object = RdfTerm::Literal(RdfLiteral::simple("hand-written index"));
+    for (malformed, expected) in [
+        (orphan_carrier, "requires repository membership"),
+        (
+            orphan_edge,
+            "one NavigationIndex type and one body are required",
+        ),
+        (second_edge, "use one repository Index assertion"),
+        (extra_row, "authoring dataset Index"),
+        (invalid_body, "text outside a generated block"),
+    ] {
+        let mut builder = RdfDatasetBuilder::new();
+        for row in &malformed {
+            builder.push_owned_quad(row)?;
+        }
+        let graph = builder.freeze()?;
+        let refusal = authoring::repository_from_dataset(&graph).unwrap_err();
+        let message = refusal.to_string();
+        assert!(
+            message.contains(INDEX) && message.contains(expected),
+            "{message}"
+        );
+    }
     Ok(())
 }
 

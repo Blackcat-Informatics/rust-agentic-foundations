@@ -149,17 +149,16 @@ inventory.
 
 ## Document types and keys
 
-The generated navigation Index is separate from these eight Document types.
-Its native authoring carrier has a caller-owned absolute IRI, preserved exactly
-and outside the Document and structural-node identity namespaces. Exactly one
-subject asserts `okf:NavigationIndex` and an `okf:body` string containing the
-complete Index bytes. The inverse calls `Index::parse`; it refuses other shapes
-and RDF layers, preserving native causes and body locations. Combined identity
-and body text may not exceed 1 MiB before carrier copies or native construction;
-this is not a total allocator bound. Document identities and carriers remain
-unchanged. Repository semantic projection and inverse, binding, dependency and
-digest relations, canonical native authoring validation and the complete profile
-revision are separate contracts.
+The generated navigation Index has its own authoring carrier. Exactly one
+subject asserts `okf:NavigationIndex` and an `okf:body` string containing
+the complete Index bytes. Standalone export uses a caller-owned absolute
+IRI outside the Document and structural-node namespaces. The Workplan
+repository frame enrolls the loaded Index with one optional edge to
+`https://blackcatinformatics.ca/raf/workplan/repository/1/index`.
+The inverse checks the expected identity and carrier shape, then calls
+`Index::parse` to recover the body with its source locations. Workplan
+also checks repository membership and ownership. The carrier bounds
+combined identity and body text to 1 MiB before copying or native construction.
 
 | Type | Directory | Keys, in writing order |
 | --- | --- | --- |

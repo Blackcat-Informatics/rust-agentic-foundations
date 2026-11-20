@@ -7,12 +7,12 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use purrdf_core::{RdfDataset, RdfDatasetBuilder};
 use purrdf_lex::allocation::{Ceiling, Memory};
-use raf_okf::{Capability, DatasetError, Document};
+use raf_okf::{Capability, DatasetError, Document, Index};
 use raf_source::RelPath;
 
 use super::{
-    Counts, Error, FRAME, MAX_DOCUMENTS, MAX_NATIVE_BYTES, Object, canonical_path, declarations,
-    root_statements,
+    Counts, Error, FRAME, INDEX_EDGE, INDEX_IRI, INDEX_PATH, MAX_DOCUMENTS, MAX_NATIVE_BYTES,
+    Object, canonical_path, declarations, root_statements,
 };
 use crate::{Loaded, Workplan};
 
@@ -24,7 +24,10 @@ struct Writer<'a> {
     roots: BTreeSet<String>,
 }
 
-pub(super) fn repository(plan: &Workplan<'_>) -> Result<Arc<RdfDataset>, Error> {
+pub(super) fn repository(
+    plan: &Workplan<'_>,
+    index: Option<&Index>,
+) -> Result<Arc<RdfDataset>, Error> {
     let mut capacity = Ceiling(MAX_NATIVE_BYTES);
     let mut writer = Writer {
         dataset: RdfDatasetBuilder::new(),
@@ -34,6 +37,11 @@ pub(super) fn repository(plan: &Workplan<'_>) -> Result<Arc<RdfDataset>, Error> 
         roots: BTreeSet::new(),
     };
     root_statements(|s, p, o| writer.statement(s, p, o))?;
+    if let Some(index) = index {
+        let carrier = index.to_dataset(INDEX_IRI).map_err(Error::index)?;
+        writer.carrier(INDEX_PATH, &carrier)?;
+        writer.statement(FRAME, INDEX_EDGE, Object::Iri(INDEX_IRI))?;
+    }
     for capability in plan.capabilities() {
         writer.document(capability, Some(capability.value()))?;
     }
@@ -85,15 +93,19 @@ impl Writer<'_> {
         let dataset = document
             .to_dataset(path)
             .map_err(|source| Error::document(path, source))?;
-        for row in dataset.quads() {
-            self.counts.native(&dataset, row)?;
-        }
-        self.dataset
-            .push_dataset_with_memory(&dataset, &mut self.memory)
-            .map_err(|source| Error::native(path, source))?;
+        self.carrier(path, &dataset)?;
         declarations((path, &root), capability, |s, p, o| self.statement(s, p, o))?;
         self.roots.insert(root);
         Ok(())
+    }
+
+    fn carrier(&mut self, path: &str, dataset: &RdfDataset) -> Result<(), Error> {
+        for row in dataset.quads() {
+            self.counts.native(dataset, row)?;
+        }
+        self.dataset
+            .push_dataset_with_memory(dataset, &mut self.memory)
+            .map_err(|source| Error::native(path, source))
     }
 
     fn statement(

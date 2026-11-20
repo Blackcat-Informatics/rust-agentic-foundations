@@ -7,7 +7,7 @@ subject: cap:workplan-cli#verification
 inputs:
   - kind: section
     name: cap:workplan-cli#verification
-    digest: cab3029d2ce1ba7d6388e1056a74e4eb2d4e3cf725d6b5ba6cdc227fc621e7b2
+    digest: f5256fe74cab93a080e0a5fbb771fbece70e99e3346a73af7570f92d8ca7dd5c
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854

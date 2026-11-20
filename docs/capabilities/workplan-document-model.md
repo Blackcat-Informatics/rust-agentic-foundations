@@ -17,7 +17,8 @@ bindings:
     - raf_workplan::Workplan::load
     - raf_workplan::Workplan::authoring_dataset
     - raf_workplan::authoring
-    - raf_workplan::authoring::documents_from_dataset
+    - raf_workplan::authoring::repository_from_dataset
+    - raf_workplan::authoring::RepositoryAuthoring
     - raf_workplan::authoring::Error
     - raf_workplan::Workplan::check
     - raf_workplan::Workplan::status
@@ -574,12 +575,21 @@ examples list and the exact written symbol. A dependency uses the declared
 target IRI even when the target document is absent. Source resolution findings
 leave these declarations available to the authoring graph.
 
-`authoring::documents_from_dataset` recovers the authoring models keyed by
-repository-relative path. It checks subject ownership and document closure,
-then requires the inventory and relationship assertions to agree exactly with
-the recovered declarations. The operations refuse incomplete profile loads,
-duplicate paths or identities, invalid documents and extra or missing
-assertions. A refusal names the affected document or graph identity.
+When Workplan loads `docs/capabilities/index.md`, the repository frame
+enrolls it with one `index` edge to the fixed IRI
+`https://blackcatinformatics.ca/raf/workplan/repository/1/index`.
+The existing Index carrier preserves the loaded body bytes. A missing
+Index leaves both membership and carrier absent. A present invalid Index
+refuses export with its path and load diagnostic.
+
+`authoring::repository_from_dataset` returns a `RepositoryAuthoring`
+with the Documents keyed by repository-relative path and the optional
+Index. It checks subject ownership and carrier closure, then requires
+the inventory and relationship assertions to agree exactly with the
+recovered declarations. The operations refuse incomplete profile loads,
+duplicate paths or identities, invalid carriers and extra or missing
+assertions. A refusal names the affected path or graph identity.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
 The graph admits up to 4,096 documents, 1,048,576 asserted rows and 128 MiB
 of aggregate subject, predicate and object spelling across its rows.
@@ -588,6 +598,11 @@ Each document retains the limits of the OKF codec. The carrier accepts
 asserted default-graph statements with IRI subjects and predicates and
 IRI or untagged literal objects.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
+
+The Index membership and carrier rows count toward the repository
+statement and text limits. The document count covers the profile
+Documents. The Index also uses its own OKF carrier limits.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
 `docs export --repository` serializes the same dataset in Turtle or
 N-Triples. The library inverse recovers the ordered authoring declarations
@@ -775,10 +790,10 @@ record whose text would not read back as a record with no finding.
 
 ## Usage
 
-Call `Workplan::authoring_dataset` to obtain the repository's native dataset.
-Serialize it as RDF 1.2 N-Triples with the native writer. Pass the
-decoded dataset to `authoring::documents_from_dataset` to recover the documents
-by path.
+Call `Workplan::authoring_dataset` to obtain the repository's native
+dataset. Serialize it as RDF 1.2 N-Triples with the native writer. Pass
+the decoded dataset to `authoring::repository_from_dataset` to recover
+the path-keyed Documents and optional Index.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
 Use the typed record creation and replacement APIs for owned metadata. Their
@@ -972,6 +987,12 @@ The repository export round trip recovers the exact document inventory in
 both RDF carriers, including declared bindings and an absent dependency
 target.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
+The tracked repository round trip recovers the exact navigation bytes
+alongside the complete Document inventory. The focused inverse fixture
+accepts optional absence and refuses an orphan carrier or membership,
+incorrect membership, an extra carrier row and an invalid body.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
 Native disk fixtures refuse changed real-directory bindings, retain the requested
 record path and original Source cause when opening fails, and permit ordinary

@@ -5,7 +5,9 @@
 
 use std::sync::Arc;
 
-use purrdf_core::{BaseIri, RdfDataset, RdfDatasetBuilder, RdfLiteral, TermRef};
+use purrdf_core::{
+    BaseIri, GraphMatch, QuadIds, RdfDataset, RdfDatasetBuilder, RdfLiteral, TermRef,
+};
 
 use super::{Budget, DOCUMENT_IRI_BASE, DatasetError as E, STRING, TYPE, VOCAB};
 use crate::Index;
@@ -67,18 +69,41 @@ impl Index {
     /// wrong types or cardinalities, blank nodes, named graphs, statement layers,
     /// malformed or reserved identities, the aggregate text bound and invalid bodies.
     pub fn from_dataset(dataset: &RdfDataset, expected_iri: &str) -> Result<Self, E> {
-        if dataset.named_graphs().next().is_some()
-            || dataset.reifiers().next().is_some()
-            || dataset.annotations().next().is_some()
-        {
-            return Err(E::shape(
-                "Index",
-                "named graphs and statement layers are unsupported",
-            ));
-        }
+        check_layers(dataset)?;
+        Self::decode(dataset, expected_iri, dataset.quads())
+    }
+
+    /// Recover the Index at an exact IRI from a shared default-graph dataset.
+    ///
+    /// Every statement of that subject belongs to the Index carrier. The caller
+    /// accounts for statements of other subjects.
+    ///
+    /// # Errors
+    /// Refuses an absent Index, invalid carrier rows, unsupported RDF layers,
+    /// malformed or reserved identities, the aggregate text bound and invalid bodies.
+    pub fn from_dataset_subject(dataset: &RdfDataset, expected_iri: &str) -> Result<Self, E> {
+        check_layers(dataset)?;
+        let subject = dataset
+            .term_id_by_iri(expected_iri)
+            .ok_or_else(|| E::shape("Index", "the expected Index subject is absent"))?;
+        let rows = dataset.quads_for_pattern_with_plan(
+            &RdfDataset::probe_plan(true, false, false, GraphMatch::Default),
+            Some(subject),
+            None,
+            None,
+            GraphMatch::Default,
+        );
+        Self::decode(dataset, expected_iri, rows)
+    }
+
+    fn decode(
+        dataset: &RdfDataset,
+        expected_iri: &str,
+        rows: impl Iterator<Item = QuadIds>,
+    ) -> Result<Self, E> {
         let mut body = None;
         let mut typed = false;
-        for (position, quad) in dataset.quads().enumerate() {
+        for (position, quad) in rows.enumerate() {
             if position >= 2 || quad.g.is_some() {
                 return Err(E::shape(
                     "Index",
@@ -131,4 +156,17 @@ impl Index {
         admit(expected_iri, body)?;
         Self::parse(body).map_err(E::Parse)
     }
+}
+
+fn check_layers(dataset: &RdfDataset) -> Result<(), E> {
+    if dataset.named_graphs().next().is_some()
+        || dataset.reifiers().next().is_some()
+        || dataset.annotations().next().is_some()
+    {
+        return Err(E::shape(
+            "Index",
+            "named graphs and statement layers are unsupported",
+        ));
+    }
+    Ok(())
 }

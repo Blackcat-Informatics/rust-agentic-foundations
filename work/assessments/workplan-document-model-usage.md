@@ -7,7 +7,7 @@ subject: cap:workplan-document-model#usage
 inputs:
   - kind: section
     name: cap:workplan-document-model#usage
-    digest: c2c0d6c91cda75101d0c8600fe13c6c2e01d1d876b83389cf5249f765f3ce349
+    digest: c87a62c63306a9120c26e7441c4ec200e699557f905da01e7a6076a0dfe3602b
   - kind: symbol
     name: raf_workplan::Gate
     digest: 359b6d8c5cc1dae4b53eb4e7e11a1206d2caa2386e729f655d6f2a05f06afa73
@@ -31,7 +31,7 @@ inputs:
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28
   - kind: symbol
     name: raf_workplan::Workplan::authoring_dataset
-    digest: 3d0dc0941978ef1651cb6c2edfa64630481d2283ce23f32ea9dec148939c1307
+    digest: 9696b5fc4439d6b2a4d3d10e7cee851590ffeaed2ee5ef7dfca906cec9dab7af
   - kind: symbol
     name: raf_workplan::Workplan::coverage
     digest: e92bf167dc837d99b7cb04e79c432cb7b58cd2bb7accb4d70f3029b18eb9125f
@@ -45,8 +45,8 @@ inputs:
     name: raf_workplan::architecture
     digest: 116bcb10c96cebf7344e2a3ca0746921d0265d7a9e4fd01bfbfc96697e1ad64c
   - kind: symbol
-    name: raf_workplan::authoring::documents_from_dataset
-    digest: bd775c546c9b97ffe266d9e7705946405c5ce0e8dfd7d28bfa4d2923a4fd9174
+    name: raf_workplan::authoring::repository_from_dataset
+    digest: ddaa2f4da3ff3ce7837328fb35295caa4ba5cc7dac92ef43e96194735fb5cdf3
 verdict: accepted
 by: agent
 ---

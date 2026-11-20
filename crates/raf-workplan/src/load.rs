@@ -77,7 +77,7 @@ fn scan_directory(
         let mut subdirectories = Vec::new();
         for entry in entries {
             let path = format!("{directory}/{}", entry.name);
-            if entry.kind == EntryKind::Dir {
+            if entry.kind == EntryKind::Dir && !is_capability_index(&path) {
                 subdirectories.push((path, depth + 1));
             } else if let Some(only) = doc_type.singleton().filter(|_| depth == 0)
                 && entry.name != format!("{only}.md")
@@ -178,10 +178,11 @@ fn read_file(
     {
         Ok(text) => text,
         Err(error) => {
-            plan.note_present(dir_type, path);
             let finding = unreadable(kind::UNREADABLE_FILE, path, "file", &error);
             if is_capability_index(path) {
                 plan.index = IndexSlot::Invalid(finding.clone());
+            } else {
+                plan.note_present(dir_type, path);
             }
             if path.rsplit('/').next().is_some_and(is_navigation_index) {
                 plan.findings.push(finding);
