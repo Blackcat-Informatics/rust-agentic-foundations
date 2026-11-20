@@ -113,13 +113,14 @@ acceptance by application readers.
 The strict history check also accepts explicitly selected nongeneric
 interfaces with inline parameter and result lists and no superinterfaces.
 A compiler-generated list belongs to one method ordinal and endpoint
-role. It must be a detached nongeneric struct. Its fields use the same
-layout checks as ordinary data, including checks on referenced data
-types. Census reports removed, renamed or moved methods and changes to
-their parameter and result identities or retained layouts. It also
-checks the compiler's explicit-default marker on retained input
-parameters. An appended input parameter needs an explicit default.
-A new trailing method with a valid layout is allowed.
+role. It must be a detached nongeneric struct. Its fields use explicit
+ordinals in order from zero and the same layout checks as ordinary data,
+including checks on referenced data types. Census reports removed,
+renamed or moved methods and changes to their parameter and result
+identities or retained layouts, including when a renamed method keeps its
+ordinal. Census also checks the compiler's explicit-default marker on
+retained input parameters. Each appended input parameter needs an
+explicit default. A new trailing method with a valid layout is allowed.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods -->
 
 The interface profile refuses generic methods, named endpoints, direct

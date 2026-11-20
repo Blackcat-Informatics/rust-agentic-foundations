@@ -8,7 +8,7 @@ struct Payload @0xf7d9fae829b17495 {
 }
 
 interface ByteReader @0xcad554910d7a67ab {
-  read @0 (size :UInt32, offset :UInt32) -> (payload :Payload, ready :UInt16);
+  fetch @0 (size :UInt32, offset :UInt32) -> (payload :Payload, ready :UInt16);
   watch @1 () -> ();
   status @2 () -> (ready :Bool);
 }

@@ -188,8 +188,10 @@ fn capnp_history_checks_inline_rpc_methods() {
     assert!(changed.stderr.is_empty(), "{changed:?}");
     let findings = String::from_utf8(changed.stdout).unwrap();
     for expected in [
+        ".read: member renamed to fetch",
         ".status: ordinal changed",
         ".watch: ordinal changed",
+        ".finish: member removed",
         ".status.parameters: type changed",
         ".status.results: type changed",
         ".read.parameters.size: default changed",
@@ -215,8 +217,22 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
         root,
         include_bytes!("fixtures/capnp/rpc-shared-endpoint.bin"),
     );
+    let field_order =
+        commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-field-order.bin"));
     for (before, after, selected, expected) in [
         (&base, &shared, RPC_READER, "exactly one owning method role"),
+        (
+            &field_order,
+            &field_order,
+            RPC_READER,
+            "must list inline fields in order with explicit ordinals from zero",
+        ),
+        (
+            &field_order,
+            &field_order,
+            "0x9000000000000003",
+            "must list inline fields in order with explicit ordinals from zero",
+        ),
         (
             &base,
             &base,

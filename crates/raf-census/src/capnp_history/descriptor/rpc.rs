@@ -5,7 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use capnp::schema_capnp::node;
+use capnp::schema_capnp::{field, node};
 
 use super::{
     Annotations, DeclarationScopes, Endpoint, Error, Method, Nodes, TypeId, layout, member_name,
@@ -77,18 +77,12 @@ impl Owners {
                     location()
                 )));
             }
-            let mut endpoint = |id, role| {
+            let mut endpoint = |id, role| -> Result<Endpoint, Error> {
                 let reader = nodes.node(id)?;
                 let data = self.endpoint(reader, |reason| {
                     layout(format!("{} {role} node {id} {reason}", location()))
                 })?;
                 let structure = nodes.structure(id, data, needed, annotations, scopes)?;
-                if structure.groups.len() != 1 || data.get_discriminant_count() != 0 {
-                    return Err(layout(format!(
-                        "{} {role} node {id} must contain only inline slots",
-                        location()
-                    )));
-                }
                 Ok(Endpoint { id, structure })
             };
             let params = endpoint(TypeId(method.get_param_struct_type()), "parameters")?;
@@ -123,6 +117,23 @@ impl Owners {
         }
         if self.0.get(&id) != Some(&1) {
             return Err(error("must have exactly one owning method role"));
+        }
+        if data.get_discriminant_count() != 0 {
+            return Err(error("must contain only inline slots"));
+        }
+        for (index, slot) in data.get_fields()?.into_iter().enumerate() {
+            if !matches!(slot.which()?, field::Slot(_))
+                || slot.get_discriminant_value() != field::NO_DISCRIMINANT
+            {
+                return Err(error("must contain only inline slots"));
+            }
+            if !matches!(slot.get_ordinal().which()?, field::ordinal::Explicit(ordinal)
+                if usize::from(ordinal) == index)
+            {
+                return Err(error(
+                    "must list inline fields in order with explicit ordinals from zero",
+                ));
+            }
         }
         Ok(data)
     }

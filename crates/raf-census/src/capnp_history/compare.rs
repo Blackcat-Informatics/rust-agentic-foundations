@@ -274,17 +274,20 @@ where
             retained(member, &after[current], emit)?;
             continue;
         }
-        let kind = match after
+        if let Some(replacement) = after
             .get(ordinal)
-            .map(&name)
-            .filter(|current| !previous.contains(current))
+            .filter(|candidate| !previous.contains(name(candidate)))
         {
-            Some(current) => ChangeKind::RenamedMember {
-                current: current.to_owned(),
-            },
-            None => ChangeKind::RemovedMember,
-        };
-        emit(Some(label.to_owned()), kind)?;
+            emit(
+                Some(label.to_owned()),
+                ChangeKind::RenamedMember {
+                    current: name(replacement).to_owned(),
+                },
+            )?;
+            retained(member, replacement, emit)?;
+        } else {
+            emit(Some(label.to_owned()), ChangeKind::RemovedMember)?;
+        }
     }
     Ok(())
 }

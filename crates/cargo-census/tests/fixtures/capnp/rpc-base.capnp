@@ -11,4 +11,5 @@ interface ByteReader @0xcad554910d7a67ab {
   read @0 (size :UInt32 = 0) -> (payload :Payload, ready :Bool);
   status @1 () -> (ready :Bool);
   watch @2 () -> ();
+  finish @3 () -> ();
 }
