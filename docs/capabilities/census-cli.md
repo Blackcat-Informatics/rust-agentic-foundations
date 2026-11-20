@@ -27,6 +27,7 @@ bindings:
     - raf_census::Gate::self_test
     - raf_census::MAX_INDEX_BYTES
     - raf_census::capnp_history
+    - raf_census::capnp_history::reader_evidence::verify
   tests:
     - cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs
     - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set
@@ -36,6 +37,8 @@ bindings:
     - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_invalid_import_directory_declarations
     - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape
     - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_oversized_inputs
+    - cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate
+    - cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
     - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
     - raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse
@@ -125,6 +128,16 @@ import row carrying its file ID. An earlier committed file takes
 precedence even if the capture omits it. An earlier nonregular candidate
 or refused lookup prevents a capture verdict.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_compares_layouts_with_ordered_import_directories,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports -->
+
+`capnp-reader-evidence` verifies a signed affirmative claim for the
+caller-selected base revision, reader revision, root type, reader
+artifact and entry point, and exact payload paths. It reads the
+evidence from a separate pinned commit and the payloads from the base
+commit. After verifying every digest and raw segment, it prints the
+verified paths in repository order and exits 0. A verification refusal
+exits 1 with a diagnostic. The command runs independently of Gate
+registration and of the strict schema-history verdict.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate,cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing -->
 
 **Static contract.** `check` evaluates the native library Gate for the selected workspace. `index`, `job`, `count` and `fingerprint` derive complete native reports from that Gate. The CLI accepts no package/example executable selector and never invokes Cargo, tests, examples or custom repository binaries. Custom Rust registrations remain explicit library API operations performed by their caller; repository contents cannot instantiate them automatically.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
@@ -223,6 +236,23 @@ datatype and the other scalar properties use strings. Digests use 64
 lowercase hexadecimal digits. The Git-backed capture fixtures build
 and sign these records before the command reads them.
 
+Run `cargo census capnp-reader-evidence --base BASE --current CURRENT
+--evidence-commit COMMIT --statement PATH --signature PATH --key HEX
+--type 0xID --reader-entry NAME --reader-sha256 HEX --payload PATH`.
+Repeat `--payload` for each base path. The evidence commit contains the
+canonical N-Triples statement and its detached 64-byte Ed25519
+signature. Use full lowercase commit IDs, a lowercase hexadecimal
+Ed25519 public key and SHA-256 digest, and canonical paths from the
+Git root. Library callers use
+`raf_census::capnp_history::reader_evidence::verify`.
+
+Use the same RDF namespace as compiler captures.
+
+| Class | Required properties |
+| --- | --- |
+| `CapnpReaderEvidenceV1` at the graph root | `baseCommit`, `currentCommit`, `rootType`, `readerEntry` and `readerSha256` are strings. `accepted` is canonical `xsd:boolean` true and affirms acceptance of every referenced payload. One or more `payload` IRIs select owned payload rows. |
+| `CapnpAcceptedPayload` at an owned fragment | `file` gives a base payload path and `sha256` gives its digest. Both properties are strings. |
+
 The documented data path is illustrated by `raf_census::example_crate::registered` and `rust_agentic_foundations::example_crate::repository_census`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
 To host the full front end, depend on `cargo-census` and return its status from
@@ -281,6 +311,13 @@ two MiB, subject to the pinned tree's existing read limits. The source
 scan admits up to 8192 literal imports per capture.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_refuses_oversized_inputs,cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request -->
 
+Reader evidence uses the same statement and pinned-tree read limits.
+Select one to 128 distinct payloads of up to two MiB each. The entry
+point has at most 1024 bytes and contains no control characters. Census
+interprets each payload as one raw Cap'n Proto segment and checks its
+canonicality with finite traversal and nesting limits.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate,cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing -->
+
 - Missing native registrations or unavailable implemented capabilities refuse rather than invoking a repository program. Imported protocol data is not an observed execution verdict. A report write failure may leave the newly created owned data file incomplete; it never truncates an existing destination.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
@@ -304,6 +341,12 @@ request can report implicit imports such as the streaming schema.
 The ordered profile checks the compiler's search order against the
 whole pinned tree, because a source absent from the signed set can
 take precedence over a signed file with the same relative name.
+
+The reader evidence signer attests the executable identity, nominal
+root type and acceptance of the selected bytes. Census independently
+checks each pinned payload's digest and canonicality. The separate
+evidence commit lets the signer bind both full revisions without
+changing either one.
 
 ## Verification
 
@@ -346,6 +389,14 @@ an absent earlier candidate, an unrecorded earlier file, a nonregular
 candidate, and invalid directory declarations.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_compares_layouts_with_ordered_import_directories,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_invalid_import_directory_declarations -->
 
+Reader evidence fixtures verify an exact old corpus despite different
+bytes at the reader revision. A registered host's callback stays inert.
+The fixtures exercise wrong keys, revisions, reader identities and
+payload sets, a reused evidence revision, payload resource limits,
+a stale digest, a negative verdict, and a payload with a signed digest
+whose raw segment fails canonicality.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate,cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing -->
+
 Controlled fixtures protect native CLI parity, the self-test case list, the absence of consumer execution, report destination restrictions, migration carrier bounds, monotone debt writes and the declared reference options.
 
 <!-- raf:generated:verification-matrix -->
@@ -360,6 +411,8 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_invalid_import_directory_declarations` | test | [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_oversized_inputs` | test | [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |

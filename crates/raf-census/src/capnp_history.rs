@@ -7,6 +7,7 @@ mod capture;
 mod compare;
 mod descriptor;
 mod occupancy;
+pub mod reader_evidence;
 mod shape;
 #[cfg(test)]
 mod tests;

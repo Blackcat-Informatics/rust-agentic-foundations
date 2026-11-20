@@ -3,6 +3,9 @@
 
 //! The shipped history command admits only signed, closed compiler captures.
 
+#[path = "capnp_capture/reader_evidence.rs"]
+mod reader_evidence;
+
 use std::{
     fs,
     path::Path,
@@ -139,6 +142,10 @@ fn publish(
         text(&mut graph, &id, "file", name);
         text(&mut graph, &id, "sha256", &digest(bytes));
     }
+    commit_statement(root, graph, key)
+}
+
+fn commit_statement(root: &Path, graph: Builder, key: &SigningKey) -> String {
     let capture = graph.finish().unwrap().to_text(Format::NTriples).unwrap();
     fs::write(
         root.join("capture.sig"),
