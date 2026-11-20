@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Attribute detached RPC endpoint layouts to their only declaring method.
+//! Admit named RPC endpoints and assign detached layouts to their owning roles.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -11,9 +11,13 @@ use super::{
     Annotations, DeclarationScopes, Endpoint, Error, Method, Nodes, TypeId, layout, member_name,
 };
 
-pub(super) struct Owners(BTreeMap<TypeId, u8>);
+pub(super) struct Endpoints {
+    inline_owners: BTreeMap<TypeId, u8>,
+    declared_inline: Option<BTreeSet<TypeId>>,
+    named: BTreeSet<TypeId>,
+}
 
-impl Owners {
+impl Endpoints {
     pub(super) fn read(nodes: &Nodes<'_>) -> Result<Self, Error> {
         let mut counts = BTreeMap::<TypeId, u8>::new();
         for reader in nodes.0.values() {
@@ -23,21 +27,32 @@ impl Owners {
                         method.get_param_struct_type(),
                         method.get_result_struct_type(),
                     ] {
-                        let count = counts.entry(TypeId(id)).or_default();
-                        *count = count.saturating_add(1);
+                        let id = TypeId(id);
+                        if nodes
+                            .0
+                            .get(&id)
+                            .is_some_and(|endpoint| endpoint.get_scope_id() == 0)
+                        {
+                            let count = counts.entry(id).or_default();
+                            *count = count.saturating_add(1);
+                        }
                     }
                 }
             }
         }
-        Ok(Self(counts))
+        Ok(Self {
+            inline_owners: counts,
+            declared_inline: None,
+            named: BTreeSet::new(),
+        })
     }
 
-    pub(super) fn contains(&self, id: TypeId) -> bool {
-        self.0.contains_key(&id)
+    pub(super) fn owns_inline(&self, id: TypeId) -> bool {
+        self.inline_owners.contains_key(&id)
     }
 
     pub(super) fn methods<'a>(
-        &self,
+        &mut self,
         nodes: &Nodes<'a>,
         reader: node::Reader<'a>,
         interface: node::interface::Reader<'a>,
@@ -46,7 +61,7 @@ impl Owners {
         scopes: &mut DeclarationScopes,
     ) -> Result<Vec<Method>, Error> {
         let id = TypeId(reader.get_id());
-        if reader.get_is_generic() || !reader.get_parameters()?.is_empty() {
+        if !nongeneric(reader)? {
             return Err(layout(format!("RPC interface {id} must be nongeneric")));
         }
         if !interface.get_superclasses()?.is_empty() {
@@ -79,11 +94,32 @@ impl Owners {
             }
             let mut endpoint = |id, role| -> Result<Endpoint, Error> {
                 let reader = nodes.node(id)?;
-                let data = self.endpoint(reader, |reason| {
-                    layout(format!("{} {role} node {id} {reason}", location()))
-                })?;
-                let structure = nodes.structure(id, data, needed, annotations, scopes)?;
-                Ok(Endpoint { id, structure })
+                let error =
+                    |reason: &str| layout(format!("{} {role} node {id} {reason}", location()));
+                let node::Struct(data) = reader.which()? else {
+                    return Err(error("must be a nongroup struct"));
+                };
+                if data.get_is_group() {
+                    return Err(error("must be a nongroup struct"));
+                }
+                if reader.get_scope_id() == 0 {
+                    self.inline(reader, data, error)?;
+                    if self.has_declaring_scope(nodes, id)? {
+                        return Err(error(
+                            "has a lexical declaration claim despite its zero scope",
+                        ));
+                    }
+                    let structure = nodes.structure(id, data, needed, annotations, scopes)?;
+                    return Ok(Endpoint::Inline { id, structure });
+                }
+                if !self.named.contains(&id) {
+                    if !nodes.declaration_chain(id, scopes, nongeneric)? {
+                        return Err(error("requires a reciprocal nongeneric declaration chain"));
+                    }
+                    self.named.insert(id);
+                    needed.insert(id);
+                }
+                Ok(Endpoint::Named(id))
             };
             let params = endpoint(TypeId(method.get_param_struct_type()), "parameters")?;
             let results = endpoint(TypeId(method.get_result_struct_type()), "results")?;
@@ -96,26 +132,35 @@ impl Owners {
         Ok(methods)
     }
 
-    fn endpoint<'a>(
+    fn has_declaring_scope(&mut self, nodes: &Nodes<'_>, id: TypeId) -> Result<bool, Error> {
+        if let Some(claimed) = &self.declared_inline {
+            return Ok(claimed.contains(&id));
+        }
+        let mut claimed = BTreeSet::new();
+        for reader in nodes.0.values() {
+            for child in reader.get_nested_nodes()? {
+                let child_id = TypeId(child.get_id());
+                if self.owns_inline(child_id) {
+                    claimed.insert(child_id);
+                }
+            }
+        }
+        Ok(self.declared_inline.insert(claimed).contains(&id))
+    }
+
+    fn inline(
         &self,
-        reader: node::Reader<'a>,
+        reader: node::Reader<'_>,
+        data: node::struct_::Reader<'_>,
         error: impl FnOnce(&str) -> Error,
-    ) -> Result<node::struct_::Reader<'a>, Error> {
+    ) -> Result<(), Error> {
         let id = TypeId(reader.get_id());
-        let node::Struct(data) = reader.which()? else {
-            return Err(error("must be a detached nongeneric struct"));
-        };
-        if reader.get_scope_id() != 0
-            || reader.get_is_generic()
-            || data.get_is_group()
-            || !reader.get_parameters()?.is_empty()
-            || !reader.get_nested_nodes()?.is_empty()
-        {
+        if !nongeneric(reader)? || !reader.get_nested_nodes()?.is_empty() {
             return Err(error(
                 "must be a detached nongeneric struct without declarations",
             ));
         }
-        if self.0.get(&id) != Some(&1) {
+        if self.inline_owners.get(&id) != Some(&1) {
             return Err(error("must have exactly one owning method role"));
         }
         if data.get_discriminant_count() != 0 {
@@ -135,6 +180,10 @@ impl Owners {
                 ));
             }
         }
-        Ok(data)
+        Ok(())
     }
+}
+
+fn nongeneric(reader: node::Reader<'_>) -> Result<bool, Error> {
+    Ok(!reader.get_is_generic() && reader.get_parameters()?.is_empty())
 }

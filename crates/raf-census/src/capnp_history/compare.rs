@@ -12,7 +12,7 @@ use raf_source::RelPath;
 
 use super::{
     Error, TypeId,
-    descriptor::{Declaration, DeclarationKind, Method, Node, Schema, Struct},
+    descriptor::{Declaration, DeclarationKind, Endpoint, Method, Node, Schema, Struct},
 };
 
 const MAX_FINDING_BYTES: usize = 2 * 1024 * 1024;
@@ -409,22 +409,42 @@ fn method(
             };
             emit(Some(path), kind)
         };
-        if before.id != after.id {
-            emit(None, ChangeKind::ChangedType)?;
-        }
-        structure(&before.structure, &after.structure, input, &mut emit)?;
-        if input {
-            // Inline lists have only consecutive slots, so every ordinal
-            // at or beyond the old length is an appended parameter.
-            for slot in after
-                .structure
-                .slots
-                .values()
-                .skip(before.structure.slots.len())
-            {
-                if !slot.explicit_default {
-                    emit(Some(slot.name.clone()), ChangeKind::MissingParameterDefault)?;
+        match (before, after) {
+            (Endpoint::Named(previous), Endpoint::Named(current)) if previous == current => {}
+            (
+                Endpoint::Inline {
+                    id: old_id,
+                    structure: previous,
+                },
+                Endpoint::Inline {
+                    id: new_id,
+                    structure: current,
+                },
+            ) => {
+                if old_id != new_id {
+                    emit(None, ChangeKind::ChangedType)?;
                 }
+                inline_endpoint(previous, current, input, &mut emit)?;
+            }
+            _ => emit(None, ChangeKind::ChangedType)?,
+        }
+    }
+    Ok(())
+}
+
+fn inline_endpoint(
+    before: &Struct,
+    after: &Struct,
+    input: bool,
+    emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
+) -> Result<(), Error> {
+    structure(before, after, input, emit)?;
+    if input {
+        // Inline lists have only consecutive slots, so every ordinal
+        // at or beyond the old length is an appended parameter.
+        for slot in after.slots.values().skip(before.slots.len()) {
+            if !slot.explicit_default {
+                emit(Some(slot.name.clone()), ChangeKind::MissingParameterDefault)?;
             }
         }
     }

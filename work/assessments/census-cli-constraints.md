@@ -58,7 +58,7 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: e475c99ed1f116297a459303a5b766179d83a8f4748790c260b87159b4740008
+    digest: c0a9886eb7ffcb17ac779cda5e665f05eab98c39d293e1671ab6477ededd93f2
   - kind: symbol
     name: raf_census::capnp_history::persistence::admission::check
     digest: d48ff88f11f33c01b6de01d3b4c282da8041ff6e2c67a586921ab8f7227720db

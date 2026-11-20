@@ -3,8 +3,8 @@
 
 @0xe7d7158fd3cfbd15;
 
-struct Payload {
-  value @0 :UInt32;
+struct Payload(T) {
+  value @0 :T;
 }
 
 interface Parent {}
@@ -17,6 +17,6 @@ interface GenericMethod @0xba6c33c22a5d3e73 {
   read @0 [T] () -> (value :T);
 }
 
-interface Named @0xadb4bfe48ad45105 {
-  read @0 () -> Payload;
+interface GenericEndpoint @0xadb4bfe48ad45105 {
+  read @0 () -> Payload(Text);
 }

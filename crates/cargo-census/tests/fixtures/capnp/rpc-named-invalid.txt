@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+(nodes = [
+  (id = 17204595001485426688, file = void, nestedNodes = [
+     (name = "MissingScope", id = 17204595001485426689),
+     (name = "MissingReference", id = 17204595001485426691),
+     (name = "GenericAncestry", id = 17204595001485426693),
+     (name = "GenericOwner", id = 17204595001485426694),
+     (name = "DuplicateReference", id = 17204595001485426696),
+     (name = "Input", id = 17204595001485426697),
+     (name = "Alias", id = 17204595001485426697),
+     (name = "WrongKind", id = 17204595001485426698),
+     (name = "EnumEndpoint", id = 17204595001485426699),
+     (name = "ErasedScope", id = 17204595001485426700),
+     (name = "ClaimedInput", id = 17204595001485426701),
+     (name = "Result", id = 17204595001485426702),
+     (name = "GroupEndpoint", id = 17204595001485426703),
+     (name = "Group", id = 17204595001485426704)]),
+  (id = 17204595001485426689, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426690, resultStructType = 17204595001485426690)])),
+  (id = 17204595001485426690, scopeId = 17204595001485426787, struct = ()),
+  (id = 17204595001485426691, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426692, resultStructType = 17204595001485426692)])),
+  (id = 17204595001485426692, scopeId = 17204595001485426688, struct = ()),
+  (id = 17204595001485426693, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426695, resultStructType = 17204595001485426695)])),
+  (id = 17204595001485426694, scopeId = 17204595001485426688, parameters = [(name = "T")], nestedNodes = [
+     (name = "Inner", id = 17204595001485426695)], struct = ()),
+  (id = 17204595001485426695, scopeId = 17204595001485426694, struct = ()),
+  (id = 17204595001485426696, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426697, resultStructType = 17204595001485426697)])),
+  (id = 17204595001485426697, scopeId = 17204595001485426688, struct = ()),
+  (id = 17204595001485426698, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426699, resultStructType = 17204595001485426699)])),
+  (id = 17204595001485426699, scopeId = 17204595001485426688, enum = ()),
+  (id = 17204595001485426700, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426701, resultStructType = 17204595001485426702)])),
+  (id = 17204595001485426701, struct = ()),
+  (id = 17204595001485426702, scopeId = 17204595001485426688, struct = ()),
+  (id = 17204595001485426703, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426704, resultStructType = 17204595001485426702)])),
+  (id = 17204595001485426704, scopeId = 17204595001485426688, struct = (isGroup = true))])

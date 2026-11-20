@@ -625,8 +625,82 @@ fn capnp_history_checks_inline_rpc_methods() {
     }
 }
 
+/// Shared named endpoints use ordinary struct evolution and produce one layout
+/// verdict per retained ID. A role still protects its endpoint form and ID.
+#[test]
+fn capnp_history_compares_named_rpc_endpoints() {
+    const READER: &str = "0xeec2000000000005";
+    const INPUT: &str = "0xeec2000000000002";
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let commit = |bytes| commit_capnp_descriptor(root, bytes);
+    let base = commit(include_bytes!("fixtures/capnp/rpc-named-base.bin"));
+    let compatible = commit(include_bytes!("fixtures/capnp/rpc-named-compatible.bin"));
+    let changed = commit(include_bytes!("fixtures/capnp/rpc-named-changed.bin"));
+    let history = |after: &str, selected: &[&str]| {
+        capnp_history(
+            root,
+            &base,
+            after,
+            selected,
+            &["--required-annotation", "0xeec2000000000010"],
+        )
+    };
+    for selected in [&[READER][..], &[READER, INPUT]] {
+        let clean = history(&compatible, selected);
+        assert!(clean.status.success(), "{clean:?}");
+        assert!(clean.stdout.is_empty(), "{clean:?}");
+
+        let broken = history(&changed, selected);
+        assert_eq!(broken.status.code(), Some(1), "{broken:?}");
+        assert!(broken.stderr.is_empty(), "{broken:?}");
+        let findings = String::from_utf8(broken.stdout).unwrap();
+        let expected = [
+            "0xeec2000000000005.first.parameters: type changed",
+            "0xeec2000000000005.second.results: type changed",
+            "0xeec2000000000002.count: default changed",
+            "0xeec2000000000002.token: pointer field became required",
+        ];
+        assert_eq!(findings.lines().count(), expected.len(), "{findings}");
+        for finding in expected {
+            assert!(findings.contains(finding), "{findings}");
+        }
+    }
+}
+
+/// Named method roles require an ordinary struct and an unambiguous reciprocal
+/// declaration chain, including the generic state of every enclosing scope.
+#[test]
+fn capnp_history_refuses_invalid_named_rpc_endpoints() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let invalid =
+        commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-named-invalid.bin"));
+    let scope = "requires a reciprocal nongeneric declaration chain";
+    for (selected, expected) in [
+        ("0xeec3000000000001", scope),
+        ("0xeec3000000000003", scope),
+        ("0xeec3000000000005", scope),
+        ("0xeec3000000000008", scope),
+        ("0xeec300000000000a", "must be a nongroup struct"),
+        (
+            "0xeec300000000000c",
+            "has a lexical declaration claim despite its zero scope",
+        ),
+        ("0xeec300000000000f", "must be a nongroup struct"),
+    ] {
+        let result = capnp_history(root, &invalid, &invalid, &[selected], &[]);
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+        assert!(result.stdout.is_empty(), "{result:?}");
+        let diagnostic = String::from_utf8(result.stderr).unwrap();
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+}
+
 /// Detached endpoints belong to exactly one method and role across the request.
-/// Explicit interface roots require a supported, inline nongeneric signature.
+/// Explicit interface roots require a supported nongeneric signature.
 #[test]
 fn capnp_history_refuses_unsupported_rpc_endpoints() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -683,7 +757,7 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
             &unsupported,
             &unsupported,
             "0xadb4bfe48ad45105",
-            "must be a detached nongeneric struct",
+            "must use nongeneric endpoints",
         ),
     ] {
         let refused = capnp_history(root, before, after, &[selected], &[]);
