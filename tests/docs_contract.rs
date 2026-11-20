@@ -939,6 +939,12 @@ fn report(violations: &[String]) -> String {
 fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
     let root = gate_root();
     let checkout = load_checkout(&root);
+    assert!(
+        checkout
+            .diagram_assets
+            .contains_key(Path::new("docs/diagrams/manifest.ttl")),
+        "the tracked diagram ownership manifest is admitted"
+    );
     let source = repository_source(&root)?;
     let verdict = with_plan(&checkout, &source, |plan, context| {
         let verdict = judge_plan(&checkout, plan, context);
@@ -949,6 +955,7 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
             found.len(),
             report(&found)
         );
+        check_repository_bindings(&source, &verdict)?;
         check_authoring_roundtrip(plan, &checkout)?;
         Ok::<_, Box<dyn Error>>(verdict)
     })?;
@@ -966,23 +973,13 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
         INVENTORY.capabilities.len(),
         "every capability of the inventory loads into the model"
     );
-    let manifest = Path::new("docs/diagrams/manifest.ttl");
-    let mut missing_manifest = checkout;
-    assert!(missing_manifest.diagram_assets.remove(manifest).is_some());
-    assert!(
-        judge(&missing_manifest, &source)
-            .findings
-            .iter()
-            .any(|finding| finding.kind == "diagram-stale" && finding.file == name(manifest)),
-        "the tracked ownership manifest is required beside the admitted diagram assets"
-    );
     Ok(())
 }
 
-#[test]
-fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error>> {
-    let root = gate_root();
-    let workspace = repository_source(&root)?;
+fn check_repository_bindings(
+    workspace: &Workspace,
+    verdict: &Verdict,
+) -> Result<(), Box<dyn Error>> {
     // The roots are the whole repository: every package below it, the fuzz
     // harness included.
     let packages: BTreeSet<&str> = workspace
@@ -1015,19 +1012,6 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
     ] {
         workspace.resolve(symbol)?;
     }
-    let verdict = judge(&load_checkout(&root), &workspace);
-    let unresolved: Vec<String> = verdict
-        .findings
-        .iter()
-        .filter(|finding| finding.kind.starts_with("binding-"))
-        .map(ToString::to_string)
-        .collect();
-    assert!(
-        unresolved.is_empty(),
-        "{} unresolved bindings:\n{}",
-        unresolved.len(),
-        report(&unresolved)
-    );
     // And require that bindings were judged at all: the delivered
     // capabilities bind code, and every binding resolved.
     for slug in ["cap:okf-profile", "cap:source-index"] {
