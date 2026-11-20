@@ -6,7 +6,9 @@
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use purrdf_core::{QuadIds, RdfDataset, TermId, TermRef};
-use raf_okf::{Capability, DOCUMENT_IRI_BASE, DatasetError, DocType, Document, Index};
+use raf_okf::{
+    Capability, DOCUMENT_IRI_BASE, DatasetError, DocType, Document, EvidenceRecord, Index,
+};
 use raf_source::RelPath;
 
 use crate::{Finding, Workplan, generated::INDEX_PATH, model::IndexSlot};
@@ -156,13 +158,13 @@ fn canonical_path(path: &str) -> Result<RelPath, Error> {
 }
 
 impl Workplan<'_> {
-    /// Project every admitted profile document and its declared bindings and
-    /// dependencies, and the loaded navigation Index when present, into one
-    /// closed, default-graph native RDF 1.2 dataset.
+    /// Project profile documents with their declared bindings, dependencies and
+    /// evidence relationships into one closed, default-graph native RDF 1.2
+    /// dataset, including the loaded navigation Index when present.
     ///
     /// The export uses the profile Document model and declared spellings. A
-    /// missing dependency still has its declared IRI, and a binding does not
-    /// require a resolved source symbol.
+    /// missing capability target still has its declared IRI, and a binding
+    /// does not require a resolved source symbol.
     ///
     /// # Errors
     /// Refuses incomplete profile input, duplicate paths or document IRIs,
@@ -194,7 +196,7 @@ pub struct RepositoryAuthoring {
 /// Recover the exact profile documents and optional navigation Index.
 ///
 /// Checks the closed inventory and declared relationship occurrences against
-/// the recovered Capability values. No source index is read.
+/// the recovered Capability and Evidence values. No source index is read.
 ///
 /// # Errors
 /// Refuses missing, duplicate or unrelated subjects, malformed documents,
@@ -230,9 +232,16 @@ fn root_statements(
     emit(FRAME, TYPE, Object::Iri(&property("Repository")))
 }
 
+#[derive(Clone, Copy)]
+enum Declarations<'a> {
+    None,
+    Capability(&'a Capability),
+    Evidence(&'a EvidenceRecord),
+}
+
 fn declarations(
     (path, root): (&str, &str),
-    capability: Option<&Capability>,
+    declared: Declarations<'_>,
     mut emit: impl FnMut(&str, &str, Object<'_>) -> Result<(), Error>,
 ) -> Result<(), Error> {
     let record = record_iri(root)?;
@@ -240,9 +249,50 @@ fn declarations(
     emit(&record, TYPE, Object::Iri(&property("DocumentPath")))?;
     emit(&record, &property("documentIdentity"), Object::Iri(root))?;
     emit(&record, &property("path"), Object::Literal(path, STRING))?;
-    let Some(capability) = capability else {
-        return Ok(());
+    let (segment, edge, class, targets) = match declared {
+        Declarations::None => return Ok(()),
+        Declarations::Capability(capability) => {
+            bindings(&record, root, capability, &mut emit)?;
+            (
+                "dependency",
+                "dependency",
+                "Dependency",
+                &capability.depends,
+            )
+        }
+        Declarations::Evidence(evidence) => (
+            "evidence-for",
+            "evidenceFor",
+            "EvidenceFor",
+            &evidence.covers,
+        ),
     };
+    let edge = property(edge);
+    let class = property(class);
+    for (ordinal, declared_target) in targets.iter().enumerate() {
+        let target = DocType::Capability
+            .document_iri(declared_target)
+            .map_err(|source| Error::document(path, DatasetError::Identity(source)))?;
+        let row = format!("{record}/{segment}/{ordinal}");
+        emit(&record, &edge, Object::Iri(&row))?;
+        emit(&row, TYPE, Object::Iri(&class))?;
+        emit(&row, &property("owner"), Object::Iri(root))?;
+        emit(
+            &row,
+            &property("ordinal"),
+            Object::Literal(&ordinal.to_string(), INTEGER),
+        )?;
+        emit(&row, &property("target"), Object::Iri(&target))?;
+    }
+    Ok(())
+}
+
+fn bindings(
+    record: &str,
+    root: &str,
+    capability: &Capability,
+    mut emit: impl FnMut(&str, &str, Object<'_>) -> Result<(), Error>,
+) -> Result<(), Error> {
     for (kind, values) in [
         ("code", &capability.bindings.code),
         ("tests", &capability.bindings.tests),
@@ -250,7 +300,7 @@ fn declarations(
     ] {
         for (ordinal, spelling) in values.iter().enumerate() {
             let row = format!("{record}/binding/{kind}/{ordinal}");
-            emit(&record, &property("binding"), Object::Iri(&row))?;
+            emit(record, &property("binding"), Object::Iri(&row))?;
             emit(&row, TYPE, Object::Iri(&property("Binding")))?;
             emit(&row, &property("owner"), Object::Iri(root))?;
             emit(&row, &property("kind"), Object::Iri(&property(kind)))?;
@@ -265,21 +315,6 @@ fn declarations(
                 Object::Literal(spelling, STRING),
             )?;
         }
-    }
-    for (ordinal, dependency) in capability.depends.iter().enumerate() {
-        let target = DocType::Capability
-            .document_iri(dependency)
-            .map_err(|source| Error::document(path, DatasetError::Identity(source)))?;
-        let row = format!("{record}/dependency/{ordinal}");
-        emit(&record, &property("dependency"), Object::Iri(&row))?;
-        emit(&row, TYPE, Object::Iri(&property("Dependency")))?;
-        emit(&row, &property("owner"), Object::Iri(root))?;
-        emit(
-            &row,
-            &property("ordinal"),
-            Object::Literal(&ordinal.to_string(), INTEGER),
-        )?;
-        emit(&row, &property("target"), Object::Iri(&target))?;
     }
     Ok(())
 }
