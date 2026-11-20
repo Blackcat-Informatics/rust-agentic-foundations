@@ -10,7 +10,7 @@ mod receivers;
 pub(in crate::gate) mod scopes;
 pub(in crate::gate) mod visit;
 
-use std::cell::OnceCell;
+use std::cell::{Cell, OnceCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
@@ -25,7 +25,7 @@ use syn::Fields;
 use syn::ext::IdentExt;
 
 use super::{Found, charge, failure, push};
-use crate::syntax::{Alias, path_text};
+use crate::syntax::{Alias, AliasAttributes, path_text};
 use crate::{Census, Error, FileCtx, LedgerPattern, PatternMatcher, VisibilityError};
 use cache::OwnerCache;
 use scopes::{AliasTarget, Expanded, Glob, Scopes};
@@ -314,6 +314,8 @@ struct ScopedGlob<'a> {
     frame: usize,
     expanded: Expanded,
     text: String,
+    activation_uncertain: bool,
+    route_uncertain: Cell<bool>,
     direct: Option<GlobProvider>,
     chained: OnceCell<(GlobRoute, GlobProvider)>,
 }
@@ -328,6 +330,9 @@ impl ScopedGlob<'_> {
     }
 
     fn provider(&self) -> Option<&GlobProvider> {
+        if self.route_uncertain.get() {
+            return None;
+        }
         self.direct
             .as_ref()
             .or_else(|| self.chained.get().map(|(_, provider)| provider))
@@ -341,14 +346,17 @@ impl ScopedGlob<'_> {
                 || self.expanded.is_shadowed() && self.expanded.block)
     }
 
-    fn unresolved_relative(&self) -> bool {
-        self.provider().is_none() && self.relative_prefix().is_some()
+    fn can_supply_prefix_of(&self, other: &Self) -> bool {
+        self.frame <= other.frame
+            && other.expanded.sees_target_glob(self.frame)
+            && !std::ptr::eq(self.declaration, other.declaration)
     }
 
     fn relative_prefix(&self) -> Option<(&str, &[String])> {
         let (head, tail) = self.expanded.segments.split_first()?;
         let head = head.as_str();
-        (self.has_prefix()
+        (!self.route_uncertain.get()
+            && self.has_prefix()
             && !self.expanded.is_absolute()
             && !matches!(head, "crate" | "self" | "super"))
         .then_some((head, tail))
@@ -563,8 +571,15 @@ enum ReadingContext {
 
 #[derive(Default)]
 struct GlobCache {
-    contexts: BTreeMap<(bool, ReadingContext), SettledFrame>,
+    contexts: BTreeMap<(GlobProfile, ReadingContext), SettledFrame>,
     retained: usize,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum GlobProfile {
+    Ordinary,
+    EnumUsage,
+    Receiver,
 }
 
 struct SettledFrame {
@@ -576,6 +591,7 @@ struct SettledGlob {
     source_byte: Option<usize>,
     prefix: String,
     provider: Option<GlobProvider>,
+    activation_uncertain: bool,
 }
 
 #[derive(Clone, Default)]
@@ -1274,7 +1290,14 @@ impl Lookup<'_, '_> {
             limits,
             u64::from(cache.contexts.len().bit_width()) + 1,
         )?;
-        let key = (self.label == enum_usage::RULE, context.clone());
+        let profile = if scopes.receiver_lookup() {
+            GlobProfile::Receiver
+        } else if self.label == enum_usage::RULE {
+            GlobProfile::EnumUsage
+        } else {
+            GlobProfile::Ordinary
+        };
+        let key = (profile, context.clone());
         if !cache.contexts.contains_key(&key) {
             let globs = self.resolve_block_globs(scopes, frame, limits)?;
             let frame_globs = || globs.iter().take_while(move |glob| glob.frame == frame);
@@ -1303,6 +1326,7 @@ impl Lookup<'_, '_> {
                         source_byte: glob.declaration.source_byte,
                         prefix,
                         provider: glob.provider().cloned(),
+                        activation_uncertain: glob.activation_uncertain,
                     },
                     0,
                     limits,
@@ -1365,6 +1389,18 @@ impl Lookup<'_, '_> {
             if exclusion.is_some_and(|byte| glob.source_byte == Some(byte)) {
                 continue;
             }
+            if glob.activation_uncertain {
+                if self.glob_may_bind(
+                    &glob.prefix,
+                    glob.provider.as_ref(),
+                    head,
+                    namespace,
+                    limits,
+                )? {
+                    found.opaque.get_or_insert_with(|| glob.prefix.clone());
+                }
+                continue;
+            }
             match &glob.provider {
                 Some(GlobProvider::Module) => {
                     if let Some(route) = self.glob_member(&glob.prefix, head, namespace, limits)? {
@@ -1393,6 +1429,26 @@ impl Lookup<'_, '_> {
             }
         }
         Ok(found)
+    }
+
+    fn glob_may_bind(
+        &self,
+        prefix: &str,
+        provider: Option<&GlobProvider>,
+        head: &str,
+        namespace: Namespace,
+        limits: &mut MatchLimits,
+    ) -> Result<bool, Error> {
+        match provider {
+            Some(GlobProvider::Module) => {
+                Ok(self.glob_member(prefix, head, namespace, limits)?.is_some())
+            }
+            Some(provider) => Ok(!matches!(
+                provider.variant(head, namespace, false, limits)?,
+                VariantLookup::Missing
+            )),
+            None => Ok(true),
+        }
     }
 
     fn merge_imported_variants(
@@ -1564,6 +1620,9 @@ impl Lookup<'_, '_> {
                 break;
             }
         }
+        if scopes.receiver_lookup() {
+            self.propagate_glob_uncertainty(&globs, limits)?;
+        }
         // A later anchored chain can introduce a second candidate in the
         // declaration scope. Recheck each inferred prefix against that scope.
         for glob in globs.iter().filter(|glob| glob.relative_prefix().is_some()) {
@@ -1589,7 +1648,12 @@ impl Lookup<'_, '_> {
         globs: &mut GlobPrefixes<'s>,
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
+        let receiver_lookup = scopes.receiver_lookup();
         for declaration in declarations {
+            if receiver_lookup && declaration.attributes == AliasAttributes::Excluded {
+                charge(self.label, limits, 1)?;
+                continue;
+            }
             let mut eligible =
                 |alias: &Alias, namespace| self.eligible_declaration(alias, namespace);
             let Some(expanded) = scopes.expand_import(
@@ -1609,11 +1673,15 @@ impl Lookup<'_, '_> {
                 limits,
                 text.len().try_into().unwrap_or(u64::MAX),
             )?;
+            let route_uncertain = receiver_lookup && expanded.has_uncertain_alias();
             let mut prefix = ScopedGlob {
                 declaration,
                 frame,
                 expanded,
                 text,
+                activation_uncertain: receiver_lookup
+                    && declaration.attributes == AliasAttributes::Uncertain,
+                route_uncertain: Cell::new(route_uncertain),
                 direct: None,
                 chained: OnceCell::new(),
             };
@@ -1634,13 +1702,13 @@ impl Lookup<'_, '_> {
         globs: &GlobPrefixes<'_>,
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
-        // A chain gets a definition only from a previously proved prefix. Each
-        // productive pass resolves at least one declaration, and every candidate
-        // examination spends the shared work grant. Unanchored cycles stay opaque.
+        // Settle routes through definitely active declarations first. This
+        // gives a conditional declaration a chance to prove its provider's
+        // namespace before it can make a competing route opaque.
         loop {
             let mut changed = false;
             for glob in globs.iter() {
-                if glob.unresolved_relative()
+                if glob.provider().is_none()
                     && let Some(route) = self.chain_glob(glob, globs, limits)?
                 {
                     let provider = self.glob_provider(scopes, &route.sites, limits)?;
@@ -1657,6 +1725,53 @@ impl Lookup<'_, '_> {
         Ok(())
     }
 
+    fn propagate_glob_uncertainty(
+        &self,
+        globs: &GlobPrefixes<'_>,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        let work = globs.len().try_into().unwrap_or(u64::MAX);
+        charge(self.label, limits, work)?;
+        if !globs
+            .iter()
+            .any(|glob| glob.activation_uncertain || glob.route_uncertain.get())
+        {
+            return Ok(());
+        }
+        // All visible frames have settled. Each productive pass makes at
+        // least one more route opaque, so even cycles terminate.
+        loop {
+            charge(self.label, limits, work)?;
+            let mut changed = false;
+            for glob in globs.iter() {
+                let Some((head, _)) = glob.relative_prefix() else {
+                    continue;
+                };
+                for candidate in globs.iter() {
+                    charge(self.label, limits, 1)?;
+                    if candidate.can_supply_prefix_of(glob)
+                        && (candidate.route_uncertain.get()
+                            || candidate.activation_uncertain
+                                && self.glob_may_bind(
+                                    candidate.prefix(),
+                                    candidate.provider(),
+                                    head,
+                                    Namespace::Type,
+                                    limits,
+                                )?)
+                    {
+                        glob.route_uncertain.set(true);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            if !changed {
+                return Ok(());
+            }
+        }
+    }
+
     fn chain_glob(
         &self,
         glob: &ScopedGlob<'_>,
@@ -1669,10 +1784,7 @@ impl Lookup<'_, '_> {
         let mut selected = GlobHead::default();
         for candidate in globs.iter() {
             charge(self.label, limits, 1)?;
-            if candidate.frame > glob.frame
-                || !glob.expanded.sees_target_glob(candidate.frame)
-                || std::ptr::eq(candidate.declaration, glob.declaration)
-            {
+            if !candidate.can_supply_prefix_of(glob) || candidate.activation_uncertain {
                 continue;
             }
             match candidate.provider() {
@@ -2409,10 +2521,10 @@ fn indexed_definitions(
     };
     // A module declaration is resolved by Source; only a block shadow
     // prevents reading the indexed path.
-    if expanded
-        .as_ref()
-        .is_some_and(|path| path.block && lookup.unproven_shadow(path))
-    {
+    if expanded.as_ref().is_some_and(|path| {
+        path.block && lookup.unproven_shadow(path)
+            || scopes.receiver_lookup() && path.has_uncertain_alias()
+    }) {
         return Ok(Vec::new());
     }
     let glob = lookup.glob_occurrence(scopes, &written, absolute, expanded.as_ref(), limits)?;

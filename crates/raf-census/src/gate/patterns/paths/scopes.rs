@@ -40,10 +40,19 @@ pub(super) struct Glob {
     pub(super) absolute: bool,
     pub(super) source_byte: Option<usize>,
     pub(super) trusted: bool,
+    pub(super) attributes: AliasAttributes,
 }
 
 impl Frame {
-    fn import_globs(&mut self, tree: &syn::UseTree, absolute: bool, trusted: bool) {
+    fn import_globs(
+        &mut self,
+        tree: &syn::UseTree,
+        absolute: bool,
+        attributes: &[syn::Attribute],
+        require_inert: bool,
+    ) {
+        let attributes = AliasAttributes::of(attributes);
+        let trusted = !require_inert || attributes == AliasAttributes::Inert;
         crate::syntax::visit_import_paths(tree, |parts, leaf| {
             if matches!(leaf, ImportLeaf::Glob) {
                 self.globs.push(Glob {
@@ -51,6 +60,7 @@ impl Frame {
                     absolute,
                     source_byte: parts.first().map(|part| part.span().byte_range().start),
                     trusted,
+                    attributes,
                 });
             }
         });
@@ -171,6 +181,10 @@ fn binding<'a>(
                 AliasAttributes::Inert => {}
             }
         }
+        let configured_import = receiver_imports && !frame.module && !alias.path.is_empty();
+        if configured_import && alias.attributes == AliasAttributes::Excluded {
+            continue;
+        }
         let applicable = if alias.path.is_empty() {
             namespace == Namespace::Type
         } else {
@@ -184,6 +198,10 @@ fn binding<'a>(
             )?
         };
         if !applicable {
+            continue;
+        }
+        if configured_import && alias.attributes == AliasAttributes::Uncertain {
+            uncertain = true;
             continue;
         }
         if selected.is_some_and(|previous| {
@@ -337,9 +355,6 @@ impl Scopes {
         };
         let keep_globs =
             (track_globs || self.track_written_receivers) && (!module || self.module_globs);
-        let trusted = |attributes: &[syn::Attribute]| {
-            !self.module_globs || crate::syntax::inert_attributes(attributes)
-        };
         let excluded = |attributes: &[syn::Attribute]| {
             self.module_globs && crate::syntax::definitely_excluded(attributes)
         };
@@ -363,7 +378,7 @@ impl Scopes {
                             .import_tree(tree, absolute, attributes);
                     }
                     if keep_globs {
-                        frame.import_globs(tree, absolute, trusted(attributes));
+                        frame.import_globs(tree, absolute, attributes, self.module_globs);
                     }
                 });
             }
@@ -371,7 +386,8 @@ impl Scopes {
                 frame.import_globs(
                     &import.tree,
                     import.leading_colon.is_some(),
-                    trusted(&import.attrs),
+                    &import.attrs,
+                    self.module_globs,
                 );
             }
             if !module || self.module_globs {
@@ -436,6 +452,10 @@ impl Scopes {
         let result = query();
         self.read_receiver_imports.set(previous);
         result
+    }
+
+    pub(super) fn receiver_lookup(&self) -> bool {
+        self.read_receiver_imports.get()
     }
 
     pub(super) fn end_receiver_boundary(&mut self, floor: usize) {

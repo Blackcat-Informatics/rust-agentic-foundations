@@ -182,6 +182,11 @@ path. Census follows admitted imports, including supported grouped block
 imports, reexports and unconditional nominal aliases at the binding
 declaration. An opaque block wildcard on that route prevents attribution.
 
+Written receiver lookup skips definitely excluded named, grouped and wildcard
+block imports. A conditionally active import with a possible binding in the
+queried namespace prevents receiver proof. A binding from a chained wildcard
+requires a proved route through its provider.
+
 The receiver expression must be a plain local identifier. A nearer untyped or
 unsupported binding shadows older proof. The matcher skips definitely excluded
 local declarations and their initializers. A local initializer and its `else`
@@ -358,6 +363,12 @@ arguments, imports and qualified calls. Ownership controls pair approved homes
 and exact variants with unsanctioned neighbours. Empty declarations, stale
 patterns and exhausted grants refuse beside supported cases.
 <!-- raf:tested-by raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours,raf_census::test_crate::census_gate::lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run,raf_census::test_crate::census_gate::lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans -->
+
+The receiver fixture checks definitely excluded imports in both namespaces,
+conditional imports with and without a relevant binding, and transitive
+wildcard uncertainty. It checks both declaration orders and compares ordinary
+path findings with the receiver rule enabled.
+<!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing -->
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |

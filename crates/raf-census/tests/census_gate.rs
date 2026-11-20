@@ -1807,13 +1807,7 @@ pub use home as alias;
     );
 }
 
-#[test]
-fn written_receiver_methods_keep_declaration_identity_and_runtime_shadowing() {
-    use std::collections::BTreeSet;
-
-    // A method token is reported only when a written local type or parameter
-    // proves the selected nominal identity in the binding's own scope.
-    let source = r"
+const WRITTEN_RECEIVER_SOURCE: &str = r#"
 pub mod home {
     pub struct Banned;
     pub struct Other;
@@ -1827,7 +1821,22 @@ pub mod home {
 }
 pub use home as alias;
 pub use home::Last as Selected;
+pub use home::Other as Choice;
 mod imported { pub fn value() -> u8 { 0 } }
+mod type_glob {
+    pub use crate::home::{Banned as Choice, Banned as FromGlob, TypeOnly as value};
+}
+mod wildcard_routes {
+    pub mod empty {}
+    pub mod active {
+        pub mod incoming { pub use crate::home::Banned as Through; }
+    }
+    pub mod optional {
+        pub mod incoming { pub use crate::home::Other as Through; }
+    }
+    pub mod unrelated { pub mod empty_provider {} }
+}
+pub use wildcard_routes::empty as route;
 #[allow(dead_code)]
 pub fn outside(mut value: Selected, other: home::Other) {
     value
@@ -1844,8 +1853,51 @@ pub fn outside(mut value: Selected, other: home::Other) {
     { use home::Other as Selected; value.run(); } // hit
     { use crate::home::exported_value as value; value.run(); }
     { use crate::home::TypeOnly as value; value.run(); } // hit
+    { #[cfg(any())] use crate::home::Banned as Choice; let local: Choice = home::Other; local.run(); }
+    { #[cfg(any())] use { ::std::fmt::Debug as D, crate::home::Banned as Choice }; let local: Choice = home::Other; local.run(); }
+    { #[cfg(any())] use crate::type_glob::*; let local: Choice = home::Other; local.run(); }
+    { #[allow(unused_imports)] use crate::home::Banned as Choice; let mut local: Choice = home::Banned; local.run(); } // hit
+    { use crate::type_glob::*; let mut local: FromGlob = home::Banned; local.run(); } // hit
+    { #[cfg(feature = "alternate")] use crate::home::Other as Selected; let local: Selected = home::Banned; local.run(); }
+    { #[cfg(feature = "alternate")] use crate::home::exported_value as Selected; let mut local: Selected = home::Banned; local.run(); } // hit
+    { #[cfg(feature = "alternate")] use crate::type_glob::*; let mut local: FromGlob = home::Banned; local.run(); }
+    {
+        use crate::wildcard_routes::active::*;
+        { use incoming::*; let mut local: Through = home::Banned; local.run(); } // hit
+    }
+    {
+        #[cfg(feature = "alternate")] use crate::wildcard_routes::optional as route;
+        use route::*;
+        use crate::wildcard_routes::active::*;
+        { use incoming::*; let mut local: Through = home::Banned; local.run(); }
+    }
+    {
+        use crate::wildcard_routes::active::*;
+        use incoming::*;
+        #[cfg(feature = "alternate")] use empty_provider::*;
+        use crate::wildcard_routes::unrelated::*;
+        let mut local: Through = home::Banned;
+        local.run(); // hit
+    }
+    {
+        use crate::wildcard_routes::unrelated::*;
+        #[cfg(feature = "alternate")] use empty_provider::*;
+        use crate::wildcard_routes::active::*;
+        use incoming::*;
+        let mut local: Through = home::Banned;
+        local.run(); // hit
+    }
+    { #[cfg(any())] use crate::home::exported_value as value; value.run(); } // hit
+    { #[cfg(any())] use { ::std::fmt::Debug as D, crate::home::exported_value as value }; value.run(); } // hit
+    { #[cfg(feature = "alternate")] use crate::home::exported_value as value; value.run(); }
+    { #[cfg(feature = "alternate")] use { ::std::fmt::Debug as D, crate::home::exported_value as value }; value.run(); }
+    { #[cfg(feature = "alternate")] use crate::home::TypeOnly as value; value.run(); } // hit
     { use crate::imported::*; value.run(); }
     { use crate::home::*; value.run(); } // hit
+    { #[cfg(any())] use crate::imported::*; value.run(); } // hit
+    { #[cfg(any())] use { ::std::fmt::Debug as D, crate::imported::* }; value.run(); } // hit
+    { #[cfg(feature = "alternate")] use crate::imported::*; value.run(); }
+    { #[cfg(feature = "alternate")] use crate::type_glob::*; value.run(); } // hit
     { use opaque::*; value.run(); }
     { use opaque::*; let mut value: crate::home::Banned = home::Banned; value.run(); } // hit
     let mut capture = || value.run(); // hit
@@ -1865,7 +1917,15 @@ pub fn outside(mut value: Selected, other: home::Other) {
     let value: home::Other = { value.run(); home::Other }; // hit
     value.run();
 }
-";
+"#;
+
+#[test]
+fn written_receiver_methods_keep_declaration_identity_and_runtime_shadowing() {
+    use std::collections::BTreeSet;
+
+    // A method token is reported only when a written local type or parameter
+    // proves the selected nominal identity in the binding's own scope.
+    let source = WRITTEN_RECEIVER_SOURCE;
     let report = Gate::workspace(".")
         .check_tree(&lexical_pattern_tree(
             source,
@@ -1879,19 +1939,22 @@ pub fn outside(mut value: Selected, other: home::Other) {
         .filter(|(_, line)| line.contains("// hit"))
         .map(|(line, _)| line + 1)
         .collect();
-    let actual: BTreeSet<_> = report
-        .findings()
-        .iter()
-        .filter(|finding| finding.contains(", rule "))
-        .filter_map(|finding| finding.strip_prefix("src/lib.rs:"))
-        .map(|finding| finding.split(':').next().unwrap().parse::<usize>().unwrap())
-        .collect();
-    assert_eq!(actual, expected, "{:?}", report.findings());
+    let mixed = mixed_policy_keeps_type_path_findings(source);
+    for (report, rule) in [(&report, "approved-call"), (&mixed, "written-receiver")] {
+        let rule = format!(", rule {rule}:");
+        let actual: BTreeSet<_> = report
+            .findings()
+            .iter()
+            .filter(|finding| finding.contains(&rule))
+            .filter_map(|finding| finding.strip_prefix("src/lib.rs:"))
+            .map(|finding| finding.split(':').next().unwrap().parse::<usize>().unwrap())
+            .collect();
+        assert_eq!(actual, expected, "{:?}", report.findings());
+    }
     assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
-    assert_mixed_policy_keeps_type_path_findings(source);
 }
 
-fn assert_mixed_policy_keeps_type_path_findings(source: &str) {
+fn mixed_policy_keeps_type_path_findings(source: &str) -> raf_census::GateReport {
     let graph = lexical_pattern_graph("typePath", "demo::home::Banned")
         .finish()
         .unwrap();
@@ -1949,6 +2012,7 @@ fn assert_mixed_policy_keeps_type_path_findings(source: &str) {
         ordinary.findings(),
         mixed.findings()
     );
+    mixed
 }
 
 #[test]
