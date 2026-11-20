@@ -56,6 +56,18 @@ fn root_starts_no_cargo_at_all() {
         (false, vec!["--root", &target, "status"]),
         (true, vec!["--root", &target, "docs", "preview", "grow"]),
         (true, vec!["--root", &target, "docs", "sync"]),
+        (
+            true,
+            vec![
+                "--root",
+                &target,
+                "--format",
+                "turtle",
+                "docs",
+                "export",
+                "--repository",
+            ],
+        ),
     ] {
         stubs
             .run(&support::elsewhere(), Shape::Direct, &args, cargo_var)
@@ -136,6 +148,24 @@ fn a_usage_error_starts_no_process() {
         &["docs", "export", "missing.md"],
         &["--format", "text", "docs", "export", "missing.md"],
         &["--format", "turtle", "-q", "docs", "export", "missing.md"],
+        &["--format", "turtle", "-q", "docs", "export", "--repository"],
+        &[
+            "--format",
+            "turtle",
+            "docs",
+            "export",
+            "missing.md",
+            "--repository",
+        ],
+        &[
+            "--format",
+            "turtle",
+            "docs",
+            "export",
+            "--repository",
+            "--iri",
+            "https://example.org/",
+        ],
         &["--format", "turtle", "-q", "evidence", "claims", "peak"],
         &["--format", "ntriples", "-q", "evidence", "claims", "peak"],
     ] {
@@ -146,6 +176,8 @@ fn a_usage_error_starts_no_process() {
     for args in [
         &["docs", "export", "missing.md"][..],
         &["--format", "turtle", "-q", "docs", "export", "missing.md"],
+        &["docs", "export", "--repository"],
+        &["--format", "turtle", "-q", "docs", "export", "--repository"],
     ] {
         let run = support::run_in(&support::elsewhere(), Shape::Direct, args).expect(2);
         assert!(run.stderr.contains("requires --format"), "{run:#?}");
