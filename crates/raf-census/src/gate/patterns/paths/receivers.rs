@@ -14,7 +14,7 @@ use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 
 use super::{
-    Compiled, Lookup, PathOwner, Role, Scopes, Site, charge, first_party_nominal,
+    Compiled, Lookup, OwnerCache, PathOwner, Role, Scopes, Site, charge, first_party_nominal,
     indexed_definitions,
 };
 use crate::Error;
@@ -32,13 +32,21 @@ struct ReceiverReach {
 #[derive(Clone, Copy)]
 pub(super) enum ReceiverPath<'a> {
     Written(&'a syn::Path),
-    Constructor(&'a syn::Path),
+    Braced(&'a syn::Path),
+    Tuple(&'a syn::Path),
 }
 
 impl<'a> ReceiverPath<'a> {
-    pub(super) fn path(self) -> &'a syn::Path {
+    fn path(self) -> &'a syn::Path {
         match self {
-            Self::Written(path) | Self::Constructor(path) => path,
+            Self::Written(path) | Self::Braced(path) | Self::Tuple(path) => path,
+        }
+    }
+
+    pub(super) fn namespace(self) -> Namespace {
+        match self {
+            Self::Written(_) | Self::Braced(_) => Namespace::Type,
+            Self::Tuple(_) => Namespace::Value,
         }
     }
 
@@ -46,8 +54,11 @@ impl<'a> ReceiverPath<'a> {
         first_party_nominal(item)
             && match self {
                 Self::Written(_) => true,
-                Self::Constructor(_) => {
+                Self::Braced(_) => {
                     item.kind == SymbolKind::Struct && item.shape == Some(FieldShape::Named)
+                }
+                Self::Tuple(_) => {
+                    item.kind == SymbolKind::Struct && item.shape == Some(FieldShape::Tuple)
                 }
             }
     }
@@ -62,24 +73,25 @@ impl ReceiverBinding {
         self.0.is_empty()
     }
 
-    pub(super) fn prove(
+    pub(super) fn prove<'w>(
         identifier: &syn::Ident,
         receiver: ReceiverPath<'_>,
         label: &str,
-        context: (&Workspace, &raf_source::CodeResolver<'_>, &Scopes),
-        location: (&raf_source::SourceFile, &[&Item]),
+        context: (&'w Workspace, &raf_source::CodeResolver<'_>, &Scopes),
+        location: (&raf_source::SourceFile, &mut OwnerCache<'w>),
         limits: &mut MatchLimits,
     ) -> Result<Self, Error> {
         let (workspace, code, scopes) = context;
-        let (file, owners) = location;
+        let (file, cache) = location;
+        let span = receiver.path().span();
+        let owners = cache.get(workspace, file, span.byte_range().start, limits)?;
         scopes.admit_receiver(label, owners.len().saturating_add(1), limits)?;
         let mut reaches = Vec::new();
         Memory::new(&mut Resident)
             .reserve(&mut reaches, owners.len())
             .map_err(|source| Error::PatternIndexStorage { source })?;
         scopes.admit_receiver(label, reaches.capacity().saturating_add(1), limits)?;
-        let span = receiver.path().span();
-        let site = Site::at(file, span, Role::ReceiverType, Namespace::Type, false);
+        let site = Site::at(file, span, Role::ReceiverType, receiver.namespace(), false);
         let work = span
             .byte_range()
             .len()
@@ -201,7 +213,9 @@ fn nominal(
     if receiver.admits(item) {
         return Ok(Some(*id));
     }
-    if item.kind == SymbolKind::TypeAlias && item.file.authority() == SourceAuthorityId::FIRST_PARTY
+    if receiver.namespace() == Namespace::Type
+        && item.kind == SymbolKind::TypeAlias
+        && item.file.authority() == SourceAuthorityId::FIRST_PARTY
     {
         let target = lookup.nominal_alias(*id, limits)?;
         return Ok(
@@ -214,7 +228,7 @@ fn nominal(
 pub(super) fn binding<'a>(
     pattern: &'a syn::Pat,
     ty: Option<&'a syn::Type>,
-    initializer: Option<&'a syn::ExprStruct>,
+    initializer: Option<&'a syn::Expr>,
 ) -> Option<(&'a syn::Ident, ReceiverPath<'a>)> {
     let (pattern, ty) = match (pattern, ty) {
         (syn::Pat::Type(typed), None) => (&*typed.pat, Some(&*typed.ty)),
@@ -226,13 +240,9 @@ pub(super) fn binding<'a>(
     if identifier.by_ref.is_some() || identifier.subpat.is_some() {
         return None;
     }
-    let receiver = match (ty, initializer) {
-        (Some(syn::Type::Path(ty)), _) if ty.qself.is_none() => ReceiverPath::Written(&ty.path),
-        (None, Some(expr))
-            if expr.qself.is_none() && crate::syntax::inert_attributes(&expr.attrs) =>
-        {
-            ReceiverPath::Constructor(&expr.path)
-        }
+    let receiver = match ty {
+        Some(syn::Type::Path(ty)) if ty.qself.is_none() => ReceiverPath::Written(&ty.path),
+        None => constructor(initializer?)?,
         _ => return None,
     };
     receiver
@@ -241,6 +251,24 @@ pub(super) fn binding<'a>(
         .iter()
         .all(|segment| segment.arguments.is_empty())
         .then_some((&identifier.ident, receiver))
+}
+
+fn constructor(initializer: &syn::Expr) -> Option<ReceiverPath<'_>> {
+    use crate::syntax::inert_attributes;
+
+    match initializer {
+        syn::Expr::Struct(expr) if expr.qself.is_none() && inert_attributes(&expr.attrs) => {
+            Some(ReceiverPath::Braced(&expr.path))
+        }
+        syn::Expr::Call(call) if inert_attributes(&call.attrs) => {
+            let syn::Expr::Path(callee) = call.func.as_ref() else {
+                return None;
+            };
+            (callee.qself.is_none() && inert_attributes(&callee.attrs))
+                .then_some(ReceiverPath::Tuple(&callee.path))
+        }
+        _ => None,
+    }
 }
 
 pub(super) fn local(receiver: &syn::Expr) -> Option<String> {

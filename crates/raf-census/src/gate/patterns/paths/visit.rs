@@ -365,6 +365,25 @@ fn enum_pattern_binding<'w>(
     Ok(read)
 }
 
+fn numeric_pattern_binding<'w>(
+    (workspace, code, file): (&'w Workspace, &CodeResolver<'_>, &'w SourceFile),
+    owner_cache: &mut super::OwnerCache<'w>,
+    scopes: &Scopes,
+    name: &syn::Ident,
+    limits: &mut MatchLimits,
+) -> Result<bool, Error> {
+    let site = Site::at(file, name.span(), Role::Pattern, Namespace::Value, false);
+    let owners = owner_cache.get(workspace, file, site.byte, limits)?;
+    let mut classified = None;
+    for owner in owners {
+        let lookup = numeric_lookup(workspace, code, &site, owner)?;
+        let path = syn::Path::from(name.clone());
+        let actual = super::indexed_definitions(&lookup, scopes, &path, limits)?;
+        super::classify_pattern(workspace, UNCLASSIFIED, &actual, false, &mut classified)?;
+    }
+    Ok(!classified.unwrap_or_default())
+}
+
 struct Paths<'a, 'p, 'w, 'c> {
     compiled: &'a [Compiled<'p>],
     receiver_matcher: Option<&'a Compiled<'p>>,
@@ -687,7 +706,7 @@ impl Paths<'_, '_, '_, '_> {
         &mut self,
         pattern: &syn::Pat,
         ty: Option<&syn::Type>,
-        initializer: Option<&syn::ExprStruct>,
+        initializer: Option<&syn::Expr>,
     ) {
         if self.error.is_some() {
             return;
@@ -700,10 +719,11 @@ impl Paths<'_, '_, '_, '_> {
             },
             |compiled| compiled.pattern.id.as_str(),
         );
-        let candidate = self
-            .receiver_matcher
-            .and_then(|_| receivers::binding(pattern, ty, initializer));
-        let mut accepted = false;
+        let candidate = self.receiver_matcher.and_then(|matcher| {
+            receivers::binding(pattern, ty, initializer)
+                .map(|(name, receiver)| (name, receiver, matcher.pattern.id.as_str()))
+        });
+        let mut pending = None;
         let live_binding = self.receiver_matcher.is_some();
         let result = self.scopes.bind(pattern, live_binding, |scopes, name| {
             if let Some(inventory) = &self.enum_hits {
@@ -716,30 +736,13 @@ impl Paths<'_, '_, '_, '_> {
                 );
             }
             if self.numeric.is_some() {
-                let site = Site::at(
-                    self.file,
-                    name.span(),
-                    Role::Pattern,
-                    Namespace::Value,
-                    false,
+                return numeric_pattern_binding(
+                    (self.workspace, self.code, self.file),
+                    &mut self.owners,
+                    scopes,
+                    name,
+                    self.limits,
                 );
-                let owners = self
-                    .owners
-                    .get(self.workspace, self.file, site.byte, self.limits)?;
-                let mut classified = None;
-                for owner in owners {
-                    let lookup = numeric_lookup(self.workspace, self.code, &site, owner)?;
-                    let path = syn::Path::from(name.clone());
-                    let actual = super::indexed_definitions(&lookup, scopes, &path, self.limits)?;
-                    super::classify_pattern(
-                        self.workspace,
-                        UNCLASSIFIED,
-                        &actual,
-                        false,
-                        &mut classified,
-                    )?;
-                }
-                return Ok(!classified.unwrap_or_default());
             }
             if let Some(paths) = self.path_uses.as_deref_mut() {
                 let site = Site::at(
@@ -764,7 +767,7 @@ impl Paths<'_, '_, '_, '_> {
                 )
                 .map(|constant| !constant);
             }
-            super::constant(
+            let constant = super::constant(
                 self.workspace,
                 self.code,
                 self.file,
@@ -772,19 +775,34 @@ impl Paths<'_, '_, '_, '_> {
                 name,
                 &mut self.owners,
                 self.limits,
-            )
-            .map(|constant| {
-                accepted |= !constant && candidate.is_some_and(|(ident, _)| ident == name);
-                !constant
-            })
+            )?;
+            if !constant
+                && let Some((identifier, receiver, label)) = candidate
+                && identifier == name
+            {
+                // Tuple callees resolve before this local enters the value scope.
+                let tuple_proof = (receiver.namespace() == Namespace::Value)
+                    .then(|| {
+                        ReceiverBinding::prove(
+                            name,
+                            receiver,
+                            label,
+                            (self.workspace, self.code, scopes),
+                            (self.file, &mut self.owners),
+                            self.limits,
+                        )
+                    })
+                    .transpose()?;
+                pending = Some((identifier, receiver, label, tuple_proof));
+            }
+            Ok(!constant)
         });
         self.error = result.err();
         if self.error.is_none()
-            && accepted
-            && let (Some(matcher), Some((name, receiver))) = (self.receiver_matcher, candidate)
+            && let Some((name, receiver, label, tuple_proof)) = pending
         {
             self.error = self
-                .remember_receiver(name, receiver, &matcher.pattern.id)
+                .remember_receiver(name, receiver, label, tuple_proof)
                 .err();
         }
     }
@@ -794,21 +812,20 @@ impl Paths<'_, '_, '_, '_> {
         name: &syn::Ident,
         receiver: ReceiverPath<'_>,
         label: &str,
+        tuple_proof: Option<ReceiverBinding>,
     ) -> Result<(), Error> {
-        let owners = self.owners.get(
-            self.workspace,
-            self.file,
-            receiver.path().span().byte_range().start,
-            self.limits,
-        )?;
-        let binding = ReceiverBinding::prove(
-            name,
-            receiver,
-            label,
-            (self.workspace, self.code, &self.scopes),
-            (self.file, owners),
-            self.limits,
-        )?;
+        let binding = if let Some(proof) = tuple_proof {
+            proof
+        } else {
+            ReceiverBinding::prove(
+                name,
+                receiver,
+                label,
+                (self.workspace, self.code, &self.scopes),
+                (self.file, &mut self.owners),
+                self.limits,
+            )?
+        };
         if !binding.is_empty() {
             self.scopes
                 .record_receiver(name.unraw().to_string(), binding, label, self.limits)?;
@@ -1495,9 +1512,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             }
         });
         let initializer = self.receiver_matcher.and_then(|_| {
-            let syn::Expr::Struct(initializer) = node.init.as_ref()?.expr.as_ref() else {
-                return None;
-            };
+            let initializer = node.init.as_ref()?.expr.as_ref();
             crate::syntax::inert_attributes(&node.attrs).then_some(initializer)
         });
         self.bind_with_receiver(&node.pat, None, initializer);

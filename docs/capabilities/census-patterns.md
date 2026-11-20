@@ -179,12 +179,16 @@ physical first-party struct, enum or union and a method identifier. The selector
 admits an optional leading `::` and a raw method identifier. A simple named
 local or an ordinary function or closure parameter can supply a bare written
 type path. A simple local without an annotation can supply a direct braced
-initializer whose bare path proves a first-party named-field struct. The local
-and initializer carry only inert attributes. Struct updates and empty named-field
-initializers use the same proof. An explicit annotation takes precedence.
-Census resolves the path at the declaration or initializer through admitted
-imports, reexports and unconditional nominal aliases. An opaque block wildcard
-on that route prevents attribution.
+initializer for a first-party named-field struct or a direct call to a
+first-party tuple struct constructor. The local, initializer and tuple callee
+carry only inert attributes. Struct updates and empty named-field initializers
+use the braced proof. An explicit annotation takes precedence.
+Each path has plain segments without generic arguments or a qualified self
+type. Census resolves written types and braced paths in the Type namespace
+through admitted imports, reexports and unconditional nominal aliases. A tuple
+callee must resolve uniquely in the Value namespace at the initializer,
+including through value imports and reexports. An opaque block wildcard on
+the lookup route prevents attribution.
 
 Receiver lookup skips definitely excluded named, grouped and wildcard
 block imports. A conditionally active import with a possible binding in the
@@ -325,8 +329,8 @@ different workspace definition is never replaced by a spelling match.
 
 - Matching observes written syntax before macro expansion. Method matching
 establishes the nominal receiver type from the written annotation or admitted
-struct initializer and records the method name. Automatic adjustments, general
-type inference and method implementation selection are outside that proof.
+constructor initializer and records the method name. Automatic adjustments,
+general type inference and method implementation selection are outside that proof.
 Macro expression-list and statement/repetition arguments are observed through
 the existing Rust parser; other macro languages remain token syntax. Named
 qualified type/trait paths are supported. A relevant anonymous qualified receiver
@@ -375,12 +379,15 @@ wildcard uncertainty. It checks both declaration orders and compares ordinary
 path findings with the receiver rule enabled.
 <!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing -->
 
-The constructor case follows an imported alias to a named-field struct beside
-a same-method call on an unrelated struct. It exercises annotation precedence,
-an initializer using the previous local, and uncertain and excluded imports.
-A tuple struct with numeric braced fields supplies a typed finding beside an
-unproved constructor. A shared-file fixture tests typed and constructor
-receivers under separate source reaches and scope selections.
+The braced constructor case follows an imported alias to a named-field
+struct beside a same-method call on an unrelated struct. It exercises
+annotation precedence, an initializer using the previous local, and
+uncertain and excluded imports.
+The tuple fixture reports the written annotation and the direct constructor
+call through a reexport. It leaves numeric braced tuple syntax, the unrelated
+constructor, a same-named function and an indirect call clear. A shared-file
+fixture tests typed and constructor receivers under separate source reaches
+and scope selections.
 <!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing,raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file -->
 
 <!-- raf:generated:verification-matrix -->
