@@ -99,7 +99,7 @@ inventory reserves its three guard IDs for the Ledger's numeric bounds registry.
 | raf:path | A path occurrence in expressions, types, attributes or imports. |
 | raf:macro | A written macro invocation; a single-segment name also follows written import aliases. |
 | raf:typePath | A named type path, trait bound or type prefix of a qualified expression path. |
-| raf:methodOn | A dot call on a local name whose written type proves the selected nominal receiver. |
+| raf:methodOn | A dot call on a local name with a proved nominal receiver type. |
 | raf:literalRegex | A decoded ordinary string literal matched by the native bounded ECMA evaluator. |
 | raf:tokens | A body-normalized token sequence, where $_ consumes exactly one token or balanced group. |
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence -->
@@ -174,20 +174,24 @@ invocation, the invocation's scope must admit the same target and reading
 module as the owner's resolution.
 <!-- raf:tested-by raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses,raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope,raf_census::test_crate::census_gate::macro_type_hits_use_the_scope_of_the_reach_that_resolves_the_type -->
 
-**Written receiver types.** A selector such as `demo::Client::send` names one
+**Receiver type proofs.** A selector such as `demo::Client::send` names one
 physical first-party struct, enum or union and a method identifier. The selector
 admits an optional leading `::` and a raw method identifier. A simple named
-local or an ordinary function or closure parameter needs a bare written type
-path. Census follows admitted imports, including supported grouped block
-imports, reexports and unconditional nominal aliases at the binding
-declaration. An opaque block wildcard on that route prevents attribution.
+local or an ordinary function or closure parameter can supply a bare written
+type path. A simple local without an annotation can supply a direct braced
+initializer whose bare path proves a first-party named-field struct. The local
+and initializer carry only inert attributes. Struct updates and empty named-field
+initializers use the same proof. An explicit annotation takes precedence.
+Census resolves the path at the declaration or initializer through admitted
+imports, reexports and unconditional nominal aliases. An opaque block wildcard
+on that route prevents attribution.
 
-Written receiver lookup skips definitely excluded named, grouped and wildcard
+Receiver lookup skips definitely excluded named, grouped and wildcard
 block imports. A conditionally active import with a possible binding in the
 queried namespace prevents receiver proof. A binding from a chained wildcard
 requires a proved route through its provider.
 
-The receiver expression must be a plain local identifier. A nearer untyped or
+The receiver expression must be a plain local identifier. A nearer unproved or
 unsupported binding shadows older proof. The matcher skips definitely excluded
 local declarations and their initializers. A local initializer and its `else`
 block are read before the local binds. A nearer block import in the Value
@@ -320,8 +324,9 @@ different workspace definition is never replaced by a spelling match.
 <!-- raf:tested-by raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows,raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function -->
 
 - Matching observes written syntax before macro expansion. Method matching
-establishes the written receiver type and method name. Inferred types, automatic
-adjustments and method implementation selection are outside that proof.
+establishes the nominal receiver type from the written annotation or admitted
+struct initializer and records the method name. Automatic adjustments, general
+type inference and method implementation selection are outside that proof.
 Macro expression-list and statement/repetition arguments are observed through
 the existing Rust parser; other macro languages remain token syntax. Named
 qualified type/trait paths are supported. A relevant anonymous qualified receiver
@@ -369,6 +374,14 @@ conditional imports with and without a relevant binding, and transitive
 wildcard uncertainty. It checks both declaration orders and compares ordinary
 path findings with the receiver rule enabled.
 <!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing -->
+
+The constructor case follows an imported alias to a named-field struct beside
+a same-method call on an unrelated struct. It exercises annotation precedence,
+an initializer using the previous local, and uncertain and excluded imports.
+A tuple struct with numeric braced fields supplies a typed finding beside an
+unproved constructor. A shared-file fixture tests typed and constructor
+receivers under separate source reaches and scope selections.
+<!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing,raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file -->
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |

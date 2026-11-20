@@ -3,7 +3,7 @@
 
 //! Bounded source syntax traversal with explicit lexical scopes.
 
-use super::receivers::{self, ReceiverBinding};
+use super::receivers::{self, ReceiverBinding, ReceiverPath};
 use super::{
     Compiled, CrossPackagePaths, Found, Role, Scopes, Site, VISIBILITY, cross_package_uses, matches,
 };
@@ -672,16 +672,23 @@ impl Paths<'_, '_, '_, '_> {
             }
             match input {
                 syn::FnArg::Receiver(_) => self.scopes.receiver(),
-                syn::FnArg::Typed(typed) => self.bind_typed(&typed.pat, Some(&typed.ty)),
+                syn::FnArg::Typed(typed) => {
+                    self.bind_with_receiver(&typed.pat, Some(&typed.ty), None);
+                }
             }
         }
     }
 
     fn bind(&mut self, pattern: &syn::Pat) {
-        self.bind_typed(pattern, None);
+        self.bind_with_receiver(pattern, None, None);
     }
 
-    fn bind_typed(&mut self, pattern: &syn::Pat, ty: Option<&syn::Type>) {
+    fn bind_with_receiver(
+        &mut self,
+        pattern: &syn::Pat,
+        ty: Option<&syn::Type>,
+        initializer: Option<&syn::ExprStruct>,
+    ) {
         if self.error.is_some() {
             return;
         }
@@ -695,7 +702,7 @@ impl Paths<'_, '_, '_, '_> {
         );
         let candidate = self
             .receiver_matcher
-            .and_then(|_| receivers::binding(pattern, ty));
+            .and_then(|_| receivers::binding(pattern, ty, initializer));
         let mut accepted = false;
         let live_binding = self.receiver_matcher.is_some();
         let result = self.scopes.bind(pattern, live_binding, |scopes, name| {
@@ -774,27 +781,29 @@ impl Paths<'_, '_, '_, '_> {
         self.error = result.err();
         if self.error.is_none()
             && accepted
-            && let (Some(matcher), Some((name, ty))) = (self.receiver_matcher, candidate)
+            && let (Some(matcher), Some((name, receiver))) = (self.receiver_matcher, candidate)
         {
-            self.error = self.remember_receiver(name, ty, &matcher.pattern.id).err();
+            self.error = self
+                .remember_receiver(name, receiver, &matcher.pattern.id)
+                .err();
         }
     }
 
     fn remember_receiver(
         &mut self,
         name: &syn::Ident,
-        ty: &syn::Type,
+        receiver: ReceiverPath<'_>,
         label: &str,
     ) -> Result<(), Error> {
         let owners = self.owners.get(
             self.workspace,
             self.file,
-            ty.span().byte_range().start,
+            receiver.path().span().byte_range().start,
             self.limits,
         )?;
-        let binding = ReceiverBinding::write(
+        let binding = ReceiverBinding::prove(
             name,
-            ty,
+            receiver,
             label,
             (self.workspace, self.code, &self.scopes),
             (self.file, owners),
@@ -1485,7 +1494,13 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
                 }
             }
         });
-        self.bind(&node.pat);
+        let initializer = self.receiver_matcher.and_then(|_| {
+            let syn::Expr::Struct(initializer) = node.init.as_ref()?.expr.as_ref() else {
+                return None;
+            };
+            crate::syntax::inert_attributes(&node.attrs).then_some(initializer)
+        });
+        self.bind_with_receiver(&node.pat, None, initializer);
         self.receiver_matcher = matcher;
     }
 
