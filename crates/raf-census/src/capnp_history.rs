@@ -7,6 +7,7 @@ mod capture;
 mod compare;
 mod descriptor;
 mod occupancy;
+pub mod persistence;
 pub mod reader_evidence;
 mod shape;
 #[cfg(test)]
@@ -243,7 +244,7 @@ pub fn check(
         base,
         &selected,
         options.required_annotation,
-        true,
+        descriptor::Roots::Require,
         options.capture.map(|capture| (capture.key, capture.base)),
     )?;
     let current = load(
@@ -251,7 +252,7 @@ pub fn check(
         current,
         &selected,
         options.required_annotation,
-        false,
+        descriptor::Roots::AllowMissing,
         options
             .capture
             .map(|capture| (capture.key, capture.current)),
@@ -264,15 +265,37 @@ fn load(
     snapshot: Snapshot<'_>,
     roots: &BTreeSet<TypeId>,
     required_annotation: Option<TypeId>,
-    require_roots: bool,
+    mode: descriptor::Roots<'_>,
     verification: Option<(&CaptureKey, CaptureFiles<'_>)>,
 ) -> Result<descriptor::Schema, Error> {
-    let tree = PinnedGitTree::open(repository, snapshot.commit, &LoadOptions::default()).map_err(
-        |source| Error::Revision {
-            commit: snapshot.commit.into(),
+    let tree = open_tree(repository, snapshot.commit)?;
+    load_descriptor(
+        &tree,
+        snapshot,
+        roots,
+        required_annotation,
+        mode,
+        verification,
+    )
+}
+
+fn open_tree(repository: &Path, commit: &str) -> Result<PinnedGitTree<'static>, Error> {
+    PinnedGitTree::open(repository, commit, &LoadOptions::default()).map_err(|source| {
+        Error::Revision {
+            commit: commit.into(),
             source,
-        },
-    )?;
+        }
+    })
+}
+
+fn load_descriptor(
+    tree: &dyn Tree,
+    snapshot: Snapshot<'_>,
+    roots: &BTreeSet<TypeId>,
+    required_annotation: Option<TypeId>,
+    mode: descriptor::Roots<'_>,
+    verification: Option<(&CaptureKey, CaptureFiles<'_>)>,
+) -> Result<descriptor::Schema, Error> {
     let bytes = tree
         .read_bytes(snapshot.descriptor, descriptor::MAX_BYTES)
         .map_err(|source| Error::Read {
@@ -281,7 +304,7 @@ fn load(
         })?;
     let capture = verification
         .map(|(key, files)| {
-            capture::load(&tree, files, key, (snapshot.descriptor, &bytes)).map_err(|source| {
+            capture::load(tree, files, key, (snapshot.descriptor, &bytes)).map_err(|source| {
                 Error::Capture {
                     commit: snapshot.commit.into(),
                     path: files.statement.clone(),
@@ -294,10 +317,8 @@ fn load(
         &bytes,
         roots,
         required_annotation,
-        require_roots,
-        capture
-            .as_ref()
-            .map(|capture| (capture, &tree as &dyn Tree)),
+        mode,
+        capture.as_ref().map(|capture| (capture, tree)),
     )
     .map_err(|source| match (source, verification) {
         (DescriptorError::Capture(source), Some((_, files))) => Error::Capture {
