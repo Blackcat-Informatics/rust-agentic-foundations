@@ -353,13 +353,16 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
     use purrdf_rdf::{ParseOptions, parse_dataset_with};
     use raf_okf::Document;
     use raf_source::RelPath;
-    use raf_workplan::authoring::documents_from_dataset;
+    use raf_workplan::authoring::repository_from_dataset;
 
     // A missing dependency and binding remain in the recovered declarations.
     let fixture_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
     let repo = Repo::bare_in(fixture_dir, "repository-export");
     let alpha = "docs/capabilities/alpha.md";
     let beta = "docs/capabilities/beta.md";
+    let index = "docs/capabilities/index.md";
+    let index_text = "<!-- raf:generated:catalogue -->\r\n  Loaded café 索引  \r\n<!-- raf:generated:end -->\r\n";
+    repo.put(index, index_text);
     repo.put(
         alpha,
         &support::capability(
@@ -394,7 +397,9 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
         let parsed =
             parse_dataset_with(run.stdout.as_bytes(), media, None, &ParseOptions::default())
                 .unwrap();
-        assert_eq!(documents_from_dataset(&parsed.dataset).unwrap(), expected);
+        let restored = repository_from_dataset(&parsed.dataset).unwrap();
+        assert_eq!(restored.documents, expected);
+        assert_eq!(restored.index.unwrap().body().text(), index_text);
 
         let root = repo.root().to_str().unwrap();
         let explicit: Vec<_> = ["--root", root].into_iter().chain(args).collect();
@@ -418,17 +423,30 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
     }
     assert_eq!(repo.snapshot(), before);
 
+    repo.put(index, "hand-written navigation\n");
+    refused_repository_export(&repo, index, "text outside a generated block");
+
+    std::fs::remove_file(repo.root().join(index)).unwrap();
+    std::fs::create_dir(repo.root().join(index)).unwrap();
+    refused_repository_export(&repo, index, "cannot be read");
+    std::fs::remove_dir(repo.root().join(index)).unwrap();
+    repo.put(index, index_text);
+
     repo.put(alpha, "---\ntype: Capability\n");
-    let malformed = repo.snapshot();
+    refused_repository_export(&repo, alpha, "fence");
+}
+
+fn refused_repository_export(repo: &Repo, path: &str, reason: &str) {
+    let before = repo.snapshot();
     let run = repo
         .both(&["--format", "ntriples", "docs", "export", "--repository"])
         .expect(2);
     assert_eq!(run.stdout, "");
     assert!(
-        run.stderr.contains(alpha) && run.stderr.contains("fence"),
+        run.stderr.contains(path) && run.stderr.contains(reason),
         "{run:#?}"
     );
-    assert_eq!(repo.snapshot(), malformed);
+    assert_eq!(repo.snapshot(), before);
 }
 
 #[test]

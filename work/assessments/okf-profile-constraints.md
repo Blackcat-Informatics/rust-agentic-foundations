@@ -7,7 +7,7 @@ subject: cap:okf-profile#constraints
 inputs:
   - kind: section
     name: cap:okf-profile#constraints
-    digest: 1aaa21e07f4c5f5c88d745a9e50f32af4091f204bfb04831899c2be2679bc3b2
+    digest: e3a43f537d6d6d577012c1f821884028c87d58a2c9eabb0621e9e157c4d115c2
   - kind: symbol
     name: raf_okf::Actor
     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
@@ -199,7 +199,10 @@ inputs:
     digest: d1291272ea1f8dd3647998100c9ce3dd8fd1eb766c1019b5ba70f8f39b753289
   - kind: symbol
     name: raf_okf::Index::from_dataset
-    digest: 58faa31e23eacf04ff4ae8e7744f557c67625158a14213116f75bece48094e64
+    digest: fabedb78a8b6041f84bf5a7e6792dff978f0e8ff95a4d64c2dd2eb8d5a0f49d9
+  - kind: symbol
+    name: raf_okf::Index::from_dataset_subject
+    digest: 66e6c453a1dfed87276608f508fda6f0a3296ddc78a5c05ef17b7bd15b3e4daa
   - kind: symbol
     name: raf_okf::Index::to_dataset
     digest: 81fbfbc362952f0b3e7e93bc94c77581a42f12c93671d99e78af2121ec42cb58
@@ -340,7 +343,7 @@ inputs:
     digest: 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
   - kind: symbol
     name: raf_okf::dataset
-    digest: 44ed5ecc9e0310fb19d03506c04e7ef5a884b7530aab362a3f3b63efc42a8f8b
+    digest: d927f7795e5b9bb11f2dd89c04a0985dd47c842a772a695a8e9af622eb0b4b66
   - kind: symbol
     name: raf_okf::dataset_node_prefix
     digest: f8af0ef8b56ba966d5d8be25e64e0adbf58b0a229b3046a1c00c5dac6e342fb6

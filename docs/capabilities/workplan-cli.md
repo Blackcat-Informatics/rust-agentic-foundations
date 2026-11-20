@@ -255,12 +255,13 @@ output, and diagnostics name the inspected path. Export changes no input.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 `docs export --repository` renders the closed Workplan authoring dataset.
-It uses the ordinary Workplan repository load and includes each admitted
-profile document and its declared relationships. A dependency can name an
-absent target. Select the repository with `--repository` or give one
-document path. The navigation Index export takes its explicit IRI with
-the path. An incomplete profile load exits with a diagnostic and emits
-no RDF.
+It includes each admitted profile document and its declared relationships,
+including dependencies on absent targets. The graph carries the loaded
+`docs/capabilities/index.md` at a fixed identity when that file exists.
+Select the repository with `--repository` or give one document path.
+Selected-file navigation export takes its explicit IRI with the path.
+An incomplete profile load or a present invalid Index exits with a
+diagnostic and emits no RDF.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input,cargo_workplan::test_crate::process::a_usage_error_starts_no_process -->
 
 `docs fragment` returns complete raw Markdown for one imported Cargo library, an explicit public receiving module, capability and existing named diagram. Every code binding of that capability is required. The native static fragment API checks source and imported library identities and refuses private, hidden, unresolved or ambiguous references before emitting output. Diagnostics use stderr. Quiet mode and non-text formats refuse before input loading.
@@ -380,6 +381,11 @@ carriers, explicit root selection, conflicting selections and incomplete
 profile input. The process-admission fixture checks repository export with
 the consumer tools replaced by recording stubs.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input,cargo_workplan::test_crate::process::root_starts_no_cargo_at_all -->
+
+The repository fixture recovers the exact loaded Index bytes in both
+carriers. Hand-written Index text and a directory at the reserved path
+each produce a path diagnostic with empty stdout.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 CLI fixtures compare static verification with the library, exercise prospective completion and refusal, reject missing trust before discovery, and keep stored commands inert.
 

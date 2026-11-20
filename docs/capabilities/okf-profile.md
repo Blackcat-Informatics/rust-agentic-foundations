@@ -31,6 +31,7 @@ bindings:
     - raf_okf::dataset_node_prefix
     - raf_okf::Index::to_dataset
     - raf_okf::Index::from_dataset
+    - raf_okf::Index::from_dataset_subject
     - raf_okf::Body
     - raf_okf::Profile
     - raf_okf::Index
@@ -889,6 +890,12 @@ generated-block content, order and spans, whitespace, Unicode and line endings
 survive. Reconstruction uses `Index::parse`, preserving its body locations.
 <!-- raf:tested-by raf_okf::test_crate::index::navigation_dataset_preserves_generated_bytes_through_native_formats,raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations -->
 
+`Index::from_dataset_subject(dataset, expected_iri)` applies the same
+decoder to all asserted rows of the selected Index subject. Workplan
+supplies the fixed Index IRI and checks repository membership and
+ownership across the shared graph.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
+
 `Document::to_dataset(path)` validates one of the eight RAF types and returns a
 native PurRDF dataset. `Document::from_dataset(dataset, path)` recovers its model
 through the existing constructors, Markdown writer, parser and profile validator.
@@ -1100,15 +1107,14 @@ Between `---` fences, with the seven sections as its body, at the path
 
 ## Constraints
 
-The Index codec refuses unknown predicates, extra subjects, wrong types,
-cardinality errors, retained duplicate assertions, blank nodes, named graphs
-including empty declarations, reifiers and annotations. Both directions check
-combined IRI/body bytes against 1 MiB before carrier value copies or native
-construction. This text policy does not bound total allocator consumption.
-Native failures retain their original causes. The carrier does not supply
-repository semantic projection, binding/dependency/digest relationships, a
-canonical authoring-validation transition or a complete profile revision.
-<!-- raf:tested-by raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations,raf_okf::test_crate::index::navigation_identity_and_aggregate_text_admission_have_exact_boundaries -->
+The Index codec refuses unknown predicates, wrong types, cardinality
+errors, retained duplicate assertions, blank nodes in the carrier, named
+graphs including empty declarations, reifiers and annotations. The
+whole-dataset inverse also refuses extra subjects. Both directions
+check combined IRI/body bytes against 1 MiB before carrier value copies
+or native construction. This is a text bound. Native failures retain
+their original causes.
+<!-- raf:tested-by raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations,raf_okf::test_crate::index::navigation_identity_and_aggregate_text_admission_have_exact_boundaries,rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
 Native Markdown admission retains the whole-document 1 MiB ceiling, 64 open
 quote/list containers and 4096 bytes per link destination or title. The existing
@@ -1604,6 +1610,6 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
 | `raf_okf::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
-| `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input` | test | [Contract](#contract), [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

@@ -6,15 +6,17 @@
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use purrdf_core::{QuadIds, RdfDataset, TermId, TermRef};
-use raf_okf::{Capability, DOCUMENT_IRI_BASE, DatasetError, DocType, Document};
+use raf_okf::{Capability, DOCUMENT_IRI_BASE, DatasetError, DocType, Document, Index};
 use raf_source::RelPath;
 
-use crate::{Finding, Workplan};
+use crate::{Finding, Workplan, generated::INDEX_PATH, model::IndexSlot};
 
 mod read;
 mod write;
 
 const FRAME: &str = "https://blackcatinformatics.ca/raf/workplan/repository/1";
+const INDEX_IRI: &str = "https://blackcatinformatics.ca/raf/workplan/repository/1/index";
+const INDEX_EDGE: &str = "https://blackcatinformatics.ca/raf/workplan/authoring/1#index";
 const VOCAB: &str = "https://blackcatinformatics.ca/raf/workplan/authoring/1#";
 const TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 const STRING: &str = "http://www.w3.org/2001/XMLSchema#string";
@@ -37,6 +39,8 @@ pub enum Error {
         /// Original document refusal.
         source: Box<DatasetError>,
     },
+    /// The navigation Index codec refused the repository Index.
+    Index(Box<DatasetError>),
     /// The inventory or projected declarations do not match the closed shape.
     Shape {
         /// The document, assertion or repository identity to repair.
@@ -69,6 +73,7 @@ impl fmt::Display for Error {
             Self::Document { path, source } => {
                 write!(formatter, "authoring document {path}: {source}")
             }
+            Self::Index(source) => write!(formatter, "authoring Index {INDEX_PATH}: {source}"),
             Self::Shape { subject, reason } => {
                 write!(formatter, "authoring graph {subject}: {reason}")
             }
@@ -85,7 +90,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Document { source, .. } => Some(source.as_ref()),
+            Self::Document { source, .. } | Self::Index(source) => Some(source.as_ref()),
             Self::Native { source, .. } => Some(source.as_ref()),
             _ => None,
         }
@@ -112,6 +117,10 @@ impl Error {
             path: bounded(path),
             source: Box::new(source),
         }
+    }
+
+    fn index(source: DatasetError) -> Self {
+        Self::Index(Box::new(source))
     }
 
     fn native(subject: &str, source: impl std::error::Error + Send + Sync + 'static) -> Self {
@@ -148,7 +157,8 @@ fn canonical_path(path: &str) -> Result<RelPath, Error> {
 
 impl Workplan<'_> {
     /// Project every admitted profile document and its declared bindings and
-    /// dependencies into one closed, default-graph native RDF 1.2 dataset.
+    /// dependencies, and the loaded navigation Index when present, into one
+    /// closed, default-graph native RDF 1.2 dataset.
     ///
     /// The export uses the profile Document model and declared spellings. A
     /// missing dependency still has its declared IRI, and a binding does not
@@ -161,19 +171,36 @@ impl Workplan<'_> {
         if let Some(finding) = &self.authoring_fault {
             return Err(Error::Incomplete(Box::new(finding.clone())));
         }
-        write::repository(self)
+        let index = match &self.index {
+            IndexSlot::Absent => None,
+            IndexSlot::Valid(index) => Some(index),
+            IndexSlot::Invalid(finding) => {
+                return Err(Error::Incomplete(Box::new(finding.clone())));
+            }
+        };
+        write::repository(self, index)
     }
 }
 
-/// Recover the exact profile authoring models by repository-relative path.
+/// The recovered authoring content of a repository.
+#[derive(Debug)]
+pub struct RepositoryAuthoring {
+    /// Profile authoring documents keyed by canonical repository-relative paths.
+    pub documents: BTreeMap<RelPath, Document>,
+    /// Navigation at `docs/capabilities/index.md`, when present.
+    pub index: Option<Index>,
+}
+
+/// Recover the exact profile documents and optional navigation Index.
 ///
 /// Checks the closed inventory and declared relationship occurrences against
 /// the recovered Capability values. No source index is read.
 ///
 /// # Errors
 /// Refuses missing, duplicate or unrelated subjects, malformed documents,
-/// inconsistent declarations, unsupported RDF layers and resource limits.
-pub fn documents_from_dataset(dataset: &RdfDataset) -> Result<BTreeMap<RelPath, Document>, Error> {
+/// invalid Index membership or carrier, inconsistent declarations, unsupported
+/// RDF layers and resource limits.
+pub fn repository_from_dataset(dataset: &RdfDataset) -> Result<RepositoryAuthoring, Error> {
     read::repository(dataset)
 }
 

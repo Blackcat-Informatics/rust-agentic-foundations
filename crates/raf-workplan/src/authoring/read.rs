@@ -7,13 +7,13 @@ use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 
 use purrdf_core::{GraphMatch, QuadIds, RdfDataset, TermId, TermRef};
 use raf_okf::{
-    DATASET_NODE_IRI_BASE, DOCUMENT_IRI_BASE, Document, RafDocument, dataset_node_prefix,
+    DATASET_NODE_IRI_BASE, DOCUMENT_IRI_BASE, Document, Index, RafDocument, dataset_node_prefix,
 };
-use raf_source::RelPath;
 
 use super::{
-    Counts, Error, FRAME, MAX_DOCUMENTS, Object, STRING, canonical_path, declarations, iri,
-    property, record_iri, root_statements,
+    Counts, Error, FRAME, INDEX_EDGE, INDEX_IRI, INDEX_PATH, MAX_DOCUMENTS, Object,
+    RepositoryAuthoring, STRING, canonical_path, declarations, iri, property, record_iri,
+    root_statements,
 };
 
 struct Group<'a> {
@@ -23,7 +23,7 @@ struct Group<'a> {
 
 type Groups<'a> = BTreeMap<TermId, Group<'a>>;
 
-pub(super) fn repository(dataset: &RdfDataset) -> Result<BTreeMap<RelPath, Document>, Error> {
+pub(super) fn repository(dataset: &RdfDataset) -> Result<RepositoryAuthoring, Error> {
     if dataset.named_graphs().next().is_some()
         || dataset.reifiers().next().is_some()
         || dataset.annotations().next().is_some()
@@ -33,13 +33,17 @@ pub(super) fn repository(dataset: &RdfDataset) -> Result<BTreeMap<RelPath, Docum
             "only asserted default-graph statements are admitted",
         ));
     }
+    let index_subject = index_member(dataset)?;
     let mut verifier = Verifier {
         dataset,
-        expected: 0,
+        expected: usize::from(index_subject.is_some()),
     };
     root_statements(|s, p, o| verifier.statement(s, p, o))?;
     let mut groups = inventory(dataset)?;
-    let metadata_rows = route(dataset, &mut groups)?;
+    let metadata_rows = route(dataset, &mut groups, index_subject)?;
+    let index = index_subject
+        .map(|_| Index::from_dataset_subject(dataset, INDEX_IRI).map_err(Error::index))
+        .transpose()?;
     let mut documents = BTreeMap::new();
     for (id, group) in groups {
         let (document, typed) =
@@ -60,7 +64,7 @@ pub(super) fn repository(dataset: &RdfDataset) -> Result<BTreeMap<RelPath, Docum
             "unexpected inventory or declaration assertions; use only the recovered document projections",
         ));
     }
-    Ok(documents)
+    Ok(RepositoryAuthoring { documents, index })
 }
 
 fn rows(
@@ -76,6 +80,26 @@ fn rows(
         object,
         GraphMatch::Default,
     )
+}
+
+fn index_member(dataset: &RdfDataset) -> Result<Option<TermId>, Error> {
+    let (Some(frame), Some(predicate)) = (
+        dataset.term_id_by_iri(FRAME),
+        dataset.term_id_by_iri(INDEX_EDGE),
+    ) else {
+        return Ok(None);
+    };
+    let mut membership = rows(dataset, frame, predicate, None);
+    let Some(row) = membership.next() else {
+        return Ok(None);
+    };
+    if dataset.term_id_by_iri(INDEX_IRI) != Some(row.o) || membership.next().is_some() {
+        return Err(Error::shape(
+            INDEX_PATH,
+            "use one repository Index assertion to the fixed Index IRI",
+        ));
+    }
+    Ok(Some(row.o))
 }
 
 fn one(dataset: &RdfDataset, subject: TermId, key: &str) -> Result<TermId, Error> {
@@ -155,7 +179,11 @@ fn inventory(dataset: &RdfDataset) -> Result<Groups<'_>, Error> {
     Ok(groups)
 }
 
-fn route(dataset: &RdfDataset, groups: &mut Groups<'_>) -> Result<usize, Error> {
+fn route(
+    dataset: &RdfDataset,
+    groups: &mut Groups<'_>,
+    index_subject: Option<TermId>,
+) -> Result<usize, Error> {
     let mut prefixes = BTreeMap::new();
     for &root in groups.keys() {
         let root_iri = iri(dataset, root)?;
@@ -174,6 +202,9 @@ fn route(dataset: &RdfDataset, groups: &mut Groups<'_>) -> Result<usize, Error> 
     let mut metadata = 0;
     for row in dataset.quads() {
         counts.native(dataset, row)?;
+        if index_subject == Some(row.s) {
+            continue;
+        }
         let is_metadata = match seen.entry(row.s) {
             Entry::Occupied(entry) => *entry.get(),
             Entry::Vacant(entry) => {
@@ -192,6 +223,12 @@ fn route_subject(
     prefixes: &BTreeMap<String, TermId>,
 ) -> Result<bool, Error> {
     let name = iri(dataset, subject)?;
+    if name == INDEX_IRI {
+        return Err(Error::shape(
+            INDEX_PATH,
+            "the Index carrier requires repository membership",
+        ));
+    }
     if name == FRAME
         || name
             .strip_prefix(FRAME)
