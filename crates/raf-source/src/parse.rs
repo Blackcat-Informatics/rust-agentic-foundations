@@ -8,10 +8,10 @@ use std::thread;
 
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
-use crate::meter::{Meter, NativeAdmission};
+use crate::meter::{ConfigurationUsage, FactAllowance, Meter, NativeAdmission, Usage};
 use crate::path::RelPath;
 use crate::prescan::{Scan, prescan_file, shebang};
-use crate::{LoadOptions, TreeError};
+use crate::{ActiveConfiguration, LoadOptions, TreeError};
 
 mod entry;
 #[cfg(target_os = "linux")]
@@ -20,8 +20,45 @@ pub(crate) mod parallel;
 /// The only worker output retained by the canonical walk.
 pub(crate) struct Extracted {
     pub(crate) text: String,
-    pub(crate) facts: Result<(crate::facts::FileFacts, usize), crate::facts::ExtractError>,
+    pub(crate) head: ExtractedHead,
     pub(crate) scan: Scan,
+}
+
+pub(crate) struct ExtractedHead {
+    pub(crate) facts: Result<(crate::facts::FileFacts, usize), ExtractionError>,
+    pub(crate) configuration_usage: Option<ConfigurationUsage>,
+}
+
+pub(crate) enum ExtractionError {
+    Configuration(LoadError),
+    Facts(crate::facts::ExtractError),
+}
+
+/// Admit declaration selection and facts only after the canonical walk grants
+/// the current file's budget. Diagnostic paths belong to that same reach.
+pub(crate) fn extract_head(
+    tree: &mut syn::File,
+    path: &RelPath,
+    text: &str,
+    allowance: FactAllowance,
+    configuration: Option<(&ActiveConfiguration, &LoadOptions, Usage)>,
+) -> ExtractedHead {
+    let Some((configuration, options, usage)) = configuration else {
+        return ExtractedHead {
+            facts: crate::facts::extract(tree, text, allowance).map_err(ExtractionError::Facts),
+            configuration_usage: None,
+        };
+    };
+    let local = Meter::resume(options, usage);
+    let facts = crate::configuration::filter(tree, configuration, &local, path)
+        .map_err(ExtractionError::Configuration)
+        .and_then(|()| {
+            crate::facts::extract(tree, text, allowance).map_err(ExtractionError::Facts)
+        });
+    ExtractedHead {
+        facts,
+        configuration_usage: Some(local.configuration_usage()),
+    }
 }
 
 /// A native storage refusal located at `file`.
@@ -64,7 +101,8 @@ pub(crate) trait Parser {
         id: &crate::FileId,
         text: String,
         options: &LoadOptions,
-        allowance: crate::meter::FactAllowance,
+        allowance: FactAllowance,
+        usage: Usage,
     ) -> Result<Extracted, LoadError>;
 }
 

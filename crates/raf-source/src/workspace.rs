@@ -41,6 +41,31 @@ use crate::target::TargetKind;
 use crate::target::{Context, Package, PackageId, Target, check_crate_paths, derive_targets};
 use crate::tree::Tree;
 
+#[derive(Clone, Copy)]
+enum SyntaxLoad<'a> {
+    Ordinary(Option<&'a dyn crate::parse::Parser>),
+    Configured(crate::DeclaredConfiguration<'a>),
+    #[cfg(target_os = "linux")]
+    ConfiguredParallel(crate::DeclaredConfiguration<'a>, &'a crate::ParallelOptions),
+}
+
+impl<'a> SyntaxLoad<'a> {
+    fn declared(self) -> Option<crate::DeclaredConfiguration<'a>> {
+        match self {
+            Self::Ordinary(_) => None,
+            Self::Configured(configuration) => Some(configuration),
+            #[cfg(target_os = "linux")]
+            Self::ConfiguredParallel(configuration, _) => Some(configuration),
+        }
+    }
+}
+
+struct SourceWalk {
+    walked: Walked,
+    #[cfg(target_os = "linux")]
+    parallel_usage: Option<crate::ParallelUsage>,
+}
+
 /// A source file of the workspace, parsed once.
 ///
 /// The facts the index is built from stay inside the crate; the items of a
@@ -228,7 +253,7 @@ impl Workspace {
         }
         let resources = crate::parse::parallel::Resources::new(parallel)?;
         std::thread::scope(|scope| {
-            let parser = crate::parse::parallel::Executor::new(scope, &resources, parallel)?;
+            let parser = crate::parse::parallel::Executor::new(scope, &resources, parallel, None)?;
             let meter = Meter::new(options);
             let result = Self::load_meter_with_parser(
                 tree,
@@ -281,7 +306,7 @@ impl Workspace {
         let meter = Meter::new(options);
         meter.items(LOAD_BASE_BYTES, root, None)?;
         let selected = crate::discovery::workspace_members(tree, root, &meter)?;
-        Self::build_discovered(tree, options, &meter, None, &selected, None)
+        Self::build_discovered(tree, options, &meter, None, &selected)
     }
 
     fn load_meter(
@@ -308,7 +333,14 @@ impl Workspace {
         }
         meter.items(LOAD_BASE_BYTES, &root, None)?;
         let discovered = discover(tree, roots, meter)?;
-        Self::build_discovered_with_parser(tree, options, meter, binding, &discovered, None, parser)
+        Self::build_discovered_with_syntax(
+            tree,
+            options,
+            meter,
+            binding,
+            &discovered,
+            SyntaxLoad::Ordinary(parser),
+        )
     }
 
     fn build_discovered(
@@ -317,21 +349,24 @@ impl Workspace {
         meter: &Meter,
         binding: Option<&locked::BindingLoad<'_>>,
         discovered: &crate::discovery::Discovered,
-        selected: Option<crate::DeclaredConfiguration<'_>>,
     ) -> Result<Self, LoadError> {
-        Self::build_discovered_with_parser(
-            tree, options, meter, binding, discovered, selected, None,
+        Self::build_discovered_with_syntax(
+            tree,
+            options,
+            meter,
+            binding,
+            discovered,
+            SyntaxLoad::Ordinary(None),
         )
     }
 
-    fn build_discovered_with_parser(
+    fn build_discovered_with_syntax(
         tree: &dyn Tree,
         options: &LoadOptions,
         meter: &Meter,
         binding: Option<&locked::BindingLoad<'_>>,
         discovered: &crate::discovery::Discovered,
-        selected: Option<crate::DeclaredConfiguration<'_>>,
-        parser: Option<&dyn crate::parse::Parser>,
+        syntax: SyntaxLoad<'_>,
     ) -> Result<Self, LoadError> {
         let root = RelPath::root();
         let found = &discovered.packages;
@@ -392,28 +427,28 @@ impl Workspace {
             &mut locked,
             &mut infos,
             &mut derived,
-            selected,
+            syntax.declared(),
         )?;
         let versions = declared_versions(&reader, found, &mut caches)?;
         let package_names = package_name_index(&packages, meter)?;
         let (targets, origins) = selected_targets(derived)?;
-        let walked = walk_sources(
+        let source = walk_source_syntax(
             tree,
             &targets,
             &origins,
             &locked,
             selected.as_ref(),
             meter,
-            parser,
+            syntax,
         )?;
-        let files = source_files(walked.files, &targets)?;
+        let files = source_files(source.walked.files, &targets)?;
         reader.install_edges(binding, &dependencies, &locked, &targets, &mut infos)?;
         let index = Index::build(
             &targets,
             &files,
-            &walked.visits,
+            &source.walked.visits,
             &infos,
-            walked.paths,
+            source.walked.paths,
             meter,
         )?;
         let (locked, references) = binding_sets(binding, locked);
@@ -430,7 +465,7 @@ impl Workspace {
             index,
             usage: meter.usage(),
             #[cfg(target_os = "linux")]
-            parallel_usage: None,
+            parallel_usage: source.parallel_usage,
             options: options.clone(),
         })
     }
@@ -1745,6 +1780,60 @@ fn configure_targets(
             selected::configure(reader, dependencies, infos, derived, configuration)
         })
         .transpose()
+}
+
+fn walk_source_syntax(
+    tree: &dyn Tree,
+    targets: &[Target],
+    origins: &[Origin],
+    bindings: &[LockedBinding],
+    selected: Option<&crate::ActiveConfiguration>,
+    meter: &Meter,
+    syntax: SyntaxLoad<'_>,
+) -> Result<SourceWalk, LoadError> {
+    #[cfg(target_os = "linux")]
+    if let SyntaxLoad::ConfiguredParallel(_, parallel) = syntax {
+        let selected = selected.ok_or_else(|| {
+            internal(
+                &RelPath::root(),
+                None,
+                "parallel target configuration was not admitted".to_owned(),
+            )
+        })?;
+        let resources = crate::parse::parallel::Resources::new(parallel)?;
+        return std::thread::scope(|scope| {
+            let parser = crate::parse::parallel::Executor::new(
+                scope,
+                &resources,
+                parallel,
+                Some((selected, meter.options())),
+            )?;
+            let walked = walk_sources(
+                tree,
+                targets,
+                origins,
+                bindings,
+                Some(selected),
+                meter,
+                Some(&parser),
+            );
+            let parallel_usage = Some(parser.finish());
+            walked.map(|walked| SourceWalk {
+                walked,
+                parallel_usage,
+            })
+        });
+    }
+    let parser = match syntax {
+        SyntaxLoad::Ordinary(parser) => parser,
+        _ => None,
+    };
+    let walked = walk_sources(tree, targets, origins, bindings, selected, meter, parser)?;
+    Ok(SourceWalk {
+        walked,
+        #[cfg(target_os = "linux")]
+        parallel_usage: None,
+    })
 }
 
 fn walk_sources(

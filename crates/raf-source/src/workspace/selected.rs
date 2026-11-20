@@ -3,7 +3,7 @@
 
 //! Exact declared target selection without dependency or provider admission.
 
-use super::{PackageInfo, Reader, Workspace};
+use super::{PackageInfo, Reader, SyntaxLoad, Workspace};
 use crate::configuration::{self, ActiveConfiguration, DeclaredConfiguration};
 use crate::meter::Meter;
 use crate::{DependencyDeclaration, LoadError, LoadOptions, RelPath, Tree};
@@ -57,17 +57,54 @@ impl Workspace {
         configuration: DeclaredConfiguration<'_>,
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
+        Self::load_selected(
+            tree,
+            manifest,
+            options,
+            SyntaxLoad::Configured(configuration),
+        )
+    }
+
+    /// Load one declared Cargo target using the bounded native Linux parser workers.
+    ///
+    /// The manifest, target and declaration selection match
+    /// [`Self::load_configured_target`]. Only parsing is speculative. The
+    /// canonical coordinator admits selection and facts using the original
+    /// source and configuration budgets. The tree must satisfy
+    /// [`crate::ParallelTree`]'s stable observation contract.
+    ///
+    /// # Errors
+    /// Returns the canonical input errors of [`Self::load_configured_target`],
+    /// or scheduler-storage and worker-start failures. All workers are joined.
+    ///
+    /// # Panics
+    /// Resumes a canonically reached parser panic after worker cleanup.
+    #[cfg(target_os = "linux")]
+    pub fn par_load_configured_target(
+        tree: &dyn crate::ParallelTree,
+        manifest: &RelPath,
+        configuration: DeclaredConfiguration<'_>,
+        options: &LoadOptions,
+        parallel: &crate::ParallelOptions,
+    ) -> Result<Self, LoadError> {
+        Self::load_selected(
+            tree,
+            manifest,
+            options,
+            SyntaxLoad::ConfiguredParallel(configuration, parallel),
+        )
+    }
+
+    fn load_selected(
+        tree: &dyn Tree,
+        manifest: &RelPath,
+        options: &LoadOptions,
+        syntax: SyntaxLoad<'_>,
+    ) -> Result<Self, LoadError> {
         let meter = Meter::new(options);
         meter.items(crate::index::LOAD_BASE_BYTES, manifest, None)?;
         let discovered = crate::discovery::single(tree, manifest, &meter)?;
-        Self::build_discovered(
-            tree,
-            options,
-            &meter,
-            None,
-            &discovered,
-            Some(configuration),
-        )
+        Self::build_discovered_with_syntax(tree, options, &meter, None, &discovered, syntax)
     }
 }
 

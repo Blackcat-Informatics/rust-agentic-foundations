@@ -46,7 +46,7 @@ inputs:
     digest: de8fa7c6e008ee0dbfe4be3e089b77fc3351f0411c6552fd89aeb60a0edacb6d
   - kind: symbol
     name: raf_source::workspace::locked::reference
-    digest: fd6c1c386536fcb1b27c99c106b699acb509a02439ac0d4a37c25e7085a8c8c8
+    digest: c1331f8b148b74be0fcd6a2ece64b0ab89acee2761638acc159be601e99e338b
 verdict: accepted
 by: agent
 ---
