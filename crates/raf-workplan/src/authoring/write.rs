@@ -7,12 +7,12 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use purrdf_core::{RdfDataset, RdfDatasetBuilder};
 use purrdf_lex::allocation::{Ceiling, Memory};
-use raf_okf::{Capability, DatasetError, Document, Index};
+use raf_okf::{DatasetError, Document, Index};
 use raf_source::RelPath;
 
 use super::{
-    Counts, Error, FRAME, INDEX_EDGE, INDEX_IRI, INDEX_PATH, MAX_DOCUMENTS, MAX_NATIVE_BYTES,
-    Object, canonical_path, declarations, root_statements,
+    Counts, Declarations, Error, FRAME, INDEX_EDGE, INDEX_IRI, INDEX_PATH, MAX_DOCUMENTS,
+    MAX_NATIVE_BYTES, Object, canonical_path, declarations, root_statements,
 };
 use crate::{Loaded, Workplan};
 
@@ -43,11 +43,13 @@ pub(super) fn repository(
         writer.statement(FRAME, INDEX_EDGE, Object::Iri(INDEX_IRI))?;
     }
     for capability in plan.capabilities() {
-        writer.document(capability, Some(capability.value()))?;
+        writer.document(capability, Declarations::Capability(capability.value()))?;
     }
     writer.documents(plan.changes())?;
     writer.documents(plan.architecture())?;
-    writer.documents(plan.evidence())?;
+    for evidence in plan.evidence() {
+        writer.document(evidence, Declarations::Evidence(evidence.value()))?;
+    }
     writer.documents(plan.assessments())?;
     writer.documents(plan.reviews())?;
     writer.documents(plan.coverage())?;
@@ -65,16 +67,12 @@ impl Writer<'_> {
         documents: impl IntoIterator<Item = &'a Loaded<T>>,
     ) -> Result<(), Error> {
         for document in documents {
-            self.document(document, None)?;
+            self.document(document, Declarations::None)?;
         }
         Ok(())
     }
 
-    fn document<T>(
-        &mut self,
-        loaded: &Loaded<T>,
-        capability: Option<&Capability>,
-    ) -> Result<(), Error> {
+    fn document<T>(&mut self, loaded: &Loaded<T>, declared: Declarations<'_>) -> Result<(), Error> {
         let path = loaded.path();
         if self.paths.len() == MAX_DOCUMENTS {
             return Err(Error::limit(path, "4096 documents"));
@@ -94,7 +92,7 @@ impl Writer<'_> {
             .to_dataset(path)
             .map_err(|source| Error::document(path, source))?;
         self.carrier(path, &dataset)?;
-        declarations((path, &root), capability, |s, p, o| self.statement(s, p, o))?;
+        declarations((path, &root), declared, |s, p, o| self.statement(s, p, o))?;
         self.roots.insert(root);
         Ok(())
     }

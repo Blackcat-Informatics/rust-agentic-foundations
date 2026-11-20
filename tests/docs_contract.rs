@@ -1030,6 +1030,8 @@ fn check_repository_bindings(
 #[test]
 fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input()
 -> Result<(), Box<dyn Error>> {
+    const EVIDENCE: &str = "work/evidence/ledger-sync-bound.md";
+
     let mut files = files();
     let (_, capability) = files.iter_mut().find(|(path, _)| *path == DEMO).unwrap();
     *capability = capability
@@ -1042,6 +1044,10 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
             "    - demo::missing\n    - demo::real\n    - demo::missing\n",
         );
     let expected = Document::parse(capability)?;
+    let evidence = include_str!("../crates/raf-okf/tests/fixtures/evidence.md")
+        .replace("for: [cap:ledger-sync]", "for: [cap:missing, cap:demo]");
+    let expected_evidence = Document::parse(&evidence)?;
+    files.push((EVIDENCE, evidence));
     let workspace = checkouts::source();
     let mut tree =
         MemoryTree::try_from_iter(files.iter().map(|(path, text)| (*path, text.as_str())))?;
@@ -1056,6 +1062,10 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
     assert_eq!(
         restored.documents.get(&RelPath::new(DEMO)?),
         Some(&expected)
+    );
+    assert_eq!(
+        restored.documents.get(&RelPath::new(EVIDENCE)?),
+        Some(&expected_evidence)
     );
     let (_, index_text) = files.iter().find(|(path, _)| *path == INDEX).unwrap();
     assert_eq!(restored.index.unwrap().body().text(), index_text);
@@ -1080,6 +1090,7 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
     let other = DocType::Capability.document_iri("cap:other")?;
     let vocab = "https://blackcatinformatics.ca/raf/workplan/authoring/1#";
     assert_index_refusals(&dataset, vocab)?;
+    assert_evidence_relationships(&dataset, vocab)?;
     for (ordinal, target) in [&missing, &other, &missing].into_iter().enumerate() {
         assert!(text.contains(&format!(
             "/dependency/{ordinal}> <{vocab}target> <{target}> ."
@@ -1093,21 +1104,7 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
             "/binding/code/{ordinal}> <{vocab}spelling> \"{spelling}\" ."
         )));
     }
-    let wrong = DocType::Capability.document_iri("cap:wrong")?;
-    let edited = text.replace(
-        &format!("<{vocab}target> <{missing}>"),
-        &format!("<{vocab}target> <{wrong}>"),
-    );
-    let edited = parse_dataset_with(
-        edited.as_bytes(),
-        "application/n-triples",
-        None,
-        &ParseOptions::default(),
-    )?;
-    assert!(matches!(
-        authoring::repository_from_dataset(&edited.dataset),
-        Err(authoring::Error::Shape { subject, .. }) if subject.ends_with("/dependency/0")
-    ));
+    assert_dependency_target_refusal(&dataset, vocab)?;
     let path = RelPath::new(DEMO)?;
     tree.replace(&path, "---\ntype: Capability\n".to_owned())?;
     let incomplete = Workplan::load(&tree, &workspace);
@@ -1118,11 +1115,113 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
     Ok(())
 }
 
+fn assert_dependency_target_refusal(
+    dataset: &purrdf_core::RdfDataset,
+    vocab: &str,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::RdfTerm;
+
+    let mut rows: Vec<_> = dataset.owned_quads().collect();
+    let predicate = format!("{vocab}target");
+    let target = rows
+        .iter_mut()
+        .find(|row| {
+            row.predicate == predicate
+                && matches!(&row.subject, RdfTerm::Iri(iri) if iri.ends_with("/dependency/0"))
+        })
+        .unwrap();
+    target.object = RdfTerm::iri(DocType::Capability.document_iri("cap:wrong")?);
+    assert!(matches!(
+        authoring_refusal(&rows)?,
+        authoring::Error::Shape { subject, .. } if subject.ends_with("/dependency/0")
+    ));
+    Ok(())
+}
+
+fn assert_evidence_relationships(
+    dataset: &purrdf_core::RdfDataset,
+    vocab: &str,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfLiteral, RdfQuad, RdfTerm};
+
+    // The absent target precedes the available target in the authored list.
+    let evidence_iri = DocType::Evidence.document_iri("evidence:ledger-sync-bound")?;
+    let local = evidence_iri
+        .strip_prefix(raf_okf::DOCUMENT_IRI_BASE)
+        .unwrap();
+    let record =
+        format!("https://blackcatinformatics.ca/raf/workplan/repository/1/document/{local}");
+    let owner = RdfTerm::iri(evidence_iri);
+    let predicate = format!("{vocab}target");
+    let occurrence = |ordinal: usize, capability: &str| -> Result<_, Box<dyn Error>> {
+        let row = RdfTerm::iri(format!("{record}/evidence-for/{ordinal}"));
+        Ok([
+            RdfQuad::new(
+                RdfTerm::iri(&record),
+                format!("{vocab}evidenceFor"),
+                row.clone(),
+            ),
+            RdfQuad::new(
+                row.clone(),
+                "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+                RdfTerm::iri(format!("{vocab}EvidenceFor")),
+            ),
+            RdfQuad::new(row.clone(), format!("{vocab}owner"), owner.clone()),
+            RdfQuad::new(
+                row.clone(),
+                format!("{vocab}ordinal"),
+                RdfTerm::Literal(RdfLiteral::typed(
+                    ordinal.to_string(),
+                    "http://www.w3.org/2001/XMLSchema#integer",
+                )),
+            ),
+            RdfQuad::new(
+                row,
+                &predicate,
+                RdfTerm::iri(DocType::Capability.document_iri(capability)?),
+            ),
+        ])
+    };
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    let first = occurrence(0, "cap:missing")?;
+    assert!(first.iter().all(|row| rows.contains(row)));
+    assert!(
+        occurrence(1, "cap:demo")?
+            .iter()
+            .all(|row| rows.contains(row))
+    );
+    assert!(rows.iter().all(|row| row.subject != first[4].object));
+
+    let mut wrong = rows.clone();
+    let target = wrong.iter_mut().find(|row| **row == first[4]).unwrap();
+    target.object = RdfTerm::iri(DocType::Capability.document_iri("cap:wrong")?);
+    assert!(matches!(
+        authoring_refusal(&wrong)?,
+        authoring::Error::Shape { subject, .. } if subject.ends_with("/evidence-for/0")
+    ));
+    let mut missing = rows.clone();
+    missing.retain(|row| !first.contains(row));
+    assert!(matches!(
+        authoring_refusal(&missing)?,
+        authoring::Error::Shape { subject, .. } if subject == record
+    ));
+    let mut extra = rows;
+    extra.extend(occurrence(2, "cap:other")?);
+    assert!(matches!(
+        authoring_refusal(&extra)?,
+        authoring::Error::Shape {
+            reason: "unexpected inventory or declaration assertions; use only the recovered document projections",
+            ..
+        }
+    ));
+    Ok(())
+}
+
 fn assert_index_refusals(
     dataset: &purrdf_core::RdfDataset,
     vocab: &str,
 ) -> Result<(), Box<dyn Error>> {
-    use purrdf_core::{RdfDatasetBuilder, RdfLiteral, RdfQuad, RdfTerm};
+    use purrdf_core::{RdfLiteral, RdfQuad, RdfTerm};
 
     // Each edited graph keeps the valid documents so Index closure decides the refusal.
     let frame = "https://blackcatinformatics.ca/raf/workplan/repository/1";
@@ -1165,12 +1264,7 @@ fn assert_index_refusals(
         (extra_row, "authoring dataset Index"),
         (invalid_body, "text outside a generated block"),
     ] {
-        let mut builder = RdfDatasetBuilder::new();
-        for row in &malformed {
-            builder.push_owned_quad(row)?;
-        }
-        let graph = builder.freeze()?;
-        let refusal = authoring::repository_from_dataset(&graph).unwrap_err();
+        let refusal = authoring_refusal(&malformed)?;
         let message = refusal.to_string();
         assert!(
             message.contains(INDEX) && message.contains(expected),
@@ -1178,6 +1272,15 @@ fn assert_index_refusals(
         );
     }
     Ok(())
+}
+
+fn authoring_refusal(rows: &[purrdf_core::RdfQuad]) -> Result<authoring::Error, Box<dyn Error>> {
+    let mut builder = purrdf_core::RdfDatasetBuilder::new();
+    for row in rows {
+        builder.push_owned_quad(row)?;
+    }
+    let graph = builder.freeze()?;
+    Ok(authoring::repository_from_dataset(&graph).unwrap_err())
 }
 
 // ---------------------------------------------------------------------------

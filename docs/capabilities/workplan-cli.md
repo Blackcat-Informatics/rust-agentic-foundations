@@ -264,6 +264,11 @@ An incomplete profile load or a present invalid Index exits with a
 diagnostic and emits no RDF.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input,cargo_workplan::test_crate::process::a_usage_error_starts_no_process -->
 
+Repository export carries each authored evidence `for` entry in list
+order. The target IRI identifies the declared capability, including
+when its document is absent.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
 `docs fragment` returns complete raw Markdown for one imported Cargo library, an explicit public receiving module, capability and existing named diagram. Every code binding of that capability is required. The native static fragment API checks source and imported library identities and refuses private, hidden, unresolved or ambiguous references before emitting output. Diagnostics use stderr. Quiet mode and non-text formats refuse before input loading.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
@@ -385,6 +390,11 @@ the consumer tools replaced by recording stubs.
 The repository fixture recovers the exact loaded Index bytes in both
 carriers. Hand-written Index text and a directory at the reserved path
 each produce a path diagnostic with empty stdout.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
+In both RDF carriers the fixture checks the original Evidence Document
+and the separate target statements at their authored positions, with
+an absent target before an available one.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 CLI fixtures compare static verification with the library, exercise prospective completion and refusal, reject missing trust before discovery, and keep stored commands inert.

@@ -11,7 +11,7 @@ use raf_okf::{
 };
 
 use super::{
-    Counts, Error, FRAME, INDEX_EDGE, INDEX_IRI, INDEX_PATH, MAX_DOCUMENTS, Object,
+    Counts, Declarations, Error, FRAME, INDEX_EDGE, INDEX_IRI, INDEX_PATH, MAX_DOCUMENTS, Object,
     RepositoryAuthoring, STRING, canonical_path, declarations, iri, property, record_iri,
     root_statements,
 };
@@ -49,11 +49,12 @@ pub(super) fn repository(dataset: &RdfDataset) -> Result<RepositoryAuthoring, Er
         let (document, typed) =
             Document::from_dataset_subjects(dataset, group.path, id, &group.subjects)
                 .map_err(|source| Error::document(group.path, source))?;
-        let capability = match &typed {
-            RafDocument::Capability(capability) => Some(capability),
-            _ => None,
+        let declared = match &typed {
+            RafDocument::Capability(capability) => Declarations::Capability(capability),
+            RafDocument::Evidence(evidence) => Declarations::Evidence(evidence),
+            _ => Declarations::None,
         };
-        declarations((group.path, iri(dataset, id)?), capability, |s, p, o| {
+        declarations((group.path, iri(dataset, id)?), declared, |s, p, o| {
             verifier.statement(s, p, o)
         })?;
         documents.insert(canonical_path(group.path)?, document);

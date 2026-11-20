@@ -575,6 +575,15 @@ examples list and the exact written symbol. A dependency uses the declared
 target IRI even when the target document is absent. Source resolution findings
 leave these declarations available to the authoring graph.
 
+Each Evidence Document contributes an `evidenceFor` row for every
+authored `for` entry. The inventory record links to the owned row at
+`evidence-for/<ordinal>`. A row has type `EvidenceFor`, its evidence
+document IRI as owner, a zero-based ordinal and the canonical target
+capability IRI. Absent targets still have their declared IRIs. These
+statements count toward the graph limits and must agree with the
+recovered Evidence Document.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
 When Workplan loads `docs/capabilities/index.md`, the repository frame
 enrolls it with one `index` edge to the fixed IRI
 `https://blackcatinformatics.ca/raf/workplan/repository/1/index`.
@@ -993,6 +1002,12 @@ alongside the complete Document inventory. The focused inverse fixture
 accepts optional absence and refuses an orphan carrier or membership,
 incorrect membership, an extra carrier row and an invalid body.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
+
+The focused authoring fixture checks an exact evidence list with an
+absent target before an available one. It verifies each owner,
+position and target assertion. The inverse refuses a changed target,
+a missing occurrence and an extra complete occurrence.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
 Native disk fixtures refuse changed real-directory bindings, retain the requested
 record path and original Source cause when opening fails, and permit ordinary
