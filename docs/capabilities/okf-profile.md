@@ -25,6 +25,10 @@ bindings:
     - raf_okf::DocType::document_iri
     - raf_okf::Document::to_dataset
     - raf_okf::Document::from_dataset
+    - raf_okf::Document::dataset_iri
+    - raf_okf::Document::from_dataset_subjects
+    - raf_okf::DATASET_NODE_IRI_BASE
+    - raf_okf::dataset_node_prefix
     - raf_okf::Index::to_dataset
     - raf_okf::Index::from_dataset
     - raf_okf::Body
@@ -130,6 +134,8 @@ bindings:
     - raf_okf::work
     - raf_okf::Number::exact
   tests:
+    - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
+    - rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile
     - raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync
     - raf_okf::test_crate::schema::timestamp_diagnostics_preserve_lexical_calendar_and_offset_order
     - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
@@ -906,10 +912,17 @@ references, cycles, shared children, gaps, unrelated nodes, identity disagreemen
 named graphs, blank nodes and statement layers. Both directions admit at most
 131072 structural nodes, 1048576 asserted triples and 1 MiB of aggregate authoring
 text, checked before cloning values. Native failures retain their error source.
-The generated navigation `Index` is a separate model and Document codecs refuse it explicitly.
-The snapshot report profile remains unchanged. Repository semantic relations,
-whole-repository claim relations, native authoring-shape validation and review
-records remain distinct from this library authoring carrier.
+The generated navigation `Index` uses its own dataset codec.
+
+`Document::dataset_iri` exposes the asserted identity from the document's type
+and id. `DATASET_NODE_IRI_BASE` and `dataset_node_prefix` expose the existing
+owner prefix for structural subjects. `Document::from_dataset_subjects`
+validates a supplied root and its subject partition with the ordinary authoring
+decoder. Every child must belong to that partition. The caller accounts for
+the other subjects in the shared dataset. Workplan uses the scoped decoder
+for its closed repository graph.
+[Repository authoring graph](./workplan-document-model.md#repository-authoring-graph)
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
 The checked `document_iri` constructor on `DocType` exposes this same identity
 without constructing a document. It shares prefix, kebab-slug and singleton
@@ -1586,4 +1599,6 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
 | `raf_okf::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

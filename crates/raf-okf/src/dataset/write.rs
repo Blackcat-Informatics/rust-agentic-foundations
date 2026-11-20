@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use purrdf_core::{RdfDataset, RdfDatasetBuilder, RdfLiteral, TermId};
 
-use super::{Budget, DatasetError as E, INTEGER, STRING, TYPE, descendants, identity, property};
+use super::{
+    Budget, DatasetError as E, INTEGER, STRING, TYPE, dataset_node_prefix, identity, property,
+};
 use crate::{Comments, Document, ItemValue, ListForm, Map, ScalarStyle, Value};
 
 pub(super) fn admit(document: &Document) -> Result<(), E> {
@@ -26,7 +28,7 @@ pub(super) fn document(document: &Document) -> Result<Arc<RdfDataset>, E> {
     let root = identity(document)?;
     let mut writer = Writer {
         store: RdfDatasetBuilder::new(),
-        prefix: descendants(&root),
+        prefix: dataset_node_prefix(&root),
         next: 0,
         budget: Budget::default(),
     };

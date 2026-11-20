@@ -42,7 +42,6 @@ bindings:
     - rust_agentic_foundations::test_crate::docs_contract::rejects_a_tracked_symlink_that_nothing_links_to
     - rust_agentic_foundations::test_crate::docs_contract::rejects_a_typed_document_outside_the_document_directories
     - rust_agentic_foundations::test_crate::docs_contract::rejects_non_markdown_file_in_a_document_directory
-    - rust_agentic_foundations::test_crate::docs_contract::repository_bindings_resolve_in_the_source_index
     - rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile
     - rust_agentic_foundations::test_crate::docs_contract::the_checker_accepts_a_valid_checkout
     - rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks
@@ -219,7 +218,7 @@ open change listing capabilities other than its inventory entry.
 bindings and workplan model. Links use the tracked path and symlink oracle.
 Generated blocks must match their renderer, delivered capabilities hold their
 verification matrix, and documented Rust examples match their bound doctests.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile,rust_agentic_foundations::test_crate::docs_contract::repository_bindings_resolve_in_the_source_index,rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks,rust_agentic_foundations::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported,rust_agentic_foundations::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile,rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks,rust_agentic_foundations::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported,rust_agentic_foundations::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests -->
 
 **Licence and version integrity.** Pinned licence text must retain its digest,
 and the citation version must equal the workspace version. Altered text, missing
@@ -392,7 +391,6 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::docs_contract::rejects_a_tracked_symlink_that_nothing_links_to` | test | [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::docs_contract::rejects_a_typed_document_outside_the_document_directories` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::rejects_non_markdown_file_in_a_document_directory` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::repository_bindings_resolve_in_the_source_index` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::docs_contract::the_checker_accepts_a_valid_checkout` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks` | test | [Contract](#contract) |

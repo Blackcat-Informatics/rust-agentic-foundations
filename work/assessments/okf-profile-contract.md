@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
 inputs:
   - kind: section
     name: cap:okf-profile#contract
-    digest: b8bf0d69944bebd0c5ba51014ef5f8f1f9fee42f0cdeff4c489b91b7aeb37f02
+    digest: caa823574746362e7255de534390d6e33b9d333632ddad0b66c37b73473c8bd4
   - kind: symbol
     name: raf_okf::Actor
     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
@@ -72,6 +72,9 @@ inputs:
     name: raf_okf::CoverageRecord::with_exceptions
     digest: 0c4925383f9428057583a2c3cfeae5c0d876f3171363b2e8fdcc3901a74f78ad
   - kind: symbol
+    name: raf_okf::DATASET_NODE_IRI_BASE
+    digest: 262a66d3f3522b12e79d1ccd96d40b3d1e0bd9e70f393bc23fd1dfcbed86f269
+  - kind: symbol
     name: raf_okf::DebtFinding
     digest: 847d544fff302438b408240eee34cd982294635cd85a946c1e0938a22eea833c
   - kind: symbol
@@ -99,8 +102,14 @@ inputs:
     name: raf_okf::Document
     digest: 747b2de85404458db2c2956c717070b6d375ab2201134b5de3cae312fd35bda3
   - kind: symbol
+    name: raf_okf::Document::dataset_iri
+    digest: 2046d70dc322de9acce79bf0bbb294a9fd51f3c50cac7f3144a130fa56f9bcb3
+  - kind: symbol
     name: raf_okf::Document::from_dataset
     digest: 5293e98ef1f0c569564cefbb90c571df20934c525060238661c80acdebb0a00f
+  - kind: symbol
+    name: raf_okf::Document::from_dataset_subjects
+    digest: 8f09ce6761e9568001fdfd859dc8ec76408a94003b18be90dbffc5d613725dfc
   - kind: symbol
     name: raf_okf::Document::to_dataset
     digest: a642645a1054216d52501757c97c04a2d34cfa1b4dd9e771ed19f5ccdaaf28e8
@@ -175,7 +184,10 @@ inputs:
     digest: a95d6a117b904aa4780c69a620325c5f2f63513dbf7628641dfb19d13ba9ddd6
   - kind: symbol
     name: raf_okf::dataset
-    digest: 669c3edcd2a1eb3555fe6292e0544871f643252c373fbcd6905e2e31de58960e
+    digest: 1b917f6878ff30dc4c0bbc4397f94f289117572c9037d13ebe2d23f5f594ad9a
+  - kind: symbol
+    name: raf_okf::dataset_node_prefix
+    digest: f8af0ef8b56ba966d5d8be25e64e0adbf58b0a229b3046a1c00c5dac6e342fb6
   - kind: symbol
     name: raf_okf::is_capability_index
     digest: 21e3c6cc7da15bbf2ebdbf75c59fe8ac89e67262bf39009e019259bf18b692b0

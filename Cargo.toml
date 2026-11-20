@@ -17,6 +17,7 @@ raf-workplan = { path = "crates/raf-workplan", version = "0.2.0" }
 proc-macro2.workspace = true
 purrdf-lex.workspace = true
 purrdf-core.workspace = true
+purrdf-rdf.workspace = true
 purrdf-hash.workspace = true
 purrdf-testkit.workspace = true
 purrdf-toml.workspace = true
