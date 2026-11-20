@@ -105,7 +105,7 @@ pub(super) struct Method {
 
 #[derive(Debug)]
 pub(super) enum Endpoint {
-    Named(TypeId),
+    Named(Type),
     Inline { id: TypeId, structure: Struct },
 }
 

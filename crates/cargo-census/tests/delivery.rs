@@ -817,7 +817,7 @@ fn capnp_history_checks_inline_rpc_methods() {
 }
 
 /// Shared named endpoints use ordinary struct evolution and produce one layout
-/// verdict per retained ID. A role still protects its endpoint form and ID.
+/// verdict per retained ID. A role protects its endpoint form, ID and brand.
 #[test]
 fn capnp_history_compares_named_rpc_endpoints() {
     const READER: &str = "0xeec2000000000005";
@@ -850,8 +850,10 @@ fn capnp_history_compares_named_rpc_endpoints() {
         let expected = [
             "0xeec2000000000005.first.parameters: type changed",
             "0xeec2000000000005.second.results: type changed",
+            "0xeec2000000000005.fourth.parameters: type changed",
             "0xeec2000000000002.count: default changed",
             "0xeec2000000000002.token: pointer field became required",
+            "0xeec2000000000007.value: member renamed to renamed",
         ];
         assert_eq!(findings.lines().count(), expected.len(), "{findings}");
         for finding in expected {
@@ -881,6 +883,19 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
             "has a lexical declaration claim despite its zero scope",
         ),
         ("0xeec300000000000f", "must be a nongroup struct"),
+        (
+            "0xeec3000000000011",
+            "requires a complete concrete endpoint brand",
+        ),
+        (
+            "0xeec3000000000013",
+            "requires unique reciprocal declarations",
+        ),
+        ("0xeec3000000000015", "method @1 unbound parameters"),
+        (
+            "0xeec3000000000016",
+            "requires a complete concrete endpoint brand",
+        ),
     ] {
         let result = capnp_history(root, &invalid, &invalid, &[selected], &[]);
         assert_eq!(result.status.code(), Some(1), "{result:?}");
@@ -975,6 +990,16 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
     );
     let field_order =
         commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-field-order.bin"));
+    let concrete = capnp_history(
+        root,
+        &unsupported,
+        &unsupported,
+        &["0xadb4bfe48ad45105"],
+        &[],
+    );
+    assert!(concrete.status.success(), "{concrete:?}");
+    assert!(concrete.stdout.is_empty(), "{concrete:?}");
+    assert!(concrete.stderr.is_empty(), "{concrete:?}");
     for (before, after, selected, expected) in [
         (&base, &shared, RPC_READER, "exactly one owning method role"),
         (
@@ -1005,13 +1030,7 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
             &unsupported,
             &unsupported,
             "0xba6c33c22a5d3e73",
-            "must use nongeneric endpoints",
-        ),
-        (
-            &unsupported,
-            &unsupported,
-            "0xadb4bfe48ad45105",
-            "must use nongeneric endpoints",
+            "must have no implicit method type parameters",
         ),
     ] {
         let refused = capnp_history(root, before, after, &[selected], &[]);

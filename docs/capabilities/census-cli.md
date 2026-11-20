@@ -128,9 +128,10 @@ acceptance by application readers.
 
 The strict history check accepts explicitly selected nongeneric interfaces.
 A method can use named structs or inline lists for its parameters and results.
-Census reports removed, renamed or moved methods and
-changes to an endpoint ID or to its named or inline form. A new trailing method
-with valid endpoints is allowed.
+Census reports removed, renamed or moved methods and changes to an endpoint
+ID, its named or inline form, or its canonical type arguments. It compares
+parameters and results independently. A new trailing method with valid
+endpoints is allowed.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints -->
 
 Census follows the direct superclass IDs of each selected interface and its
@@ -146,10 +147,15 @@ still reaches that base. The defining interface ID owns each inherited method,
 ordinal and endpoint layout. A diamond projects each defining interface once.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance -->
 
-A named endpoint must be a declared nongroup struct in reciprocal, nongeneric
-lexical scopes. Several methods can share the same declaration. Census
-projects and compares its layout once by type ID. Named inputs and results use
-ordinary struct evolution, including implicit defaults for optional additions.
+A named endpoint must be a declared nongroup struct with reciprocal lexical
+ownership. A generic endpoint requires an explicit brand that fully binds its
+type parameters to concrete pointer types. Nested type arguments must also be
+fully bound. An unconstrained `AnyPointer` counts as an unbound argument.
+For a generic endpoint, the interface and the endpoint's enclosing
+declarations must have unique reciprocal ownership and be nongeneric.
+Several methods and roles can share one endpoint declaration with different
+brands. Census compares its layout once by type ID using ordinary struct
+evolution, including implicit defaults for optional additions.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
 
 A compiler-generated inline list belongs to one method ordinal and endpoint
@@ -724,10 +730,14 @@ local identity changes and the independent type layout verdict. Malformed scope
 claims and excessive nominal nesting refuse without a partial report.
 
 The named RPC fixtures check an optional field with an implicit default,
-one finding per changed field in a shared layout, and a change of endpoint form at
-the same node ID. Invalid lexical and generic scope records refuse. A
-persisted interface pointer keeps its data verdict across changes in RPC
-inheritance and method layouts.
+one finding per changed field in a shared layout, and a change of endpoint
+form at the same node ID. A nested change from Text to Data reports a
+type finding only on the changed method role. Incomplete brands and
+ambiguous lexical ownership refuse.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
+
+A persisted interface pointer keeps its data verdict across changes in
+RPC inheritance and method layouts.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_ignores_rpc_endpoint_layouts -->
 
 <!-- raf:generated:verification-matrix -->
