@@ -891,11 +891,6 @@ fn check_authoring_roundtrip(
     checkout: &Checkout,
 ) -> Result<(), Box<dyn Error>> {
     let bytes = ntriples(plan.authoring_dataset()?.as_ref())?;
-    assert_eq!(
-        ntriples(plan.authoring_dataset()?.as_ref())?,
-        bytes,
-        "deterministic repository authoring export"
-    );
     let restored = parse_dataset_with(
         &bytes,
         "application/n-triples",
@@ -1070,7 +1065,13 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
     let dataset = plan.authoring_dataset()?;
     let restored = authoring::documents_from_dataset(&dataset)?;
     assert_eq!(restored.get(&RelPath::new(DEMO)?), Some(&expected));
-    let text = String::from_utf8(ntriples(&dataset)?)?;
+    let bytes = ntriples(&dataset)?;
+    assert_eq!(
+        ntriples(plan.authoring_dataset()?.as_ref())?,
+        bytes,
+        "deterministic repository authoring export"
+    );
+    let text = String::from_utf8(bytes)?;
     let missing = DocType::Capability.document_iri("cap:missing")?;
     let other = DocType::Capability.document_iri("cap:other")?;
     let vocab = "https://blackcatinformatics.ca/raf/workplan/authoring/1#";
