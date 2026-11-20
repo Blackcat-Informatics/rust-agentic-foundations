@@ -63,6 +63,8 @@ bindings:
     - cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods
     - cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints
+    - cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance
+    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance
     - cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
     - cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs
@@ -122,12 +124,25 @@ compared by their canonical pointer bytes. The caller verifies
 acceptance by application readers.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
 
-The strict history check accepts explicitly selected nongeneric interfaces
-without superinterfaces. A method can use named structs or inline lists for its
-parameters and results. Census reports removed, renamed or moved methods and
+The strict history check accepts explicitly selected nongeneric interfaces.
+A method can use named structs or inline lists for its parameters and results.
+Census reports removed, renamed or moved methods and
 changes to an endpoint ID or to its named or inline form. A new trailing method
 with valid endpoints is allowed.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints -->
+
+Census follows the direct superclass IDs of each selected interface and its
+bases. Each inheritance edge must target a named nongeneric interface and
+have an empty brand. The declaration chain must have reciprocal ownership
+and unique names through a file node. Missing or wrong-kind targets, duplicate
+bases, broken ownership and cycles refuse.
+
+Census compares the direct superclass set independently of descriptor list
+order. Adding a valid base is compatible. Removing a direct base reports a
+strict finding on the interface that declared it, even if a transitive route
+still reaches that base. The defining interface ID owns each inherited method,
+ordinal and endpoint layout. A diamond projects each defining interface once.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance -->
 
 A named endpoint must be a declared nongroup struct in reciprocal, nongeneric
 lexical scopes. Several methods can share the same declaration. Census
@@ -146,8 +161,9 @@ detached endpoint and wrappers shared across method roles refuse.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
 
 Persistence declarations bind declared data structs and enums. An
-interface-typed pointer records its interface identity as part of the data
-shape. The interface's method layouts belong to strict interface history.
+interface-typed pointer records its nominal identity as part of the data shape.
+The interface's inheritance and method layouts belong to strict interface
+history.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_refuses_invalid_bindings_and_policy_rows,cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_ignores_rpc_endpoint_layouts -->
 
 Strict history can also select compiler file IDs. Each selected base ID
@@ -321,8 +337,9 @@ The command exits 0 for a clean comparison or 1 with findings on stdout.
 An input or resource refusal exits 1 with a diagnostic on stderr.
 
 Use `--type 0xID` to select a struct, enum or supported interface.
-For an interface, the comparison follows its named and inline parameter and
-result structs. Select each interface whose method history matters.
+For an interface, the comparison follows its superclasses and each reached
+method's named and inline parameter and result structs.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods -->
 
 Use `--file-id 0xID` to compare a requested schema file and its written
 declarations. Repeat `--file-id` for each selected file. Use `--type` to
@@ -590,6 +607,12 @@ changing either one.
 
 ## Verification
 
+The compiler-produced RPC diamond accepts reordered and added direct bases.
+It reports one changed inherited method default and one removed direct base
+when a transitive route still reaches the formerly direct base. Controlled requests pair a
+valid inheritance graph with malformed edges, ownership failures and a cycle.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance -->
+
 Migration fixtures compare strict and admitted verdicts for the same
 committed declarations. They distinguish base inputs from current and
 checkout copies and verify outputs from the signed evidence revision.
@@ -668,7 +691,9 @@ claims and excessive nominal nesting refuse without a partial report.
 The named RPC fixtures check an optional field with an implicit default,
 one finding per changed field in a shared layout, and a change of endpoint form at
 the same node ID. Invalid lexical and generic scope records refuse. A
-persisted interface pointer keeps its data verdict when method layouts change.
+persisted interface pointer keeps its data verdict across changes in RPC
+inheritance and method layouts.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_ignores_rpc_endpoint_layouts -->
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -701,14 +726,16 @@ persisted interface pointer keeps its data verdict when method layouts change.
 | `cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities` | test | [Contract](#contract) |
-| `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
-| `cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |

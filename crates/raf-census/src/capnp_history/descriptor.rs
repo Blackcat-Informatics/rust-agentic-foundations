@@ -62,7 +62,13 @@ pub(super) struct Declaration {
 pub(super) enum Node {
     Struct(Struct),
     Enum(Vec<String>),
-    Interface(Vec<Method>),
+    Interface(Interface),
+}
+
+#[derive(Debug)]
+pub(super) struct Interface {
+    pub(super) superclasses: BTreeSet<TypeId>,
+    pub(super) methods: Vec<Method>,
 }
 
 #[derive(Debug)]
@@ -379,6 +385,9 @@ impl<'a> Nodes<'a> {
                 self.project_node(id, &mut needed, annotations, scopes, &mut rpc)?,
             );
         }
+        if let Some(projection) = rpc {
+            projection.check_inheritance(&nodes)?;
+        }
         Ok(Schema {
             roots: present,
             nodes,
@@ -411,12 +420,12 @@ impl<'a> Nodes<'a> {
         needed: &mut BTreeSet<TypeId>,
         annotations: Annotations,
         scopes: &mut DeclarationScopes,
-        rpc: &mut Option<rpc::Endpoints>,
+        rpc: &mut Option<rpc::Projection>,
     ) -> Result<Node, Error> {
         let node = self.node(id)?;
         match node.which()? {
             node::Struct(data) if !data.get_is_group() => {
-                if node.get_scope_id() == 0 && self.method_endpoints(rpc)?.owns_inline(id) {
+                if node.get_scope_id() == 0 && self.rpc_projection(rpc)?.owns_inline(id) {
                     return Err(layout(format!(
                         "detached RPC node {id} must be selected through its owning method"
                     )));
@@ -436,7 +445,7 @@ impl<'a> Nodes<'a> {
                         "RPC interface {id} must be declared in the schema"
                     )));
                 }
-                let methods = self.method_endpoints(rpc)?.methods(
+                let interface = self.rpc_projection(rpc)?.interface(
                     self,
                     node,
                     data,
@@ -444,7 +453,7 @@ impl<'a> Nodes<'a> {
                     annotations,
                     scopes,
                 )?;
-                Ok(Node::Interface(methods))
+                Ok(Node::Interface(interface))
             }
             _ => Err(layout(format!(
                 "selected node {id} must be a data struct, enum or supported RPC interface"
@@ -452,14 +461,14 @@ impl<'a> Nodes<'a> {
         }
     }
 
-    fn method_endpoints<'b>(
+    fn rpc_projection<'b>(
         &self,
-        cache: &'b mut Option<rpc::Endpoints>,
-    ) -> Result<&'b mut rpc::Endpoints, Error> {
-        if let Some(endpoints) = cache {
-            return Ok(endpoints);
+        cache: &'b mut Option<rpc::Projection>,
+    ) -> Result<&'b mut rpc::Projection, Error> {
+        if let Some(projection) = cache {
+            return Ok(projection);
         }
-        Ok(cache.insert(rpc::Endpoints::read(self)?))
+        Ok(cache.insert(rpc::Projection::read(self)?))
     }
 
     fn structure(

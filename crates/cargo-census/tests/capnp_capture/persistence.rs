@@ -172,25 +172,23 @@ fn capnp_persistence_compares_retained_committed_layouts() {
 fn capnp_persistence_ignores_rpc_endpoint_layouts() {
     let scratch = repository();
     let root = scratch.path();
-    let row = || {
-        policy(&[(
-            "packet",
-            "persist-fixture",
-            "persist_fixture::Packet",
+    for (id, before, after) in [
+        (
             "0xeec2000000000006",
-        )])
-    };
-    let base = commit(
-        root,
-        include_bytes!("../fixtures/capnp/rpc-named-base.bin"),
-        row(),
-    );
-    let current = commit(
-        root,
-        include_bytes!("../fixtures/capnp/rpc-named-changed.bin"),
-        row(),
-    );
-    assert_clean(&check(root, &base, &current));
+            include_bytes!("../fixtures/capnp/rpc-named-base.bin").as_slice(),
+            include_bytes!("../fixtures/capnp/rpc-named-changed.bin").as_slice(),
+        ),
+        (
+            "0xeec4000000000006",
+            include_bytes!("../fixtures/capnp/rpc-inheritance-base.bin").as_slice(),
+            include_bytes!("../fixtures/capnp/rpc-inheritance-changed.bin").as_slice(),
+        ),
+    ] {
+        let row = || policy(&[("packet", "persist-fixture", "persist_fixture::Packet", id)]);
+        let base = commit(root, before, row());
+        let current = commit(root, after, row());
+        assert_clean(&check(root, &base, &current));
+    }
 }
 
 /// Stable rows protect prior roots even when a second row selects them.

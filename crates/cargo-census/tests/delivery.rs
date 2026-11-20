@@ -699,6 +699,75 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
     }
 }
 
+/// Direct inheritance is a set and inherited layouts belong to the defining
+/// interface, regardless of how many paths reach it.
+#[test]
+fn capnp_history_compares_rpc_inheritance() {
+    const LEAF: &str = "0xeec4000000000005";
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let commit = |bytes| commit_capnp_descriptor(root, bytes);
+    let base = commit(include_bytes!("fixtures/capnp/rpc-inheritance-base.bin"));
+    let compatible = commit(include_bytes!(
+        "fixtures/capnp/rpc-inheritance-compatible.bin"
+    ));
+    let changed = commit(include_bytes!("fixtures/capnp/rpc-inheritance-changed.bin"));
+    let history = |after| capnp_history(root, &base, after, &[LEAF], &[]);
+    let clean = history(&compatible);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(clean.stdout.is_empty(), "{clean:?}");
+    assert!(clean.stderr.is_empty(), "{clean:?}");
+
+    let broken = history(&changed);
+    assert_eq!(broken.status.code(), Some(1), "{broken:?}");
+    assert!(broken.stderr.is_empty(), "{broken:?}");
+    let findings = String::from_utf8(broken.stdout).unwrap();
+    assert_eq!(
+        findings,
+        concat!(
+            "Cap'n Proto history for 0xeec4000000000001.read.parameters.count: default changed\n",
+            "Cap'n Proto history for 0xeec4000000000005: direct superclass 0xeec4000000000002 removed\n",
+        )
+    );
+}
+
+/// Every reached base requires a unique, unbranded interface declaration in an
+/// acyclic inheritance graph. Unrelated malformed edges stay out of scope.
+#[test]
+fn capnp_history_refuses_invalid_rpc_inheritance() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let descriptor = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-inheritance-invalid.bin"),
+    );
+    let history = |selected| capnp_history(root, &descriptor, &descriptor, &[selected], &[]);
+    let valid = history("0xeec5000000000001");
+    assert!(valid.status.success(), "{valid:?}");
+    assert!(valid.stdout.is_empty(), "{valid:?}");
+    assert!(valid.stderr.is_empty(), "{valid:?}");
+    let ownership = "requires a reciprocal nongeneric declaration chain";
+    for (selected, expected) in [
+        ("0xeec5000000000003", "repeats direct superclass"),
+        ("0xeec5000000000004", "missing schema node"),
+        ("0xeec5000000000005", "is not a referenced Interface"),
+        ("0xeec5000000000007", "must have an empty brand"),
+        ("0xeec5000000000008", ownership),
+        ("0xeec500000000000a", ownership),
+        ("0xeec500000000000d", ownership),
+        ("0xeec5000000000010", ownership),
+        ("0xeec5000000000013", "RPC inheritance cycle"),
+    ] {
+        let refused = history(selected);
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert!(refused.stdout.is_empty(), "{refused:?}");
+        let diagnostic = String::from_utf8(refused.stderr).unwrap();
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+}
+
 /// Detached endpoints belong to exactly one method and role across the request.
 /// Explicit interface roots require a supported nongeneric signature.
 #[test]
@@ -734,12 +803,6 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
             &base,
             "0xd766b858756a10ab",
             "must be selected through its owning method",
-        ),
-        (
-            &unsupported,
-            &unsupported,
-            "0xf8e70893fb8da3a6",
-            "no superinterfaces",
         ),
         (
             &unsupported,
