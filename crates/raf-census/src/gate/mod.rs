@@ -627,6 +627,7 @@ impl Gate {
                             | crate::PatternMatcher::Path(_)
                             | crate::PatternMatcher::Macro(_)
                             | crate::PatternMatcher::Type(_)
+                            | crate::PatternMatcher::MethodOn { .. }
                     )
                 }))
         {

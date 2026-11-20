@@ -402,7 +402,7 @@ impl Proof<'_> {
         )?;
         if expanded
             .as_ref()
-            .is_some_and(|expanded| expanded.block && expanded.shadowed)
+            .is_some_and(|expanded| expanded.block && expanded.is_shadowed())
         {
             return Err(self.refused("a block-local definition shadows the provider call"));
         }

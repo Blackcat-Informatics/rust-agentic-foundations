@@ -234,6 +234,7 @@ pub const LEDGER_FIELDS: &[(&str, &[&str])] = &[
             "path",
             "macro",
             "typePath",
+            "methodOn",
             "literalRegex",
             "tokens",
             "targetKind",

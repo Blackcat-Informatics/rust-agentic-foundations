@@ -4,7 +4,7 @@
 type: Capability
 id: cap:census-patterns
 title: "Declarative census patterns"
-description: "Native RDF declarations for call, path, macro, type, string and balanced-token syntax bans."
+description: "Native RDF declarations for call, method, path, macro, type, string and balanced-token syntax bans."
 state: delivered
 bindings:
   code:
@@ -41,6 +41,9 @@ bindings:
     - raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses
     - raf_census::test_crate::census_gate::macro_type_hits_use_the_scope_of_the_reach_that_resolves_the_type
     - raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope
+    - raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing
+    - raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file
+    - raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths
     - raf_census::test_crate::census_gate::lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes
     - raf_census::test_crate::census_gate::lexical_patterns_do_not_mistake_a_file_root_for_its_first_written_unit
     - raf_census::test_crate::census_gate::lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans
@@ -96,6 +99,7 @@ inventory reserves its three guard IDs for the Ledger's numeric bounds registry.
 | raf:path | A path occurrence in expressions, types, attributes or imports. |
 | raf:macro | A written macro invocation; a single-segment name also follows written import aliases. |
 | raf:typePath | A named type path, trait bound or type prefix of a qualified expression path. |
+| raf:methodOn | A dot call on a local name whose written type proves the selected nominal receiver. |
 | raf:literalRegex | A decoded ordinary string literal matched by the native bounded ECMA evaluator. |
 | raf:tokens | A body-normalized token sequence, where $_ consumes exactly one token or balanced group. |
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence -->
@@ -169,6 +173,22 @@ hit, with scope judged against the matching reaches. Within an indexed macro
 invocation, the invocation's scope must admit the same target and reading
 module as the owner's resolution.
 <!-- raf:tested-by raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses,raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope,raf_census::test_crate::census_gate::macro_type_hits_use_the_scope_of_the_reach_that_resolves_the_type -->
+
+**Written receiver types.** A selector such as `demo::Client::send` names one
+physical first-party struct, enum or union and a method identifier. The selector
+admits an optional leading `::` and a raw method identifier. A simple named
+local or an ordinary function or closure parameter needs a bare written type
+path. Census follows admitted imports, reexports and unconditional nominal
+aliases at the binding declaration. An opaque block wildcard on that route
+prevents attribution.
+
+The receiver expression must be a plain local identifier. A nearer untyped or
+unsupported binding shadows older proof. A local initializer and its `else`
+block are read before the local binds. Closures can capture enclosing bindings.
+Nested items and inline constants have independent runtime bindings.
+Each source reach supplies its own proof. The method token supplies the report
+location and scope, and matching reaches count once per physical occurrence.
+<!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing,raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file,raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths -->
 
 **Physical ownership.** Each physical source owner counts once. HOME covers actual module definitions,
 including relocated macro exports and implementation members whose displayed
@@ -289,13 +309,15 @@ Preferred-provider enforcement requires separate grounded evidence. A known
 different workspace definition is never replaced by a spelling match.
 <!-- raf:tested-by raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows,raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function -->
 
-- Matching does not expand macros or infer receiver types for method-call syntax.
+- Matching observes written syntax before macro expansion. Method matching
+establishes the written receiver type and method name. Inferred types, automatic
+adjustments and method implementation selection are outside that proof.
 Macro expression-list and statement/repetition arguments are observed through
 the existing Rust parser; other macro languages remain token syntax. Named
 qualified type/trait paths are supported. A relevant anonymous qualified receiver
 or mixed constant/binding context refuses rather than fabricating an identity.
 Structural conditions such as loop membership belong in a registered Rule.
-<!-- raf:tested-by raf_census::test_crate::census_gate::call_patterns_observe_macro_repetition_and_statement_arguments_with_clean_neighbours,raf_census::test_crate::census_gate::call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_guessing -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::call_patterns_observe_macro_repetition_and_statement_arguments_with_clean_neighbours,raf_census::test_crate::census_gate::call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_guessing,raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing -->
 
 - Matching exhaustion and allocation refusal are errors. Temporary lexical sessions
 own their spans and release only their own storage on success or refusal;
@@ -381,5 +403,8 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
+| `raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

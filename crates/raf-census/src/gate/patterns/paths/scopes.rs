@@ -4,6 +4,7 @@
 //! Lexical syntax observations; workspace definition lookup stays in Source.
 
 use super::super::{charge, failure, push};
+use super::receivers::ReceiverBinding;
 use super::{EnumMembers, GlobCache};
 use crate::{
     Error,
@@ -25,6 +26,7 @@ struct Frame {
     types: BTreeSet<String>,
     macros: BTreeSet<String>,
     local_values: BTreeSet<String>,
+    written_receivers: BTreeMap<String, ReceiverBinding>,
     generic_types: BTreeSet<String>,
     settled: RefCell<GlobCache>,
     module: bool,
@@ -190,17 +192,30 @@ fn binding<'a>(
     })
 }
 
+enum Shadowing {
+    Block,
+    Module,
+}
+
 pub(in crate::gate) struct Expanded {
     pub(in crate::gate) segments: Vec<String>,
     absolute: bool,
     pub(in crate::gate) block: bool,
-    pub(in crate::gate) shadowed: bool,
+    shadowing: Option<Shadowing>,
     alias_attributes: AliasAttributes,
     first_frame: Option<usize>,
     alias_frame: Option<usize>,
 }
 
 impl Expanded {
+    pub(in crate::gate) fn is_shadowed(&self) -> bool {
+        self.shadowing.is_some()
+    }
+
+    pub(super) fn module_anchor(&self) -> bool {
+        matches!(self.shadowing, Some(Shadowing::Module))
+    }
+
     pub(super) fn has_uncertain_alias(&self) -> bool {
         self.alias_attributes != AliasAttributes::Inert
     }
@@ -264,6 +279,9 @@ pub(in crate::gate) struct Scopes {
     pub(super) enums: RefCell<BTreeMap<ItemId, Rc<EnumMembers>>>,
     glob_states: Cell<usize>,
     module_globs: bool,
+    track_written_receivers: bool,
+    receiver_floor: usize,
+    receiver_states: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -278,6 +296,13 @@ enum Answer {
 }
 
 impl Scopes {
+    pub(super) fn for_patterns(written_receivers: bool) -> Self {
+        Self {
+            track_written_receivers: written_receivers,
+            ..Self::default()
+        }
+    }
+
     pub(super) fn for_enum_patterns() -> Self {
         Self {
             module_globs: true,
@@ -296,7 +321,8 @@ impl Scopes {
             module,
             ..Frame::default()
         };
-        let keep_globs = track_globs && (!module || self.module_globs);
+        let keep_globs =
+            (track_globs || self.track_written_receivers) && (!module || self.module_globs);
         let trusted = |attributes: &[syn::Attribute]| {
             !self.module_globs || crate::syntax::inert_attributes(attributes)
         };
@@ -308,12 +334,16 @@ impl Scopes {
                 continue;
             }
             frame.names.item(item);
-            if track_globs && let syn::Item::Verbatim(tokens) = item {
+            if (track_globs || keep_globs)
+                && let syn::Item::Verbatim(tokens) = item
+            {
                 raf_source::visit_grouped_import(tokens, |attributes, absolute, tree| {
                     if excluded(attributes) {
                         return;
                     }
-                    frame.names.import_tree(tree, absolute, attributes);
+                    if track_globs {
+                        frame.names.import_tree(tree, absolute, attributes);
+                    }
                     if keep_globs {
                         frame.import_globs(tree, absolute, trusted(attributes));
                     }
@@ -359,14 +389,95 @@ impl Scopes {
                 }
             }
         }
-        push("paths", &mut self.frames, frame, 0, limits)
+        let retained = if self.track_written_receivers {
+            self.receiver_states.saturating_add(self.glob_states.get())
+        } else {
+            0
+        };
+        push("paths", &mut self.frames, frame, retained, limits)
     }
 
     pub(in crate::gate) fn leave(&mut self) {
         if let Some(frame) = self.frames.pop() {
             self.glob_states
                 .set(self.glob_states.get() - frame.settled.into_inner().retained);
+            self.receiver_states -= frame
+                .written_receivers
+                .values()
+                .map(ReceiverBinding::states)
+                .sum::<usize>();
         }
+    }
+
+    pub(super) fn begin_receiver_boundary(&mut self) -> usize {
+        std::mem::replace(&mut self.receiver_floor, self.frames.len())
+    }
+
+    pub(super) fn end_receiver_boundary(&mut self, floor: usize) {
+        self.receiver_floor = floor;
+    }
+
+    pub(super) fn admit_receiver(
+        &self,
+        label: &str,
+        states: usize,
+        limits: &MatchLimits,
+    ) -> Result<(), Error> {
+        if states > self.remaining_glob_states(limits) {
+            Err(failure(
+                label,
+                "written receiver binding-state limit exhausted",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    pub(super) fn record_receiver(
+        &mut self,
+        name: String,
+        binding: ReceiverBinding,
+        label: &str,
+        limits: &MatchLimits,
+    ) -> Result<(), Error> {
+        self.admit_receiver(label, binding.states(), limits)?;
+        self.receiver_states += binding.states();
+        let frame = self
+            .frames
+            .top_mut()
+            .expect("INVARIANT: entered lexical scope");
+        if let Some(previous) = frame.written_receivers.insert(name, binding) {
+            self.receiver_states -= previous.states();
+        }
+        Ok(())
+    }
+
+    pub(super) fn written_receiver(
+        &self,
+        name: &str,
+        label: &str,
+        limits: &mut MatchLimits,
+    ) -> Result<Option<&ReceiverBinding>, Error> {
+        let depth = self.frames.len().saturating_sub(self.receiver_floor);
+        for frame in self.frames.iter().rev().take(depth) {
+            let entries = frame
+                .written_receivers
+                .len()
+                .saturating_add(frame.local_values.len())
+                .saturating_add(frame.values.len());
+            let work = name
+                .len()
+                .saturating_add(1)
+                .saturating_mul(entries.bit_width() as usize + 1);
+            charge(label, limits, work.try_into().unwrap_or(u64::MAX))?;
+            if let Some(binding) = frame.written_receivers.get(name) {
+                return Ok(Some(binding));
+            }
+            if frame.local_values.contains(name) || frame.values.contains(name) {
+                break;
+            }
+        }
+        Ok(None)
     }
 
     pub(super) fn retain_glob_states(
@@ -374,19 +485,25 @@ impl Scopes {
         count: usize,
         limits: &MatchLimits,
     ) -> Result<(), Error> {
-        let total = self.glob_states.get().saturating_add(count);
-        if total > limits.states {
+        if count > self.remaining_glob_states(limits) {
             return Err(failure(
                 "visibility",
                 "block glob cache state limit exhausted",
             ));
         }
-        self.glob_states.set(total);
+        self.glob_states.set(self.glob_states.get() + count);
         Ok(())
     }
 
     pub(super) fn remaining_glob_states(&self, limits: &MatchLimits) -> usize {
-        limits.states.saturating_sub(self.glob_states.get())
+        let retained = if self.track_written_receivers {
+            self.receiver_states
+                .saturating_add(self.glob_states.get())
+                .saturating_add(self.frames.len())
+        } else {
+            self.glob_states.get()
+        };
+        limits.states.saturating_sub(retained)
     }
 
     pub(super) fn in_module(&self) -> bool {
@@ -430,11 +547,15 @@ impl Scopes {
             }
             match include(self, name) {
                 Ok(true) => {
-                    self.frames
+                    let frame = self
+                        .frames
                         .top_mut()
-                        .expect("entered lexical scope")
-                        .local_values
-                        .insert(name.unraw().to_string());
+                        .expect("INVARIANT: entered lexical scope");
+                    let name = name.unraw().to_string();
+                    if let Some(previous) = frame.written_receivers.remove(&name) {
+                        self.receiver_states -= previous.states();
+                    }
+                    frame.local_values.insert(name);
                 }
                 Ok(false) => {}
                 Err(error) => failure = Some(error),
@@ -538,7 +659,7 @@ impl Scopes {
             segments: path.to_vec(),
             absolute,
             block: false,
-            shadowed: false,
+            shadowing: None,
             alias_attributes: AliasAttributes::Inert,
             first_frame: None,
             alias_frame: None,
@@ -558,7 +679,11 @@ impl Scopes {
                 }
                 if frame.local(head, namespace, runtime) {
                     expanded.first_frame.get_or_insert(index);
-                    expanded.shadowed = true;
+                    expanded.shadowing = Some(if frame.module {
+                        Shadowing::Module
+                    } else {
+                        Shadowing::Block
+                    });
                     expanded.block = !frame.module || !self.module_globs;
                     return Ok(Some(expanded));
                 }
@@ -587,7 +712,11 @@ impl Scopes {
                 return Ok(Some(expanded));
             };
             if alias.path.is_empty() {
-                expanded.shadowed = true;
+                expanded.shadowing = Some(if block {
+                    Shadowing::Block
+                } else {
+                    Shadowing::Module
+                });
                 expanded.block |= block;
                 return Ok(Some(expanded));
             }
@@ -639,7 +768,9 @@ impl Scopes {
             ) {
                 Ok(expanded) => {
                     let value = if let Some(expanded) = expanded {
-                        if expanded.has_uncertain_alias() || expanded.shadowed && expanded.block {
+                        if expanded.has_uncertain_alias()
+                            || expanded.is_shadowed() && expanded.block
+                        {
                             true
                         } else {
                             eligible(

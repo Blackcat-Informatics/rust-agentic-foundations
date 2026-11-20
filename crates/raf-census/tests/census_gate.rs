@@ -1787,6 +1787,174 @@ pub use home as alias;
 }
 
 #[test]
+fn written_receiver_methods_keep_declaration_identity_and_runtime_shadowing() {
+    use std::collections::BTreeSet;
+
+    // A method token is reported only when a written local type or parameter
+    // proves the selected nominal identity in the binding's own scope.
+    let source = r"
+pub mod home {
+    pub struct Banned;
+    pub struct Other;
+    pub type First = Banned;
+    pub type Last = First;
+    impl Banned { pub fn run(&mut self) -> bool { true } }
+    impl Other { pub fn run(&self) -> bool { true } }
+    pub fn sanctioned(mut value: Banned) { value.run(); }
+}
+pub use home as alias;
+pub use home::Last as Selected;
+#[allow(dead_code)]
+pub fn outside(mut value: Selected, other: home::Other) {
+    value
+        .run(); // hit
+    other.run();
+    { use home::Banned as Local; let mut local: Local = home::Banned; local.run(); } // hit
+    { mod home { pub struct Banned; } use home::Banned as Local; let local: Local = home::Banned; local.run(); }
+    { use opaque::*; use home::Banned as Local; let local: Local = home::Banned; local.run(); }
+    { use home::Other as Selected; value.run(); } // hit
+    let mut capture = || value.run(); // hit
+    let _ = capture();
+    let _ = |mut value: Selected| value.run(); // hit
+    { let ref value: Selected = home::Banned; value.run(); }
+    { let (value,): (home::Other,) = (home::Other,); value.run(); }
+    { let value = home::Other; value.run(); }
+    { use opaque::*; let mut value: Selected = home::Banned; value.run(); }
+    const { value.run(); }
+    fn nested() { value.run(); }
+    match () { () if value.run() => (), _ => () } // hit
+    match Some(home::Other) { Some(value) if value.run() => (), _ => () }
+    let value: home::Other = { value.run(); home::Other }; // hit
+    value.run();
+}
+";
+    let report = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(
+            source,
+            "methodOn",
+            "demo::home::Banned::run",
+        ))
+        .unwrap();
+    let expected: BTreeSet<_> = source
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| line.contains("// hit"))
+        .map(|(line, _)| line + 1)
+        .collect();
+    let actual: BTreeSet<_> = report
+        .findings()
+        .iter()
+        .filter(|finding| finding.contains(", rule "))
+        .filter_map(|finding| finding.strip_prefix("src/lib.rs:"))
+        .map(|finding| finding.split(':').next().unwrap().parse::<usize>().unwrap())
+        .collect();
+    assert_eq!(actual, expected, "{:?}", report.findings());
+    assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
+}
+
+#[test]
+fn written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file() {
+    // A non-shipping reach cannot contribute its receiver proof to a
+    // shipping reach, and two proofs still count one physical location.
+    let mut ledger = lexical_pattern_graph("methodOn", "demo::home::Banned::run");
+    put(&mut ledger, "#pattern", "shippingOnly", Term::boolean(true));
+    let graph = ledger.finish().unwrap().to_text(Format::Turtle).unwrap();
+    for (shipping, tests, copies) in [
+        ("Other", "Banned", 0),
+        ("Banned", "Other", 1),
+        ("Banned", "Banned", 1),
+    ] {
+        let tree: MemoryTree = [
+            (
+                "Cargo.toml",
+                "[package]\nname='demo'\nversion='0.1.0'\nedition='2024'\n".to_owned(),
+            ),
+            ("helpers-ledger.ttl", graph.clone()),
+            (
+                "src/lib.rs",
+                format!(
+                    r#"
+pub mod home {{
+    pub struct Banned;
+    pub struct Other;
+    pub fn sanctioned(value: Banned) {{ value.run(); }}
+}}
+pub use home as alias;
+pub mod shipping {{
+    pub use crate::home::{shipping} as Choice;
+    #[path = "../shared.rs"] pub mod body;
+}}
+#[cfg(test)] pub mod tests {{
+    pub use crate::home::{tests} as Choice;
+    #[path = "../shared.rs"] pub mod body;
+}}
+"#
+                ),
+            ),
+            (
+                "src/shared.rs",
+                "pub fn copy(value: super::Choice) { value.run(); }".to_owned(),
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let report = Gate::workspace(".").check_tree(&tree).unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{shipping} {tests}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report
+                .findings()
+                .iter()
+                .filter(|line| line.contains("shared.rs:1: job"))
+                .count(),
+            copies,
+            "{shipping} {tests}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn written_receiver_method_selector_refuses_non_nominal_and_malformed_paths() {
+    // The ledger needs a specific indexed nominal receiver before it can
+    // select the method. Written receiver aliases are proved at their uses.
+    let source = "pub mod home { pub struct Banned; pub type Alias = Banned; pub fn clean(value: Banned) { value.run(); } } pub use home as alias;";
+    let gate = Gate::workspace(".");
+    assert!(
+        gate.check_tree(&lexical_pattern_tree(
+            source,
+            "methodOn",
+            "::demo::home::Banned::r#run"
+        ))
+        .unwrap()
+        .is_clean()
+    );
+    for (selector, message) in [
+        (
+            "demo::home::Alias::run",
+            "must resolve to one indexed first-party struct, enum or union",
+        ),
+        (
+            "demo::home::Banned::run()",
+            "methodOn requires an indexed type path and method",
+        ),
+        (
+            "demo::home::Banned::run/**/",
+            "methodOn requires an indexed type path and method",
+        ),
+    ] {
+        let error = gate
+            .check_tree(&lexical_pattern_tree(source, "methodOn", selector))
+            .unwrap_err();
+        assert!(error.to_string().contains(message), "{error}");
+    }
+}
+
+#[test]
 fn written_type_alias_hits_share_physical_sites_and_respect_shipping_scope() {
     let mut ledger = lexical_pattern_graph("typePath", "demo::home::Banned");
     put(&mut ledger, "#pattern", "shippingOnly", Term::boolean(true));
