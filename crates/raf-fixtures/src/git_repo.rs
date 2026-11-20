@@ -5,7 +5,7 @@
 //! only through its native library.
 
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Output};
 
 /// Run Git in `dir` with no user or system configuration, so hooks, signing
 /// and ambient repository selectors cannot affect the fixture.
@@ -62,4 +62,12 @@ pub fn commit_all(dir: &Path) -> String {
         &["commit", "--quiet", "--allow-empty", "-m", "fixture"],
     );
     git(dir, &["rev-parse", "HEAD"])
+}
+
+/// Check that Census refused a committed fixture with the expected diagnostic and no findings.
+pub fn assert_census_refused(output: Output, expected: &str) {
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    let diagnostic = String::from_utf8(output.stderr).unwrap();
+    assert!(diagnostic.contains(expected), "{diagnostic}");
 }

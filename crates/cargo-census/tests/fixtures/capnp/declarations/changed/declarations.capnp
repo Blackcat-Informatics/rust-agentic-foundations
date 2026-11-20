@@ -13,7 +13,8 @@ struct Holder @0xeec1000000000003 {
     struct Child @0xeec1000000000002 {
       name @0 :Text;
     }
-    const limit :UInt16 = 16;
+    const limit :UInt32 = 16;
+    const children :List(Child) = [];
   }
 }
 
@@ -26,6 +27,7 @@ enum State {
 }
 
 annotation marker(field) :Void;
+const imported :List(Dependency.Wanted) = [];
 using Alias = Holder.Moved.Child;
 
 interface Fetcher @0xeec1000000000007 {

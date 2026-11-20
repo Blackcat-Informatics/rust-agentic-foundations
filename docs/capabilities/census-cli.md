@@ -58,6 +58,7 @@ bindings:
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities
     - cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities
     - cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities
+    - cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership
     - cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting
     - cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods
@@ -193,6 +194,15 @@ selected scope, including when a file is removed. It refuses competing claims
 from an unrelated namespace. Partial unrelated namespaces can otherwise coexist
 with the selected inventory. Each file admits up to 64 declaration levels.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership,cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting -->
+
+**Constant types.** Strict file history reports a declared type change
+for a retained constant. A valid constant addition or a value change at
+a fixed type is compatible. Census requires an explicit type in each
+selected constant and checks its nominal IDs, kinds and brands through
+the descriptor type reader. The type comparison uses only the needed
+declaration metadata. Layout checks follow the independent `--type`
+selection.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities,cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types -->
 
 A caller can select a compiler-declared Void field annotation for
 required pointer presence. Census validates the marker in both
@@ -607,6 +617,13 @@ changing either one.
 
 ## Verification
 
+The file history fixtures admit a value-only edit and a new constant,
+report a retained type change, and refuse a missing type, a missing or
+wrong-kind nominal target and a malformed brand. The foreign fixture
+leaves unrelated declarations and the nominal layout outside the file
+comparison. A separate selection checks that layout.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities,cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types -->
+
 The compiler-produced RPC diamond accepts reordered and added direct bases.
 It reports one changed inherited method default and one removed direct base
 when a transitive route still reaches the formerly direct base. Controlled requests pair a
@@ -736,6 +753,7 @@ inheritance and method layouts.
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
