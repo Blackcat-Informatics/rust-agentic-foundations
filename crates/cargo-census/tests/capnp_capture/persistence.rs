@@ -166,6 +166,33 @@ fn capnp_persistence_compares_retained_committed_layouts() {
     assert!(!text.contains("ignored"), "{text}");
 }
 
+/// An interface pointer preserves its nominal type without selecting RPC layouts
+/// for a retained persisted declaration.
+#[test]
+fn capnp_persistence_ignores_rpc_endpoint_layouts() {
+    let scratch = repository();
+    let root = scratch.path();
+    let row = || {
+        policy(&[(
+            "packet",
+            "persist-fixture",
+            "persist_fixture::Packet",
+            "0xeec2000000000006",
+        )])
+    };
+    let base = commit(
+        root,
+        include_bytes!("../fixtures/capnp/rpc-named-base.bin"),
+        row(),
+    );
+    let current = commit(
+        root,
+        include_bytes!("../fixtures/capnp/rpc-named-changed.bin"),
+        row(),
+    );
+    assert_clean(&check(root, &base, &current));
+}
+
 /// Stable rows protect prior roots even when a second row selects them.
 #[test]
 fn capnp_persistence_protects_declaration_continuity_after_first_adoption() {

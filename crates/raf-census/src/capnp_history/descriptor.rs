@@ -73,9 +73,9 @@ pub(super) struct Method {
 }
 
 #[derive(Debug)]
-pub(super) struct Endpoint {
-    pub(super) id: TypeId,
-    pub(super) structure: Struct,
+pub(super) enum Endpoint {
+    Named(TypeId),
+    Inline { id: TypeId, structure: Struct },
 }
 
 #[derive(Debug)]
@@ -263,13 +263,28 @@ impl<'a> Nodes<'a> {
     }
 
     fn is_declared(&self, id: TypeId, scopes: &mut DeclarationScopes) -> Result<bool, Error> {
+        self.declaration_chain(id, scopes, |_| Ok(true))
+    }
+
+    fn declaration_chain(
+        &self,
+        id: TypeId,
+        scopes: &mut DeclarationScopes,
+        admit: impl Fn(node::Reader<'_>) -> Result<bool, Error>,
+    ) -> Result<bool, Error> {
         // Compiler-generated RPC parameter and result structs have no declaration.
         let mut child = self.node(id)?;
+        if !admit(child)? {
+            return Ok(false);
+        }
         for _ in 0..MAX_DEPTH {
             let parent_id = TypeId(child.get_scope_id());
             let Some(&parent) = self.0.get(&parent_id) else {
                 return Ok(false);
             };
+            if !admit(parent)? {
+                return Ok(false);
+            }
             let entries = match scopes.entry(parent_id) {
                 Entry::Occupied(entries) => entries.into_mut(),
                 Entry::Vacant(entry) => {
@@ -396,12 +411,12 @@ impl<'a> Nodes<'a> {
         needed: &mut BTreeSet<TypeId>,
         annotations: Annotations,
         scopes: &mut DeclarationScopes,
-        rpc: &mut Option<rpc::Owners>,
+        rpc: &mut Option<rpc::Endpoints>,
     ) -> Result<Node, Error> {
         let node = self.node(id)?;
         match node.which()? {
             node::Struct(data) if !data.get_is_group() => {
-                if node.get_scope_id() == 0 && self.method_owners(rpc)?.contains(id) {
+                if node.get_scope_id() == 0 && self.method_endpoints(rpc)?.owns_inline(id) {
                     return Err(layout(format!(
                         "detached RPC node {id} must be selected through its owning method"
                     )));
@@ -421,7 +436,7 @@ impl<'a> Nodes<'a> {
                         "RPC interface {id} must be declared in the schema"
                     )));
                 }
-                let methods = self.method_owners(rpc)?.methods(
+                let methods = self.method_endpoints(rpc)?.methods(
                     self,
                     node,
                     data,
@@ -437,14 +452,14 @@ impl<'a> Nodes<'a> {
         }
     }
 
-    fn method_owners<'b>(
+    fn method_endpoints<'b>(
         &self,
-        cache: &'b mut Option<rpc::Owners>,
-    ) -> Result<&'b rpc::Owners, Error> {
-        if let Some(owners) = cache {
-            return Ok(owners);
+        cache: &'b mut Option<rpc::Endpoints>,
+    ) -> Result<&'b mut rpc::Endpoints, Error> {
+        if let Some(endpoints) = cache {
+            return Ok(endpoints);
         }
-        Ok(cache.insert(rpc::Owners::read(self)?))
+        Ok(cache.insert(rpc::Endpoints::read(self)?))
     }
 
     fn structure(
