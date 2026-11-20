@@ -138,7 +138,7 @@ pub fn path(text: &str) -> Result<RelPath, CaptureError> {
     canonical_path(text, false)
 }
 
-/// Parse a canonical lowercase SHA-256 of the reader artifact.
+/// Parse a canonical lowercase SHA-256 of an artifact.
 ///
 /// # Errors
 /// Refuses invalid or noncanonical SHA-256 text.
@@ -146,7 +146,7 @@ pub fn artifact_digest(text: &str) -> Result<ContentDigest, Error> {
     parse_digest(text)
         .map(ContentDigest::from_raw)
         .ok_or(Error::Selection(
-            "supply the reader artifact SHA-256 as 64 lowercase hexadecimal digits",
+            "supply the artifact SHA-256 as 64 lowercase hexadecimal digits",
         ))
 }
 
@@ -211,10 +211,22 @@ pub(super) fn check_evidence_inputs(
     current: &str,
     evidence: Evidence<'_>,
 ) -> Result<(), Error> {
+    check_evidence_selection(
+        base,
+        current,
+        evidence,
+        "select a separate commit for the reader evidence",
+    )
+}
+
+pub(super) fn check_evidence_selection(
+    base: &str,
+    current: &str,
+    evidence: Evidence<'_>,
+    separate_commit: &'static str,
+) -> Result<(), Error> {
     if evidence.commit == base || evidence.commit == current {
-        return Err(Error::Selection(
-            "select a separate commit for the reader evidence",
-        ));
+        return Err(Error::Selection(separate_commit));
     }
     for file in [evidence.files.statement, evidence.files.signature] {
         path(file.as_str()).map_err(Error::Evidence)?;
@@ -227,7 +239,7 @@ pub(super) fn authenticate(repository: &Path, evidence: Evidence<'_>) -> Result<
     signed_graph(&signed, evidence.files, evidence.key).map_err(Error::Evidence)
 }
 
-fn pinned(
+pub(super) fn pinned(
     repository: &Path,
     commit: &str,
     role: &'static str,
@@ -294,14 +306,28 @@ pub(super) fn match_reader(
         ("baseCommit", expected.base),
         ("currentCommit", expected.current),
         ("rootType", &expected.root.to_string()),
-        ("readerEntry", expected.entry_point),
     ] {
         require_text(root, key, value)?;
     }
-    if &digest(root, "readerSha256")? != expected.artifact.as_bytes() {
-        return Err(CaptureError::Mismatch(
-            "signed reader SHA-256 differs from the caller selection".into(),
-        ));
+    match_artifact(
+        root,
+        ("readerEntry", expected.entry_point),
+        ("readerSha256", expected.artifact),
+        "reader",
+    )
+}
+
+pub(super) fn match_artifact(
+    root: &raf_rdf::Node<'_>,
+    (entry_key, entry): (&str, &str),
+    (digest_key, expected): (&str, ContentDigest),
+    role: &str,
+) -> Result<(), CaptureError> {
+    require_text(root, entry_key, entry)?;
+    if &digest(root, digest_key)? != expected.as_bytes() {
+        return Err(CaptureError::Mismatch(format!(
+            "signed {role} SHA-256 differs from the caller selection"
+        )));
     }
     Ok(())
 }
@@ -347,7 +373,11 @@ pub(super) fn payloads(
     Ok(payloads)
 }
 
-fn verify_payload(tree: &dyn Tree, path: &RelPath, digest: &[u8; 32]) -> Result<(), PayloadError> {
+pub(super) fn verify_payload(
+    tree: &dyn Tree,
+    path: &RelPath,
+    digest: &[u8; 32],
+) -> Result<(), PayloadError> {
     let bytes = tree
         .read_bytes(path, MAX_PAYLOAD_BYTES)
         .map_err(PayloadError::Read)?;

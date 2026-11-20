@@ -7,11 +7,11 @@ use std::{collections::BTreeSet, error, fmt, path::Path};
 
 use purrdf_core::ContentDigest;
 use raf_rdf::Graph;
-use raf_source::{RelPath, Tree};
+use raf_source::{PinnedGitTree, RelPath, Tree};
 
 use crate::{ReportError, report::shape};
 
-use super::{Finding, Options, continuity, read_bound_policy, valid_id};
+use super::{Declaration, Finding, Options, continuity, read_bound_policy, valid_id};
 use crate::capnp_history::{
     CaptureError, Snapshot, TypeId,
     capture::{canonical_path, digest, fields},
@@ -126,32 +126,21 @@ impl From<reader_evidence::Error> for Error {
 /// # Errors
 /// Refuses invalid selections, pinned inputs, evidence or specimens.
 pub fn check(repository: impl AsRef<Path>, request: Request<'_>) -> Result<Report, Error> {
-    if !valid_id(request.declaration) {
-        return Err(Error::Selection(
-            "select a canonical persistence declaration slug",
-        ));
-    }
     let repository = repository.as_ref();
-    let path = canonical_path(request.options.policy, false).map_err(super::Error::PolicyPath)?;
-    let base = open_tree(repository, request.base.commit)?;
-    let current = open_tree(repository, request.current.commit)?;
-    let select = Some(request.declaration);
-    let base_policy = read_bound_policy(&base, request.base.commit, &path, select)?;
-    let current_policy = read_bound_policy(&current, request.current.commit, &path, select)?;
-    let before = base_policy
-        .get(request.declaration)
-        .ok_or(Error::Selection(
-            "select a declaration present in the committed base policy",
-        ))?;
-    let after = current_policy.get(request.declaration);
-    if let Some(finding) = continuity(request.declaration, before, after) {
-        return Ok(Report {
-            findings: vec![finding],
-            verdict: Verdict::Uncovered,
-        });
-    }
-    let Some(after) = after else {
-        unreachable!("INVARIANT: declaration continuity requires a current declaration")
+    let scope = Scope {
+        base: request.base,
+        current: request.current,
+        options: request.options,
+        declaration: request.declaration,
+    };
+    let retained = match scope.select(repository)? {
+        Selection::Retained(retained) => retained,
+        Selection::Discontinuous(finding) => {
+            return Ok(Report {
+                findings: vec![finding],
+                verdict: Verdict::Uncovered,
+            });
+        }
     };
     if let Some(claim) = request.claim {
         reader_evidence::check_evidence_inputs(
@@ -161,12 +150,16 @@ pub fn check(repository: impl AsRef<Path>, request: Request<'_>) -> Result<Repor
         )?;
     }
 
-    let strict = compare_layouts((&base, &current), &request, before.root)?;
+    let strict = compare_layouts(
+        (&retained.base, &retained.current),
+        &scope,
+        retained.before.root,
+    )?;
     let verdict = if let Some(claim) = request.claim {
-        let reader = after.reader.as_deref().ok_or(Error::Selection(
+        let reader = retained.after.reader.as_deref().ok_or(Error::Selection(
             "declare readerEntry on the current persistence declaration",
         ))?;
-        if before.specimens.is_empty() {
+        if retained.before.specimens.is_empty() {
             return Err(Error::Selection(
                 "declare a nonempty specimenPath set on the base persistence declaration",
             ));
@@ -174,17 +167,17 @@ pub fn check(repository: impl AsRef<Path>, request: Request<'_>) -> Result<Repor
         let expected = reader_evidence::Expected {
             base: request.base.commit,
             current: request.current.commit,
-            root: before.root,
+            root: retained.before.root,
             entry_point: reader,
             artifact: claim.artifact,
-            payloads: &before.specimens,
+            payloads: &retained.before.specimens,
         };
         let graph = reader_evidence::authenticate(repository, claim.evidence)?;
-        let reported = admission_payloads(&graph, &request, &expected, strict.digests)
+        let reported = admission_payloads(&graph, &scope, &expected, strict.digests)
             .map_err(reader_evidence::Error::Evidence)?;
         let selected: Vec<_> = expected.payloads.iter().collect();
         reader_evidence::match_specimens(&selected, &reported)?;
-        let specimens = reader_evidence::verify_specimens(&base, reported)?;
+        let specimens = reader_evidence::verify_specimens(&retained.base, reported)?;
         Verdict::Admitted { specimens }
     } else if strict.findings.is_empty() {
         Verdict::Clean
@@ -197,14 +190,67 @@ pub fn check(repository: impl AsRef<Path>, request: Request<'_>) -> Result<Repor
     })
 }
 
-struct Strict {
-    findings: Vec<Finding>,
-    digests: [ContentDigest; 2],
+pub(super) struct Scope<'a> {
+    pub(super) base: Snapshot<'a>,
+    pub(super) current: Snapshot<'a>,
+    pub(super) options: Options<'a>,
+    pub(super) declaration: &'a str,
 }
 
-fn compare_layouts(
+pub(super) enum Selection {
+    Retained(Box<Retained>),
+    Discontinuous(Finding),
+}
+
+pub(super) struct Retained {
+    pub(super) base: PinnedGitTree<'static>,
+    pub(super) current: PinnedGitTree<'static>,
+    pub(super) before: Declaration,
+    pub(super) after: Declaration,
+}
+
+impl Scope<'_> {
+    pub(super) fn select(&self, repository: &Path) -> Result<Selection, Error> {
+        if !valid_id(self.declaration) {
+            return Err(Error::Selection(
+                "select a canonical persistence declaration slug",
+            ));
+        }
+        let path = canonical_path(self.options.policy, false).map_err(super::Error::PolicyPath)?;
+        let base = open_tree(repository, self.base.commit)?;
+        let current = open_tree(repository, self.current.commit)?;
+        let selected = Some(self.declaration);
+        let mut base_policy = read_bound_policy(&base, self.base.commit, &path, selected)?;
+        let mut current_policy = read_bound_policy(&current, self.current.commit, &path, selected)?;
+        let before = base_policy
+            .remove(self.declaration)
+            .ok_or(Error::Selection(
+                "select a declaration present in the committed base policy",
+            ))?;
+        let after = current_policy.remove(self.declaration);
+        if let Some(finding) = continuity(self.declaration, &before, after.as_ref()) {
+            return Ok(Selection::Discontinuous(finding));
+        }
+        let Some(after) = after else {
+            unreachable!("INVARIANT: declaration continuity requires a current declaration")
+        };
+        Ok(Selection::Retained(Box::new(Retained {
+            base,
+            current,
+            before,
+            after,
+        })))
+    }
+}
+
+pub(super) struct Strict {
+    pub(super) findings: Vec<Finding>,
+    pub(super) digests: [ContentDigest; 2],
+}
+
+pub(super) fn compare_layouts(
     trees: (&dyn Tree, &dyn Tree),
-    request: &Request<'_>,
+    request: &Scope<'_>,
     root: TypeId,
 ) -> Result<Strict, crate::capnp_history::Error> {
     let roots = BTreeSet::from([root]);
@@ -240,9 +286,9 @@ fn compare_layouts(
 
 fn admission_payloads(
     graph: &Graph,
-    request: &Request<'_>,
+    request: &Scope<'_>,
     expected: &reader_evidence::Expected<'_>,
-    [base_digest, current_digest]: [ContentDigest; 2],
+    digests: [ContentDigest; 2],
 ) -> Result<std::collections::BTreeMap<RelPath, [u8; 32]>, CaptureError> {
     let root = graph
         .get("")
@@ -271,7 +317,25 @@ fn admission_payloads(
             "payload",
         ],
     )?;
-    reader_evidence::match_reader(&root, expected)?;
+    match_scope(&root, request, expected.root, digests)?;
+    reader_evidence::match_artifact(
+        &root,
+        ("readerEntry", expected.entry_point),
+        ("readerSha256", expected.artifact),
+        "reader",
+    )?;
+    for key in ["acceptsOldShape", "acceptsSpecimens"] {
+        require_claim(&root, key, true)?;
+    }
+    reader_evidence::payloads(graph, &root)
+}
+
+pub(super) fn match_scope(
+    root: &raf_rdf::Node<'_>,
+    request: &Scope<'_>,
+    root_type: TypeId,
+    [base_digest, current_digest]: [ContentDigest; 2],
+) -> Result<(), CaptureError> {
     let marker = request
         .options
         .required_annotation
@@ -279,16 +343,19 @@ fn admission_payloads(
     for (key, value) in [
         ("policyFile", request.options.policy),
         ("declaration", request.declaration),
+        ("baseCommit", request.base.commit),
+        ("currentCommit", request.current.commit),
+        ("rootType", &root_type.to_string()),
         ("baseDescriptorFile", request.base.descriptor.as_str()),
         ("currentDescriptorFile", request.current.descriptor.as_str()),
         ("comparisonProfile", PROFILE),
         ("requiredAnnotation", &marker),
     ] {
-        reader_evidence::require_text(&root, key, value)?;
+        reader_evidence::require_text(root, key, value)?;
     }
     let pair_key = "pairedPresenceAnnotation";
     if let Some(id) = request.options.paired_presence_annotation {
-        reader_evidence::require_text(&root, pair_key, &id.to_string())?;
+        reader_evidence::require_text(root, pair_key, &id.to_string())?;
     } else if root.values(&shape::property(pair_key)).next().is_some() {
         return Err(CaptureError::Mismatch(
             "signed pairedPresenceAnnotation must be absent when the comparison omits it".into(),
@@ -298,22 +365,24 @@ fn admission_payloads(
         ("baseDescriptorSha256", base_digest),
         ("currentDescriptorSha256", current_digest),
     ] {
-        if &digest(&root, key)? != expected.as_bytes() {
+        if &digest(root, key)? != expected.as_bytes() {
             return Err(CaptureError::Mismatch(format!(
                 "signed {key} differs from the compared descriptor"
             )));
         }
     }
-    for (key, expected) in [
-        ("captureVerified", request.options.capture.is_some()),
-        ("acceptsOldShape", true),
-        ("acceptsSpecimens", true),
-    ] {
-        if shape::boolean_value(shape::one(&root, key)?) != Some(expected) {
-            return Err(CaptureError::Mismatch(format!(
-                "signed {key} must be {expected}"
-            )));
-        }
+    require_claim(root, "captureVerified", request.options.capture.is_some())
+}
+
+pub(super) fn require_claim(
+    root: &raf_rdf::Node<'_>,
+    key: &str,
+    expected: bool,
+) -> Result<(), CaptureError> {
+    if shape::boolean_value(shape::one(root, key)?) != Some(expected) {
+        return Err(CaptureError::Mismatch(format!(
+            "signed {key} must be {expected}"
+        )));
     }
-    reader_evidence::payloads(graph, &root)
+    Ok(())
 }

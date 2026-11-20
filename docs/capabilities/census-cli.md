@@ -29,6 +29,7 @@ bindings:
     - raf_census::capnp_history
     - raf_census::capnp_history::persistence::check
     - raf_census::capnp_history::persistence::admission::check
+    - raf_census::capnp_history::persistence::migration::check
     - raf_census::capnp_history::reader_evidence::verify
   tests:
     - cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs
@@ -50,6 +51,9 @@ bindings:
     - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_binds_paired_presence_annotation
     - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope
     - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal
+    - cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_admits_committed_pairs_and_preserves_strict_findings
+    - cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_requires_exact_scope_and_output_validity
+    - cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_refuses_changed_or_invalid_pair_blobs
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities
     - cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities
@@ -239,6 +243,16 @@ old-shape acceptance can admit the reader after Census verifies the exact
 specimens named by the base declaration. Strict findings remain visible.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_preserves_strict_findings,cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope,cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal -->
 
+`capnp-migration-admission` compares one stable persistence declaration at
+the two pinned revisions. A removed or rebound declaration is an uncovered
+policy finding. A trusted signer affirms that the selected migrator accepts
+the old shape, produced the listed outputs and satisfies the destination
+application contract. Census verifies the exact signed pairs against input
+blobs in the base and output blobs in the separate evidence revision. It
+checks digests and canonical raw Cap’n Proto segments. Strict findings remain
+visible independently of admission.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_admits_committed_pairs_and_preserves_strict_findings,cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_requires_exact_scope_and_output_validity,cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_refuses_changed_or_invalid_pair_blobs -->
+
 `capnp-reader-evidence` verifies a signed affirmative claim for the
 caller-selected base revision, reader revision, root type, reader
 artifact and entry point, and exact payload paths. It reads the
@@ -372,7 +386,7 @@ compiler captures. Each subject has one `rdf:type` and the following fields.
 | Class | Properties |
 | --- | --- |
 | `CapnpPersistencePolicyV1` at the graph root | Zero or more `persistedType` IRIs select owned declarations. |
-| `CapnpPersistedType` at an owned fragment | `package` names the Cargo package, `symbol` gives the exact source-index definition path, and `rootType` gives the nominal compiled type ID. Each is one string. For reader admission, the current row supplies one `readerEntry` string, and the base row supplies one or more canonical `specimenPath` strings. Both properties are optional for strict persistence checks. |
+| `CapnpPersistedType` at an owned fragment | `package` names the Cargo package, `symbol` gives the exact source-index definition path, and `rootType` gives the nominal compiled type ID. Each is one string. For admission, the current row supplies one `readerEntry` or `migrationEntry` string for the selected operation, and the base row supplies one or more canonical `specimenPath` strings. Entry points and specimens are optional for strict persistence checks. |
 
 Run `cargo census capnp-reader-admission` with the revision, descriptor
 and policy flags of `capnp-persistence` plus `--declaration SLUG`. To offer
@@ -406,6 +420,34 @@ Include one `pairedPresenceAnnotation` string with the selected
 annotation ID when the comparison uses `--paired-presence-annotation`.
 Omit this property when the comparison omits that option.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_binds_paired_presence_annotation -->
+
+Run `cargo census capnp-migration-admission` with the revision, descriptor
+and policy flags of `capnp-persistence` plus `--declaration SLUG`. Supply
+`--evidence-commit COMMIT --statement PATH --signature PATH --key HEX
+--migration-sha256 HEX` together to offer a claim. The evidence commit is
+distinct from both comparison revisions. Library callers use
+`raf_census::capnp_history::persistence::migration::check`.
+
+The signed `CapnpMigrationAdmissionV1` root uses the same policy,
+declaration, revisions, root type, descriptors, comparison profile,
+annotations and capture mode fields as reader admission. Use canonical
+N-Triples and a detached Ed25519 signature over the exact statement bytes.
+
+| Properties | Value |
+| --- | --- |
+| `migrationEntry`, `migrationSha256` | The current row's entry point and the expected artifact SHA-256 as strings. |
+| `acceptsOldShape`, `producedOutputs`, `outputsValid` | Three canonical boolean true values. The signer attests to old-shape acceptance, production of the listed outputs and their application validity. |
+| `specimenPair` | One owned `CapnpMigrationSpecimenPair` for each input path in the base row. Each pair supplies `inputFile`, `inputSha256`, `outputFile` and `outputSha256` as strings. |
+
+Use canonical repository-relative paths and SHA-256 values of 64 lowercase
+hexadecimal digits. Claims admit at most 128 pairs and each committed blob
+has a two MiB limit. Several pairs may share an output path with the same
+digest. A clean comparison or admitted migration exits 0. Census prints
+strict findings, the admitted declaration and verified pairs sorted by input
+path, with a tab separating the input and output paths. Uncovered findings
+exit 1. An invalid claim for a retained declaration
+refuses with a diagnostic.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_admits_committed_pairs_and_preserves_strict_findings,cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_requires_exact_scope_and_output_validity,cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_refuses_changed_or_invalid_pair_blobs -->
 
 Run `cargo census capnp-reader-evidence --base BASE --current CURRENT
 --evidence-commit COMMIT --statement PATH --signature PATH --key HEX
@@ -548,6 +590,13 @@ changing either one.
 
 ## Verification
 
+Migration fixtures compare strict and admitted verdicts for the same
+committed declarations. They distinguish base inputs from current and
+checkout copies and verify outputs from the signed evidence revision.
+Signed validity, exact scope, pair membership, digests and segment framing
+have refusal cases beside successful verification.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_admits_committed_pairs_and_preserves_strict_findings,cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_requires_exact_scope_and_output_validity,cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_refuses_changed_or_invalid_pair_blobs -->
+
 The Cap'n Proto fixture compares real compiler output in committed Git
 objects while the worktree contains different bytes. Selected layouts
 refuse a null request root, missing nodes, invalid ordinals, incompatible
@@ -633,6 +682,9 @@ persisted interface pointer keeps its data verdict when method layouts change.
 | `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_invalid_import_directory_declarations` | test | [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_oversized_inputs` | test | [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_admits_committed_pairs_and_preserves_strict_findings` | test | [Contract](#contract), [Usage](#usage) |
+| `cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_refuses_changed_or_invalid_pair_blobs` | test | [Contract](#contract), [Usage](#usage) |
+| `cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_requires_exact_scope_and_output_validity` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_compares_retained_committed_layouts` | test | [Contract](#contract) |
 | `cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_ignores_rpc_endpoint_layouts` | test | [Contract](#contract) |
 | `cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_protects_declaration_continuity_after_first_adoption` | test | [Contract](#contract) |
