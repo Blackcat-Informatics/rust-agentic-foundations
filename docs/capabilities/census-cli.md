@@ -46,10 +46,12 @@ bindings:
     - cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate
     - cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing
     - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_preserves_strict_findings
+    - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_binds_paired_presence_annotation
     - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope
     - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
     - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
+    - cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs
     - raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse
     - raf_census::capnp_history::tests::required_annotation_refuses_invalid_values_and_undeclared_structs
     - raf_census::capnp_history::tests::deep_group_findings_refuse_as_a_whole_above_the_payload_limit
@@ -115,6 +117,18 @@ unconditional groups. An unmarked append, an unchanged or removed
 marker, and a marker on a newly reached struct add no required-field
 finding. The strict layout comparison also runs.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors -->
+
+A caller can select a compiler-declared `UInt16` field annotation for
+paired pointer presence. The pair declares that the fields are both
+present or both absent. Apply the marker once to the lower ordinal
+field and give the higher ordinal as its value. Both fields must be
+direct unconditional pointer slots in the same declared struct.
+Census validates the marker in both snapshots and reports a new or
+changed pair with both field names in a struct reached from the
+selected roots in both snapshots. An unchanged or removed pair adds
+no finding. Required presence and strict layout findings remain
+independent of the declared pairs.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs -->
 
 Capture verification authenticates both compiler captures with one
 caller-selected Ed25519 key. Each signed statement binds the compiler
@@ -226,9 +240,10 @@ it with the schema. Library consumers call `raf_census::capnp_history::check`.
 The command exits 0 for a clean comparison or 1 with findings on stdout.
 An input or resource refusal exits 1 with a diagnostic on stderr.
 
-Add `--required-annotation 0xID` to compare required pointer presence.
-Library callers supply the selected roots and optional annotation ID
-through `HistoryOptions`.
+Add `--required-annotation 0xID` to compare required pointer presence
+or `--paired-presence-annotation 0xID` to compare paired pointer
+presence. Both options can be used together. Library callers supply
+the selected roots and annotation IDs through `HistoryOptions`.
 
 To authenticate captures, supply `--capture-key HEX` and the four
 repository-relative paths `--base-capture PATH`,
@@ -269,7 +284,7 @@ and sign these records before the command reads them.
 Run `cargo census capnp-persistence --base BASE --current CURRENT
 --base-descriptor PATH --current-descriptor PATH --policy PATH`. Give the
 repository root with `--workspace` when running elsewhere. The policy path
-is canonical and relative to that root. Use the same optional required
+is canonical and relative to that root. Use the same optional
 annotation and capture flags as for `capnp-history`. Library consumers
 call `raf_census::capnp_history::persistence::check`. A clean comparison
 exits 0. Findings go to stdout with exit 1. A refused comparison exits 1
@@ -310,6 +325,11 @@ The caller-selected Ed25519 key authenticates the statement. The
 | `comparisonProfile`, `requiredAnnotation`, `captureVerified` | The string `strict-schema-history-v1`, the annotation ID string or `none`, and a canonical boolean matching whether compiler captures are selected. |
 | `readerEntry`, `readerSha256` | The exact policy-selected entry point and expected artifact SHA-256 as strings. |
 | `acceptsOldShape`, `acceptsSpecimens`, `payload` | Canonical boolean true for both claims and the exact base specimen rows of class `CapnpAcceptedPayload`. |
+
+Include one `pairedPresenceAnnotation` string with the selected
+annotation ID when the comparison uses `--paired-presence-annotation`.
+Omit this property when the comparison omits that option.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_binds_paired_presence_annotation -->
 
 Run `cargo census capnp-reader-evidence --base BASE --current CURRENT
 --evidence-commit COMMIT --statement PATH --signature PATH --key HEX
@@ -532,6 +552,7 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_protects_declaration_continuity_after_first_adoption` | test | [Contract](#contract) |
 | `cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_refuses_invalid_bindings_and_policy_rows` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_validates_current_only_layouts` | test | [Contract](#contract) |
+| `cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_binds_paired_presence_annotation` | test | [Usage](#usage) |
 | `cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_preserves_strict_findings` | test | [Contract](#contract) |
 | `cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal` | test | [Contract](#contract), [Constraints](#constraints) |
@@ -540,6 +561,7 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |

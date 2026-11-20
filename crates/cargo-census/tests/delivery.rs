@@ -139,7 +139,7 @@ fn capnp_history(
     base: &str,
     current: &str,
     types: &[&str],
-    required_annotation: Option<&str>,
+    options: &[&str],
 ) -> Output {
     let mut args = vec![
         "capnp-history",
@@ -155,10 +155,13 @@ fn capnp_history(
     for &selected in types {
         args.extend(["--type", selected]);
     }
-    if let Some(marker) = required_annotation {
-        args.extend(["--required-annotation", marker]);
-    }
+    args.extend_from_slice(options);
     run(root, &args)
+}
+
+fn commit_capnp_descriptor(root: &Path, bytes: &[u8]) -> String {
+    fs::write(root.join("schema.bin"), bytes).unwrap();
+    git_repo::commit_all(root)
 }
 
 /// The shipped command follows compiled references from the selected type and
@@ -186,7 +189,7 @@ fn capnp_history_checks_committed_compiler_layouts() {
     let unresolved = git_repo::commit_all(root);
     fs::write(&descriptor, b"uncommitted bytes").unwrap();
     let types = ["0xf1804b9b18ae6505", "0xc8a351b6b42dc6a5"];
-    let history = |before: &str, after: &str| capnp_history(root, before, after, &types, None);
+    let history = |before: &str, after: &str| capnp_history(root, before, after, &types, &[]);
 
     let clean = history(&base, &compatible);
     assert!(clean.status.success(), "{clean:?}");
@@ -252,11 +255,7 @@ fn capnp_history_compares_required_pointer_fields_in_committed_descriptors() {
     let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
     let root = scratch.path();
     git_repo::init(root);
-    let descriptor = root.join("schema.bin");
-    let commit = |bytes: &[u8]| {
-        fs::write(&descriptor, bytes).unwrap();
-        git_repo::commit_all(root)
-    };
+    let commit = |bytes: &[u8]| commit_capnp_descriptor(root, bytes);
     let base = commit(include_bytes!("fixtures/capnp/required-base.bin"));
     let current = commit(include_bytes!("fixtures/capnp/required-current.bin"));
     let invalid = commit(include_bytes!("fixtures/capnp/required-invalid-slots.bin"));
@@ -265,10 +264,17 @@ fn capnp_history_compares_required_pointer_fields_in_committed_descriptors() {
         "fixtures/capnp/required-bad-declarations.bin"
     ));
     let mixed = commit(include_bytes!("fixtures/capnp/required-multi-target.bin"));
-    fs::write(descriptor, b"uncommitted bytes").unwrap();
+    fs::write(root.join("schema.bin"), b"uncommitted bytes").unwrap();
 
-    let history = |base: &str, current: &str, selected, marker| {
-        capnp_history(root, base, current, &[selected], marker)
+    let history = |base: &str, current: &str, selected, marker: Option<&str>| {
+        let options = marker.map(|id| ["--required-annotation", id]);
+        capnp_history(
+            root,
+            base,
+            current,
+            &[selected],
+            options.as_slice().as_flattened(),
+        )
     };
     let strict = history(&base, &current, ROOT, None);
     assert!(strict.status.success(), "{strict:?}");
@@ -337,6 +343,111 @@ fn capnp_history_compares_required_pointer_fields_in_committed_descriptors() {
         ),
     ] {
         let refused = history(before, after, selected, Some(marker));
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert_eq!(refused.stdout, b"");
+        let stderr = String::from_utf8(refused.stderr).unwrap();
+        assert!(stderr.contains(diagnostic), "{stderr}");
+    }
+}
+
+/// Pair declarations constrain presence independently of read defaults and
+/// require both endpoints to be direct unconditional pointer slots.
+#[test]
+fn capnp_history_compares_declared_pointer_pairs() {
+    const ROOT: &str = "0xf1804b9b18ae6505";
+    const OPTIONS: &[&str] = &[
+        "--required-annotation",
+        "0xe91447cf636b013a",
+        "--paired-presence-annotation",
+        "0xbfff7293108cab62",
+    ];
+    let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let commit = |bytes: &[u8]| commit_capnp_descriptor(root, bytes);
+    let base = commit(include_bytes!("fixtures/capnp/paired-base.bin"));
+    let current = commit(include_bytes!("fixtures/capnp/paired-current.bin"));
+    let replacement = commit(include_bytes!("fixtures/capnp/paired-replacement.bin"));
+    let invalid = commit(include_bytes!("fixtures/capnp/paired-invalid.bin"));
+    let no_marker = commit(include_bytes!("fixtures/capnp/required-base.bin"));
+
+    for (before, after, options) in [
+        (&base, &current, &OPTIONS[..2]),
+        (&current, &base, OPTIONS),
+        (&current, &current, OPTIONS),
+    ] {
+        let clean = capnp_history(root, before, after, &[ROOT], options);
+        assert!(clean.status.success(), "{clean:?}");
+        assert_eq!(clean.stdout, b"");
+    }
+    let added = capnp_history(root, &base, &current, &[ROOT], OPTIONS);
+    assert_eq!(added.status.code(), Some(1), "{added:?}");
+    assert_eq!(added.stderr, b"");
+    assert_eq!(
+        added.stdout,
+        b"Cap'n Proto history for 0xf1804b9b18ae6505.profile: pointer field became paired with profileSince\n"
+    );
+    let replaced = capnp_history(root, &current, &replacement, &[ROOT], OPTIONS);
+    assert_eq!(replaced.status.code(), Some(1), "{replaced:?}");
+    assert_eq!(replaced.stderr, b"");
+    assert_eq!(
+        replaced.stdout,
+        concat!(
+            "Cap'n Proto history for 0xf1804b9b18ae6505.profile: default changed\n",
+            "Cap'n Proto history for 0xf1804b9b18ae6505.profile: pointer field became paired with feedHeld\n",
+        )
+        .as_bytes()
+    );
+    for (ordinal, member, peer) in [
+        (1, "count", 1),
+        (2, "pointer", 1),
+        (3, "pointer", 1),
+        (4, "pointer", 0),
+        (5, "second", 0),
+        (6, "first", 2),
+        (7, "first", 1),
+        (8, "first", 1),
+        (9, "first", 1),
+        (10, "nested", 1),
+    ] {
+        let selected = format!(
+            "0x{}",
+            purrdf_hash::hex::encode(&[0xb0, 0, 0, 0, 0, 0, 0, ordinal])
+        );
+        let refused = capnp_history(root, &invalid, &invalid, &[&selected], OPTIONS);
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert_eq!(refused.stdout, b"");
+        let stderr = String::from_utf8(refused.stderr).unwrap();
+        assert!(
+            stderr.contains(&format!(".{member} with peer @{peer} must connect")),
+            "{stderr}"
+        );
+    }
+    for (before, after, selected, options, diagnostic) in [
+        (
+            &invalid,
+            &invalid,
+            "0xb00000000000000b",
+            OPTIONS,
+            "expected one UInt16 application",
+        ),
+        (
+            &base,
+            &no_marker,
+            ROOT,
+            OPTIONS,
+            "missing paired presence annotation",
+        ),
+        (
+            &base,
+            &current,
+            ROOT,
+            &["--paired-presence-annotation", "0xe91447cf636b013a"],
+            "must declare a UInt16 field target",
+        ),
+    ] {
+        let refused = capnp_history(root, before, after, &[selected], options);
         assert_eq!(refused.status.code(), Some(1), "{refused:?}");
         assert_eq!(refused.stdout, b"");
         let stderr = String::from_utf8(refused.stderr).unwrap();

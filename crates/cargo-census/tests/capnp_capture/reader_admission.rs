@@ -39,6 +39,7 @@ const MIRROR: (&str, &str, &str, &str) = (
 
 struct Fixture {
     repo: TempDir,
+    descriptor_bytes: [&'static [u8]; 2],
     base: String,
     current: String,
     artifact: String,
@@ -48,6 +49,10 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
+        Self::with_descriptors(BASE, CHANGED)
+    }
+
+    fn with_descriptors(base_descriptor: &'static [u8], current_descriptor: &'static [u8]) -> Self {
         let repo = persistence::repository();
         let root = repo.path();
         let sample = payload(17);
@@ -58,15 +63,16 @@ impl Fixture {
             text(&mut base_policy, row, "specimenPath", SPECIMEN);
             text(&mut base_policy, row, "readerEntry", READER);
         }
-        let base = persistence::commit(root, BASE, base_policy);
+        let base = persistence::commit(root, base_descriptor, base_policy);
         fs::write(root.join(SPECIMEN), b"not the committed old sample").unwrap();
         let mut current_policy = persistence::policy(&[ENTRY, MIRROR]);
         for row in ["#packet", "#mirror"] {
             text(&mut current_policy, row, "readerEntry", READER);
         }
-        let current = persistence::commit(root, CHANGED, current_policy);
+        let current = persistence::commit(root, current_descriptor, current_policy);
         Self {
             repo,
+            descriptor_bytes: [base_descriptor, current_descriptor],
             base,
             current,
             sample,
@@ -103,8 +109,7 @@ impl Fixture {
             text(&mut graph, "", key, value);
         }
         if shape_wide {
-            let base_digest = digest(BASE);
-            let current_digest = digest(CHANGED);
+            let [base_digest, current_digest] = self.descriptor_bytes.map(digest);
             for (key, value) in [
                 ("policyFile", POLICY),
                 ("declaration", ENTRY.0),
@@ -119,6 +124,9 @@ impl Fixture {
                     .filter(|(field, _)| *field == key)
                     .map_or(value, |(_, value)| value);
                 text(&mut graph, "", key, value);
+            }
+            if let Some(("pairedPresenceAnnotation", value)) = scope_override {
+                text(&mut graph, "", "pairedPresenceAnnotation", value);
             }
             for (key, value) in [
                 ("acceptsOldShape", true),
@@ -158,6 +166,7 @@ impl Fixture {
         current: &str,
         descriptor: &str,
         evidence: Option<&str>,
+        options: &[&str],
     ) -> Output {
         let mut command = Command::new(env!("CARGO_BIN_EXE_cargo-census"));
         command.current_dir(self.repo.path()).args([
@@ -175,6 +184,7 @@ impl Fixture {
             "--declaration",
             declaration,
         ]);
+        command.args(options);
         if let Some(evidence) = evidence {
             let public = purrdf_hash::hex::encode(&self.key.verifying_key().to_bytes());
             command.args([
@@ -194,7 +204,7 @@ impl Fixture {
     }
 
     fn run(&self, evidence: Option<&str>) -> Output {
-        self.command(ENTRY.0, &self.current, DESCRIPTOR, evidence)
+        self.command(ENTRY.0, &self.current, DESCRIPTOR, evidence, &[])
     }
 }
 
@@ -230,6 +240,61 @@ fn capnp_reader_admission_preserves_strict_findings() {
     );
 }
 
+/// A signed reader admits only the paired presence annotation selected for its
+/// comparison and keeps the strict pairing finding visible.
+#[test]
+fn capnp_reader_admission_binds_paired_presence_annotation() {
+    const MARKER: &str = "0xbfff7293108cab62";
+    let fixture = Fixture::with_descriptors(
+        include_bytes!("../fixtures/capnp/paired-base.bin"),
+        include_bytes!("../fixtures/capnp/paired-current.bin"),
+    );
+    let samples = [(SPECIMEN, fixture.sample.as_slice())];
+    let options = ["--paired-presence-annotation", MARKER];
+    let run = |evidence: &str, options: &[&str]| {
+        fixture.command(
+            ENTRY.0,
+            &fixture.current,
+            DESCRIPTOR,
+            Some(evidence),
+            options,
+        )
+    };
+    let matching = fixture.signed(true, Some(("pairedPresenceAnnotation", MARKER)), &samples);
+    let admitted = run(&matching, &options);
+    assert!(admitted.status.success(), "{admitted:?}");
+    assert_eq!(admitted.stderr, b"");
+    assert_eq!(
+        admitted.stdout,
+        concat!(
+            "Cap'n Proto history for 0xf1804b9b18ae6505.profile: pointer field became paired with profileSince\n",
+            "admitted signed old-shape reader claim for packet\nold-packet.bin\n",
+        )
+        .as_bytes()
+    );
+    let omitted = fixture.signed(true, None, &samples);
+    let different = fixture.signed(
+        true,
+        Some(("pairedPresenceAnnotation", "0xbfff7293108cab63")),
+        &samples,
+    );
+    for (evidence, options, diagnostic) in [
+        (&omitted, options.as_slice(), "pairedPresenceAnnotation"),
+        (
+            &different,
+            options.as_slice(),
+            "signed pairedPresenceAnnotation differs",
+        ),
+        (
+            &matching,
+            [].as_slice(),
+            "signed pairedPresenceAnnotation must be absent",
+        ),
+    ] {
+        assert_refused(run(evidence, options), diagnostic);
+    }
+}
+
 /// The same schema ID and bytes cannot transfer an assertion across row or scope.
 #[test]
 fn capnp_reader_admission_refuses_stale_or_different_claim_scope() {
@@ -257,7 +322,7 @@ fn capnp_reader_admission_refuses_stale_or_different_claim_scope() {
         ),
     ] {
         assert_refused(
-            fixture.command(row, current, descriptor, Some(&evidence)),
+            fixture.command(row, current, descriptor, Some(&evidence), &[]),
             diagnostic,
         );
     }
@@ -324,7 +389,7 @@ fn capnp_reader_admission_verifies_exact_specimens_and_preserves_removal() {
         (&[MIRROR, rebound][..], "root changed from"),
     ] {
         let changed = persistence::commit(fixture.repo.path(), CHANGED, persistence::policy(rows));
-        let output = fixture.command(ENTRY.0, &changed, DESCRIPTOR, Some(&evidence));
+        let output = fixture.command(ENTRY.0, &changed, DESCRIPTOR, Some(&evidence), &[]);
         assert_eq!(output.status.code(), Some(1), "{output:?}");
         assert_eq!(output.stderr, b"");
         assert!(String::from_utf8_lossy(&output.stdout).contains(diagnostic));

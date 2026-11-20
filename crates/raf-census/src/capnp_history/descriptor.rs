@@ -54,6 +54,7 @@ pub(super) struct Struct {
     pub(super) parameters: u32,
     pub(super) slots: BTreeMap<u16, Slot>,
     pub(super) groups: BTreeMap<GroupPath, Group>,
+    pub(super) pairs: BTreeSet<(u16, u16)>,
 }
 
 #[derive(Debug)]
@@ -78,6 +79,18 @@ pub(super) struct Nodes<'a>(BTreeMap<TypeId, node::Reader<'a>>);
 
 type DeclarationScopes = BTreeMap<TypeId, Vec<TypeId>>;
 
+#[derive(Clone, Copy, Default)]
+pub(super) struct Annotations {
+    pub(super) required: Option<TypeId>,
+    pub(super) paired_presence: Option<TypeId>,
+}
+
+#[derive(Clone, Copy)]
+enum AnnotationKind {
+    Required,
+    PairedPresence,
+}
+
 #[derive(Clone, Copy)]
 pub(super) enum Roots<'a> {
     /// Every selected root must exist in the base.
@@ -91,7 +104,7 @@ pub(super) enum Roots<'a> {
 pub(super) fn read(
     bytes: &[u8],
     roots: &BTreeSet<TypeId>,
-    required_annotation: Option<TypeId>,
+    annotations: Annotations,
     mode: Roots<'_>,
     capture: Option<(&Capture, &dyn Tree)>,
 ) -> Result<Schema, Error> {
@@ -122,8 +135,13 @@ pub(super) fn read(
     }
     let nodes = Nodes(nodes);
     let mut scopes = DeclarationScopes::new();
-    if let Some(id) = required_annotation {
-        nodes.validate_required_annotation(id, &mut scopes)?;
+    for (id, kind) in [
+        (annotations.required, AnnotationKind::Required),
+        (annotations.paired_presence, AnnotationKind::PairedPresence),
+    ] {
+        if let Some(id) = id {
+            nodes.validate_field_annotation(id, kind, &mut scopes)?;
+        }
     }
     if let Roots::Declared(declared) = mode {
         for &id in declared {
@@ -132,12 +150,12 @@ pub(super) fn read(
     }
     let projected = nodes.project(
         roots,
-        required_annotation,
+        annotations,
         !matches!(mode, Roots::AllowMissing),
         &mut scopes,
     )?;
     if let Roots::Declared(declared) = mode {
-        nodes.validate_other_layouts(declared, &projected, required_annotation, &mut scopes)?;
+        nodes.validate_other_layouts(declared, &projected, annotations, &mut scopes)?;
     }
     Ok(projected)
 }
@@ -147,32 +165,41 @@ pub(super) fn layout(message: impl Into<String>) -> Error {
 }
 
 impl<'a> Nodes<'a> {
-    fn validate_required_annotation(
+    fn validate_field_annotation(
         &self,
         id: TypeId,
+        kind: AnnotationKind,
         scopes: &mut DeclarationScopes,
     ) -> Result<(), Error> {
+        let (label, value_type) = match kind {
+            AnnotationKind::Required => ("required", "Void"),
+            AnnotationKind::PairedPresence => ("paired presence", "UInt16"),
+        };
         let invalid = || {
             layout(format!(
-                "required annotation {id} must declare a Void field target"
+                "{label} annotation {id} must declare a {value_type} field target"
             ))
         };
         let declaration = self
             .0
             .get(&id)
-            .ok_or_else(|| layout(format!("missing required annotation {id}")))?;
+            .ok_or_else(|| layout(format!("missing {label} annotation {id}")))?;
         let node::Annotation(annotation) = declaration.which()? else {
             return Err(invalid());
         };
         if !annotation.get_targets_field()
             || !annotation.has_type()
-            || !matches!(annotation.get_type()?.which()?, type_::Void(()))
+            || !matches!(
+                (kind, annotation.get_type()?.which()?),
+                (AnnotationKind::Required, type_::Void(()))
+                    | (AnnotationKind::PairedPresence, type_::Uint16(()))
+            )
         {
             return Err(invalid());
         }
         if !self.is_declared(id, scopes)? {
             return Err(layout(format!(
-                "required annotation {id} must belong to a declared schema scope"
+                "{label} annotation {id} must belong to a declared schema scope"
             )));
         }
         Ok(())
@@ -281,7 +308,7 @@ impl<'a> Nodes<'a> {
     fn project(
         &self,
         roots: &BTreeSet<TypeId>,
-        required_annotation: Option<TypeId>,
+        annotations: Annotations,
         require_roots: bool,
         scopes: &mut DeclarationScopes,
     ) -> Result<Schema, Error> {
@@ -299,10 +326,7 @@ impl<'a> Nodes<'a> {
             if nodes.contains_key(&id) {
                 continue;
             }
-            nodes.insert(
-                id,
-                self.project_node(id, &mut needed, required_annotation, scopes)?,
-            );
+            nodes.insert(id, self.project_node(id, &mut needed, annotations, scopes)?);
         }
         Ok(Schema {
             roots: present,
@@ -314,14 +338,14 @@ impl<'a> Nodes<'a> {
         &self,
         declared: &BTreeSet<TypeId>,
         retained: &Schema,
-        required_annotation: Option<TypeId>,
+        annotations: Annotations,
         scopes: &mut DeclarationScopes,
     ) -> Result<(), Error> {
         let mut needed = declared.clone();
         let mut checked = BTreeSet::new();
         while let Some(id) = needed.pop_first() {
             if !retained.nodes.contains_key(&id) && checked.insert(id) {
-                self.project_node(id, &mut needed, required_annotation, scopes)?;
+                self.project_node(id, &mut needed, annotations, scopes)?;
             }
         }
         Ok(())
@@ -331,18 +355,26 @@ impl<'a> Nodes<'a> {
         &self,
         id: TypeId,
         needed: &mut BTreeSet<TypeId>,
-        required_annotation: Option<TypeId>,
+        annotations: Annotations,
         scopes: &mut DeclarationScopes,
     ) -> Result<Node, Error> {
         match self.node(id)?.which()? {
             node::Struct(data) if !data.get_is_group() => {
-                let structure = self.structure(id, data, needed, required_annotation)?;
-                if required_annotation.is_some()
+                let structure = self.structure(id, data, needed, annotations)?;
+                let declared_constraint = if !structure.pairs.is_empty() {
+                    Some("paired presence fields")
+                } else if annotations.required.is_some()
                     && structure.slots.values().any(|slot| slot.required)
+                {
+                    Some("required fields")
+                } else {
+                    None
+                };
+                if let Some(constraint) = declared_constraint
                     && !self.is_declared(id, scopes)?
                 {
                     return Err(layout(format!(
-                        "required fields must belong to a declared struct; check node {id} and its enclosing scopes"
+                        "{constraint} must belong to a declared struct; check node {id} and its enclosing scopes"
                     )));
                 }
                 Ok(Node::Struct(structure))
@@ -359,19 +391,21 @@ impl<'a> Nodes<'a> {
         id: TypeId,
         reader: node::struct_::Reader<'a>,
         needed: &mut BTreeSet<TypeId>,
-        required_annotation: Option<TypeId>,
+        annotations: Annotations,
     ) -> Result<Struct, Error> {
         let mut collector = Fields {
             nodes: self,
             needed,
-            required_annotation,
+            annotations,
             slots: BTreeMap::new(),
+            pairs: BTreeSet::new(),
             groups: BTreeMap::new(),
             used_groups: BTreeSet::new(),
             ordinals: BTreeSet::new(),
             sizes: (reader.get_data_word_count(), reader.get_pointer_count()),
         };
         collector.group(id, reader, Rc::from([]), (None, None), false)?;
+        collector.validate_peers(id)?;
         if collector
             .ordinals
             .last()
@@ -385,6 +419,7 @@ impl<'a> Nodes<'a> {
             parameters: self.parameters(id)?,
             slots: collector.slots,
             groups: collector.groups,
+            pairs: collector.pairs,
         })
     }
 }
@@ -426,8 +461,9 @@ fn member_name(name: capnp::text::Reader<'_>) -> Result<&str, Error> {
 struct Fields<'a, 'b> {
     nodes: &'b Nodes<'a>,
     needed: &'b mut BTreeSet<TypeId>,
-    required_annotation: Option<TypeId>,
+    annotations: Annotations,
     slots: BTreeMap<u16, Slot>,
+    pairs: BTreeSet<(u16, u16)>,
     groups: BTreeMap<GroupPath, Group>,
     used_groups: BTreeSet<TypeId>,
     ordinals: BTreeSet<u16>,
@@ -435,6 +471,71 @@ struct Fields<'a, 'b> {
 }
 
 impl<'a> Fields<'a, '_> {
+    fn field_annotations(
+        &self,
+        (owner, name): (TypeId, &str),
+        field: field::Reader<'_>,
+    ) -> Result<(bool, Option<u16>), Error> {
+        let mut required = false;
+        let mut peer = None;
+        if self.annotations.required.is_none() && self.annotations.paired_presence.is_none() {
+            return Ok((required, peer));
+        }
+        for annotation in field.get_annotations()? {
+            let marker = TypeId(annotation.get_id());
+            if self.annotations.required == Some(marker) {
+                if required
+                    || !annotation.has_value()
+                    || !matches!(annotation.get_value()?.which()?, value::Void(()))
+                {
+                    return Err(layout(format!(
+                        "expected one Void application of required annotation {marker} at {owner}.{name}"
+                    )));
+                }
+                required = true;
+            } else if self.annotations.paired_presence == Some(marker) {
+                let invalid = || {
+                    layout(format!(
+                        "expected one UInt16 application of paired presence annotation {marker} at {owner}.{name}"
+                    ))
+                };
+                if peer.is_some() || !annotation.has_value() {
+                    return Err(invalid());
+                }
+                let value::Uint16(ordinal) = annotation.get_value()?.which()? else {
+                    return Err(invalid());
+                };
+                peer = Some(ordinal);
+            } else {
+                continue;
+            }
+            // Annotation brands do not add persisted data types to the closure.
+            shape::read_brand(
+                annotation.get_brand()?,
+                self.nodes,
+                (owner, marker),
+                &mut BTreeSet::new(),
+            )?;
+        }
+        Ok((required, peer))
+    }
+
+    fn validate_peers(&self, owner: TypeId) -> Result<(), Error> {
+        for &(source, peer) in &self.pairs {
+            let slot = &self.slots[&source];
+            if !matches!(slot.ty.storage(), Some((true, _)))
+                || !self.slots.get(&peer).is_some_and(|slot| {
+                    slot.owner.is_empty()
+                        && slot.discriminant.is_none()
+                        && matches!(slot.ty.storage(), Some((true, _)))
+                })
+            {
+                return Err(invalid_pair(owner, &slot.name, peer));
+            }
+        }
+        Ok(())
+    }
+
     fn group(
         &mut self,
         id: TypeId,
@@ -531,7 +632,7 @@ impl<'a> Fields<'a, '_> {
         };
         let exclusive = discriminant.is_some();
         let conditional = inherited_activation || exclusive;
-        let required = required_field(self.nodes, self.required_annotation, (owner, name), field)?;
+        let (required, peer) = self.field_annotations((owner, name), field)?;
         match field.which()? {
             field::Slot(slot) => {
                 if required && conditional {
@@ -539,6 +640,12 @@ impl<'a> Fields<'a, '_> {
                 }
                 let ordinal =
                     ordinal.ok_or_else(|| layout(format!("{owner}.{name} has no ordinal")))?;
+                if let Some(peer) = peer {
+                    if !path.is_empty() || conditional || ordinal >= peer {
+                        return Err(invalid_pair(owner, name, peer));
+                    }
+                    self.pairs.insert((ordinal, peer));
+                }
                 self.record_ordinal(owner, name, ordinal)?;
                 if let Some(span) =
                     self.slot((owner, path), (name, ordinal), slot, discriminant, required)?
@@ -547,6 +654,9 @@ impl<'a> Fields<'a, '_> {
                 }
             }
             field::Group(group) => {
+                if let Some(peer) = peer {
+                    return Err(invalid_pair(owner, name, peer));
+                }
                 if required {
                     return Err(invalid_required_field(owner, name));
                 }
@@ -649,38 +759,10 @@ impl<'a> Fields<'a, '_> {
     }
 }
 
-fn required_field(
-    nodes: &Nodes<'_>,
-    marker: Option<TypeId>,
-    (owner, name): (TypeId, &str),
-    field: field::Reader<'_>,
-) -> Result<bool, Error> {
-    let Some(marker) = marker else {
-        return Ok(false);
-    };
-    let mut required = false;
-    for annotation in field.get_annotations()? {
-        if annotation.get_id() != marker.0 {
-            continue;
-        }
-        if required
-            || !annotation.has_value()
-            || !matches!(annotation.get_value()?.which()?, value::Void(()))
-        {
-            return Err(layout(format!(
-                "expected one Void application of required annotation {marker} at {owner}.{name}"
-            )));
-        }
-        // Annotation brands do not add persisted data types to the closure.
-        shape::read_brand(
-            annotation.get_brand()?,
-            nodes,
-            (owner, marker),
-            &mut BTreeSet::new(),
-        )?;
-        required = true;
-    }
-    Ok(required)
+fn invalid_pair(owner: TypeId, name: &str, peer: u16) -> Error {
+    layout(format!(
+        "paired presence at {owner}.{name} with peer @{peer} must connect two direct unconditional pointer slots in ascending ordinal order"
+    ))
 }
 
 fn invalid_required_field(owner: TypeId, name: &str) -> Error {

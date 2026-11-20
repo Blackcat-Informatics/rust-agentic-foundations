@@ -214,7 +214,7 @@ fn compare_layouts(
         trees.0,
         request.base,
         &roots,
-        request.options.required_annotation,
+        request.options.annotations(),
         mode,
         capture.map(|capture| (capture.key, capture.base)),
         ContentDigest::of,
@@ -223,7 +223,7 @@ fn compare_layouts(
         trees.1,
         request.current,
         &roots,
-        request.options.required_annotation,
+        request.options.annotations(),
         mode,
         capture.map(|capture| (capture.key, capture.current)),
         ContentDigest::of,
@@ -262,6 +262,7 @@ fn admission_payloads(
             "rootType",
             "comparisonProfile",
             "requiredAnnotation",
+            "pairedPresenceAnnotation",
             "captureVerified",
             "readerEntry",
             "readerSha256",
@@ -284,6 +285,14 @@ fn admission_payloads(
         ("requiredAnnotation", &marker),
     ] {
         reader_evidence::require_text(&root, key, value)?;
+    }
+    let pair_key = "pairedPresenceAnnotation";
+    if let Some(id) = request.options.paired_presence_annotation {
+        reader_evidence::require_text(&root, pair_key, &id.to_string())?;
+    } else if root.values(&shape::property(pair_key)).next().is_some() {
+        return Err(CaptureError::Mismatch(
+            "signed pairedPresenceAnnotation must be absent when the comparison omits it".into(),
+        ));
     }
     for (key, expected) in [
         ("baseDescriptorSha256", base_digest),
