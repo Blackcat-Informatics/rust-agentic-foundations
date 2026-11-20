@@ -1,0 +1,231 @@
+{
+  "issue": 322,
+  "pr_number": 323,
+  "branch": "paudley/322-census-check-committed-capn-proto-file",
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/322-census-check-committed-capn-proto-file/.stage/census-check-committed-capn-proto-file",
+  "observed_at": "2026-11-20T12:06:08.995861+00:00",
+  "completed": [
+    "pr",
+    "checks",
+    "reviews",
+    "merge_candidate"
+  ],
+  "blocked": [],
+  "unavailable": [],
+  "next_actions": [],
+  "artifacts": {
+    "ci_failures": "/home/paudley/Active/rust-agentic-foundations/.worktrees/322-census-check-committed-capn-proto-file/.stage/census-check-committed-capn-proto-file/ci-failures.md",
+    "reviews": "/home/paudley/Active/rust-agentic-foundations/.worktrees/322-census-check-committed-capn-proto-file/.stage/census-check-committed-capn-proto-file/pr-comments.md",
+    "status": "/home/paudley/Active/rust-agentic-foundations/.worktrees/322-census-check-committed-capn-proto-file/.stage/census-check-committed-capn-proto-file/status.json",
+    "checks": "/home/paudley/Active/rust-agentic-foundations/.worktrees/322-census-check-committed-capn-proto-file/.stage/census-check-committed-capn-proto-file/pr-checks.txt",
+    "review_evidence": "/home/paudley/Active/rust-agentic-foundations/.worktrees/322-census-check-committed-capn-proto-file/.stage/census-check-committed-capn-proto-file/review-evidence.json"
+  },
+  "limits": [
+    "Mechanical evidence only; artifact presence does not establish a passing review or acceptance verdict.",
+    "Preflight does not sign, fetch, push or mutate forge state. API permission and read access do not prove Git push authorization or protected-branch admission."
+  ],
+  "pr": {
+    "baseRefName": "main",
+    "baseRefOid": "abd365795fbfd0f372ee561e7637eda23e244bbf",
+    "headRefName": "paudley/322-census-check-committed-capn-proto-file",
+    "headRefOid": "c1e5539c5c3a60b3a500d759c7815a8cf82ef789",
+    "isDraft": false,
+    "mergeCommit": null,
+    "mergedAt": null,
+    "number": 323,
+    "state": "OPEN",
+    "title": "Compare committed Cap\u2019n Proto file identities",
+    "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/323"
+  },
+  "checks": {
+    "state": "pass",
+    "checks": [
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136275965547",
+        "name": "test",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136273163848",
+        "name": "fuzz",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212665",
+        "name": "test (raf-source 1/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212952",
+        "name": "test (raf-workplan 1/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212776",
+        "name": "test (raf-workplan 3/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212771",
+        "name": "test (cargo-census)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212841",
+        "name": "test (raf-census)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212810",
+        "name": "test (raf-rdf)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212366",
+        "name": "fmt",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212778",
+        "name": "test (raf-source 2/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212717",
+        "name": "test (raf-fixtures)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212779",
+        "name": "test (raf-okf)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212377",
+        "name": "doc",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212770",
+        "name": "test (raf-workplan 2/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212337",
+        "name": "clippy",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212442",
+        "name": "test-release",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272213004",
+        "name": "test (rust-agentic-foundations 1/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212721",
+        "name": "test (rust-agentic-foundations 2/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212692",
+        "name": "test (cargo-workplan)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212394",
+        "name": "fuzz_checks",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272212373",
+        "name": "msrv",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://coderabbit.ai?utm_source=cr_app&utm_medium=github",
+        "name": "CodeRabbit",
+        "state": "NEUTRAL"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272083841",
+        "name": "packages",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272083691",
+        "name": "reuse",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44731487849/job/136272083406",
+        "name": "deny",
+        "state": "SUCCESS"
+      }
+    ]
+  },
+  "reviews": {
+    "head": "c1e5539c5c3a60b3a500d759c7815a8cf82ef789",
+    "coverage": {
+      "comments": "complete",
+      "reviews": "complete",
+      "inline_comments": "complete",
+      "threads": "complete"
+    },
+    "items": 1,
+    "change_token": "e4eb005bb47ea0bcfdfc47a3fa7f95fbd41d71d173ddd3f1d3baed5bb1b01978"
+  },
+  "local": {
+    "head": "c1e5539c5c3a60b3a500d759c7815a8cf82ef789",
+    "branch": "paudley/322-census-check-committed-capn-proto-file",
+    "dirty_paths": []
+  },
+  "ci_logs": {
+    "pr": 323,
+    "jobs": [],
+    "ok": true,
+    "summary": "# PR #323 failed CI logs\n\nNo failed checks in this snapshot.\n"
+  },
+  "review_debt": [],
+  "unresolved_threads": [],
+  "validation": {
+    "results": [],
+    "limits": "Scopes are caller-selected. Unchanged scope is reusable evidence, not a gate waiver; environment capture is not exhaustive."
+  },
+  "preflight": {
+    "git": "/usr/bin/git",
+    "python3": "/home/paudley/stage/root/bin/python3",
+    "stagectl": "/home/paudley/stage/root/bin/stagectl",
+    "bash": "/usr/bin/bash",
+    "readlink": "/home/paudley/stage/root/bin/readlink",
+    "sed": "/usr/bin/sed",
+    "awk": "/usr/bin/awk",
+    "ghprsq": "/home/paudley/stage/agents/bin/ghprsq",
+    "archive": {
+      "files": 15,
+      "bytes": 3558005,
+      "errors": [],
+      "limits": "Read-only selected-evidence admission; full newly reachable Git object closure is checked by ghprsq before push."
+    },
+    "signing": {
+      "format": "openpgp",
+      "key_configured": true,
+      "limits": "Configuration inspected; no signing operation was performed."
+    },
+    "forge_permissions": {
+      "admin": true,
+      "maintain": true,
+      "push": true,
+      "triage": true,
+      "pull": true
+    },
+    "merge_candidate": {
+      "base": "abd365795fbfd0f372ee561e7637eda23e244bbf",
+      "head": "c1e5539c5c3a60b3a500d759c7815a8cf82ef789",
+      "status": "clean"
+    }
+  }
+}

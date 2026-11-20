@@ -1,0 +1,16 @@
+{
+  "github:comment:IC_kwDOVFffUs8AAAABo4fi8g": {
+    "resolution": "acknowledged",
+    "reason": "The rate-limited update adds no finding. The synchronized PR diff against abd36579 exactly matches the reviewed binary-inclusive diff against 8532bfde. The original hosted Census tests passed, including the excluded fixture and the persistence-root refusal, and the synchronized tree passed the complete signed hook.",
+    "commit": null,
+    "reply_url": null,
+    "revision": {
+      "updated_at": "2026-11-20T11:55:17Z",
+      "state": null,
+      "commit": null,
+      "path": null,
+      "line": null,
+      "body_sha256": "fb9278c40e572764484269fb1af8f188c915268b3e50353d5e500b66778e18df"
+    }
+  }
+}

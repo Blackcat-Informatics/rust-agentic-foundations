@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/322-census-check-committed-capn-proto-file",
+  "branch": "paudley/322-census-check-committed-capn-proto-file",
+  "base_ref": "origin/main",
+  "head": "16be1238966247174441a400f23b6da0fc95c111",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/322-census-check-committed-capn-proto-file/.stage/census-check-committed-capn-proto-file/sync/20261120T114711-13c00bceffb2402290a6e7b2156bc922",
+  "conflicts": [],
+  "status": "completed",
+  "base": "abd365795fbfd0f372ee561e7637eda23e244bbf",
+  "merge_bases": [
+    "8532bfde1633ef84165480ff77f262384c828957"
+  ],
+  "merge_index": "1269f6a100534ace0f22bfd341f3fa2b0e38fc264eb507722c4136ee888367e7",
+  "candidate_tree": "79b25bc219261e1b006452c62d3e08b1218c4702",
+  "candidate_patch": "candidate-09d729621a02435e81b9315faad0cbfc.patch",
+  "stdout_log": "commit-09d729621a02435e81b9315faad0cbfc.stdout.log",
+  "stderr_log": "commit-09d729621a02435e81b9315faad0cbfc.stderr.log",
+  "validation_records": [],
+  "commit_duration_seconds": 442.6347674999997,
+  "commit": "c1e5539c5c3a60b3a500d759c7815a8cf82ef789",
+  "tree": "79b25bc219261e1b006452c62d3e08b1218c4702",
+  "exit_code": 0
+}

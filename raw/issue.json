@@ -1,0 +1,27 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Capability\n\nCompare explicitly selected Cap\u2019n Proto file identities across committed\ncompiler requests. A selected file ID is bound to its canonical requested\nfilename and matching compiler file node.\n\nKatamari\u2019s schema gate keeps requested filename-to-ID facts alongside\nits compiled node facts. Census currently selects data roots and bounded\nRPC interfaces. It cannot protect the file\u2019s own requested identity.\n\n## Acceptance\n\n- Select the file ID in the strict history command. Read both descriptors\n  from explicit committed revisions. Report removal of the old file ID or\n  a changed requested filename for a retained file ID.\n- Admit one canonical request row per selected file ID. Require a matching\n  file node and display name. Refuse an inconsistent row, a duplicate\n  owner or a missing base selection without emitting a partial verdict.\n- Allow additional unrelated file requests. Keep persistence declarations\n  restricted to declared structs and enums.\n- Use controlled compiler descriptors to verify a changed path and an\n  admitted neighbor. Verify the inconsistent request and node refusal.\n\nParent #214 retains history for declarations inside files, migration\noutput admission, inheritance, named method endpoints, generic RPC and\nother application and compiler profiles.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-11-20T10:50:32Z",
+  "labels": [
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bapUQ",
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    }
+  ],
+  "milestone": null,
+  "number": 322,
+  "state": "OPEN",
+  "title": "census: check committed Cap\u2019n Proto file identities",
+  "updatedAt": "2026-11-20T10:50:32Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/322"
+}
