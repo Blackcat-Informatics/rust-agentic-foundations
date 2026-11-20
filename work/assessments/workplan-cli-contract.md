@@ -7,7 +7,7 @@ subject: cap:workplan-cli#contract
 inputs:
   - kind: section
     name: cap:workplan-cli#contract
-    digest: bf92f7c471949b714b832c78226b4ad19f919b1fa05af09f85e76f31213dabd6
+    digest: b34ebabee4ce491f3cf558b4bcf38b09303b9cecbef2624a38d91dc062fd48e1
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854

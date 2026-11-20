@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use purrdf_core::{QuadIds, RdfDataset, TermId, TermRef};
 use raf_okf::{
-    Capability, DOCUMENT_IRI_BASE, DatasetError, DocType, Document, EvidenceRecord, Index,
+    Capability, DOCUMENT_IRI_BASE, DatasetError, DocType, Document, EvidenceRecord, Index, Input,
 };
 use raf_source::RelPath;
 
@@ -159,8 +159,8 @@ fn canonical_path(path: &str) -> Result<RelPath, Error> {
 
 impl Workplan<'_> {
     /// Project profile documents with their declared bindings, dependencies and
-    /// evidence relationships into one closed, default-graph native RDF 1.2
-    /// dataset, including the loaded navigation Index when present.
+    /// evidence relationships and record inputs into one closed, default-graph
+    /// native RDF 1.2 dataset, including the loaded navigation Index when present.
     ///
     /// The export uses the profile Document model and declared spellings. A
     /// missing capability target still has its declared IRI, and a binding
@@ -196,7 +196,7 @@ pub struct RepositoryAuthoring {
 /// Recover the exact profile documents and optional navigation Index.
 ///
 /// Checks the closed inventory and declared relationship occurrences against
-/// the recovered Capability and Evidence values. No source index is read.
+/// the recovered profile values. No source index is read.
 ///
 /// # Errors
 /// Refuses missing, duplicate or unrelated subjects, malformed documents,
@@ -237,6 +237,7 @@ enum Declarations<'a> {
     None,
     Capability(&'a Capability),
     Evidence(&'a EvidenceRecord),
+    Inputs(&'a [Input]),
 }
 
 fn declarations(
@@ -251,6 +252,7 @@ fn declarations(
     emit(&record, &property("path"), Object::Literal(path, STRING))?;
     let (segment, edge, class, targets) = match declared {
         Declarations::None => return Ok(()),
+        Declarations::Inputs(rows) => return inputs(&record, root, rows, emit),
         Declarations::Capability(capability) => {
             bindings(&record, root, capability, &mut emit)?;
             (
@@ -260,12 +262,15 @@ fn declarations(
                 &capability.depends,
             )
         }
-        Declarations::Evidence(evidence) => (
-            "evidence-for",
-            "evidenceFor",
-            "EvidenceFor",
-            &evidence.covers,
-        ),
+        Declarations::Evidence(evidence) => {
+            inputs(&record, root, &evidence.inputs, &mut emit)?;
+            (
+                "evidence-for",
+                "evidenceFor",
+                "EvidenceFor",
+                &evidence.covers,
+            )
+        }
     };
     let edge = property(edge);
     let class = property(class);
@@ -315,6 +320,41 @@ fn bindings(
                 Object::Literal(spelling, STRING),
             )?;
         }
+    }
+    Ok(())
+}
+
+fn inputs(
+    record: &str,
+    root: &str,
+    inputs: &[Input],
+    mut emit: impl FnMut(&str, &str, Object<'_>) -> Result<(), Error>,
+) -> Result<(), Error> {
+    for (ordinal, input) in inputs.iter().enumerate() {
+        let row = format!("{record}/input/{ordinal}");
+        emit(record, &property("input"), Object::Iri(&row))?;
+        emit(&row, TYPE, Object::Iri(&property("Input")))?;
+        emit(&row, &property("owner"), Object::Iri(root))?;
+        emit(
+            &row,
+            &property("ordinal"),
+            Object::Literal(&ordinal.to_string(), INTEGER),
+        )?;
+        emit(
+            &row,
+            &property("kind"),
+            Object::Iri(&property(input.kind.name())),
+        )?;
+        emit(
+            &row,
+            &property("name"),
+            Object::Literal(&input.name, STRING),
+        )?;
+        emit(
+            &row,
+            &property("digest"),
+            Object::Literal(&input.digest, STRING),
+        )?;
     }
     Ok(())
 }

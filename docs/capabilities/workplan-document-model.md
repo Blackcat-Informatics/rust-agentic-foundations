@@ -584,6 +584,16 @@ statements count toward the graph limits and must agree with the
 recovered Evidence Document.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
+Each Evidence, Assessment and Review Document contributes an owned
+occurrence for each declared input. The inventory record links to
+`input/<ordinal>` with `input`. Each occurrence has type `Input`, its
+document IRI as owner, a zero-based ordinal, the profile kind as an
+authoring vocabulary IRI, and the exact input name and SHA-256 digest
+as strings. An unavailable input retains its declaration. These
+statements count toward the graph limits. Recovery requires the exact
+input assertions from the recovered Documents.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
 When Workplan loads `docs/capabilities/index.md`, the repository frame
 enrolls it with one `index` edge to the fixed IRI
 `https://blackcatinformatics.ca/raf/workplan/repository/1/index`.
@@ -1007,6 +1017,12 @@ The focused authoring fixture checks an exact evidence list with an
 absent target before an available one. It verifies each owner,
 position and target assertion. The inverse refuses a changed target,
 a missing occurrence and an extra complete occurrence.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
+
+The same fixture checks owner, position, kind, name and digest for inputs
+from Evidence, Assessment and Review. Its input cases include an absent
+artifact beside changed, missing and additional digest assertions that
+the inverse refuses.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
 Native disk fixtures refuse changed real-directory bindings, retain the requested

@@ -1030,8 +1030,6 @@ fn check_repository_bindings(
 #[test]
 fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input()
 -> Result<(), Box<dyn Error>> {
-    const EVIDENCE: &str = "work/evidence/ledger-sync-bound.md";
-
     let mut files = files();
     let (_, capability) = files.iter_mut().find(|(path, _)| *path == DEMO).unwrap();
     *capability = capability
@@ -1044,10 +1042,12 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
             "    - demo::missing\n    - demo::real\n    - demo::missing\n",
         );
     let expected = Document::parse(capability)?;
-    let evidence = include_str!("../crates/raf-okf/tests/fixtures/evidence.md")
-        .replace("for: [cap:ledger-sync]", "for: [cap:missing, cap:demo]");
-    let expected_evidence = Document::parse(&evidence)?;
-    files.push((EVIDENCE, evidence));
+    let records = input_records();
+    let expected_records = records
+        .iter()
+        .map(|(path, text)| Ok((*path, Document::parse(text)?)))
+        .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
+    files.extend(records);
     let workspace = checkouts::source();
     let mut tree =
         MemoryTree::try_from_iter(files.iter().map(|(path, text)| (*path, text.as_str())))?;
@@ -1063,10 +1063,9 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
         restored.documents.get(&RelPath::new(DEMO)?),
         Some(&expected)
     );
-    assert_eq!(
-        restored.documents.get(&RelPath::new(EVIDENCE)?),
-        Some(&expected_evidence)
-    );
+    for (path, document) in &expected_records {
+        assert_eq!(restored.documents.get(&RelPath::new(path)?), Some(document));
+    }
     let (_, index_text) = files.iter().find(|(path, _)| *path == INDEX).unwrap();
     assert_eq!(restored.index.unwrap().body().text(), index_text);
     let no_index = MemoryTree::try_from_iter(
@@ -1091,6 +1090,7 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
     let vocab = "https://blackcatinformatics.ca/raf/workplan/authoring/1#";
     assert_index_refusals(&dataset, vocab)?;
     assert_evidence_relationships(&dataset, vocab)?;
+    assert_record_input_assertions(&dataset, vocab, &expected_records)?;
     for (ordinal, target) in [&missing, &other, &missing].into_iter().enumerate() {
         assert!(text.contains(&format!(
             "/dependency/{ordinal}> <{vocab}target> <{target}> ."
@@ -1111,6 +1111,135 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
     assert!(matches!(
         incomplete.authoring_dataset(),
         Err(authoring::Error::Incomplete(finding)) if finding.file == DEMO
+    ));
+    Ok(())
+}
+
+fn input_records() -> [(&'static str, String); 3] {
+    let evidence = include_str!("../crates/raf-okf/tests/fixtures/evidence.md")
+        .replace("for: [cap:ledger-sync]", "for: [cap:missing, cap:demo]")
+        .replace(
+            "verdict: pass",
+            "  - kind: artifact\n    name: results/missing trace.log\n    digest: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nverdict: pass",
+        );
+    let assessment = include_str!("../crates/raf-okf/tests/fixtures/assessment.md").replace(
+        "verdict: rejected",
+        "  - kind: declaration\n    name: cap:demo\n    digest: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nverdict: rejected",
+    );
+    let review = include_str!("../crates/raf-okf/tests/fixtures/review.md").to_owned();
+    [
+        ("work/evidence/ledger-sync-bound.md", evidence),
+        ("work/assessments/ledger-sync-explanation.md", assessment),
+        ("work/reviews/ledger-design.md", review),
+    ]
+}
+
+fn assert_record_input_assertions(
+    dataset: &purrdf_core::RdfDataset,
+    vocab: &str,
+    records: &[(&str, Document)],
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfLiteral, RdfQuad, RdfTerm};
+    use raf_okf::{Profile, RafDocument};
+
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    for (path, document) in records {
+        let typed = Profile
+            .validate(document, path)
+            .expect("valid record fixture");
+        let inputs = match &typed {
+            RafDocument::Evidence(record) => &record.inputs,
+            RafDocument::Assessment(record) => &record.inputs,
+            RafDocument::Review(record) => &record.inputs,
+            _ => panic!("expected an input-bearing record"),
+        };
+        let owner = document.dataset_iri()?;
+        let local = owner.strip_prefix(raf_okf::DOCUMENT_IRI_BASE).unwrap();
+        let record =
+            format!("https://blackcatinformatics.ca/raf/workplan/repository/1/document/{local}");
+        for (ordinal, input) in inputs.iter().enumerate() {
+            let subject = RdfTerm::iri(format!("{record}/input/{ordinal}"));
+            let membership = RdfQuad::new(
+                RdfTerm::iri(&record),
+                format!("{vocab}input"),
+                subject.clone(),
+            );
+            assert!(rows.contains(&membership), "{path}");
+            for (predicate, object) in [
+                (
+                    "http://www.w3.org/1999/02/22-rdf-syntax-ns#type".to_owned(),
+                    RdfTerm::iri(format!("{vocab}Input")),
+                ),
+                (format!("{vocab}owner"), RdfTerm::iri(&owner)),
+                (
+                    format!("{vocab}ordinal"),
+                    RdfTerm::Literal(RdfLiteral::typed(
+                        ordinal.to_string(),
+                        "http://www.w3.org/2001/XMLSchema#integer",
+                    )),
+                ),
+                (
+                    format!("{vocab}kind"),
+                    RdfTerm::iri(format!("{vocab}{}", input.kind.name())),
+                ),
+                (
+                    format!("{vocab}name"),
+                    RdfTerm::Literal(RdfLiteral::simple(&input.name)),
+                ),
+                (
+                    format!("{vocab}digest"),
+                    RdfTerm::Literal(RdfLiteral::simple(&input.digest)),
+                ),
+            ] {
+                let assertion = RdfQuad::new(subject.clone(), predicate, object);
+                assert!(rows.contains(&assertion), "{assertion:?}");
+            }
+        }
+    }
+    assert_record_input_refusals(rows, vocab)
+}
+
+fn assert_record_input_refusals(
+    rows: Vec<purrdf_core::RdfQuad>,
+    vocab: &str,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfLiteral, RdfTerm};
+
+    // Keep the declared artifact absent and alter only its graph assertions.
+    let name = format!("{vocab}name");
+    let artifact = RdfTerm::Literal(RdfLiteral::simple("results/missing trace.log"));
+    let input = &rows
+        .iter()
+        .find(|row| row.predicate == name && row.object == artifact)
+        .unwrap()
+        .subject;
+    let digest = format!("{vocab}digest");
+    let position = rows
+        .iter()
+        .position(|row| &row.subject == input && row.predicate == digest)
+        .unwrap();
+    let mut different_digest = rows[position].clone();
+    different_digest.object = RdfTerm::Literal(RdfLiteral::simple(
+        "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9",
+    ));
+    let mut changed = rows.clone();
+    changed[position] = different_digest.clone();
+    let mut missing = rows.clone();
+    missing.remove(position);
+    for edited in [&changed, &missing] {
+        assert!(matches!(
+            authoring_refusal(edited)?,
+            authoring::Error::Shape { subject, .. } if RdfTerm::iri(&subject) == *input
+        ));
+    }
+    let mut additional = rows;
+    additional.push(different_digest);
+    assert!(matches!(
+        authoring_refusal(&additional)?,
+        authoring::Error::Shape {
+            reason: "unexpected inventory or declaration assertions; use only the recovered document projections",
+            ..
+        }
     ));
     Ok(())
 }

@@ -355,20 +355,15 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
     use raf_source::RelPath;
     use raf_workplan::authoring::repository_from_dataset;
 
-    // Missing dependencies, bindings and evidence targets remain declared.
+    // Missing source bindings, capabilities and artifacts remain declared.
     let fixture_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
     let repo = Repo::bare_in(fixture_dir, "repository-export");
     let alpha = "docs/capabilities/alpha.md";
     let beta = "docs/capabilities/beta.md";
-    let evidence = "work/evidence/ledger-sync-bound.md";
     let index = "docs/capabilities/index.md";
     let index_text = "<!-- raf:generated:catalogue -->\r\n  Loaded café 索引  \r\n<!-- raf:generated:end -->\r\n";
     repo.put(index, index_text);
-    repo.put(
-        evidence,
-        &include_str!("../../raf-okf/tests/fixtures/evidence.md")
-            .replace("for: [cap:ledger-sync]", "for: [cap:missing, cap:alpha]"),
-    );
+    let records = put_repository_export_records(&repo);
     repo.put(
         alpha,
         &support::capability(
@@ -383,8 +378,9 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
         beta,
         &support::capability("beta", "considered", ["[]"; 3], "[]", &[]),
     );
-    let expected: BTreeMap<_, _> = [alpha, beta, evidence, support::COVERAGE]
+    let expected: BTreeMap<_, _> = [alpha, beta, support::COVERAGE]
         .into_iter()
+        .chain(records)
         .map(|path| {
             (
                 RelPath::new(path).unwrap(),
@@ -407,6 +403,7 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
         assert_eq!(restored.documents, expected);
         assert_eq!(restored.index.unwrap().body().text(), index_text);
         assert_exported_evidence_targets(&parsed.dataset);
+        assert_exported_record_inputs(&parsed.dataset);
 
         let root = repo.root().to_str().unwrap();
         let explicit: Vec<_> = ["--root", root].into_iter().chain(args).collect();
@@ -441,6 +438,83 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
 
     repo.put(alpha, "---\ntype: Capability\n");
     refused_repository_export(&repo, alpha, "fence");
+}
+
+fn put_repository_export_records(repo: &Repo) -> [&'static str; 3] {
+    let evidence = "work/evidence/ledger-sync-bound.md";
+    let assessment = "work/assessments/ledger-sync-explanation.md";
+    let review = "work/reviews/ledger-design.md";
+    repo.put(
+        evidence,
+        &include_str!("../../raf-okf/tests/fixtures/evidence.md")
+            .replace("for: [cap:ledger-sync]", "for: [cap:missing, cap:alpha]")
+            .replace(
+                "verdict: pass",
+                "  - kind: artifact\n    name: results/missing trace.log\n    digest: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nverdict: pass",
+            ),
+    );
+    repo.put(
+        assessment,
+        include_str!("../../raf-okf/tests/fixtures/assessment.md"),
+    );
+    repo.put(
+        review,
+        include_str!("../../raf-okf/tests/fixtures/review.md"),
+    );
+    [evidence, assessment, review]
+}
+
+fn assert_exported_record_inputs(dataset: &purrdf_rdf::RdfDataset) {
+    use raf_okf::DocType;
+
+    const STRING: &str = "http://www.w3.org/2001/XMLSchema#string";
+    let digest_predicate = dataset
+        .term_id_by_iri("https://blackcatinformatics.ca/raf/workplan/authoring/1#digest")
+        .unwrap();
+    let name_predicate = dataset
+        .term_id_by_iri("https://blackcatinformatics.ca/raf/workplan/authoring/1#name")
+        .unwrap();
+    for (kind, id, ordinal, name, digest) in [
+        (
+            DocType::Evidence,
+            "evidence:ledger-sync-bound",
+            2,
+            "results/missing trace.log",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        ),
+        (
+            DocType::Assessment,
+            "assessment:ledger-sync-explanation",
+            1,
+            "evidence:ledger-sync-bound",
+            "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9",
+        ),
+        (
+            DocType::Review,
+            "review:ledger-design",
+            0,
+            "ledger::sync_rows",
+            "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+        ),
+    ] {
+        let owner = kind.document_iri(id).unwrap();
+        let local = owner.strip_prefix(raf_okf::DOCUMENT_IRI_BASE).unwrap();
+        let occurrence = format!(
+            "https://blackcatinformatics.ca/raf/workplan/repository/1/document/{local}/input/{ordinal}"
+        );
+        let subject = dataset.term_id_by_iri(&occurrence).unwrap();
+        for (predicate, value) in [(name_predicate, name), (digest_predicate, digest)] {
+            let object = dataset
+                .term_id_by_literal(value, STRING, None, None)
+                .unwrap();
+            assert!(
+                dataset
+                    .quads()
+                    .any(|row| row.s == subject && row.p == predicate && row.o == object),
+                "{occurrence} must carry {value}"
+            );
+        }
+    }
 }
 
 fn assert_exported_evidence_targets(dataset: &purrdf_rdf::RdfDataset) {
