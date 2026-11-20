@@ -12,7 +12,7 @@ use raf_source::RelPath;
 
 use super::{
     Error, TypeId,
-    descriptor::{Declaration, DeclarationKind, Endpoint, Method, Node, Schema, Struct},
+    descriptor::{Declaration, DeclarationKind, Endpoint, Interface, Method, Node, Schema, Struct},
 };
 
 const MAX_FINDING_BYTES: usize = 2 * 1024 * 1024;
@@ -69,6 +69,11 @@ pub enum ChangeKind {
     },
     /// A type changed between a struct, an enum and an RPC interface.
     ChangedKind,
+    /// A direct superclass was removed from an RPC interface.
+    RemovedSuperclass {
+        /// ID of the former direct superclass.
+        superclass: TypeId,
+    },
     /// The count of a struct's own type parameters changed.
     ChangedParameters,
     /// An existing member disappeared.
@@ -120,6 +125,9 @@ impl fmt::Display for ChangeKind {
                 return write!(f, "declaration kind changed from {previous} to {current}");
             }
             Self::ChangedKind => "schema kind changed",
+            Self::RemovedSuperclass { superclass } => {
+                return write!(f, "direct superclass {superclass} removed");
+            }
             Self::ChangedParameters => "type parameter count changed",
             Self::RemovedMember => "member removed",
             Self::RenamedMember { current } => return write!(f, "member renamed to {current}"),
@@ -197,13 +205,9 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
             (Node::Enum(before), Node::Enum(after)) => {
                 ordinals(before, after, String::as_str, &mut emit, |_, _, _| Ok(()))
             }
-            (Node::Interface(before), Node::Interface(after)) => ordinals(
-                before,
-                after,
-                |method| method.name.as_str(),
-                &mut emit,
-                method,
-            ),
+            (Node::Interface(before), Node::Interface(after)) => {
+                interface(before, after, &mut emit)
+            }
             _ => emit(None, ChangeKind::ChangedKind),
         }?;
     }
@@ -390,6 +394,23 @@ where
         }
     }
     Ok(())
+}
+
+fn interface(
+    before: &Interface,
+    after: &Interface,
+    emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
+) -> Result<(), Error> {
+    for &superclass in before.superclasses.difference(&after.superclasses) {
+        emit(None, ChangeKind::RemovedSuperclass { superclass })?;
+    }
+    ordinals(
+        &before.methods,
+        &after.methods,
+        |method| method.name.as_str(),
+        emit,
+        method,
+    )
 }
 
 fn method(
