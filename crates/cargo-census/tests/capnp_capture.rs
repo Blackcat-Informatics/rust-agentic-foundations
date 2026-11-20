@@ -257,7 +257,74 @@ fn capnp_capture_refuses_an_open_compiler_import_set() {
     assert!(strict.stdout.is_empty(), "{strict:?}");
 }
 
-fn descriptor_with_import(name: &str, file_id: u64) -> Vec<u8> {
+/// A scalar default can depend on a file the compiler omits from its import table.
+#[test]
+fn capnp_capture_reads_literal_dependencies_missing_from_the_request() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let key = SigningKey::from_bytes(&[3; 32]);
+    let user = include_str!("fixtures/capnp/capture-default-user.capnp");
+    let defaults = include_bytes!("fixtures/capnp/capture-defaults.capnp");
+    let closed = include_bytes!("fixtures/capnp/capture-default-closed.bin");
+    let signed_user = ("capture-default-user.capnp", user.as_bytes());
+    let signed_defaults = ("capture-defaults.capnp", defaults.as_slice());
+    let base = publish_capture(root, &key, closed, &[signed_user, signed_defaults]);
+
+    let clean = history(root, &base, &base, Some(&key));
+    assert!(clean.status.success(), "{clean:?}");
+    let open = publish_capture(
+        root,
+        &key,
+        include_bytes!("fixtures/capnp/capture-default-open.bin"),
+        &[signed_user],
+    );
+    assert_refused(
+        history(root, &base, &open, Some(&key)),
+        "unresolved schema import \"capture-defaults.capnp\"",
+    );
+
+    for (source, diagnostic) in [
+        (
+            user.replace(
+                "\"capture-defaults.capnp\"",
+                r#""capture-defaults\x2ecapnp""#,
+            ),
+            "must use an unescaped import path",
+        ),
+        (
+            format!("{user}\nconst content :Data = embed \"data.bin\";\n"),
+            "uses embed, which the capture profile does not admit",
+        ),
+        (
+            user.replace("capture-defaults.capnp", &"a".repeat(4097)),
+            "schema import from capture-default-user.capnp exceeds its length bound",
+        ),
+        (
+            user.replace(
+                "\"capture-defaults.capnp\".limit",
+                &format!(
+                    "({}0)",
+                    "import \"capture-defaults.capnp\".limit,".repeat(8193)
+                ),
+            ),
+            "exceeds its 8192 source import allowance",
+        ),
+    ] {
+        let bad = publish_capture(
+            root,
+            &key,
+            closed,
+            &[
+                ("capture-default-user.capnp", source.as_bytes()),
+                signed_defaults,
+            ],
+        );
+        assert_refused(history(root, &base, &bad, Some(&key)), diagnostic);
+    }
+}
+
+fn edited_descriptor(edit: impl FnOnce(code_generator_request::Builder<'_>)) -> Vec<u8> {
     let mut bytes = DESCRIPTOR;
     let source = serialize::read_message_from_flat_slice(&mut bytes, ReaderOptions::new()).unwrap();
     let mut request = Message::new_default();
@@ -268,22 +335,11 @@ fn descriptor_with_import(name: &str, file_id: u64) -> Vec<u8> {
                 .unwrap(),
         )
         .unwrap();
-    let mut import = request
-        .get_root::<code_generator_request::Builder<'_>>()
-        .unwrap()
-        .get_requested_files()
-        .unwrap()
-        .get(0)
-        .get_imports()
-        .unwrap()
-        .get(0);
-    import.set_name(name);
-    import.set_id(file_id);
+    edit(request.get_root().unwrap());
     serialize::write_message_to_words(&request)
 }
 
-/// A known file ID must identify the path spelled by the import, and an
-/// import may walk up only within the signed schema root.
+/// File nodes and import IDs identify exact requested paths inside the signed schema root.
 #[test]
 fn capnp_capture_refuses_import_identity_mismatch_and_root_escape() {
     const MIDDLE: u64 = 0xe914_47cf_636b_013a;
@@ -297,7 +353,17 @@ fn capnp_capture_refuses_import_identity_mismatch_and_root_escape() {
         ("capture-middle.capnp", SPARE),
         ("../schemas/capture-middle.capnp", MIDDLE),
     ] {
-        let invalid = descriptor_with_import(name, file_id);
+        let invalid = edited_descriptor(|request| {
+            let mut import = request
+                .get_requested_files()
+                .unwrap()
+                .get(0)
+                .get_imports()
+                .unwrap()
+                .get(0);
+            import.set_name(name);
+            import.set_id(file_id);
+        });
         let current = publish_capture(root, &key, &invalid, &SOURCES);
         assert_refused(
             history(root, &base, &current, Some(&key)),
@@ -306,6 +372,15 @@ fn capnp_capture_refuses_import_identity_mismatch_and_root_escape() {
             ),
         );
     }
+    let inconsistent = edited_descriptor(|request| {
+        let mut file = request.get_nodes().unwrap().get(0);
+        file.set_display_name("different-entry.capnp");
+    });
+    let current = publish_capture(root, &key, &inconsistent, &SOURCES);
+    assert_refused(
+        history(root, &base, &current, Some(&key)),
+        "file node name differs from requested schema capture-entry.capnp",
+    );
 }
 
 /// Capture input limits refuse entire committed blobs before comparison.

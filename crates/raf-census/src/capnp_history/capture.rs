@@ -3,6 +3,8 @@
 
 //! Admission of signed compiler captures and their committed schema closure.
 
+mod source;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
@@ -24,6 +26,7 @@ use super::{DescriptorError, TypeId};
 const MAX_CAPTURE_BYTES: u64 = 128 * 1024;
 const MAX_SCHEMA_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_PATH_BYTES: usize = 4096;
+const MAX_LITERAL_IMPORTS: usize = 8192;
 
 /// Public key supplied by the caller to verify a compiler capture.
 #[derive(Clone, Debug)]
@@ -80,7 +83,7 @@ pub struct CaptureVerification<'a> {
 pub enum CaptureError {
     /// A committed statement, signature, or source blob was not readable.
     Read(TreeError),
-    /// Capture text or a descriptor path was not UTF-8.
+    /// Capture text, schema source, or a name in the descriptor was not UTF-8.
     Encoding(Utf8Error),
     /// The detached signature failed verification with the caller's public key.
     Signature(SignatureError),
@@ -147,19 +150,7 @@ pub(super) fn load(
         .map_err(CaptureError::Signature)?;
     let text = str::from_utf8(&bytes).map_err(CaptureError::Encoding)?;
     let graph = Graph::from_text(text, Format::NTriples).map_err(ReportError::Ground)?;
-    let capture = Capture::from_graph(&graph, descriptor)?;
-    for (path, digest) in &capture.sources {
-        let path = join(&capture.root, path.as_str())?;
-        let bytes = tree
-            .read_bytes(&path, MAX_SCHEMA_BYTES)
-            .map_err(CaptureError::Read)?;
-        if ContentDigest::of(&bytes).as_bytes() != digest {
-            return Err(mismatch(format!(
-                "capture digest differs for schema {path}"
-            )));
-        }
-    }
-    Ok(capture)
+    Capture::from_graph(&graph, descriptor)
 }
 
 impl Capture {
@@ -266,6 +257,19 @@ impl Capture {
                 ))
                 .into());
             }
+            if let Some(node) = nodes.get(&id)
+                && files.contains(&id)
+                && node
+                    .get_display_name()?
+                    .to_str()
+                    .map_err(CaptureError::Encoding)?
+                    != path.as_str()
+            {
+                return Err(mismatch(format!(
+                    "file node name differs from requested schema {path} ({id})"
+                ))
+                .into());
+            }
         }
         if paths.len() != self.sources.len() || requested.keys().ne(files.iter()) {
             return Err(mismatch(
@@ -273,27 +277,65 @@ impl Capture {
             )
             .into());
         }
+        let mut remaining = MAX_LITERAL_IMPORTS;
         for (path, row) in requested.values() {
             for import in row.get_imports()? {
                 let id = TypeId(import.get_id());
                 let name = import.get_name()?;
                 let name = name.to_str().map_err(CaptureError::Encoding)?;
                 let expected = requested.get(&id).map(|(target, _)| target);
-                self.verify_import(tree, path, name, expected)?;
+                if expected != Some(&self.resolve_import(tree, path, name)?) {
+                    return Err(unresolved_import(path, name).into());
+                }
             }
+            self.verify_source(tree, path, &mut remaining)?;
         }
         Ok(())
     }
 
-    fn verify_import(
+    fn verify_source(
+        &self,
+        tree: &dyn Tree,
+        from: &RelPath,
+        remaining: &mut usize,
+    ) -> Result<(), CaptureError> {
+        let path = join(&self.root, from.as_str())?;
+        let bytes = tree
+            .read_bytes(&path, MAX_SCHEMA_BYTES)
+            .map_err(CaptureError::Read)?;
+        if self.sources.get(from) != Some(ContentDigest::of(&bytes).as_bytes()) {
+            return Err(mismatch(format!(
+                "capture digest differs for schema {path}"
+            )));
+        }
+        source::imports(&bytes, &path, |name| {
+            *remaining = remaining.checked_sub(1).ok_or_else(|| {
+                mismatch("capture exceeds its 8192 source import allowance; reduce the input set")
+            })?;
+            if !self
+                .sources
+                .contains_key(&self.resolve_import(tree, from, name)?)
+            {
+                return Err(unresolved_import(from, name));
+            }
+            Ok(())
+        })
+    }
+
+    fn resolve_import(
         &self,
         tree: &dyn Tree,
         from: &RelPath,
         name: &str,
-        expected: Option<&RelPath>,
-    ) -> Result<(), CaptureError> {
-        let invalid = || mismatch(format!("unresolved schema import {name:?} from {from}"));
-        let raw = match name.strip_prefix('/') {
+    ) -> Result<RelPath, CaptureError> {
+        let rooted = name.strip_prefix('/');
+        if rooted.unwrap_or(name).len() > MAX_PATH_BYTES {
+            return Err(mismatch(format!(
+                "schema import from {from} exceeds its length bound"
+            )));
+        }
+        let invalid = || unresolved_import(from, name);
+        let raw = match rooted {
             Some(rooted) => join(&RelPath::root(), rooted),
             None => join(&from.parent().unwrap_or_else(RelPath::root), name),
         }
@@ -307,9 +349,6 @@ impl Capture {
             }
         }
         let resolved = canonical_path(&segments.join("/"), false).map_err(|_| invalid())?;
-        if expected != Some(&resolved) {
-            return Err(invalid());
-        }
         if raw != resolved {
             let original = join(&self.root, raw.as_str())?;
             let canonical = join(&self.root, resolved.as_str())?;
@@ -319,8 +358,12 @@ impl Capture {
                 return Err(invalid());
             }
         }
-        Ok(())
+        Ok(resolved)
     }
+}
+
+fn unresolved_import(from: &RelPath, name: &str) -> CaptureError {
+    mismatch(format!("unresolved schema import {name:?} from {from}"))
 }
 
 fn fields(node: &Node<'_>, class: &str, keys: &[&str]) -> Result<(), ReportError> {
