@@ -28,6 +28,11 @@ bindings:
     - raf_census::MAX_INDEX_BYTES
     - raf_census::capnp_history
   tests:
+    - cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs
+    - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set
+    - cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request
+    - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape
+    - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_oversized_inputs
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
     - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
     - raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse
@@ -82,9 +87,8 @@ that preserves the old layout. Written declaration order is ignored. A field
 rename can violate history policy even when Cap'n Proto allows it on
 the wire. List defaults use the native representation for their element
 types. Struct-valued defaults are checked as native containers and
-compared by their canonical pointer bytes. The caller maintains
-correspondence between the committed descriptors and the consumer schema
-and verifies application readers.
+compared by their canonical pointer bytes. The caller verifies
+acceptance by application readers.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
 
 A caller can select a compiler-declared Void field annotation for
@@ -96,6 +100,19 @@ unconditional groups. An unmarked append, an unchanged or removed
 marker, and a marker on a newly reached struct add no required-field
 finding. The strict layout comparison also runs.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors -->
+
+Capture verification authenticates both compiler captures with one
+caller-selected Ed25519 key. Each signed statement binds the compiler
+identity and the exact bytes of the descriptor and each requested
+schema file. Census reads those bytes from the same pinned Git tree,
+checks the request's compiler version, and requires each signed
+source path to agree with its requested filename and file node name.
+Each reported import resolves to a requested file with the reported ID.
+Each literal source import also resolves to a requested file, including
+imports used only in scalar defaults. A refusal produces no findings.
+With capture verification omitted, the caller selects the compiled
+inputs directly.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape,cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request -->
 
 **Static contract.** `check` evaluates the native library Gate for the selected workspace. `index`, `job`, `count` and `fingerprint` derive complete native reports from that Gate. The CLI accepts no package/example executable selector and never invokes Cargo, tests, examples or custom repository binaries. Custom Rust registrations remain explicit library API operations performed by their caller; repository contents cannot instantiate them automatically.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
@@ -155,8 +172,35 @@ The command exits 0 for a clean comparison or 1 with findings on stdout.
 An input or resource refusal exits 1 with a diagnostic on stderr.
 
 Add `--required-annotation 0xID` to compare required pointer presence.
-Supply the same annotation ID to the library as the final argument of
-`raf_census::capnp_history::check`. Use `None` for strict layout alone.
+Library callers supply the selected roots and optional annotation ID
+through `HistoryOptions`.
+
+To authenticate captures, supply `--capture-key HEX` and the four
+repository-relative paths `--base-capture PATH`,
+`--base-capture-signature PATH`, `--current-capture PATH` and
+`--current-capture-signature PATH`. Use all 64 lowercase hexadecimal
+digits of the Ed25519 public key. Library callers set
+`HistoryOptions::capture` with the same key and both pairs of paths.
+
+Produce the request with every schema input explicitly listed. Use
+`capnp compile --no-standard-import --import-path=ROOT --src-prefix=ROOT -o-`
+followed by those paths. Use the selected schema directory for both
+options. Sign the exact canonical N-Triples bytes and store the raw
+64-byte Ed25519 signature as a separate committed blob.
+
+Build the statement with `raf_rdf::Builder` and render it as
+`Format::NTriples`. Its class and properties use the
+`https://blackcatinformatics.ca/raf/report/1#` namespace. Each subject
+has one `rdf:type` and the following fields.
+
+| Class | Required properties |
+| --- | --- |
+| `CapnpCaptureV1` at the graph root | `compilerVersion` uses decimal major, minor and patch joined by dots. `compilerSha256` identifies the compiler artifact. `descriptorFile` is the descriptor path from the Git root and `descriptorSha256` covers its bytes. `schemaRoot` is the path from the Git root, with an empty string for the root itself. One or more `schemaSource` IRIs select owned source rows. |
+| `CapnpSchemaSource` at an owned fragment | `file` is the requested filename relative to `schemaRoot`. `sha256` covers the source bytes. |
+
+All scalar properties are strings with exactly one value. Digests
+use 64 lowercase hexadecimal digits. The Git-backed capture fixture
+builds and signs this record before the command reads it.
 
 The documented data path is illustrated by `raf_census::example_crate::registered` and `rust_agentic_foundations::example_crate::repository_census`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
@@ -194,6 +238,18 @@ A repository may contain a build script, example and test whose bodies write a m
 
 ## Constraints
 
+A capture uses UTF-8 schema source and double-quoted, unescaped import
+paths. The profile refuses `embed` expressions. A relative import resolves
+from its requesting file's directory. A slash-rooted import resolves from
+the signed schema root. Parent segments stay within that root and must
+resolve through the actual committed directory entries.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape,cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request -->
+
+A statement is limited to 128 KiB and an individual schema blob to
+two MiB, subject to the pinned tree's existing read limits. The source
+scan admits up to 8192 literal imports per capture.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_refuses_oversized_inputs,cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request -->
+
 - Missing native registrations or unavailable implemented capabilities refuse rather than invoking a repository program. Imported protocol data is not an observed execution verdict. A report write failure may leave the newly created owned data file incomplete; it never truncates an existing destination.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
@@ -206,6 +262,14 @@ a pathname-based writer or another locking protocol.
 ## Explanation
 
 The native Gate supplies the policy verdict and complete configured job reports. Safe library reuse replaces the executable target transport. Reading Git-backed source uses native read-only object access without fetching or hooks.
+
+The capture signer attests that the declared compiler and invocation
+produced the descriptor from the complete input set. The compiler in the
+capture recipe derives each requested filename and file node name from
+the same source name. Census uses one bounded compiler request reader for
+capture corroboration and layout projection. Its source scan checks
+literal imports that the compiler can omit from its request, while the
+request can report implicit imports such as the streaming schema.
 
 ## Verification
 
@@ -228,12 +292,28 @@ The marker and marked structs must have consistent declaration paths
 to a file within the nesting bound.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors,raf_census::capnp_history::tests::required_annotation_refuses_invalid_values_and_undeclared_structs -->
 
+Signed compiler fixtures give a layout finding across two valid
+captures. They refuse a wrong key, invalid signature, stale
+descriptor and stale direct or transitive source. Separate cases
+refuse a missing requested row, an unused import without a target,
+a mismatched file node name, a known file ID on the wrong path, and
+a path above the schema root. The closed fixture includes an in-root
+parent path and a slash-rooted import. A scalar-default fixture accepts
+both declared files and refuses the capture with the dependency
+omitted. It also exercises escaped import paths and an embed expression.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set,cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape,cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request -->
+
 Controlled fixtures protect native CLI parity, the self-test case list, the absence of consumer execution, report destination restrictions, migration carrier bounds, monotone debt writes and the declared reference options.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_census::command::tests::self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds` | test | [Contract](#contract) |
+| `cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set` | test | [Contract](#contract) |
+| `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_import_identity_mismatch_and_root_escape` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::capnp_capture::capnp_capture_refuses_oversized_inputs` | test | [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |

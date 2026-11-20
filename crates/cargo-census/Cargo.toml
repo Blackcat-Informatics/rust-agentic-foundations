@@ -22,7 +22,11 @@ raf-rdf = { path = "../raf-rdf", version = "0.2.0" }
 raf-source = { path = "../raf-source", version = "0.2.0" }
 
 [dev-dependencies]
+capnp.workspace = true
 raf-fixtures = { path = "../raf-fixtures" }
+purrdf-core.workspace = true
+purrdf-ed25519.workspace = true
+purrdf-hash.workspace = true
 purrdf-lex.workspace = true
 purrdf-testkit.workspace = true
 syn = { workspace = true, features = ["full", "parsing"] }

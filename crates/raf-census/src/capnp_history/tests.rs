@@ -93,37 +93,38 @@ fn scalar(mut field: field::Builder<'_>, name: &str, ordinal: u16, offset: u32) 
 fn invalid_slot_layouts_and_missing_references_refuse() {
     let roots = BTreeSet::from([ROOT]);
     let neighbor = descriptor_bytes(LastField::Independent);
-    let base = descriptor::read(&neighbor, &roots, None, true).unwrap();
+    let base = descriptor::read(&neighbor, &roots, None, true, None).unwrap();
     for (last, expected) in [
         (LastField::Overlap, "overlaps active storage"),
         (LastField::Gap, "not consecutive from zero"),
         (LastField::Reference, "missing schema node"),
     ] {
-        let failure = descriptor::read(&descriptor_bytes(last), &roots, None, true).unwrap_err();
+        let failure =
+            descriptor::read(&descriptor_bytes(last), &roots, None, true, None).unwrap_err();
         assert!(matches!(failure, DescriptorError::Layout(message) if message.contains(expected)));
     }
     let ordinal = deeply_grouped_descriptor("slot", 3, Some(3));
     assert!(matches!(
-        descriptor::read(&ordinal, &roots, None, false),
+        descriptor::read(&ordinal, &roots, None, false, None),
         Err(DescriptorError::Layout(message)) if message.contains("ordinary group")
     ));
     let valid_list = descriptor_bytes(LastField::NumericList);
-    assert!(descriptor::read(&valid_list, &roots, None, false).is_ok());
+    assert!(descriptor::read(&valid_list, &roots, None, false, None).is_ok());
     let invalid_list = descriptor_bytes(LastField::PointerList);
     assert!(matches!(
-        descriptor::read(&invalid_list, &roots, None, false),
+        descriptor::read(&invalid_list, &roots, None, false, None),
         Err(DescriptorError::Wire(_))
     ));
     let mut message = Builder::new_default();
     let _ = message.init_root::<any_pointer::Builder<'_>>();
     let null = serialize::write_message_to_words(&message);
     assert!(matches!(
-        descriptor::read(&null, &roots, None, false),
+        descriptor::read(&null, &roots, None, false, None),
         Err(DescriptorError::Layout(message)) if message.contains("null root")
     ));
     let _ = message.init_root::<code_generator_request::Builder<'_>>();
     let empty = serialize::write_message_to_words(&message);
-    let current = descriptor::read(&empty, &roots, None, false).unwrap();
+    let current = descriptor::read(&empty, &roots, None, false, None).unwrap();
     let findings = compare::changes(&base, &current).unwrap();
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].kind, ChangeKind::RemovedRoot);
@@ -181,6 +182,7 @@ fn deep_group_findings_refuse_as_a_whole_above_the_payload_limit() {
             &roots,
             None,
             true,
+            None,
         )
         .unwrap();
         let current = descriptor::read(
@@ -188,6 +190,7 @@ fn deep_group_findings_refuse_as_a_whole_above_the_payload_limit() {
             &roots,
             None,
             false,
+            None,
         )
         .unwrap();
         compare::changes(&base, &current)
@@ -320,7 +323,7 @@ fn required_annotation_refuses_invalid_values_and_undeclared_structs() {
         ),
     ] {
         let bytes = required_descriptor(value, enclosing, declared_marker);
-        let read = descriptor::read(&bytes, &roots, Some(REQUIRED_MARKER), true);
+        let read = descriptor::read(&bytes, &roots, Some(REQUIRED_MARKER), true, None);
         if let Some(diagnostic) = diagnostic {
             assert!(matches!(
                 read,
