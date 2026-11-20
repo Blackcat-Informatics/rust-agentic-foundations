@@ -51,6 +51,7 @@ bindings:
     - raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
+    - raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths
     - raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions
     - raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions
     - raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate
@@ -328,8 +329,11 @@ view and validator admission.
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate,raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions -->
 
 Each Pattern has a unique RuleId-compatible patternId, one-line summary and exactly one of call,
-path, macro, typePath, literalRegex or tokens. Literal expressions compile through
-the native bounded matcher. Unknown references, unused declarations and
+path, macro, typePath, methodOn, literalRegex or tokens. A methodOn selector
+must select one indexed first-party struct, enum or union and name the method.
+<!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths -->
+
+Literal expressions compile through the native bounded matcher. Unknown references, unused declarations and
 collisions with built-in ids refuse. A Pattern may add an optional target-kind and path scope (targetKind, excludeTargetKind,
 shippingOnly, includePath, excludePath), stated in the patterns capability; without one it applies everywhere. A Pattern may also state ratcheted, only as true: its hits are then not findings but counted sites in the debt record, and every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; the ledger refuses a ratcheted pattern stated as false, stated twice, or referenced by an unenforced job. One owned PreferredProvider per job requires
 package, nonempty entryPoint APIs and nonempty consumer paths. The package is a
@@ -605,6 +609,7 @@ the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise de
 | `raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::rules_and_variants_share_physical_ownership_without_widening_file_sanctions` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths` | test | [Contract](#contract) |
 | `raf_census::test_crate::ledger_evidence::a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one` | test | [Contract](#contract) |
 | `raf_census::test_crate::ledger_evidence::a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links` | test | [Contract](#contract) |
 | `raf_census::test_crate::ledger_evidence::a_job_naming_an_existing_vector_and_bench_is_clean` | test | [Contract](#contract) |

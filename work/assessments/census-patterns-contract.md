@@ -7,13 +7,13 @@ subject: cap:census-patterns#contract
 inputs:
   - kind: section
     name: cap:census-patterns#contract
-    digest: d109d431a891ed38894d39e002a2d417b4b17a952d0fa193072a9077502802a3
+    digest: 071a59ad7c1ee63a7b15c0b6cccf1e7753828f8d01a30703b5e7630201a9d76e
   - kind: symbol
     name: raf_census::Gate::matching_limits
     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
   - kind: symbol
     name: raf_census::gate::patterns
-    digest: 520cc49c665badeeb9426012957d82d750898b793ddb59ff03c8952b206b8415
+    digest: 741caad5ea2908eb69db1778beeda55c601d558e00e8ca2569dc21049596e4d8
   - kind: symbol
     name: raf_census::gate::ratchet
     digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b

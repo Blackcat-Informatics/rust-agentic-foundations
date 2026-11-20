@@ -293,7 +293,7 @@ impl Proof<'_> {
             },
         )?;
         self.insert_binding(name, Binding { value, mutable })?;
-        self.scopes.bind(&local.pat, |_, _| Ok(true))
+        self.scopes.bind(&local.pat, false, |_, _| Ok(true))
     }
 
     fn value(&mut self, expression: &syn::Expr) -> Result<Value, Error> {
@@ -402,7 +402,7 @@ impl Proof<'_> {
         )?;
         if expanded
             .as_ref()
-            .is_some_and(|expanded| expanded.block && expanded.shadowed)
+            .is_some_and(|expanded| expanded.block && expanded.is_shadowed())
         {
             return Err(self.refused("a block-local definition shadows the provider call"));
         }

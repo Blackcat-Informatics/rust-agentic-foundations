@@ -9,6 +9,8 @@ use super::{
 };
 use raf_rdf::{Graph, Node};
 use std::collections::BTreeSet;
+use syn::ext::IdentExt;
+use syn::parse::Parser;
 
 /// One declared syntactic matcher. Declaration does not establish executable support.
 #[derive(Clone, Debug)]
@@ -21,6 +23,13 @@ pub enum PatternMatcher {
     Macro(String),
     /// A named type path.
     Type(String),
+    /// A dot call on a local binding with a written nominal receiver type.
+    MethodOn {
+        /// The fully qualified indexed receiver type.
+        receiver: String,
+        /// The method identifier without a raw identifier prefix.
+        method: String,
+    },
     /// A bounded native ECMA expression over ordinary string literals.
     LiteralRegex(NamePattern),
     /// Normalized tokens with one-token or balanced-group `$_` wildcards.
@@ -166,6 +175,7 @@ fn matcher(node: &Node<'_>) -> Result<PatternMatcher, E> {
         "path",
         "macro",
         "typePath",
+        "methodOn",
         "literalRegex",
         "tokens",
     ] {
@@ -181,6 +191,7 @@ fn matcher(node: &Node<'_>) -> Result<PatternMatcher, E> {
             "path" => PatternMatcher::Path(source),
             "macro" => PatternMatcher::Macro(source),
             "typePath" => PatternMatcher::Type(source),
+            "methodOn" => method_on(&source)?,
             "tokens" => PatternMatcher::Tokens(source),
             "literalRegex" => {
                 let compiled = ecma::compile(&source)
@@ -191,6 +202,33 @@ fn matcher(node: &Node<'_>) -> Result<PatternMatcher, E> {
         });
     }
     selected.ok_or_else(|| E::Missing("pattern matcher".into()))
+}
+
+fn method_on(source: &str) -> Result<PatternMatcher, E> {
+    let invalid = || {
+        E::Value(
+            "methodOn requires an indexed type path and method, such as demo::Type::run".into(),
+        )
+    };
+    let (receiver, written_method) = source.rsplit_once("::").ok_or_else(invalid)?;
+    let path = syn::Path::parse_mod_style
+        .parse_str(receiver)
+        .map_err(|_| invalid())?;
+    let method = syn::parse_str::<syn::Ident>(written_method).map_err(|_| invalid())?;
+    let segments = receiver.strip_prefix("::").unwrap_or(receiver).split("::");
+    if path.segments.len() < 2
+        || !segments.eq(path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string()))
+        || method != written_method
+    {
+        return Err(invalid());
+    }
+    Ok(PatternMatcher::MethodOn {
+        receiver: receiver.to_owned(),
+        method: method.unraw().to_string(),
+    })
 }
 
 /// Check every job's `ratchetedRule` ids: each is a rule the job forbids, the

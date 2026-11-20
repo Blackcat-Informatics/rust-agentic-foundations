@@ -3,6 +3,7 @@
 
 //! Bounded source syntax traversal with explicit lexical scopes.
 
+use super::receivers::{self, ReceiverBinding};
 use super::{
     Compiled, CrossPackagePaths, Found, Role, Scopes, Site, VISIBILITY, cross_package_uses, matches,
 };
@@ -61,6 +62,7 @@ pub(in crate::gate) fn functions(
 ) -> Result<(), Error> {
     let mut visitor = Paths {
         compiled: &[],
+        receiver_matcher: None,
         context: None,
         workspace,
         code,
@@ -122,14 +124,16 @@ pub(super) fn collect<'p, 'w>(
     syntax: &syn::File,
     limits: &mut MatchLimits,
 ) -> Result<Vec<Found<'p, 'w>>, Error> {
+    let receiver_matcher = compiled.iter().find(|pattern| pattern.method.is_some());
     let mut visitor = Paths {
         compiled,
+        receiver_matcher,
         context: Some(context),
         workspace,
         code,
         file,
         limits,
-        scopes: Scopes::default(),
+        scopes: Scopes::for_patterns(receiver_matcher.is_some()),
         found: Vec::new(),
         error: None,
         seen: BTreeSet::new(),
@@ -158,6 +162,7 @@ pub(in crate::gate) fn references(
 ) -> Result<(), Error> {
     let mut visitor = Paths {
         compiled: &[],
+        receiver_matcher: None,
         context: None,
         workspace,
         code,
@@ -198,6 +203,7 @@ pub(in crate::gate) fn enum_inventory<'w>(
     let mut hits = Vec::new();
     let mut visitor = Paths {
         compiled: &[],
+        receiver_matcher: None,
         context: None,
         workspace,
         code,
@@ -302,6 +308,7 @@ fn enum_lookup<'a, 'w>(
         site,
         label,
         visibility: Some((workspace, target.package_id)),
+        receiver_workspace: None,
         enum_impl,
     })
 }
@@ -360,6 +367,7 @@ fn enum_pattern_binding<'w>(
 
 struct Paths<'a, 'p, 'w, 'c> {
     compiled: &'a [Compiled<'p>],
+    receiver_matcher: Option<&'a Compiled<'p>>,
     context: Option<&'a FileCtx>,
     workspace: &'w Workspace,
     code: &'c CodeResolver<'c>,
@@ -664,12 +672,16 @@ impl Paths<'_, '_, '_, '_> {
             }
             match input {
                 syn::FnArg::Receiver(_) => self.scopes.receiver(),
-                syn::FnArg::Typed(typed) => self.bind(&typed.pat),
+                syn::FnArg::Typed(typed) => self.bind_typed(&typed.pat, Some(&typed.ty)),
             }
         }
     }
 
     fn bind(&mut self, pattern: &syn::Pat) {
+        self.bind_typed(pattern, None);
+    }
+
+    fn bind_typed(&mut self, pattern: &syn::Pat, ty: Option<&syn::Type>) {
         if self.error.is_some() {
             return;
         }
@@ -681,7 +693,12 @@ impl Paths<'_, '_, '_, '_> {
             },
             |compiled| compiled.pattern.id.as_str(),
         );
-        let result = self.scopes.bind(pattern, |scopes, name| {
+        let candidate = self
+            .receiver_matcher
+            .and_then(|_| receivers::binding(pattern, ty));
+        let mut accepted = false;
+        let live_binding = self.receiver_matcher.is_some();
+        let result = self.scopes.bind(pattern, live_binding, |scopes, name| {
             if let Some(inventory) = &self.enum_hits {
                 return enum_pattern_binding(
                     (self.workspace, self.code, self.file),
@@ -706,7 +723,7 @@ impl Paths<'_, '_, '_, '_> {
                 for owner in owners {
                     let lookup = numeric_lookup(self.workspace, self.code, &site, owner)?;
                     let path = syn::Path::from(name.clone());
-                    let actual = super::numeric_definitions(&lookup, scopes, &path, self.limits)?;
+                    let actual = super::indexed_definitions(&lookup, scopes, &path, self.limits)?;
                     super::classify_pattern(
                         self.workspace,
                         UNCLASSIFIED,
@@ -749,11 +766,151 @@ impl Paths<'_, '_, '_, '_> {
                 &mut self.owners,
                 self.limits,
             )
-            .map(|constant| !constant)
+            .map(|constant| {
+                accepted |= !constant && candidate.is_some_and(|(ident, _)| ident == name);
+                !constant
+            })
         });
-        if let Err(error) = result {
-            self.error = Some(error);
+        self.error = result.err();
+        if self.error.is_none()
+            && accepted
+            && let (Some(matcher), Some((name, ty))) = (self.receiver_matcher, candidate)
+        {
+            self.error = self.remember_receiver(name, ty, &matcher.pattern.id).err();
         }
+    }
+
+    fn remember_receiver(
+        &mut self,
+        name: &syn::Ident,
+        ty: &syn::Type,
+        label: &str,
+    ) -> Result<(), Error> {
+        let owners = self.owners.get(
+            self.workspace,
+            self.file,
+            ty.span().byte_range().start,
+            self.limits,
+        )?;
+        let binding = ReceiverBinding::write(
+            name,
+            ty,
+            label,
+            (self.workspace, self.code, &self.scopes),
+            (self.file, owners),
+            self.limits,
+        )?;
+        if !binding.is_empty() {
+            self.scopes
+                .record_receiver(name.unraw().to_string(), binding, label, self.limits)?;
+        }
+        Ok(())
+    }
+
+    fn method_call(&mut self, node: &syn::ExprMethodCall) -> Result<(), Error> {
+        let Some(matcher) = self.receiver_matcher else {
+            return Ok(());
+        };
+        let label = matcher.pattern.id.as_str();
+        let method = node.method.span().byte_range();
+        let work = self
+            .compiled
+            .len()
+            .saturating_mul(method.len().saturating_add(1));
+        super::charge(label, self.limits, work.try_into().unwrap_or(u64::MAX))?;
+        let Some(name) = receivers::local(&node.receiver) else {
+            return Ok(());
+        };
+        let method = node.method.unraw().to_string();
+        let mut selected = self
+            .compiled
+            .iter()
+            .filter(|pattern| pattern.method == Some(&method))
+            .peekable();
+        if selected.peek().is_none() {
+            return Ok(());
+        }
+        let Some((binding_frame, binding)) =
+            self.scopes.written_receiver(&name, label, self.limits)?
+        else {
+            return Ok(());
+        };
+        let site = Site::at(
+            self.file,
+            node.method.span(),
+            Role::Method,
+            Namespace::Value,
+            false,
+        );
+        let owners = self
+            .owners
+            .get(self.workspace, self.file, site.byte, self.limits)?;
+        for expected in selected {
+            let occurrence = (expected.pattern.id.as_str(), site.byte);
+            if self.seen.contains(&occurrence) {
+                continue;
+            }
+            let reaches = binding.matching_owners(
+                expected,
+                (self.workspace, self.code, self.context),
+                (&self.scopes, binding_frame, std::slice::from_ref(&name)),
+                &site,
+                owners,
+                self.limits,
+            )?;
+            if !reaches.is_empty() {
+                super::super::retain(
+                    &mut self.found,
+                    expected.pattern,
+                    &self.file.path,
+                    site.byte,
+                    site.line,
+                    Some(reaches),
+                    self.limits,
+                )?;
+                self.seen.insert(occurrence);
+            }
+        }
+        Ok(())
+    }
+
+    fn guard_shadow(&mut self, pattern: &syn::Pat) -> Result<(), Error> {
+        let Some(matcher) = self.receiver_matcher else {
+            return Ok(());
+        };
+        let label = matcher.pattern.id.as_str();
+        let mut result = Ok(());
+        raf_source::visit_pattern_bindings(pattern, |name| {
+            if result.is_err() {
+                return;
+            }
+            result = (|| {
+                if !super::constant(
+                    self.workspace,
+                    self.code,
+                    self.file,
+                    label,
+                    name,
+                    &mut self.owners,
+                    self.limits,
+                )? {
+                    let name = name.unraw().to_string();
+                    super::charge(
+                        label,
+                        self.limits,
+                        name.len().saturating_add(1).try_into().unwrap_or(u64::MAX),
+                    )?;
+                    self.scopes.record_receiver(
+                        name,
+                        ReceiverBinding::default(),
+                        label,
+                        self.limits,
+                    )?;
+                }
+                Ok(())
+            })();
+        });
+        result
     }
 
     fn path(&mut self, path: &syn::Path, role: Role, namespace: Namespace) {
@@ -960,16 +1117,22 @@ impl Paths<'_, '_, '_, '_> {
         }
     }
 
-    fn condition(&mut self, expression: &syn::Expr) {
+    fn condition(&mut self, expression: &syn::Expr, guard_only: bool) {
         match expression {
             syn::Expr::Let(node) => {
                 self.visit_expr(&node.expr);
                 self.visit_pat(&node.pat);
-                self.bind(&node.pat);
+                if guard_only {
+                    if self.error.is_none() {
+                        self.error = self.guard_shadow(&node.pat).err();
+                    }
+                } else {
+                    self.bind(&node.pat);
+                }
             }
             syn::Expr::Binary(node) if matches!(node.op, syn::BinOp::And(_)) => {
-                self.condition(&node.left);
-                self.condition(&node.right);
+                self.condition(&node.left, guard_only);
+                self.condition(&node.right, guard_only);
             }
             _ => self.visit_expr(expression),
         }
@@ -979,7 +1142,9 @@ impl Paths<'_, '_, '_, '_> {
         if let syn::Pat::Guard(guard) = pattern {
             self.arm_pattern(&guard.pat);
             if self.path_uses.is_some() || self.numeric.is_some() {
-                self.condition(&guard.guard);
+                self.condition(&guard.guard, false);
+            } else if self.receiver_matcher.is_some() {
+                self.condition(&guard.guard, true);
             } else {
                 self.visit_expr(&guard.guard);
             }
@@ -1037,6 +1202,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             });
         }
         let previous = self.impl_blocks;
+        let receiver_floor = self.scopes.begin_receiver_boundary();
         // Nested items cannot capture the enclosing implementation's Self.
         let previous_self = self
             .enum_hits
@@ -1066,6 +1232,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             inventory.anonymous_file_constant = previous_anonymous;
         }
         self.impl_blocks = previous;
+        self.scopes.end_receiver_boundary(receiver_floor);
     }
 
     fn visit_block(&mut self, node: &'ast syn::Block) {
@@ -1305,6 +1472,10 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         if self.excludes_from_inventory(&node.attrs) {
             return;
         }
+        let matcher = self.receiver_matcher;
+        if matcher.is_some() && crate::syntax::definitely_excluded(&node.attrs) {
+            self.receiver_matcher = None;
+        }
         self.visit_pat(&node.pat);
         self.with_enum_attributes(&node.attrs, |this| {
             if let Some(initializer) = &node.init {
@@ -1315,6 +1486,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             }
         });
         self.bind(&node.pat);
+        self.receiver_matcher = matcher;
     }
 
     fn visit_expr_closure(&mut self, node: &'ast syn::ExprClosure) {
@@ -1324,6 +1496,12 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             }
             syn::visit::visit_expr_closure(this, node);
         });
+    }
+
+    fn visit_expr_const(&mut self, node: &'ast syn::ExprConst) {
+        let floor = self.scopes.begin_receiver_boundary();
+        syn::visit::visit_expr_const(self, node);
+        self.scopes.end_receiver_boundary(floor);
     }
 
     fn visit_arm(&mut self, node: &'ast syn::Arm) {
@@ -1370,7 +1548,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
 
     fn visit_expr_if(&mut self, node: &'ast syn::ExprIf) {
         self.scope(false, std::iter::empty(), |this| {
-            this.condition(&node.cond);
+            this.condition(&node.cond, false);
             this.visit_block(&node.then_branch);
         });
         if let Some((_, branch)) = &node.else_branch {
@@ -1380,7 +1558,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
 
     fn visit_expr_while(&mut self, node: &'ast syn::ExprWhile) {
         self.scope(false, std::iter::empty(), |this| {
-            this.condition(&node.cond);
+            this.condition(&node.cond, false);
             this.visit_block(&node.body);
         });
     }
@@ -1434,6 +1612,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
+        if self.error.is_none() {
+            self.error = self.method_call(node).err();
+        }
         if self.numeric.is_some() {
             self.numeric_uses(
                 BoundRole::Limiter,
@@ -1629,6 +1810,7 @@ pub(in crate::gate) fn numeric_calls(
 ) -> Result<(), Error> {
     let mut visitor = Paths {
         compiled: &[],
+        receiver_matcher: None,
         context: None,
         workspace,
         code,
@@ -1780,6 +1962,7 @@ fn numeric_lookup<'a, 'w>(
         site,
         label: UNCLASSIFIED,
         visibility: Some((workspace, package)),
+        receiver_workspace: None,
         enum_impl: None,
     })
 }
@@ -1829,7 +2012,7 @@ fn numeric_path(
     {
         return numeric_self(lookup, &member.ident.unraw().to_string());
     }
-    super::numeric_definitions(lookup, scopes, name, limits)
+    super::indexed_definitions(lookup, scopes, name, limits)
 }
 
 fn numeric_targets(

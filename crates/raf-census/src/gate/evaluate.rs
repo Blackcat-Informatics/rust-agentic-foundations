@@ -863,7 +863,7 @@ fn evidence_links(
 /// True when the pattern's declared scope admits the hit. An unscoped pattern
 /// admits every hit. A file outside the selected packages has no context and
 /// is never scoped in.
-fn in_scope(
+pub(super) fn in_scope(
     pattern: &crate::LedgerPattern,
     location: (&RelPath, usize, usize),
     owners: Option<&[raf_source::ItemId]>,

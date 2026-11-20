@@ -6,6 +6,7 @@
 mod cache;
 mod enum_sites;
 mod enum_usage;
+mod receivers;
 pub(in crate::gate) mod scopes;
 pub(in crate::gate) mod visit;
 
@@ -42,6 +43,8 @@ enum Role {
     Pattern,
     Macro,
     Type,
+    ReceiverType,
+    Method,
     Attribute,
     Import,
     Glob,
@@ -53,11 +56,14 @@ struct Compiled<'p> {
     spelling: Vec<String>,
     sites: BTreeMap<Namespace, BTreeSet<ItemId>>,
     follows_written_aliases: bool,
+    method: Option<&'p str>,
 }
 
 impl Compiled<'_> {
     fn selects(&self, role: Role) -> bool {
-        self.role == role || (self.role == Role::Path && role != Role::Call)
+        self.role == role
+            || (self.role == Role::Path
+                && !matches!(role, Role::Call | Role::Method | Role::ReceiverType))
     }
 }
 
@@ -104,11 +110,14 @@ fn compile<'p>(
 ) -> Result<Vec<Compiled<'p>>, Error> {
     let mut compiled = Vec::new();
     for pattern in patterns {
-        let (role, text) = match &pattern.matcher {
-            PatternMatcher::Call(text) => (Role::Call, text),
-            PatternMatcher::Path(text) => (Role::Path, text),
-            PatternMatcher::Macro(text) => (Role::Macro, text),
-            PatternMatcher::Type(text) => (Role::Type, text),
+        let (role, text, method) = match &pattern.matcher {
+            PatternMatcher::Call(text) => (Role::Call, text, None),
+            PatternMatcher::Path(text) => (Role::Path, text, None),
+            PatternMatcher::Macro(text) => (Role::Macro, text, None),
+            PatternMatcher::Type(text) => (Role::Type, text, None),
+            PatternMatcher::MethodOn { receiver, method } => {
+                (Role::Method, receiver, Some(method.as_str()))
+            }
             _ => {
                 return Err(failure(
                     &pattern.id,
@@ -119,6 +128,9 @@ fn compile<'p>(
         let mut sites: BTreeMap<Namespace, BTreeSet<ItemId>> = BTreeMap::new();
         let mut selected_reference = false;
         for namespace in Namespace::ALL {
+            if role == Role::Method && namespace != Namespace::Type {
+                continue;
+            }
             charge(
                 &pattern.id,
                 limits,
@@ -163,17 +175,15 @@ fn compile<'p>(
                 ),
             ));
         }
+        let types = sites.get(&Namespace::Type);
+        if role == Role::Method {
+            admit_receiver_selector(workspace, pattern, text, types)?;
+        }
         let follows_written_aliases = role == Role::Type
-            && sites.get(&Namespace::Type).is_some_and(|types| {
-                types.iter().any(|id| {
-                    workspace.item(*id).is_some_and(|item| {
-                        item.file.authority() == SourceAuthorityId::FIRST_PARTY
-                            && matches!(
-                                item.kind,
-                                SymbolKind::Struct | SymbolKind::Enum | SymbolKind::Union
-                            )
-                    })
-                })
+            && types.is_some_and(|types| {
+                types
+                    .iter()
+                    .any(|id| workspace.item(*id).is_some_and(first_party_nominal))
             });
         compiled.push(Compiled {
             pattern,
@@ -185,9 +195,49 @@ fn compile<'p>(
                 .collect(),
             sites,
             follows_written_aliases,
+            method,
         });
     }
     Ok(compiled)
+}
+
+fn first_party_nominal(item: &raf_source::Item) -> bool {
+    item.file.authority() == SourceAuthorityId::FIRST_PARTY
+        && matches!(
+            item.kind,
+            SymbolKind::Struct | SymbolKind::Enum | SymbolKind::Union
+        )
+}
+
+fn admit_receiver_selector(
+    workspace: &Workspace,
+    pattern: &LedgerPattern,
+    text: &str,
+    types: Option<&BTreeSet<ItemId>>,
+) -> Result<(), Error> {
+    let invalid = || {
+        failure(
+            &pattern.id,
+            &format!(
+                "methodOn receiver {text:?} must resolve to one indexed first-party struct, enum or union"
+            ),
+        )
+    };
+    let types = types.ok_or_else(invalid)?;
+    let first = types
+        .first()
+        .and_then(|id| workspace.item(*id))
+        .filter(|item| first_party_nominal(item))
+        .ok_or_else(invalid)?;
+    if types.iter().all(|id| {
+        workspace.item(*id).is_some_and(|item| {
+            first_party_nominal(item) && item.file == first.file && item.span == first.span
+        })
+    }) {
+        Ok(())
+    } else {
+        Err(invalid())
+    }
 }
 
 fn segments(path: &syn::Path) -> Vec<String> {
@@ -287,7 +337,8 @@ impl ScopedGlob<'_> {
         // Source can identify the declaration of a module-scope shadow.
         self.declaration.trusted
             && !self.expanded.has_uncertain_alias()
-            && !(self.expanded.segments.is_empty() || self.expanded.shadowed && self.expanded.block)
+            && !(self.expanded.segments.is_empty()
+                || self.expanded.is_shadowed() && self.expanded.block)
     }
 
     fn unresolved_relative(&self) -> bool {
@@ -586,6 +637,7 @@ struct Lookup<'a, 'w> {
     site: &'a Site<'a>,
     label: &'a str,
     visibility: Option<(&'a Workspace, PackageId)>,
+    receiver_workspace: Option<&'a Workspace>,
     enum_impl: Option<(&'a str, &'a [ImplBlock])>,
 }
 
@@ -881,6 +933,36 @@ impl Lookup<'_, '_> {
         Ok(glob_lookup)
     }
 
+    fn receiver_reaches_binding(
+        &self,
+        scopes: &Scopes,
+        name: &[String],
+        binding_frame: usize,
+        limits: &mut MatchLimits,
+    ) -> Result<bool, Error> {
+        scopes.with_receiver_lookup(|| {
+            let mut eligible = |alias: &Alias, namespace| self.eligible(alias, namespace);
+            if !scopes.local(name, Namespace::Value, limits, &mut eligible)? {
+                return Ok(false);
+            }
+            // An import in a nearer block can hide a captured or enclosing local.
+            // A local in the import's own block takes precedence over its glob.
+            let glob = self.through_block_glob(
+                scopes,
+                name,
+                |frame| frame > binding_frame,
+                GlobRead {
+                    namespace: Namespace::Value,
+                    early: false,
+                    exclusion: None,
+                    keep_head: false,
+                },
+                limits,
+            )?;
+            Ok(glob.opaque.is_none() && glob.definition.is_none() && !glob.conditional_variant)
+        })
+    }
+
     fn finish_glob(
         &self,
         scopes: &Scopes,
@@ -1005,7 +1087,7 @@ impl Lookup<'_, '_> {
         }
         if glob.definition.is_none()
             && let Some(alias) = expanded.filter(|path| {
-                !path.is_absolute() && !path.shadowed && path.alias_frame().is_some()
+                !path.is_absolute() && !self.unproven_shadow(path) && path.alias_frame().is_some()
             })
         {
             let target = self.through_block_glob(
@@ -1387,9 +1469,11 @@ impl Lookup<'_, '_> {
         sites: &[ItemId],
         limits: &mut MatchLimits,
     ) -> Result<GlobProvider, Error> {
-        let (workspace, _) = self
+        let workspace = self
             .visibility
-            .expect("INVARIANT: block globs are collected for visibility");
+            .map(|(workspace, _)| workspace)
+            .or(self.receiver_workspace)
+            .expect("INVARIANT: indexed block glob lookups have a workspace");
         let mut enums = WorkList::new();
         let mut modules = 0;
         for &id in sites {
@@ -1796,13 +1880,19 @@ impl Lookup<'_, '_> {
     }
 
     fn expanded<'a>(&self, path: &'a Expanded) -> Result<PathDefinition<'a>, Error> {
-        if path.shadowed {
+        if self.unproven_shadow(path) {
             return Ok(PathDefinition::Missing);
         }
         Ok(self.indexed(&path.text(), true)?.map_or(
             PathDefinition::Unverified(&path.segments),
             PathDefinition::Expanded,
         ))
+    }
+
+    fn unproven_shadow(&self, path: &Expanded) -> bool {
+        // A block import can end at a module declaration. Source can prove
+        // that target without giving an indexed interpretation to block items.
+        path.is_shadowed() && !(self.site.role == Role::ReceiverType && path.module_anchor())
     }
 }
 
@@ -1998,6 +2088,7 @@ fn cross_package_uses(
             site,
             label: VISIBILITY,
             visibility: Some((workspace, consumer)),
+            receiver_workspace: None,
             enum_impl: None,
         };
         let LexicalPath::Accessible(expanded) =
@@ -2202,20 +2293,29 @@ fn alias_matches(
         return Ok(false);
     }
     for id in aliases {
-        let (target, usage) = lookup
-            .code
-            .unconditional_nominal_alias(id)
-            .map_err(|error| query_error(lookup.label, lookup.site, error))?;
-        charge(
-            lookup.label,
-            limits,
-            usage.work.try_into().unwrap_or(u64::MAX),
-        )?;
-        if target.is_some_and(|id| targets.contains(&id)) {
+        if lookup
+            .nominal_alias(id, limits)?
+            .is_some_and(|id| targets.contains(&id))
+        {
             return Ok(true);
         }
     }
     Ok(false)
+}
+
+impl Lookup<'_, '_> {
+    fn nominal_alias(&self, id: ItemId, limits: &mut MatchLimits) -> Result<Option<ItemId>, Error> {
+        let (target, usage) = self
+            .code
+            .unconditional_nominal_alias(id)
+            .map_err(|error| query_error(self.label, self.site, error))?;
+        charge(
+            self.label,
+            limits,
+            usage.work.try_into().unwrap_or(u64::MAX),
+        )?;
+        Ok(target)
+    }
 }
 
 fn matches(
@@ -2253,6 +2353,7 @@ fn matches(
             site,
             label: &expected.pattern.id,
             visibility: None,
+            receiver_workspace: None,
             enum_impl: None,
         };
         let LexicalPath::Accessible(expanded) =
@@ -2293,7 +2394,7 @@ fn matches(
     Ok(false)
 }
 
-fn numeric_definitions(
+fn indexed_definitions(
     lookup: &Lookup<'_, '_>,
     scopes: &Scopes,
     path: &syn::Path,
@@ -2310,7 +2411,7 @@ fn numeric_definitions(
     // prevents reading the indexed path.
     if expanded
         .as_ref()
-        .is_some_and(|path| path.shadowed && path.block)
+        .is_some_and(|path| path.block && lookup.unproven_shadow(path))
     {
         return Ok(Vec::new());
     }

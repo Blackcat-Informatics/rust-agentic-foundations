@@ -48,6 +48,7 @@ bindings:
     - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
+    - raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths
     - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
     - raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name
@@ -213,7 +214,7 @@ unchanged to the consumer's validator, so they carry no engine vocabulary.
 | `NumericBound` | `file`, `siteKey`, `classification` strings; sanctioned rows require a `reason` string and `anchor` documentation IRI |
 | `EnumUsage` | `symbol` string; repeated `retainedVariant` links to owned rows |
 | `EnumVariantRetention` | `variantName` and `reason` strings |
-| `Pattern` | `patternId`, `summary` strings; exactly one matcher string: `call`, `path`, `macro`, `typePath`, `literalRegex` or `tokens`; optional scope: repeated `targetKind`, `excludeTargetKind` strings (lib, bin, test, bench, example or buildScript), repeated `includePath`, `excludePath` workspace-relative path strings, `shippingOnly` stated only as boolean true; and optional `ratcheted`, stated only as boolean true |
+| `Pattern` | `patternId`, `summary` strings; exactly one matcher string: `call`, `path`, `macro`, `typePath`, `methodOn`, `literalRegex` or `tokens`; optional scope: repeated `targetKind`, `excludeTargetKind` strings (lib, bin, test, bench, example or buildScript), repeated `includePath`, `excludePath` workspace-relative path strings, `shippingOnly` stated only as boolean true; and optional `ratcheted`, stated only as boolean true |
 | `PreferredProvider` | `package` string; repeated nonempty `entryPoint`, `consumer` strings |
 | `Extension` | Consumer-owned content; no additional engine-owned properties |
 
@@ -223,7 +224,7 @@ and scalar bounds belong to the [Ledger contract](./census-ledger.md).
 Ledger selectors are literals, with no additional enumerated object IRIs.
 The root selects the domain shape: Variant is a structured sanction in a Ledger
 and a match-role IRI in an Index.
-<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths -->
 
 | Registered Census class | Properties and object types |
 |---|---|
@@ -721,6 +722,7 @@ retains its separate semantic and normal-form golden checks.
 | `raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |

@@ -247,7 +247,7 @@ fn expand_variant_path(
     let mut alias = |target: super::AliasTarget<'_>, namespace, limits: &mut MatchLimits| {
         let expanded = &target.expanded;
         if matches!(namespace, Namespace::Type | Namespace::Value)
-            && !(expanded.has_uncertain_alias() || expanded.shadowed && expanded.block)
+            && !(expanded.has_uncertain_alias() || expanded.is_shadowed() && expanded.block)
             && !variants(
                 lookup,
                 scopes,
@@ -308,7 +308,10 @@ fn path_arm(
     {
         return Ok(Arm::Other);
     }
-    if let Some(local) = expanded.as_ref().filter(|path| path.shadowed && path.block) {
+    if let Some(local) = expanded
+        .as_ref()
+        .filter(|path| path.is_shadowed() && path.block)
+    {
         let binding = if bare
             && local.alias_frame().is_none()
             && let Some(frame) = local.first_frame()
@@ -715,7 +718,7 @@ fn enum_prefix(
         };
         if expanded
             .as_ref()
-            .is_some_and(|path| path.has_uncertain_alias() || path.shadowed && path.block)
+            .is_some_and(|path| path.has_uncertain_alias() || path.is_shadowed() && path.block)
         {
             return Ok(Vec::new());
         }
