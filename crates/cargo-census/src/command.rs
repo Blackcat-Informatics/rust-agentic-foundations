@@ -196,6 +196,7 @@ fn compare_schema_history(
             current,
             HistoryOptions {
                 roots: &args.types,
+                file_ids: &args.file_ids,
                 required_annotation: args.schema.required_annotation,
                 paired_presence_annotation: args.schema.paired_presence_annotation,
                 capture,

@@ -8,6 +8,8 @@ use std::{
     fmt,
 };
 
+use raf_source::RelPath;
+
 use super::{
     Error, TypeId,
     descriptor::{Method, Node, Schema, Struct},
@@ -32,6 +34,18 @@ pub struct Change {
 pub enum ChangeKind {
     /// A selected root disappeared.
     RemovedRoot,
+    /// A selected file has no request row or node in the current descriptor.
+    RemovedFile {
+        /// The canonical requested filename in the base descriptor.
+        previous: RelPath,
+    },
+    /// A retained file ID has a different requested filename.
+    RenamedFile {
+        /// The canonical requested filename in the base descriptor.
+        previous: RelPath,
+        /// The canonical requested filename in the current descriptor.
+        current: RelPath,
+    },
     /// A type changed between a struct, an enum and an RPC interface.
     ChangedKind,
     /// The count of a struct's own type parameters changed.
@@ -70,6 +84,10 @@ impl fmt::Display for ChangeKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::RemovedRoot => "selected root removed",
+            Self::RemovedFile { previous } => return write!(f, "selected file {previous} removed"),
+            Self::RenamedFile { previous, current } => {
+                return write!(f, "selected file renamed from {previous} to {current}");
+            }
             Self::ChangedKind => "schema kind changed",
             Self::ChangedParameters => "type parameter count changed",
             Self::RemovedMember => "member removed",
@@ -106,6 +124,10 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
         let extra = match &kind {
             ChangeKind::RenamedMember { current: name }
             | ChangeKind::PairedPresence { peer: name } => name.len(),
+            ChangeKind::RemovedFile { previous } => previous.as_str().len(),
+            ChangeKind::RenamedFile { previous, current } => {
+                previous.as_str().len() + current.as_str().len()
+            }
             _ => 0,
         };
         let bytes = size_of::<Change>() + member.as_ref().map_or(0, String::len) + extra;
@@ -116,6 +138,19 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
     };
     for &node in base.roots.difference(&current.roots) {
         push(node, None, ChangeKind::RemovedRoot)?;
+    }
+    for (&id, previous) in &base.files {
+        let kind = match current.files.get(&id) {
+            None => ChangeKind::RemovedFile {
+                previous: previous.clone(),
+            },
+            Some(current) if previous != current => ChangeKind::RenamedFile {
+                previous: previous.clone(),
+                current: current.clone(),
+            },
+            Some(_) => continue,
+        };
+        push(id, None, kind)?;
     }
     for (&node, before) in &base.nodes {
         let Some(after) = current.nodes.get(&node) else {

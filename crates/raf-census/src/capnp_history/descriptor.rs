@@ -3,6 +3,7 @@
 
 //! Admitted schema nodes and their projected data-layout closure.
 
+mod files;
 mod rpc;
 
 use std::{
@@ -16,7 +17,7 @@ use capnp::{
     schema_capnp::{code_generator_request, field, node, type_, value},
     serialize,
 };
-use raf_source::Tree;
+use raf_source::{RelPath, Tree};
 
 use super::{
     DescriptorError as Error, TypeId,
@@ -43,6 +44,7 @@ pub(super) enum Kind {
 pub(super) struct Schema {
     pub(super) roots: BTreeSet<TypeId>,
     pub(super) nodes: BTreeMap<TypeId, Node>,
+    pub(super) files: BTreeMap<TypeId, RelPath>,
 }
 
 #[derive(Debug)]
@@ -110,10 +112,10 @@ enum AnnotationKind {
 
 #[derive(Clone, Copy)]
 pub(super) enum Roots<'a> {
-    /// Every selected root must exist in the base.
-    Require,
-    /// A missing selected root is a history finding in the current revision.
-    AllowMissing,
+    /// Every selected root and file must exist in the base.
+    Require(&'a BTreeSet<TypeId>),
+    /// An absent selected root or file is a finding in the current revision.
+    AllowMissing(&'a BTreeSet<TypeId>),
     /// Admit all pinned declarations and project only the retained roots.
     Declared(&'a BTreeSet<TypeId>),
 }
@@ -165,14 +167,15 @@ pub(super) fn read(
             nodes.validate_persisted_root(id, &mut scopes)?;
         }
     }
-    let projected = nodes.project(
-        roots,
-        annotations,
-        !matches!(mode, Roots::AllowMissing),
-        &mut scopes,
-    )?;
-    if let Roots::Declared(declared) = mode {
-        nodes.validate_other_layouts(declared, &projected, annotations, &mut scopes)?;
+    let require_roots = !matches!(mode, Roots::AllowMissing(_));
+    let mut projected = nodes.project(roots, annotations, require_roots, &mut scopes)?;
+    match mode {
+        Roots::Declared(declared) => {
+            nodes.validate_other_layouts(declared, &projected, annotations, &mut scopes)?;
+        }
+        Roots::Require(selected) | Roots::AllowMissing(selected) => {
+            projected.files = files::project(request, &nodes, selected, require_roots)?;
+        }
     }
     Ok(projected)
 }
@@ -352,6 +355,7 @@ impl<'a> Nodes<'a> {
         Ok(Schema {
             roots: present,
             nodes,
+            files: BTreeMap::new(),
         })
     }
 
