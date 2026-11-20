@@ -145,7 +145,8 @@ impl Document {
     ///
     /// Supply the root and every structural subject owned by that document.
     /// The decoder checks the partition's closure and profile. The caller
-    /// accounts for subjects in the rest of the dataset.
+    /// accounts for subjects in the rest of the dataset, including reifiers
+    /// and annotations outside the partition.
     ///
     /// # Errors
     /// Refuses absent, duplicate or unrelated subjects, malformed documents,

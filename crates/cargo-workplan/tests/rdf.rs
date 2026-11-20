@@ -371,7 +371,10 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
             "implementing",
             ["[demo::real, demo::missing]", "[]", "[]"],
             "[cap:beta, cap:missing]",
-            &[],
+            &[(
+                "Contract",
+                "\nRecorded café text.  \n<!-- raf:claim evidence=ledger-sync-bound,missing-claim -->\n\nRecorded café text.  \n<!-- raf:claim evidence=ledger-sync-bound -->\n",
+            )],
         ),
     );
     repo.put(
@@ -404,6 +407,7 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
         assert_eq!(restored.index.unwrap().body().text(), index_text);
         assert_exported_evidence_targets(&parsed.dataset);
         assert_exported_record_inputs(&parsed.dataset);
+        assert_exported_claims(&parsed.dataset);
 
         let root = repo.root().to_str().unwrap();
         let explicit: Vec<_> = ["--root", root].into_iter().chain(args).collect();
@@ -438,6 +442,51 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
 
     repo.put(alpha, "---\ntype: Capability\n");
     refused_repository_export(&repo, alpha, "fence");
+}
+
+fn assert_exported_claims(dataset: &purrdf_rdf::RdfDataset) {
+    use raf_okf::DocType;
+    use raf_workplan::evidence::CLAIMS_VOCAB;
+
+    let capability = DocType::Capability.document_iri("cap:alpha").unwrap();
+    let subject = dataset.term_id_by_iri(&capability).unwrap();
+    let predicate = dataset
+        .term_id_by_iri(&format!("{CLAIMS_VOCAB}claimedStatement"))
+        .unwrap();
+    let statement = dataset
+        .term_id_by_literal(
+            "Recorded café text.  \n",
+            "http://www.w3.org/2001/XMLSchema#string",
+            None,
+            None,
+        )
+        .unwrap();
+    let quoted = dataset
+        .term_id_by_triple(subject, predicate, statement)
+        .unwrap();
+    let reifiers: Vec<_> = dataset.reifiers().collect();
+    assert_eq!(reifiers.len(), 2);
+    assert_ne!(reifiers[0].0, reifiers[1].0);
+    assert!(reifiers.iter().all(|(_, target)| *target == quoted));
+    assert!(
+        !dataset
+            .quads()
+            .any(|row| row.s == subject && row.p == predicate && row.o == statement)
+    );
+    let missing = DocType::Evidence
+        .document_iri("evidence:missing-claim")
+        .unwrap();
+    let missing = dataset.term_id_by_iri(&missing).unwrap();
+    let support = dataset
+        .term_id_by_iri(&format!("{CLAIMS_VOCAB}supportedBy"))
+        .unwrap();
+    assert_eq!(
+        dataset
+            .annotations()
+            .filter(|&(_, predicate, object)| predicate == support && object == missing)
+            .count(),
+        1
+    );
 }
 
 fn put_repository_export_records(repo: &Repo) -> [&'static str; 3] {

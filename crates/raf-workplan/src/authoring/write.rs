@@ -12,8 +12,9 @@ use raf_source::RelPath;
 
 use super::{
     Counts, Declarations, Error, FRAME, INDEX_EDGE, INDEX_IRI, INDEX_PATH, MAX_DOCUMENTS,
-    MAX_NATIVE_BYTES, Object, canonical_path, declarations, root_statements,
+    MAX_NATIVE_BYTES, Object, STRING, canonical_path, claims, declarations, root_statements,
 };
+use crate::evidence::{CLAIMED_STATEMENT, ClaimRelation, QuotedClaim};
 use crate::{Loaded, Workplan};
 
 struct Writer<'a> {
@@ -36,11 +37,16 @@ pub(super) fn repository(
         paths: BTreeSet::new(),
         roots: BTreeSet::new(),
     };
-    root_statements(|s, p, o| writer.statement(s, p, o))?;
+    root_statements(|s, p, o| writer.statement(ClaimRelation::Assertion, s, p, o))?;
     if let Some(index) = index {
         let carrier = index.to_dataset(INDEX_IRI).map_err(Error::index)?;
         writer.carrier(INDEX_PATH, &carrier)?;
-        writer.statement(FRAME, INDEX_EDGE, Object::Iri(INDEX_IRI))?;
+        writer.statement(
+            ClaimRelation::Assertion,
+            FRAME,
+            INDEX_EDGE,
+            Object::Iri(INDEX_IRI),
+        )?;
     }
     for capability in plan.capabilities() {
         writer.document(capability, Declarations::Capability(capability.value()))?;
@@ -96,7 +102,14 @@ impl Writer<'_> {
             .to_dataset(path)
             .map_err(|source| Error::document(path, source))?;
         self.carrier(path, &dataset)?;
-        declarations((path, &root), declared, |s, p, o| self.statement(s, p, o))?;
+        declarations((path, &root), declared, |s, p, o| {
+            self.statement(ClaimRelation::Assertion, s, p, o)
+        })?;
+        if matches!(declared, Declarations::Capability(_)) {
+            claims((path, &root), document.body(), |row| {
+                row.apply(self, Self::statement, Self::reifier)
+            })?;
+        }
         self.roots.insert(root);
         Ok(())
     }
@@ -110,8 +123,34 @@ impl Writer<'_> {
             .map_err(|source| Error::native(path, source))
     }
 
+    fn reifier(&mut self, subject: &str, quote: QuotedClaim<'_>) -> Result<(), Error> {
+        self.counts.reifier(subject, quote)?;
+        let dataset = &mut self.dataset;
+        let memory = &mut self.memory;
+        let storage = |source| Error::native(subject, source);
+        let reifier = dataset
+            .intern_iri_with_memory(subject, memory)
+            .map_err(storage)?;
+        let s = dataset
+            .intern_iri_with_memory(quote.capability, memory)
+            .map_err(storage)?;
+        let p = dataset
+            .intern_iri_with_memory(CLAIMED_STATEMENT, memory)
+            .map_err(storage)?;
+        let o = dataset
+            .intern_literal_parts_with_memory(quote.statement, Some(STRING), None, None, memory)
+            .map_err(storage)?;
+        let triple = dataset
+            .intern_triple_with_memory(s, p, o, memory)
+            .map_err(storage)?;
+        dataset
+            .push_reifier_in_graph_with_memory(reifier, triple, None, memory)
+            .map_err(storage)
+    }
+
     fn statement(
         &mut self,
+        relation: ClaimRelation,
         subject: &str,
         predicate: &str,
         object: Object<'_>,
@@ -137,8 +176,12 @@ impl Writer<'_> {
             }
         }
         .map_err(storage)?;
-        dataset
-            .push_quad_with_memory(s, p, o, None, memory)
-            .map_err(storage)
+        match relation {
+            ClaimRelation::Assertion => dataset.push_quad_with_memory(s, p, o, None, memory),
+            ClaimRelation::OccurrenceProperty => {
+                dataset.push_annotation_in_graph_with_memory(s, p, o, None, memory)
+            }
+        }
+        .map_err(storage)
     }
 }

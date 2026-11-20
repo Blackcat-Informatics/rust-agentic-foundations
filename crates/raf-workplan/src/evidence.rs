@@ -6,10 +6,13 @@
 //! runs their subject or establishes a runtime verification result.
 
 mod claims_dataset;
+pub(crate) use claims_dataset::{
+    CLAIMED_STATEMENT, ClaimProjection, ClaimRelation, ClaimRow, Object, QuotedClaim,
+};
 pub use claims_dataset::{CLAIMS_VOCAB, ClaimsDatasetError};
 
 use crate::Workplan;
-use raf_okf::{CapabilitySection, DocType, EvidenceVerdict, is_kebab};
+use raf_okf::{Body, CapabilitySection, Claim, DocType, EvidenceVerdict, is_kebab};
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
@@ -121,6 +124,14 @@ pub(crate) fn record_path(id: &str) -> String {
     format!("{}/{slug}.md", DocType::Evidence.directory())
 }
 
+pub(crate) fn statement_text<'a>(body: &'a Body, claim: &Claim) -> &'a str {
+    let base = body.span().bytes.start;
+    let span = &claim.statement().bytes;
+    body.text()
+        .get(span.start - base..span.end - base)
+        .expect("INVARIANT: a parsed claim statement lies within its body")
+}
+
 impl Workplan<'_> {
     /// The statements that rest on the evidence `evidence` (`evidence:<slug>`
     /// or the slug): every claim marker of a capability document that names
@@ -156,23 +167,16 @@ impl Workplan<'_> {
         let mut found = Vec::new();
         for cap in self.capabilities() {
             let body = cap.body();
-            let base = body.span().bytes.start;
             for claim in body.claims() {
                 if !claim.evidence().iter().any(|named| named == slug) {
                     continue;
                 }
-                let span = &claim.statement().bytes;
-                let statement = body
-                    .text()
-                    .get(span.start.saturating_sub(base)..span.end.saturating_sub(base))
-                    .unwrap_or_default()
-                    .to_string();
                 found.push(ClaimStatement {
                     capability: cap.value().header.id.clone(),
                     path: cap.path().to_string(),
                     section: claim.section().and_then(CapabilitySection::from_slug),
                     line: claim.line(),
-                    statement,
+                    statement: statement_text(body, claim).to_string(),
                 });
             }
         }

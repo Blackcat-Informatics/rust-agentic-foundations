@@ -19,7 +19,7 @@ inputs:
     digest: 2d3bb6d017da493d437f304bc2a482ebe000946ce1d8933b6d36e929b8141081
   - kind: symbol
     name: raf_okf::Index::from_dataset
-    digest: fabedb78a8b6041f84bf5a7e6792dff978f0e8ff95a4d64c2dd2eb8d5a0f49d9
+    digest: 1f64be96dc0e4cd250b33cbfa93810fefeb1513422a5b899a22a03212a3e86d6
   - kind: symbol
     name: raf_okf::Index::to_dataset
     digest: 81fbfbc362952f0b3e7e93bc94c77581a42f12c93671d99e78af2121ec42cb58

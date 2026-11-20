@@ -5,8 +5,8 @@
 
 use std::{error::Error, fmt, sync::Arc};
 
-use purrdf_core::{RdfDataset, RdfDatasetBuilder, RdfLiteral, TermId};
-use raf_okf::{DocType, DocumentIdentityError};
+use purrdf_core::{RdfDataset, RdfDatasetBuilder, RdfLiteral};
+use raf_okf::{CapabilitySection, DocType, DocumentIdentityError};
 
 use super::{EvidenceLookupError, evidence_id};
 use crate::Workplan;
@@ -18,6 +18,110 @@ const TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 const STRING: &str = "http://www.w3.org/2001/XMLSchema#string";
 const INTEGER: &str = "http://www.w3.org/2001/XMLSchema#integer";
 const NODES: &str = "https://blackcatinformatics.ca/raf/workplan/claims/";
+const OCCURRENCE_IRI_BASE: &str = "https://blackcatinformatics.ca/raf/workplan/claims/occurrence/";
+pub(crate) const CLAIMED_STATEMENT: &str =
+    "https://blackcatinformatics.ca/raf/workplan/1#claimedStatement";
+
+#[derive(Clone, Copy)]
+pub(crate) enum Object<'a> {
+    Iri(&'a str),
+    Literal(&'a str, &'static str),
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct QuotedClaim<'a> {
+    pub(crate) capability: &'a str,
+    pub(crate) statement: &'a str,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ClaimRelation {
+    Assertion,
+    OccurrenceProperty,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ClaimRow<'a> {
+    Statement(ClaimRelation, &'a str, &'a str, Object<'a>),
+    Reifier(&'a str, QuotedClaim<'a>),
+}
+
+impl<'a> ClaimRow<'a> {
+    pub(crate) fn apply<W, E>(
+        self,
+        sink: &mut W,
+        statement: impl FnOnce(&mut W, ClaimRelation, &'a str, &'a str, Object<'a>) -> Result<(), E>,
+        reifier: impl FnOnce(&mut W, &'a str, QuotedClaim<'a>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        match self {
+            Self::Statement(relation, s, p, o) => statement(sink, relation, s, p, o),
+            Self::Reifier(s, quote) => reifier(sink, s, quote),
+        }
+    }
+}
+
+pub(crate) struct ClaimProjection<'a> {
+    pub(crate) quote: QuotedClaim<'a>,
+    pub(crate) path: &'a str,
+    pub(crate) line: usize,
+    pub(crate) section: Option<CapabilitySection>,
+}
+
+impl ClaimProjection<'_> {
+    pub(crate) fn rows<E, S: AsRef<str>>(
+        &self,
+        owner: &str,
+        evidence: impl IntoIterator<Item = Result<S, E>>,
+        mut emit: impl FnMut(ClaimRow<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        let occurrence = format!(
+            "{OCCURRENCE_IRI_BASE}{}/{}",
+            hash(self.quote.capability),
+            self.line
+        );
+        emit(ClaimRow::Reifier(&occurrence, self.quote))?;
+        emit(ClaimRow::Statement(
+            ClaimRelation::OccurrenceProperty,
+            &occurrence,
+            TYPE,
+            Object::Iri(&format!("{CLAIMS_VOCAB}ClaimOccurrence")),
+        ))?;
+        emit(ClaimRow::Statement(
+            ClaimRelation::Assertion,
+            owner,
+            &format!("{CLAIMS_VOCAB}occurrence"),
+            Object::Iri(&occurrence),
+        ))?;
+        for target in evidence {
+            emit(ClaimRow::Statement(
+                ClaimRelation::OccurrenceProperty,
+                &occurrence,
+                &format!("{CLAIMS_VOCAB}supportedBy"),
+                Object::Iri(target?.as_ref()),
+            ))?;
+        }
+        for (property, text, datatype) in [
+            ("path", self.path, STRING),
+            ("line", &self.line.to_string(), INTEGER),
+        ] {
+            emit(ClaimRow::Statement(
+                ClaimRelation::OccurrenceProperty,
+                &occurrence,
+                &format!("{CLAIMS_VOCAB}{property}"),
+                Object::Literal(text, datatype),
+            ))?;
+        }
+        if let Some(section) = self.section {
+            emit(ClaimRow::Statement(
+                ClaimRelation::OccurrenceProperty,
+                &occurrence,
+                &format!("{CLAIMS_VOCAB}section"),
+                Object::Literal(section.slug(), STRING),
+            ))?;
+        }
+        Ok(())
+    }
+}
 
 /// Why a complete semantic claim selection could not be produced.
 #[derive(Debug)]
@@ -57,43 +161,33 @@ impl ClaimsDatasetError {
 
 struct Writer(RdfDatasetBuilder);
 impl Writer {
-    fn iri(&mut self, iri: &str) -> Result<TermId, ClaimsDatasetError> {
-        self.0.intern_iri(iri).map_err(ClaimsDatasetError::native)
-    }
-    fn property(&mut self, name: &str) -> Result<TermId, ClaimsDatasetError> {
-        self.iri(&format!("{CLAIMS_VOCAB}{name}"))
-    }
-    fn put(
-        &mut self,
-        subject: TermId,
-        name: &str,
-        object: TermId,
-    ) -> Result<(), ClaimsDatasetError> {
-        let predicate = self.property(name)?;
-        self.0
-            .push_quad(subject, predicate, object, None)
-            .map_err(ClaimsDatasetError::native)
-    }
-    fn literal(&mut self, text: &str, datatype: &str) -> Result<TermId, ClaimsDatasetError> {
-        self.0
-            .intern_literal(RdfLiteral {
-                lexical_form: text.to_string(),
-                datatype: Some(datatype.to_string()),
-                language: None,
-                direction: None,
-            })
-            .map_err(ClaimsDatasetError::native)
-    }
-    fn text(&mut self, subject: TermId, name: &str, text: &str) -> Result<(), ClaimsDatasetError> {
-        let value = self.literal(text, STRING)?;
-        self.put(subject, name, value)
-    }
-    fn class(&mut self, subject: TermId, name: &str) -> Result<(), ClaimsDatasetError> {
-        let predicate = self.iri(TYPE)?;
-        let role = self.property(name)?;
-        self.0
-            .push_quad(subject, predicate, role, None)
-            .map_err(ClaimsDatasetError::native)
+    fn row(&mut self, row: ClaimRow<'_>) -> Result<(), ClaimsDatasetError> {
+        let native = ClaimsDatasetError::native;
+        let dataset = &mut self.0;
+        match row {
+            ClaimRow::Statement(_, subject, predicate, object) => {
+                let s = dataset.intern_iri(subject).map_err(native)?;
+                let p = dataset.intern_iri(predicate).map_err(native)?;
+                let o = match object {
+                    Object::Iri(iri) => dataset.intern_iri(iri),
+                    Object::Literal(text, datatype) => {
+                        dataset.intern_literal(RdfLiteral::typed(text, datatype))
+                    }
+                }
+                .map_err(native)?;
+                dataset.push_quad(s, p, o, None).map_err(native)
+            }
+            ClaimRow::Reifier(subject, quote) => {
+                let reifier = dataset.intern_iri(subject).map_err(native)?;
+                let s = dataset.intern_iri(quote.capability).map_err(native)?;
+                let p = dataset.intern_iri(CLAIMED_STATEMENT).map_err(native)?;
+                let o = dataset
+                    .intern_literal(RdfLiteral::typed(quote.statement, STRING))
+                    .map_err(native)?;
+                let triple = dataset.intern_triple(s, p, o).map_err(native)?;
+                dataset.push_reifier(reifier, triple).map_err(native)
+            }
+        }
     }
 }
 
@@ -127,39 +221,33 @@ impl Workplan<'_> {
             .document_iri(&evidence)
             .map_err(ClaimsDatasetError::Identity)?;
         let mut writer = Writer(RdfDatasetBuilder::new());
-        let selection = writer.iri(&format!("{NODES}selection/{}", hash(&evidence)))?;
-        let evidence = writer.iri(&evidence)?;
-        writer.class(selection, "ClaimsSelection")?;
-        writer.put(selection, "evidence", evidence)?;
+        let selection = format!("{NODES}selection/{}", hash(&evidence));
+        writer.row(ClaimRow::Statement(
+            ClaimRelation::Assertion,
+            &selection,
+            TYPE,
+            Object::Iri(&format!("{CLAIMS_VOCAB}ClaimsSelection")),
+        ))?;
+        writer.row(ClaimRow::Statement(
+            ClaimRelation::Assertion,
+            &selection,
+            &format!("{CLAIMS_VOCAB}evidence"),
+            Object::Iri(&evidence),
+        ))?;
         for claim in claims {
             let capability = DocType::Capability
                 .document_iri(&claim.capability)
                 .map_err(ClaimsDatasetError::Identity)?;
-            let occurrence = writer.iri(&format!(
-                "{NODES}occurrence/{}/{}",
-                hash(&capability),
-                claim.line
-            ))?;
-            let capability = writer.iri(&capability)?;
-            let predicate = writer.property("claimedStatement")?;
-            let statement = writer.literal(&claim.statement, STRING)?;
-            let triple = writer
-                .0
-                .intern_triple(capability, predicate, statement)
-                .map_err(ClaimsDatasetError::native)?;
-            writer
-                .0
-                .push_reifier(occurrence, triple)
-                .map_err(ClaimsDatasetError::native)?;
-            writer.class(occurrence, "ClaimOccurrence")?;
-            writer.put(selection, "occurrence", occurrence)?;
-            writer.put(occurrence, "supportedBy", evidence)?;
-            writer.text(occurrence, "path", &claim.path)?;
-            let line = writer.literal(&claim.line.to_string(), INTEGER)?;
-            writer.put(occurrence, "line", line)?;
-            if let Some(section) = claim.section {
-                writer.text(occurrence, "section", section.slug())?;
+            ClaimProjection {
+                quote: QuotedClaim {
+                    capability: &capability,
+                    statement: &claim.statement,
+                },
+                path: &claim.path,
+                line: claim.line,
+                section: claim.section,
             }
+            .rows(&selection, [Ok(evidence.as_str())], |row| writer.row(row))?;
         }
         writer.0.freeze().map_err(ClaimsDatasetError::native)
     }

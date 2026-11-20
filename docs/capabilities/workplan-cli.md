@@ -274,6 +274,12 @@ Assessment and Review Documents. It preserves the recorded digests for stale
 or unavailable inputs.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
+Repository export carries each authored capability claim as a reified
+RDF 1.2 triple term. Each occurrence includes its source location and
+all declared evidence IRIs, including unavailable targets. The quote
+remains unasserted.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
 `docs fragment` returns complete raw Markdown for one imported Cargo library, an explicit public receiving module, capability and existing named diagram. Every code binding of that capability is required. The native static fragment API checks source and imported library identities and refuses private, hidden, unresolved or ambiguous references before emitting output. Diagnostics use stderr. Quiet mode and non-text formats refuse before input loading.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
@@ -405,6 +411,11 @@ an absent target before an available one.
 The fixture also checks authored input positions and exact name and digest
 assertions for all three input-bearing document types, including an absent
 artifact. Both RDF carriers recover the original Documents.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
+The repository export fixture also queries the claim reifier and its
+declared support in both formats. Its claim names an unavailable
+evidence target beside a loaded Evidence Document.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 CLI fixtures compare static verification with the library, exercise prospective completion and refusal, reject missing trust before discovery, and keep stored commands inert.

@@ -89,6 +89,9 @@ struct Reader<'a> {
 }
 
 pub(super) fn document(dataset: &RdfDataset, path: &str) -> Result<Document, E> {
+    if dataset.reifiers().next().is_some() || dataset.annotations().next().is_some() {
+        return Err(unsupported_layers());
+    }
     let reader = Reader::new(dataset, dataset.quads())?;
     let roots: Vec<_> = reader
         .subjects
@@ -118,6 +121,13 @@ pub(super) fn partition(
             "partition",
             "every subject must exist in the dataset",
         ));
+    }
+    if (dataset.reifiers().next().is_some() || dataset.annotations().next().is_some())
+        && subjects
+            .iter()
+            .any(|&subject| owns_statement_rows(dataset, subject))
+    {
+        return Err(unsupported_layers());
     }
     let rows = subjects.iter().flat_map(|&subject| rows(dataset, subject));
     let reader = Reader::new(dataset, rows)?;
@@ -210,17 +220,23 @@ fn rows(dataset: &RdfDataset, id: TermId) -> impl Iterator<Item = QuadIds> + '_ 
     )
 }
 
+fn unsupported_layers() -> E {
+    E::shape(
+        "carrier",
+        "named graphs and RDF statement layers are outside the authoring shape",
+    )
+}
+
+pub(super) fn owns_statement_rows(dataset: &RdfDataset, subject: TermId) -> bool {
+    dataset.reifier_quads_of(subject).next().is_some()
+        || dataset.annotations_of(subject).next().is_some()
+}
+
 impl<'a> Reader<'a> {
     /// Check all counts and authoring lexical bytes before cloning any value.
     fn new(dataset: &'a RdfDataset, rows: impl Iterator<Item = QuadIds>) -> Result<Self, E> {
-        if dataset.named_graphs().next().is_some()
-            || dataset.reifiers().next().is_some()
-            || dataset.annotations().next().is_some()
-        {
-            return Err(E::shape(
-                "carrier",
-                "named graphs and RDF statement layers are outside the authoring shape",
-            ));
+        if dataset.named_graphs().next().is_some() {
+            return Err(unsupported_layers());
         }
         let mut budget = Budget::default();
         let mut subjects = Set::default();

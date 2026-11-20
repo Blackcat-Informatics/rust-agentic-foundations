@@ -31,7 +31,7 @@ inputs:
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28
   - kind: symbol
     name: raf_workplan::Workplan::authoring_dataset
-    digest: f1a73026c1ce905ffea7d2b9f1a58ba0421c9a87bd77aa3fc0b6522aebb8838d
+    digest: 49e6c5c243133fcaca1eb69f3e780e62449791af8521bf7e9d0fd9d54499a669
   - kind: symbol
     name: raf_workplan::Workplan::coverage
     digest: e92bf167dc837d99b7cb04e79c432cb7b58cd2bb7accb4d70f3029b18eb9125f
@@ -46,7 +46,7 @@ inputs:
     digest: 116bcb10c96cebf7344e2a3ca0746921d0265d7a9e4fd01bfbfc96697e1ad64c
   - kind: symbol
     name: raf_workplan::authoring::repository_from_dataset
-    digest: 68f732bde339202e551e814d154e26c51613da89ad8fd12a0e25462c1b1913d0
+    digest: be0a83448bcd0b123acb05af28ad2d3fe8aa5669fd78aebe0c2ab9e9164450f7
 verdict: accepted
 by: agent
 ---

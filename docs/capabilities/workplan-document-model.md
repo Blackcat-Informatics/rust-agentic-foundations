@@ -70,6 +70,7 @@ bindings:
     - raf_workplan::Workplan::debt
   tests:
     - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
+    - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers
     - cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input
     - rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile
     - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
@@ -594,6 +595,16 @@ statements count toward the graph limits. Recovery requires the exact
 input assertions from the recovered Documents.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
+The capability inventory links each authored claim marker through
+`workplan:occurrence` to the same stable `ClaimOccurrence` IRI used by
+the selected-evidence query. The occurrence reifies an unasserted triple
+term comprising the capability IRI, `workplan:claimedStatement` and the
+exact statement string. Its annotations carry the source path, marker
+line, optional section and all declared `workplan:supportedBy` evidence
+IRIs. Unavailable evidence retains its declared identity. The graph
+limits count the reifiers, quoted component text and annotations.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers,cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+
 When Workplan loads `docs/capabilities/index.md`, the repository frame
 enrolls it with one `index` edge to the fixed IRI
 `https://blackcatinformatics.ca/raf/workplan/repository/1/index`.
@@ -604,18 +615,20 @@ refuses export with its path and load diagnostic.
 `authoring::repository_from_dataset` returns a `RepositoryAuthoring`
 with the Documents keyed by repository-relative path and the optional
 Index. It checks subject ownership and carrier closure, then requires
-the inventory and relationship assertions to agree exactly with the
-recovered declarations. The operations refuse incomplete profile loads,
+the exact inventory, relationship assertions, claim reifiers and
+annotations derived from the recovered Documents. The operations refuse incomplete profile loads,
 duplicate paths or identities, invalid carriers and extra or missing
 assertions. A refusal names the affected path or graph identity.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
-The graph admits up to 4,096 documents, 1,048,576 asserted rows and 128 MiB
-of aggregate subject, predicate and object spelling across its rows.
-Export admits the native builder through a separate 256 MiB ceiling.
-Each document retains the limits of the OKF codec. The carrier accepts
-asserted default-graph statements with IRI subjects and predicates and
-IRI or untagged literal objects.
+The graph admits up to 4,096 documents and 1,048,576 rows across
+assertions, claim reifiers and occurrence annotations. It admits up to
+128 MiB of aggregate lexical text, including the components of quoted
+triples. Export admits the native builder through a separate 256 MiB
+ceiling. Each document retains the limits of the OKF codec. Assertions
+use the default graph, IRI subjects and predicates, and IRI or untagged
+literal objects. Claim reifiers and annotations follow the occurrence
+shape above.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
 The Index membership and carrier rows count toward the repository
@@ -1025,6 +1038,13 @@ artifact beside changed, missing and additional digest assertions that
 the inverse refuses.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
+The claim fixture preserves marker lines across a reordered frontmatter
+head and recovers the exact statement and support for distinct markers
+with equal text. The inverse refuses altered, missing and extra reifiers,
+missing and extra annotations, reifiers on owned carrier subjects and
+a quoted triple supplied as an assertion.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers -->
+
 Native disk fixtures refuse changed real-directory bindings, retain the requested
 record path and original Source cause when opening fails, and permit ordinary
 replacement after restoring the original directory.
@@ -1411,6 +1431,7 @@ document writes and unchanged source and Git state beside successful completion.
 | `raf_workplan::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract), [Usage](#usage) |
 <!-- raf:generated:end -->
 

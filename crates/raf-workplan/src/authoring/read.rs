@@ -12,9 +12,10 @@ use raf_okf::{
 
 use super::{
     Counts, Declarations, Error, FRAME, INDEX_EDGE, INDEX_IRI, INDEX_PATH, MAX_DOCUMENTS, Object,
-    RepositoryAuthoring, STRING, canonical_path, declarations, iri, property, record_iri,
+    RepositoryAuthoring, STRING, canonical_path, claims, declarations, iri, property, record_iri,
     root_statements,
 };
+use crate::evidence::{CLAIMED_STATEMENT, ClaimRelation, QuotedClaim};
 
 struct Group<'a> {
     path: &'a str,
@@ -24,23 +25,20 @@ struct Group<'a> {
 type Groups<'a> = BTreeMap<TermId, Group<'a>>;
 
 pub(super) fn repository(dataset: &RdfDataset) -> Result<RepositoryAuthoring, Error> {
-    if dataset.named_graphs().next().is_some()
-        || dataset.reifiers().next().is_some()
-        || dataset.annotations().next().is_some()
-    {
-        return Err(Error::shape(
-            FRAME,
-            "only asserted default-graph statements are admitted",
-        ));
+    if dataset.named_graphs().next().is_some() {
+        return Err(Error::shape(FRAME, "use the default graph only"));
     }
     let index_subject = index_member(dataset)?;
     let mut verifier = Verifier {
         dataset,
         expected: usize::from(index_subject.is_some()),
+        expected_reifiers: 0,
+        remaining_annotations: BTreeSet::new(),
     };
-    root_statements(|s, p, o| verifier.statement(s, p, o))?;
+    root_statements(|s, p, o| verifier.statement(ClaimRelation::Assertion, s, p, o))?;
     let mut groups = inventory(dataset)?;
-    let metadata_rows = route(dataset, &mut groups, index_subject)?;
+    let (metadata_rows, reifier_rows) = route(dataset, &mut groups, index_subject)?;
+    verifier.remaining_annotations.extend(dataset.annotations());
     let index = index_subject
         .map(|_| Index::from_dataset_subject(dataset, INDEX_IRI).map_err(Error::index))
         .transpose()?;
@@ -56,15 +54,33 @@ pub(super) fn repository(dataset: &RdfDataset) -> Result<RepositoryAuthoring, Er
             RafDocument::Review(review) => Declarations::Inputs(&review.inputs),
             _ => Declarations::None,
         };
-        declarations((group.path, iri(dataset, id)?), declared, |s, p, o| {
-            verifier.statement(s, p, o)
+        let root = iri(dataset, id)?;
+        declarations((group.path, root), declared, |s, p, o| {
+            verifier.statement(ClaimRelation::Assertion, s, p, o)
         })?;
+        if matches!(declared, Declarations::Capability(_)) {
+            claims((group.path, root), document.body(), |row| {
+                row.apply(&mut verifier, Verifier::statement, Verifier::reifier)
+            })?;
+        }
         documents.insert(canonical_path(group.path)?, document);
     }
     if metadata_rows != verifier.expected {
         return Err(Error::shape(
             FRAME,
             "unexpected inventory or declaration assertions; use only the recovered document projections",
+        ));
+    }
+    if reifier_rows != verifier.expected_reifiers {
+        return Err(Error::shape(
+            FRAME,
+            "unexpected claim reifiers; use only authored claim occurrences",
+        ));
+    }
+    if !verifier.remaining_annotations.is_empty() {
+        return Err(Error::shape(
+            FRAME,
+            "unexpected claim annotations; use only authored occurrence properties",
         ));
     }
     Ok(RepositoryAuthoring { documents, index })
@@ -186,7 +202,7 @@ fn route(
     dataset: &RdfDataset,
     groups: &mut Groups<'_>,
     index_subject: Option<TermId>,
-) -> Result<usize, Error> {
+) -> Result<(usize, usize), Error> {
     let mut prefixes = BTreeMap::new();
     for &root in groups.keys() {
         let root_iri = iri(dataset, root)?;
@@ -216,7 +232,15 @@ fn route(
         };
         metadata += usize::from(is_metadata);
     }
-    Ok(metadata)
+    let mut reifiers = 0;
+    for row in dataset.reifier_quads() {
+        counts.native_reifier(dataset, row)?;
+        reifiers += 1;
+    }
+    for row in dataset.annotation_quads() {
+        counts.native(dataset, row)?;
+    }
+    Ok((metadata, reifiers))
 }
 
 fn route_subject(
@@ -266,11 +290,41 @@ fn route_subject(
 struct Verifier<'a> {
     dataset: &'a RdfDataset,
     expected: usize,
+    expected_reifiers: usize,
+    remaining_annotations: BTreeSet<(TermId, TermId, TermId)>,
 }
 
 impl Verifier<'_> {
+    fn reifier(&mut self, subject: &str, quote: QuotedClaim<'_>) -> Result<(), Error> {
+        let dataset = self.dataset;
+        let bad = || {
+            Error::shape(
+                subject,
+                "missing or changed reifier; restore the exact authored claim triple term",
+            )
+        };
+        let (Some(reifier), Some(s), Some(p), Some(o)) = (
+            dataset.term_id_by_iri(subject),
+            dataset.term_id_by_iri(quote.capability),
+            dataset.term_id_by_iri(CLAIMED_STATEMENT),
+            dataset.term_id_by_literal(quote.statement, STRING, None, None),
+        ) else {
+            return Err(bad());
+        };
+        let target = dataset.term_id_by_triple(s, p, o).ok_or_else(bad)?;
+        if !dataset
+            .reifier_quads_of(reifier)
+            .any(|row| row.o == target && row.g.is_none())
+        {
+            return Err(bad());
+        }
+        self.expected_reifiers += 1;
+        Ok(())
+    }
+
     fn statement(
         &mut self,
+        relation: ClaimRelation,
         subject: &str,
         predicate: &str,
         object: Object<'_>,
@@ -282,18 +336,35 @@ impl Verifier<'_> {
                 dataset.term_id_by_literal(text, datatype, None, None)
             }
         };
-        if let (Some(s), Some(p), Some(o)) = (
+        let ids = (
             dataset.term_id_by_iri(subject),
             dataset.term_id_by_iri(predicate),
             object,
-        ) && rows(dataset, s, p, Some(o)).next().is_some()
-        {
-            self.expected += 1;
-            return Ok(());
+        );
+        match relation {
+            ClaimRelation::Assertion => {
+                if let (Some(s), Some(p), Some(o)) = ids
+                    && rows(dataset, s, p, Some(o)).next().is_some()
+                {
+                    self.expected += 1;
+                    return Ok(());
+                }
+                Err(Error::shape(
+                    subject,
+                    "missing inventory or declaration assertion; restore the exact document projection",
+                ))
+            }
+            ClaimRelation::OccurrenceProperty => {
+                if let (Some(s), Some(p), Some(o)) = ids
+                    && self.remaining_annotations.remove(&(s, p, o))
+                {
+                    return Ok(());
+                }
+                Err(Error::shape(
+                    subject,
+                    "missing or changed claim annotation; restore the exact authored occurrence property",
+                ))
+            }
         }
-        Err(Error::shape(
-            subject,
-            "missing inventory or declaration assertion; restore the exact document projection",
-        ))
     }
 }

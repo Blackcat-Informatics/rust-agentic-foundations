@@ -69,23 +69,26 @@ impl Index {
     /// wrong types or cardinalities, blank nodes, named graphs, statement layers,
     /// malformed or reserved identities, the aggregate text bound and invalid bodies.
     pub fn from_dataset(dataset: &RdfDataset, expected_iri: &str) -> Result<Self, E> {
-        check_layers(dataset)?;
+        check_layers(
+            dataset,
+            dataset.reifiers().next().is_some() || dataset.annotations().next().is_some(),
+        )?;
         Self::decode(dataset, expected_iri, dataset.quads())
     }
 
     /// Recover the Index at an exact IRI from a shared default-graph dataset.
     ///
     /// Every statement of that subject belongs to the Index carrier. The caller
-    /// accounts for statements of other subjects.
+    /// accounts for statements, reifiers and annotations of other subjects.
     ///
     /// # Errors
     /// Refuses an absent Index, invalid carrier rows, unsupported RDF layers,
     /// malformed or reserved identities, the aggregate text bound and invalid bodies.
     pub fn from_dataset_subject(dataset: &RdfDataset, expected_iri: &str) -> Result<Self, E> {
-        check_layers(dataset)?;
         let subject = dataset
             .term_id_by_iri(expected_iri)
             .ok_or_else(|| E::shape("Index", "the expected Index subject is absent"))?;
+        check_layers(dataset, super::read::owns_statement_rows(dataset, subject))?;
         let rows = dataset.quads_for_pattern_with_plan(
             &RdfDataset::probe_plan(true, false, false, GraphMatch::Default),
             Some(subject),
@@ -158,11 +161,8 @@ impl Index {
     }
 }
 
-fn check_layers(dataset: &RdfDataset) -> Result<(), E> {
-    if dataset.named_graphs().next().is_some()
-        || dataset.reifiers().next().is_some()
-        || dataset.annotations().next().is_some()
-    {
+fn check_layers(dataset: &RdfDataset, statement_rows: bool) -> Result<(), E> {
+    if dataset.named_graphs().next().is_some() || statement_rows {
         return Err(E::shape(
             "Index",
             "named graphs and statement layers are unsupported",
