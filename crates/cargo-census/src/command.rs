@@ -5,8 +5,9 @@
 
 use crate::cli::{
     Args, Command, HistoryArgs, MigrationArgs, PersistenceArgs, QueryTarget, RdfFormat,
-    ReaderEvidenceArgs, ReferenceArgs, RegistryArgs, SchemaArgs,
+    ReaderAdmissionArgs, ReaderEvidenceArgs, ReferenceArgs, RegistryArgs, SchemaArgs,
 };
+use raf_census::capnp_history::persistence::admission;
 use raf_census::capnp_history::{
     self, CaptureFiles, CaptureVerification, HistoryOptions, Snapshot, persistence, reader_evidence,
 };
@@ -44,7 +45,9 @@ pub(crate) fn run(
         None => (gate, false),
     };
     match &args.command {
-        Command::CapnpReaderEvidence(_) | Command::CapnpPersistence(_) => {
+        Command::CapnpReaderEvidence(_)
+        | Command::CapnpReaderAdmission(_)
+        | Command::CapnpPersistence(_) => {
             unreachable!(
                 "INVARIANT: Cap'n Proto policy and evidence dispatch before Gate registration"
             )
@@ -143,6 +146,9 @@ fn pinned_command(args: &Args, output: &mut dyn Write) -> Option<Result<u8, crat
         Command::CapnpPersistence(persistence) => {
             Some(compare_persistence(&args.workspace, persistence, output))
         }
+        Command::CapnpReaderAdmission(admission) => {
+            Some(compare_reader_admission(&args.workspace, admission, output))
+        }
         _ => None,
     }
 }
@@ -216,6 +222,82 @@ fn compare_persistence(
         )?)
     })?;
     write_findings(&findings, output)
+}
+
+fn compare_reader_admission(
+    root: &Path,
+    args: &ReaderAdmissionArgs,
+    output: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
+    let policy = &args.persistence;
+    let claim = match (
+        &args.evidence_commit,
+        &args.statement,
+        &args.signature,
+        &args.key,
+        &args.reader_sha256,
+    ) {
+        (Some(commit), Some(statement), Some(signature), Some(key), Some(digest)) => {
+            Some(admission::Claim {
+                artifact: reader_evidence::artifact_digest(digest)?,
+                evidence: reader_evidence::Evidence {
+                    commit,
+                    files: CaptureFiles {
+                        statement,
+                        signature,
+                    },
+                    key,
+                },
+            })
+        }
+        (None, None, None, None, None) => None,
+        _ => {
+            return Err(Error::Options(
+                "supply all reader admission evidence options together".into(),
+            )
+            .into());
+        }
+    };
+    let report = with_schema_inputs(&policy.schema, |base, current, capture| {
+        Ok(admission::check(
+            root,
+            admission::Request {
+                base,
+                current,
+                options: persistence::Options {
+                    policy: &policy.policy,
+                    required_annotation: policy.schema.required_annotation,
+                    capture,
+                },
+                declaration: &args.declaration,
+                claim,
+            },
+        )?)
+    })?;
+    write_findings(&report.findings, output)?;
+    match report.verdict {
+        admission::Verdict::Clean => Ok(0),
+        admission::Verdict::Uncovered => {
+            writeln!(
+                output,
+                "strict findings remain without admitted reader coverage"
+            )
+            .map_err(stdout)?;
+            Ok(1)
+        }
+        admission::Verdict::Admitted { specimens } => {
+            writeln!(
+                output,
+                "admitted signed old-shape reader claim for {}",
+                args.declaration
+            )
+            .map_err(stdout)?;
+            for path in specimens {
+                writeln!(output, "{path}").map_err(stdout)?;
+            }
+            Ok(0)
+        }
+    }
 }
 
 fn with_schema_inputs<T>(

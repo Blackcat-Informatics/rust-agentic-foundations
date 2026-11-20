@@ -5,6 +5,8 @@
 
 #[path = "capnp_capture/persistence.rs"]
 mod persistence;
+#[path = "capnp_capture/reader_admission.rs"]
+mod reader_admission;
 #[path = "capnp_capture/reader_evidence.rs"]
 mod reader_evidence;
 

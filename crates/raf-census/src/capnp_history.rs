@@ -296,6 +296,27 @@ fn load_descriptor(
     mode: descriptor::Roots<'_>,
     verification: Option<(&CaptureKey, CaptureFiles<'_>)>,
 ) -> Result<descriptor::Schema, Error> {
+    decode_descriptor(
+        tree,
+        snapshot,
+        roots,
+        required_annotation,
+        mode,
+        verification,
+        |_| (),
+    )
+    .map(|(schema, ())| schema)
+}
+
+fn decode_descriptor<T>(
+    tree: &dyn Tree,
+    snapshot: Snapshot<'_>,
+    roots: &BTreeSet<TypeId>,
+    required_annotation: Option<TypeId>,
+    mode: descriptor::Roots<'_>,
+    verification: Option<(&CaptureKey, CaptureFiles<'_>)>,
+    identify: impl FnOnce(&[u8]) -> T,
+) -> Result<(descriptor::Schema, T), Error> {
     let bytes = tree
         .read_bytes(snapshot.descriptor, descriptor::MAX_BYTES)
         .map_err(|source| Error::Read {
@@ -313,7 +334,7 @@ fn load_descriptor(
             })
         })
         .transpose()?;
-    descriptor::read(
+    let schema = descriptor::read(
         &bytes,
         roots,
         required_annotation,
@@ -331,5 +352,6 @@ fn load_descriptor(
             path: snapshot.descriptor.clone(),
             source,
         },
-    })
+    })?;
+    Ok((schema, identify(&bytes)))
 }

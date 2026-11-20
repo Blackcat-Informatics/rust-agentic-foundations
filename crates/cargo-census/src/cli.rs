@@ -33,6 +33,8 @@ pub(crate) enum Command {
     CapnpHistory(Box<HistoryArgs>),
     /// Check strict Cap'n Proto history for committed persisted Rust declarations.
     CapnpPersistence(Box<PersistenceArgs>),
+    /// Assess reader admission for one committed Cap'n Proto declaration.
+    CapnpReaderAdmission(Box<ReaderAdmissionArgs>),
     /// Verify signed reader acceptance for exact committed Cap'n Proto payloads.
     CapnpReaderEvidence(Box<ReaderEvidenceArgs>),
     /// Inspect verified embedded source regions without running consumer code.
@@ -122,6 +124,30 @@ pub(crate) struct PersistenceArgs {
     /// Canonical committed policy path shared by both revisions.
     #[arg(long)]
     pub(crate) policy: String,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct ReaderAdmissionArgs {
+    #[command(flatten)]
+    pub(crate) persistence: PersistenceArgs,
+    /// Stable persistence declaration slug.
+    #[arg(long)]
+    pub(crate) declaration: String,
+    /// Separate committed evidence revision.
+    #[arg(long, requires_all = ["statement", "signature", "key", "reader_sha256"])]
+    pub(crate) evidence_commit: Option<String>,
+    /// Canonical signed statement path in the evidence commit.
+    #[arg(long, requires = "evidence_commit", value_parser = raf_census::capnp_history::reader_evidence::path)]
+    pub(crate) statement: Option<raf_source::RelPath>,
+    /// Canonical detached signature path in the evidence commit.
+    #[arg(long, requires = "evidence_commit", value_parser = raf_census::capnp_history::reader_evidence::path)]
+    pub(crate) signature: Option<raf_source::RelPath>,
+    /// Caller-selected Ed25519 public key.
+    #[arg(long, requires = "evidence_commit")]
+    pub(crate) key: Option<raf_census::capnp_history::CaptureKey>,
+    /// SHA-256 of the expected reader artifact in lowercase hexadecimal.
+    #[arg(long, requires = "evidence_commit")]
+    pub(crate) reader_sha256: Option<String>,
 }
 
 #[derive(ClapArgs)]

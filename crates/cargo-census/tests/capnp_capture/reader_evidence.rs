@@ -129,7 +129,7 @@ fn root_type() -> String {
     format!("0x{:016x}", node::Reader::TYPE_ID)
 }
 
-fn payload(id: u64) -> Vec<u8> {
+pub(super) fn payload(id: u64) -> Vec<u8> {
     let mut message = Message::new_default();
     message.init_root::<node::Builder<'_>>().set_id(id);
     let mut canonical = Message::new_default();
