@@ -8,11 +8,11 @@ use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 
 use super::{
     Budget, DOCUMENT_IRI_BASE, DatasetError as E, INTEGER, MAX_DATASET_NODES, STRING, TYPE, VOCAB,
-    descendants, identity, property, validate,
+    dataset_node_prefix, identity, property, validate,
 };
 use crate::{
-    Comments, Document, Entry, Frontmatter, ItemValue, List, ListForm, ListItem, Map, Scalar,
-    ScalarStyle, Value,
+    Comments, Document, Entry, Frontmatter, ItemValue, List, ListForm, ListItem, Map, RafDocument,
+    Scalar, ScalarStyle, Value,
 };
 
 type Set = OrderedTable<TermId, ()>;
@@ -86,7 +86,7 @@ struct Reader<'a> {
 }
 
 pub(super) fn document(dataset: &RdfDataset, path: &str) -> Result<Document, E> {
-    let mut reader = Reader::new(dataset)?;
+    let reader = Reader::new(dataset, dataset.quads())?;
     let roots: Vec<_> = reader
         .subjects
         .iter()
@@ -98,7 +98,36 @@ pub(super) fn document(dataset: &RdfDataset, path: &str) -> Result<Document, E> 
             "exactly one Document subject is required",
         ));
     }
-    let root = roots[0];
+    rooted(reader, path, roots[0]).map(|(document, _)| document)
+}
+
+pub(super) fn partition(
+    dataset: &RdfDataset,
+    path: &str,
+    root: TermId,
+    subjects: &[TermId],
+) -> Result<(Document, RafDocument), E> {
+    if subjects.len() > MAX_DATASET_NODES {
+        return Err(E::Limit("131072 structural nodes"));
+    }
+    if subjects.iter().any(|id| id.index() >= dataset.term_count()) {
+        return Err(E::shape(
+            "partition",
+            "every subject must exist in the dataset",
+        ));
+    }
+    let rows = subjects.iter().flat_map(|&subject| rows(dataset, subject));
+    let reader = Reader::new(dataset, rows)?;
+    if reader.subjects.len() != subjects.len() || reader.subjects.get(&root).is_none() {
+        return Err(E::shape(
+            "partition",
+            "include the root and each subject exactly once",
+        ));
+    }
+    rooted(reader, path, root)
+}
+
+fn rooted(mut reader: Reader<'_>, path: &str, root: TermId) -> Result<(Document, RafDocument), E> {
     let root_iri = reader.iri(root)?;
     if !root_iri.starts_with(DOCUMENT_IRI_BASE)
         || root_iri.len() > crate::MAX_TEXT_BYTES + DOCUMENT_IRI_BASE.len() + 64
@@ -108,7 +137,7 @@ pub(super) fn document(dataset: &RdfDataset, path: &str) -> Result<Document, E> 
             "document identity is outside the stable type/id namespace",
         ));
     }
-    let prefix = descendants(root_iri);
+    let prefix = dataset_node_prefix(root_iri);
     for (subject, ()) in reader.subjects.iter() {
         if *subject != root {
             let suffix = reader.iri(*subject)?.strip_prefix(&prefix).ok_or_else(|| {
@@ -159,19 +188,29 @@ pub(super) fn document(dataset: &RdfDataset, path: &str) -> Result<Document, E> 
             "styles, comments or values do not survive RAF rendering",
         ));
     }
-    validate(&parsed, path)?;
+    let typed = validate(&parsed, path)?;
     if identity(&parsed)? != root_iri {
         return Err(E::shape(
             root_iri,
             "asserted identity disagrees with validated type/id",
         ));
     }
-    Ok(parsed)
+    Ok((parsed, typed))
+}
+
+fn rows(dataset: &RdfDataset, id: TermId) -> impl Iterator<Item = QuadIds> + '_ {
+    dataset.quads_for_pattern_with_plan(
+        &RdfDataset::probe_plan(true, false, false, GraphMatch::Default),
+        Some(id),
+        None,
+        None,
+        GraphMatch::Default,
+    )
 }
 
 impl<'a> Reader<'a> {
     /// Check all counts and authoring lexical bytes before cloning any value.
-    fn new(dataset: &'a RdfDataset) -> Result<Self, E> {
+    fn new(dataset: &'a RdfDataset, rows: impl Iterator<Item = QuadIds>) -> Result<Self, E> {
         if dataset.named_graphs().next().is_some()
             || dataset.reifiers().next().is_some()
             || dataset.annotations().next().is_some()
@@ -183,7 +222,7 @@ impl<'a> Reader<'a> {
         }
         let mut budget = Budget::default();
         let mut subjects = Set::default();
-        for quad in dataset.quads() {
+        for quad in rows {
             budget.triple()?;
             if quad.g.is_some() {
                 return Err(E::shape("carrier", "named graph row"));
@@ -240,13 +279,7 @@ impl<'a> Reader<'a> {
     }
 
     fn rows(&self, id: TermId) -> impl Iterator<Item = QuadIds> + '_ {
-        self.dataset.quads_for_pattern_with_plan(
-            &RdfDataset::probe_plan(true, false, false, GraphMatch::Default),
-            Some(id),
-            None,
-            None,
-            GraphMatch::Default,
-        )
+        rows(self.dataset, id)
     }
 
     fn values(&self, id: TermId, key: &str) -> impl Iterator<Item = TermId> + '_ {
@@ -358,6 +391,12 @@ impl<'a> Reader<'a> {
     }
 
     fn enter(&mut self, id: TermId, role: Role) -> Result<(), E> {
+        if self.subjects.get(&id).is_none() {
+            return Err(E::shape(
+                self.iri(id)?,
+                "structural child lies outside the document partition",
+            ));
+        }
         if self.role(id)? != role {
             return Err(E::shape(self.iri(id)?, "wrong structural role"));
         }

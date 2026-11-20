@@ -51,6 +51,7 @@
 pub mod architecture;
 mod artifact;
 pub mod assessment;
+pub mod authoring;
 mod bindings;
 pub mod coverage;
 pub mod debt;

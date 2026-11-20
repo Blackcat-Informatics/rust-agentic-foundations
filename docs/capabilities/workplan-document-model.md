@@ -15,6 +15,10 @@ bindings:
     - raf_workplan::load::load
     - raf_workplan::Workplan
     - raf_workplan::Workplan::load
+    - raf_workplan::Workplan::authoring_dataset
+    - raf_workplan::authoring
+    - raf_workplan::authoring::documents_from_dataset
+    - raf_workplan::authoring::Error
     - raf_workplan::Workplan::check
     - raf_workplan::Workplan::status
     - raf_workplan::Finding
@@ -64,6 +68,8 @@ bindings:
     - raf_workplan::git::tracked_paths
     - raf_workplan::Workplan::debt
   tests:
+    - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
+    - rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile
     - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
     - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync
@@ -553,6 +559,35 @@ and the source.
   `affects` and Markdown links. A link runs from the section that holds it to the
   section its anchor names, or to the document when it has no anchor.
 
+### Repository authoring graph
+
+`Workplan::authoring_dataset` projects the profile documents loaded from the
+repository into one closed RDF 1.2 default graph. A fixed repository subject
+lists records that bind each canonical repository-relative path to its asserted
+OKF document IRI. Each document uses the ordinary closed authoring shape, with
+its original styles, list forms, comments and body bytes.
+
+The graph records every declared capability binding and dependency with its
+owner and position in the authored list. Bindings retain the code, tests or
+examples list and the exact written symbol. A dependency uses the declared
+target IRI even when the target document is absent. Source resolution findings
+leave these declarations available to the authoring graph.
+
+`authoring::documents_from_dataset` recovers the authoring models keyed by
+repository-relative path. It checks subject ownership and document closure,
+then requires the inventory and relationship assertions to agree exactly with
+the recovered declarations. The operations refuse incomplete profile loads,
+duplicate paths or identities, invalid documents and extra or missing
+assertions. A refusal names the affected document or graph identity.
+
+The graph admits up to 4,096 documents, 1,048,576 asserted rows and 128 MiB
+of aggregate subject, predicate and object spelling across its rows.
+Export admits the native builder through a separate 256 MiB ceiling.
+Each document retains the limits of the OKF codec. The carrier accepts
+asserted default-graph statements with IRI subjects and predicates and
+IRI or untagged literal objects.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
+
 ### Record and proof edges
 <!-- raf:tested-by raf_workplan::test_crate::records::the_records_are_nodes_with_their_edges,raf_workplan::test_crate::records::claims_are_section_granular_and_one_edge_per_named_record,raf_workplan::test_crate::records::each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding,raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved,raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge -->
 
@@ -733,6 +768,12 @@ before anything is written, one of the two lines given without the other and a
 record whose text would not read back as a record with no finding.
 
 ## Usage
+
+Call `Workplan::authoring_dataset` to obtain the repository's native dataset.
+Serialize it as RDF 1.2 N-Triples with the native writer. Pass the
+decoded dataset to `authoring::documents_from_dataset` to recover the documents
+by path.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
 Use the typed record creation and replacement APIs for owned metadata. Their
 native disk store opens lazily after model validation and retains one root and
@@ -1305,6 +1346,8 @@ document writes and unchanged source and Git state beside successful completion.
 | `raf_workplan::work::tests::the_panic_comes_before_the_work_that_follows_it` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
+| `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract), [Usage](#usage) |
 <!-- raf:generated:end -->
 
 <!-- raf:generated:relationships -->

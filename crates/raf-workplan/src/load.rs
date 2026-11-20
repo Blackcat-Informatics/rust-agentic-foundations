@@ -66,12 +66,10 @@ fn scan_directory(
             Ok(entries) => entries,
             Err(TreeError::NotFound { .. }) => continue,
             Err(error) => {
-                plan.findings.push(unreadable(
-                    kind::UNREADABLE_DIRECTORY,
-                    &directory,
-                    "directory",
-                    &error,
-                ));
+                reject_authoring(
+                    plan,
+                    unreadable(kind::UNREADABLE_DIRECTORY, &directory, "directory", &error),
+                );
                 continue;
             }
         };
@@ -84,12 +82,12 @@ fn scan_directory(
             } else if let Some(only) = doc_type.singleton().filter(|_| depth == 0)
                 && entry.name != format!("{only}.md")
             {
-                plan.findings.push(other_file(&path, doc_type, only));
+                reject_authoring(plan, other_file(&path, doc_type, only));
             } else if is_markdown(&entry.name) {
                 if depth == 0 {
                     read_file(docs, doc_type, &path, links, plan);
                 } else {
-                    plan.findings.push(nested(&path, home));
+                    reject_authoring(plan, nested(&path, home));
                 }
             }
         }
@@ -109,6 +107,13 @@ pub(crate) fn is_markdown(name: &str) -> bool {
 
 pub(crate) fn is_navigation_index(name: &str) -> bool {
     name == INDEX
+}
+
+fn reject_authoring(plan: &mut Workplan<'_>, finding: Finding) {
+    if plan.authoring_fault.is_none() {
+        plan.authoring_fault = Some(finding.clone());
+    }
+    plan.findings.push(finding);
 }
 
 fn list(docs: &dyn Tree, directory: &str) -> Result<Vec<raf_source::Entry>, TreeError> {
@@ -178,7 +183,11 @@ fn read_file(
             if is_capability_index(path) {
                 plan.index = IndexSlot::Invalid(finding.clone());
             }
-            plan.findings.push(finding);
+            if path.rsplit('/').next().is_some_and(is_navigation_index) {
+                plan.findings.push(finding);
+            } else {
+                reject_authoring(plan, finding);
+            }
             return;
         }
     };
@@ -212,11 +221,11 @@ fn read_file(
             if error.kind().tag() == ErrorTag::MissingFence {
                 // The page is a stray file, and it is still Markdown: the
                 // rules every Markdown file shares judge it.
-                plan.findings.push(Finding::from_parse_error(path, &error));
+                reject_authoring(plan, Finding::from_parse_error(path, &error));
                 plain::rules(path, &text, links, &mut plan.findings);
             } else {
                 plan.note_present(dir_type, path);
-                plan.findings.push(Finding::from_parse_error(path, &error));
+                reject_authoring(plan, Finding::from_parse_error(path, &error));
             }
             return;
         }
@@ -262,8 +271,9 @@ fn read_file(
             if doc_type_is_capability(&document, dir_type) {
                 note_unbound(plan, path, &violations);
             }
-            plan.findings
-                .extend(violations.iter().map(Finding::from_violation));
+            for violation in &violations {
+                reject_authoring(plan, Finding::from_violation(violation));
+            }
         }
     }
 }
