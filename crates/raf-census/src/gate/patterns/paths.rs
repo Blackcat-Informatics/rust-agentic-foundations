@@ -2184,11 +2184,11 @@ fn alias_matches(
     }
     let admitted = crate::gate::evaluate::file_scope(
         expected.pattern,
-        &lookup.site.file.path,
-        lookup.site.byte,
-        workspace,
+        (&lookup.site.file.path, lookup.site.byte, lookup.site.line),
+        Some(std::slice::from_ref(&owner.id)),
+        (workspace, lookup.code),
         Some(context),
-        Some(limits),
+        limits,
     )?
     .unwrap_or_else(|| {
         workspace.target(owner.target).is_some_and(|target| {

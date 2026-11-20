@@ -205,6 +205,7 @@ bindings:
   tests:
     - raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses
     - raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope
+    - raf_source::test_crate::code_paths::nominal_aliases_distinguish_opaque_reexports_from_broken_local_routes
     - raf_source::parse::parallel::tests::native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling
     - raf_source::parse::parallel::tests::every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed
     - raf_source::parse::parallel::tests::candidate_preparation_is_bounded_before_materializing_a_long_borrowed_path
@@ -1383,10 +1384,12 @@ first-party aliases and returns the indexed struct, enum or union with the
 query usage. It admits zero-parameter named aliases and matching literal
 const arguments at a nominal target. At each hop, a uniquely resolved
 destination outside the supported first-party profile supplies no identity.
+The resolver follows a unique, visible, unconditional named import route
+to an unindexed crate without assigning the external member a Source identity.
 Ambiguous or cyclic resolution, conditional supported hops, broken
 explicitly local paths and exhausted query resources refuse. The query
 checks written definitions.
-<!-- raf:tested-by raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses,raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses,raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope,raf_source::test_crate::code_paths::nominal_aliases_distinguish_opaque_reexports_from_broken_local_routes -->
 
 `has_unconditional_reading_module` checks the indexed module and ancestor
 declarations and file reaches. A caller checks local syntax separately.
@@ -5611,6 +5614,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::code_paths::inherent_method_applicability_is_local_to_the_selected_signature` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::code_paths::method_and_trait_members_read_their_defining_module_instead_of_their_symbol_parent` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::nominal_aliases_distinguish_opaque_reexports_from_broken_local_routes` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::pattern_binding_observations_exclude_names_introduced_by_guard_expressions` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::a_block_module_has_the_same_path_in_a_structural_and_a_configured_load` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::a_physical_file_cannot_silently_merge_different_active_package_contexts` | test | [Contract](#contract) |

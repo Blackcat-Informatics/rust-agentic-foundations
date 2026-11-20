@@ -292,11 +292,11 @@ fn collect_patterns(
     )? {
         if !in_scope(
             found.pattern,
-            found.file,
-            found.byte,
+            (found.file, found.byte, found.line),
             found.owners.as_deref(),
-            workspace,
+            (workspace, code),
             census.source_context(found.file),
+            limits,
         )? {
             continue;
         }
@@ -865,15 +865,17 @@ fn evidence_links(
 /// is never scoped in.
 fn in_scope(
     pattern: &crate::LedgerPattern,
-    file: &RelPath,
-    byte: usize,
+    location: (&RelPath, usize, usize),
     owners: Option<&[raf_source::ItemId]>,
-    workspace: &Workspace,
+    source: (&Workspace, &raf_source::CodeResolver<'_>),
     context: Option<&crate::FileCtx>,
+    limits: &mut MatchLimits,
 ) -> Result<bool, Error> {
-    if let Some(decision) = file_scope(pattern, file, byte, workspace, context, None)? {
+    if let Some(decision) = file_scope(pattern, location, owners, source, context, limits)? {
         return Ok(decision);
     }
+    let (file, byte, _) = location;
+    let (workspace, _) = source;
     let items = workspace.item_at(file, byte);
     Ok(items.is_empty()
         || items
@@ -892,11 +894,11 @@ fn in_scope(
 /// an admitted file needs the caller's actual occurrence owners.
 pub(super) fn file_scope(
     pattern: &crate::LedgerPattern,
-    file: &RelPath,
-    byte: usize,
-    workspace: &Workspace,
+    (file, byte, line): (&RelPath, usize, usize),
+    owners: Option<&[raf_source::ItemId]>,
+    (workspace, code): (&Workspace, &raf_source::CodeResolver<'_>),
     context: Option<&crate::FileCtx>,
-    mut limits: Option<&mut MatchLimits>,
+    limits: &mut MatchLimits,
 ) -> Result<Option<bool>, Error> {
     let scope = &pattern.scope;
     if scope.is_unscoped() {
@@ -909,36 +911,63 @@ pub(super) fn file_scope(
         return Ok(Some(false));
     }
     let records = workspace.unexpanded();
-    if let Some(limits) = limits.as_deref_mut() {
-        let comparisons = u64::from(records.len().bit_width()) * 2 + 2;
-        let path_bytes = u64::try_from(file.as_str().len()).unwrap_or(u64::MAX);
-        super::patterns::charge(
-            &pattern.id,
-            limits,
-            comparisons.saturating_mul(path_bytes.saturating_add(1)),
-        )?;
-    }
+    let comparisons = u64::from(records.len().bit_width()) * 2 + 2;
+    let path_bytes = u64::try_from(file.as_str().len()).unwrap_or(u64::MAX);
+    super::patterns::charge(
+        &pattern.id,
+        limits,
+        comparisons.saturating_mul(path_bytes.saturating_add(1)),
+    )?;
     // Native Source orders these records by file and start byte.
     let first = records.partition_point(|record| record.file < *file);
     let end =
         records.partition_point(|record| (&record.file, record.span.start_byte) <= (file, byte));
-    if let Some(limits) = limits {
-        super::patterns::charge(
-            &pattern.id,
-            limits,
-            u64::try_from(end - first).unwrap_or(u64::MAX),
-        )?;
+    super::patterns::charge(
+        &pattern.id,
+        limits,
+        u64::try_from(end - first).unwrap_or(u64::MAX),
+    )?;
+    let mut containing = false;
+    for record in &records[first..end] {
+        if byte >= record.span.end_byte {
+            continue;
+        }
+        containing = true;
+        if !workspace
+            .target(record.target)
+            .is_some_and(|target| scope.admits_item(target.kind, record.test == TestRole::None))
+        {
+            continue;
+        }
+        let Some(owners) = owners else {
+            return Ok(Some(true));
+        };
+        for &id in owners {
+            super::patterns::charge(&pattern.id, limits, 1)?;
+            if workspace
+                .item(id)
+                .is_none_or(|item| item.target != record.target)
+            {
+                continue;
+            }
+            let module = code
+                .reading_module(id, byte)
+                .map_err(|source| Error::CodePath {
+                    pattern: pattern.id.clone(),
+                    file: file.to_string(),
+                    line,
+                    source: Box::new(source),
+                })?;
+            let module_bytes = module.len().min(record.module.as_str().len());
+            super::patterns::charge(
+                &pattern.id,
+                limits,
+                u64::try_from(module_bytes).unwrap_or(u64::MAX),
+            )?;
+            if module == record.module.as_str() {
+                return Ok(Some(true));
+            }
+        }
     }
-    let spans = records[first..end]
-        .iter()
-        .filter(|record| byte < record.span.end_byte);
-    let mut invocations = spans.peekable();
-    if invocations.peek().is_some() {
-        return Ok(Some(invocations.any(|record| {
-            workspace
-                .target(record.target)
-                .is_some_and(|target| scope.admits_item(target.kind, record.test == TestRole::None))
-        })));
-    }
-    Ok(None)
+    Ok(containing.then_some(false))
 }

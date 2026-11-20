@@ -39,6 +39,7 @@ bindings:
     - raf_census::test_crate::census_gate::lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run
     - raf_census::test_crate::census_gate::lexical_patterns_reuse_local_normalization_and_keep_parameter_context
     - raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses
+    - raf_census::test_crate::census_gate::macro_type_hits_use_the_scope_of_the_reach_that_resolves_the_type
     - raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope
     - raf_census::test_crate::census_gate::lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes
     - raf_census::test_crate::census_gate::lexical_patterns_do_not_mistake_a_file_root_for_its_first_written_unit
@@ -164,8 +165,10 @@ the literal const argument forms proved by Source. Ambiguous, cyclic and
 conditional routes in that profile refuse at an in-scope occurrence.
 Generic substitution, block-local type aliases and unindexed targets
 remain outside this identity proof. A shared file contributes one physical
-hit, with scope judged against the matching reaches.
-<!-- raf:tested-by raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses,raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope -->
+hit, with scope judged against the matching reaches. Within an indexed macro
+invocation, the invocation's scope must admit the same target and reading
+module as the owner's resolution.
+<!-- raf:tested-by raf_census::test_crate::census_gate::indexed_type_patterns_follow_written_aliases_at_their_uses,raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope,raf_census::test_crate::census_gate::macro_type_hits_use_the_scope_of_the_reach_that_resolves_the_type -->
 
 **Physical ownership.** Each physical source owner counts once. HOME covers actual module definitions,
 including relocated macro exports and implementation members whose displayed
@@ -358,6 +361,7 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans` | test | [Usage](#usage), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::macro_name_patterns_follow_aliases_but_not_a_differently_named_local_macro` | test | [Verification](#verification) |
+| `raf_census::test_crate::census_gate::macro_type_hits_use_the_scope_of_the_reach_that_resolves_the_type` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::many_constant_sites_keep_indexed_matching_within_the_default_grant` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains` | test | [Contract](#contract) |

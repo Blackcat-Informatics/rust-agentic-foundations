@@ -24,7 +24,7 @@ use crate::item::{ItemId, Namespace, SharedStr, SymbolKind};
 use crate::meter::{Meter, NativeAdmission, Steps, Transient, over_budget};
 use crate::modtree::TargetId;
 use crate::path::RelPath;
-use crate::settle::{Source, slot};
+use crate::settle::{Source, slot, storage_failure};
 use crate::target::PackageId;
 use crate::work::{self, Work};
 
@@ -753,7 +753,7 @@ impl Index {
         steps: Steps<'_>,
     ) -> Result<Vec<usize>, LoadError> {
         self.read_globbed_outside(from, name, steps)
-            .map_err(crate::settle::storage_failure)
+            .map_err(storage_failure)
     }
 
     fn read_globbed_outside(
@@ -2136,8 +2136,31 @@ impl Index {
         heads: Heads,
         steps: Steps<'_>,
     ) -> Result<Resolution, ResolveError> {
-        let answer = self.resolve_at_counted(from, path, ns, heads, steps);
+        let answer = self.resolve_at_counted(from, path, ns, heads, steps, None);
         self.query_checked(steps, answer)
+    }
+
+    /// Resolve a first-party alias RHS and observe a proven opaque import route.
+    pub(crate) fn resolve_alias_at(
+        &self,
+        from: usize,
+        path: &str,
+        heads: Heads,
+        steps: Steps<'_>,
+    ) -> Result<Option<Resolution>, ResolveError> {
+        let mut outside = false;
+        let answer = self.resolve_at_counted(
+            from,
+            path,
+            Some(Namespace::Type),
+            heads,
+            steps,
+            Some(&mut outside),
+        );
+        match self.query_checked(steps, answer) {
+            Err(ResolveError::NotFound(_)) if outside => Ok(None),
+            answer => answer.map(Some),
+        }
     }
 
     fn resolve_at_counted(
@@ -2147,6 +2170,7 @@ impl Index {
         ns: Option<Namespace>,
         heads: Heads,
         steps: Steps<'_>,
+        mut outside: Option<&mut bool>,
     ) -> Result<Resolution, ResolveError> {
         let (leading_colon, written) = path.strip_prefix("::").map_or((false, path), |p| (true, p));
         let segs: Vec<String> = written
@@ -2200,7 +2224,24 @@ impl Index {
                     }
                     self.conclude(&walked.items, &[], &reads, &text, space, false, steps)
                 }
-                Err(Fail::Missing(missing)) => Err(self.unbound(&missing, &reads, &text, steps)),
+                Err(Fail::Missing(missing)) => {
+                    let error = self.unbound(&missing, &reads, &text, steps);
+                    if matches!(error, ResolveError::NotFound(_))
+                        && let Some(outside) = outside.as_deref_mut()
+                        && let [source] = missing.as_slice()
+                        && !self.imports_of(source.module, &source.name).is_empty()
+                        && let Some(visible) = self.unconditional_missing_source(
+                            from,
+                            (&segs, leading_colon, space),
+                            heads,
+                            steps,
+                        )?
+                        && visible == *source
+                    {
+                        *outside = self.missing_external_import(visible, from, heads, steps)?;
+                    }
+                    Err(error)
+                }
                 Err(Fail::SeveralCrates { roots: ids, .. } | Fail::Ambiguous(ids)) => {
                     Err(ResolveError::Ambiguous(ids))
                 }
@@ -2214,6 +2255,104 @@ impl Index {
             }
         }
         Err(ResolveError::NotFound(text))
+    }
+
+    /// Refine a failed route with the native visibility and type-read proofs.
+    fn unconditional_missing_source(
+        &self,
+        from: usize,
+        path: (&[String], bool, Namespace),
+        heads: Heads,
+        steps: Steps<'_>,
+    ) -> Result<Option<Source>, ResolveError> {
+        let mut reads = Vec::new();
+        match self.walk_with_visibility(from, path, (heads, Some(from), Some(&mut reads)), steps) {
+            Err(Fail::Missing(missing)) => {
+                let Ok([source]) = <[Source; 1]>::try_from(missing) else {
+                    return Ok(None);
+                };
+                Ok(self
+                    .unconditional_type_reads(from, &reads, heads, steps)?
+                    .then_some(source))
+            }
+            Err(Fail::Storage(error)) => Err(ResolveError::storage(error)),
+            Err(Fail::Budget(refused)) => Err(self.refused(refused)),
+            Ok(_) | Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. } | Fail::Ambiguous(_)) => {
+                Ok(None)
+            }
+        }
+    }
+
+    /// Follow unique named imports to a crate the index cannot inspect.
+    /// This proves only where the route leaves the index.
+    fn missing_external_import(
+        &self,
+        mut source: Source,
+        mut from: usize,
+        mut heads: Heads,
+        steps: Steps<'_>,
+    ) -> Result<bool, ResolveError> {
+        // The ordinary failure diagnostic already checks for import cycles.
+        // A unique route cannot visit more declarations than the index holds.
+        for _ in 0..self.uses.len() {
+            let Some(position) = self.unique_missing_import(&source, from, heads, steps)? else {
+                return Ok(false);
+            };
+            if self
+                .read_outside_crate(position, steps)
+                .map_err(|error| ResolveError::storage(storage_failure(error)))?
+                .is_some()
+            {
+                return Ok(true);
+            }
+            let decl = &self.uses[position];
+            let UseKind::Named { segs, .. } = &decl.kind else {
+                return Ok(false);
+            };
+            from = decl.module;
+            heads = decl.heads(position);
+            let Some(next) = self.unconditional_missing_source(
+                from,
+                (segs, decl.leading_colon, source.ns),
+                heads,
+                steps,
+            )?
+            else {
+                return Ok(false);
+            };
+            source = next;
+        }
+        Ok(false)
+    }
+
+    fn unique_missing_import(
+        &self,
+        source: &Source,
+        from: usize,
+        heads: Heads,
+        steps: Steps<'_>,
+    ) -> Result<Option<usize>, ResolveError> {
+        let mut selected = None;
+        let test = matches!(
+            heads,
+            Heads::Code { test: true } | Heads::Use { test: true, .. }
+        );
+        steps
+            .storage_work(self.imports_of(source.module, &source.name).len() + 1)
+            .map_err(ResolveError::storage)?;
+        for position in self.unresolved_uses(source.module, &source.name, source.ns) {
+            let decl = &self.uses[position];
+            if heads.own() != Some(position)
+                && (test || !decl.test)
+                && self
+                    .read_visibility(&decl.vis, source.module, from, steps)
+                    .map_err(|error| ResolveError::storage(storage_failure(error)))?
+                && selected.replace(position).is_some()
+            {
+                return Ok(None);
+            }
+        }
+        Ok(selected)
     }
 
     /// The items that a run of path segments, written in code of `from`,

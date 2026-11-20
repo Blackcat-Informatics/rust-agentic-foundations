@@ -34,7 +34,7 @@ inputs:
     digest: 417543dec94f58efe64575df018bc4b13589e906d90c4db5a4f0693d372ab4f1
   - kind: symbol
     name: raf_source::resolve
-    digest: 0517ea9725a6dc09b5e4a1d4cb9a1b01e8b10d500dcac8e5194040a30486a920
+    digest: c09f05b642a37dc589be0bc28932fdcf99900bd263a39bf7570c2133224d46a0
   - kind: symbol
     name: raf_source::tree
     digest: 7f0bae00e8e8eb5fd6417a4a33d9430ae20549ed415702e92e64d58cd4599309

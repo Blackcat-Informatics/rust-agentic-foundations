@@ -439,7 +439,7 @@ impl Index {
             return Ok(None);
         };
         Ok(self
-            .enum_import_prefix_reads(from, &reads, heads, steps)?
+            .unconditional_type_reads(from, &reads, heads, steps)?
             .then_some(scope))
     }
 
@@ -492,7 +492,7 @@ impl Index {
             .then_some((Prefix::Module(module), reads)))
     }
 
-    fn enum_import_prefix_reads(
+    pub(super) fn unconditional_type_reads(
         &self,
         viewer: usize,
         reads: &[Source],

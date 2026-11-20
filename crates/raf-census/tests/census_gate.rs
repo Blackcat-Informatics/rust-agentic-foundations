@@ -1847,6 +1847,88 @@ macro_rules! observe { ($e:expr) => {} }
 }
 
 #[test]
+fn macro_type_hits_use_the_scope_of_the_reach_that_resolves_the_type() {
+    // One invocation can resolve differently under distinct targets or under
+    // distinct modules in a single target. A proof must use its own reach.
+    for (scope, separate_target) in [("targetKind", true), ("shippingOnly", false)] {
+        let mut ledger = lexical_pattern_graph("typePath", "demo::home::Banned");
+        let value = if separate_target {
+            Term::simple_literal("lib")
+        } else {
+            Term::boolean(true)
+        };
+        put(&mut ledger, "#pattern", scope, value);
+        let graph = ledger.finish().unwrap().to_text(Format::Turtle).unwrap();
+        for (shipping, test, copies) in [
+            ("Other", "Through", 0),
+            ("Through", "Other", 1),
+            ("Other", "Banned", 0),
+            ("Banned", "Other", 1),
+            ("Other", "Conditional", 0),
+        ] {
+            let other_mount = if separate_target {
+                String::new()
+            } else {
+                format!(
+                    "pub mod test {{ use crate::home::{test} as Choice; #[cfg(test)] #[path = \"../shared.rs\"] mod shared; }}"
+                )
+            };
+            let entries = [
+                (
+                    "Cargo.toml",
+                    "[package]\nname='demo'\nversion='0.1.0'\nedition='2024'\n".to_owned(),
+                ),
+                ("helpers-ledger.ttl", graph.clone()),
+                (
+                    "src/lib.rs",
+                    format!(
+                        "
+pub mod home {{
+    pub struct Banned;
+    pub struct Other;
+    pub type Through = Banned;
+    #[cfg(unix)] pub type Conditional = Banned;
+}}
+pub use home as alias;
+pub mod shipping {{
+    use crate::home::{shipping} as Choice;
+    #[path = \"../shared.rs\"] mod shared;
+}}
+{other_mount}
+"
+                    ),
+                ),
+                (
+                    "src/shared.rs",
+                    "pub mod nested { observe!({ let _: super::super::Choice; }); }".to_owned(),
+                ),
+            ];
+            let integration = separate_target.then(|| {
+                (
+                    "tests/it.rs",
+                    format!(
+                        "
+use demo::home::{test} as Choice;
+#[path = \"../src/shared.rs\"] mod shared;
+"
+                    ),
+                )
+            });
+            let tree: MemoryTree = entries.into_iter().chain(integration).collect();
+            let report = Gate::workspace(".")
+                .check_tree(&tree)
+                .unwrap_or_else(|error| panic!("{scope} {shipping} {test}: {error}"));
+            assert_eq!(
+                report.jobs()[0].copies,
+                copies,
+                "{scope} {shipping} {test}: {:?}",
+                report.findings()
+            );
+        }
+    }
+}
+
+#[test]
 fn workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites() {
     selected_reference_patterns_follow_actual_exports();
     let graph = lexical_pattern_graph("call", "demo::work")

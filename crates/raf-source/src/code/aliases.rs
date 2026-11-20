@@ -414,19 +414,13 @@ impl CodeResolver<'_> {
             let heads = Heads::Code {
                 test: item.test != TestRole::None,
             };
-            let resolution =
-                match self
-                    .index
-                    .resolve_at(*home, &path, Some(Namespace::Type), heads, steps)
-                {
-                    Err(error @ ResolveError::NotFound(_))
-                        if purpose == AliasPurpose::FirstParty
-                            && !self.indexed_alias_head(*home, &path, heads, steps)? =>
-                    {
-                        return Err(Failure::Outside(CodeResolveError::Resolve(error)));
-                    }
-                    result => result.map_err(CodeResolveError::Resolve)?,
-                };
+            let resolution = self.resolve_nominal_alias_target(
+                (*home, &path),
+                (current, member),
+                heads,
+                steps,
+                purpose,
+            )?;
             if resolution.sites.len() != 1 {
                 return Err(
                     CodeResolveError::Resolve(ResolveError::Ambiguous(resolution.sites)).into(),
@@ -472,6 +466,36 @@ impl CodeResolver<'_> {
                     return Err(Failure::Outside(unsupported(declared, member, reason)));
                 }
             }
+        }
+    }
+
+    fn resolve_nominal_alias_target(
+        &self,
+        (home, path): (usize, &str),
+        (alias, member): (ItemId, &str),
+        heads: Heads,
+        steps: Steps<'_>,
+        purpose: AliasPurpose,
+    ) -> Result<Resolution, Failure> {
+        if purpose != AliasPurpose::FirstParty {
+            return self
+                .index
+                .resolve_at(home, path, Some(Namespace::Type), heads, steps)
+                .map_err(|error| CodeResolveError::Resolve(error).into());
+        }
+        match self.index.resolve_alias_at(home, path, heads, steps) {
+            Ok(Some(resolution)) => Ok(resolution),
+            Ok(None) => Err(Failure::Outside(unsupported(
+                alias,
+                member,
+                "target is outside the indexed source",
+            ))),
+            Err(error @ ResolveError::NotFound(_))
+                if !self.indexed_alias_head(home, path, heads, steps)? =>
+            {
+                Err(Failure::Outside(CodeResolveError::Resolve(error)))
+            }
+            Err(error) => Err(CodeResolveError::Resolve(error).into()),
         }
     }
 
