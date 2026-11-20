@@ -15,10 +15,10 @@ use raf_rdf::{Builder, Format, TermValue, vocab};
 
 use super::{assert_refused, put, row, text};
 
-const BASE: &[u8] = include_bytes!("../fixtures/capnp/base.bin");
+pub(super) const BASE: &[u8] = include_bytes!("../fixtures/capnp/base.bin");
 const COMPATIBLE: &[u8] = include_bytes!("../fixtures/capnp/compatible.bin");
-const CHANGED: &[u8] = include_bytes!("../fixtures/capnp/changed.bin");
-const PACKET: &str = "0xf1804b9b18ae6505";
+pub(super) const CHANGED: &[u8] = include_bytes!("../fixtures/capnp/changed.bin");
+pub(super) const PACKET: &str = "0xf1804b9b18ae6505";
 const STATE: &str = "0xe70e425d8d63c329";
 const PAYLOAD: &str = "0xc5fa75a0c95aa56a";
 const TYPES: &str = r"
@@ -38,7 +38,7 @@ pub struct Ambiguous;
 pub struct Ambiguous;
 ";
 
-fn repository() -> TempDir {
+pub(super) fn repository() -> TempDir {
     let scratch = TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
     git_repo::init(root);
@@ -52,7 +52,7 @@ fn repository() -> TempDir {
     scratch
 }
 
-fn policy(rows: &[(&str, &str, &str, &str)]) -> Builder {
+pub(super) fn policy(rows: &[(&str, &str, &str, &str)]) -> Builder {
     let mut graph = Builder::new();
     put(
         &mut graph,
@@ -70,7 +70,7 @@ fn policy(rows: &[(&str, &str, &str, &str)]) -> Builder {
     graph
 }
 
-fn commit(root: &Path, descriptor: &[u8], policy: Builder) -> String {
+pub(super) fn commit(root: &Path, descriptor: &[u8], policy: Builder) -> String {
     fs::write(root.join("schema.bin"), descriptor).unwrap();
     fs::write(
         root.join("persisted.nt"),
@@ -80,7 +80,7 @@ fn commit(root: &Path, descriptor: &[u8], policy: Builder) -> String {
     git_repo::commit_all(root)
 }
 
-fn check(root: &Path, base: &str, current: &str) -> Output {
+pub(super) fn check(root: &Path, base: &str, current: &str) -> Output {
     command(root, base, current).output().unwrap()
 }
 

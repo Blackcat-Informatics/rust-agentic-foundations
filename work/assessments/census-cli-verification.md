@@ -7,22 +7,22 @@ subject: cap:census-cli#verification
 inputs:
   - kind: section
     name: cap:census-cli#verification
-    digest: 2f72b380f92ca2cbf4d5e0419f61fe0ce25935cb077b0470b8c9879c16accb9d
+    digest: 4a0cf4ad756aa3c862d0bb2fd104561a953624c5c80e0bf08898d2f9b8801499
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
   - kind: symbol
     name: cargo_census::cli
-    digest: 632767dce90c13055952f5ec51d46d23ce94547a08c0b9aa0bfa3a6e433ec0e9
+    digest: e63fc8fa00f6dc6082be621edf8cef806867d813daeee143ad38b65935985976
   - kind: symbol
     name: cargo_census::command
-    digest: a4895650321e912428780c7d1abf4156fc35cde50070ff98c73b94f6e44c2a8d
+    digest: ff67e47871a04d622f01f1c294b9dd96676cca60b36316e50a4b1dcfe572c9ac
   - kind: symbol
     name: cargo_census::error
-    digest: 8ae2278fe1618562500d75db8f093a6b3b38b9e93050fc0099b434bb360ae7ab
+    digest: 07bec80a81e406f232a6a4a592e6c5c378c60ba17b51f86a9966c4366b12937f
   - kind: symbol
     name: cargo_census::run
-    digest: 1a6e01f501eeb1e86cd648f94104764bc92f6d87ba6c02115a9703ca09c7cd03
+    digest: b32049f8a2619291edf0a2a43585c53654afca013fc0074ed2898c73a9c661fd
   - kind: symbol
     name: raf_census::CHECK_PROTOCOL_VERSION
     digest: f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f
@@ -58,13 +58,16 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: 8f4ca208c78b34c947bd2a4b6543a9adb3b653e8ccdf6240f3bbd8465eb9a9f6
+    digest: 8ab60376c0955cfba3bfb113425ac572f8e004881bb4591eeb9cc5dac4d18e60
+  - kind: symbol
+    name: raf_census::capnp_history::persistence::admission::check
+    digest: d48ff88f11f33c01b6de01d3b4c282da8041ff6e2c67a586921ab8f7227720db
   - kind: symbol
     name: raf_census::capnp_history::persistence::check
-    digest: 3edb7199f2c8b9d3fd72bfba5b88e8c9592b27ad0052ada0042bf5a261f49d3f
+    digest: 20abd512768570c0fe638d0fca777ddf497d865220ec053dab561253a8f1eae0
   - kind: symbol
     name: raf_census::capnp_history::reader_evidence::verify
-    digest: 650cd8b557b83363a5a92e3e06fe0b2433f5e3801b972e7d056e73a1579b189c
+    digest: 7cac3d238e4d3f80bea5edbe07e4480741c1271cee171b295fb4cf1b7f91a063
   - kind: symbol
     name: raf_census::registered
     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1

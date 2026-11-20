@@ -3,6 +3,8 @@
 
 //! Committed declarations selecting strict history for persisted Rust types.
 
+pub mod admission;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     error, fmt,
@@ -20,7 +22,7 @@ use crate::{ReportError, report::shape};
 use super::{
     CaptureError, CaptureVerification, Change, Snapshot, TypeId,
     capture::{canonical_path, fields, owned_node},
-    compare, descriptor, load_descriptor, open_tree,
+    compare, descriptor, load_descriptor, open_tree, reader_evidence,
 };
 
 const MAX_POLICY_BYTES: u64 = 128 * 1024;
@@ -167,6 +169,8 @@ struct Declaration {
     package: String,
     symbol: String,
     root: TypeId,
+    reader: Option<String>,
+    specimens: Vec<RelPath>,
 }
 
 type Policy = BTreeMap<String, Declaration>;
@@ -190,9 +194,9 @@ pub fn check(
     let policy_path = canonical_path(options.policy, false).map_err(Error::PolicyPath)?;
     let repository = repository.as_ref();
     let base_tree = open_tree(repository, base.commit)?;
-    let base_policy = read_bound_policy(&base_tree, base.commit, &policy_path)?;
+    let base_policy = read_bound_policy(&base_tree, base.commit, &policy_path, None)?;
     let current_tree = open_tree(repository, current.commit)?;
-    let current_policy = read_bound_policy(&current_tree, current.commit, &policy_path)?;
+    let current_policy = read_bound_policy(&current_tree, current.commit, &policy_path, None)?;
     let (retained, mut findings) = compare_policies(&base_policy, &current_policy);
     let base_schema = load_policy_descriptor(
         &base_tree,
@@ -239,13 +243,21 @@ fn load_policy_descriptor(
     )
 }
 
-fn read_bound_policy(tree: &dyn Tree, commit: &str, path: &RelPath) -> Result<Policy, Error> {
+fn read_bound_policy(
+    tree: &dyn Tree,
+    commit: &str,
+    path: &RelPath,
+    selected: Option<&str>,
+) -> Result<Policy, Error> {
     let policy = read_policy(tree, path).map_err(|source| Error::Policy {
         commit: commit.into(),
         path: path.clone(),
         source,
     })?;
-    if policy.is_empty() {
+    let rows = policy
+        .iter()
+        .filter(|(id, _)| selected.is_none_or(|selection| selection == id.as_str()));
+    if rows.clone().next().is_none() {
         return Ok(policy);
     }
     let workspace = Workspace::load_members(tree, &RelPath::root(), &LoadOptions::default())
@@ -253,7 +265,7 @@ fn read_bound_policy(tree: &dyn Tree, commit: &str, path: &RelPath) -> Result<Po
             commit: commit.into(),
             source,
         })?;
-    for (id, row) in &policy {
+    for (id, row) in rows {
         if !is_direct_binding(&workspace, row) {
             return Err(Error::Binding {
                 commit: commit.into(),
@@ -314,7 +326,13 @@ fn read_policy(tree: &dyn Tree, path: &RelPath) -> Result<Policy, CaptureError> 
         fields(
             &row,
             "CapnpPersistedType",
-            &["package", "symbol", "rootType"],
+            &[
+                "package",
+                "symbol",
+                "rootType",
+                "readerEntry",
+                "specimenPath",
+            ],
         )?;
         let id = reference
             .iri()
@@ -334,6 +352,8 @@ fn read_policy(tree: &dyn Tree, path: &RelPath) -> Result<Policy, CaptureError> 
                 package: source_name(&row, "package")?,
                 symbol: source_name(&row, "symbol")?,
                 root: root_id,
+                reader: optional_reader(&row)?,
+                specimens: specimen_paths(&row)?,
             },
         );
     }
@@ -344,6 +364,33 @@ fn read_policy(tree: &dyn Tree, path: &RelPath) -> Result<Policy, CaptureError> 
         .into());
     }
     Ok(policy)
+}
+
+fn optional_reader(row: &raf_rdf::Node<'_>) -> Result<Option<String>, ReportError> {
+    if row.values(&shape::property("readerEntry")).next().is_some() {
+        source_name(row, "readerEntry").map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+fn specimen_paths(row: &raf_rdf::Node<'_>) -> Result<Vec<RelPath>, CaptureError> {
+    let mut paths = BTreeSet::new();
+    for value in row.values(&shape::property("specimenPath")) {
+        if paths.len() == reader_evidence::MAX_PAYLOADS {
+            return Err(ReportError::Value(
+                "persistence declaration admits at most 128 specimen paths".into(),
+            )
+            .into());
+        }
+        let Some((path, raf_rdf::vocab::STRING)) = value.literal() else {
+            return Err(
+                ReportError::Value("persistence specimenPath must be a string".into()).into(),
+            );
+        };
+        paths.insert(canonical_path(path, false)?);
+    }
+    Ok(paths.into_iter().collect())
 }
 
 fn valid_id(id: &str) -> bool {
@@ -371,20 +418,26 @@ fn compare_policies(base: &Policy, current: &Policy) -> (BTreeSet<TypeId>, Vec<F
     let mut retained = BTreeSet::new();
     let mut findings = Vec::new();
     for (id, before) in base {
-        match current.get(id) {
-            None => findings.push(Finding::Removed {
-                declaration: id.clone(),
-                root: before.root,
-            }),
-            Some(after) if before.root != after.root => findings.push(Finding::Rebound {
-                declaration: id.clone(),
-                base: before.root,
-                current: after.root,
-            }),
-            Some(_) => {
-                retained.insert(before.root);
-            }
+        if let Some(finding) = continuity(id, before, current.get(id)) {
+            findings.push(finding);
+        } else {
+            retained.insert(before.root);
         }
     }
     (retained, findings)
+}
+
+fn continuity(id: &str, before: &Declaration, after: Option<&Declaration>) -> Option<Finding> {
+    match after {
+        None => Some(Finding::Removed {
+            declaration: id.into(),
+            root: before.root,
+        }),
+        Some(after) if before.root != after.root => Some(Finding::Rebound {
+            declaration: id.into(),
+            base: before.root,
+            current: after.root,
+        }),
+        Some(_) => None,
+    }
 }

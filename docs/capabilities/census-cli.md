@@ -28,6 +28,7 @@ bindings:
     - raf_census::MAX_INDEX_BYTES
     - raf_census::capnp_history
     - raf_census::capnp_history::persistence::check
+    - raf_census::capnp_history::persistence::admission::check
     - raf_census::capnp_history::reader_evidence::verify
   tests:
     - cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs
@@ -44,6 +45,9 @@ bindings:
     - cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_validates_current_only_layouts
     - cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate
     - cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing
+    - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_preserves_strict_findings
+    - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope
+    - cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
     - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
     - raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse
@@ -146,6 +150,14 @@ A retained declaration can select a moved Rust symbol with the same
 compiled root. Census compares only the layouts reachable from retained
 roots with unchanged IDs.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_compares_retained_committed_layouts,cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_protects_declaration_continuity_after_first_adoption,cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_refuses_invalid_bindings_and_policy_rows,cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_validates_current_only_layouts -->
+
+`capnp-reader-admission` compares one stable persistence declaration at
+the two pinned revisions. A removed or rebound declaration remains a
+policy finding. For a retained root, the command reports strict findings
+and evaluates reader coverage independently. A trusted signed claim of
+old-shape acceptance can admit the reader after Census verifies the exact
+specimens named by the base declaration. Strict findings remain visible.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_preserves_strict_findings,cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope,cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal -->
 
 `capnp-reader-evidence` verifies a signed affirmative claim for the
 caller-selected base revision, reader revision, root type, reader
@@ -269,7 +281,35 @@ compiler captures. Each subject has one `rdf:type` and the following fields.
 | Class | Properties |
 | --- | --- |
 | `CapnpPersistencePolicyV1` at the graph root | Zero or more `persistedType` IRIs select owned declarations. |
-| `CapnpPersistedType` at an owned fragment | `package` names the Cargo package, `symbol` gives the exact source-index definition path, and `rootType` gives the nominal compiled type ID. Each is one string. |
+| `CapnpPersistedType` at an owned fragment | `package` names the Cargo package, `symbol` gives the exact source-index definition path, and `rootType` gives the nominal compiled type ID. Each is one string. For reader admission, the current row supplies one `readerEntry` string, and the base row supplies one or more canonical `specimenPath` strings. Both properties are optional for strict persistence checks. |
+
+Run `cargo census capnp-reader-admission` with the revision, descriptor
+and policy flags of `capnp-persistence` plus `--declaration SLUG`. To offer
+reader coverage, give `--evidence-commit COMMIT --statement PATH
+--signature PATH --key HEX --reader-sha256 HEX`. Select all five options
+together. The current row selects the reader entry point and the base
+row selects the exact specimen paths. The evidence commit is distinct
+from the base and current revisions. Library consumers call
+`raf_census::capnp_history::persistence::admission::check`.
+
+A clean comparison or admitted reader exits 0. The command prints
+strict findings even when a claim supports reader admission, then
+names the admitted declaration and its verified specimens. Uncovered
+strict findings exit 1. Invalid evidence for a retained declaration
+refuses with a diagnostic. The command uses pinned inputs independently
+of Gate registration.
+
+Use canonical N-Triples in the capture vocabulary for admission claims.
+The caller-selected Ed25519 key authenticates the statement. The
+`CapnpReaderAdmissionV1` graph root requires these properties.
+
+| Properties | Value |
+| --- | --- |
+| `policyFile`, `declaration`, `baseCommit`, `currentCommit`, `rootType` | Exact policy path, stable row slug, full Git pins and retained root ID as strings. |
+| `baseDescriptorFile`, `baseDescriptorSha256`, `currentDescriptorFile`, `currentDescriptorSha256` | Exact committed descriptor paths and SHA-256 digests as strings. |
+| `comparisonProfile`, `requiredAnnotation`, `captureVerified` | The string `strict-schema-history-v1`, the annotation ID string or `none`, and a canonical boolean matching whether compiler captures are selected. |
+| `readerEntry`, `readerSha256` | The exact policy-selected entry point and expected artifact SHA-256 as strings. |
+| `acceptsOldShape`, `acceptsSpecimens`, `payload` | Canonical boolean true for both claims and the exact base specimen rows of class `CapnpAcceptedPayload`. |
 
 Run `cargo census capnp-reader-evidence --base BASE --current CURRENT
 --evidence-commit COMMIT --statement PATH --signature PATH --key HEX
@@ -362,6 +402,12 @@ interprets each payload as one raw Cap'n Proto segment and checks its
 canonicality with finite traversal and nesting limits.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate,cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing -->
 
+Reader admission uses the same specimen confinement, framing and limits.
+Census computes both descriptor digests over the bytes it compares.
+It verifies compiler captures when selected. Specimen-only evidence
+cannot establish a shape-wide claim.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope,cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal -->
+
 - Missing native registrations or unavailable implemented capabilities refuse rather than invoking a repository program. Imported protocol data is not an observed execution verdict. A report write failure may leave the newly created owned data file incomplete; it never truncates an existing destination.
 <!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
@@ -381,6 +427,11 @@ definition. The descriptor supplies the compiled layout. Application
 requirements and reader or migration admission need separate evidence.
 Signed reader evidence covers its exact selected specimens and clears
 no declaration or strict layout finding.
+
+Reader admission accepts a separate assertion from the trusted signer
+that the identified reader accepts the declared old shape. The specimen
+check corroborates the named bytes and framing. Census does not execute
+the reader or generalize its behavior from the specimens.
 
 The capture signer attests that the declared compiler and invocation
 produced the descriptor from the complete input set. The compiler in the
@@ -456,6 +507,13 @@ declaration removal and rebinding, missing policy and schema roots,
 invalid Rust bindings, and a malformed layout in a newly selected root.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_compares_retained_committed_layouts,cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_protects_declaration_continuity_after_first_adoption,cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_refuses_invalid_bindings_and_policy_rows,cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_validates_current_only_layouts -->
 
+Reader admission fixtures retain the same strict incompatibility with
+and without admitted coverage. They refuse stale revisions, another
+declaration with the same root, mismatched descriptor paths or digests,
+different comparison settings, and changed specimen scope or bytes.
+They also preserve a policy removal finding with a supplied claim.
+<!-- raf:tested-by cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_preserves_strict_findings,cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope,cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal -->
+
 Controlled fixtures protect native CLI parity, the self-test case list, the absence of consumer execution, report destination restrictions, migration carrier bounds, monotone debt writes and the declared reference options.
 
 <!-- raf:generated:verification-matrix -->
@@ -474,6 +532,9 @@ Controlled fixtures protect native CLI parity, the self-test case list, the abse
 | `cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_protects_declaration_continuity_after_first_adoption` | test | [Contract](#contract) |
 | `cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_refuses_invalid_bindings_and_policy_rows` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_validates_current_only_layouts` | test | [Contract](#contract) |
+| `cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_preserves_strict_findings` | test | [Contract](#contract) |
+| `cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_refuses_stale_or_different_claim_scope` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::capnp_capture::reader_admission::capnp_reader_admission_verifies_exact_specimens_and_preserves_removal` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour` | test | [Contract](#contract) |

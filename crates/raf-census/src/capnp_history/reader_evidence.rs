@@ -17,7 +17,7 @@ use super::{
     capture::{canonical_path, digest, fields, owned_node, parse_digest, signed_graph},
 };
 
-const MAX_PAYLOADS: usize = 128;
+pub(super) const MAX_PAYLOADS: usize = 128;
 const MAX_PAYLOAD_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_ENTRY_POINT_BYTES: usize = 1024;
 
@@ -164,7 +164,8 @@ pub fn verify(
     expected: Expected<'_>,
     evidence: Evidence<'_>,
 ) -> Result<Vec<RelPath>, Error> {
-    let mut selected = selection(&expected, &evidence)?;
+    check_evidence_inputs(expected.base, expected.current, evidence)?;
+    let mut selected = selection(&expected)?;
     selected.sort_unstable();
     if selected.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(Error::Selection("select each payload path once"));
@@ -172,23 +173,58 @@ pub fn verify(
     let repository = repository.as_ref();
     pinned(repository, expected.current, "current")?;
     let reported = {
-        let signed = pinned(repository, evidence.commit, "evidence")?;
-        let graph = signed_graph(&signed, evidence.files, evidence.key).map_err(Error::Evidence)?;
+        let graph = authenticate(repository, evidence)?;
         statement(&graph, &expected).map_err(Error::Evidence)?
     };
+    match_specimens(&selected, &reported)?;
+    let base = pinned(repository, expected.base, "base")?;
+    verify_specimens(&base, reported)
+}
+
+pub(super) fn match_specimens(
+    selected: &[&RelPath],
+    reported: &BTreeMap<RelPath, [u8; 32]>,
+) -> Result<(), Error> {
     if selected.iter().copied().ne(reported.keys()) {
         return Err(Error::Evidence(CaptureError::Mismatch(
             "signed payload paths differ from the exact caller selection".into(),
         )));
     }
-    let base = pinned(repository, expected.base, "base")?;
+    Ok(())
+}
+
+pub(super) fn verify_specimens(
+    base: &dyn Tree,
+    reported: BTreeMap<RelPath, [u8; 32]>,
+) -> Result<Vec<RelPath>, Error> {
     for (path, digest) in &reported {
-        verify_payload(&base, path, digest).map_err(|source| Error::Payload {
+        verify_payload(base, path, digest).map_err(|source| Error::Payload {
             path: path.clone(),
             source,
         })?;
     }
     Ok(reported.into_keys().collect())
+}
+
+pub(super) fn check_evidence_inputs(
+    base: &str,
+    current: &str,
+    evidence: Evidence<'_>,
+) -> Result<(), Error> {
+    if evidence.commit == base || evidence.commit == current {
+        return Err(Error::Selection(
+            "select a separate commit for the reader evidence",
+        ));
+    }
+    for file in [evidence.files.statement, evidence.files.signature] {
+        path(file.as_str()).map_err(Error::Evidence)?;
+    }
+    Ok(())
+}
+
+pub(super) fn authenticate(repository: &Path, evidence: Evidence<'_>) -> Result<Graph, Error> {
+    let signed = pinned(repository, evidence.commit, "evidence")?;
+    signed_graph(&signed, evidence.files, evidence.key).map_err(Error::Evidence)
 }
 
 fn pinned(
@@ -200,15 +236,7 @@ fn pinned(
         .map_err(|source| Error::Revision { role, source })
 }
 
-fn selection<'a>(
-    expected: &Expected<'a>,
-    evidence: &Evidence<'_>,
-) -> Result<Vec<&'a RelPath>, Error> {
-    if evidence.commit == expected.base || evidence.commit == expected.current {
-        return Err(Error::Selection(
-            "select a separate commit for the reader evidence",
-        ));
-    }
+fn selection<'a>(expected: &Expected<'a>) -> Result<Vec<&'a RelPath>, Error> {
     if expected.payloads.is_empty() || expected.payloads.len() > MAX_PAYLOADS {
         return Err(Error::Selection(
             "select one to 128 exact base payload paths",
@@ -223,10 +251,7 @@ fn selection<'a>(
             "supply a nonempty reader entry point of at most 1024 bytes without control characters",
         ));
     }
-    for file in [evidence.files.statement, evidence.files.signature]
-        .into_iter()
-        .chain(expected.payloads)
-    {
+    for file in expected.payloads {
         path(file.as_str()).map_err(Error::Evidence)?;
     }
     Ok(expected.payloads.iter().collect())
@@ -252,28 +277,52 @@ fn statement(
             "payload",
         ],
     )?;
+    match_reader(&root, expected)?;
+    if shape::boolean_value(shape::one(&root, "accepted")?) != Some(true) {
+        return Err(CaptureError::Mismatch(
+            "signed evidence must affirm acceptance of every payload".into(),
+        ));
+    }
+    payloads(graph, &root)
+}
+
+pub(super) fn match_reader(
+    root: &raf_rdf::Node<'_>,
+    expected: &Expected<'_>,
+) -> Result<(), CaptureError> {
     for (key, value) in [
         ("baseCommit", expected.base),
         ("currentCommit", expected.current),
         ("rootType", &expected.root.to_string()),
         ("readerEntry", expected.entry_point),
     ] {
-        if shape::string(&root, key)? != value {
-            return Err(CaptureError::Mismatch(format!(
-                "signed {key} differs from the caller selection"
-            )));
-        }
+        require_text(root, key, value)?;
     }
-    if &digest(&root, "readerSha256")? != expected.artifact.as_bytes() {
+    if &digest(root, "readerSha256")? != expected.artifact.as_bytes() {
         return Err(CaptureError::Mismatch(
             "signed reader SHA-256 differs from the caller selection".into(),
         ));
     }
-    if shape::boolean_value(shape::one(&root, "accepted")?) != Some(true) {
-        return Err(CaptureError::Mismatch(
-            "signed evidence must affirm acceptance of every payload".into(),
-        ));
+    Ok(())
+}
+
+pub(super) fn require_text(
+    root: &raf_rdf::Node<'_>,
+    key: &str,
+    value: &str,
+) -> Result<(), CaptureError> {
+    if shape::string(root, key)? != value {
+        return Err(CaptureError::Mismatch(format!(
+            "signed {key} differs from the caller selection"
+        )));
     }
+    Ok(())
+}
+
+pub(super) fn payloads(
+    graph: &Graph,
+    root: &raf_rdf::Node<'_>,
+) -> Result<BTreeMap<RelPath, [u8; 32]>, CaptureError> {
     let mut payloads = BTreeMap::new();
     for reference in root.values(&shape::property("payload")) {
         if payloads.len() == MAX_PAYLOADS {

@@ -22,7 +22,7 @@ use std::{ffi::OsString, io::Write, process::ExitCode};
 /// and ledger extension validators on the Gate for the selected workspace.
 /// Configuration runs only after argument validation. In this mode,
 /// `baseline` validates registrations before rendering the default Census
-/// baseline. The Cap'n Proto persistence and reader-evidence commands use
+/// baseline. The Cap'n Proto persistence, reader admission and reader evidence commands use
 /// pinned Git independently of Gate registration. Use `None::<fn(Gate) -> Gate>`
 /// for the stock command line.
 pub fn run(
