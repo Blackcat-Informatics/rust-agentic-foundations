@@ -46,7 +46,7 @@ pub(super) fn project(
     }
 
     for id in selected {
-        match (paths.get(id), nodes.0.get(id)) {
+        match (paths.get(id), nodes.by_id.get(id)) {
             (None, None) if !required => {}
             (None, _) => {
                 return Err(layout(format!(

@@ -8,7 +8,7 @@
 
 mod support;
 
-#[allow(
+#[expect(
     dead_code,
     reason = "the same writer is used by explicit corpus maintenance"
 )]

@@ -363,7 +363,7 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
     }
     for (id, node) in graph.nodes() {
         if matches!(class(&node)?, "Unit" | "MemberMultiplicity") && !referenced.contains(&id) {
-            return Err(E::Orphan(id.clone()));
+            return Err(E::Orphan(id));
         }
         if class(&node)? == "Job" {
             let copies = copies_by_job.get(&id).copied().unwrap_or(0);
@@ -641,7 +641,10 @@ mod tests {
             "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+65536 }",
             "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+65536 } }",
         );
-        let report = crate::Gate::workspace(".").check_tree(&tree).unwrap();
+        let report = crate::Gate::workspace(".")
+            .without_production_lints()
+            .check_tree(&tree)
+            .unwrap();
         let reference = report.census().index(report.jobs()).unwrap();
         let reference = super::super::read::parse(&reference.to_turtle().unwrap(), Format::Turtle)
             .expect("reference index");

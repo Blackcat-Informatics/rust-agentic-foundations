@@ -72,7 +72,7 @@ impl TypeScope {
 
 pub(super) type Brand = BTreeMap<TypeId, Arguments>;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Type {
     Atom(Atom),
     List(Box<Self>),
@@ -80,7 +80,7 @@ pub(super) enum Type {
     Pointer(Pointer),
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Arguments {
     Inherited(u32),
     Bound(Vec<Type>),

@@ -381,8 +381,7 @@ edge. Keep the ordinary library's context and dependencies separate when that
 library also participates.
 <!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library -->
 
-Call Gate::workspace(directory).rules(rules).extensions(extensions).check() for
-a report, or assert_clean() from a repository test. check_tree applies the same
+Configure the gate with the rules, extensions and [production lint receipt](./census-rule-api.md#production-lint-evidence). Call `check` for a report or `assert_clean` from a repository test. `check_tree` applies the same
 policy to a caller-owned workspace-root Tree. Ledger exposes validated typed
 declarations and the native graph. Import foreign TOML through
 [migration](./census-migration.md); the production Gate reads only native RDF.

@@ -163,7 +163,7 @@ pub(super) fn project(
 
     let mut pending = Vec::new();
     for file in selected {
-        if let Some(reader) = nodes.0.get(file) {
+        if let Some(reader) = nodes.by_id.get(file) {
             if reader.get_scope_id() != 0 {
                 return Err(layout(format!("selected file {file} must have scope zero")));
             }
@@ -218,7 +218,7 @@ pub(super) fn project(
 }
 
 fn admit(nodes: &Nodes<'_>, id: TypeId, name: &str, scope: TypeId) -> Result<Declaration, Error> {
-    let child = nodes.0.get(&id).ok_or_else(|| {
+    let child = nodes.by_id.get(&id).ok_or_else(|| {
         layout(format!(
             "scope {scope} lists missing declaration {name} ({id})"
         ))
@@ -281,7 +281,7 @@ fn verify_other_nodes(
     declarations: &BTreeMap<TypeId, Declaration>,
 ) -> Result<(), Error> {
     let reached = |id| selected.contains(&id) || declarations.contains_key(&id);
-    for (&id, reader) in &nodes.0 {
+    for (&id, reader) in &nodes.by_id {
         if reached(id) {
             continue;
         }

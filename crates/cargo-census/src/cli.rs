@@ -97,7 +97,32 @@ pub(crate) enum Command {
         target: QueryTarget,
     },
     /// Evaluate native ledger policy without running any repository program.
-    Check(PolicyArgs),
+    Check {
+        #[command(flatten)]
+        policy: PolicyArgs,
+        #[command(flatten)]
+        lints: LintArgs,
+    },
+    /// Print the digest of the Cargo inputs for a production-only Clippy run.
+    LintInputs,
+    /// Seal a completed external production Clippy run as canonical Turtle.
+    LintReceipt {
+        /// Digest printed by lint-inputs before the build.
+        #[arg(long)]
+        before: String,
+        /// Exact compiler and Clippy identity supplied by the build.
+        #[arg(long)]
+        compiler: String,
+        /// Exit status collected from the Clippy command.
+        #[arg(long)]
+        status: u8,
+        /// Captured diagnostic output from the same command.
+        #[arg(long)]
+        diagnostics: PathBuf,
+        /// The actual Cargo arguments, starting with clippy.
+        #[arg(last = true, required = true)]
+        arguments: Vec<String>,
+    },
     /// Emit a migrated RDF ledger to stdout without modifying either input.
     Migrate(MigrationArgs),
     /// Prove the installed census still finds seeded copies; needs no workspace and writes nothing.
@@ -247,6 +272,16 @@ pub(crate) struct ReaderEvidenceArgs {
 
 /// Gate requirements the caller selects for one run; nothing here is persisted
 /// in a ledger, report or debt record.
+#[derive(ClapArgs)]
+pub(crate) struct LintArgs {
+    /// Skip production Clippy evidence and manifest policy on this check.
+    #[arg(long, conflicts_with = "lint_evidence")]
+    pub(crate) no_production_lints: bool,
+    /// Build-owned receipt outside the workspace (or `RAF_CENSUS_LINT_EVIDENCE`).
+    #[arg(long)]
+    pub(crate) lint_evidence: Option<PathBuf>,
+}
+
 #[derive(ClapArgs)]
 pub(crate) struct PolicyArgs {
     /// Require every module `path` attribute to resolve to a file of its own package.

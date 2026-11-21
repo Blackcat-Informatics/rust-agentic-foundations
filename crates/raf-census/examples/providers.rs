@@ -141,7 +141,9 @@ fn check(competitor: bool) -> Result<GateReport, Box<dyn Error>> {
         LockedManifest::new(row("provider")?, RelPath::new("provider/Cargo.toml")?, &[])
             .with_configuration(context("native_provider")),
     ];
-    Ok(Gate::workspace(".").check_locked(&tree, &catalog, &manifests, &[])?)
+    Ok(Gate::workspace(".")
+        .without_production_lints()
+        .check_locked(&tree, &catalog, &manifests, &[])?)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

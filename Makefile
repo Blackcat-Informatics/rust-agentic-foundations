@@ -3,11 +3,11 @@
 
 # Local gates. `make check` runs every gate and stops at the first failure.
 # CI checks compilation, tests and policy; the local full gate also runs
-# optimized instrumented mutations. `licenses` and `issue-refs` are thin selectors over
+# optimized instrumented fuzzing. `licenses` and `issue-refs` are thin selectors over
 # the Rust gates in `tests/repo_gates.rs`, so they are a subset of `make test`.
 # Both run the whole `repo_gates` binary (under a second) with no name filter,
 # so a renamed test can never leave a target running zero tests.
-# `.githooks/pre-commit` runs fmt and reuse on a checkout of the staged index,
+# `.githooks/pre-commit` runs fmt, reuse and production Clippy on a checkout of the staged index,
 # plus the `repo_gates`, `docs_contract` and `self_census` test binaries over that
 # checkout.
 #
@@ -40,7 +40,7 @@ FUZZ_MAX_LEN ?= 400000
 # The memory limits of every run, in MiB: the resident set, and one allocation.
 FUZZ_RSS_LIMIT_MB ?= 2048
 FUZZ_MALLOC_LIMIT_MB ?= 512
-.PHONY: help fmt clippy test test-release doc deny reuse msrv fuzz fuzz-check fuzz-run licenses issue-refs docs-sync check hooks
+.PHONY: help fmt clippy clippy-production test test-release doc deny reuse msrv fuzz fuzz-check fuzz-run licenses issue-refs docs-sync check hooks
 
 help: ## List the targets.
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-12s %s\n", $$1, $$2}'
@@ -52,8 +52,13 @@ fmt: ## Check formatting.
 clippy: ## Clippy over the workspace, warnings denied.
 	cargo clippy --workspace --all-targets --locked -- -D warnings
 
-test: ## Run the workspace tests.
-	cargo test --workspace --locked
+clippy-production: ## Check the shipping library and binary targets and record the compiler verdict.
+	.githooks/production-clippy '$(ROOT)' '$(CURDIR)/Cargo.toml'
+
+test: ## Run the workspace tests with fresh production Clippy evidence.
+	@evidence=$$(mktemp -d) && trap 'rm -rf "$$evidence"' EXIT && \
+	  export RAF_CENSUS_LINT_EVIDENCE="$$evidence/run.ttl" && \
+	  $(MAKE) --no-print-directory clippy-production && cargo test --workspace --locked
 
 test-release: ## Run the raf-source tests in release mode.
 	cargo test -p raf-source --release --locked

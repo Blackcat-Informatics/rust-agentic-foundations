@@ -75,13 +75,16 @@ bench = false
 # silently disables dead-code detection. Declared as workspace lints rather
 # than compiler flags, which would also reach path dependencies we do not own;
 # workspace lints apply to workspace members only.
+unused = { level = "deny", priority = -1 }
+dead_code = "deny"
 unreachable_pub = "deny"
+unused_crate_dependencies = "warn"
 missing_docs = "deny"
 unsafe_code = "deny"
 unused_qualifications = "warn"
 
 [workspace.lints.clippy]
-all = { level = "warn", priority = -1 }
+all = { level = "deny", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 # Cargo has no reason key for lint levels, so each exemption carries its reason
 # in the comment line directly above it.
@@ -89,5 +92,9 @@ pedantic = { level = "warn", priority = -1 }
 module_name_repetitions = "allow"
 # Marking every pure getter `#[must_use]` adds noise without catching real bugs.
 must_use_candidate = "allow"
-# Every `#[allow]` in code must say why, so exemptions stay auditable.
+allow_attributes = "deny"
 allow_attributes_without_reason = "deny"
+used_underscore_binding = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"

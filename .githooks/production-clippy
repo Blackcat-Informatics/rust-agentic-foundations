@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# Called by the trusted build. The analysis library never starts a compiler.
+set -euo pipefail
+root=$(realpath -- "${1:-.}")
+producer_manifest=${2:-}
+for key in RUSTFLAGS CARGO_ENCODED_RUSTFLAGS CARGO_BUILD_RUSTFLAGS CARGO_BUILD_TARGET CLIPPY_ARGS CLIPPY_CONF_DIR; do
+    if [[ -n ${!key:-} ]]; then
+        echo "production Clippy needs its declared compiler arguments; remove $key from this invocation" >&2
+        exit 1
+    fi
+done
+scratch=$(mktemp -d)
+trap 'rm -rf -- "$scratch"' EXIT
+receipt=${RAF_CENSUS_LINT_EVIDENCE:-$scratch/run.ttl}
+if [[ $receipt != /* || -e $receipt || -L $receipt ]]; then
+    echo 'production Clippy needs a fresh absolute receipt path in a build-owned directory' >&2
+    exit 1
+fi
+parent=$(realpath -- "$(dirname -- "$receipt")")
+if [[ $parent == "$root" || $parent == "$root/"* ]]; then
+    echo 'keep the production lint receipt outside the inspected workspace' >&2
+    exit 1
+fi
+census() {
+    if [[ -n $producer_manifest ]]; then
+        cargo run --quiet --locked --manifest-path "$producer_manifest" -p cargo-census --bin cargo-census -- --workspace "$root" "$@"
+    else
+        cargo-census --workspace "$root" "$@"
+    fi
+}
+before=$(census lint-inputs)
+compiler=$(cd "$root" && rustc -vV && cargo clippy --version)
+args=(clippy --workspace --lib --bins --locked --
+      -D warnings -D unused -D unreachable-pub -D clippy::allow_attributes
+      -D clippy::used_underscore_binding -D clippy::needless_pass_by_value
+      -D clippy::trivially_copy_pass_by_ref -D clippy::redundant_clone)
+status=0
+# Cargo's highest-precedence flags source keeps target-specific configuration
+# from adding a test cfg or capping the requested lint levels.
+(cd "$root" && CARGO_ENCODED_RUSTFLAGS='' cargo "${args[@]}") >"$scratch/compiler.log" 2>&1 || status=$?
+cat "$scratch/compiler.log" >&2
+census lint-receipt --before "$before" --compiler "$compiler" --status "$status" \
+    --diagnostics "$scratch/compiler.log" -- "${args[@]}" >"$scratch/run-output.ttl"
+# Exclusive publication in the protected directory, including across filesystems.
+prepared=$(mktemp -- "$parent/.production-clippy.XXXXXXXX")
+trap 'rm -f -- "$prepared"; rm -rf -- "$scratch"' EXIT
+cat "$scratch/run-output.ttl" >"$prepared"
+ln -- "$prepared" "$receipt"
+exit "$status"

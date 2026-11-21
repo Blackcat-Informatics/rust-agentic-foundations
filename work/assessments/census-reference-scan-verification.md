@@ -16,13 +16,13 @@ inputs:
     digest: dff9ba21af812a6448881bf2fda85215d82d533591e85489c9f8e454bc9ba7ce
   - kind: symbol
     name: raf_census::Gate::check_locked_registry
-    digest: fb2fa6b560d7d2425855f40c2e9311b33db35217f36d59b907f047f7a16270f4
+    digest: b0a34c9069d0100b1a713ec34d4b1736dcadbcd3d2836935dcc3c8af0e92af1e
   - kind: symbol
     name: raf_census::Gate::check_registry
-    digest: dff736d6d6945e7b4c84e2686bd55bebfd589bcf9e85e7d085adfbf7e0d86f74
+    digest: 46da59733d1abf966d99234e719b3b7d230a411e31c1fbfa3d4e658608ad8d88
   - kind: symbol
     name: raf_census::Gate::check_tree_with_references
-    digest: c5087ae773dfc4b1246c1a9498aa45fbe698686a15afef9ecc6786beb2ff8ec8
+    digest: f3326842d33589a53ec2f00346d0a7ae9018d5839ae14e28f3b3c4246635a85f
   - kind: symbol
     name: raf_census::Gate::external_references
     digest: 203e097a440d87e226a19737629540596262176ef6dba84291ce2bcd060f3adb

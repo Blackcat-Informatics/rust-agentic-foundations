@@ -45,6 +45,29 @@ pub(crate) fn run(
         Some(configure) => (configure(gate), true),
         None => (gate, false),
     };
+    run_gate(
+        args,
+        gate,
+        registered,
+        registry.as_ref(),
+        output,
+        diagnostics,
+    )
+}
+
+fn run_gate(
+    args: &Args,
+    gate: Gate,
+    registered: bool,
+    registry: Option<&LockedRegistry>,
+    output: &mut dyn Write,
+    diagnostics: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
+    let gate = if matches!(args.command, Command::Check { .. }) {
+        gate
+    } else {
+        gate.without_production_lints()
+    };
     match &args.command {
         Command::Init => init(&gate, output),
         Command::CapnpReaderEvidence(_)
@@ -78,8 +101,25 @@ pub(crate) fn run(
             visibility(&gate.root()?, *format, out.as_deref(), output)?;
             Ok(0)
         }
-        Command::Check(policy) => {
-            let report = evaluate(&policy.apply(gate), registry.as_ref())?;
+        Command::LintInputs => {
+            writeln!(output, "{}", crate::lints::inputs(&gate)?.digest()).map_err(stdout)?;
+            Ok(0)
+        }
+        Command::LintReceipt {
+            before,
+            compiler,
+            status,
+            diagnostics,
+            arguments,
+        } => {
+            let text =
+                crate::lints::receipt(&gate, before, compiler, *status, diagnostics, arguments)?;
+            output.write_all(text.as_bytes()).map_err(stdout)?;
+            Ok(0)
+        }
+        Command::Check { policy, lints } => {
+            let gate = crate::lints::configure(policy.apply(gate), lints)?;
+            let report = evaluate(&gate, registry)?;
             for finding in report.findings() {
                 writeln!(output, "{finding}").map_err(stdout)?;
             }
@@ -87,7 +127,7 @@ pub(crate) fn run(
         }
 
         Command::Index(target) => {
-            let index = native_index(&gate, registry.as_ref(), target.max_index_bytes)?;
+            let index = native_index(&gate, registry, target.max_index_bytes)?;
             let text = match target.format {
                 RdfFormat::Ntriples => index.to_ntriples()?,
                 RdfFormat::Turtle => index.to_turtle()?,
@@ -95,30 +135,26 @@ pub(crate) fn run(
             write_report(&gate.root()?, &text, target.out.as_deref(), output)?;
             Ok(0)
         }
-        Command::Job { id, target } => query(
-            &gate,
-            registry.as_ref(),
-            target,
-            raf_census::Query::Job(id),
-            output,
-        ),
+        Command::Job { id, target } => {
+            query(&gate, registry, target, raf_census::Query::Job(id), output)
+        }
         Command::Count { id, target } => query(
             &gate,
-            registry.as_ref(),
+            registry,
             target,
             raf_census::Query::Count(id),
             output,
         ),
         Command::Fingerprint { symbol, target } => query(
             &gate,
-            registry.as_ref(),
+            registry,
             target,
             raf_census::Query::Fingerprint(symbol),
             output,
         ),
         Command::Debt { write: _, policy } => {
             let gate = policy.apply(gate);
-            let receipt = match registry.as_ref() {
+            let receipt = match registry {
                 Some(registry) => gate.write_debt_registry(registry)?,
                 None => gate.write_debt()?,
             };
@@ -696,7 +732,7 @@ fn render_tree_report(
 fn accepts_external_sources(command: &Command) -> bool {
     matches!(
         command,
-        Command::Check(_)
+        Command::Check { .. }
             | Command::Index(_)
             | Command::Job { .. }
             | Command::Count { .. }
@@ -785,7 +821,7 @@ pub(crate) fn write_report(
     Ok(())
 }
 
-fn read(path: &Path, limit: usize) -> Result<String, Error> {
+pub(crate) fn read(path: &Path, limit: usize) -> Result<String, Error> {
     let canonical = std::fs::canonicalize(path).map_err(|source| Error::Io {
         file: path.display().to_string(),
         source,

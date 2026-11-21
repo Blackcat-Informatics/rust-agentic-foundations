@@ -45,6 +45,7 @@ use crate::tree::Tree;
 #[derive(Clone, Copy)]
 enum SyntaxLoad<'a> {
     Ordinary(Option<&'a dyn crate::parse::Parser>),
+    ShippingMembers,
     Configured(crate::DeclaredConfiguration<'a>),
     #[cfg(target_os = "linux")]
     ConfiguredParallel(crate::DeclaredConfiguration<'a>, &'a crate::ParallelOptions),
@@ -55,7 +56,7 @@ enum SyntaxLoad<'a> {
 impl<'a> SyntaxLoad<'a> {
     fn declared(self) -> Option<crate::DeclaredConfiguration<'a>> {
         match self {
-            Self::Ordinary(_) => None,
+            Self::Ordinary(_) | Self::ShippingMembers => None,
             Self::Configured(configuration) => Some(configuration),
             #[cfg(target_os = "linux")]
             Self::ConfiguredParallel(configuration, _) => Some(configuration),
@@ -308,10 +309,35 @@ impl Workspace {
         root: &RelPath,
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
+        Self::members_with_syntax(tree, root, options, SyntaxLoad::Ordinary(None))
+    }
+
+    /// Load the workspace members' libraries, binaries and build scripts.
+    ///
+    /// Uses the membership rules of [`Self::load_members`]. Selects the shipping
+    /// target roots before parsing their module trees. Test, example and bench
+    /// targets do not contribute roots to this load.
+    ///
+    /// # Errors
+    /// Refuses member discovery, target declaration and selected source errors.
+    pub fn load_shipping_members(
+        tree: &dyn Tree,
+        root: &RelPath,
+        options: &LoadOptions,
+    ) -> Result<Self, LoadError> {
+        Self::members_with_syntax(tree, root, options, SyntaxLoad::ShippingMembers)
+    }
+
+    fn members_with_syntax(
+        tree: &dyn Tree,
+        root: &RelPath,
+        options: &LoadOptions,
+        syntax: SyntaxLoad<'_>,
+    ) -> Result<Self, LoadError> {
         let meter = Meter::new(options);
         meter.items(LOAD_BASE_BYTES, root, None)?;
         let selected = crate::discovery::workspace_members(tree, root, &meter)?;
-        Self::build_discovered(tree, options, &meter, None, &selected)
+        Self::build_discovered_with_syntax(tree, options, &meter, None, &selected, syntax)
     }
 
     fn load_meter(
@@ -432,7 +458,7 @@ impl Workspace {
             &mut locked,
             &mut infos,
             &mut derived,
-            syntax.declared(),
+            syntax,
         )?;
         let versions = declared_versions(&reader, found, &mut caches)?;
         let package_names = package_name_index(&packages, meter)?;
@@ -1773,14 +1799,18 @@ fn configure_targets(
     locked: &mut [LockedBinding],
     infos: &mut [PackageInfo],
     derived: &mut Vec<(&RelPath, crate::target::Derived)>,
-    selected: Option<crate::DeclaredConfiguration<'_>>,
+    syntax: SyntaxLoad<'_>,
 ) -> Result<Option<crate::ActiveConfiguration>, LoadError> {
+    if matches!(syntax, SyntaxLoad::ShippingMembers) {
+        derived.retain(|(_, entry)| entry.target.shipping);
+    }
     if let Some(binding) = binding
         && locked::configure(binding, reader.found, dependencies, locked, reader.meter)?
     {
         locked::select_targets(locked, derived, reader.meter)?;
     }
-    selected
+    syntax
+        .declared()
         .map(|configuration| {
             selected::configure(reader, dependencies, infos, derived, configuration)
         })

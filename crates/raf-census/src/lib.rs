@@ -72,7 +72,8 @@ pub use error::{Error, VisibilityError};
 pub use gate::{
     ArchiveCache, BoundClassification, BoundRole, DEBT_FILE, DebtWrite, ExternalReference,
     ForeignField, ForeignLedgerAdapter, Gate, GateReport, LEDGER_FILE, LedgerExtension,
-    LockedRegistry, MAX_INDEX_BYTES, Migration, MigrationInput, NumericBound, ReferenceRoot,
+    LockedRegistry, MAX_INDEX_BYTES, Migration, MigrationInput, NumericBound,
+    PRODUCTION_CLIPPY_ARGS, ProductionInputs, ProductionLintRun, ReferenceRoot,
     SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index, migrate_legacy,
     migrate_legacy_with_extensions, visibility,
 };

@@ -35,6 +35,7 @@ bindings:
   tests:
     - cargo_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records
     - cargo_census::test_crate::delivery::init_refuses_source_and_git_administration_destinations
+    - cargo_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy
     - cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs
     - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set
     - cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request
@@ -58,6 +59,7 @@ bindings:
     - cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_requires_exact_scope_and_output_validity
     - cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_refuses_changed_or_invalid_pair_blobs
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
+    - cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities
     - cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities
     - cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities
@@ -125,6 +127,17 @@ Expose native duplication and ledger data without building or executing reposito
 `init` and `Gate::init_ledger` create `helpers-ledger.ttl` in the discovered workspace root. The canonical Turtle ledger selects the whole workspace under the current normal and report forms with default options and no jobs. Publication requires native Linux directory locking and resolves the workspace sources before writing. A missing source input, a destination inside Git administration, an occupied ledger or temporary path, or a competing lock causes a refusal. Existing policy and debt are preserved. Structural duplicates remain findings until resolved or explicitly adopted.
 <!-- raf:tested-by cargo_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records,cargo_census::test_crate::delivery::init_refuses_source_and_git_administration_destinations -->
 
+`check` requires the production Cargo lint policy and a current, successful
+Clippy receipt from the calling build by default. Supply the build-owned
+receipt through `--lint-evidence` or `RAF_CENSUS_LINT_EVIDENCE`. The
+selection is `--workspace --lib --bins --locked`. Test-only callers can
+therefore leave a production helper unused. `lint-inputs` identifies the
+workspace before the build and `lint-receipt` seals the build's arguments,
+compiler identity, status and diagnostics against the matching inputs.
+The CLI reads these values as data. `--no-production-lints` selects only
+the structural ledger and debt checks. See the [consumer guide](../../CENSUS-HOWTO.md).
+<!-- raf:tested-by cargo_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy -->
+
 **Cap'n Proto history.** `capnp-history` compares unpacked compiler
 descriptors read from explicit base and current Git commits. The caller
 selects struct, enum and interface roots by type ID. From a data root,
@@ -138,6 +151,16 @@ types. Struct-valued defaults are checked as native containers and
 compared by their canonical pointer bytes. The caller verifies
 acceptance by application readers.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
+
+Strict history compares applications on retained data fields by annotation
+declaration ID. The application list for one ID retains its authored order
+and repeated values. The descriptor supplies a declared annotation with a
+field target, and the application supplies a brand and a value of the
+instantiated type. Text and data retain their bytes, and pointer values
+compare in their bounded canonical representation. Each changed list reports
+at the owning field with the annotation ID. Explicitly selected required
+and paired-presence markers use their presence policies.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations -->
 
 The strict history check accepts explicitly selected interfaces. A generic
 interface can declare its own type parameters or inherit them from its lexical
@@ -395,7 +418,7 @@ The cases, in the order they run:
 
 ## Usage
 
-Run `cargo census init` once from the new workspace or a member directory, then run `cargo census check`. Inspect the ledger with `cargo census dump-ledger --format turtle`. Use `cargo census debt --write` to adopt existing duplication explicitly.
+Run `cargo census init` once from the new workspace or a member directory, then run `cargo census check --no-production-lints` to check the structural policy. For the default `cargo census check`, first capture the production compiler receipt. Inspect the ledger with `cargo census dump-ledger --format turtle`. Use `cargo census debt --write` to adopt existing duplication explicitly.
 <!-- raf:tested-by cargo_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records -->
 
 Run `cargo census capnp-history --base BASE --current CURRENT` with
@@ -578,6 +601,8 @@ The executable accepts `job ID`, `count ID`, `fingerprint SYMBOL` and
 `baseline` directly, with the standard workspace and output options.
 
 Run `cargo census visibility` for the [workspace library visibility census](./census-visibility.md).
+
+Before `cargo census check`, [capture a production Clippy receipt](../../CENSUS-HOWTO.md#capture-the-production-lint-result) and export its absolute path as `RAF_CENSUS_LINT_EVIDENCE`. Use `cargo census check --no-production-lints` to check structural policy alone.
 
 Select a workspace with `--workspace DIRECTORY`. Use `cargo census check`, `cargo census index`, `cargo census baseline`, `cargo census job ID`, `cargo census count ID` or `cargo census fingerprint SYMBOL`. Use `--max-index-bytes` for an explicit bounded index allowance. Seal registry dependencies with `cargo census check --seal-registry acme-core --registry-features acme-core=default,std` after `cargo fetch --locked`. Require module paths to stay in their package with `cargo census check --require-module-paths-in-package`, and pass the same option to `debt --write`. Compare with a sibling repository at a reviewed commit with `cargo census check --reference-repo ../upstream --reference-commit COMMIT`, or name the commit in a pin file with `--reference-pin-file pins.toml --reference-pin-key upstream.rev`. Run `cargo census self-test` in a consumer gate before `check` to prove the installed census still detects seeded copies; it needs no workspace. A library caller uses `Gate::self_test` and reads `SelfTest::passed`, `SelfTest::cases` and its `Display` text. Help describes native migration and explicit debt options.
 
@@ -782,6 +807,13 @@ The declaration history fixtures cover compatible additions, a partial import,
 local identity changes and the independent type layout verdict. Malformed scope
 claims and excessive nominal nesting refuse without a partial report.
 
+The data-field fixtures select a named result. They cover an annotated appended
+field, relative order across distinct annotation IDs, repeats within one ID,
+changed Text and List values, and equal bytes under different brands. The same
+method carries a valid annotation on an inline input. An invalid declaration target
+or a value inconsistent with its applied brand refuses the descriptor.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations -->
+
 The named RPC fixtures check an optional field with an implicit default,
 one finding per changed field in a shared layout, and a change of endpoint
 form at the same node ID. A change from Text to Data in a nested type
@@ -859,6 +891,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters` | test | [Contract](#contract) |
@@ -887,6 +920,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Verification](#verification) |
 | `cargo_census::test_crate::delivery::module_paths_in_package_are_required_by_the_flag_beside_a_clean_run_without_it` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::registered_queries_share_cli_bytes_and_refuse_before_output` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict` | test | [Contract](#contract) |

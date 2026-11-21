@@ -3,7 +3,7 @@
 
 //! The embedded example's production run, asserted through its own helper.
 
-#[allow(
+#[expect(
     dead_code,
     reason = "the example's entrypoint prints the witnesses and is not invoked by these tests"
 )]

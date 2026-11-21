@@ -438,7 +438,7 @@ impl fmt::Display for Finding {
 }
 
 /// The kind and the fix of a profile rule.
-#[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
+#[expect(clippy::too_many_lines, reason = "one arm per rule of the profile")]
 fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
     let (kind, fix) = match tag {
         RuleTag::MissingKey => (
@@ -684,7 +684,7 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
 }
 
 /// The kind and the fix of a reader error.
-#[allow(
+#[expect(
     clippy::too_many_lines,
     reason = "one arm per error kind of the reader"
 )]

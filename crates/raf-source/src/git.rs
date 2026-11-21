@@ -739,7 +739,7 @@ impl Repository {
     pub fn ancestors(&self, max: usize) -> Result<Vec<Commit>, Error> {
         let head = self.commit(&self.resolve_commit("HEAD")?)?;
         let mut pending = std::collections::BinaryHeap::new();
-        pending.push((head.commit_seconds, head.id.clone()));
+        pending.push((head.commit_seconds, head.id));
         let mut seen = std::collections::BTreeSet::new();
         let mut output = Vec::new();
         let mut acquired = 0usize;

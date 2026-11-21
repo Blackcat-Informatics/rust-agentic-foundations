@@ -3,7 +3,11 @@
 
 //! A job's test-vector and bench links are checked against the workspace.
 
-use raf_census::{Gate, Ledger, NORMAL_FORM, REPORT_FORM};
+#[path = "support/structural.rs"]
+mod structural;
+use structural::fixture_gate;
+
+use raf_census::{Ledger, NORMAL_FORM, REPORT_FORM};
 use raf_rdf::{Builder, Format, Graph, TermValue as Term, Triple, vocab};
 use raf_source::{DiskTree, MemoryTree};
 
@@ -103,7 +107,7 @@ const LINKED: [(&str, &str); 2] = [
 
 #[test]
 fn a_job_naming_an_existing_vector_and_bench_is_clean() {
-    let report = Gate::workspace(".")
+    let report = fixture_gate(".")
         .check_tree(&tree(
             MANIFEST,
             &LINKED,
@@ -115,7 +119,7 @@ fn a_job_naming_an_existing_vector_and_bench_is_clean() {
 
 #[test]
 fn a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link() {
-    let renamed = Gate::workspace(".")
+    let renamed = fixture_gate(".")
         .check_tree(&tree(
             MANIFEST,
             &[
@@ -131,7 +135,7 @@ fn a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link() {
         finding.contains("\"number\"") && finding.contains("vectors/add.json"),
         "{finding}"
     );
-    let removed = Gate::workspace(".")
+    let removed = fixture_gate(".")
         .check_tree(&tree(
             PLAIN_MANIFEST,
             &[("vectors/add.json", "[]")],
@@ -144,7 +148,7 @@ fn a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link() {
         finding.contains("\"number\"") && finding.contains("demo:speed"),
         "{finding}"
     );
-    let directory = Gate::workspace(".")
+    let directory = fixture_gate(".")
         .check_tree(&tree(
             MANIFEST,
             &LINKED,
@@ -159,7 +163,7 @@ fn a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link() {
             && finding.contains("not a regular file"),
         "{finding}"
     );
-    let other_package = Gate::workspace(".")
+    let other_package = fixture_gate(".")
         .check_tree(&tree(
             MANIFEST,
             &LINKED,
@@ -217,7 +221,7 @@ fn a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link() {
             text(ledger(&[vector], &[])),
         )
         .unwrap();
-        Gate::workspace(".").check_tree(&DiskTree::new(&root).unwrap())
+        fixture_gate(".").check_tree(&DiskTree::new(&root).unwrap())
     };
     assert!(check("vectors/inside.json").unwrap().is_clean());
     std::os::unix::fs::symlink("../../outside.json", root.join("vectors/out.json")).unwrap();
@@ -243,7 +247,7 @@ fn a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links() {
         ])
     };
     let plain = reference_ledger::ledger("helper", "helper::api", "arithmetic");
-    Gate::workspace(".")
+    fixture_gate(".")
         .check_tree(&files(plain.clone()))
         .expect("the same reference job without links is evaluated");
     let mut linked = Builder::from_graph(&Graph::from_text(&plain, Format::Turtle).unwrap());
@@ -253,7 +257,7 @@ fn a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links() {
         "vectorPath",
         Term::simple_literal("vectors/add.json"),
     );
-    let error = Gate::workspace(".")
+    let error = fixture_gate(".")
         .check_tree(&files(text(linked)))
         .unwrap_err()
         .to_string();
@@ -329,7 +333,7 @@ fn a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one(
             &[],
         )];
         let sources = [LockedPackageRoots::new(LockedTree::Git(&git), &kit)];
-        Gate::workspace(".")
+        fixture_gate(".")
             .check_locked(&tree, &catalog, &local, &sources)
             .unwrap()
     };
