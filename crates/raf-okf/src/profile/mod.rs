@@ -342,13 +342,11 @@ fn check_values(
             }
             ValueKind::ContractEffect => found.effect = check_effect(check, entry),
             ValueKind::Items => found.items = check_items(check, entry, &keys.items),
-            ValueKind::Subject => {
-                found.subject = records::check_subject(check, entry, doc_type);
+            ValueKind::Subject => found.subject = records::check_subject(check, entry, doc_type),
+            ValueKind::Inputs => {
+                found.inputs = records::check_inputs(check, entry, doc_type, &keys.inputs);
             }
-            ValueKind::Inputs => found.inputs = records::check_inputs(check, entry, doc_type),
-            ValueKind::Verdict => {
-                found.verdict = records::check_verdict(check, entry, doc_type);
-            }
+            ValueKind::Verdict => found.verdict = records::check_verdict(check, entry, doc_type),
             ValueKind::Actor => found.by = records::check_actor(check, entry),
             ValueKind::Command => {
                 found.command = Slot::from_check(records::check_command(check, entry));
@@ -360,7 +358,9 @@ fn check_values(
                 check_measured(check, entry, &mut found);
             }
             ValueKind::Scope => found.scope = records::check_scope(check, entry),
-            ValueKind::Exclusions => found.exclusions = records::check_exclusions(check, entry),
+            ValueKind::Exclusions => {
+                found.exclusions = records::check_exclusions(check, entry, &keys.exclusions);
+            }
             ValueKind::Ceilings => {
                 found.ceilings = Slot::from_check(records::check_ceilings(check, entry));
             }

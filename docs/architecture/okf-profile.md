@@ -305,6 +305,9 @@ in that type's directory. Each of these directories holds Markdown files only.
   Rust-path grammar. The inputs of an Assessment hold the
   `section` row of its subject. The digest is a SHA-256 digest written as 64
   lowercase hexadecimal digits.
+  Prepared native SHACL closes the key set and requires each input key.
+  Each map gets its own focus. Unknown keys report in authored order
+  and missing keys in schema order at `inputs`.
 - **`verdict`** is `pass` or `fail` for Evidence, `accepted` or `rejected` for
   an Assessment, and `clean`, `findings` or `blocked` for Review. A blocked review
   does not satisfy a required review or cover source items.
@@ -349,6 +352,10 @@ in that type's directory. Each of these directories holds Markdown files only.
   crate root, such as `raf_okf::Body`, or a prefix `<module path>::*` that names a
   module below a crate root. A crate root, alone or as a prefix, is refused: a
   crate that is not covered is left out of `scope`. The reason is non-empty.
+  Prepared native SHACL closes the row key set and requires both keys.
+  Each map gets its own focus. Unknown keys report in authored order
+  and missing keys in schema order at `exclusions`. A scalar item refuses
+  the entire list before row-key validation, as it does for `inputs`.
 - **`ceilings`** (optional) is a list of maps with `crate`, exactly one of
   `lines` and `percent`, and an optional `of`; the reverse coverage of
   [strict mode](../capabilities/workplan-strict.md) holds each package to them.
