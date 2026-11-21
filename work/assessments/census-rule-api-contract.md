@@ -7,7 +7,7 @@ subject: cap:census-rule-api#contract
 inputs:
   - kind: section
     name: cap:census-rule-api#contract
-    digest: 5f472809f66be0f1bf1e68f3e0338a97edcdbfe3b9fc5793dab77eda7296ac8d
+    digest: 1632f7c3a9bd351157a06d493d0e9b078bcf0c06b7a2057dd869f97f4ee8667c
   - kind: symbol
     name: raf_census::Gate::assert_clean
     digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25
@@ -49,13 +49,13 @@ inputs:
     digest: 316d728d03febd818b98f51da58d46e37a5515d246b270226f25b0532faf5e93
   - kind: symbol
     name: raf_census::ProductionLintRun::from_turtle
-    digest: d2e743fba6ed2d971cccc8e5795dfee02bc69d6b2121e27d8ee2aa147d6b9313
+    digest: dbfd611f0689f5dba6f8d499b5e5b4e9d45ce7b04119d85e03bdb8af20e177a8
   - kind: symbol
     name: raf_census::ProductionLintRun::read_external
     digest: 4d72a1017a537ff1d52abf5ffb497e21cc02117ff1a8377c41b406d39d61cb38
   - kind: symbol
     name: raf_census::ProductionLintRun::to_turtle
-    digest: 18411ca2d73bbc2577acd6a64452f5fd4fa88c341a385678308f888f1dbd4e19
+    digest: af6c9f264b8fe8d5ba6cf1abfdc4f5d0493cfd7ded0d06213554581f933441d2
   - kind: symbol
     name: raf_census::gate::rules
     digest: 25a1ce6ed6de9dcc776c326ae9d343656a72d8a00a659fdcf10aed319308e9f7

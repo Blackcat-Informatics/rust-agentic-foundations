@@ -7,7 +7,7 @@ subject: cap:census-rule-api#usage
 inputs:
   - kind: section
     name: cap:census-rule-api#usage
-    digest: 625baf5cfe408a987eb45fdfdf262cf22cc0f7108c00fdda0b6a2bafa909c053
+    digest: f25dd03b227feaf83d5e93158ae639b277ba53357655932cc908bcfc70cb2ce6
   - kind: symbol
     name: raf_census::Gate::assert_clean
     digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25

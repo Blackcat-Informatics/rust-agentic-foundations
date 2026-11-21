@@ -258,12 +258,15 @@ impl Profile {
             check.key("type", Rule::WrongDirectory { declared: doc_type });
         }
         let prior_findings = check.out.len();
-        if let Err(source) = header::check(&mut check, map, doc_type) {
-            check.out.truncate(prior_findings);
-            check.add(Location::Document, Rule::HeaderShape { source });
-            return Err(check.out);
-        }
-        let collected = check_values(&mut check, map, doc_type, file_stem(path));
+        let bindings_exact = match header::check(&mut check, map, doc_type) {
+            Ok(exact) => exact,
+            Err(source) => {
+                check.out.truncate(prior_findings);
+                check.add(Location::Document, Rule::HeaderShape { source });
+                return Err(check.out);
+            }
+        };
+        let collected = check_values(&mut check, map, doc_type, file_stem(path), bindings_exact);
         check_frontmatter_placeholders(&mut check, map);
         let body = document.body();
         body_rules::check_sections(doc_type, body, path, &mut check.out);
@@ -278,7 +281,13 @@ impl Profile {
     }
 }
 
-fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str) -> Collected {
+fn check_values(
+    check: &mut Check<'_>,
+    map: &Map,
+    doc_type: DocType,
+    stem: &str,
+    bindings_exact: bool,
+) -> Collected {
     let mut found = Collected::default();
     for spec in doc_type.keys() {
         let Some(entry) = map.get(spec.key) else {
@@ -307,7 +316,7 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
                 found.review_required = Slot::from_check(review::check_required(check, entry));
             }
             ValueKind::Bindings => {
-                found.bindings = check_bindings(check, entry, found.state);
+                found.bindings = check_bindings(check, entry, found.state, bindings_exact);
             }
             ValueKind::CapabilityIds => {
                 let ids = check_capability_ids(check, entry, key == "changes");
@@ -589,7 +598,12 @@ fn check_state(check: &mut Check<'_>, entry: &Entry) -> Option<State> {
     state
 }
 
-fn check_bindings(check: &mut Check<'_>, entry: &Entry, state: Option<State>) -> Option<Bindings> {
+fn check_bindings(
+    check: &mut Check<'_>,
+    entry: &Entry,
+    state: Option<State>,
+    exact: bool,
+) -> Option<Bindings> {
     let Some(map) = entry.value().as_map() else {
         check.key(
             "bindings",
@@ -599,8 +613,6 @@ fn check_bindings(check: &mut Check<'_>, entry: &Entry, state: Option<State>) ->
         );
         return None;
     };
-    let exact = map.entries().len() == BINDING_KEYS.len()
-        && BINDING_KEYS.iter().all(|key| map.get(key).is_some());
     if !exact {
         check.key("bindings", Rule::BindingsKeys);
     }

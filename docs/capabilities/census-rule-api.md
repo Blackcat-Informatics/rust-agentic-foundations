@@ -96,13 +96,15 @@ The trusted build reads the workspace with `ProductionInputs::read` and
 records `ProductionInputs::digest` before running `PRODUCTION_CLIPPY_ARGS`.
 `ProductionLintRun::capture` checks that the arguments and the digest after
 the run match. `ProductionLintRun::to_turtle` and `ProductionLintRun::from_turtle`
-use one canonical receipt. `ProductionLintRun::read_external` reads that
+use one canonical receipt and enforce the same serialized byte limit. `ProductionLintRun::read_external` reads that
 receipt from a build-owned path outside the inspected workspace.
 
 The manifest reader uses `CargoLintManifest::parse`, `CargoLintManifest::inherits`
 and `CargoLintManifest::setting` to resolve package or workspace levels and
-priorities. `CargoLintManifest::production_config_override` identifies
-local Cargo settings that can change the compiler invocation.
+priorities. A higher-priority Clippy subgroup cannot weaken the required
+`all` group. `CargoLintManifest::production_config_override` identifies
+local Cargo settings that can change the compiler invocation. With both
+configuration filenames present, Cargo and Census select `.cargo/config`.
 <!-- raf:tested-by cargo_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy -->
 
 ### Self-test
@@ -273,11 +275,11 @@ resolve its normalized local child ids. Reject missing fields, unknown fields
 and invalid evidence in the validator; closure membership alone verifies no
 policy meaning. Iteration through `nodes` is deterministic and borrowed.
 
-Add the crate as a dev-dependency and run the gate from an integration test:
+With a sibling RAF checkout, add its library as a dev-dependency to the consuming package and run the gate from an integration test. Adjust the path relative to the package manifest.
 
 ```toml
 [dev-dependencies]
-raf-census = "0.2"
+raf-census = { path = "../rust-agentic-foundations/crates/raf-census" }
 ```
 
 ```rust

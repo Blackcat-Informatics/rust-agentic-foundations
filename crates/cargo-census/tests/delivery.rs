@@ -137,6 +137,100 @@ fn run(root: &Path, words: &[&str]) -> Output {
     )
 }
 
+/// The starter enables the structural gate without granting any debt or replacing policy.
+#[cfg(target_os = "linux")]
+#[test]
+fn init_creates_a_clean_structural_policy_and_preserves_existing_records() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    source_fixture(root);
+    let ledger_path = root.join(raf_census::LEDGER_FILE);
+    let debt_path = root.join(raf_census::DEBT_FILE);
+    let source_path = root.join("src/lib.rs");
+    let body = "(0..n).filter(|value| value % 2 == 0).map(|value| value * 3).sum()";
+    let first = format!("pub fn first(n: u32) -> u32 {{ {body} }}\n");
+    fs::write(&source_path, &first).unwrap();
+
+    let lock = fs::File::open(root).unwrap();
+    lock.try_lock().unwrap();
+    let busy = run(root, &["init"]);
+    assert_eq!(busy.status.code(), Some(1), "{busy:?}");
+    assert!(
+        String::from_utf8(busy.stderr)
+            .unwrap()
+            .contains("ledger publication is busy")
+    );
+    assert!(!ledger_path.exists());
+    drop(lock);
+
+    let init = run(&root.join("src"), &["census", "init"]);
+    assert!(init.status.success(), "{init:?}");
+    let ledger = Ledger::from_turtle(&fs::read_to_string(&ledger_path).unwrap()).unwrap();
+    assert_eq!(ledger.roots(), ["."]);
+    assert!(ledger.jobs().is_empty());
+    let check = run(root, &["check", "--no-production-lints"]);
+    assert!(check.status.success(), "{check:?}");
+    assert!(!debt_path.exists());
+
+    fs::write(
+        &source_path,
+        format!("{first}pub fn second(n: u32) -> u32 {{ {body} }}\n"),
+    )
+    .unwrap();
+    fs::remove_file(&ledger_path).unwrap();
+    fs::write(&debt_path, b"existing debt").unwrap();
+    let seeded = run(root, &["init"]);
+    assert!(seeded.status.success(), "{seeded:?}");
+    assert_eq!(fs::read(&debt_path).unwrap(), b"existing debt");
+    fs::remove_file(&debt_path).unwrap();
+    let check = run(root, &["check", "--no-production-lints"]);
+    assert_eq!(check.status.code(), Some(1), "{check:?}");
+    assert!(
+        String::from_utf8(check.stdout)
+            .unwrap()
+            .contains("NewGroup")
+    );
+    assert!(!debt_path.exists());
+
+    fs::write(&ledger_path, b"existing policy").unwrap();
+    fs::write(&debt_path, b"existing debt").unwrap();
+    let retry = run(root, &["init"]);
+    assert_eq!(retry.status.code(), Some(1), "{retry:?}");
+    assert!(
+        String::from_utf8(retry.stderr)
+            .unwrap()
+            .contains("already exists")
+    );
+    assert_eq!(fs::read(ledger_path).unwrap(), b"existing policy");
+    assert_eq!(fs::read(debt_path).unwrap(), b"existing debt");
+}
+
+/// A destination or temporary named as a missing source file stays absent on refusal.
+#[cfg(target_os = "linux")]
+#[test]
+fn init_refuses_source_and_git_administration_destinations() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    source_fixture(root);
+    for name in [raf_census::LEDGER_FILE, ".helpers-ledger.ttl.write"] {
+        fs::write(
+            root.join("src/lib.rs"),
+            format!("#[path = \"../{name}\"] mod policy;"),
+        )
+        .unwrap();
+        let result = run(root, &["init"]);
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+        assert!(!root.join(name).exists());
+        assert!(!root.join(raf_census::LEDGER_FILE).exists());
+    }
+    let admin = root.join(".git");
+    fs::create_dir(&admin).unwrap();
+    source_fixture(&admin);
+    let refused = run(&admin, &["init"]);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert!(!admin.join(raf_census::LEDGER_FILE).exists());
+}
+
 fn capnp_history(
     root: &Path,
     base: &str,
@@ -1109,7 +1203,7 @@ fn capnp_history_compares_rpc_inheritance() {
     );
 }
 
-/// Every reached base requires a unique, unbranded interface declaration in an
+/// Nongeneric bases require empty brands and reciprocal declarations in an
 /// acyclic inheritance graph. Unrelated malformed edges stay out of scope.
 #[test]
 fn capnp_history_refuses_invalid_rpc_inheritance() {
@@ -1125,7 +1219,7 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
     assert!(valid.status.success(), "{valid:?}");
     assert!(valid.stdout.is_empty(), "{valid:?}");
     assert!(valid.stderr.is_empty(), "{valid:?}");
-    let ownership = "requires a reciprocal nongeneric declaration chain";
+    let ownership = "requires a unique reciprocal declaration chain with consistent generic flags";
     for (selected, expected) in [
         ("0xeec5000000000003", "repeats direct superclass"),
         ("0xeec5000000000004", "missing schema node"),
@@ -1145,8 +1239,80 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
     }
 }
 
+/// An instantiation set admits reordering and additions. A lost brand belongs
+/// to its declaring interface, and an inherited layout belongs to its base.
+#[test]
+fn capnp_history_compares_branded_rpc_inheritance() {
+    const DIAMOND: &str = "0xeec490000000000c";
+    const BASE_FINDING: &str =
+        "Cap'n Proto history for 0xeec4900000000008.query.parameters.seed: default changed\n";
+    let selected = [
+        "0xeec4900000000004",
+        "0xeec4900000000006",
+        "0xeec4900000000007",
+        "0xeec4900000000009",
+        DIAMOND,
+    ];
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-branded-inheritance-base.bin"),
+    );
+    let compatible = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-branded-inheritance-compatible.bin"),
+    );
+    let changed = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-branded-inheritance-changed.bin"),
+    );
+    let clean = capnp_history(root, &base, &compatible, &selected, &[]);
+    assert!(
+        clean.status.success() && clean.stdout.is_empty() && clean.stderr.is_empty(),
+        "{clean:?}"
+    );
+
+    let verdict = capnp_history(root, &base, &changed, &selected, &[]);
+    assert_eq!(verdict.status.code(), Some(1), "{verdict:?}");
+    assert!(verdict.stderr.is_empty(), "{verdict:?}");
+    assert_eq!(
+        String::from_utf8(verdict.stdout).unwrap(),
+        [
+            "Cap'n Proto history for 0xeec4900000000004: direct superclass 0xeec4900000000003 brand changed\n",
+            BASE_FINDING,
+            "Cap'n Proto history for 0xeec4900000000009: direct superclass 0xeec4900000000008 brand changed\n",
+        ]
+        .concat()
+    );
+    let diamond = capnp_history(root, &base, &changed, &[DIAMOND], &[]);
+    assert_eq!(diamond.status.code(), Some(1), "{diamond:?}");
+    assert!(diamond.stderr.is_empty(), "{diamond:?}");
+    assert_eq!(diamond.stdout, BASE_FINDING.as_bytes());
+}
+
+/// A complete lexical brand checks each scope and position. Explicitly binding
+/// every position to itself and inheriting the scope denote the same edge.
+#[test]
+fn capnp_history_refuses_invalid_branded_rpc_inheritance() {
+    assert_capnp_rpc_refusals(
+        include_bytes!("fixtures/capnp/rpc-branded-inheritance-invalid.bin"),
+        &[
+            ("0xeec4a00000000003", "with the same brand"),
+            ("0xeec4a00000000004", "requires a complete brand"),
+            (
+                "0xeec4a00000000005",
+                "implicit method parameter requires an RPC method brand",
+            ),
+            ("0xeec4a00000000006", "invalid or repeated brand scope"),
+            ("0xeec4a00000000007", "invalid parameter 1"),
+            ("0xeec4a00000000008", "requires a complete brand"),
+        ],
+    );
+}
+
 /// Detached endpoints belong to exactly one method and role across the request.
-/// Generic inheritance remains outside the supported profile.
 #[test]
 fn capnp_history_refuses_unsupported_rpc_endpoints() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -1161,16 +1327,20 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
     );
     let field_order =
         commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-field-order.bin"));
-    let concrete = capnp_history(
+    let supported = capnp_history(
         root,
         &unsupported,
         &unsupported,
-        &["0xadb4bfe48ad45105", "0xba6c33c22a5d3e73"],
+        &[
+            "0xadb4bfe48ad45105",
+            "0xba6c33c22a5d3e73",
+            "0xeec6000000000001",
+        ],
         &[],
     );
-    assert!(concrete.status.success(), "{concrete:?}");
-    assert!(concrete.stdout.is_empty(), "{concrete:?}");
-    assert!(concrete.stderr.is_empty(), "{concrete:?}");
+    assert!(supported.status.success(), "{supported:?}");
+    assert!(supported.stdout.is_empty(), "{supported:?}");
+    assert!(supported.stderr.is_empty(), "{supported:?}");
     for (before, after, selected, expected) in [
         (&base, &shared, RPC_READER, "exactly one owning method role"),
         (
@@ -1190,12 +1360,6 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
             &base,
             "0xd766b858756a10ab",
             "must be selected through its owning method",
-        ),
-        (
-            &unsupported,
-            &unsupported,
-            "0xeec6000000000001",
-            "requires a reciprocal nongeneric declaration chain",
         ),
     ] {
         let refused = capnp_history(root, before, after, &[selected], &[]);

@@ -266,6 +266,14 @@ pub fn head(repository: &Repository) -> Result<ResolvedCommit, GitError> {
     admitted(&repository.resolve_commit("HEAD")?)
 }
 
+/// Resolve a native revision selector for a source comparison.
+pub(crate) fn resolve_revision(
+    repository: &Repository,
+    selector: &str,
+) -> Result<ResolvedCommit, GitError> {
+    admitted(&repository.resolve_commit(selector)?)
+}
+
 /// Resolve one full reference to an existing commit.
 ///
 /// # Errors

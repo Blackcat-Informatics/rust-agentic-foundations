@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+(nodes = [
+  (id = 17205052398322581504, file = void, nestedNodes = [
+    (name = "Frame", id = 17205052398322581505),
+    (name = "MissingOuter", id = 17205052398322581508),
+    (name = "ImplicitPosition", id = 17205052398322581509),
+    (name = "ForeignScope", id = 17205052398322581510),
+    (name = "UnboundPosition", id = 17205052398322581512)]),
+  (id = 17205052398322581505, scopeId = 17205052398322581504, isGeneric = true, parameters = [(name = "Outer")],
+   nestedNodes = [
+     (name = "Base", id = 17205052398322581506),
+     (name = "Duplicate", id = 17205052398322581507),
+     (name = "InvalidPosition", id = 17205052398322581511)], struct = ()),
+  (id = 17205052398322581506, scopeId = 17205052398322581505, isGeneric = true, parameters = [(name = "Inner")],
+   interface = ()),
+  (id = 17205052398322581507, scopeId = 17205052398322581505, isGeneric = true, interface = (superclasses = [
+    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (text = void))]), (scopeId = 17205052398322581505, inherit = void)])),
+    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (text = void))]), (scopeId = 17205052398322581505, bind = [(type = (anyPointer = (parameter = (scopeId = 17205052398322581505, parameterIndex = 0))))])]))])),
+  (id = 17205052398322581508, scopeId = 17205052398322581504, interface = (superclasses = [
+    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (text = void))])]))])),
+  (id = 17205052398322581509, scopeId = 17205052398322581504, interface = (superclasses = [
+    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (anyPointer = (implicitMethodParameter = (parameterIndex = 0))))]), (scopeId = 17205052398322581505, bind = [(type = (text = void))])]))])),
+  (id = 17205052398322581510, scopeId = 17205052398322581504, interface = (superclasses = [
+    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (text = void))]), (scopeId = 17205052398322581505, bind = [(type = (text = void))]), (scopeId = 17205052398322581510, inherit = void)]))])),
+  (id = 17205052398322581511, scopeId = 17205052398322581505, isGeneric = true, interface = (superclasses = [
+    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (anyPointer = (parameter = (scopeId = 17205052398322581505, parameterIndex = 1))))]), (scopeId = 17205052398322581505, inherit = void)]))])),
+  (id = 17205052398322581512, scopeId = 17205052398322581504, interface = (superclasses = [
+    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(unbound = void)]), (scopeId = 17205052398322581505, bind = [(type = (text = void))])]))]))])

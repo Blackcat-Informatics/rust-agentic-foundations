@@ -69,6 +69,7 @@ fn run_gate(
         gate.without_production_lints()
     };
     match &args.command {
+        Command::Init => init(&gate, output),
         Command::CapnpReaderEvidence(_)
         | Command::CapnpReaderAdmission(_)
         | Command::CapnpMigrationAdmission(_)
@@ -162,6 +163,12 @@ fn run_gate(
         }
         Command::Migrate(args) => migrate(&gate, args, output),
     }
+}
+
+fn init(gate: &Gate, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
+    let path = gate.init_ledger()?;
+    writeln!(output, "created {}", path.display()).map_err(stdout)?;
+    Ok(0)
 }
 
 fn warn_unpinned_reference(directory: &Path, diagnostics: &mut dyn Write) -> Result<(), Error> {

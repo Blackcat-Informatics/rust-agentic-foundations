@@ -252,14 +252,7 @@ impl<'w> Surface<'w> {
             {
                 continue;
             }
-            let exports = source
-                .exported_items(id)
-                .map_err(|error| LifecycleError::Surface {
-                    package: target.package.clone(),
-                    target: target.crate_path.clone(),
-                    side,
-                    reason: error.to_string(),
-                })?;
+            let exports = exports_at(source, id, side, &raf_source::ExportOptions::default())?;
             let mut types = BTreeSet::new();
             for export in &exports.items {
                 let Some(item) = source.item(export.item) else {
@@ -337,6 +330,26 @@ impl<'w> Surface<'w> {
         });
         Ok(key)
     }
+}
+
+/// Enumerate the public surface with the same typed refusal for both historical queries.
+pub(super) fn exports_at(
+    source: &Workspace,
+    id: raf_source::TargetId,
+    side: Side,
+    options: &raf_source::ExportOptions,
+) -> Result<raf_source::Exports, LifecycleError> {
+    let target = source
+        .target(id)
+        .expect("INVARIANT: target id belongs to this source workspace");
+    source
+        .exported_items_with(id, options)
+        .map_err(|error| LifecycleError::Surface {
+            package: target.package.clone(),
+            target: target.crate_path.clone(),
+            side,
+            reason: error.to_string(),
+        })
 }
 
 /// The touched units of `now` against `then`, the surface of `then_source`

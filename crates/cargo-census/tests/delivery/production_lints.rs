@@ -77,10 +77,22 @@ fn default_checks_require_passing_production_evidence_for_the_current_sources_an
     fs::create_dir_all(root.join("src")).unwrap();
     fs::write(root.join("Cargo.toml"), MANIFEST).unwrap();
     fs::write(root.join("Cargo.lock"), "version = 4\n").unwrap();
-    fs::write(root.join("src/implementation.rs"), "pub fn helper() {}").unwrap();
+    fs::write(
+        root.join("src/implementation.rs"),
+        r#"
+        pub struct Widget;
+        impl Widget {
+            #[cfg(test)] const DATA: &'static str = include_str!(concat!("test", ".txt"));
+        }
+        pub fn helper() {
+            #[cfg(test)] let _data = include_bytes!(concat!("test", ".bin"));
+        }"#,
+    )
+    .unwrap();
     fs::write(
         root.join("src/lib.rs"),
-        "pub fn home() -> u32 { 7 } include!(\"implementation.rs\");",
+        r#"pub fn home() -> u32 { 7 } include!("implementation.rs",);
+           #[cfg(test)] mod tests { const DATA: &str = include_str!(concat!("fixture", ".txt")); }"#,
     )
     .unwrap();
     super::write_ledger(&root, &[]);
@@ -129,6 +141,25 @@ fn default_checks_require_passing_production_evidence_for_the_current_sources_an
     .unwrap();
     let overridden = capture(&root, 0, "");
     assert_verdict(&root, &receipt, &overridden, Some("lints.clippy.dbg_macro"));
+    fs::write(
+        root.join("Cargo.toml"),
+        format!("{MANIFEST}\ncorrectness = {{ level = \"allow\", priority = 1 }}\n"),
+    )
+    .unwrap();
+    assert_verdict(
+        &root,
+        &receipt,
+        &capture(&root, 0, ""),
+        Some("lints.clippy.all"),
+    );
+    let oversized = capture(&root, 0, &"x".repeat(raf_census::MAX_LEDGER_BYTES));
+    assert!(
+        oversized
+            .to_turtle()
+            .unwrap_err()
+            .to_string()
+            .contains("byte limit")
+    );
     member_configuration(&root, &receipt);
     unverified_inputs(&root, &receipt);
 }
@@ -184,7 +215,29 @@ fn unverified_inputs(root: &Path, receipt: &Path) {
     let tree = DiskTree::new(root).unwrap();
     let error = ProductionInputs::read(&tree).unwrap_err().to_string();
     assert!(error.contains("build.rustflags"), "{error}");
+    fs::write(root.join(".cargo/config"), "").unwrap();
+    let effective = capture(root, 0, "");
+    assert_verdict(root, receipt, &effective, None);
+    fs::write(
+        root.join(".cargo/config.toml"),
+        "[build]\ntarget='ignored'\n",
+    )
+    .unwrap();
+    assert_verdict(root, receipt, &effective, None);
+    fs::remove_file(root.join(".cargo/config")).unwrap();
     fs::remove_file(root.join(".cargo/config.toml")).unwrap();
+    let main = root.join("src/lib.rs");
+    let source = fs::read_to_string(&main).unwrap();
+    fs::write(&main, source.replace("#[cfg(test)]", "#[cfg(not(test))]")).unwrap();
+    let error = ProductionInputs::read(&tree).unwrap_err().to_string();
+    assert!(error.contains("dynamic include_str!"), "{error}");
+    let rewritten = format!(
+        "#[custom] mod rewritten {{ #[cfg(test)] const PATH: &str = include_str!(concat!(\"a\", \".rs\")); }}\n{source}"
+    );
+    fs::write(&main, rewritten).unwrap();
+    let error = ProductionInputs::read(&tree).unwrap_err().to_string();
+    assert!(error.contains("dynamic include_str!"), "{error}");
+    fs::write(main, source).unwrap();
     fs::write(
         root.join("src/implementation.rs"),
         "use std::include as fragment; fragment!(\"nested.rs\");",

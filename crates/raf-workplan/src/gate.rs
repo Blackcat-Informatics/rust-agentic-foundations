@@ -263,6 +263,10 @@ impl Gate {
         self
     }
 
+    pub(crate) fn roots(&self) -> Vec<&str> {
+        self.roots.iter().map(String::as_str).collect()
+    }
+
     /// Judge links against exactly these tracked paths, instead of the ones
     /// native Git index lists or the files of a repository-free directory.
     #[must_use]
@@ -292,7 +296,7 @@ impl Gate {
             source,
         })?;
         self.require_capabilities(&tree)?;
-        let roots: Vec<&str> = self.roots.iter().map(String::as_str).collect();
+        let roots = self.roots();
         let workspace = Workspace::load(&tree, &roots).map_err(|source| GateError::Source {
             dir: self.dir.clone(),
             roots: self.roots.clone(),

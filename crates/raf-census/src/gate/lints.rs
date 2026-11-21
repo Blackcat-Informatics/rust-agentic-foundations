@@ -93,7 +93,8 @@ fn policy(
             );
             let competing_groups: &[&str] = match (tool, name) {
                 ("rust", "dead_code") => &["unused"],
-                ("clippy", "all" | "pedantic") | ("rust", _) => &[],
+                ("clippy", "all") => &["correctness", "suspicious", "style", "complexity", "perf"],
+                ("clippy", "pedantic") | ("rust", _) => &[],
                 ("clippy", "used_underscore_binding") => &["pedantic"],
                 ("clippy", _) => &["restriction"],
                 _ => &[],
@@ -126,10 +127,21 @@ fn read_configuration(
     files: &mut BTreeMap<RelPath, ContentDigest>,
 ) -> Result<(), Error> {
     let mut paths = BTreeSet::new();
+    let legacy =
+        RelPath::new(".cargo/config").map_err(|error| Error::Options(error.to_string()))?;
+    // Cargo selects the extensionless configuration when both names exist.
+    let config = if tree
+        .entry(&legacy)
+        .map_err(|e| file_error(&legacy, e))?
+        .is_some()
+    {
+        ".cargo/config"
+    } else {
+        ".cargo/config.toml"
+    };
     for name in [
         "Cargo.lock",
-        ".cargo/config",
-        ".cargo/config.toml",
+        config,
         "rust-toolchain",
         "rust-toolchain.toml",
     ] {
@@ -358,7 +370,7 @@ impl ProductionLintRun {
     /// Emit canonical RDF for the caller's build-owned evidence destination.
     ///
     /// # Errors
-    /// Returns any native RDF construction or output error.
+    /// Returns a native RDF error or refuses output larger than the reader admits.
     pub fn to_turtle(&self) -> Result<String, Error> {
         use crate::report::write;
         let mut graph = raf_rdf::Builder::new();
@@ -372,10 +384,21 @@ impl ProductionLintRun {
         ] {
             write::text(&mut graph, "", name, value)?;
         }
-        Ok(graph
+        let text = graph
             .finish()
             .and_then(|g| g.to_text(raf_rdf::Format::Turtle))
-            .map_err(ReportError::Ground)?)
+            .map_err(ReportError::Ground)?;
+        Self::check_size(&text)?;
+        Ok(text)
+    }
+
+    fn check_size(text: &str) -> Result<(), Error> {
+        if text.len() > crate::MAX_LEDGER_BYTES {
+            return Err(Error::Options(
+                "production lint evidence exceeds its byte limit".into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Read the canonical, closed receipt selected by the calling build.
@@ -384,11 +407,7 @@ impl ProductionLintRun {
     /// Refuses malformed, incomplete or unknown fields and other target selections.
     pub fn from_turtle(text: &str) -> Result<Self, Error> {
         use crate::report::shape;
-        if text.len() > crate::MAX_LEDGER_BYTES {
-            return Err(Error::Options(
-                "production lint evidence exceeds its byte limit".into(),
-            ));
-        }
+        Self::check_size(text)?;
         let graph = raf_rdf::Graph::from_text(text, raf_rdf::Format::Turtle)
             .map_err(ReportError::Ground)?;
         let root = graph

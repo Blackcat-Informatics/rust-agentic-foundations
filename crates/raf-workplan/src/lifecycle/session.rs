@@ -25,6 +25,8 @@ use super::{Impact, changed, touched, untouched};
 pub enum Side {
     /// The version at the merge base.
     MergeBase,
+    /// The version at the explicitly selected revision.
+    Revision,
     /// The version in the working tree.
     WorkingTree,
 }
@@ -34,6 +36,7 @@ impl fmt::Display for Side {
         f.write_str(match self {
             Self::MergeBase => "at the merge base",
             Self::WorkingTree => "in the working tree",
+            Self::Revision => "at the selected revision",
         })
     }
 }

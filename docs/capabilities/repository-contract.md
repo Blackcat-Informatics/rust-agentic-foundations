@@ -124,7 +124,7 @@ bindings:
     - rust_agentic_foundations::test_crate::repo_gates::python::python_extensions_are_refused_even_for_empty_or_binary_files
     - rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension
     - rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed
-    - rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed
+    - rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed
     - rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused
     - rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate
     - rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation
@@ -166,8 +166,8 @@ both the root and independent fuzz dependency graphs checked. Aggregate test
 and harness-policy results require their applicable jobs to succeed.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget -->
 
-**Binding validation.** The self-workplan gate validates source bindings and the complete static document model. Consumer tests, examples and doctests are never executed by RAF. Verification prints declarations and static findings; completion uses a prospective document overlay and owned data writes. Maintainer-controlled RAF checks use explicitly controlled fixtures and never grant inspected source execution authority.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed,cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
+**Binding validation.** The production Workplan gate opens the selected repository and indexes its Rust source once. The tracked-document check resolves bindings against that same index while judging its own Markdown, diagram assets, tracked paths and symlink policy. The production check uses the disk tree and the gate's link context. Each check reports its own findings. RAF verifies declarations and static findings without executing consumer tests, examples or doctests. Completion uses a prospective document overlay and owned data writes. Maintainer-controlled RAF checks use explicitly controlled fixtures and never grant inspected source execution authority.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed,cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
 **Self-Census.** The root package runs the production Census gate over the same
 selected read root, through `Gate::check_locked`. The canonical `helpers-ledger.ttl`
 declares both the first-party workspace and `fuzz` roots, with the standard token
@@ -245,11 +245,11 @@ examples, with only its named clock implementation and rule-definition files
 exempt. New crates are covered without another path inventory.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::issue_refs_reports_every_hit_as_file_and_line,rust_agentic_foundations::test_crate::repo_gates::issue_refs_spares_near_miss_prose,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_passes_the_clean_neighbour,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_judges_a_crate_added_under_the_crates_directory -->
 
-**Current assessments.** The self-workplan test refuses any complete-policy
+**Current assessments.** The production Workplan test refuses any complete-policy
 finding, any stale assessment or any verdict other than accepted. It requires at
 least one loaded capability, so an empty or unreadable documentation set cannot
 masquerade as a clean repository.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed -->
 
 **Python refusal.** Tracked paths refuse `.py`, `.pyw`, `.pyi`, `.pyc`, `.pyo`,
 `.pyz` and `.pyzw` extensions case-insensitively, including empty and binary
@@ -288,7 +288,7 @@ property, spelling it as an expression, or giving sixteen refuses and names the
 job. Adding a workspace member automatically adds it to the source-change test
 matrix. A documented example shared by several capabilities has one successful
 execution for its package, while every binding still receives native planning.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget,rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget,rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed -->
 
 A clean self-Census accepts the currently adopted groups. Adding another
 normal-form-equivalent implementation creates growth and makes the same gate
@@ -401,6 +401,7 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::docs_contract::rejects_a_typed_document_outside_the_document_directories` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::rejects_non_markdown_file_in_a_document_directory` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
 | `rust_agentic_foundations::test_crate::docs_contract::the_checker_accepts_a_valid_checkout` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_markdown_outside_the_document_directories` | test | [Verification](#verification) |
@@ -490,7 +491,6 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
-| `rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
 | `rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back` | test | [Contract](#contract) |
 | `rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

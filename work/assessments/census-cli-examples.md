@@ -13,10 +13,10 @@ inputs:
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
   - kind: symbol
     name: cargo_census::cli
-    digest: 5dc4204bfd2d0ed0a14add5d902b8d002b2e61489c03c56b599b271cae985f23
+    digest: 7eb9dde0a704fdfd8ea0244b1dcd8bda22ae4d08f85b7ec400f17482f63932d0
   - kind: symbol
     name: cargo_census::command
-    digest: cb438e5a15b13afa5bb3a9970bb7fcb57ad32818296481f0a2b53530edf8be59
+    digest: bb781bb9590428dbcbca4c7cfc09449e21e1686a6caef3a16f19006b171e62d1
   - kind: symbol
     name: cargo_census::error
     digest: d368c2653a7adfc685940b91a52e1ca7e946b508577849e120a7628a9dfa0f96
@@ -29,6 +29,9 @@ inputs:
   - kind: symbol
     name: raf_census::DEBT_WRITE_PROTOCOL_VERSION
     digest: 040b9a659209a7f711df38dd99d36a6cfa1d7dd1bcc916218334eba9c5edf364
+  - kind: symbol
+    name: raf_census::Gate::init_ledger
+    digest: cb109237dc9ea01dda2751059871fb0d33ef7202daf14ea05359890e35a52adc
   - kind: symbol
     name: raf_census::Gate::self_test
     digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86
@@ -58,7 +61,7 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
+    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
   - kind: symbol
     name: raf_census::capnp_history::persistence::admission::check
     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6

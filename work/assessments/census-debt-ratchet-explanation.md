@@ -55,7 +55,7 @@ inputs:
     digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
   - kind: symbol
     name: raf_census::publication
-    digest: 559709229d7bd1f7d03508be644c5b4d3b09b5eed011ab53129d17f34da24683
+    digest: 2189794d4b4b6013dcdc8a3e52587f4e0e1f7be3f29c7ffaadee9ea1f7282eae
   - kind: symbol
     name: raf_census::report::debt
     digest: b47ed9bc4b1f1f59a53431f6413cdf341edfc885302c4f6beac37808bcbea28c

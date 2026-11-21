@@ -29,6 +29,8 @@ pub(crate) struct Args {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    /// Create the starter ledger at the workspace root without adopting debt.
+    Init,
     /// Compare committed Cap'n Proto schema descriptors under the strict history policy.
     CapnpHistory(Box<HistoryArgs>),
     /// Check strict Cap'n Proto history for committed persisted Rust declarations.

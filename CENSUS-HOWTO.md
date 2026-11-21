@@ -47,7 +47,7 @@ todo = "deny"
 unimplemented = "deny"
 ```
 
-Run the production check from the trusted build or hook. In the shell where you selected `RAF_CHECKOUT`, run these commands from the consumer workspace. Use a temporary directory outside the inspected repository.
+If the workspace has no lockfile yet, run `cargo generate-lockfile` from its root. Run the production check from the trusted build or hook. In the shell where you selected `RAF_CHECKOUT`, run these commands from the consumer workspace. Use a temporary directory outside the inspected repository.
 
 ```sh
 evidence_dir=$(mktemp -d)
@@ -57,29 +57,23 @@ export RAF_CENSUS_LINT_EVIDENCE="$evidence_dir/production.ttl"
 
 The helper runs Clippy on the workspace libraries and binaries with the lockfile and required denied lints. A private helper called only from a test can be dead in that build. A passing `--all-targets` result cannot satisfy the check. A dev-dependency used only in tests can remain in `[dev-dependencies]`.
 
-Use a fixed checkout and a trusted compiler and build environment. The receipt covers the member manifests, lockfile, workspace compiler configuration, Clippy configuration from each member up to the workspace root, shipping modules and directly named literal file inclusions. A first-party build script, a target with an unverified feature requirement, a renamed or dynamic file inclusion, or local configuration that changes the compiler invocation needs input or target evidence the current reader cannot establish. It reports those cases. Keep dependency sources and toolchain fixed when producing and consuming a receipt.
+Use a fixed checkout and a trusted compiler and build environment. The receipt covers the member manifests, lockfile, workspace compiler configuration, Clippy configuration from each member up to the workspace root, shipping modules and directly named literal file inclusions. The inclusion scan skips directly `#[cfg(test)]`-guarded items and statements where it can prove they are inactive. Inputs to an unknown attribute macro still count because the macro can rewrite a nested declaration. A first-party build script, a target with an unverified feature requirement, a renamed or dynamic file inclusion, or local configuration that changes the compiler invocation needs input or target evidence the current reader cannot establish. It reports those cases. Keep dependency sources and toolchain fixed when producing and consuming a receipt.
 
 Keep the receipt in the build-owned directory. The CLI accepts its path through the exported variable or `check --lint-evidence /absolute/path/to/production.ttl`. Missing evidence, changed inputs, a weakened manifest or a failed compiler run fails the default check. Repeat the capture with a fresh destination after changing the sources or policy. Use `check --no-production-lints` for an explicitly structural check. Baseline inspection and debt recording need no compiler receipt.
 
 ## Install the ledger
 
-Create `helpers-ledger.ttl` at the workspace root. This complete starter ledger selects the current workspace (`.`), normal form 1 and report form 5. It lets you enforce structural duplicate groups immediately, with no named jobs. Copy all six lines exactly, including the final newline.
-
-```turtle
-VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/b6b4b0160ca994e7e3840c07807d4adb56ba5a2e003a910ad5efdf316f211c54>
-<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
-<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#root> "." .
-```
+From the workspace or one of its members, initialize the structural policy, inspect the resulting ledger, then check the source.
 
 ```sh
+cargo census init
 cargo census dump-ledger --format turtle
 cargo census check
 ```
 
-The first command validates and prints the ledger. The second evaluates it against the source and debt record. An absent `census-debt.ttl` counts as empty. A clean workspace passes immediately. A finding includes the group or policy violation to inspect. For `check`, exit status 0 means clean. Status 1 signals findings or an evaluation error. Status 2 signals invalid command usage or a ledger that requires Rust registrations the CLI lacks.
+`init` creates canonical `helpers-ledger.ttl` at the workspace root. Its sole scan root is `.` and it declares no jobs or allowances. An existing ledger path makes initialization fail and preserves the existing entry. Initialization leaves any debt record untouched.
+
+`dump-ledger` validates and prints the ledger. `check` evaluates it against the source and debt record. An absent `census-debt.ttl` counts as empty. A clean workspace passes immediately. A finding includes the group or policy violation to inspect. For `check`, exit status 0 means clean. Status 1 signals findings or an evaluation error. Status 2 signals invalid command usage or a ledger that requires Rust registrations the CLI lacks.
 
 The ledger reader requires canonical bytes. Even a whitespace edit can invalidate the file, and a policy edit changes the content-derived `BASE`. For a custom policy, construct the graph with `raf_rdf::Builder` and serialize it with `Graph::to_text(Format::Turtle)`. The example constructs a job, names its home and attaches an extension using that writer. [Ledger construction example](crates/raf-census/examples/support/ledger.rs) · [Ledger fields](docs/capabilities/census-ledger.md)
 

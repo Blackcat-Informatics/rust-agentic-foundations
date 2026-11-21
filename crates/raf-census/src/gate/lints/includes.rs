@@ -8,6 +8,86 @@ use proc_macro2::{Ident, TokenStream, TokenTree};
 use purrdf_core::ContentDigest;
 use raf_source::{LoadOptions, RelPath, Tree, Workspace, prepare_source};
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Range;
+use syn::{parse::Parser as _, visit::Visit as _};
+
+// Only an actual cfg on a parsed declaration proves its contents are inactive.
+// Identical tokens inside a macro definition may expand in a shipping context.
+fn test_cfg(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        attr.path().is_ident("cfg") && attr.parse_args::<Ident>().is_ok_and(|cfg| cfg == "test")
+    })
+}
+
+#[derive(Default)]
+struct TestItems(Vec<Range<usize>>);
+
+impl TestItems {
+    fn test_only_file(&mut self, file: &syn::File) -> bool {
+        if !crate::syntax::inert_attributes_with(&file.attrs, &["cfg"]) {
+            return false;
+        }
+        if test_cfg(&file.attrs) {
+            return true;
+        }
+        self.visit_file(file);
+        false
+    }
+
+    fn walk(&mut self, node: &impl syn::spanned::Spanned, attrs: &[syn::Attribute]) -> bool {
+        // An attribute macro can rewrite nested declarations before their cfg is applied.
+        // Keep all its raw tokens in the inclusion scan.
+        if !crate::syntax::inert_attributes_with(attrs, &["cfg"]) {
+            return false;
+        }
+        if test_cfg(attrs) {
+            self.0.push(node.span().byte_range());
+            false
+        } else {
+            true
+        }
+    }
+}
+
+// These syntax nodes store their attributes directly. Descending only into
+// live parents keeps the excluded spans disjoint.
+macro_rules! attributed_nodes {
+    ($($visit:ident: $node:ident),+ $(,)?) => {
+        $(fn $visit(&mut self, node: &'ast syn::$node) {
+            if self.walk(node, &node.attrs) {
+                syn::visit::$visit(self, node);
+            }
+        })+
+    }
+}
+
+impl<'ast> syn::visit::Visit<'ast> for TestItems {
+    fn visit_item(&mut self, item: &'ast syn::Item) {
+        if self.walk(item, crate::syntax::item_attributes(item)) {
+            syn::visit::visit_item(self, item);
+        }
+    }
+
+    fn visit_expr(&mut self, expr: &'ast syn::Expr) {
+        if self.walk(
+            expr,
+            crate::syntax::expression_attributes(expr).unwrap_or_default(),
+        ) {
+            syn::visit::visit_expr(self, expr);
+        }
+    }
+
+    attributed_nodes! {
+        visit_impl_item_fn: ImplItemFn, visit_impl_item_const: ImplItemConst,
+        visit_impl_item_type: ImplItemType, visit_impl_item_macro: ImplItemMacro,
+        visit_trait_item_fn: TraitItemFn, visit_trait_item_const: TraitItemConst,
+        visit_trait_item_type: TraitItemType, visit_trait_item_macro: TraitItemMacro,
+        visit_foreign_item_fn: ForeignItemFn, visit_foreign_item_static: ForeignItemStatic,
+        visit_foreign_item_type: ForeignItemType, visit_foreign_item_macro: ForeignItemMacro,
+        visit_local: Local, visit_stmt_macro: StmtMacro, visit_field: Field,
+        visit_variant: Variant, visit_arm: Arm, visit_field_value: FieldValue,
+    }
+}
 
 fn file_macro(name: &Ident) -> bool {
     [
@@ -27,14 +107,50 @@ fn paths(path: &RelPath, text: &str, fragment: bool) -> Result<Vec<(RelPath, boo
         return Ok(Vec::new());
     }
     let parent = path.parent().unwrap_or_else(RelPath::root);
-    prepare_source(path, text)?.with_lexed(|lexed| {
+    let scan = |tokens, excluded: &[Range<usize>]| {
         let mut inputs = Vec::new();
-        let mut groups = vec![lexed.tokens().clone()];
+        let mut groups = vec![tokens];
         while let Some(group) = groups.pop() {
-            collect(group, &parent, path, fragment, &mut groups, &mut inputs)?;
+            collect(
+                group,
+                &parent,
+                path,
+                fragment,
+                excluded,
+                &mut groups,
+                &mut inputs,
+            )?;
         }
         Ok(inputs)
+    };
+    let prepared = prepare_source(path, text)?;
+    prepared.with_lexed(|lexed| {
+        let tokens = lexed.tokens().clone();
+        let mut excluded = TestItems::default();
+        if text.contains("cfg") {
+            if fragment {
+                // include! accepts items or an expression at its call site.
+                // Other grammars give no proof that any token is test-only.
+                if let Ok(items) = syn::parse2::<syn::File>(tokens.clone()) {
+                    if excluded.test_only_file(&items) {
+                        return Ok(Vec::new());
+                    }
+                } else if let Ok(expr) = syn::parse2::<syn::Expr>(tokens.clone()) {
+                    excluded.visit_expr(&expr);
+                }
+            } else if lexed.parse(|file| excluded.test_only_file(file))? {
+                return Ok(Vec::new());
+            }
+            excluded.0.sort_unstable_by_key(|range| range.start);
+        }
+        scan(tokens, &excluded.0)
     })?
+}
+
+fn literal_path(input: syn::parse::ParseStream<'_>) -> syn::Result<syn::LitStr> {
+    let literal = input.parse()?;
+    input.parse::<Option<syn::Token![,]>>()?;
+    Ok(literal)
 }
 
 fn collect(
@@ -42,11 +158,22 @@ fn collect(
     parent: &RelPath,
     path: &RelPath,
     fragment: bool,
+    excluded: &[Range<usize>],
     groups: &mut Vec<TokenStream>,
     inputs: &mut Vec<(RelPath, bool)>,
 ) -> Result<(), Error> {
     let mut tokens = stream.into_iter().peekable();
     while let Some(token) = tokens.next() {
+        if !excluded.is_empty() {
+            let offset = token.span().byte_range().start;
+            let next = excluded.partition_point(|range| range.end <= offset);
+            if excluded
+                .get(next)
+                .is_some_and(|range| range.contains(&offset))
+            {
+                continue;
+            }
+        }
         match token {
             TokenTree::Group(group) => groups.push(group.stream()),
             TokenTree::Ident(name) if fragment && name == "mod" => {
@@ -78,7 +205,7 @@ fn collect(
                 }
                 tokens.next();
                 let literal = match tokens.next() {
-                    Some(TokenTree::Group(args)) => syn::parse2::<syn::LitStr>(args.stream()).ok(),
+                    Some(TokenTree::Group(args)) => literal_path.parse2(args.stream()).ok(),
                     _ => None,
                 }.ok_or_else(|| Error::Options(format!("{path}: cannot attest the input of dynamic {name}!; the build must identify a literal workspace file")))?;
                 let relative = parent

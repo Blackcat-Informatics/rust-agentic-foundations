@@ -10,7 +10,8 @@
 //! source index of the whole repository, and requires `Workplan::check` to
 //! report nothing. `raf_workplan::plain::check` judges the tracked Markdown
 //! outside the document directories (README, AGENTS.md, templates). The
-//! `Gate::workspace` run of the same checks from disk is `tests/self_workplan.rs`.
+//! production disk gate also checks every recorded assessment. Both test cases
+//! bind their documents against the same source index of the selected snapshot.
 //!
 //! What stays here is this repository's own policy, which no model rule
 //! states:
@@ -39,14 +40,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use purrdf_rdf::{
     NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
     parse_dataset_with, serialize_dataset_with,
 };
-use raf_okf::{Body, DocType, Document, ErrorKind, FencedBlock};
-use raf_source::{DiskTree, MemoryTree, RelPath, Workspace};
-use raf_workplan::{Finding, LinkContext, Workplan, authoring, plain};
+use raf_okf::{AssessmentVerdict, Body, DocType, Document, ErrorKind, FencedBlock};
+use raf_source::{MemoryTree, RelPath, Workspace};
+use raf_workplan::{Finding, Gate, GateError, LinkContext, Opened, Workplan, authoring, plain};
 
 mod support;
 
@@ -771,9 +773,13 @@ fn load_checkout(root: &Path) -> Checkout {
     }
 }
 
-/// The source index of the whole repository: every package below the root.
-fn repository_source(root: &Path) -> Result<Workspace, Box<dyn Error>> {
-    Ok(Workspace::load(&DiskTree::new(root)?, &["."])?)
+/// Open the selected repository once for both source-backed document checks.
+fn repository_gate() -> &'static Opened {
+    static OPENED: OnceLock<Result<Opened, GateError>> = OnceLock::new();
+    OPENED
+        .get_or_init(|| Gate::workspace(gate_root()).open())
+        .as_ref()
+        .unwrap_or_else(|error| panic!("workplan gate: {error}"))
 }
 
 /// What the model says about a checkout.
@@ -928,7 +934,7 @@ fn check_authoring_roundtrip(
     Ok(())
 }
 
-fn report(violations: &[String]) -> String {
+fn report(violations: &[impl std::fmt::Display]) -> String {
     let mut report = String::new();
     for v in violations {
         let _ = writeln!(report, "  {v}");
@@ -950,8 +956,8 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
             .contains_key(Path::new("docs/diagrams/manifest.ttl")),
         "the tracked diagram ownership manifest is admitted"
     );
-    let source = repository_source(&root)?;
-    let verdict = with_plan(&checkout, &source, |plan, context| {
+    let source = repository_gate().workspace();
+    let verdict = with_plan(&checkout, source, |plan, context| {
         let verdict = judge_plan(&checkout, plan, context);
         let found = checkout_violations(&checkout, &verdict, &INVENTORY);
         assert!(
@@ -960,7 +966,7 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
             found.len(),
             report(&found)
         );
-        check_repository_bindings(&source, &verdict)?;
+        check_repository_bindings(source, &verdict)?;
         check_authoring_roundtrip(plan, &checkout)?;
         Ok::<_, Box<dyn Error>>(verdict)
     })?;
@@ -979,6 +985,39 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
         "every capability of the inventory loads into the model"
     );
     Ok(())
+}
+
+/// The production disk gate requires a nonempty, clean and assessed document set.
+#[test]
+fn repository_workplan_is_clean_and_assessed() {
+    let opened = repository_gate();
+    let workplan = opened.workplan();
+    assert!(
+        !workplan.capabilities().is_empty(),
+        "the workplan loaded no capability document"
+    );
+    let findings = workplan.check();
+    assert!(
+        findings.is_empty(),
+        "workplan gate: {} finding(s) in {}:\n{}",
+        findings.len(),
+        opened.dir().display(),
+        report(&findings)
+    );
+    let offending: Vec<String> = workplan
+        .list_assessments()
+        .iter()
+        .filter(|state| {
+            !state.currency.is_current() || state.verdict != AssessmentVerdict::Accepted
+        })
+        .map(ToString::to_string)
+        .collect();
+    assert!(
+        offending.is_empty(),
+        "{} assessment(s) are stale or not accepted:\n  {}",
+        offending.len(),
+        offending.join("\n  ")
+    );
 }
 
 fn check_repository_bindings(

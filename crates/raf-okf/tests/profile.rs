@@ -1003,18 +1003,14 @@ fn a_state_is_one_of_the_four() {
 
 #[test]
 fn bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list() {
+    // Missing and extra binding keys yield one violation at the map.
     let renamed = mutate(&alpha(), "  examples: []\n", "  docs: []\n");
-    assert_hit(
-        &violations(&renamed, ALPHA_PATH),
-        &key("bindings"),
-        &Rule::BindingsKeys,
-    );
-    let extra = mutate(&alpha(), "  examples: []\n", "  examples: []\n  docs: []\n");
-    assert_hit(
-        &violations(&extra, ALPHA_PATH),
-        &key("bindings"),
-        &Rule::BindingsKeys,
-    );
+    let missing = mutate(&alpha(), "  examples: []\n", "");
+    for text in [&renamed, &missing] {
+        let found = violations(text, ALPHA_PATH);
+        assert_eq!(found.len(), 1, "{found:#?}");
+        assert_hit(&found, &key("bindings"), &Rule::BindingsKeys);
+    }
     let scalar = mutate(
         &alpha(),
         "bindings:\n  code: []\n  tests: []\n  examples: []\n",
