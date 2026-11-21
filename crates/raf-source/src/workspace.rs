@@ -34,6 +34,7 @@ use crate::members::members;
 use crate::meter::{ItemAdmission, Meter, Usage};
 use crate::modtree::{Reach, TargetId, Visited, WalkConfiguration, Walked, Walker, tidy};
 use crate::options::LoadOptions;
+#[cfg(target_os = "linux")]
 use crate::parse::ConfigurationKey;
 use crate::path::{PathError, RelPath};
 use crate::reach::{self, Node, ReachError, Reachability};
@@ -1907,7 +1908,7 @@ fn walk_sources(
         let locked = bindings
             .get(target.package_id.index())
             .map(|proof| {
-                proof.indexed_configuration_for_under(
+                proof.admitted_configuration_for_under(
                     target.kind,
                     &target.name,
                     meter,
@@ -1920,13 +1921,15 @@ fn walk_sources(
             .map(|active| WalkConfiguration {
                 package: target.package_id,
                 active,
+                #[cfg(target_os = "linux")]
                 key: ConfigurationKey::Selected,
             })
             .or_else(|| {
-                locked.map(|(ordinal, active)| WalkConfiguration {
+                locked.map(|configuration| WalkConfiguration {
                     package: target.package_id,
-                    active,
-                    key: ConfigurationKey::Locked(target.package_id, ordinal),
+                    active: configuration.active,
+                    #[cfg(target_os = "linux")]
+                    key: ConfigurationKey::Locked(target.package_id, configuration.ordinal),
                 })
             });
         walker.configure(configuration);

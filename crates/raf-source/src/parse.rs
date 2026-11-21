@@ -78,10 +78,12 @@ pub(crate) enum Candidate<'a> {
     },
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Clone, Copy)]
 pub(crate) struct ConfigurationOrdinal(pub(crate) usize);
 
 /// A configuration admitted during canonical target selection.
+#[cfg(target_os = "linux")]
 #[derive(Clone, Copy)]
 pub(crate) enum ConfigurationKey {
     Selected,
@@ -89,6 +91,7 @@ pub(crate) enum ConfigurationKey {
 }
 
 /// The canonical reach's allowances and optional extraction context.
+#[cfg(target_os = "linux")]
 pub(crate) struct ExtractionGrant {
     pub(crate) allowance: FactAllowance,
     pub(crate) usage: Usage,
@@ -112,6 +115,7 @@ pub(crate) trait Parser {
         options: &LoadOptions,
         seen: &dyn Fn(&crate::FileId) -> bool,
     ) -> bool;
+    #[cfg(target_os = "linux")]
     fn parse(
         &self,
         path: &RelPath,

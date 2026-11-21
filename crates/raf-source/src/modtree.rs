@@ -43,9 +43,10 @@ use crate::intern::Interner;
 use crate::item::{ItemId, SharedStr};
 use crate::meter::{Meter, over_budget};
 use crate::parse::{
-    Candidate, ConfigurationKey, Extracted, ExtractionError, ExtractionGrant, Parser, extract_head,
-    parse_counted_mut, storage,
+    Candidate, Extracted, ExtractionError, Parser, extract_head, parse_counted_mut, storage,
 };
+#[cfg(target_os = "linux")]
+use crate::parse::{ConfigurationKey, ExtractionGrant};
 use crate::path::RelPath;
 use crate::tree::{EntryKind, FileId, Opened, Tree};
 use crate::workspace::SourceFile;
@@ -516,6 +517,7 @@ fn reach_bytes(reach: &Reach) -> usize {
 pub(crate) struct WalkConfiguration<'a> {
     pub(crate) package: PackageId,
     pub(crate) active: &'a ActiveConfiguration,
+    #[cfg(target_os = "linux")]
     pub(crate) key: ConfigurationKey,
 }
 
@@ -889,7 +891,13 @@ impl<'a> Walker<'a> {
             .map_err(|error| error.reached_by(origin))?;
         let before = self.meter.usage();
         let Extracted { text, head, scan } = self
-            .extract(path, &id, text, before)
+            .extract(
+                path,
+                #[cfg(target_os = "linux")]
+                &id,
+                text,
+                before,
+            )
             .map_err(|error| error.reached_by(origin))?;
         if let Some(after) = head.configuration_usage {
             self.meter.configuration_spent(before, after, path)?;
@@ -919,12 +927,13 @@ impl<'a> Walker<'a> {
     fn extract(
         &self,
         path: &RelPath,
-        id: &FileId,
+        #[cfg(target_os = "linux")] id: &FileId,
         text: String,
         before: crate::Usage,
     ) -> Result<Extracted, LoadError> {
         let options = self.meter.options();
         let allowance = self.meter.fact_allowance();
+        #[cfg(target_os = "linux")]
         if let Some(parser) = self.parser {
             return parser.parse(
                 path,

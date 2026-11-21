@@ -18,6 +18,7 @@ use super::{
 };
 use crate::configuration::{self, ActiveConfiguration, DeclaredConfiguration};
 use crate::manifest::{self, VersionDecl};
+#[cfg(target_os = "linux")]
 use crate::parse::ConfigurationOrdinal;
 use crate::{
     CommittedGitTree, LockedCatalog, LockedPackageId, LockedSource, RegistryArchiveTree,
@@ -171,6 +172,12 @@ pub struct LockedBinding {
     configurations: Vec<ActiveConfiguration>,
 }
 
+pub(super) struct AdmittedConfiguration<'a> {
+    pub(super) active: &'a ActiveConfiguration,
+    #[cfg(target_os = "linux")]
+    pub(super) ordinal: ConfigurationOrdinal,
+}
+
 impl LockedBinding {
     /// Validated declared context, present only for a definition-filtered load.
     #[must_use]
@@ -203,17 +210,19 @@ impl LockedBinding {
         meter: &Meter,
         path: &RelPath,
     ) -> Result<Option<&ActiveConfiguration>, LoadError> {
-        self.indexed_configuration_for_under(kind, name, meter, path)
-            .map(|result| result.map(|(_, active)| active))
+        self.admitted_configuration_for_under(kind, name, meter, path)
+            .map(|result| result.map(|configuration| configuration.active))
     }
-    pub(super) fn indexed_configuration_for_under(
+    pub(super) fn admitted_configuration_for_under(
         &self,
         kind: crate::TargetKind,
         name: &str,
         meter: &Meter,
         path: &RelPath,
-    ) -> Result<Option<(ConfigurationOrdinal, &ActiveConfiguration)>, LoadError> {
+    ) -> Result<Option<AdmittedConfiguration<'_>>, LoadError> {
         for (index, config) in self.configurations.iter().enumerate() {
+            #[cfg(not(target_os = "linux"))]
+            let _ = index;
             meter.work(
                 config
                     .target_name()
@@ -224,7 +233,11 @@ impl LockedBinding {
                 None,
             )?;
             if config.target_kind() == kind && config.target_name() == name {
-                return Ok(Some((ConfigurationOrdinal(index), config)));
+                return Ok(Some(AdmittedConfiguration {
+                    active: config,
+                    #[cfg(target_os = "linux")]
+                    ordinal: ConfigurationOrdinal(index),
+                }));
             }
         }
         Ok(None)
