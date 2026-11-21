@@ -41,6 +41,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::change::complete
     - cargo_workplan::bin_crate::cargo_workplan::change::completion_records
   tests:
+    - cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners
     - cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority
     - cargo_workplan::test_crate::complete::prospective_refusal_retains_the_record_and_every_input_byte
     - cargo_workplan::test_crate::process::a_missing_git_binary_does_not_prevent_native_reads
@@ -239,6 +240,9 @@ Expose the library's static contract and explicit data operations through consis
 
 ## Contract
 
+**Source impact.** `cargo workplan impact --base HEAD` compares the selected commit with the checkout. Each changed public or bound path lists its capability, the binding that explains the association, and the affected sections with their guarantees, tests, examples and recorded assessments. An unowned public item is a review result. An unavailable revision is an error. Text and RDF carry the same relationships. The command performs read-only inspection and works before a change record exists.
+<!-- raf:tested-by cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners -->
+
 `docs build standalone --repository-links` publishes existing authored source
 and capability navigation relative to its actual versioned output directory.
 The library receives the exact opened workspace and retains its existing
@@ -314,7 +318,7 @@ Run from the workspace or select it with `--root`.
 
 The documented data path is illustrated by `raf_workplan::example_crate::docs_sync`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
-The commands are `check`, `status`, `diagram`, `docs sync|preview|export|mdbook|fragment|artifacts|build`, `change new|impact|reconcile|complete`, `verify`, `history`, `evidence claims|for`, `assess`, `review`, `coverage code|tests|claims|lines` and `debt --write`. Global options select the root, output format and quiet mode. Help lists command-specific closed arguments.
+The commands are `check`, `impact --base REV`, `status`, `diagram`, `docs sync|preview|export|mdbook|fragment|artifacts|build`, `change new|impact|reconcile|complete`, `verify`, `history`, `evidence claims|for`, `assess`, `review`, `coverage code|tests|claims|lines` and `debt --write`. Global options select the root, output format and quiet mode. Help lists command-specific closed arguments.
 
 Use `docs fragment --package PACKAGE --metadata META --target-directory OUTPUT --view OWNER#NAME --module MODULE --capability CAPABILITY`. The target directory must already exist and match the imported metadata. The source index uses the same bounded static default load as `diagram`; metadata features do not select effective compiler configuration. Save stdout through a caller-owned operation when an include file is wanted.
 
@@ -510,6 +514,7 @@ CLI fixtures compare static verification with the library, exercise prospective 
 | `cargo_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::impact::quiet_prints_nothing_and_the_exit_stays_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::impact::rdf_preserves_impact_bindings_dependencies_links_and_list_order` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Verification](#verification) |

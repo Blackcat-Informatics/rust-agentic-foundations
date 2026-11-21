@@ -61,6 +61,16 @@ pub(crate) fn impact(root: &Path, slug: &str) -> Result<Report, Failure> {
     Ok(Report::of([impact_record(&impact)]))
 }
 
+/// Compare source without opening a change record.
+pub(crate) fn source_impact(root: &Path, base: &str) -> Result<Report, Failure> {
+    let impact = open(root)?.source_impact(base)?;
+    let text = impact.to_string();
+    Ok(Report::of([Record::outcome(
+        CommandResult::SourceImpact(impact),
+        text,
+    )]))
+}
+
 /// The record of an impact.
 fn impact_record(impact: &Impact) -> Record {
     Record::outcome(CommandResult::Impact(impact.clone()), impact.to_string())
