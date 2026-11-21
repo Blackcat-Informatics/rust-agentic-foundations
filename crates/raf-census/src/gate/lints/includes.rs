@@ -183,6 +183,11 @@ fn collect(
         }
         match token {
             TokenTree::Group(group) => groups.push((group.stream(), origin)),
+            TokenTree::Punct(p) if origin == Origin::MacroDefinition && p.as_char() == '$' => {
+                // A metavariable takes its meaning from the argument at the call site.
+                // Leave repetition groups on the stream so their contents are scanned.
+                tokens.next_if(|next| matches!(next, TokenTree::Ident(_)));
+            }
             TokenTree::Ident(name) if fragment && name == "mod" => {
                 if matches!(tokens.peek(), Some(TokenTree::Ident(_))) {
                     tokens.next();

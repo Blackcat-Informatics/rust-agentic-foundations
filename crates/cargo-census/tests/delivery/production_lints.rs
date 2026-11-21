@@ -212,7 +212,8 @@ fn macro_call_site(root: &Path) {
     assert!(error.contains("forwarded include_bytes"), "{error}");
     fs::write(
         &main,
-        r#"pub const DATA: &[u8; 1] = include_bytes!("message.txt");
+        r#"macro_rules! keep { ($include:expr) => { $include }; }
+           pub const DATA: &[u8; 1] = keep!(include_bytes!("message.txt"));
            pub fn skip(include: bool, enabled: bool) -> bool { return !(include && enabled); }"#,
     )
     .unwrap();
