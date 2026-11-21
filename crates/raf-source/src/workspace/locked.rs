@@ -13,10 +13,13 @@ use purrdf_lex::walk::{try_equal_range_by, try_sort_unstable_by};
 
 use super::{
     Caches, DependencyDeclaration, Found, ItemAdmission, LoadError, LoadErrorKind, LoadOptions,
-    Meter, PackageId, PackageInfo, Reader, RelPath, Workspace, WorkspaceOf, workspace_of,
+    Meter, PackageId, PackageInfo, Reader, RelPath, SyntaxLoad, Workspace, WorkspaceOf,
+    workspace_of,
 };
 use crate::configuration::{self, ActiveConfiguration, DeclaredConfiguration};
 use crate::manifest::{self, VersionDecl};
+#[cfg(target_os = "linux")]
+use crate::parse::ConfigurationOrdinal;
 use crate::{
     CommittedGitTree, LockedCatalog, LockedPackageId, LockedSource, RegistryArchiveTree,
     RegistryIndex, SourceAuthorityId, SourceTrees, Tree,
@@ -169,6 +172,12 @@ pub struct LockedBinding {
     configurations: Vec<ActiveConfiguration>,
 }
 
+pub(super) struct AdmittedConfiguration<'a> {
+    pub(super) active: &'a ActiveConfiguration,
+    #[cfg(target_os = "linux")]
+    pub(super) ordinal: ConfigurationOrdinal,
+}
+
 impl LockedBinding {
     /// Validated declared context, present only for a definition-filtered load.
     #[must_use]
@@ -201,7 +210,19 @@ impl LockedBinding {
         meter: &Meter,
         path: &RelPath,
     ) -> Result<Option<&ActiveConfiguration>, LoadError> {
-        for config in &self.configurations {
+        self.admitted_configuration_for_under(kind, name, meter, path)
+            .map(|result| result.map(|configuration| configuration.active))
+    }
+    pub(super) fn admitted_configuration_for_under(
+        &self,
+        kind: crate::TargetKind,
+        name: &str,
+        meter: &Meter,
+        path: &RelPath,
+    ) -> Result<Option<AdmittedConfiguration<'_>>, LoadError> {
+        for (index, config) in self.configurations.iter().enumerate() {
+            #[cfg(not(target_os = "linux"))]
+            let _ = index;
             meter.work(
                 config
                     .target_name()
@@ -212,7 +233,11 @@ impl LockedBinding {
                 None,
             )?;
             if config.target_kind() == kind && config.target_name() == name {
-                return Ok(Some(config));
+                return Ok(Some(AdmittedConfiguration {
+                    active: config,
+                    #[cfg(target_os = "linux")]
+                    ordinal: ConfigurationOrdinal(index),
+                }));
             }
         }
         Ok(None)
@@ -298,6 +323,7 @@ impl Workspace {
             local,
             Sources::Configured(sources),
             options,
+            SyntaxLoad::Ordinary(None),
         )
     }
 
@@ -319,16 +345,7 @@ impl Workspace {
         sources: &[LockedPackageRoots<'_>],
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
-        if first_party_roots.is_empty()
-            || first_party_roots
-                .iter()
-                .any(|root| root.authority() != SourceAuthorityId::FIRST_PARTY)
-        {
-            return Err(failure(
-                &RelPath::root(),
-                "supply nonempty first-party discovery roots",
-            ));
-        }
+        check_first_party_roots(first_party_roots)?;
         Self::load_locked_with(
             catalog,
             ReferenceTree::Opaque(first_party),
@@ -336,6 +353,73 @@ impl Workspace {
             local,
             Sources::Configured(sources),
             options,
+            SyntaxLoad::Ordinary(None),
+        )
+    }
+
+    /// Load checked locked sources with bounded first-party parser read-ahead on Linux.
+    ///
+    /// The first-party tree meets the observation contract of [`crate::ParallelTree`].
+    /// Sealed sources are read in canonical budget order. The canonical walk selects
+    /// each target's configured syntax before extracting facts.
+    ///
+    /// # Errors
+    /// Returns the same input refusals as [`Self::load_locked_sources`], or a
+    /// scheduler-storage or worker-start failure. All workers are joined.
+    ///
+    /// # Panics
+    /// Resumes a canonically reached parser panic after worker cleanup.
+    #[cfg(target_os = "linux")]
+    pub fn par_load_locked_sources(
+        catalog: &LockedCatalog,
+        first_party: &dyn crate::ParallelTree,
+        local: &[LockedManifest<'_>],
+        sources: &[LockedPackageRoots<'_>],
+        options: &LoadOptions,
+        parallel: &crate::ParallelOptions,
+    ) -> Result<Self, LoadError> {
+        Self::load_locked_with(
+            catalog,
+            ReferenceTree::Opaque(first_party),
+            None,
+            local,
+            Sources::Configured(sources),
+            options,
+            SyntaxLoad::LockedParallel(parallel),
+        )
+    }
+
+    /// Load the checked packages beneath explicit first-party roots with bounded
+    /// native Linux parser read-ahead.
+    ///
+    /// Discovery follows [`Self::load_locked_sources_under`] and parsing follows
+    /// [`Self::par_load_locked_sources`].
+    ///
+    /// # Errors
+    /// Returns the discovery refusals of [`Self::load_locked_sources_under`] and
+    /// the input and scheduler failures of [`Self::par_load_locked_sources`].
+    ///
+    /// # Panics
+    /// Resumes a canonically reached parser panic after worker cleanup.
+    #[cfg(target_os = "linux")]
+    pub fn par_load_locked_sources_under(
+        catalog: &LockedCatalog,
+        first_party: &dyn crate::ParallelTree,
+        first_party_roots: &[RelPath],
+        local: &[LockedManifest<'_>],
+        sources: &[LockedPackageRoots<'_>],
+        options: &LoadOptions,
+        parallel: &crate::ParallelOptions,
+    ) -> Result<Self, LoadError> {
+        check_first_party_roots(first_party_roots)?;
+        Self::load_locked_with(
+            catalog,
+            ReferenceTree::Opaque(first_party),
+            Some(first_party_roots),
+            local,
+            Sources::Configured(sources),
+            options,
+            SyntaxLoad::LockedParallel(parallel),
         )
     }
 
@@ -346,6 +430,7 @@ impl Workspace {
         local: &[LockedManifest<'_>],
         sources: Sources<'_>,
         options: &LoadOptions,
+        syntax: SyntaxLoad<'_>,
     ) -> Result<Self, LoadError> {
         let meter = Meter::new(options);
         let path = RelPath::root();
@@ -437,10 +522,24 @@ impl Workspace {
                     return Err(failure(&path, "duplicate manifest association"));
                 }
             }
-            Self::load_meter(&tree, &roots, options, &meter, Some(&binding))
+            Self::load_meter_with_syntax(&tree, &roots, options, &meter, Some(&binding), syntax)
         })();
         result.map_err(|error| recover(error, &mut admission))
     }
+}
+
+fn check_first_party_roots(roots: &[RelPath]) -> Result<(), LoadError> {
+    if roots.is_empty()
+        || roots
+            .iter()
+            .any(|root| root.authority() != SourceAuthorityId::FIRST_PARTY)
+    {
+        return Err(failure(
+            &RelPath::root(),
+            "supply nonempty first-party discovery roots",
+        ));
+    }
+    Ok(())
 }
 
 fn validate_registry_source(

@@ -226,16 +226,7 @@ impl Workspace {
         sources: &[ReferencePackageRoots<'_>],
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
-        if first_party_roots.is_empty()
-            || first_party_roots
-                .iter()
-                .any(|root| root.authority() != SourceAuthorityId::FIRST_PARTY)
-        {
-            return Err(failure(
-                &RelPath::root(),
-                "supply nonempty first-party discovery roots",
-            ));
-        }
+        super::check_first_party_roots(first_party_roots)?;
         Self::load_locked_with(
             catalog,
             first_party,
@@ -243,6 +234,7 @@ impl Workspace {
             local,
             Sources::Observed(sources),
             options,
+            super::SyntaxLoad::Ordinary(None),
         )
     }
 }
