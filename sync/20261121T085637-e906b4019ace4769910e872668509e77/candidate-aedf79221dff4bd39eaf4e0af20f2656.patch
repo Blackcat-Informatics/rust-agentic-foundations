@@ -1,0 +1,429 @@
+diff --git .githooks/pre-commit .githooks/pre-commit
+index 8e40d591..cfe7cd9d 100755
+--- .githooks/pre-commit
++++ .githooks/pre-commit
+@@ -3,12 +3,12 @@
+ # SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+ 
+ # Fast gates on what the commit records: fmt, reuse, and the `repo_gates`,
+-# `docs_contract`, `self_workplan` and `self_census` test binaries (licence digests,
++# `docs_contract` and `self_census` test binaries (licence digests,
+ # Python file refusal, issue-reference and process-wording scan, version agreement, document
+ # contract, the workplan gate and its assessments, and exact Census debt).
+ # The index is checked out into a temp dir, so a partially staged commit is
+ # judged as it will exist. fmt and reuse read that snapshot through ROOT. The
+-# four test binaries read it through RAF_GATE_ROOT, with the file list taken
++# three test binaries read it through RAF_GATE_ROOT, with the file list taken
+ # from the index. The test binaries themselves are compiled from the working
+ # tree, not the index: building inside the snapshot would cost a cold build on
+ # every commit. Their gate logic therefore comes from the working tree, and
+@@ -36,7 +36,7 @@ run() {
+ 
+ run fmt make --no-print-directory fmt ROOT="$snapshot"
+ run reuse make --no-print-directory reuse ROOT="$snapshot"
+-run gates env RAF_GATE_ROOT="$snapshot" cargo test --locked --no-fail-fast --test repo_gates --test docs_contract --test self_workplan --test self_census
++run gates env RAF_GATE_ROOT="$snapshot" cargo test --locked --no-fail-fast --test repo_gates --test docs_contract --test self_census
+ 
+ if [ "$failed" -ne 0 ]; then
+     echo "pre-commit: the staged snapshot fails the gates above; fix and re-stage." >&2
+diff --git AGENTS.md AGENTS.md
+index a6fcd4e9..93778d48 100644
+--- AGENTS.md
++++ AGENTS.md
+@@ -154,8 +154,8 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
+ ```
+ 
+ - **The required gates are the hooks and CI.** The pre-commit hook runs fmt and
+-  reuse on a checkout of the staged index, then the `repo_gates`, `docs_contract`,
+-  `self_workplan` and `self_census` test binaries over that checkout. The binaries
++  reuse on a checkout of the staged index, then the `repo_gates`, `docs_contract`
++  and `self_census` test binaries over that checkout. The binaries
+   are compiled from the working tree; only the files they judge come from the index.
+   The pre-merge-commit hook runs the same gates on merge commits. CI runs on every
+   pull request, and every hosted check is green before a merge.
+@@ -174,7 +174,8 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
+   tracker references and process wording, version agreement, the clock rule, the
+   Python ban and the first-party manifest policy. `tests/docs_contract.rs` runs the
+   workplan checks over the tracked documents and pins the capability inventory.
+-  `tests/self_workplan.rs` requires every assessment to be current and accepted.
++  The same binary runs the production Workplan gate and requires every assessment
++  to be current and accepted. Both checks share the gate's source index.
+   `tests/self_census.rs` runs the production Census gate through the locked check
+   over the workspace and fuzz roots, with the canonical ledger and exact adopted
+   debt; that ledger requires `purrdf.*` to supply the BLAKE3 digest and hexadecimal
+diff --git CONTRIBUTING.md CONTRIBUTING.md
+index 337f3916..e90630fc 100644
+--- CONTRIBUTING.md
++++ CONTRIBUTING.md
+@@ -76,10 +76,10 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
+ - **`make check` is the gate.** It stops at the first failure. CI runs the
+   documented compilation, test and policy checks; local `make check` additionally
+   runs optimized instrumented fuzzing. The pre-commit hook runs fmt and reuse on a checkout of the staged
+-  index, plus the `repo_gates`, `docs_contract`, `self_workplan` and `self_census` test binaries over
++  index, plus the `repo_gates`, `docs_contract` and `self_census` test binaries over
+   that checkout. The binaries are compiled from the working tree, not the index.
+   A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
+-  hook.
++  hook. [Staged gate measurements](docs/staged-gate-cost.md)
+ - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
+   committing on a checked-out branch runs that branch's copy of the hook, so a
+   hook change takes effect on the branch that carries it.
+diff --git Makefile Makefile
+index e534e6ee..9538d78d 100644
+--- Makefile
++++ Makefile
+@@ -8,7 +8,7 @@
+ # Both run the whole `repo_gates` binary (under a second) with no name filter,
+ # so a renamed test can never leave a target running zero tests.
+ # `.githooks/pre-commit` runs fmt and reuse on a checkout of the staged index,
+-# plus the `repo_gates`, `docs_contract`, `self_workplan` and `self_census` test binaries over that
++# plus the `repo_gates`, `docs_contract` and `self_census` test binaries over that
+ # checkout.
+ #
+ # Gates beyond the workspace tests:
+diff --git README.md README.md
+index 431db7ae..ff33278d 100644
+--- README.md
++++ README.md
+@@ -30,7 +30,7 @@ The guides pin the CLI and dev-dependency to the same Git revision. The consumer
+ | `raf-okf` | Parser, writer and closed profile for the authored documents. [OKF profile](docs/capabilities/okf-profile.md) |
+ | `raf-rdf` | Canonical ground RDF 1.2 reports over native PurRDF storage. [Report profile](docs/capabilities/rdf-report-profile.md) |
+ 
+-RAF runs Workplan against its own documents and Census against its workspace and fuzz roots. The linked tests show the additional policies RAF enforces on itself. The catalogue records the delivery state of each capability, including embedded-clone matching and Rustdoc assembly. [Workplan gate](tests/self_workplan.rs) · [Census gate](tests/self_census.rs) · [Capability catalogue](docs/capabilities/index.md)
++RAF runs Workplan against its own documents and Census against its workspace and fuzz roots. The linked tests show the additional policies RAF enforces on itself. The catalogue records the delivery state of each capability, including embedded-clone matching and Rustdoc assembly. [Workplan gate](tests/docs_contract.rs) · [Census gate](tests/self_census.rs) · [Capability catalogue](docs/capabilities/index.md)
+ 
+ ## Development
+ 
+diff --git WORKPLAN-HOWTO.md WORKPLAN-HOWTO.md
+index 46d67cb6..f41bf74c 100644
+--- WORKPLAN-HOWTO.md
++++ WORKPLAN-HOWTO.md
+@@ -158,7 +158,7 @@ cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
+ cargo test --test workplan
+ ```
+ 
+-Commit the refreshed documents and updated lockfile for a reproducible `cargo test --locked --test workplan` in CI. RAF's own repository also requires every recorded assessment to be current and accepted. Its test shows how to add that policy. [RAF's Workplan gate](tests/self_workplan.rs)
++Commit the refreshed documents and updated lockfile for a reproducible `cargo test --locked --test workplan` in CI. RAF's own repository also requires every recorded assessment to be current and accepted. Its test shows how to add that policy. [RAF's Workplan gate](tests/docs_contract.rs)
+ 
+ ## Change a delivered contract
+ 
+diff --git docs/capabilities/repository-contract.md docs/capabilities/repository-contract.md
+index d8e8341f..e549c4c9 100644
+--- docs/capabilities/repository-contract.md
++++ docs/capabilities/repository-contract.md
+@@ -124,7 +124,7 @@ bindings:
+     - rust_agentic_foundations::test_crate::repo_gates::python::python_extensions_are_refused_even_for_empty_or_binary_files
+     - rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension
+     - rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed
+-    - rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed
++    - rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed
+     - rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused
+     - rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate
+     - rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation
+@@ -166,8 +166,8 @@ both the root and independent fuzz dependency graphs checked. Aggregate test
+ and harness-policy results require their applicable jobs to succeed.
+ <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget -->
+ 
+-**Binding validation.** The self-workplan gate validates source bindings and the complete static document model. Consumer tests, examples and doctests are never executed by RAF. Verification prints declarations and static findings; completion uses a prospective document overlay and owned data writes. Maintainer-controlled RAF checks use explicitly controlled fixtures and never grant inspected source execution authority.
+-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed,cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
++**Binding validation.** The production Workplan gate opens the selected repository and indexes its Rust source once. The tracked-document check resolves bindings against that same index while judging its own Markdown, diagram assets, tracked paths and symlink policy. The production check uses the disk tree and the gate's link context. Each check reports its own findings. RAF verifies declarations and static findings without executing consumer tests, examples or doctests. Completion uses a prospective document overlay and owned data writes. Maintainer-controlled RAF checks use explicitly controlled fixtures and never grant inspected source execution authority.
++<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed,cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
+ **Self-Census.** The root package runs the production Census gate over the same
+ selected read root, through `Gate::check_locked`. The canonical `helpers-ledger.ttl`
+ declares both the first-party workspace and `fuzz` roots, with the standard token
+@@ -238,11 +238,11 @@ examples, with only its named clock implementation and rule-definition files
+ exempt. New crates are covered without another path inventory.
+ <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::issue_refs_reports_every_hit_as_file_and_line,rust_agentic_foundations::test_crate::repo_gates::issue_refs_spares_near_miss_prose,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_passes_the_clean_neighbour,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_judges_a_crate_added_under_the_crates_directory -->
+ 
+-**Current assessments.** The self-workplan test refuses any complete-policy
++**Current assessments.** The production Workplan test refuses any complete-policy
+ finding, any stale assessment or any verdict other than accepted. It requires at
+ least one loaded capability, so an empty or unreadable documentation set cannot
+ masquerade as a clean repository.
+-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
++<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed -->
+ 
+ **Python refusal.** Tracked paths refuse `.py`, `.pyw`, `.pyi`, `.pyc`, `.pyo`,
+ `.pyz` and `.pyzw` extensions case-insensitively, including empty and binary
+@@ -279,7 +279,7 @@ property, spelling it as an expression, or giving sixteen refuses and names the
+ job. Adding a workspace member automatically adds it to the source-change test
+ matrix. A documented example shared by several capabilities has one successful
+ execution for its package, while every binding still receives native planning.
+-<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget,rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
++<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget,rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed -->
+ 
+ A clean self-Census accepts the currently adopted groups. Adding another
+ normal-form-equivalent implementation creates growth and makes the same gate
+@@ -392,6 +392,7 @@ no separate interpretation of the documents or source index.
+ | `rust_agentic_foundations::test_crate::docs_contract::rejects_a_typed_document_outside_the_document_directories` | test | [Verification](#verification) |
+ | `rust_agentic_foundations::test_crate::docs_contract::rejects_non_markdown_file_in_a_document_directory` | test | [Verification](#verification) |
+ | `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
++| `rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
+ | `rust_agentic_foundations::test_crate::docs_contract::the_checker_accepts_a_valid_checkout` | test | [Verification](#verification) |
+ | `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks` | test | [Contract](#contract) |
+ | `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_markdown_outside_the_document_directories` | test | [Verification](#verification) |
+@@ -481,7 +482,6 @@ no separate interpretation of the documents or source index.
+ | `rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate` | test | [Contract](#contract) |
+ | `rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation` | test | [Contract](#contract) |
+ | `rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
+-| `rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
+ | `rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back` | test | [Contract](#contract) |
+ | `rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory` | test | [Contract](#contract) |
+ <!-- raf:generated:end -->
+diff --git docs/staged-gate-cost.md docs/staged-gate-cost.md
+new file mode 100644
+index 00000000..0ade15f2
+--- /dev/null
++++ docs/staged-gate-cost.md
+@@ -0,0 +1,35 @@
++<!-- SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca> -->
++<!-- SPDX-License-Identifier: CC-BY-4.0 -->
++
++# Staged gate cost
++
++The repository's tracked-document test and its production Workplan test share one source index. The tracked Markdown, diagram assets, symlink rules and inventory have their own check. The production check evaluates the disk documents and requires every assessment to be current and accepted.
++
++## Measured work
++
++| Complete staged hook | Independent source indexes | Shared source index |
++| --- | ---: | ---: |
++| Workspace index builds | 67 | 66 |
++| Physical Rust files analyzed by the module walker, counting repeated loads | 8,082 | 7,400 |
++| Native whole-file parser entries in Source | 11,448 | 10,766 |
++| Additional parses in the repository runtime-boundary rule | 389 | 389 |
++| User instructions, including descendants | 5,448,761,196,322 | 5,384,900,616,686 |
++| Successful glibc allocation calls at the observed interfaces | 511,344,172 | 494,584,679 |
++| Peak cgroup memory in bytes | 584,114,176 | 605,732,864 |
++
++Sharing the index saves a walk and parse of 682 physical files. Both configurations pass the same 116 named tests, including the two distinct document judgments. The shared configuration executes about 1.2% fewer instructions and makes about 3.3% fewer allocation calls. Its observed peak memory is about 3.7% higher. Both document tests can run concurrently in one process. The observations come from one complete run of each configuration and include the measurement overhead.
++
++A two-module crate with a re-export gives equal source workspaces and resource usage through the direct loader and the production gate. The ordered export and resolution report has ten lines and digest `5ab34bd7e1e6d9f8`. When both modules exceed the delimiter budget, both loads refuse `src/first.rs` at line 1 with `Budget::Delimiters`, limit 128, reached by `mod first;`. Comparing the public-surface report and the complete refusal text checks ordering as well as the error kind.
++
++## Inputs and measurement
++
++The native Linux sample uses Git tree `566c505001750b48746d0a1f37afe73ad260372f` from commit `b784a526bab523c493062bca78862d95be06322f`. Both hook implementations check that tree. The host has an AMD Ryzen AI Max+ 395 processor, Linux `7.3.4-1-cachyos`, glibc 2.44 and Rust nightly `5df8c02af` with LLVM 23.1.5. The test binaries use the hook's default unoptimized test profile.
++
++To reproduce the comparison, retain the same Git index and change the hook and test implementations in the working tree. Check `git write-tree` before and after each run. Warm the hook's selected test executables with `cargo test --locked --no-fail-fast --no-run` and the hook's exact list of test targets. Execute `.githooks/pre-commit` once per configuration. Preserve its exit status, the sorted list of test names and their outcomes, stdout and stderr.
++
++* Compile the `raf_source` library and the `repo_gates` test with `-C instrument-coverage -C llvm-args=-instrprof-atomic-counter-update-all`. Link the matching LLVM profile runtime into every test binary with instrumented library code. Start each with `--list` in a separate profile directory and verify it writes a profile there. Set `LLVM_PROFILE_FILE` to a fresh directory with the filename pattern `%p-%m.profraw` for the measured run. Combine those profiles with `llvm-profdata merge --sparse` and export line counts with `llvm-cov export --format=lcov` using the measured executables.
++* Count a workspace index build at the package-directory indexing call in `Workspace::build_discovered_with_syntax`, a physical source analysis at `meter.read(path, &text)` in the module walker's new-file arm, and a native parse at `syn::parse2(original)` in `raf-source`. Count the repository runtime-boundary rule's `syn::parse_file(text)` separately. One parsed file can serve multiple target reaches. These counters describe RAF analysis. Compiler and formatter parses and work performed inside the native parser have separate scopes.
++* Run `perf stat --no-scale -x, -e instructions:u` with child inheritance and require full reported event coverage. In a fresh systemd user scope, read `memory.peak` from the current cgroup after the hook exits. The kernel high-water mark covers the full process tree, observer processes, charged file pages and kernel memory.
++* Interpose glibc `malloc`, `calloc` and `realloc`. Forward each call to the native allocator and count successful results in one shared mapping across threads, forks and executable replacements. Count registrations after startup and compare their PID multiset with successful workload execs from `strace -f`. The dynamic loader's standalone information commands and the static cache query have no dynamic allocation imports. The counts describe these three entry points. Custom arena suballocations, aligned-only APIs and private allocator entry points are outside this metric.
++
++The independent serial and two-worker measurement used the release-profile `raf-source` fixture at commit `55be9e5d62fcf545098a014960fb873546b150ad` with 64 sibling modules. Both modes returned the same 8,320-line export digest, `61b7161fb620fcad`. The serial load used 207,568,118 instructions and 285,482 allocations. The parallel load used 207,715,145 instructions and 285,513 allocations. These two allocation counts come from the fixture's Rust global allocator. Sharing the existing source workspace eliminates one full traversal while keeping the ordinary parser and its resource limits. [Parallel measurement](../crates/raf-source/examples/parallel_cost.rs) · [Workspace report](../crates/raf-source/examples/ws_cost.rs)
+diff --git tests/docs_contract.rs tests/docs_contract.rs
+index 6b8e7e8b..5e6e250a 100644
+--- tests/docs_contract.rs
++++ tests/docs_contract.rs
+@@ -10,7 +10,8 @@
+ //! source index of the whole repository, and requires `Workplan::check` to
+ //! report nothing. `raf_workplan::plain::check` judges the tracked Markdown
+ //! outside the document directories (README, AGENTS.md, templates). The
+-//! `Gate::workspace` run of the same checks from disk is `tests/self_workplan.rs`.
++//! production disk gate also checks every recorded assessment. Both test cases
++//! bind their documents against the same source index of the selected snapshot.
+ //!
+ //! What stays here is this repository's own policy, which no model rule
+ //! states:
+@@ -39,14 +40,15 @@ use std::collections::{BTreeMap, BTreeSet};
+ use std::error::Error;
+ use std::fmt::Write as _;
+ use std::path::{Path, PathBuf};
++use std::sync::OnceLock;
+ 
+ use purrdf_rdf::{
+     NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
+     parse_dataset_with, serialize_dataset_with,
+ };
+-use raf_okf::{Body, DocType, Document, ErrorKind, FencedBlock};
+-use raf_source::{DiskTree, MemoryTree, RelPath, Workspace};
+-use raf_workplan::{Finding, LinkContext, Workplan, authoring, plain};
++use raf_okf::{AssessmentVerdict, Body, DocType, Document, ErrorKind, FencedBlock};
++use raf_source::{MemoryTree, RelPath, Workspace};
++use raf_workplan::{Finding, Gate, GateError, LinkContext, Opened, Workplan, authoring, plain};
+ 
+ mod support;
+ 
+@@ -771,9 +773,13 @@ fn load_checkout(root: &Path) -> Checkout {
+     }
+ }
+ 
+-/// The source index of the whole repository: every package below the root.
+-fn repository_source(root: &Path) -> Result<Workspace, Box<dyn Error>> {
+-    Ok(Workspace::load(&DiskTree::new(root)?, &["."])?)
++/// Open the selected repository once for both source-backed document checks.
++fn repository_gate() -> &'static Opened {
++    static OPENED: OnceLock<Result<Opened, GateError>> = OnceLock::new();
++    OPENED
++        .get_or_init(|| Gate::workspace(gate_root()).open())
++        .as_ref()
++        .unwrap_or_else(|error| panic!("workplan gate: {error}"))
+ }
+ 
+ /// What the model says about a checkout.
+@@ -928,7 +934,7 @@ fn check_authoring_roundtrip(
+     Ok(())
+ }
+ 
+-fn report(violations: &[String]) -> String {
++fn report(violations: &[impl std::fmt::Display]) -> String {
+     let mut report = String::new();
+     for v in violations {
+         let _ = writeln!(report, "  {v}");
+@@ -950,8 +956,8 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
+             .contains_key(Path::new("docs/diagrams/manifest.ttl")),
+         "the tracked diagram ownership manifest is admitted"
+     );
+-    let source = repository_source(&root)?;
+-    let verdict = with_plan(&checkout, &source, |plan, context| {
++    let source = repository_gate().workspace();
++    let verdict = with_plan(&checkout, source, |plan, context| {
+         let verdict = judge_plan(&checkout, plan, context);
+         let found = checkout_violations(&checkout, &verdict, &INVENTORY);
+         assert!(
+@@ -960,7 +966,7 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
+             found.len(),
+             report(&found)
+         );
+-        check_repository_bindings(&source, &verdict)?;
++        check_repository_bindings(source, &verdict)?;
+         check_authoring_roundtrip(plan, &checkout)?;
+         Ok::<_, Box<dyn Error>>(verdict)
+     })?;
+@@ -981,6 +987,39 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
+     Ok(())
+ }
+ 
++/// The production disk gate requires a nonempty, clean and assessed document set.
++#[test]
++fn repository_workplan_is_clean_and_assessed() {
++    let opened = repository_gate();
++    let workplan = opened.workplan();
++    assert!(
++        !workplan.capabilities().is_empty(),
++        "the workplan loaded no capability document"
++    );
++    let findings = workplan.check();
++    assert!(
++        findings.is_empty(),
++        "workplan gate: {} finding(s) in {}:\n{}",
++        findings.len(),
++        opened.dir().display(),
++        report(&findings)
++    );
++    let offending: Vec<String> = workplan
++        .list_assessments()
++        .iter()
++        .filter(|state| {
++            !state.currency.is_current() || state.verdict != AssessmentVerdict::Accepted
++        })
++        .map(ToString::to_string)
++        .collect();
++    assert!(
++        offending.is_empty(),
++        "{} assessment(s) are stale or not accepted:\n  {}",
++        offending.len(),
++        offending.join("\n  ")
++    );
++}
++
+ fn check_repository_bindings(
+     workspace: &Workspace,
+     verdict: &Verdict,
+diff --git tests/self_workplan.rs tests/self_workplan.rs
+deleted file mode 100644
+index 34774082..00000000
+--- tests/self_workplan.rs
++++ /dev/null
+@@ -1,65 +0,0 @@
+-// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+-// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+-
+-//! The workplan gate over this repository, from disk.
+-//!
+-//! `Gate::workspace` opens the gate root the way a dependent crate's own test
+-//! does. The repository must load at least one capability, `Workplan::check`
+-//! must report nothing, and every assessment record must be current and
+-//! accepted, so a section that changed after it was assessed fails here until
+-//! it is assessed again. Inside the commit hook the root is a checkout of the
+-//! index without `.git`, and the gate takes every file of it for a tracked
+-//! path.
+-
+-use std::fmt::Write as _;
+-
+-use raf_okf::AssessmentVerdict;
+-use raf_workplan::Gate;
+-
+-#[allow(
+-    dead_code,
+-    reason = "only gate_root is used here; the other binaries use the rest of the shared support"
+-)]
+-mod support;
+-
+-use support::gate_root;
+-
+-#[test]
+-fn repository_workplan_is_clean_and_assessed() {
+-    let opened = match Gate::workspace(gate_root()).open() {
+-        Ok(opened) => opened,
+-        Err(error) => panic!("workplan gate: {error}"),
+-    };
+-    let workplan = opened.workplan();
+-    assert!(
+-        !workplan.capabilities().is_empty(),
+-        "the workplan loaded no capability document"
+-    );
+-
+-    let findings = workplan.check();
+-    let mut report = String::new();
+-    for finding in &findings {
+-        let _ = writeln!(report, "  {finding}");
+-    }
+-    assert!(
+-        findings.is_empty(),
+-        "workplan gate: {} finding(s) in {}:\n{report}",
+-        findings.len(),
+-        opened.dir().display()
+-    );
+-
+-    let offending: Vec<String> = workplan
+-        .list_assessments()
+-        .iter()
+-        .filter(|state| {
+-            !state.currency.is_current() || state.verdict != AssessmentVerdict::Accepted
+-        })
+-        .map(ToString::to_string)
+-        .collect();
+-    assert!(
+-        offending.is_empty(),
+-        "{} assessment(s) are stale or not accepted:\n  {}",
+-        offending.len(),
+-        offending.join("\n  ")
+-    );
+-}
+diff --git work/assessments/repository-contract-contract.md work/assessments/repository-contract-contract.md
+index 8a3ea310..cce25509 100644
+--- work/assessments/repository-contract-contract.md
++++ work/assessments/repository-contract-contract.md
+@@ -7,7 +7,7 @@ subject: cap:repository-contract#contract
+ inputs:
+   - kind: section
+     name: cap:repository-contract#contract
+-    digest: 7f67249c62b48999277e05a4ea4b196d8ca4900b52043ccc2586782ad9c09765
++    digest: 203687a84616eb0b43d1c5b97343be9258b4a98ff84dd105b6597a4e7b3660fb
+   - kind: symbol
+     name: rust_agentic_foundations
+     digest: 10d07789202f4cdcb47543cb50aa11a4a452b9f7b65024ec835902e85c3e1b06
+diff --git work/assessments/repository-contract-examples.md work/assessments/repository-contract-examples.md
+index 100ff0e3..35032a3b 100644
+--- work/assessments/repository-contract-examples.md
++++ work/assessments/repository-contract-examples.md
+@@ -7,7 +7,7 @@ subject: cap:repository-contract#examples
+ inputs:
+   - kind: section
+     name: cap:repository-contract#examples
+-    digest: e7ce770bf777202e69476dec00f2b91ba8f3a2e05d2a7d81dbbc4a5aa3b3064a
++    digest: 1338c00146b59e0422f7eb4d7992105a613014043c49cb4568953685308df6ee
+   - kind: symbol
+     name: rust_agentic_foundations
+     digest: 10d07789202f4cdcb47543cb50aa11a4a452b9f7b65024ec835902e85c3e1b06

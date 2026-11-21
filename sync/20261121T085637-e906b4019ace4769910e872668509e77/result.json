@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys",
+  "branch": "paudley/385-okf-validate-closed-change-item-keys",
+  "base_ref": "refs/remotes/origin/main",
+  "head": "fb574fc783a33d230df06b1d51eee67c0120ea7c",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys/.stage/okf-validate-closed-change-item-keys/sync/20261121T085637-e906b4019ace4769910e872668509e77",
+  "conflicts": [],
+  "status": "completed",
+  "base": "970bbb6982174c475a41ebecc06eecfee69ecd31",
+  "merge_bases": [
+    "e094582e63c3477c46974d686c8566c2ad484a4b"
+  ],
+  "merge_index": "72b7b1f5e333a016561ce360b89cb616847ab1bd54ef3c1758fab0ca6e208637",
+  "candidate_tree": "97abe4db56accfa736aaa130e76e362bd084f971",
+  "candidate_patch": "candidate-aedf79221dff4bd39eaf4e0af20f2656.patch",
+  "stdout_log": "commit-aedf79221dff4bd39eaf4e0af20f2656.stdout.log",
+  "stderr_log": "commit-aedf79221dff4bd39eaf4e0af20f2656.stderr.log",
+  "validation_records": [],
+  "commit_duration_seconds": 688.2024624070036,
+  "commit": "6ea3a88540f4cbfd8bd36fb6883fc321cebf5809",
+  "tree": "97abe4db56accfa736aaa130e76e362bd084f971",
+  "exit_code": 0
+}

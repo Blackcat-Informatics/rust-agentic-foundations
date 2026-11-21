@@ -1,0 +1,33 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "Validate the keys of each authored Change item map with native SHACL Core.\nThe map requires `claim` and permits `outcome` and `reason`. Reuse the\nprepared header validator and bounded native dataset.\n\n- Give each reached map a focus derived from its list position. Keep\n  separate findings for separate items, including items with identical\n  contents. Bound each focus and its keys before native graph allocation.\n- Project only the maps before the existing first non-map refusal. Preserve\n  the existing wrong-list and wrong-map diagnostics.\n- Preserve individual unknown-key findings in author order and one\n  `ItemClaimEmpty` finding for a missing claim. Preserve its location and\n  order relative to the existing claim, outcome and reason value checks.\n- Exercise a closed-map violation, a missing claim, distinct occurrences,\n  an items list without maps and a valid neighbor through the profile.\n  Preserve the canonical authoring round trip.\n\nParent #41 retains the other nested shapes, value constraints, repository\ngraph validation and final profile reconciliation.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-11-21T06:27:16Z",
+  "labels": [
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bapUQ",
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bfxSw",
+      "name": "crate:raf-okf",
+      "description": "",
+      "color": "1d76db"
+    }
+  ],
+  "milestone": null,
+  "number": 385,
+  "state": "OPEN",
+  "title": "okf: validate closed change-item keys with native SHACL",
+  "updatedAt": "2026-11-21T06:27:16Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/385"
+}

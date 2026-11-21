@@ -1,0 +1,16 @@
+{
+  "github:comment:IC_kwDOVFffUs8AAAABpMmEYA": {
+    "resolution": "acknowledged",
+    "reason": "The refreshed comment records a skipped sync-only review and repeats the earlier linked issue checks. The reviewed topic patch is byte-identical. Existing items_need_a_claim_known_keys_and_a_known_outcome and each_fixture_document_renders_to_its_own_bytes_and_validates cover the scalar and non-list refusals, empty and valid neighbors, and round trip. The source applies the first-scalar stop and byte bounds before native graph construction.",
+    "commit": null,
+    "reply_url": null,
+    "revision": {
+      "updated_at": "2026-11-21T09:09:31Z",
+      "state": null,
+      "commit": null,
+      "path": null,
+      "line": null,
+      "body_sha256": "b95ebdcfe1f6da52b1c7a43d4b15e7014d06007dd112d0d4d80e70fba21df247"
+    }
+  }
+}

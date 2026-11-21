@@ -1,0 +1,196 @@
+{
+  "issue": 385,
+  "pr_number": 388,
+  "branch": "paudley/385-okf-validate-closed-change-item-keys",
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys/.stage/okf-validate-closed-change-item-keys",
+  "observed_at": "2026-11-21T09:28:44.651550+00:00",
+  "completed": [
+    "pr",
+    "checks",
+    "reviews"
+  ],
+  "blocked": [],
+  "unavailable": [],
+  "next_actions": [],
+  "artifacts": {
+    "ci_failures": "/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys/.stage/okf-validate-closed-change-item-keys/ci-failures.md",
+    "reviews": "/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys/.stage/okf-validate-closed-change-item-keys/pr-comments.md",
+    "status": "/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys/.stage/okf-validate-closed-change-item-keys/status.json",
+    "checks": "/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys/.stage/okf-validate-closed-change-item-keys/pr-checks.txt",
+    "review_evidence": "/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys/.stage/okf-validate-closed-change-item-keys/review-evidence.json"
+  },
+  "limits": [
+    "Mechanical evidence only; artifact presence does not establish a passing review or acceptance verdict."
+  ],
+  "pr": {
+    "baseRefName": "main",
+    "baseRefOid": "970bbb6982174c475a41ebecc06eecfee69ecd31",
+    "headRefName": "paudley/385-okf-validate-closed-change-item-keys",
+    "headRefOid": "6ea3a88540f4cbfd8bd36fb6883fc321cebf5809",
+    "isDraft": false,
+    "mergeCommit": null,
+    "mergedAt": null,
+    "number": 388,
+    "state": "OPEN",
+    "title": "feat(okf): validate change item keys with native SHACL",
+    "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/388"
+  },
+  "checks": {
+    "state": "pass",
+    "checks": [
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136799949829",
+        "name": "test",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798737175",
+        "name": "fuzz",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146132",
+        "name": "test (raf-source 1/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146160",
+        "name": "test (raf-workplan 1/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146264",
+        "name": "test (raf-workplan 3/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146152",
+        "name": "test (cargo-census)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146157",
+        "name": "test (raf-census)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146119",
+        "name": "test (raf-rdf)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146018",
+        "name": "fmt",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146143",
+        "name": "test (raf-source 2/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146145",
+        "name": "test (raf-fixtures)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146195",
+        "name": "test (raf-okf)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146055",
+        "name": "doc",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146107",
+        "name": "test (raf-workplan 2/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798145990",
+        "name": "clippy",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146275",
+        "name": "test (cargo-workplan)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146232",
+        "name": "test (rust-agentic-foundations 1/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146262",
+        "name": "test (rust-agentic-foundations 2/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146034",
+        "name": "test-release",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146066",
+        "name": "fuzz_checks",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798146047",
+        "name": "msrv",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://coderabbit.ai?utm_source=cr_app&utm_medium=github",
+        "name": "CodeRabbit",
+        "state": "SKIPPED"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798061707",
+        "name": "deny",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798061899",
+        "name": "packages",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44888212774/job/136798061882",
+        "name": "reuse",
+        "state": "SUCCESS"
+      }
+    ]
+  },
+  "reviews": {
+    "head": "6ea3a88540f4cbfd8bd36fb6883fc321cebf5809",
+    "coverage": {
+      "comments": "complete",
+      "reviews": "complete",
+      "inline_comments": "complete",
+      "threads": "complete"
+    },
+    "items": 1,
+    "change_token": "e9060681fd6dd83a11cf80df5e21a1593a6127c5ae2dea645e480aadf2d6b302"
+  },
+  "local": {
+    "head": "6ea3a88540f4cbfd8bd36fb6883fc321cebf5809",
+    "branch": "paudley/385-okf-validate-closed-change-item-keys",
+    "dirty_paths": []
+  },
+  "ci_logs": {
+    "pr": 388,
+    "jobs": [],
+    "ok": true,
+    "summary": "# PR #388 failed CI logs\n\nNo failed checks in this snapshot.\n"
+  },
+  "review_debt": [],
+  "unresolved_threads": [],
+  "validation": {
+    "results": [],
+    "limits": "Scopes are caller-selected. Unchanged scope is reusable evidence, not a gate waiver; environment capture is not exhaustive."
+  }
+}

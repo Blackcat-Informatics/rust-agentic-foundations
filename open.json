@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "issue": 385,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "anon-read",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys",
+  "branch": "paudley/385-okf-validate-closed-change-item-keys",
+  "slug": "okf-validate-closed-change-item-keys",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys/.stage/okf-validate-closed-change-item-keys",
+  "stage_tracked": true,
+  "base": "refs/remotes/origin/main",
+  "base_oid": "6d062afa50f3d147f5794bee694132e3c713e947",
+  "reused": false,
+  "adr_repo": false,
+  "created": [
+    "worktree:/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys",
+    "branch:paudley/385-okf-validate-closed-change-item-keys",
+    "ignored:515 files (515 reflinked, 0 written)",
+    "rust-caches:skipping busy source /opt/.cargo/7c/23ed9907e224e9: /opt/.cargo/7c/23ed9907e224e9/debug/.cargo-build-lock; reflinked /home/paudley/Active/rust-agentic-foundations/.worktrees/381-measure-a-complete-staged-gate-and caches into /home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys plus 0 dependency units from 0 other checkouts in 33.9s; 1417 unchanged files keep their built mtimes; 11 other files take the seed time and rebuild; 18 units naming another checkout rebuild",
+    "stage:/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys/.stage/okf-validate-closed-change-item-keys",
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/385-okf-validate-closed-change-item-keys/.stage/okf-validate-closed-change-item-keys/issue.md"
+  ],
+  "warnings": [],
+  "timestamp": "2026-11-21T00:30:48-0600",
+  "seed_error": ""
+}
