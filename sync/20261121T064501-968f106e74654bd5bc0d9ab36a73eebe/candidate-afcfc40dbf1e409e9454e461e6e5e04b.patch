@@ -1,0 +1,618 @@
+diff --git crates/raf-okf/src/profile/header.rs crates/raf-okf/src/profile/header.rs
+index e81eed54..7c4aabc3 100644
+--- crates/raf-okf/src/profile/header.rs
++++ crates/raf-okf/src/profile/header.rs
+@@ -1,7 +1,7 @@
+ // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+ // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+ 
+-//! Native SHACL over top-level key presence, independent of the authoring codec.
++//! Native SHACL over authored key presence, independent of the authoring codec.
+ 
+ use std::{
+     fmt,
+@@ -18,11 +18,12 @@ use purrdf_shapes::{
+     term::{NamedNode, Term},
+ };
+ 
+-use super::{Check, DocType, Map, Rule};
++use super::{BINDING_KEYS, Check, DocType, Map, Rule};
+ 
+ const KEY: &str = "urn:raf:okf:key:";
+ const FOCUS: &str = "urn:raf:okf:header:";
+ const SHAPE: &str = "urn:raf:okf:header-shape:";
++const BINDINGS_SHAPE: &str = "Capability-bindings";
+ const RDF_TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+ const XSD_BOOLEAN: &str = "http://www.w3.org/2001/XMLSchema#boolean";
+ const XSD_INTEGER: &str = "http://www.w3.org/2001/XMLSchema#integer";
+@@ -34,7 +35,7 @@ const MIN_COUNT: &str = "http://www.w3.org/ns/shacl#MinCountConstraintComponent"
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ #[non_exhaustive]
+ pub enum HeaderShapeError {
+-    /// The authored key bytes and their line separators exceed the document bound.
++    /// The projected key bytes and their line separators exceed the document bound.
+     KeyBytes,
+     /// Native RDF graph storage refused schema or header construction.
+     Storage(StorageError),
+@@ -51,7 +52,7 @@ impl fmt::Display for HeaderShapeError {
+         match self {
+             Self::KeyBytes => write!(
+                 f,
+-                "top-level keys exceed the {} byte authoring bound",
++                "authored header keys exceed the {} byte authoring bound",
+                 crate::MAX_TEXT_BYTES
+             ),
+             Self::Storage(source) => write!(
+@@ -98,14 +99,24 @@ impl From<RdfDiagnostic> for HeaderShapeError {
+     }
+ }
+ 
++/// Reports top-level key findings and returns the binding map's key-set verdict.
+ pub(super) fn check(
+     check: &mut Check<'_>,
+     map: &Map,
+     doc_type: DocType,
+-) -> Result<(), HeaderShapeError> {
++) -> Result<bool, HeaderShapeError> {
+     static SCHEMA: OnceLock<PreparedShapes> = OnceLock::new();
+     let focus = format!("{FOCUS}{}", doc_type.name());
+-    let data = header_graph(&focus, map)?;
++    let bindings = if doc_type == DocType::Capability {
++        map.get("bindings").and_then(|entry| entry.value().as_map())
++    } else {
++        None
++    };
++    let binding_focus = bindings.map(|_| format!("{FOCUS}{BINDINGS_SHAPE}"));
++    let data = header_graph([
++        Some((focus.as_str(), map)),
++        binding_focus.as_deref().zip(bindings),
++    ])?;
+     let binding = if let Some(schema) = SCHEMA.get() {
+         schema.bind_shared_dataset(data)?
+     } else {
+@@ -116,12 +127,40 @@ pub(super) fn check(
+         binding
+     };
+     let focus = NamedNode::from(focus.as_str()).into_term();
+-    let report = binding.validate_focus_nodes(std::slice::from_ref(&focus))?;
+-    report_keys(&report, &focus, map, doc_type, check)
++    let both;
++    let focuses = if let Some(name) = binding_focus {
++        both = [focus, NamedNode::from(name.as_str()).into_term()];
++        both.as_slice()
++    } else {
++        std::slice::from_ref(&focus)
++    };
++    let report = binding.validate_focus_nodes(focuses)?;
++    report_keys(&report, focuses, map, doc_type, check)
+ }
+ 
+ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
+     let mut graph = RdfDatasetBuilder::new();
++    for doc_type in DocType::ALL {
++        add_shape(
++            &mut graph,
++            doc_type.name(),
++            doc_type.keys().iter().map(|spec| (spec.key, spec.required)),
++        )?;
++    }
++    add_shape(
++        &mut graph,
++        BINDINGS_SHAPE,
++        BINDING_KEYS.into_iter().map(|key| (key, true)),
++    )?;
++    let shapes = shapes::from_dataset(&graph.freeze()?)?;
++    Ok(PreparedShapes::new(Arc::new(shapes)))
++}
++
++fn add_shape(
++    graph: &mut RdfDatasetBuilder,
++    name: &str,
++    keys: impl Iterator<Item = (&'static str, bool)>,
++) -> Result<(), HeaderShapeError> {
+     let rdf_type = graph.intern_iri(RDF_TYPE)?;
+     let node_shape = graph.intern_iri(&format!("{SH}NodeShape"))?;
+     let target = graph.intern_iri(&format!("{SH}targetNode"))?;
+@@ -131,56 +170,53 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
+     let min_count = graph.intern_iri(&format!("{SH}minCount"))?;
+     let yes = graph.intern_literal(RdfLiteral::typed("true", XSD_BOOLEAN))?;
+     let one = graph.intern_literal(RdfLiteral::typed("1", XSD_INTEGER))?;
+-    for doc_type in DocType::ALL {
+-        let name = doc_type.name();
+-        let shape = graph.intern_iri(&format!("{SHAPE}{name}"))?;
+-        let focus = graph.intern_iri(&format!("{FOCUS}{name}"))?;
+-        graph.push_quad(shape, rdf_type, node_shape, None)?;
+-        graph.push_quad(shape, target, focus, None)?;
+-        graph.push_quad(shape, closed, yes, None)?;
+-        for spec in doc_type.keys() {
+-            let key = spec.key;
+-            let field = graph.intern_iri(&format!("{SHAPE}{name}:{key}"))?;
+-            let predicate = graph.intern_iri(&format!("{KEY}{key}"))?;
+-            graph.push_quad(shape, property, field, None)?;
+-            graph.push_quad(field, path, predicate, None)?;
+-            if spec.required {
+-                graph.push_quad(field, min_count, one, None)?;
+-            }
++    let shape = graph.intern_iri(&format!("{SHAPE}{name}"))?;
++    let focus = graph.intern_iri(&format!("{FOCUS}{name}"))?;
++    graph.push_quad(shape, rdf_type, node_shape, None)?;
++    graph.push_quad(shape, target, focus, None)?;
++    graph.push_quad(shape, closed, yes, None)?;
++    for (key, required) in keys {
++        let field = graph.intern_iri(&format!("{SHAPE}{name}:{key}"))?;
++        let predicate = graph.intern_iri(&format!("{KEY}{key}"))?;
++        graph.push_quad(shape, property, field, None)?;
++        graph.push_quad(field, path, predicate, None)?;
++        if required {
++            graph.push_quad(field, min_count, one, None)?;
+         }
+     }
+-    let shapes = shapes::from_dataset(&graph.freeze()?)?;
+-    Ok(PreparedShapes::new(Arc::new(shapes)))
++    Ok(())
+ }
+ 
+-fn header_graph(focus: &str, map: &Map) -> Result<Arc<RdfDataset>, HeaderShapeError> {
++fn header_graph(maps: [Option<(&str, &Map)>; 2]) -> Result<Arc<RdfDataset>, HeaderShapeError> {
+     // Both document constructors include at least the key, colon, and newline
+     // in the authoring byte limit. Each admitted key gives one default-graph
+     // triple. The separate report profile would require a report root.
+     let mut available = crate::MAX_TEXT_BYTES;
+-    for entry in map.entries() {
++    for entry in maps.iter().flatten().flat_map(|(_, map)| map.entries()) {
+         available = available
+             .checked_sub(2)
+             .and_then(|remaining| remaining.checked_sub(entry.key().len()))
+             .ok_or(HeaderShapeError::KeyBytes)?;
+     }
+     let mut graph = RdfDatasetBuilder::new();
+-    let focus = graph.intern_iri(focus)?;
+     let present = graph.intern_iri("urn:raf:okf:key-present")?;
+-    for entry in map.entries() {
+-        let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
+-        graph.push_quad(focus, predicate, present, None)?;
++    for (focus, map) in maps.into_iter().flatten() {
++        let focus = graph.intern_iri(focus)?;
++        for entry in map.entries() {
++            let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
++            graph.push_quad(focus, predicate, present, None)?;
++        }
+     }
+     Ok(graph.freeze()?)
+ }
+ 
+ fn report_keys(
+     report: &ValidationReport,
+-    focus: &Term,
++    focuses: &[Term],
+     map: &Map,
+     doc_type: DocType,
+     check: &mut Check<'_>,
+-) -> Result<(), HeaderShapeError> {
++) -> Result<bool, HeaderShapeError> {
+     if report.conforms != report.results.is_empty() || !report.diagnostics.is_empty() {
+         return Err(HeaderShapeError::UnexpectedReport);
+     }
+@@ -188,6 +224,10 @@ fn report_keys(
+     let mut memory = Memory::new(&mut resident);
+     let mut unknown = OrderedTable::default();
+     let mut missing = OrderedTable::default();
++    let (focus, nested) = focuses
++        .split_first()
++        .ok_or(HeaderShapeError::UnexpectedReport)?;
++    let mut bindings_exact = true;
+     for result in &report.results {
+         let Some(Term::NamedNode(path)) = &result.result_path else {
+             return Err(HeaderShapeError::UnexpectedReport);
+@@ -201,6 +241,10 @@ fn report_keys(
+             MIN_COUNT => &mut missing,
+             _ => return Err(HeaderShapeError::UnexpectedReport),
+         };
++        if nested.first() == Some(&result.focus_node) {
++            bindings_exact = false;
++            continue;
++        }
+         if &result.focus_node != focus || keys.insert(key, (), &mut memory)?.is_some() {
+             return Err(HeaderShapeError::UnexpectedReport);
+         }
+@@ -230,5 +274,5 @@ fn report_keys(
+     if !unknown.is_empty() || !missing.is_empty() {
+         return Err(HeaderShapeError::UnexpectedReport);
+     }
+-    Ok(())
++    Ok(bindings_exact)
+ }
+diff --git crates/raf-okf/src/profile/mod.rs crates/raf-okf/src/profile/mod.rs
+index 98a7ca40..076ef8d4 100644
+--- crates/raf-okf/src/profile/mod.rs
++++ crates/raf-okf/src/profile/mod.rs
+@@ -258,12 +258,15 @@ impl Profile {
+             check.key("type", Rule::WrongDirectory { declared: doc_type });
+         }
+         let prior_findings = check.out.len();
+-        if let Err(source) = header::check(&mut check, map, doc_type) {
+-            check.out.truncate(prior_findings);
+-            check.add(Location::Document, Rule::HeaderShape { source });
+-            return Err(check.out);
+-        }
+-        let collected = check_values(&mut check, map, doc_type, file_stem(path));
++        let bindings_exact = match header::check(&mut check, map, doc_type) {
++            Ok(exact) => exact,
++            Err(source) => {
++                check.out.truncate(prior_findings);
++                check.add(Location::Document, Rule::HeaderShape { source });
++                return Err(check.out);
++            }
++        };
++        let collected = check_values(&mut check, map, doc_type, file_stem(path), bindings_exact);
+         check_frontmatter_placeholders(&mut check, map);
+         let body = document.body();
+         body_rules::check_sections(doc_type, body, path, &mut check.out);
+@@ -278,7 +281,13 @@ impl Profile {
+     }
+ }
+ 
+-fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str) -> Collected {
++fn check_values(
++    check: &mut Check<'_>,
++    map: &Map,
++    doc_type: DocType,
++    stem: &str,
++    bindings_exact: bool,
++) -> Collected {
+     let mut found = Collected::default();
+     for spec in doc_type.keys() {
+         let Some(entry) = map.get(spec.key) else {
+@@ -307,7 +316,7 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
+                 found.review_required = Slot::from_check(review::check_required(check, entry));
+             }
+             ValueKind::Bindings => {
+-                found.bindings = check_bindings(check, entry, found.state);
++                found.bindings = check_bindings(check, entry, found.state, bindings_exact);
+             }
+             ValueKind::CapabilityIds => {
+                 let ids = check_capability_ids(check, entry, key == "changes");
+@@ -589,7 +598,12 @@ fn check_state(check: &mut Check<'_>, entry: &Entry) -> Option<State> {
+     state
+ }
+ 
+-fn check_bindings(check: &mut Check<'_>, entry: &Entry, state: Option<State>) -> Option<Bindings> {
++fn check_bindings(
++    check: &mut Check<'_>,
++    entry: &Entry,
++    state: Option<State>,
++    exact: bool,
++) -> Option<Bindings> {
+     let Some(map) = entry.value().as_map() else {
+         check.key(
+             "bindings",
+@@ -599,8 +613,6 @@ fn check_bindings(check: &mut Check<'_>, entry: &Entry, state: Option<State>) ->
+         );
+         return None;
+     };
+-    let exact = map.entries().len() == BINDING_KEYS.len()
+-        && BINDING_KEYS.iter().all(|key| map.get(key).is_some());
+     if !exact {
+         check.key("bindings", Rule::BindingsKeys);
+     }
+diff --git crates/raf-okf/src/profile/violation.rs crates/raf-okf/src/profile/violation.rs
+index 58412323..67979a19 100644
+--- crates/raf-okf/src/profile/violation.rs
++++ crates/raf-okf/src/profile/violation.rs
+@@ -362,7 +362,7 @@ pub enum Rule {
+         /// Original refusal with positions in the decoded scalar.
+         source: purrdf_markdown::SyntaxError,
+     },
+-    /// Native top-level shape validation could not establish a verdict.
++    /// Native frontmatter key validation could not establish a verdict.
+     HeaderShape {
+         /// Original refusal from header graph construction or validation.
+         source: HeaderShapeError,
+@@ -377,7 +377,7 @@ impl fmt::Display for Rule {
+                 f,
+                 "native Markdown reader refused the decoded scalar: {source}"
+             ),
+-            Self::HeaderShape { source } => write!(f, "cannot check top-level keys ({source})"),
++            Self::HeaderShape { source } => write!(f, "cannot check frontmatter keys ({source})"),
+             Self::MissingKey { key } => write!(f, "missing required key `{key}`"),
+             Self::UnknownKey { key } => write!(f, "unknown key `{key}`"),
+             Self::ResourceKey { doc_type } => {
+diff --git crates/raf-okf/tests/profile.rs crates/raf-okf/tests/profile.rs
+index aaceb96a..484bd5ae 100644
+--- crates/raf-okf/tests/profile.rs
++++ crates/raf-okf/tests/profile.rs
+@@ -1003,18 +1003,14 @@ fn a_state_is_one_of_the_four() {
+ 
+ #[test]
+ fn bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list() {
++    // Missing and extra binding keys yield one violation at the map.
+     let renamed = mutate(&alpha(), "  examples: []\n", "  docs: []\n");
+-    assert_hit(
+-        &violations(&renamed, ALPHA_PATH),
+-        &key("bindings"),
+-        &Rule::BindingsKeys,
+-    );
+-    let extra = mutate(&alpha(), "  examples: []\n", "  examples: []\n  docs: []\n");
+-    assert_hit(
+-        &violations(&extra, ALPHA_PATH),
+-        &key("bindings"),
+-        &Rule::BindingsKeys,
+-    );
++    let missing = mutate(&alpha(), "  examples: []\n", "");
++    for text in [&renamed, &missing] {
++        let found = violations(text, ALPHA_PATH);
++        assert_eq!(found.len(), 1, "{found:#?}");
++        assert_hit(&found, &key("bindings"), &Rule::BindingsKeys);
++    }
+     let scalar = mutate(
+         &alpha(),
+         "bindings:\n  code: []\n  tests: []\n  examples: []\n",
+diff --git docs/architecture/okf-profile.md docs/architecture/okf-profile.md
+index 8aee745e..3dcb5f16 100644
+--- docs/architecture/okf-profile.md
++++ docs/architecture/okf-profile.md
+@@ -117,8 +117,9 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
+ 
+ - The RAF types are closed sets. A document carries every required key listed for
+   its type and no key outside the list. Prepared native SHACL Core shapes derive
+-  top-level closure and required key presence from these type tables. The shared
+-  header keys `tags` and `timestamp`
++  top-level closure and required key presence from these type tables. A second
++  focus in the bounded header graph checks closure and required keys for a
++  capability's binding map. The shared header keys `tags` and `timestamp`
+   belong to every type; a Review requires its timestamp. Evidence and Coverage have
+   optional keys of their own.
+ - `id` is RAF's identity key. The closed key sets do not include the OKF base key
+diff --git docs/capabilities/okf-profile.md docs/capabilities/okf-profile.md
+index 323687ac..b66d0abc 100644
+--- docs/capabilities/okf-profile.md
++++ docs/capabilities/okf-profile.md
+@@ -631,7 +631,7 @@ that states one is `okf-bad-input-kind`. An older reader refuses a record that s
+ the row for the same reason.
+ 
+ ### Positioned validation results
+-<!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations -->
++<!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations,raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list,raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item -->
+ 
+ `Profile::validate` checks a parsed document and its path against the
+ closed key set of its `type` and returns a typed result: the typed document
+@@ -644,9 +644,11 @@ names the file, the rule and, for a frontmatter rule, the key; a body rule names
+ section or the line instead. The rules are:
+ 
+ - the key table for the declared type supplies a prepared SHACL Core shape.
+-  The bounded native header graph carries one focus and one predicate per
+-  authored key. The closed shape refuses unknown keys, and required fields
+-  use `sh:minCount 1`. The profile reports unknown keys in author order
++  The bounded native header graph carries a focus for the header and a
++  separate focus when a capability's `bindings` value is a map. Each
++  authored key supplies a predicate at its focus. The closed shapes
++  refuse unknown keys, and required fields use `sh:minCount 1`.
++  The profile reports unknown top-level keys in author order
+   and missing keys in schema order. A separate diagnostic names the
+   forbidden base key `resource`. A native refusal yields a document-level
+   `Rule::HeaderShape` finding with its typed cause;
+@@ -656,8 +658,10 @@ section or the line instead. The rules are:
+ - the `id` carries the prefix of its type and a kebab-case slug equal to the file name
+   without `.md`; `title` and `description` are non-empty strings;
+ - `state` is an enumeration, and `bindings` is a map with exactly `code`, `tests` and
+-  `examples`, each a list. A `designed` or `considered` capability binds nothing, and a
+-  `delivered` one binds at least one `code` and one `tests` entry;
++  `examples`, each a list. The binding shape yields one `Rule::BindingsKeys`
++  finding at `bindings` when any key is missing or extra. A `designed` or
++  `considered` capability binds nothing, and a `delivered` one binds at least
++  one `code` and one `tests` entry;
+ - `depends` and `changes` hold capability ids (`changes` at least one), `affects`
+   entries are parsed into a capability id and one of the seven sections, and name a
+   capability listed in `changes`; `contract_effect` is `none` or `changes`; `items`
+@@ -1449,7 +1453,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
+ | `raf_okf::test_crate::profile::a_document_must_sit_directly_in_the_directory_of_its_type` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_okf::test_crate::profile::a_missing_type_key_is_the_only_violation` | test | [Verification](#verification) |
+-| `raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item` | test | [Constraints](#constraints) |
++| `raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_okf::test_crate::profile::a_placeholder_token_in_a_code_span_of_a_frontmatter_value_is_spared` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::a_proposed_block_is_valid_only_inside_a_section_of_a_capability` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::a_section_is_empty_when_only_comments_and_generated_blocks_remain` | test | [Verification](#verification) |
+@@ -1466,7 +1470,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
+ | `raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_okf::test_crate::profile::an_unknown_type_is_one_violation_at_the_type_key` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests` | test | [Verification](#verification) |
+-| `raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list` | test | [Verification](#verification) |
++| `raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list` | test | [Contract](#contract) |
+ | `raf_okf::test_crate::profile::changes_is_a_non_empty_list_of_cap_ids` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::contract_effect_is_none_or_changes` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist` | test | [Verification](#verification) |
+diff --git docs/census-selection.md docs/census-selection.md
+index 755e6fa5..d9ccff29 100644
+--- docs/census-selection.md
++++ docs/census-selection.md
+@@ -153,7 +153,82 @@ checksums identify the cached source versions. Source edits change the counts;
+ these tables describe this input corpus, not an invariant of arbitrary revisions.
+ 
+ The corpus is convenience-selected Rust source, heavily weighted toward parsing
+-libraries and tests. Only synthetic pairs carry equality labels. Pair counts
++libraries and tests. In the threshold experiment, only synthetic pairs carry
++equality labels. Pair counts
+ measure review volume and sensitivity, not real-source precision or recall. The
+ inspected examples explain the selected tradeoffs; they do not establish a
+ universal optimum. Counting does not measure execution cost or latency.
++
++## Review of returned groups in two consumer repositories
++
++At the source revisions below, seven of twelve reviewed groups repeat the same
++operation on the same kind of data. Four capture intentional similarities. One
++needs a decision about ownership before it can be called a duplicate helper.
++The unit counted here is a group, even when it has several members.
++
++| Source revision | Scanned units | Body groups | Shim groups | Groups reviewed |
++| --- | ---: | ---: | ---: | ---: |
++| Katamari `7e10cac6747a6e7b6470401573702af8a24dd61c` | 19,389 | 46 | 45 | 6 |
++| PurRDF `51c3c1534a80f58e7c99746575b0a70e63bed113` | 78,821 | 367 | 132 | 6 |
++
++To reproduce the reports, build `cargo-census` from RAF revision
++`194030497cc1696eb58e23d2caad73a5f3c7e48c` and run the following against
++clean source trees of the named revisions. Run the binary from the RAF build.
++The command reads the consumer as data.
++
++```sh
++cargo-census --workspace "$katamari_root" baseline --format ntriples > katamari.nt
++cargo-census --workspace "$purrdf_root" baseline --format ntriples > purrdf.nt
++```
++
++The SHA-256 digests of the resulting reports are
++`b2a4e676cddc0ac7a345633a9293482cb2eea38b2059739043fde07f43b4db37` and
++`6973b6216a54fa934eee3c75b49f1fdde5e39de98761c3fc38ef3517d769a95d`,
++respectively. Each records normal form 1, report form 5 and a body floor of 20.
++Within each repository and group kind, sort by fingerprint and take the first
++three. Read every member at its reported path and line, including its signature,
++inputs and surrounding tests. The prefixes below identify those groups in the
++reports. Shared constants are outside this sample.
++
++| Source | Kind and fingerprint prefix | Judgment | Evidence from members |
++| --- | --- | --- | --- |
++| Katamari | body `133e47f6` | Intentional similarity | Two partition tests use the same assertions. One supplies the intervals in order and the other reverses them to exercise sorting. |
++| Katamari | body `165e689f` | Genuine duplication | `label_commit` and `commit_label` open the same transaction, stage the same label record and commit it with the same failure handling. |
++| Katamari | body `204cfb6f` | Inconclusive | Both `objects` helpers filter on a predicate. The image metadata test returns owned strings, while the projection test borrows typed RDF terms. Sharing the traversal would require deciding which ownership contract callers need. |
++| Katamari | shim `03519e6f` | Intentional similarity | `SoftPinDevice::new` and `PluggableDevice::new` set the same initial presence flag and device, but construct distinct test doubles for PIN and machine custody. |
++| Katamari | shim `0609fbec` | Intentional similarity | `listed` extracts staged byte paths. `everything` extracts graph node names. Both collect cloned map keys into a set, an idiom with distinct domain meanings here. |
++| Katamari | shim `08e0dbdc` | Genuine duplication | The two `said` helpers render the same `ProviderError` and apply the same failure assertion. |
++| PurRDF | body `006b49f2` | Genuine duplication | `envelope` and `encode_envelope` encode the same three COSE parts with the same CBOR tag. |
++| PurRDF | body `00d1c923` | Intentional similarity | The shape tests distinguish two spellings of one expression kind from two different expression kinds. They expect the same ambiguity diagnostic. |
++| PurRDF | body `01b72d7c` | Genuine duplication | Both `bnode` helpers construct the same blank-node term and initialize every optional field identically. |
++| PurRDF | shim `03eb112b` | Genuine duplication | The JSON record and retrieval tests parse fixture text into the same value with the same failure message. |
++| PurRDF | shim `0ceb5d91` | Genuine duplication | All four `exact` helpers resolve the same exact-arithmetic environment and assert the same precondition. |
++| PurRDF | shim `0f46eb95` | Genuine duplication | All five geometry helpers construct an XY coordinate, converting both integer components to the same rational type. |
++
++### Known copies selected from source
++
++A separate search started from Rust files under `crates/*/src`, excluding test
++files and test directories. It matched functions with the same name and a
++single-line signature, looking for identical nonempty body lines after trimming
++whitespace through a same-indent closing brace within 35 lines. From those cross-crate matches, manual inspection selected two substantive
++examples and a short accessor in each repository. The six pairs were fixed before looking up their locations in the
++group membership rows. A hit requires **both** source locations in one group.
++Paths below are relative to the consumer's `crates/` directory.
++
++| Source | Function | First location | Second location | Result |
++| --- | --- | --- | --- | --- |
++| Katamari | `check_generation` | `katamari-index-fjall/src/lib.rs:1474` | `katamari-index-redb/src/lib.rs:780` | Body `5d505095`. Both views reject a snapshot from a revoked deletion generation. |
++| Katamari | `repository_root` | `katamari-cas/src/bin/katamari-chunk-fixtures.rs:61` | `katamari-domain/src/bin/katamari-act-fixtures.rs:218` | Shim `f3061e84`. Both fixture generators canonicalize the same relative manifest path. |
++| Katamari | `authority_epoch` | `katamari-canonical/src/lib.rs:326` | `katamari-domain/src/commit.rs:188` | Miss. Both read the epoch field directly. |
++| PurRDF | `find` | `datalog/src/plan.rs:1061` | `rdf-core/src/canonical_labelling/reference.rs:800` | Body `3ef5802d`. Both halve the path to the union-find representative. |
++| PurRDF | `eat_kw` | `shex/src/parser.rs:225` | `sparql-algebra/src/parser.rs:1323` | Body `c84e19cd`. Both advance the parser by one token only on a keyword match. |
++| PurRDF | `limit` | `cli/src/fingerprint.rs:26` | `lex/src/allocation.rs:112` | Miss. Both decode a stored little-endian ceiling as `u128`. |
++
++Four of the six source pairs occur together in returned groups. The controls
++favor short, same-name, text-identical functions in different crates. They do
++not measure recall for renamed copies, embedded blocks or macro expansions.
++All twelve fingerprint-selected groups happen to contain test support or tests.
++The equal quota per group kind also gives shims more weight than their share of
++the PurRDF report. Neither count estimates repository-wide precision or recall.
++The original consumer baseline files are unavailable, so historical parity and
++foreign-ledger migration remain unmeasured by this sample.
+diff --git work/assessments/okf-profile-constraints.md work/assessments/okf-profile-constraints.md
+index c1e9b245..49bddf42 100644
+--- work/assessments/okf-profile-constraints.md
++++ work/assessments/okf-profile-constraints.md
+@@ -193,7 +193,7 @@ inputs:
+     digest: fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
+   - kind: symbol
+     name: raf_okf::HeaderShapeError
+-    digest: 4a49ada02bb2cf654f37f232f0d615ab5257184f8d5bfe9ce59ee6972394ecb4
++    digest: cf9b5e0ef7943fc808f762346a5421f47898ea4fa21746d1cdb8770b099661b2
+   - kind: symbol
+     name: raf_okf::Heading
+     digest: 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
+@@ -298,7 +298,7 @@ inputs:
+     digest: a4cd7152d67abbc58275e413c07a2a150ffee773a947672ea7a88bad688fe9e9
+   - kind: symbol
+     name: raf_okf::Rule
+-    digest: 766221dd28a7d54a8709a30fe252f28cdb80de71e948b1a2f35e872e646022d3
++    digest: 4f44d152f0af44e3f3c00fed6eb92f15334b6c2bcc511b75bea5915b8ea83dac
+   - kind: symbol
+     name: raf_okf::RuleTag
+     digest: 451cea50b086b19593a106a0fa1525873d3140a9ff729b7f648431e739b17a41
+@@ -370,7 +370,7 @@ inputs:
+     digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
+   - kind: symbol
+     name: raf_okf::profile::check_values
+-    digest: de512a126c664ec212968ec10052ca801870ee6dc40eaa722817ebf35d1499b9
++    digest: c329a862fcf152673d789f5200d4a9aded458eaefedb1215359cd53e2a797bc2
+   - kind: symbol
+     name: raf_okf::profile::diagrams
+     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e
+diff --git work/assessments/okf-profile-contract.md work/assessments/okf-profile-contract.md
+index 910019fe..77a22079 100644
+--- work/assessments/okf-profile-contract.md
++++ work/assessments/okf-profile-contract.md
+@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
+ inputs:
+   - kind: section
+     name: cap:okf-profile#contract
+-    digest: 1fc243c3f88b1b58a296032068bad5262f0fe3d1e0fe76b749b74da2e0be5d05
++    digest: 5c028a78fc7e74c11d188f293fe8725ab78c34f43d9c260a85e3bc9a046d7208
+   - kind: symbol
+     name: raf_okf::Actor
+     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
+diff --git work/assessments/okf-profile-explanation.md work/assessments/okf-profile-explanation.md
+index 537d472c..89f07643 100644
+--- work/assessments/okf-profile-explanation.md
++++ work/assessments/okf-profile-explanation.md
+@@ -193,7 +193,7 @@ inputs:
+     digest: fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
+   - kind: symbol
+     name: raf_okf::HeaderShapeError
+-    digest: 4a49ada02bb2cf654f37f232f0d615ab5257184f8d5bfe9ce59ee6972394ecb4
++    digest: cf9b5e0ef7943fc808f762346a5421f47898ea4fa21746d1cdb8770b099661b2
+   - kind: symbol
+     name: raf_okf::Heading
+     digest: 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
+@@ -298,7 +298,7 @@ inputs:
+     digest: a4cd7152d67abbc58275e413c07a2a150ffee773a947672ea7a88bad688fe9e9
+   - kind: symbol
+     name: raf_okf::Rule
+-    digest: 766221dd28a7d54a8709a30fe252f28cdb80de71e948b1a2f35e872e646022d3
++    digest: 4f44d152f0af44e3f3c00fed6eb92f15334b6c2bcc511b75bea5915b8ea83dac
+   - kind: symbol
+     name: raf_okf::RuleTag
+     digest: 451cea50b086b19593a106a0fa1525873d3140a9ff729b7f648431e739b17a41
+@@ -370,7 +370,7 @@ inputs:
+     digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
+   - kind: symbol
+     name: raf_okf::profile::check_values
+-    digest: de512a126c664ec212968ec10052ca801870ee6dc40eaa722817ebf35d1499b9
++    digest: c329a862fcf152673d789f5200d4a9aded458eaefedb1215359cd53e2a797bc2
+   - kind: symbol
+     name: raf_okf::profile::diagrams
+     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e
+diff --git work/assessments/okf-profile-purpose.md work/assessments/okf-profile-purpose.md
+index 6294e7e2..d876d14c 100644
+--- work/assessments/okf-profile-purpose.md
++++ work/assessments/okf-profile-purpose.md
+@@ -193,7 +193,7 @@ inputs:
+     digest: fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
+   - kind: symbol
+     name: raf_okf::HeaderShapeError
+-    digest: 4a49ada02bb2cf654f37f232f0d615ab5257184f8d5bfe9ce59ee6972394ecb4
++    digest: cf9b5e0ef7943fc808f762346a5421f47898ea4fa21746d1cdb8770b099661b2
+   - kind: symbol
+     name: raf_okf::Heading
+     digest: 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
+@@ -298,7 +298,7 @@ inputs:
+     digest: a4cd7152d67abbc58275e413c07a2a150ffee773a947672ea7a88bad688fe9e9
+   - kind: symbol
+     name: raf_okf::Rule
+-    digest: 766221dd28a7d54a8709a30fe252f28cdb80de71e948b1a2f35e872e646022d3
++    digest: 4f44d152f0af44e3f3c00fed6eb92f15334b6c2bcc511b75bea5915b8ea83dac
+   - kind: symbol
+     name: raf_okf::RuleTag
+     digest: 451cea50b086b19593a106a0fa1525873d3140a9ff729b7f648431e739b17a41
+@@ -370,7 +370,7 @@ inputs:
+     digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
+   - kind: symbol
+     name: raf_okf::profile::check_values
+-    digest: de512a126c664ec212968ec10052ca801870ee6dc40eaa722817ebf35d1499b9
++    digest: c329a862fcf152673d789f5200d4a9aded458eaefedb1215359cd53e2a797bc2
+   - kind: symbol
+     name: raf_okf::profile::diagrams
+     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e

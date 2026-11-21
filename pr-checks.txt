@@ -1,0 +1,27 @@
+$ stagectl pr-checks 384
+SUCCESS test https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136773481096
+SUCCESS test (rust-agentic-foundations 1/2) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550133
+SUCCESS fuzz https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550529
+SUCCESS test (raf-workplan 1/3) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771551164
+SUCCESS test (raf-okf) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771575300
+SUCCESS test (cargo-census) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771586677
+SUCCESS test (raf-census) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771588123
+SUCCESS test (rust-agentic-foundations 2/2) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550812
+SUCCESS test (cargo-workplan) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550824
+SUCCESS test (raf-workplan 3/3) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550842
+SUCCESS fmt https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771588664
+SUCCESS test (raf-source 2/2) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550548
+SUCCESS msrv https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771587612
+SUCCESS test (raf-workplan 2/3) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550939
+SUCCESS clippy https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771576238
+SUCCESS test (raf-source 1/2) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550918
+SUCCESS test (raf-fixtures) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771578948
+SUCCESS test (raf-rdf) https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550531
+SUCCESS test-release https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771569700
+SUCCESS fuzz_checks https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771588518
+SUCCESS doc https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771574033
+SUCCESS CodeRabbit https://app.coderabbit.ai/change-stack/Blackcat-Informatics/rust-agentic-foundations/pull/384?scope=ghh_OusAJGA4HG8ljoOV0wJvVx8NmnZIjc2DdjmxOu0xZWA
+SUCCESS packages https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550068
+SUCCESS reuse https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550372
+SUCCESS deny https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44878215390/job/136771550290
+state: pass

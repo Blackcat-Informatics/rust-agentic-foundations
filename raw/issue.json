@@ -1,0 +1,20 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "Compare committed Cap\u2019n Proto interface inheritance when either side of\na direct superclass edge has lexical type parameters.\n\n- A superclass edge retains its target ID and canonical brand. A branded\n  superclass requires complete bindings for all parameter-bearing scopes\n  in its declaration chain. Bindings may use the derived interface's\n  proved lexical parameters. A nongeneric superclass requires an empty\n  brand, including when the derived interface is generic.\n- Keep reciprocal declaration ownership and consistent generic flags.\n  A compiler request may list the same superclass ID with distinct\n  complete brands. Keep each instantiation and refuse a repeated\n  canonical edge, a cycle or a malformed brand.\n- Keep valid additions compatible. Report a removed superclass or a\n  changed brand on the interface that declares the edge. Compare each\n  inherited method layout once by its defining interface ID.\n- Use compiler-produced concrete and lexical superclass bindings,\n  including a generic declaration nested under another generic scope.\n  Exercise compatible additions, distinct instantiations of one direct\n  superclass, changed bindings and inherited layouts beside controlled\n  refusals. A diamond still compares its defining declaration once.\n\nReuse the type-reading scopes from #371. Parent #214 retains unbound\nendpoint forms and the remaining application and compiler profiles.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-11-21T04:47:57Z",
+  "labels": [],
+  "milestone": null,
+  "number": 374,
+  "state": "OPEN",
+  "title": "census: compare branded Cap\u2019n Proto superclasses",
+  "updatedAt": "2026-11-21T04:54:03Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/374"
+}
