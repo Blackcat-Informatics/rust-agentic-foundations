@@ -11,8 +11,8 @@ use capnp::{
 };
 
 use super::{
-    AnnotationTarget, Annotations, DeclarationBody, DeclarationScopes, Error, Kind, Nodes,
-    NominalApplications, Schema, TypeId, layout,
+    AnnotationTarget, Annotations, ApplicationNodeKind, DeclarationKind, DeclarationScopes, Error,
+    NodeApplications, Nodes, Schema, TypeId, layout,
 };
 use crate::capnp_history::shape::{self, Arguments, Brand, DefaultValue, Pointer, Type, TypeScope};
 
@@ -25,7 +25,51 @@ pub(super) enum ApplicationCarrier<'a> {
         presence: Annotations,
     },
     Enumerant(&'a str),
-    Nominal(Kind),
+    Node(ApplicationNodeKind),
+}
+
+impl ApplicationNodeKind {
+    fn is_nominal(self) -> bool {
+        matches!(
+            self,
+            Self::Declaration(
+                DeclarationKind::Struct | DeclarationKind::Enum | DeclarationKind::Interface
+            )
+        )
+    }
+
+    fn policy(self) -> (AnnotationTarget, &'static str) {
+        match self {
+            Self::File => (AnnotationTarget::File, "files"),
+            Self::Declaration(kind) => match kind {
+                DeclarationKind::Struct => (AnnotationTarget::Struct, "struct declarations"),
+                DeclarationKind::Enum => (AnnotationTarget::Enum, "enum declarations"),
+                DeclarationKind::Interface => {
+                    (AnnotationTarget::Interface, "interface declarations")
+                }
+                DeclarationKind::Constant => (AnnotationTarget::Const, "constant declarations"),
+                DeclarationKind::Annotation => {
+                    (AnnotationTarget::Annotation, "annotation declarations")
+                }
+            },
+        }
+    }
+
+    fn application_error(self, owner: TypeId, annotation: Option<TypeId>, source: Error) -> Error {
+        if self.is_nominal() {
+            Error::NominalApplication {
+                owner,
+                annotation,
+                source: Box::new(source),
+            }
+        } else {
+            Error::NodeApplication {
+                owner,
+                annotation,
+                source: Box::new(source),
+            }
+        }
+    }
 }
 
 impl ApplicationCarrier<'_> {
@@ -35,11 +79,7 @@ impl ApplicationCarrier<'_> {
                 return (AnnotationTarget::Field, "data fields", presence);
             }
             Self::Enumerant(_) => (AnnotationTarget::Enumerant, "enumerants"),
-            Self::Nominal(Kind::Struct) => (AnnotationTarget::Struct, "struct declarations"),
-            Self::Nominal(Kind::Enum) => (AnnotationTarget::Enum, "enum declarations"),
-            Self::Nominal(Kind::Interface) => {
-                (AnnotationTarget::Interface, "interface declarations")
-            }
+            Self::Node(kind) => kind.policy(),
         };
         (target, name, Annotations::default())
     }
@@ -47,7 +87,7 @@ impl ApplicationCarrier<'_> {
     fn location(self, owner: TypeId) -> String {
         match self {
             Self::DataField { name, .. } | Self::Enumerant(name) => format!("{owner}.{name}"),
-            Self::Nominal(_) => owner.to_string(),
+            Self::Node(_) => owner.to_string(),
         }
     }
 
@@ -66,11 +106,7 @@ impl ApplicationCarrier<'_> {
                 annotation,
                 source: Box::new(source),
             },
-            Self::Nominal(_) => Error::NominalApplication {
-                owner,
-                annotation: Some(annotation),
-                source: Box::new(source),
-            },
+            Self::Node(kind) => kind.application_error(owner, Some(annotation), source),
         }
     }
 }
@@ -82,62 +118,86 @@ pub(in crate::capnp_history) struct Application {
 }
 
 impl Nodes<'_> {
-    pub(super) fn nominal_applications(
+    pub(super) fn node_applications(
         &self,
         schema: &Schema,
         scopes: &mut DeclarationScopes,
-    ) -> Result<BTreeMap<TypeId, NominalApplications>, Error> {
-        let file_declarations = schema.declarations.iter().filter_map(|(&id, declaration)| {
-            matches!(
-                declaration.body,
-                DeclarationBody::Struct | DeclarationBody::Enum | DeclarationBody::Interface,
-            )
-            .then_some(id)
-        });
+    ) -> Result<BTreeMap<TypeId, NodeApplications>, Error> {
         let selected: BTreeSet<_> = schema
             .nodes
             .keys()
+            .chain(schema.files.keys())
+            .chain(schema.declarations.keys())
             .copied()
-            .chain(file_declarations)
             .collect();
         selected
             .into_iter()
-            .map(|id| {
-                self.nominal_application_row(id, scopes)
-                    .map(|row| (id, row))
-            })
+            .map(|id| self.node_application_row(id, scopes).map(|row| (id, row)))
             .collect()
     }
 
-    fn nominal_application_row(
+    fn node_application_row(
         &self,
         owner: TypeId,
         scopes: &mut DeclarationScopes,
-    ) -> Result<NominalApplications, Error> {
+    ) -> Result<NodeApplications, Error> {
         let node = self.node(owner)?;
         let kind = match node.which()? {
-            node::Struct(data) if !data.get_is_group() => Kind::Struct,
-            node::Enum(_) => Kind::Enum,
-            node::Interface(_) => Kind::Interface,
-            _ => return Err(layout(format!("node {owner} is not a nominal declaration"))),
+            node::File(()) => ApplicationNodeKind::File,
+            node::Struct(data) if !data.get_is_group() => {
+                ApplicationNodeKind::Declaration(DeclarationKind::Struct)
+            }
+            node::Enum(_) => ApplicationNodeKind::Declaration(DeclarationKind::Enum),
+            node::Interface(_) => ApplicationNodeKind::Declaration(DeclarationKind::Interface),
+            node::Const(_) => ApplicationNodeKind::Declaration(DeclarationKind::Constant),
+            node::Annotation(_) => ApplicationNodeKind::Declaration(DeclarationKind::Annotation),
+            node::Struct(_) => {
+                return Err(layout(format!(
+                    "node {owner} is not a written schema declaration"
+                )));
+            }
         };
-        let at_owner = |source| Error::NominalApplication {
-            owner,
-            annotation: None,
-            source: Box::new(source),
-        };
+        let at_owner = |source| kind.application_error(owner, None, source);
         let source = node
             .get_annotations()
             .map_err(Error::from)
             .map_err(at_owner)?;
-        if !source.is_empty() && !self.is_declared(owner, scopes).map_err(at_owner)? {
-            return Err(layout(format!(
-                "annotated declaration {owner} must have a reciprocal declaration chain"
-            )));
+        if !source.is_empty() {
+            let declared = match kind {
+                ApplicationNodeKind::File => {
+                    no_own_parameters(node).map_err(at_owner)?;
+                    true
+                }
+                kind if kind.is_nominal() => self.is_declared(owner, scopes).map_err(at_owner)?,
+                ApplicationNodeKind::Declaration(_) => self
+                    .application_declaration_chain(owner, scopes)
+                    .map_err(at_owner)?,
+            };
+            if !declared {
+                return Err(layout(format!(
+                    "annotated declaration {owner} must have a reciprocal declaration chain"
+                )));
+            }
         }
         let applications =
-            self.applications(owner, ApplicationCarrier::Nominal(kind), source, scopes)?;
-        Ok(NominalApplications { kind, applications })
+            self.applications(owner, ApplicationCarrier::Node(kind), source, scopes)?;
+        Ok(NodeApplications { kind, applications })
+    }
+
+    fn application_declaration_chain(
+        &self,
+        id: TypeId,
+        scopes: &mut DeclarationScopes,
+    ) -> Result<bool, Error> {
+        self.declaration_chain(id, scopes, |node| {
+            if matches!(
+                node.which()?,
+                node::File(()) | node::Const(_) | node::Annotation(_)
+            ) {
+                no_own_parameters(node)?;
+            }
+            Ok(true)
+        })
     }
 
     pub(super) fn applications(
@@ -165,9 +225,13 @@ impl Nodes<'_> {
                     location()
                 )));
             };
-            if !target.enabled(declaration)
-                || !self.is_declared(id, scopes).map_err(at_application)?
-            {
+            let mut is_declared = || match carrier {
+                ApplicationCarrier::Node(kind) if !kind.is_nominal() => {
+                    self.application_declaration_chain(id, scopes)
+                }
+                _ => self.is_declared(id, scopes),
+            };
+            if !target.enabled(declaration) || !is_declared().map_err(at_application)? {
                 return Err(layout(format!(
                     "annotation {id} at {} must be declared for {target_name}",
                     location()
@@ -219,6 +283,16 @@ impl Nodes<'_> {
         }
         Ok(applications)
     }
+}
+
+fn no_own_parameters(node: node::Reader<'_>) -> Result<(), Error> {
+    if !node.get_parameters()?.is_empty() {
+        let id = TypeId(node.get_id());
+        return Err(layout(format!(
+            "file or scalar declaration {id} cannot declare type parameters"
+        )));
+    }
+    Ok(())
 }
 
 fn applied_value_type(ty: Type, brand: &Brand) -> Type {
