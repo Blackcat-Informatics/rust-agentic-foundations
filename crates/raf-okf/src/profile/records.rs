@@ -707,30 +707,6 @@ pub(super) fn check_debt_lines(
     valid.then_some(lines)
 }
 
-/// The keys a row of `ceilings` may hold.
-const CEILING_KEYS: [&str; 4] = ["crate", "lines", "percent", "of"];
-
-/// The keys a row of `exceptions` may hold.
-const EXCEPTION_KEYS: [&str; 3] = ["item", "file", "reason"];
-
-/// The keys of a row outside `allowed`, as violations; whether there are none.
-fn known_keys(check: &mut Check<'_>, list: &'static str, row: &Map, allowed: &[&str]) -> bool {
-    let mut known = true;
-    for field in row.entries() {
-        if !allowed.contains(&field.key()) {
-            check.key(
-                list,
-                Rule::RowUnknownKey {
-                    list,
-                    key: field.key().to_string(),
-                },
-            );
-            known = false;
-        }
-    }
-    known
-}
-
 /// The limit of a ceiling row of `package`: exactly one of `lines`, a whole
 /// number, and `percent`, a number from 0 to 100. A value that is not a
 /// number is `BadMeasure`; any other shape is `BadCeiling`.
@@ -796,26 +772,23 @@ fn ceiling_limit(check: &mut Check<'_>, package: &str, row: &Map) -> Option<Ceil
     None
 }
 
-pub(super) fn check_ceilings(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<Ceiling>> {
-    let rows = rows(
+pub(super) fn check_ceilings(
+    check: &mut Check<'_>,
+    entry: &Entry,
+    keys: &[RowKeys<'_>],
+) -> Option<Vec<Ceiling>> {
+    let rows = keyed_rows(
         check,
         entry,
         "a list of maps with `crate`, `lines` or `percent`, and an optional `of`",
+        keys,
     )?;
     let mut ceilings = Vec::new();
     let mut valid = true;
     let mut seen = HashSet::new();
-    for row in rows {
-        valid &= known_keys(check, "ceilings", row, &CEILING_KEYS);
+    for (row, keys) in rows.into_iter().zip(keys) {
+        valid &= report_row_keys(check, "ceilings", keys);
         let Some(package_entry) = row.get("crate") else {
-            check.key(
-                "ceilings",
-                Rule::RowMissingKey {
-                    list: "ceilings",
-                    key: "crate",
-                },
-            );
-            valid = false;
             continue;
         };
         let Some(package) = scalar_text(package_entry) else {
@@ -914,27 +887,24 @@ fn exception_item(text: &str) -> Result<ExceptionTarget, &'static str> {
     }
 }
 
-pub(super) fn check_exceptions(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<Exception>> {
-    let rows = rows(
+pub(super) fn check_exceptions(
+    check: &mut Check<'_>,
+    entry: &Entry,
+    keys: &[RowKeys<'_>],
+) -> Option<Vec<Exception>> {
+    let rows = keyed_rows(
         check,
         entry,
         "a list of maps with `item` or `file`, and `reason`",
+        keys,
     )?;
     let mut exceptions = Vec::new();
     let mut valid = true;
     let mut seen = HashSet::new();
-    for row in rows {
-        valid &= known_keys(check, "exceptions", row, &EXCEPTION_KEYS);
+    for (row, keys) in rows.into_iter().zip(keys) {
+        valid &= report_row_keys(check, "exceptions", keys);
         let field = |key: &str| row.get(key).map(scalar_text);
         let Some(reason) = field("reason") else {
-            check.key(
-                "exceptions",
-                Rule::RowMissingKey {
-                    list: "exceptions",
-                    key: "reason",
-                },
-            );
-            valid = false;
             continue;
         };
         let (named, target) = match (field("item"), field("file")) {
