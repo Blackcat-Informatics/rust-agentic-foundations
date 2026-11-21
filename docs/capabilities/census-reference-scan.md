@@ -389,7 +389,7 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/c2a0bc34be784f
 <> <https://blackcatinformatics.ca/raf/report/1#root> "." .
 ```
 
-`tests/census.rs` calls the helper:
+This test isolates the registry-copy rule. The [adoption guide](../../CENSUS-HOWTO.md) shows how to supply the production lint receipt for the complete gate.
 
 ```rust
 use raf_census::{ArchiveCache, Gate, LockedRegistry};
@@ -399,6 +399,7 @@ fn no_copy_of_a_registry_dependency() {
     let registry = LockedRegistry::new(ArchiveCache::cargo_home().expect("a Cargo home"))
         .features("hex", ["alloc", "default", "std"]);
     let report = Gate::workspace(env!("CARGO_MANIFEST_DIR"))
+        .without_production_lints()
         .check_registry(&registry)
         .expect("the locked check ran");
     assert!(report.is_clean(), "{}", report.findings().join("\n"));

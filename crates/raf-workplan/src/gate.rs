@@ -566,7 +566,7 @@ impl Opened {
 
 /// Whether a file name in the capability directory is a capability document:
 /// Markdown other than the index.
-#[allow(
+#[expect(
     clippy::case_sensitive_file_extension_comparisons,
     reason = "the profile defines a document file name by the lowercase suffix `.md`"
 )]

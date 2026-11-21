@@ -3,7 +3,7 @@
 
 //! Selectable tests of the actual corpus-analysis example and production forms.
 
-#[allow(
+#[expect(
     dead_code,
     reason = "the example's command entrypoint and source-corpus renderer are not invoked by its fixture-policy test"
 )]

@@ -25,10 +25,10 @@
 #[path = "../../tests/support/answers.rs"]
 mod answers;
 #[path = "../../tests/support/program.rs"]
-#[allow(dead_code, reason = "the comparison uses part of the generator")]
+#[expect(dead_code, reason = "the comparison uses part of the generator")]
 mod program;
 #[path = "../../tests/support/random.rs"]
-#[allow(dead_code, reason = "the comparison uses part of the generator")]
+#[expect(dead_code, reason = "the comparison uses part of the generator")]
 mod random;
 
 use std::path::Path;

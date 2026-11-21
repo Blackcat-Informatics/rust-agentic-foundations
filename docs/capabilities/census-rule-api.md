@@ -8,6 +8,22 @@ description: "The Rust Rule trait for repository-specific detectors and the Gate
 state: delivered
 bindings:
   code:
+    - raf_census::PRODUCTION_CLIPPY_ARGS
+    - raf_census::ProductionInputs
+    - raf_census::ProductionInputs::read
+    - raf_census::ProductionInputs::digest
+    - raf_census::ProductionLintRun
+    - raf_census::ProductionLintRun::capture
+    - raf_census::ProductionLintRun::from_turtle
+    - raf_census::ProductionLintRun::read_external
+    - raf_census::ProductionLintRun::to_turtle
+    - raf_source::CargoLintManifest
+    - raf_source::CargoLintManifest::parse
+    - raf_source::CargoLintManifest::inherits
+    - raf_source::CargoLintManifest::setting
+    - raf_source::CargoLintManifest::production_config_override
+    - raf_census::Gate::with_production_lint_run
+    - raf_census::Gate::without_production_lints
     - raf_census::rule
     - raf_census::gate::rules
     - raf_census::Gate::require_rules
@@ -19,6 +35,7 @@ bindings:
     - raf_census::Gate::assert_clean
     - raf_census::Gate::self_test
   tests:
+    - cargo_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy
     - raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries
     - raf_census::test_crate::census_gate::module_paths_outside_their_package_are_required_findings_beside_contained_ones
 
@@ -61,6 +78,32 @@ Configured provider checks apply the same gate to each selected consumer target,
 so a dependency available to one target cannot authorize another target's calls.
 
 ## Contract
+
+### Production lint evidence
+
+Each check requires the production Cargo lint policy and an external Clippy
+verdict. The build passes its receipt to `Gate::with_production_lint_run`.
+The gate compares the registered Cargo members, shipping Rust files, target
+declarations, directly named literal file inclusions, manifests, lockfile, member and ancestor Clippy configuration, and workspace compiler configuration against
+the receipt. Stale evidence, missing evidence, compiler failure and manifest
+findings fail the check. `Gate::without_production_lints` opts out of both
+the receipt and manifest requirements for structural-only analysis. The
+library reads the inspected repository as data. A first-party build script,
+an unproven feature-dependent target, a renamed or dynamic inclusion or a Cargo
+configuration override that changes the compiler invocation prevents a clean verdict.
+
+The trusted build reads the workspace with `ProductionInputs::read` and
+records `ProductionInputs::digest` before running `PRODUCTION_CLIPPY_ARGS`.
+`ProductionLintRun::capture` checks that the arguments and the digest after
+the run match. `ProductionLintRun::to_turtle` and `ProductionLintRun::from_turtle`
+use one canonical receipt. `ProductionLintRun::read_external` reads that
+receipt from a build-owned path outside the inspected workspace.
+
+The manifest reader uses `CargoLintManifest::parse`, `CargoLintManifest::inherits`
+and `CargoLintManifest::setting` to resolve package or workspace levels and
+priorities. `CargoLintManifest::production_config_override` identifies
+local Cargo settings that can change the compiler invocation.
+<!-- raf:tested-by cargo_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy -->
 
 ### Self-test
 
@@ -243,7 +286,12 @@ use raf_census::Gate;
 
 #[test]
 fn helper_census() {
-    Gate::workspace(env!("CARGO_MANIFEST_DIR"))
+    let gate = Gate::workspace(env!("CARGO_MANIFEST_DIR"));
+    let path = std::env::var_os("RAF_CENSUS_LINT_EVIDENCE").expect("capture production Clippy");
+    let run = raf_census::ProductionLintRun::read_external(
+        &gate.root().expect("resolve workspace"), std::path::Path::new(&path),
+    ).expect("read build-owned receipt");
+    gate.with_production_lint_run(run)
         .rules(my_rules())
         .extensions(my_extensions())
         .assert_clean();
@@ -296,7 +344,7 @@ impl Rule for NoStdSleep {
 
 ## Examples
 
-`Gate::workspace(root).require_rules(["serde-json"]).assert_clean()` requires
+`Gate::require_rules(["serde-json"])` requires
 the selected detector even when the admitted ledger declares no jobs. A
 misspelled ID refuses rather than disabling the check. Job-dependent
 `home-literal`, `vocabulary-literal`, `sole-name`, `foreign-host-import`, `reifier-default-graph` and `rdf-list-walk` require ledger homes and
@@ -414,6 +462,7 @@ The self-Census exercises the same builder path over the actual snapshot.
 | --- | --- | --- |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Examples](#examples) |
 | `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::registered` | example target | [Usage](#usage), [Examples](#examples) |

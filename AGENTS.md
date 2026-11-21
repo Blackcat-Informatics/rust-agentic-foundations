@@ -153,8 +153,8 @@ make check      # every gate: fmt, clippy, test, test-release, doc, deny, reuse,
 make docs-sync  # rewrite the generated documentation blocks; the repair for a stale-block finding
 ```
 
-- **The required gates are the hooks and CI.** The pre-commit hook runs fmt and
-  reuse on a checkout of the staged index, then the `repo_gates`, `docs_contract`,
+- **The required gates are the hooks and CI.** The pre-commit hook runs fmt,
+  reuse and production Clippy on a checkout of the staged index, then the `repo_gates`, `docs_contract`,
   `self_workplan` and `self_census` test binaries over that checkout. The binaries
   are compiled from the working tree; only the files they judge come from the index.
   The pre-merge-commit hook runs the same gates on merge commits. CI runs on every
@@ -211,9 +211,16 @@ tables (a gate fails when they differ).
 - Library code has one `unsafe` block, the Windows final-path call in
   `crates/raf-source/src/tree/disk/final_path.rs`, under an item-scoped allow with
   its reason and a `SAFETY` comment.
-- Clippy `all` and `pedantic` warn, and the gates deny warnings.
-- `allow_attributes_without_reason` is denied: every `#[allow]` states why and is
-  scoped as tightly as possible. Prefer fixing the code.
+- Clippy `all` is denied and `pedantic` warns. The gates deny warnings.
+- `make clippy-production` selects `--workspace --lib --bins --locked` and
+  denies warnings, unused items, unreachable public items, allow attributes,
+  used underscore bindings, needless pass-by-value, trivially copied references
+  and redundant clones. `make check` runs it through `make test`. The commit
+  and merge hooks apply it to the staged source and manifests. Its compiler
+  receipt supplies the repository's Census test. Keep the separate all-target
+  Clippy pass for test, example and benchmark code.
+- Use a narrowly scoped `#[expect(..., reason = "...")]` for a necessary lint
+  exception. Keep expectations current as the compiler and source change.
 
 ---
 

@@ -235,5 +235,7 @@ pub(crate) fn registered_gate(root: impl AsRef<Path>) -> Gate {
 }
 
 pub(crate) fn rule_gate(root: impl AsRef<Path>) -> Gate {
-    Gate::workspace(root).rules(vec![Box::new(NoLocalCopy) as Box<dyn Rule>])
+    Gate::workspace(root)
+        .without_production_lints()
+        .rules(vec![Box::new(NoLocalCopy) as Box<dyn Rule>])
 }

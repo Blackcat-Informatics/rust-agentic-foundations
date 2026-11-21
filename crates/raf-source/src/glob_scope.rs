@@ -5876,7 +5876,7 @@ fn dominators(
 
 #[cfg(test)]
 #[path = "../tests/support/shapes/globs.rs"]
-#[allow(
+#[expect(
     dead_code,
     reason = "the unit tests build the shapes; the examples also resolve their paths"
 )]

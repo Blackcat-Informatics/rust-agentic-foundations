@@ -789,7 +789,7 @@ fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>> 
     let mut valid = true;
     for item in list.items() {
         let ItemValue::Map(map) = item.value() else {
-            check.key("items", shape.clone());
+            check.key("items", shape);
             return None;
         };
         let mut claim = None;

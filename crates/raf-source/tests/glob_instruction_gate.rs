@@ -4,7 +4,7 @@
 //! Counter admission and integer cost bounds of the real instruction comparator.
 
 #[path = "../examples/glob_instruction_gate.rs"]
-#[allow(
+#[expect(
     dead_code,
     reason = "this target tests comparator helpers; paired measurements exercise command execution"
 )]

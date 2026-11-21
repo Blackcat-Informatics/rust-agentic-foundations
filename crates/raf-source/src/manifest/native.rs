@@ -108,3 +108,100 @@ pub(crate) fn entries<'a>(document: &'a Document<'_>, table: &Node) -> Vec<(&'a 
     .expect("infallible key comparison");
     entries
 }
+
+/// Cargo manifest lint settings, including the workspace inheritance switch.
+/// The native TOML arena preserves dotted and inline tables alike.
+#[derive(Debug)]
+pub struct CargoLintManifest<'a>(Document<'a>);
+
+impl<'a> CargoLintManifest<'a> {
+    /// Parse one Cargo manifest with the source index's native Cargo profile.
+    ///
+    /// # Errors
+    /// Returns the native syntax or resource refusal for this manifest.
+    pub fn parse(text: &'a str) -> Result<Self, TomlError> {
+        read(text).map(Self)
+    }
+
+    fn lookup(&self, keys: &[&str]) -> Option<&Node> {
+        keys.iter()
+            .try_fold(&self.0.nodes()[0], |at, key| field(&self.0, at, key))
+    }
+
+    /// Whether this package inherits the workspace's lint tables.
+    #[must_use]
+    pub fn inherits(&self) -> bool {
+        self.lookup(&["lints", "workspace"]).and_then(boolean) == Some(true)
+    }
+
+    /// A local Cargo configuration directive that can change which compiler,
+    /// arguments or additional configuration define the production lint run.
+    /// Ordinary cache, networking and registry settings do not change that selection.
+    #[must_use]
+    pub fn production_config_override(&self) -> Option<&str> {
+        for (name, keys) in [
+            ("include", &["include"][..]),
+            ("alias.clippy", &["alias", "clippy"]),
+            ("build.rustflags", &["build", "rustflags"]),
+            ("build.target", &["build", "target"]),
+            ("build.rustc", &["build", "rustc"]),
+            ("build.rustc-wrapper", &["build", "rustc-wrapper"]),
+            (
+                "build.rustc-workspace-wrapper",
+                &["build", "rustc-workspace-wrapper"],
+            ),
+        ] {
+            if self.lookup(keys).is_some() {
+                return Some(name);
+            }
+        }
+        if let Some(targets) = self.lookup(&["target"]) {
+            for (_, target) in entries(&self.0, targets) {
+                if field(&self.0, target, "rustflags").is_some() {
+                    return Some("target rustflags");
+                }
+            }
+        }
+        self.lookup(&["env"]).and_then(|env| {
+            entries(&self.0, env)
+                .into_iter()
+                .map(|(key, _)| key)
+                .find(|key| {
+                    matches!(
+                        *key,
+                        "RUSTFLAGS"
+                            | "RUSTC"
+                            | "RUSTC_WRAPPER"
+                            | "RUSTC_WORKSPACE_WRAPPER"
+                            | "CARGO_ENCODED_RUSTFLAGS"
+                            | "CARGO_BUILD_RUSTFLAGS"
+                            | "CARGO_BUILD_TARGET"
+                            | "CLIPPY_ARGS"
+                            | "CLIPPY_CONF_DIR"
+                    ) || (key.starts_with("CARGO_TARGET_") && key.ends_with("_RUSTFLAGS"))
+                })
+        })
+    }
+
+    /// Look up the effective level and numeric Cargo priority as declared in
+    /// the workspace or package table. A scalar level has priority zero.
+    /// Missing settings and invalid level/priority shapes have no effective value.
+    #[must_use]
+    pub fn setting(&self, workspace: bool, tool: &str, name: &str) -> Option<(&str, i64)> {
+        let entry = if workspace {
+            self.lookup(&["workspace", "lints", tool, name])
+        } else {
+            self.lookup(&["lints", tool, name])
+        }?;
+        if let Some(level) = string(entry) {
+            return Some((level, 0));
+        }
+        let level = string(field(&self.0, entry, "level")?)?;
+        let priority = match field(&self.0, entry, "priority").map(|node| &node.kind) {
+            None => 0,
+            Some(Kind::Scalar(Scalar::Integer(value))) => *value,
+            _ => return None,
+        };
+        Some((level, priority))
+    }
+}

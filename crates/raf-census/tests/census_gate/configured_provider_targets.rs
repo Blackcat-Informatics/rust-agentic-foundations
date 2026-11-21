@@ -8,7 +8,7 @@ use raf_source::{
     LockedManifest, MemoryTree, RelPath, TargetKind,
 };
 
-use super::{Builder, Format, Gate, Term, Triple, provider_policy, put, vocab};
+use super::{Builder, Format, Term, Triple, fixture_gate, provider_policy, put, vocab};
 
 const ORDINARY: &[CfgAtom<'_>] = &[CfgAtom::Name("unix")];
 const TEST: &[CfgAtom<'_>] = &[CfgAtom::Name("unix"), CfgAtom::Name("test")];
@@ -191,7 +191,7 @@ fn check(
         )
         .with_configuration(context(TargetKind::Lib, "native_library", false)),
     ];
-    Gate::workspace(".").check_locked(&tree, &catalog, &manifests, &[])
+    fixture_gate(".").check_locked(&tree, &catalog, &manifests, &[])
 }
 
 #[test]

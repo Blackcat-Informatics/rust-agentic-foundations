@@ -16,7 +16,7 @@ use std::fmt::Write as _;
 use raf_okf::AssessmentVerdict;
 use raf_workplan::Gate;
 
-#[allow(
+#[expect(
     dead_code,
     reason = "only gate_root is used here; the other binaries use the rest of the shared support"
 )]

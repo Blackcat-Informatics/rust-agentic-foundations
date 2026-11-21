@@ -290,7 +290,7 @@ impl Gate {
         registry: &LockedRegistry,
     ) -> Result<GateReport, Error> {
         with_registry(tree, registry, |catalog, local, sources| {
-            super::check_debt(
+            self.finish_check(
                 tree,
                 self.evaluate_locked(tree, None, &registry.referenced, catalog, local, sources)?,
             )
@@ -308,7 +308,7 @@ impl Gate {
             source,
         })?;
         with_registry(&tree, registry, |catalog, local, sources| {
-            super::check_debt(
+            self.finish_check(
                 &tree,
                 self.evaluate_locked(
                     &tree,

@@ -492,10 +492,6 @@ fn exporting(decl: &UseDecl) -> bool {
 impl<'a> Surface<'a> {
     /// A listing of the surface of `target`, a library or a binary whose
     /// crate root is the module `root`.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "a listing is set up from the index, the target and the caller's budget and options"
-    )]
     pub(crate) fn new(
         index: &'a Index,
         target: TargetId,
@@ -977,10 +973,6 @@ impl<'a> Surface<'a> {
 
     /// Keep a re-export, unless `#[doc(hidden)]` hides it and the options
     /// leave hidden items out.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "a re-export is built from its path, what it names and its declaration"
-    )]
     fn keep_reexport(
         &mut self,
         path: String,
@@ -1237,10 +1229,6 @@ impl<'a> Surface<'a> {
     /// budget with what they hold; a listing that passes the budget so is
     /// [`ExportError::CarryBudget`], naming the re-export and its
     /// declaration.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "a decision is made for one import of one module, for one reader and one mode"
-    )]
     fn carried_by(
         &mut self,
         visit: &Visit,

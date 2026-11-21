@@ -7,16 +7,19 @@ subject: cap:census-ledger#usage
 inputs:
   - kind: section
     name: cap:census-ledger#usage
-    digest: 0c9012d1f609c307a06540440581598db27404dceb607135b2133844f3abe281
+    digest: 2f36a86470c2b0ab1e4522c410d8965d0e5f384c07617fb4e0fb94f0fc58a24f
+  - kind: symbol
+    name: raf_census::Gate::assert_clean
+    digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25
   - kind: symbol
     name: raf_census::Gate::check
-    digest: 7135af913fcf26db9027c4b5f7f35d30abdab5af67b884abe0e2a82e08f49536
+    digest: 6842c6d0e43e130b46d2d4a920a36aceed6066507c15fd04b5522c0f229b2d74
   - kind: symbol
     name: raf_census::Gate::check_locked
-    digest: a4750e277e048278a9b17432a57648744d2600f56e22bea9924017b788206b2d
+    digest: ce909f37a05708cfef5daaa76233bc63be371354d4a6dbd1d7e41807648ec1ad
   - kind: symbol
     name: raf_census::Gate::check_tree
-    digest: eb42ff3aeb65568bc7c5e604b672291c0a2ea78b8812a460e16600941feb9080
+    digest: 7f0be8102776e749f22c8f133a2d80ac348d61c57ac3da79befbd42a1dae1009
   - kind: symbol
     name: raf_census::Gate::extensions
     digest: f4325ff16655a45eb8216b2658b9c48879346d2934b729c2f1d4922854c1acf1

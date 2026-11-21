@@ -75,11 +75,18 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
 
 - **`make check` is the gate.** It stops at the first failure. CI runs the
   documented compilation, test and policy checks; local `make check` additionally
-  runs optimized instrumented fuzzing. The pre-commit hook runs fmt and reuse on a checkout of the staged
-  index, plus the `repo_gates`, `docs_contract`, `self_workplan` and `self_census` test binaries over
+  runs optimized instrumented fuzzing. The pre-commit hook runs fmt, reuse
+  and production Clippy on a checkout of the staged index, plus the
+  `repo_gates`, `docs_contract`, `self_workplan` and `self_census` test binaries over
   that checkout. The binaries are compiled from the working tree, not the index.
   A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
   hook.
+- **Production lint coverage.** `make clippy-production` checks the locked
+  workspace libraries and binaries. A private helper whose only caller is a
+  test can fail this check. The staged hook uses the same command on staged
+  sources and manifests. `make test` captures a fresh receipt for Census,
+  and `make check` also runs the all-target Clippy pass. The exact flags are
+  in the [production lint helper](.githooks/production-clippy).
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.

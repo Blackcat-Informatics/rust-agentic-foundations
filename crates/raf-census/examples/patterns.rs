@@ -88,7 +88,7 @@ fn tree(other: &str, policy: &str) -> MemoryTree {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let gate = Gate::workspace(".");
+    let gate = Gate::workspace(".").without_production_lints();
     let policy = ledger()?;
     let refused = gate.check_tree(&tree("std::mem::drop(1);", &policy))?;
     assert_eq!(refused.jobs()[0].copies, 1);
