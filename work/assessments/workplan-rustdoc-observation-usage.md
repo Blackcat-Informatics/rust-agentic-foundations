@@ -10,7 +10,7 @@ inputs:
     digest: f6f5cb7374077cf57a6332173cca00fe87c5e70c34ffdc6998eee28fbfba879d
   - kind: symbol
     name: raf_workplan::diagram::cargo::read_artifacts
-    digest: 7d77a93049a19585936bec775506d804c442c72ceb26944823384333ad6278bf
+    digest: 7aa46df5949d21dfc23658e79d37a4449e45843a66fad9fe1b983ce563a2ebe3
 verdict: accepted
 by: agent
 ---

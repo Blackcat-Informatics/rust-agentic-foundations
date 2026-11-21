@@ -13,7 +13,11 @@ use crate::{
 use raf_source::TargetKind;
 use raf_workplan::diagram::cargo::{self, CargoDocOptions, DocumentationArtifacts};
 use raf_workplan::{BindingKind, Gate};
-use std::{fs::File, io::Read as _, path::Path};
+use std::{
+    fs::File,
+    io::Read as _,
+    path::{Path, PathBuf},
+};
 
 fn options(args: &LibraryArgs) -> Result<CargoDocOptions, Failure> {
     let packages: Vec<_> = args.packages.iter().map(String::as_str).collect();
@@ -119,10 +123,20 @@ pub(crate) fn artifacts(root: &Path, args: &ArtifactArgs) -> Result<Report, Fail
     report(
         &artifacts,
         "imported artifact data; compiler execution is not verified",
+        None,
     )
 }
 
 pub(crate) fn build(root: &Path, args: &TrustedDocsArgs) -> Result<Report, Failure> {
+    let companion = args
+        .view
+        .as_deref()
+        .map(|view| {
+            let opened = Gate::workspace(root).open()?;
+            let bundle = opened.workplan().named_diagram(view)?;
+            Ok::<_, Failure>((view, bundle))
+        })
+        .transpose()?;
     let built = trusted_docs::build(&trusted_docs::BuildRequest {
         root: root.to_path_buf(),
         toolchain_directory: args.toolchain_directory.clone(),
@@ -132,26 +146,20 @@ pub(crate) fn build(root: &Path, args: &TrustedDocsArgs) -> Result<Report, Failu
         no_default_features: args.libraries.no_default_features,
         trust_docs: args.trust_docs,
     })?;
-    let options = options(&args.libraries)?;
-    let before = cargo::read_metadata(
-        root,
-        &args.libraries.target_directory,
-        &options,
-        &built.metadata_before,
+    let artifacts = built
+        .target
+        .read_artifacts(&built.selection, &built.messages)?;
+    let published = if let Some((view, bundle)) = companion {
+        let directory = built.target.publish_companion(&bundle, &artifacts)?;
+        Some(publication_record(view, bundle.view().name(), directory)?)
+    } else {
+        None
+    };
+    let mut report = report(
+        &artifacts,
+        "trusted documentation compilation completed",
+        published,
     )?;
-    let after = cargo::read_metadata(
-        root,
-        &args.libraries.target_directory,
-        &options,
-        &built.metadata_after,
-    )?;
-    if before != after {
-        return Err(Failure::new(
-            "documentation metadata changed during compilation; inspect the workspace before retrying",
-        ));
-    }
-    let artifacts = cargo::read_artifacts(&after, &built.messages)?;
-    let mut report = report(&artifacts, "trusted documentation compilation completed")?;
     report.note(raf_workplan::escape::shown_lines(&format!(
         "{}\n{}\n{}",
         built.cargo_version, built.rustc_version, built.rustdoc_version
@@ -164,7 +172,36 @@ pub(crate) fn build(root: &Path, args: &TrustedDocsArgs) -> Result<Report, Failu
     Ok(report)
 }
 
-fn report(artifacts: &DocumentationArtifacts, message: &str) -> Result<Report, Failure> {
+pub(crate) fn publication_record(
+    view: &str,
+    name: &str,
+    directory: PathBuf,
+) -> Result<Record, Failure> {
+    let entry = directory.join(format!("{name}.html"));
+    let directory = directory
+        .into_os_string()
+        .into_string()
+        .map_err(|_| Failure::new("documentation directory cannot be represented as UTF-8"))?;
+    let entry = entry
+        .into_os_string()
+        .into_string()
+        .map_err(|_| Failure::new("documentation entry cannot be represented as UTF-8"))?;
+    let message = format!("published {view} at {entry}");
+    Ok(Record::outcome(
+        CommandResult::DocumentationBuilt {
+            view: view.to_owned(),
+            directory,
+            entry,
+        },
+        message,
+    ))
+}
+
+fn report(
+    artifacts: &DocumentationArtifacts,
+    message: &str,
+    published: Option<Record>,
+) -> Result<Report, Failure> {
     let records = artifacts
         .artifacts()
         .iter()
@@ -188,7 +225,7 @@ fn report(artifacts: &DocumentationArtifacts, message: &str) -> Result<Report, F
             ))
         })
         .collect::<Result<Vec<_>, Failure>>()?;
-    let mut report = Report::of(records);
+    let mut report = Report::of(records.into_iter().chain(published));
     report.note(message);
     Ok(report)
 }

@@ -27,6 +27,13 @@ use std::fmt::Write as _;
 /// preserves native escaping, allocation and path errors. No partial file set
 /// is returned.
 pub fn build(bundle: &DiagramBundle) -> Result<Vec<(RelPath, String)>, DiagramError> {
+    build_with_library_links(bundle, &[])
+}
+
+pub(super) fn build_with_library_links(
+    bundle: &DiagramBundle,
+    links: &[(&str, String)],
+) -> Result<Vec<(RelPath, String)>, DiagramError> {
     let mut files = OrderedTable::default();
     let mut resident = Resident;
     let mut memory = Memory::new(&mut resident);
@@ -35,13 +42,14 @@ pub fn build(bundle: &DiagramBundle) -> Result<Vec<(RelPath, String)>, DiagramEr
     while let Some(current) = pending.pop() {
         let name = current.view().name();
         let overview = (name != bundle.view().name()).then_some(bundle.view().name());
+        let links = if overview.is_none() { links } else { &[] };
         for (suffix, content) in [
             ("svg", current.svg().to_owned()),
             ("json", current.json().to_owned()),
             ("txt", current.text().to_owned()),
             (
                 "html",
-                explorer_page(current, overview).map_err(DiagramError::data)?,
+                explorer_page(current, overview, links).map_err(DiagramError::data)?,
             ),
             (
                 "md",
@@ -105,12 +113,13 @@ pub fn markdown_fragment(bundle: &DiagramBundle) -> Result<String, ProjectionErr
 /// Returns the native XML error for text that cannot be represented safely in
 /// HTML character data or attributes. No partially built page is returned.
 pub fn explorer_html(bundle: &DiagramBundle) -> Result<String, ProjectionError> {
-    explorer_page(bundle, None)
+    explorer_page(bundle, None, &[])
 }
 
 fn explorer_page(
     bundle: &DiagramBundle,
     overview: Option<&str>,
+    library_links: &[(&str, String)],
 ) -> Result<String, ProjectionError> {
     let title = escape_xml_text(bundle.view().name())?;
     let caption = escape_xml_text(bundle.caption())?;
@@ -138,6 +147,16 @@ fn explorer_page(
         include_str!("explorer.css"),
         bundle.svg(),
     );
+    if !library_links.is_empty() {
+        html.push_str("<nav aria-label=\"Cargo library documentation\"><ul>");
+        for (label, href) in library_links {
+            let label = escape_xml_text(label)?;
+            let href = escape_xml_attribute(href)?;
+            write!(html, "<li><a href=\"{href}\">{label}</a></li>")
+                .expect("writing to String cannot fail");
+        }
+        html.push_str("</ul></nav>");
+    }
     if let Some(overview) = overview {
         let href = escape_xml_attribute(&format!("{overview}.html"))?;
         write!(

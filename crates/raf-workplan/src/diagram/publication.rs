@@ -92,7 +92,7 @@ pub fn publish_repository(
     publish_files(files, &root, &prefix)
 }
 
-fn publish_files(
+pub(super) fn publish_files(
     mut files: Vec<(RelPath, String)>,
     root: &Rc<Root>,
     prefix: &RelPath,

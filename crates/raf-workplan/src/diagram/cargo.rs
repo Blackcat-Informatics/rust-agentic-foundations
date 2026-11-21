@@ -10,11 +10,12 @@ use purrdf_lex::{
     json::{self, Value},
     walk::try_sort_unstable_by,
 };
+use raf_source::DiskTree;
 use std::path::{Path, PathBuf};
 
 mod artifact;
 mod options;
-pub use artifact::LibraryArtifact;
+pub use artifact::{DocumentationTarget, LibraryArtifact};
 pub use options::{CargoDocOptions, CargoDocOptionsError};
 
 /// Maximum bytes in one imported metadata or documentation message carrier.
@@ -195,11 +196,26 @@ pub fn read_artifacts(
     selection: &Selection,
     message_bytes: &[u8],
 ) -> Result<DocumentationArtifacts, DiagramError> {
+    read_artifacts_on(selection, message_bytes, None)
+}
+
+fn read_artifacts_on(
+    selection: &Selection,
+    message_bytes: &[u8],
+    disk: Option<&DiskTree>,
+) -> Result<DocumentationArtifacts, DiagramError> {
     if message_bytes.len() > MAX_METADATA_BYTES {
         return Err(refused("documentation messages exceed their byte bound"));
     }
     let messages = messages(message_bytes)?;
-    let artifacts = artifact::admit(selection, &messages)?;
+    let opened;
+    let disk = if let Some(disk) = disk {
+        disk
+    } else {
+        opened = DiskTree::new(&selection.target_directory).map_err(DiagramError::data)?;
+        &opened
+    };
+    let artifacts = artifact::admit(disk, selection, &messages)?;
     Ok(DocumentationArtifacts {
         selection: selection.clone(),
         messages,

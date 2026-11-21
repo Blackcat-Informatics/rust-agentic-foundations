@@ -3,7 +3,14 @@
 
 //! Admission of actual Cargo-reported documentation entries.
 
-use super::{DiagramError, Library, Selection, absolute, refused, required, strings, text};
+use super::{
+    DiagramError, DocumentationArtifacts, Library, Selection, absolute, read_artifacts_on, refused,
+    required, strings, text,
+};
+use crate::{
+    diagram::{DiagramBundle, documentation, publication},
+    publication_io::Root,
+};
 use purrdf_core::ContentDigest;
 use purrdf_lex::{
     allocation::{Memory, OrderedTable, Resident},
@@ -13,12 +20,144 @@ use raf_source::{DiskTree, EntryKind, FileId, OpenedBytes, RelPath, Tree};
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
+    rc::Rc,
 };
 
 const MAX_HTML_BYTES: u64 = 16 * 1024 * 1024;
 
 #[cfg(test)]
 mod tests;
+
+/// An open Cargo target directory shared by artifact admission and publication.
+pub struct DocumentationTarget(Rc<Root>);
+
+impl DocumentationTarget {
+    /// Retain the identity of an existing canonical target directory.
+    ///
+    /// # Errors
+    /// Refuses a changed, noncanonical or unavailable directory.
+    pub fn open(path: &Path) -> Result<Self, DiagramError> {
+        let root = Root::open(path).map_err(DiagramError::data)?;
+        if root.path() != path {
+            return Err(refused(
+                "the canonical documentation target changed during admission",
+            ));
+        }
+        Ok(Self(root))
+    }
+
+    /// Admit an existing Cargo artifact carrier under this retained directory.
+    ///
+    /// # Errors
+    /// Refuses a mismatched or changed root and invalid artifact records.
+    pub fn read_artifacts(
+        &self,
+        selection: &Selection,
+        message_bytes: &[u8],
+    ) -> Result<DocumentationArtifacts, DiagramError> {
+        self.verify_root(selection)?;
+        let artifacts = read_artifacts_on(selection, message_bytes, Some(self.0.tree()))?;
+        self.verify_root(selection)?;
+        Ok(artifacts)
+    }
+
+    fn verify_root(&self, selection: &Selection) -> Result<(), DiagramError> {
+        if self.0.path() != selection.target_directory() {
+            return Err(refused(
+                "the Cargo selection does not use the retained documentation target",
+            ));
+        }
+        self.0
+            .directory(&RelPath::root())
+            .map_err(DiagramError::data)?;
+        Ok(())
+    }
+
+    /// Publish a named diagram beside the selected Cargo library directories.
+    /// The selected entries must share an output directory below the target.
+    ///
+    /// # Errors
+    /// Refuses incompatible output directories, changed artifact identities or
+    /// bytes, and invalid immutable destinations.
+    pub fn publish_companion(
+        &self,
+        bundle: &DiagramBundle,
+        artifacts: &DocumentationArtifacts,
+    ) -> Result<PathBuf, DiagramError> {
+        self.verify_root(artifacts.selection())?;
+        let entries = artifacts.artifacts();
+        let output = entries
+            .first()
+            .and_then(|entry| entry.entry_directory().parent())
+            .filter(|path| !path.is_root())
+            .ok_or_else(incompatible_output)?;
+        let links = entries
+            .iter()
+            .map(|entry| self.companion_link(entry, &output))
+            .collect::<Result<Vec<_>, _>>()?;
+        let files = documentation::build_with_library_links(bundle, &links)?;
+        for entry in entries {
+            self.verify_entry(entry)?;
+        }
+        publication::publish_files(files, &self.0, &output)
+    }
+
+    fn companion_link<'a>(
+        &self,
+        entry: &'a LibraryArtifact,
+        output: &RelPath,
+    ) -> Result<(&'a str, String), DiagramError> {
+        if entry.relative_path().segments().any(|part| part == "..")
+            || entry.entry_directory().parent().as_ref() != Some(output)
+        {
+            return Err(incompatible_output());
+        }
+        self.0
+            .directory(entry.entry_directory())
+            .map_err(DiagramError::data)?;
+        let relative = entry
+            .relative_path()
+            .as_str()
+            .strip_prefix(output.as_str())
+            .and_then(|path| path.strip_prefix('/'))
+            .ok_or_else(incompatible_output)?;
+        let href = format!(
+            "../../{}",
+            purrdf_lex::percent::encode(relative, purrdf_lex::percent::UNRESERVED_SLASH)
+        );
+        Ok((&entry.library().package, href))
+    }
+
+    fn verify_entry(&self, entry: &LibraryArtifact) -> Result<(), DiagramError> {
+        let directory = self
+            .0
+            .directory(entry.entry_directory())
+            .map_err(DiagramError::data)?;
+        let disk = self.0.tree();
+        let path = entry.relative_path();
+        let changed = || {
+            refused(&format!(
+                "reported HTML entry {path} changed before companion publication"
+            ))
+        };
+        if disk.entry(path).map_err(DiagramError::data)? != Some(EntryKind::File) {
+            return Err(changed());
+        }
+        let observed = disk
+            .capture_file(path, MAX_HTML_BYTES)
+            .map_err(DiagramError::data)?;
+        if &observed.id != entry.file_id() || ContentDigest::of(&observed.bytes) != entry.sha256() {
+            return Err(changed());
+        }
+        directory.verify().map_err(DiagramError::data)
+    }
+}
+
+fn incompatible_output() -> DiagramError {
+    refused(
+        "selected HTML entries must report library directories beside one shared documentation output directory beneath the target",
+    )
+}
 
 /// An actual selected-library HTML entry and its observed content identity.
 ///
@@ -92,10 +231,10 @@ impl LibraryArtifact {
 }
 
 pub(super) fn admit(
+    disk: &DiskTree,
     selection: &Selection,
     messages: &[Value],
 ) -> Result<Vec<LibraryArtifact>, DiagramError> {
-    let disk = DiskTree::new(&selection.target_directory).map_err(DiagramError::data)?;
     let mut resident = Resident;
     let mut memory = Memory::new(&mut resident);
     let mut selected = OrderedTable::default();
@@ -128,7 +267,7 @@ pub(super) fn admit(
         }
         matching_target(library, message)?;
         let artifact = read_entry(
-            &disk,
+            disk,
             selection,
             library,
             reported,
