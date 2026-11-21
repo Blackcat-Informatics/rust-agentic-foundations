@@ -129,6 +129,11 @@ pub enum ChangeKind {
         /// ID of the annotation declaration.
         annotation: TypeId,
     },
+    /// A retained nominal declaration's applications of an annotation changed.
+    ChangedNominalAnnotation {
+        /// ID of the annotation declaration.
+        annotation: TypeId,
+    },
     /// An appended input parameter lacks an explicit default.
     MissingParameterDefault,
     /// A pointer slot became required in an existing struct.
@@ -192,6 +197,12 @@ impl fmt::Display for ChangeKind {
                     "enumerant applications of annotation {annotation} changed"
                 );
             }
+            Self::ChangedNominalAnnotation { annotation } => {
+                return write!(
+                    f,
+                    "declaration applications of annotation {annotation} changed"
+                );
+            }
             Self::MissingParameterDefault => "appended input parameter needs an explicit default",
             Self::RequiredField => "pointer field became required",
             Self::PairedPresence { peer } => {
@@ -248,6 +259,19 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
         push(id, None, kind)?;
     }
     declaration_changes(&base.declarations, &current.declarations, &mut push)?;
+    for (&node, before) in &base.nominal_applications {
+        if let Some(after) = current.nominal_applications.get(&node)
+            && before.kind == after.kind
+        {
+            compare_applications(&before.applications, &after.applications, |annotation| {
+                push(
+                    node,
+                    None,
+                    ChangeKind::ChangedNominalAnnotation { annotation },
+                )
+            })?;
+        }
+    }
     for (&node, before) in &base.nodes {
         let Some(after) = current.nodes.get(&node) else {
             continue;

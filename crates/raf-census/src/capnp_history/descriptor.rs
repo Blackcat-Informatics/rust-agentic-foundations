@@ -48,6 +48,7 @@ pub(super) struct Schema {
     pub(super) nodes: BTreeMap<TypeId, Node>,
     pub(super) files: BTreeMap<TypeId, RelPath>,
     pub(super) declarations: BTreeMap<TypeId, Declaration>,
+    pub(super) nominal_applications: BTreeMap<TypeId, NominalApplications>,
     pub(super) named_endpoint_parameters: BTreeMap<TypeId, BTreeMap<TypeId, u32>>,
 }
 
@@ -61,6 +62,12 @@ pub(super) struct Declaration {
     pub(super) name: String,
     pub(super) scope: TypeId,
     pub(super) body: DeclarationBody,
+}
+
+#[derive(Debug)]
+pub(super) struct NominalApplications {
+    pub(super) kind: Kind,
+    pub(super) applications: Applications,
 }
 
 #[derive(Debug)]
@@ -255,6 +262,7 @@ pub(super) fn read(
         Roots::Require(selected) | Roots::AllowMissing(selected) => {
             projected.files = files::project(request, &nodes, selected, require_roots)?;
             projected.declarations = declarations::project(&nodes, selected)?;
+            projected.nominal_applications = nodes.nominal_applications(&projected, &mut scopes)?;
         }
     }
     Ok(projected)
@@ -458,6 +466,7 @@ impl<'a> Nodes<'a> {
             nodes,
             files: BTreeMap::new(),
             declarations: BTreeMap::new(),
+            nominal_applications: BTreeMap::new(),
             named_endpoint_parameters,
         })
     }
@@ -609,8 +618,8 @@ impl<'a> Nodes<'a> {
             }
             let applications = if self.strict_history {
                 self.applications(
-                    (id, name),
-                    ApplicationCarrier::Enumerant,
+                    id,
+                    ApplicationCarrier::Enumerant(name),
                     value.get_annotations()?,
                     scopes,
                 )?
@@ -841,8 +850,11 @@ impl<'a> Fields<'a, '_> {
                     && matches!(self.layout_scope, LayoutScope::Data)
                 {
                     self.nodes.applications(
-                        (owner, name),
-                        ApplicationCarrier::DataField(self.annotations),
+                        owner,
+                        ApplicationCarrier::DataField {
+                            name,
+                            presence: self.annotations,
+                        },
                         field.get_annotations()?,
                         self.scopes,
                     )?
