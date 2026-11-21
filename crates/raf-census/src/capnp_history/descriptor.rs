@@ -3,6 +3,7 @@
 
 //! Admitted schema nodes, file declarations, and projected data layouts.
 
+mod applications;
 mod declarations;
 mod files;
 mod rpc;
@@ -50,6 +51,7 @@ pub(super) struct Schema {
     pub(super) named_endpoint_parameters: BTreeMap<TypeId, BTreeMap<TypeId, u32>>,
 }
 
+use applications::FieldApplications;
 use declarations::AnnotationTargets;
 pub use declarations::{AnnotationTarget, DeclarationKind};
 
@@ -123,6 +125,21 @@ pub(super) struct Struct {
     pub(super) pairs: BTreeSet<(u16, u16)>,
 }
 
+#[derive(Clone, Copy)]
+enum LayoutScope {
+    Data,
+    Inline(Option<TypeScope>),
+}
+
+impl LayoutScope {
+    fn type_scope(self, owner: TypeId) -> TypeScope {
+        match self {
+            Self::Inline(Some(scope)) => scope,
+            Self::Data | Self::Inline(None) => TypeScope::Lexical(owner),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct Group {
     pub(super) ordinal: Option<u16>,
@@ -140,9 +157,13 @@ pub(super) struct Slot {
     pub(super) default: DefaultValue,
     pub(super) explicit_default: bool,
     pub(super) required: bool,
+    pub(super) applications: FieldApplications,
 }
 
-pub(super) struct Nodes<'a>(BTreeMap<TypeId, node::Reader<'a>>);
+pub(super) struct Nodes<'a> {
+    by_id: BTreeMap<TypeId, node::Reader<'a>>,
+    strict_history: bool,
+}
 
 type DeclarationScopes = BTreeMap<TypeId, Vec<TypeId>>;
 
@@ -200,7 +221,10 @@ pub(super) fn read(
     if let Some((capture, tree)) = capture {
         capture.verify_request(tree, request, &nodes)?;
     }
-    let nodes = Nodes(nodes);
+    let nodes = Nodes {
+        by_id: nodes,
+        strict_history: !matches!(mode, Roots::Declared(_)),
+    };
     let mut scopes = DeclarationScopes::new();
     for (id, kind) in [
         (annotations.required, AnnotationKind::Required),
@@ -250,7 +274,7 @@ impl<'a> Nodes<'a> {
             ))
         };
         let declaration = self
-            .0
+            .by_id
             .get(&id)
             .ok_or_else(|| layout(format!("missing {label} annotation {id}")))?;
         let node::Annotation(annotation) = declaration.which()? else {
@@ -275,7 +299,7 @@ impl<'a> Nodes<'a> {
     }
 
     fn node(&self, id: TypeId) -> Result<node::Reader<'a>, Error> {
-        self.0
+        self.by_id
             .get(&id)
             .copied()
             .ok_or_else(|| layout(format!("missing schema node {id}")))
@@ -316,7 +340,7 @@ impl<'a> Nodes<'a> {
         }
         for _ in 0..MAX_DEPTH {
             let parent_id = TypeId(child.get_scope_id());
-            let Some(&parent) = self.0.get(&parent_id) else {
+            let Some(&parent) = self.by_id.get(&parent_id) else {
                 return Ok(false);
             };
             if !admit(parent)? {
@@ -399,7 +423,7 @@ impl<'a> Nodes<'a> {
         let mut needed = BTreeSet::new();
         let mut present = BTreeSet::new();
         for &root in roots {
-            if require_roots || self.0.contains_key(&root) {
+            if require_roots || self.by_id.contains_key(&root) {
                 self.node(root)?;
                 needed.insert(root);
                 present.insert(root);
@@ -471,7 +495,7 @@ impl<'a> Nodes<'a> {
                     needed,
                     annotations,
                     scopes,
-                    None,
+                    LayoutScope::Data,
                 )?))
             }
             node::Enum(data) => Ok(Node::Enum(enumerants(id, data)?)),
@@ -509,11 +533,12 @@ impl<'a> Nodes<'a> {
         needed: &mut BTreeSet<TypeId>,
         annotations: Annotations,
         scopes: &mut DeclarationScopes,
-        inline_type_scope: Option<TypeScope>,
+        layout_scope: LayoutScope,
     ) -> Result<Struct, Error> {
         let mut collector = Fields {
             nodes: self,
             needed,
+            scopes,
             annotations,
             slots: BTreeMap::new(),
             pairs: BTreeSet::new(),
@@ -521,7 +546,7 @@ impl<'a> Nodes<'a> {
             used_groups: BTreeSet::new(),
             ordinals: BTreeSet::new(),
             sizes: (reader.get_data_word_count(), reader.get_pointer_count()),
-            inline_type_scope,
+            layout_scope,
         };
         collector.group(id, reader, Rc::from([]), (None, None), false)?;
         collector.validate_peers(id)?;
@@ -544,7 +569,7 @@ impl<'a> Nodes<'a> {
             None
         };
         if let Some(constraint) = declared_constraint
-            && !self.is_declared(id, scopes)?
+            && !self.is_declared(id, collector.scopes)?
         {
             return Err(layout(format!(
                 "{constraint} must belong to a declared struct; check node {id} and its enclosing scopes"
@@ -596,6 +621,7 @@ fn member_name(name: capnp::text::Reader<'_>) -> Result<&str, Error> {
 struct Fields<'a, 'b> {
     nodes: &'b Nodes<'a>,
     needed: &'b mut BTreeSet<TypeId>,
+    scopes: &'b mut DeclarationScopes,
     annotations: Annotations,
     slots: BTreeMap<u16, Slot>,
     pairs: BTreeSet<(u16, u16)>,
@@ -603,7 +629,7 @@ struct Fields<'a, 'b> {
     used_groups: BTreeSet<TypeId>,
     ordinals: BTreeSet<u16>,
     sizes: (u16, u16),
-    inline_type_scope: Option<TypeScope>,
+    layout_scope: LayoutScope,
 }
 
 impl<'a> Fields<'a, '_> {
@@ -650,7 +676,7 @@ impl<'a> Fields<'a, '_> {
                 annotation.get_brand()?,
                 self.nodes,
                 (
-                    TypeScope::Lexical(self.inline_type_scope.map_or(owner, TypeScope::owner)),
+                    TypeScope::Lexical(self.layout_scope.type_scope(owner).owner()),
                     marker,
                 ),
                 &mut BTreeSet::new(),
@@ -786,9 +812,27 @@ impl<'a> Fields<'a, '_> {
                     self.pairs.insert((ordinal, peer));
                 }
                 self.record_ordinal(owner, name, ordinal)?;
-                if let Some(span) =
-                    self.slot((owner, path), (name, ordinal), slot, discriminant, required)?
+                let applications = if self.nodes.strict_history
+                    && matches!(self.layout_scope, LayoutScope::Data)
                 {
+                    self.nodes.field_applications(
+                        owner,
+                        name,
+                        field,
+                        self.annotations,
+                        self.scopes,
+                    )?
+                } else {
+                    FieldApplications::new()
+                };
+                if let Some(span) = self.slot(
+                    (owner, path),
+                    (name, ordinal),
+                    slot,
+                    discriminant,
+                    required,
+                    applications,
+                )? {
                     occupied.insert(span, exclusive).map_err(collision)?;
                 }
             }
@@ -854,13 +898,14 @@ impl<'a> Fields<'a, '_> {
         slot: field::slot::Reader<'_>,
         discriminant: Option<u16>,
         required: bool,
+        applications: FieldApplications,
     ) -> Result<Option<Range<u32>>, Error> {
         if !slot.has_type() || !slot.has_default_value() {
             return Err(layout(format!(
                 "missing type or default at {owner}.{name} @{ordinal}"
             )));
         }
-        let type_scope = self.inline_type_scope.unwrap_or(TypeScope::Lexical(owner));
+        let type_scope = self.layout_scope.type_scope(owner);
         let ty = Type::read(slot.get_type()?, self.nodes, type_scope, self.needed)?;
         let default = shape::default(&ty, slot.get_default_value()?, self.nodes)?;
         let offset = slot.get_offset();
@@ -887,6 +932,7 @@ impl<'a> Fields<'a, '_> {
             default,
             explicit_default: slot.get_had_explicit_default(),
             required,
+            applications,
         };
         self.slots.insert(ordinal, slot);
         Ok(storage.map(|(pointer, width)| {
