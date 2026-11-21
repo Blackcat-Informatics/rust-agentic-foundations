@@ -86,7 +86,7 @@ pub enum ChangeKind {
         /// ID of the former direct superclass.
         superclass: TypeId,
     },
-    /// The count of a struct's own type parameters changed.
+    /// The count of a type's own parameters changed.
     ChangedParameters,
     /// An existing member disappeared.
     RemovedMember,
@@ -443,6 +443,9 @@ fn interface(
     after: &Interface,
     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
 ) -> Result<(), Error> {
+    if before.parameters != after.parameters {
+        emit(None, ChangeKind::ChangedParameters)?;
+    }
     for &superclass in before.superclasses.difference(&after.superclasses) {
         emit(None, ChangeKind::RemovedSuperclass { superclass })?;
     }
