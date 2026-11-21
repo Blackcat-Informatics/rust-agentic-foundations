@@ -32,7 +32,9 @@
      (name = "CompetingMethodOwner", id = 17204595001485426719),
      (name = "MissingInlineOwner", id = 17204595001485426720),
      (name = "InvalidOwnerParameter", id = 17204595001485426722),
-     (name = "IncompleteOwnerBinding", id = 17204595001485426723)]),
+     (name = "IncompleteOwnerBinding", id = 17204595001485426723),
+     (name = "RepeatedBrand", id = 17204595001485426724),
+     (name = "ScalarBrand", id = 17204595001485426725)]),
   (id = 17204595001485426689, scopeId = 17204595001485426688,
    interface = (methods = [
      (name = "read", paramStructType = 17204595001485426690, resultStructType = 17204595001485426690)])),
@@ -141,4 +143,15 @@
      (name = "read", paramStructType = 17204595001485426712, resultStructType = 17204595001485426702,
       paramBrand = (scopes = [
         (scopeId = 17204595001485426712, bind = [(type = (anyPointer = (
-          parameter = (scopeId = 17204595001485426723, parameterIndex = 0))))])]))]))])
+          parameter = (scopeId = 17204595001485426723, parameterIndex = 0))))])]))])),
+  (id = 17204595001485426724, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426706, resultStructType = 17204595001485426702,
+      paramBrand = (scopes = [
+        (scopeId = 17204595001485426706, bind = [(unbound = void)]),
+        (scopeId = 17204595001485426706, bind = [(type = (text = void))])]))])),
+  (id = 17204595001485426725, scopeId = 17204595001485426688,
+   interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426706, resultStructType = 17204595001485426702,
+      paramBrand = (scopes = [
+        (scopeId = 17204595001485426706, bind = [(type = (uint32 = void))])]))]))])

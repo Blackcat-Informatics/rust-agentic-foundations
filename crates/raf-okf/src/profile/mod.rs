@@ -258,15 +258,15 @@ impl Profile {
             check.key("type", Rule::WrongDirectory { declared: doc_type });
         }
         let prior_findings = check.out.len();
-        let bindings_exact = match header::check(&mut check, map, doc_type) {
-            Ok(exact) => exact,
+        let keys = match header::check(&mut check, map, doc_type) {
+            Ok(keys) => keys,
             Err(source) => {
                 check.out.truncate(prior_findings);
                 check.add(Location::Document, Rule::HeaderShape { source });
                 return Err(check.out);
             }
         };
-        let collected = check_values(&mut check, map, doc_type, file_stem(path), bindings_exact);
+        let collected = check_values(&mut check, map, doc_type, file_stem(path), &keys);
         check_frontmatter_placeholders(&mut check, map);
         let body = document.body();
         body_rules::check_sections(doc_type, body, path, &mut check.out);
@@ -286,7 +286,7 @@ fn check_values(
     map: &Map,
     doc_type: DocType,
     stem: &str,
-    bindings_exact: bool,
+    keys: &header::KeyVerdicts<'_>,
 ) -> Collected {
     let mut found = Collected::default();
     for spec in doc_type.keys() {
@@ -316,7 +316,7 @@ fn check_values(
                 found.review_required = Slot::from_check(review::check_required(check, entry));
             }
             ValueKind::Bindings => {
-                found.bindings = check_bindings(check, entry, found.state, bindings_exact);
+                found.bindings = check_bindings(check, entry, found.state, keys.bindings_exact);
             }
             ValueKind::CapabilityIds => {
                 let ids = check_capability_ids(check, entry, key == "changes");
@@ -341,7 +341,7 @@ fn check_values(
                 found.affects = check_affects(check, entry, &found.change_ids);
             }
             ValueKind::ContractEffect => found.effect = check_effect(check, entry),
-            ValueKind::Items => found.items = check_items(check, entry),
+            ValueKind::Items => found.items = check_items(check, entry, &keys.items),
             ValueKind::Subject => {
                 found.subject = records::check_subject(check, entry, doc_type);
             }
@@ -789,7 +789,11 @@ fn check_effect(check: &mut Check<'_>, entry: &Entry) -> Option<ContractEffect> 
     effect
 }
 
-fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>> {
+fn check_items(
+    check: &mut Check<'_>,
+    entry: &Entry,
+    keys: &[header::ItemKeys<'_>],
+) -> Option<Vec<ChangeItem>> {
     let shape = Rule::WrongShape {
         expected: "a list of maps with `claim` and optional `outcome`",
     };
@@ -799,29 +803,32 @@ fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>> 
     };
     let mut items = Vec::new();
     let mut valid = true;
+    let mut keys = keys.iter();
     for item in list.items() {
         let ItemValue::Map(map) = item.value() else {
             check.key("items", shape);
             return None;
         };
-        let mut claim = None;
-        for field in map.entries() {
-            if !matches!(field.key(), "claim" | "outcome" | "reason") {
-                check.key(
-                    "items",
-                    Rule::ItemUnknownKey {
-                        key: field.key().to_string(),
-                    },
-                );
-                valid = false;
-            }
+        let keys = keys
+            .next()
+            .expect("INVARIANT: header validation covers every map before the first non-map item");
+        for key in &keys.unknown {
+            check.key(
+                "items",
+                Rule::ItemUnknownKey {
+                    key: (*key).to_owned(),
+                },
+            );
+            valid = false;
         }
-        match map.get("claim").and_then(scalar_text) {
-            Some(text) if !text.trim().is_empty() => claim = Some(text.to_string()),
-            _ => {
-                check.key("items", Rule::ItemClaimEmpty);
-                valid = false;
-            }
+        let claim = keys
+            .claim
+            .and_then(scalar_text)
+            .filter(|text| !text.trim().is_empty())
+            .map(str::to_owned);
+        if claim.is_none() {
+            check.key("items", Rule::ItemClaimEmpty);
+            valid = false;
         }
         let mut outcome = None;
         if let Some(entry) = map.get("outcome") {

@@ -192,7 +192,9 @@ jobs:
           # and without generating native debug line tables for this shard.
           if [[ "$RAF_CI_PACKAGE" == rust-agentic-foundations && "${args[*]}" == '--test docs_contract' ]]; then
             export CARGO_PROFILE_TEST_DEBUG=0
-            args+=(--config 'profile.test.opt-level=1')
+            # Build the root's unused Census dev-dependency at level zero on this shard.
+            # Keep the document checks and their runtime dependencies optimized.
+            args+=(--config 'profile.test.opt-level=1' --config 'profile.test.package.raf-census.opt-level=0')
           fi
           cargo test --locked --package "$RAF_CI_PACKAGE" "${args[@]}"
           if test "$RAF_CI_DOCS" = true; then
