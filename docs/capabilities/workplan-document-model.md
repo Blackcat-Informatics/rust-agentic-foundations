@@ -69,18 +69,18 @@ bindings:
     - raf_workplan::git::tracked_paths
     - raf_workplan::Workplan::debt
   tests:
-    - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
-    - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers
-    - cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input
-    - rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile
+    - raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
+    - raf_docs_contract::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers
+    - cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input
+    - raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile
     - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
-    - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
+    - cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync
     - raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path
     - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
     - raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given
     - raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does
-    - cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal
+    - cargo_raf_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal
     - raf_workplan::test_crate::references::accepts_a_moved_outcome_that_names_an_existing_change
     - raf_workplan::test_crate::generated::the_stale_finding_points_at_the_opening_marker_of_the_block
     - raf_workplan::test_crate::claim_coverage::an_unbound_claim_marker_is_refused_beside_covered_neighbors
@@ -394,7 +394,7 @@ order, alternatives with branch/error arms and parallel regions with lanes.
 <!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
 
 Review records load from `work/reviews` through the shared document loader and record store. Their identities use `review:<slug>`, and graph relationships retain source scope and recorded inputs. Source digests identify each definition separately from its indexed children. Review status compares persisted inputs with current source without reopening the historical commit. Findings references inside the repository must remain readable; a URL remains opaque.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Capability and architecture documents may carry closed named diagram
 declarations. The loaded model caches their native semantic bundles and checked
@@ -422,7 +422,7 @@ the identity `cap:<slug>`, the keys and the seven sections defined in
 [the OKF reader](./okf-profile.md).
 
 ### Capability lifetime identity
-<!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal -->
 
 The document is permanent: authors keep its identity and its path from the first
 time the capability is considered until the capability is removed. Lifecycle
@@ -442,7 +442,7 @@ document and the change records may say.
 | `delivered` | The supported contract, usage, examples, limitations, current rationale and verification links | No open record lists it |
 
 ### State transition policy
-<!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
 
 `change new` writes the open change record and moves a delivered or designed
 capability to `implementing`. It preserves the current account. A `PROPOSED`
@@ -585,7 +585,7 @@ document IRI as owner, a zero-based ordinal and the canonical target
 capability IRI. Absent targets still have their declared IRIs. These
 statements count toward the graph limits and must agree with the
 recovered Evidence Document.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 Each Evidence, Assessment and Review Document contributes an owned
 occurrence for each declared input. The inventory record links to
@@ -595,7 +595,7 @@ authoring vocabulary IRI, and the exact input name and SHA-256 digest
 as strings. An unavailable input retains its declaration. These
 statements count toward the graph limits. Recovery requires the exact
 input assertions from the recovered Documents.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 The capability inventory links each authored claim marker through
 `workplan:occurrence` to the same stable `ClaimOccurrence` IRI used by
@@ -605,7 +605,7 @@ exact statement string. Its annotations carry the source path, marker
 line, optional section and all declared `workplan:supportedBy` evidence
 IRIs. Unavailable evidence retains its declared identity. The graph
 limits count the reifiers, quoted component text and annotations.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers,cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers,cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 When Workplan loads `docs/capabilities/index.md`, the repository frame
 enrolls it with one `index` edge to the fixed IRI
@@ -621,7 +621,7 @@ the exact inventory, relationship assertions, claim reifiers and
 annotations derived from the recovered Documents. The operations refuse incomplete profile loads,
 duplicate paths or identities, invalid carriers and extra or missing
 assertions. A refusal names the affected path or graph identity.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
 The graph admits up to 4,096 documents and 1,048,576 rows across
 assertions, claim reifiers and occurrence annotations. It admits up to
@@ -631,17 +631,17 @@ ceiling. Each document retains the limits of the OKF codec. Assertions
 use the default graph, IRI subjects and predicates, and IRI or untagged
 literal objects. Claim reifiers and annotations follow the occurrence
 shape above.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
 The Index membership and carrier rows count toward the repository
 statement and text limits. The document count covers the profile
 Documents. The Index also uses its own OKF carrier limits.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
 `docs export --repository` serializes the same dataset in Turtle or
 N-Triples. The library inverse recovers the ordered authoring declarations
 from either carrier.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 ### Record and proof edges
 <!-- raf:tested-by raf_workplan::test_crate::records::the_records_are_nodes_with_their_edges,raf_workplan::test_crate::records::claims_are_section_granular_and_one_edge_per_named_record,raf_workplan::test_crate::records::each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding,raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved,raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge -->
@@ -828,7 +828,7 @@ Call `Workplan::authoring_dataset` to obtain the repository's native
 dataset. Serialize it as RDF 1.2 N-Triples with the native writer. Pass
 the decoded dataset to `authoring::repository_from_dataset` to recover
 the path-keyed Documents and optional Index.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
 Use the typed record creation and replacement APIs for owned metadata. Their
 native disk store opens lazily after model validation and retains one root and
@@ -847,7 +847,7 @@ and grouping is `none`.
 <!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
 
 Load the repository through `Workplan` and query its reviews through `review_status`, `review_coverage` and the shared record accessors. Use the native review writer to derive inputs from the actual committed tree rather than supplying caller-invented inputs.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Use the loaded model's `diagram` for an explicit automatic selection and
 `named_diagram` for a checked owning-document reference. Generated-document
@@ -904,7 +904,7 @@ associated execution record passes.
 <!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
 
 The real command fixture records crate and module scopes, prunes the original reviewed object and still reports currentness. Changing a leaf leaves its stable enclosing definitions current, while additions, deletions and renames retain their exact item identities.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 An architecture ownership view resolves through `arch:overview#structure`.
 An absent view or malformed declaration refuses, and the valid neighbor renders.
@@ -969,7 +969,7 @@ items:
   <!-- raf:tested-by raf_workplan::test_crate::documents::rejects_nested_documents -->
 - A state transition is part of a change to the capability. The check rules
   reject a state its content and owning records do not support.
-  <!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
+  <!-- raf:tested-by cargo_raf_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
 - Outside a git work tree, such as a copy of a commit's files, the gate takes every
   file under the directory as a tracked path, so a link to an untracked file passes
   there. `Gate::tracked_paths` supplies the list instead.
@@ -1020,32 +1020,32 @@ touches, and the obligations those sections receive are defined by
 The repository export round trip recovers the exact document inventory in
 both RDF carriers, including declared bindings and an absent dependency
 target.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 The tracked repository round trip recovers the exact navigation bytes
 alongside the complete Document inventory. The focused inverse fixture
 accepts optional absence and refuses an orphan carrier or membership,
 incorrect membership, an extra carrier row and an invalid body.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
 The focused authoring fixture checks an exact evidence list with an
 absent target before an available one. It verifies each owner,
 position and target assertion. The inverse refuses a changed target,
 a missing occurrence and an extra complete occurrence.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
 The same fixture checks owner, position, kind, name and digest for inputs
 from Evidence, Assessment and Review. Its input cases include an absent
 artifact beside changed, missing and additional digest assertions that
 the inverse refuses.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
 The claim fixture preserves marker lines across a reordered frontmatter
 head and recovers the exact statement and support for distinct markers
 with equal text. The inverse refuses altered, missing and extra reifiers,
 missing and extra annotations, reifiers on owned carrier subjects and
 a quoted triple supplied as an assertion.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers -->
 
 Native disk fixtures refuse changed real-directory bindings, retain the requested
 record path and original Source cause when opening fails, and permit ordinary
@@ -1143,9 +1143,12 @@ document writes and unchanged source and Git state beside successful completion.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
-| `cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `cargo_raf_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_workplan::Gate` | doctest | [Usage](#usage) |
 | `raf_workplan::LinkContext` | doctest | [Verification](#verification) |
 | `raf_workplan::bindings::tests::the_invocations_of_a_module_are_listed_once_however_many_bindings_miss` | test | [Verification](#verification) |
@@ -1432,9 +1435,6 @@ document writes and unchanged source and Git state beside successful completion.
 | `raf_workplan::work::tests::the_panic_comes_before_the_work_that_follows_it` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract), [Usage](#usage) |
 <!-- raf:generated:end -->
 
 <!-- raf:generated:relationships -->

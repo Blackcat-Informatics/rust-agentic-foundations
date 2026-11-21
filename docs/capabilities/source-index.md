@@ -5416,7 +5416,7 @@ one-byte-short refusal.
   `exported_items` and `raf_source::DiskTree`, mapped to
   `raf_source::tree::disk::DiskTree`, holds no item of a private module and lists
   `raf_source::syn` as a re-export of a crate outside the workspace, and the
-  `cargo-workplan` binary exports nothing.
+  `cargo-raf-workplan` binary exports nothing.
 - The `load-workspace` fuzz target lists the surface of every target of each
   workspace that loads, hidden items included.
 - The differential `rustc_oracle` test compares actual rendered import aliases in each namespace through `raf_source::Workspace::resolve_from_in`. Compiler order dependence is accepted only when independently observed outcomes include the stable index answer. Resource failures, index-order instability and cyclic or indeterminate-import disagreements fail. The default draws 64 programs from each of two seed families; `RAF_ORACLE_PROGRAMS=5522` selects that many actual programs from the first family, and `RAF_ORACLE_SEED_BASE=0xc0ffee00` explicitly selects the second. The complete committed corpus is replayed with its required class. Controlled wrong answers verify the comparator, strict diagnostic parsing preserves actionable failures, and the explicit corpus writer checks deterministic output in owned temporary directories.

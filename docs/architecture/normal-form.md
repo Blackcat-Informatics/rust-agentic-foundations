@@ -33,7 +33,7 @@ a shim is the complete 32-byte BLAKE3 hash of the form's token sequence under
 one fixed byte encoding. A version is fixed by the content of its first merge to the
 default branch: after that, any change that can alter a fingerprint is a new
 version, and a ledger written under another version is refused until
-`cargo census migrate` rewrites it.
+`cargo raf-census migrate` rewrites it.
 
 ## Token source
 
@@ -593,7 +593,7 @@ refuses a record that states it, by name.
 A ledger names the version it was written for with `normal_form`. If the value differs
 from the version the census implements, the census fails hard before reading any job.
 The message states the ledger's version and the census's version and tells the user to
-run `cargo census migrate`, which maps the old fingerprints to the new ones. The
+run `cargo raf-census migrate`, which maps the old fingerprints to the new ones. The
 census never reads a ledger under a different version, and never guesses at a mapping;
 `migrate` is the one reader of an older-version ledger, and it rewrites the ledger at
 the implemented version.

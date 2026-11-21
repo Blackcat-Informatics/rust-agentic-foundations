@@ -27,7 +27,7 @@ bindings:
     - raf_workplan::record::tests::a_directory_swap_after_preflight_refuses_replacement_publication
     - raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item
     - raf_workplan::lifecycle::touched::tests::static_surface_comparison_classifies_changes_without_executing_source
-    - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
+    - cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
     - raf_workplan::test_crate::lines::incomplete_associated_macro_ownership_refuses_beside_complete_owner_reaches
     - raf_workplan::test_crate::lines::associated_macro_lines_follow_the_exact_owner_without_global_argument_inference
     - raf_workplan::test_crate::lines::foreign_macro_lines_require_an_opened_module_instead_of_argument_name_inference
@@ -69,12 +69,12 @@ bindings:
     - raf_okf::test_crate::records::debt_is_one_record_at_its_one_path
     - raf_okf::test_crate::record_writer::a_debt_record_is_written_sorted_and_read_back_equal
     - raf_okf::test_crate::refusals::a_text_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command
-    - cargo_workplan::test_crate::check::the_default_check_accepts_the_complete_fixture
-    - cargo_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag
-    - cargo_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure
-    - cargo_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal
-    - cargo_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command
+    - cargo_raf_workplan::test_crate::check::the_default_check_accepts_the_complete_fixture
+    - cargo_raf_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag
+    - cargo_raf_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure
+    - cargo_raf_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal
+    - cargo_raf_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf
     - raf_workplan::strict::claims::tests::a_key_is_the_kebab_slug_of_its_lead_and_a_lead_is_sixty_characters
     - raf_workplan::strict::claims::tests::a_list_item_opens_at_its_marker_and_its_content_starts_after_the_space
     - raf_workplan::strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit
@@ -96,29 +96,29 @@ bindings:
     - raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge
     - raf_workplan::test_crate::generated::a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row
     - raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run
-    - cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
-    - cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike
-    - cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
+    - cargo_raf_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
+    - cargo_raf_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike
+    - cargo_raf_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
     - raf_workplan::test_crate::claim_coverage::a_repeated_key_takes_the_first_number_no_other_key_of_its_section_has_in_either_order
     - raf_workplan::test_crate::claim_coverage::a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_beside_them_is_one
     - raf_workplan::test_crate::claim_coverage::a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines
     - raf_workplan::test_crate::claim_coverage::a_bold_lead_directly_after_any_heading_starts_a_contract_clause
-    - cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names
-    - cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero
-    - cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same
-    - cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why
-    - cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary
-    - cargo_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes
-    - cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero
+    - cargo_raf_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names
+    - cargo_raf_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero
+    - cargo_raf_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same
+    - cargo_raf_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why
+    - cargo_raf_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary
+    - cargo_raf_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes
+    - cargo_raf_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero
     - raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it
     - raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only
     - raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error
-    - cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor
+    - cargo_raf_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor
     - raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability
     - raf_workplan::test_crate::obligations::a_dropped_or_moved_item_needs_a_reason_and_an_explained_outcome_is_accepted
     - raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused
-    - cargo_workplan::test_crate::reconcile::an_untouched_usage_of_a_none_change_refuses_until_edited
-    - cargo_workplan::test_crate::reconcile::an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor
+    - cargo_raf_workplan::test_crate::reconcile::an_untouched_usage_of_a_none_change_refuses_until_edited
+    - cargo_raf_workplan::test_crate::reconcile::an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor
     - raf_workplan::test_crate::lines::a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line
     - raf_workplan::test_crate::lines::a_bound_test_reaches_its_registered_allocator_and_real_initializer_dependencies
     - raf_workplan::test_crate::lines::a_registered_allocator_is_not_a_root_of_an_unbound_target
@@ -183,17 +183,17 @@ bindings:
     - raf_workplan::test_crate::debt::the_default_debt_writer_judges_all_present_findings
     - raf_workplan::test_crate::debt::the_snapshot_of_every_other_file_is_unchanged_by_a_refused_write
     - raf_workplan::debt::tests::a_report_that_could_not_count_is_one_finding_no_row_holds_and_resolves_no_row
-    - cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes
-    - cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same
-    - cargo_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order
-    - cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written
-    - cargo_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record
-    - cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one
-    - cargo_workplan::test_crate::debt::the_default_policy_can_record_a_current_structural_finding
-    - cargo_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item
-    - cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered
-    - cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all
+    - cargo_raf_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes
+    - cargo_raf_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same
+    - cargo_raf_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order
+    - cargo_raf_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written
+    - cargo_raf_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record
+    - cargo_raf_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one
+    - cargo_raf_workplan::test_crate::debt::the_default_policy_can_record_a_current_structural_finding
+    - cargo_raf_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item
+    - cargo_raf_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered
+    - cargo_raf_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all
     - raf_workplan::test_crate::debt::every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_holds
     - raf_workplan::test_crate::debt::an_invalid_debt_row_is_refused_without_a_policy_selector
   examples:
@@ -231,7 +231,7 @@ documents does not judge policy units, while every complete check does. The
 completion check after record removal applies the same policy at both judgements.
 Content and binding findings follow document-model and generated-block findings,
 then the debt ratchet applies.
-<!-- raf:tested-by raf_workplan::strict::tests::the_default_check_judges_each_policy_unit_once_without_policy_work_during_load,raf_workplan::test_crate::strict::every_policy_refusal_case_is_enforced_by_the_default_check,raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan,raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command,raf_workplan::test_crate::debt::the_default_debt_writer_judges_all_present_findings -->
+<!-- raf:tested-by raf_workplan::strict::tests::the_default_check_judges_each_policy_unit_once_without_policy_work_during_load,raf_workplan::test_crate::strict::every_policy_refusal_case_is_enforced_by_the_default_check,raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan,raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item,cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command,raf_workplan::test_crate::debt::the_default_debt_writer_judges_all_present_findings -->
 
 **Examples.** A `delivered` capability binds at least
 one entry in `bindings.examples`; with none it is `strict-example-missing` at the key
@@ -244,7 +244,7 @@ generated block in its Verification section; without one it is
 <!-- raf:tested-by raf_workplan::test_crate::strict::verification_without_the_matrix_is_refused_and_with_the_block_is_not -->
 
 **Static example declarations.** Verification and completion validate source bindings without executing their bodies. Documentation examples marked no_run or compile_fail remain source declarations; no runtime success is inferred.
-<!-- raf:tested-by cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
 
 **Claim units.** A claim is a unit of the authored prose of the Contract and the
 Constraints of a `delivered` capability, read outside fenced code, generated blocks
@@ -309,7 +309,7 @@ at the Contract, whether or not a marker covers it, so one marker cannot stand f
 long Contract.
 <!-- raf:tested-by raf_workplan::test_crate::claim_coverage::a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not,raf_workplan::test_crate::claim_coverage::a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not -->
 
-**Claim report.** `cargo workplan coverage claims [--capability cap:<slug>]` and
+**Claim report.** `cargo raf-workplan coverage claims [--capability cap:<slug>]` and
 `Workplan::claims_report` (`strict::ClaimsReport`) list every claim of every delivered
 capability with its key, line and tests, on every check, sorted by
 capability, the slug of the section and line, as a table with the columns
@@ -317,7 +317,7 @@ Capability, Section, Claim, Line and Tested by (`coverage::render::claims_table`
 and in the typed Claims RDF results of the [shared report profile](./rdf-report-profile.md).
 The command exits 1 when a claim of a delivered capability has no test, 0 when every
 claim has one, and 2 when `--capability` names no loaded capability.
-<!-- raf:tested-by raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run,cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero,cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike,cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why -->
+<!-- raf:tested-by raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run,cargo_raf_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero,cargo_raf_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike,cargo_raf_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why -->
 
 **Usage substantiation.** A binding that
 a marker names substantiates the section that holds the marker in the verification
@@ -400,14 +400,14 @@ and the sections it owes reconciled.
 Git trees and blobs, under the same explicit source bounds as current input.
 Only packages reached by code bindings are loaded. Static completion evaluates
 again from fresh inputs before publication; no compiler, test or example runs.
-<!-- raf:tested-by cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor -->
 
 **Unreadable compared surfaces.** A merge base whose index does not load (a file that is not
 UTF-8 or does not parse, a missing module) is an error and not a pass, as is a public
 surface a source index cannot list (`LifecycleError::Surface`, which names the side),
 and `change reconcile` and `change complete` exit 2 for either. Condition 1 refuses on
 the obligation, and the headline counts it as an obligation.
-<!-- raf:tested-by cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor,cargo_workplan::test_crate::reconcile::an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor,cargo_raf_workplan::test_crate::reconcile::an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor -->
 
 **Section prose.** Each of the seven sections of a `delivered` capability
 holds at least `strict::MIN_SECTION_WORDS`, 20, words of prose: the prose lines
@@ -441,14 +441,14 @@ reason. Both obligations apply to every complete reconciliation and completion.
 `section-untouched` for the Contract only: a Usage or an Examples section that the
 record lists in `affects` and that has the text of the merge base is owed, as under
 `contract_effect: changes`.
-<!-- raf:tested-by cargo_workplan::test_crate::reconcile::an_untouched_usage_of_a_none_change_refuses_until_edited -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::reconcile::an_untouched_usage_of_a_none_change_refuses_until_edited -->
 
-**Lines.** `cargo workplan coverage lines [--crate <package>]` and
+**Lines.** `cargo raf-workplan coverage lines [--crate <package>]` and
 `Workplan::lines_report` (`coverage::lines::LinesReport`) give the reverse coverage
 of every package the loader reaches, the root package and packages that no
-capability binds included, on every check. `cargo workplan coverage
+capability binds included, on every check. `cargo raf-workplan coverage
 --reverse [--crate <package>]` is the same command and prints the same bytes.
-<!-- raf:tested-by raf_workplan::test_crate::lines::a_package_that_no_capability_binds_is_reported_with_its_orphan_helper,raf_workplan::test_crate::lines::a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not,cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same -->
+<!-- raf:tested-by raf_workplan::test_crate::lines::a_package_that_no_capability_binds_is_reported_with_its_orphan_helper,raf_workplan::test_crate::lines::a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not,cargo_raf_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same -->
 
 **Counted source units.** The units of a package are those of every target the [source index](./source-index.md)
 lists (library, binaries, integration tests, examples, benches and build script):
@@ -548,13 +548,13 @@ counting errors. They stop the report before totals or orphan rows are published
 a refused macro lookup does not continue into parent scopes. The error identifies
 the queried path or macro, its module and the source refusal. A genuine missing
 name can still identify generated code.
-<!-- raf:tested-by raf_workplan::test_crate::lines::the_report_preserves_exact_line_counts_ranges_and_three_tables,raf_workplan::test_crate::lines::an_excepted_unit_preserves_ranges_reason_and_the_excepted_table,raf_workplan::coverage::lines::tests::a_walk_that_fails_retains_a_single_typed_error_and_the_error_table,cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same,cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero -->
+<!-- raf:tested-by raf_workplan::test_crate::lines::the_report_preserves_exact_line_counts_ranges_and_three_tables,raf_workplan::test_crate::lines::an_excepted_unit_preserves_ranges_reason_and_the_excepted_table,raf_workplan::coverage::lines::tests::a_walk_that_fails_retains_a_single_typed_error_and_the_error_table,cargo_raf_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same,cargo_raf_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero -->
 
 **Stable line reports and command outcomes.** The report holds no absolute path and no order that depends on the
 host, and a file with CRLF line endings reads as the same file with LF. The command
 exits 1 when it prints an orphan line or an error, 0 when it prints neither, and 2
 when `--crate` names no package.
-<!-- raf:tested-by raf_workplan::test_crate::lines::crlf_reads_as_lf_and_two_runs_give_the_same_bytes,cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero,cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same,cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why -->
+<!-- raf:tested-by raf_workplan::test_crate::lines::crlf_reads_as_lf_and_two_runs_give_the_same_bytes,cargo_raf_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero,cargo_raf_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same,cargo_raf_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why -->
 
 **Exception targets.** The coverage record takes two more optional keys. Each
 row of `exceptions` holds exactly one of `item`, an item path or a prefix
@@ -654,14 +654,14 @@ a strict finding whose kind and subject a `findings` row records is not reported
 
 **Explicit debt writing.** Ordinary checks and repository test gates do not adopt
 or create tracked debt. The record is written explicitly through
-`cargo workplan debt --write [--copyright <text> --licence <id>]`,
+`cargo raf-workplan debt --write [--copyright <text> --licence <id>]`,
 `Gate::write_debt` or `Opened::write_debt`; the API does not detect whether its
 caller is a test. Tests of the writer create records in their fixture repositories.
 They return a `DebtWrite` (the path, the `DebtChange` `Created`, `Replaced` or
 `Unchanged`, and the rows of each list) or a `DebtError`. The SPDX lines come from
 `Gate::record_options` or the `RecordOptions` of `Opened::write_debt`, and a record
 that exists keeps its own when none are given.
-<!-- raf:tested-by raf_workplan::test_crate::debt::without_a_record_every_strict_finding_stands_and_the_write_creates_it,raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched,raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given,cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered -->
+<!-- raf:tested-by raf_workplan::test_crate::debt::without_a_record_every_strict_finding_stands_and_the_write_creates_it,raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched,raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given,cargo_raf_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered -->
 
 **Debt write refusals.** The write takes the present strict debt: it refuses while a finding exists that no row can hold, a finding of the default
 rules, a stale generated block or an unreadable surface among them
@@ -677,7 +677,7 @@ creates or replaces only `work/debt/default.md`, leaves a record that already eq
 the present debt untouched, and two writes of the same debt give the same bytes.
 `debt --write` exits 0 when it writes, 1 when it refuses with the findings printed,
 and 2 when `--write` is missing or the tool cannot run.
-<!-- raf:tested-by raf_workplan::test_crate::debt::without_a_record_every_strict_finding_stands_and_the_write_creates_it,raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched,cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes,cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written,cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work -->
+<!-- raf:tested-by raf_workplan::test_crate::debt::without_a_record_every_strict_finding_stands_and_the_write_creates_it,raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched,cargo_raf_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes,cargo_raf_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written,cargo_raf_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work -->
 
 **The kinds.** The closed `Finding::KINDS` registry includes example, matrix,
 claim, section, usage and limitation refusals, coverage exceptions and line
@@ -686,7 +686,7 @@ ordinary unknown-key or unknown-option errors. The typed Finding RDF projection
 preserves kind, exact source location, message and fix through the
 [shared report profile](./rdf-report-profile.md). Outcome reasons and understated
 contract effects remain obligations of the completion lifecycle.
-<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind,cargo_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command -->
+<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind,cargo_raf_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command -->
 
 ## Usage
 
@@ -713,11 +713,11 @@ while a record containing the removed policy selector is refused with its key
 location. Repository commands require no policy flag:
 
 ~~~sh
-cargo workplan check
-cargo workplan change reconcile incremental-parsing
-cargo workplan coverage claims --capability cap:streaming-parser
-cargo workplan coverage lines --crate raf-okf
-cargo workplan --format turtle coverage lines --crate raf-okf
+cargo raf-workplan check
+cargo raf-workplan change reconcile incremental-parsing
+cargo raf-workplan coverage claims --capability cap:streaming-parser
+cargo raf-workplan coverage lines --crate raf-okf
+cargo raf-workplan --format turtle coverage lines --crate raf-okf
 ~~~
 
 ## Examples
@@ -806,7 +806,7 @@ from a repository with zero uncovered items, claims and lines.
 - `contract-effect-understated` reads native merge-base source for the packages
   reached by code bindings, including their declared targets. Missing objects or
   unreadable source refuse locally, without Git subprocesses or fetching.
-<!-- raf:tested-by cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor -->
 - `strict::MIN_SECTION_WORDS` is 20 and is not configurable. A word count is a proxy:
   it catches the one-sentence section and judges no style.
 <!-- raf:tested-by raf_workplan::test_crate::strict::a_section_of_nineteen_words_is_thin_and_one_of_twenty_is_not -->
@@ -815,7 +815,7 @@ from a repository with zero uncovered items, claims and lines.
   held to 0.
 <!-- raf:tested-by raf_workplan::test_crate::lines::a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_test_lines_to_zero -->
 - Callers cannot disable the complete policy through a flag, typed floor or coverage key.
-<!-- raf:tested-by raf_workplan::test_crate::strict::every_policy_refusal_case_is_enforced_by_the_default_check,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command -->
+<!-- raf:tested-by raf_workplan::test_crate::strict::every_policy_refusal_case_is_enforced_by_the_default_check,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command -->
 - A directory that holds a cargo workspace of its own, such as a fuzz harness that
   the root workspace excludes, is a package of the source index when the source
   roots reach it, so the line report judges its lines as those of any package.
@@ -877,37 +877,37 @@ the closed record profile and command parser beside valid ordinary invocations.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::check::the_default_check_accepts_the_complete_fixture` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::the_default_policy_can_record_a_current_structural_finding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::reconcile::an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::reconcile::an_untouched_usage_of_a_none_change_refuses_until_edited` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::check::the_default_check_accepts_the_complete_fixture` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::the_default_policy_can_record_a_current_structural_finding` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::reconcile::an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::reconcile::an_untouched_usage_of_a_none_change_refuses_until_edited` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::reconcile::unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused` | test | [Contract](#contract) |
 | `raf_okf::test_crate::record_writer::a_coverage_record_writes_only_its_closed_policy_independent_keys` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_debt_record_is_written_sorted_and_read_back_equal` | test | [Contract](#contract) |

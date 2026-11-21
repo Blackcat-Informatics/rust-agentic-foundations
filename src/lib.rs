@@ -8,6 +8,9 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
+#[path = "../tests/support/mod.rs"]
+pub mod gate_files;
+
 /// The repository read root shared by its gates and runnable example.
 ///
 /// `RAF_GATE_ROOT` selects an explicit checkout snapshot. Without it the

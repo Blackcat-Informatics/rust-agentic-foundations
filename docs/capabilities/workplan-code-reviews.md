@@ -14,10 +14,10 @@ bindings:
     - raf_workplan::git::head
     - raf_workplan::lifecycle::touched::BaseTree::at_revision
     - raf_okf::profile::review
-    - cargo_workplan::bin_crate::cargo_workplan::review
-    - cargo_workplan::bin_crate::cargo_workplan::result_graph::review
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::review
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph::review
   tests:
-    - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
+    - cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - raf_workplan::digest::tests::review_currency_changes_only_the_edited_definition_and_keeps_container_contracts
     - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
     - raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values
@@ -47,7 +47,7 @@ tree examined when a review is recorded.
 Review recording and historical source selection use native read-only Git.
 No helper, fetch, hook or filter is invoked; missing local objects refuse.
 Review queries and authored review publication never execute consumer code.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 ### Recorded scope and trust
 
@@ -60,7 +60,7 @@ derives the inputs from the actual committed source tree and accepts a draft
 without input rows. Structured findings carry severity, source location and an
 open, fixed, accepted or false-positive disposition. Fixed findings name a full
 fixing commit; accepted and false-positive findings state their reason.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone,raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone,raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
 
 ### Item currency and coverage
 
@@ -76,7 +76,7 @@ plus addition. A stored review remains queryable when its original commit is
 absent. Unchanged items of a stale completed review still count toward coverage;
 blocked reviews cover no items. The latest completed review of a scope and kind
 uses its timezone-aware date, with record identity breaking equal-date ties.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone,raf_workplan::digest::tests::review_currency_changes_only_the_edited_definition_and_keeps_container_contracts -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone,raf_workplan::digest::tests::review_currency_changes_only_the_edited_definition_and_keeps_container_contracts -->
 
 ### Required reviews and semantic claims
 
@@ -100,7 +100,7 @@ Semantic queries reuse document identities and the shared native RDF vocabulary:
 a review reifies its verdict about its source set and retains each input and
 finding. Text, RDF and native JSON-LD expose the same typed outcomes; serialized
 statement layers retain their complete triple-term data.
-<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind,cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind,cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 ## Usage
 
@@ -110,7 +110,7 @@ no Git executable and grant no authority to compile or execute reviewed code.
 Inspect a current source selection through
 `raf_workplan::Workplan::review_inputs`; its runnable example selects one item
 from a small consuming workspace. Record a completed review with
-`cargo workplan review record --id audit --scope crate:demo --kind correctness
+`cargo raf-workplan review record --id audit --scope crate:demo --kind correctness
 --verdict clean --by human --date 2030-01-01T00:00:00Z`, supplying the ordinary
 SPDX options. Omit `--revision` to pin the checked current HEAD, or give the full
 reviewed commit explicitly. Supply `--findings <path-or-url>` for an external
@@ -127,7 +127,7 @@ selection and refuse quiet machine output. Status, coverage and unreviewed
 queries use the shared typed report graph. Findings return exit 1, usage and
 execution failures return exit 2, and clean results return exit 0. Recording a
 findings or blocked verdict writes its valid record and returns exit 1.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 ## Examples
 
@@ -142,7 +142,7 @@ read those claims. Its original reviewed object is pruned after a squash-shaped
 snapshot, and status remains current from stored inputs. Editing one definition,
 adding one and renaming or deleting others reports exactly those paths; stable
 neighbors remain covered. Queries preserve repository files and record bytes.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 The same record passes native Turtle, N-Triples and JSON-LD parsing with equal
 complete statement data. A missing findings document refuses before publication;
@@ -151,7 +151,7 @@ malformed dates and unsupported JSON commands return usage failures with no
 machine result. Closed profile examples reject repeated or unknown required
 kinds. Policy fixtures distinguish current findings, blocked and wrong-kind
 records, stale code and unavailable references.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone,raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values,raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone,raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values,raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
 
 ## Constraints
 
@@ -159,12 +159,12 @@ records, stale code and unavailable references.
   source selection. Historical reads reuse the bounded lazy Git tree, checked
   paths and source loader. Findings locations are checked against that reviewed
   tree; repository findings references are checked against current readable files.
-  <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+  <!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 - Scope and coverage concern indexed source definitions and their declared
   structural descendants. Input framing retains canonical paths, relative files
   and normalized line endings. It excludes load-local identifiers and offsets.
   Standard execution validation covers native Linux.
-  <!-- raf:tested-by raf_workplan::digest::tests::review_currency_changes_only_the_edited_definition_and_keeps_container_contracts,cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+  <!-- raf:tested-by raf_workplan::digest::tests::review_currency_changes_only_the_edited_definition_and_keeps_container_contracts,cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 - Required kinds, verdicts, reviewer categories and finding rows are closed data.
   External HTTP and HTTPS findings references are validated opaque IRIs. Source
   query, storage and malformed-record failures produce actionable refusals.
@@ -204,7 +204,7 @@ repository bytes retained as observable behavior.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values` | test | [Examples](#examples), [Constraints](#constraints) |
 | `raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates` | test | [Contract](#contract) |
 | `raf_workplan::Workplan::review_inputs` | doctest | [Usage](#usage), [Examples](#examples) |

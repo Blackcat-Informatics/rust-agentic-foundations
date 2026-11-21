@@ -7,7 +7,7 @@ subject: cap:census-migration#usage
 inputs:
   - kind: section
     name: cap:census-migration#usage
-    digest: 8b6ad39b766cf788ec370eae1409e729230912cd04425d333cf06dc74c9f95e6
+    digest: cbcdf02275d8a31255f07313e55fb16e48408f73f3ee7e82d5c665b252eeaa64
   - kind: symbol
     name: raf_census::ForeignLedgerAdapter
     digest: 49e905e6d6d0eb8ed6592aef9309c62e4d0b23b28fda185f0b988ca60dcfc7bf

@@ -467,7 +467,7 @@ fn the_surface_of_each_library_and_binary_of_this_repository_lists_its_public_it
             );
         }
         // The command line binary keeps its items in its crate.
-        if target.crate_path == "cargo_workplan::bin_crate::cargo_workplan" {
+        if target.crate_path == "cargo_raf_workplan::bin_crate::cargo_raf_workplan" {
             assert_eq!(exports.items, []);
             binaries += 1;
         }

@@ -13,10 +13,10 @@ On native Linux with Rust 1.98.1 or newer, resolve RAF's published main revision
 RAF_URL=https://github.com/Blackcat-Informatics/rust-agentic-foundations.git
 RAF_REF=$(git ls-remote --exit-code "$RAF_URL" refs/heads/main) || exit 1
 RAF_REV=${RAF_REF%%[[:space:]]*}
-cargo install --locked --git "$RAF_URL" --rev "$RAF_REV" cargo-workplan
+cargo install --locked --git "$RAF_URL" --rev "$RAF_REV" cargo-raf-workplan
 ```
 
-Make sure Cargo's install directory (normally `$HOME/.cargo/bin`) is on `PATH`. Run the commands below from your workspace root. From another directory, pass the root itself, for example `cargo workplan --root /path/to/workspace check`.
+Make sure Cargo's install directory (normally `$HOME/.cargo/bin`) is on `PATH`. Run the commands below from your workspace root. From another directory, pass the root itself, for example `cargo raf-workplan --root /path/to/workspace check`.
 
 ## Bind one guarantee
 
@@ -120,20 +120,20 @@ The bound unit test covers an ordinary port, the last successful increment, and 
 ## Generate the catalogue and run the gate
 
 ```sh
-cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
+cargo raf-workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
 git add src/lib.rs examples/ports.rs docs/capabilities work/coverage/default.md
-cargo workplan check
-cargo workplan verify
+cargo raf-workplan check
+cargo raf-workplan verify
 ```
 
-Use your project's copyright and documentation licence. Sync creates `docs/capabilities/index.md` and fills the matrix with resolved bindings. Git tracking matters because Workplan validates relative links against the index. Commit the authored documents and generated output together. A clean check exits zero. In CI, run `cargo workplan check` on the checkout alongside the project's existing Rust tests.
+Use your project's copyright and documentation licence. Sync creates `docs/capabilities/index.md` and fills the matrix with resolved bindings. Git tracking matters because Workplan validates relative links against the index. Commit the authored documents and generated output together. A clean check exits zero. In CI, run `cargo raf-workplan check` on the checkout alongside the project's existing Rust tests.
 
 | Finding | What to inspect |
 | --- | --- |
 | Broken link in the generated catalogue | Stage the capability file and generated index in Git. |
 | Unresolved binding | Check the Rust crate, module, target and item name. An integration test uses `crate_name::test_crate::target_name::test_name`. |
-| Missing coverage or unclaimed code | Set the coverage scope, then use `cargo workplan coverage code`, `coverage tests` and `coverage lines` to locate gaps. Bind each item to its contract or give a supported exclusion a specific reason. |
-| Existing strict debt during adoption | Fix document and binding errors first. Run `cargo workplan debt --write` deliberately to record admissible debt in `work/debt/default.md`. Review and commit it. Run the writer again when debt shrinks. |
+| Missing coverage or unclaimed code | Set the coverage scope, then use `cargo raf-workplan coverage code`, `coverage tests` and `coverage lines` to locate gaps. Bind each item to its contract or give a supported exclusion a specific reason. |
+| Existing strict debt during adoption | Fix document and binding errors first. Run `cargo raf-workplan debt --write` deliberately to record admissible debt in `work/debt/default.md`. Review and commit it. Run the writer again when debt shrinks. |
 
 ### Run the check from a Rust test
 
@@ -154,18 +154,18 @@ fn documented_contract_is_current() {
 The new test is itself in the coverage scope. In the demo, add `demo::test_crate::workplan::documented_contract_is_current` to `bindings.tests` in `next-port.md`. In Verification, explain that it checks the document bindings. Keep the port boundary test attached to the behaviour it exercises. Refresh the matrix and run the gate from the owning package.
 
 ```sh
-cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
+cargo raf-workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
 cargo test --test workplan
 ```
 
-Commit the refreshed documents and updated lockfile for a reproducible `cargo test --locked --test workplan` in CI. RAF's own repository also requires every recorded assessment to be current and accepted. Its test shows how to add that policy. [RAF's Workplan gate](tests/docs_contract.rs)
+Commit the refreshed documents and updated lockfile for a reproducible `cargo test --locked --test workplan` in CI. RAF's own repository also requires every recorded assessment to be current and accepted. Its test shows how to add that policy. [RAF's Workplan gate](crates/raf-docs-contract/tests/docs_contract.rs)
 
 ## Change a delivered contract
 
 To find documentation affected by a source edit, compare the checkout against a local commit before opening a change.
 
 ```sh
-cargo workplan impact --base HEAD
+cargo raf-workplan impact --base HEAD
 ```
 
 Use `HEAD` for uncommitted work, a full commit identifier for a fixed comparison, or a full reference such as `refs/remotes/origin/main`. Follow each changed symbol through its printed binding to the capability sections, guarantees and evidence to review. Read `named` as a full path or multi-segment suffix and `weak-name` as a short name shared by potentially different items. The `all-code-bindings` label identifies a section or guarantee whose prose names no code binding strongly. Each binding identifies whether it came from the checkout or the base. A changed public item without a current code owner identifies a gap in the capability bindings.
@@ -173,26 +173,26 @@ Use `HEAD` for uncommitted work, a full commit identifier for a fixed comparison
 With the initial documents committed, open a change against the capability and name each affected section. Reconciliation reads the merge base with the symbolic default branch `refs/remotes/origin/HEAD`. Use a clone that has that reference and the necessary commit history.
 
 ```sh
-cargo workplan change new port-range --capability cap:next-port \
+cargo raf-workplan change new port-range --capability cap:next-port \
   --affects 'cap:next-port#contract'
-cargo workplan change impact port-range
+cargo raf-workplan change impact port-range
 ```
 
 Edit `work/changes/port-range.md` to state the intended outcome. Put proposed wording in the affected section under `> [!PROPOSED change:port-range]`. As the behaviour lands, replace the proposal with current prose, update the source and test bindings, and give each item an outcome. Use `implemented`, `dropped` with a reason, or `moved:change:<slug>` with a reason and an existing destination record.
 
 ```sh
-cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
-cargo workplan assess 'cap:next-port#contract' --context
+cargo raf-workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
+cargo raf-workplan assess 'cap:next-port#contract' --context
 ```
 
 Read the section against the inputs the command prints. Record `accepted` only when the prose matches those inputs. Repeat for each affected authored section and address any other obligations that reconciliation reports.
 
 ```sh
-cargo workplan assess 'cap:next-port#contract' --verdict accepted --by human
-cargo workplan change reconcile port-range
-cargo workplan verify port-range
-cargo workplan change complete port-range
-cargo workplan check
+cargo raf-workplan assess 'cap:next-port#contract' --verdict accepted --by human
+cargo raf-workplan change reconcile port-range
+cargo raf-workplan verify port-range
+cargo raf-workplan change complete port-range
+cargo raf-workplan check
 ```
 
 Successful completion removes the change record and returns a capability to delivered when this was its last implementing change. Review and commit the resulting documents and assessments. Verification and completion inspect the repository as data. Building Rustdoc is a separate operation that requires explicit `--trust-docs` for that invocation and runs build scripts and procedural macros with the caller's permissions. [Completion contract](docs/capabilities/workplan-complete-gate.md) · [Command reference](docs/capabilities/workplan-cli.md)

@@ -2130,7 +2130,7 @@ pub(crate) fn ceiling_findings(
             loaded.path(),
             Location::Key("ceilings".to_string()),
             message,
-            "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+            "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo raf-workplan debt --write`",
         )
     };
     if let Some(error) = report.errors().first() {

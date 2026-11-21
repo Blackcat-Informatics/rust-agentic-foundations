@@ -143,9 +143,9 @@ bindings:
     - raf_okf::work
     - raf_okf::Number::exact
   tests:
-    - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
-    - rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers
-    - rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile
+    - raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
+    - raf_docs_contract::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers
+    - raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile
     - raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync
     - raf_okf::test_crate::schema::timestamp_diagnostics_preserve_lexical_calendar_and_offset_order
     - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
@@ -257,7 +257,7 @@ bindings:
     - raf_okf::test_crate::tested_by::a_tested_by_marker_with_no_statement_directly_above_is_refused
     - raf_okf::test_crate::tested_by::tested_by_markers_in_fences_code_spans_and_proposed_blocks_are_not_read
     - raf_okf::test_crate::tested_by::a_tested_by_marker_belongs_in_a_capability_document
-    - cargo_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass
+    - cargo_raf_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass
     - raf_okf::test_crate::validate_cost::an_evidence_record_with_maximal_values_and_limits_validates_at_the_cap
     - raf_okf::profile::cost_tests::a_change_at_the_cap_judges_each_affects_entry_once_against_one_set
     - raf_okf::profile::cost_tests::a_capability_at_the_cap_looks_at_each_block_once
@@ -948,7 +948,7 @@ decoder to the selected Index subject in a shared default graph. The
 selected subject admits only its asserted carrier rows. Reifiers and
 annotations owned by that subject refuse. Workplan supplies the fixed
 Index IRI and accounts for all other rows across the shared graph.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,raf_docs_contract::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers -->
 
 `Document::to_dataset(path)` validates one of the eight RAF types and returns a
 native PurRDF dataset. `Profile::validate_owned` returns the typed profile value
@@ -1000,7 +1000,7 @@ owned by one of its subjects refuse. The caller accounts for the remaining
 subjects and their statement-layer data. Workplan uses the scoped decoder for
 its closed repository graph.
 [Repository authoring graph](./workplan-document-model.md#repository-authoring-graph)
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers,rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,raf_docs_contract::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers,raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile -->
 
 The checked `document_iri` constructor on `DocType` exposes this same identity
 without constructing a document. It shares prefix, kebab-slug and singleton
@@ -1181,7 +1181,7 @@ whole-dataset inverse also refuses extra subjects. Both directions
 check combined IRI/body bytes against 1 MiB before carrier value copies
 or native construction. This is a text bound. Native failures retain
 their original causes.
-<!-- raf:tested-by raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations,raf_okf::test_crate::index::navigation_identity_and_aggregate_text_admission_have_exact_boundaries,rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
+<!-- raf:tested-by raf_okf::test_crate::index::navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations,raf_okf::test_crate::index::navigation_identity_and_aggregate_text_admission_have_exact_boundaries,raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input -->
 
 Native Markdown admission retains the whole-document 1 MiB ceiling, 64 open
 quote/list containers and 4096 bytes per link destination or title. The existing
@@ -1408,7 +1408,10 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_docs_contract::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
 | `raf_okf::Claim` | doctest | [Verification](#verification) |
 | `raf_okf::EvidenceRecord::to_document` | doctest | [Usage](#usage) |
 | `raf_okf::Number::exact` | doctest | [Contract](#contract) |
@@ -1690,7 +1693,4 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
 | `raf_okf::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
-| `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input` | test | [Contract](#contract), [Constraints](#constraints) |
-| `rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

@@ -7,10 +7,10 @@ subject: cap:workplan-cargo-documentation#contract
 inputs:
   - kind: section
     name: cap:workplan-cargo-documentation#contract
-    digest: 4cc981b3ac8fd59d89665c0cccc6ea1623fd3dd2bf50e066f02450b937a8b54f
+    digest: c3d576532505a05cf55c0d0d0584237ca9056771cd19e59a2775af82a5b26fbb
   - kind: symbol
-    name: cargo_workplan::bin_crate::cargo_workplan::trusted_docs::build
-    digest: 5126dde08dde751b0934b24972d594dc2af5f72c313bf12d519bf51ef44d7e92
+    name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::trusted_docs::build
+    digest: 54fcff086f7ba256f84cdb41f6f25cd62675ec187714b649f11bb8dbc9cec426
   - kind: symbol
     name: raf_workplan::diagram::cargo
     digest: a2d683b0b254ebc6b7cb44f477f4ecfa40370e6250e05e56548c4fe47ae72f3f

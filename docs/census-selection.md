@@ -35,7 +35,7 @@ included; constants and statics are excluded from this function-body experiment.
 | raf-okf | 724 | 78,509 |
 | raf-source | 1,779 | 213,241 |
 | raf-workplan | 2,635 | 277,449 |
-| cargo-workplan | 370 | 47,906 |
+| cargo-raf-workplan | 370 | 47,906 |
 | raf-census | 417 | 50,664 |
 | blake3 1.8.7 | 437 | 45,917 |
 | purrdf-lex 3.0.1 | 1,238 | 125,081 |
@@ -134,7 +134,7 @@ manifest values remain visible. For example:
 cargo run --locked -p raf-census --example selection -- \
   'raf-okf=.#crates/raf-okf' 'raf-source=.#crates/raf-source' \
   'raf-workplan=.#crates/raf-workplan' \
-  'cargo-workplan=.#crates/cargo-workplan' 'raf-census=.#crates/raf-census' \
+  'cargo-raf-workplan=.#crates/cargo-raf-workplan' 'raf-census=.#crates/raf-census' \
   blake3-1.8.7=/exact/cache/blake3-1.8.7 \
   purrdf-lex-3.0.1=/exact/cache/purrdf-lex-3.0.1 \
   serde-1.0.229=/exact/cache/serde-1.0.229 \
@@ -171,14 +171,14 @@ The unit counted here is a group, even when it has several members.
 | Katamari `7e10cac6747a6e7b6470401573702af8a24dd61c` | 19,389 | 46 | 45 | 6 |
 | PurRDF `51c3c1534a80f58e7c99746575b0a70e63bed113` | 78,821 | 367 | 132 | 6 |
 
-To reproduce the reports, build `cargo-census` from RAF revision
+To reproduce the reports, build `cargo-raf-census` from RAF revision
 `194030497cc1696eb58e23d2caad73a5f3c7e48c` and run the following against
 clean source trees of the named revisions. Run the binary from the RAF build.
 The command reads the consumer as data.
 
 ```sh
-cargo-census --workspace "$katamari_root" baseline --format ntriples > katamari.nt
-cargo-census --workspace "$purrdf_root" baseline --format ntriples > purrdf.nt
+cargo-raf-census --workspace "$katamari_root" baseline --format ntriples > katamari.nt
+cargo-raf-census --workspace "$purrdf_root" baseline --format ntriples > purrdf.nt
 ```
 
 The SHA-256 digests of the resulting reports are

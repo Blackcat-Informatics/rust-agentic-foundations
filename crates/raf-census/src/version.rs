@@ -14,7 +14,7 @@ pub const NORMAL_FORM: u32 = 1;
 /// # Errors
 ///
 /// [`Error::Version`] for any other version; its message names both versions
-/// and `cargo census migrate`.
+/// and `cargo raf-census migrate`.
 pub fn check_normal_form(declared: u32) -> Result<(), Error> {
     if declared == NORMAL_FORM {
         Ok(())
@@ -51,7 +51,7 @@ mod tests {
                 "{message}"
             );
             assert!(message.contains("normal_form 1"), "{message}");
-            assert!(message.contains("cargo census migrate"), "{message}");
+            assert!(message.contains("cargo raf-census migrate"), "{message}");
         }
     }
 }

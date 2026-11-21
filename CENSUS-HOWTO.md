@@ -13,17 +13,17 @@ On native Linux with Rust 1.98.1 or newer, select a RAF checkout containing this
 RAF_CHECKOUT=$(pwd -P)
 RAF_REV=$(git rev-parse HEAD)
 cargo install --locked --git https://github.com/Blackcat-Informatics/rust-agentic-foundations.git \
-  --rev "$RAF_REV" cargo-census
+  --rev "$RAF_REV" cargo-raf-census
 ```
 
 From the consumer workspace, run the self-test and inspect its baseline.
 
 ```sh
-cargo census self-test
-cargo census baseline --format turtle
+cargo raf-census self-test
+cargo raf-census baseline --format turtle
 ```
 
-Make sure Cargo's install directory (normally `$HOME/.cargo/bin`) is on `PATH`. Run the baseline in the consumer workspace, or select it with `cargo census --workspace /path/to/workspace baseline`. Baseline discovery needs a Cargo manifest and readable sources. It prints an RDF 1.2 report using the default Census options and makes no policy decision. To save a report, add `--out baseline.ttl`. The self-test checks the installed detectors against seeded cases independently of your workspace.
+Make sure Cargo's install directory (normally `$HOME/.cargo/bin`) is on `PATH`. Run the baseline in the consumer workspace, or select it with `cargo raf-census --workspace /path/to/workspace baseline`. Baseline discovery needs a Cargo manifest and readable sources. It prints an RDF 1.2 report using the default Census options and makes no policy decision. To save a report, add `--out baseline.ttl`. The self-test checks the installed detectors against seeded cases independently of your workspace.
 
 ## Capture the production lint result
 
@@ -68,9 +68,9 @@ Keep the receipt in the build-owned directory. The CLI accepts its path through 
 From the workspace or one of its members, initialize the structural policy, inspect the resulting ledger, then check the source.
 
 ```sh
-cargo census init
-cargo census dump-ledger --format turtle
-cargo census check
+cargo raf-census init
+cargo raf-census dump-ledger --format turtle
+cargo raf-census check
 ```
 
 `init` creates canonical `helpers-ledger.ttl` at the workspace root. Its sole scan root is `.` and it declares no jobs or allowances. An existing ledger path makes initialization fail and preserves the existing entry. Initialization leaves any debt record untouched.
@@ -84,14 +84,14 @@ The ledger reader requires canonical bytes. Even a whitespace edit can invalidat
 Inspect the reported occurrences together. Consolidate copies that should share one implementation. When you deliberately accept some existing duplication as the starting point, publish and review the exact record.
 
 ```sh
-cargo census debt --write
-cargo census check
+cargo raf-census debt --write
+cargo raf-census check
 git add helpers-ledger.ttl census-debt.ttl
 ```
 
-Commit the ledger and any adopted debt. In CI, capture the production Clippy result, then run the read-only `cargo census check`. A new duplicate group or a count above its record fails. Removing a copy can also produce a finding because the record now grants more than the code uses. Rerun `debt --write` to lower it, review the diff and run `check` again. The writer refuses growth against an existing record of the same normal form. Hard policy errors need a code or policy repair before debt can be written. [Debt ratchet](docs/capabilities/census-debt-ratchet.md)
+Commit the ledger and any adopted debt. In CI, capture the production Clippy result, then run the read-only `cargo raf-census check`. A new duplicate group or a count above its record fails. Removing a copy can also produce a finding because the record now grants more than the code uses. Rerun `debt --write` to lower it, review the diff and run `check` again. The writer refuses growth against an existing record of the same normal form. Hard policy errors need a code or policy repair before debt can be written. [Debt ratchet](docs/capabilities/census-debt-ratchet.md)
 
-To exercise structural matching, use this `src/lib.rs` in a scratch library with the starter ledger and an empty debt record. Run `cargo census check --no-production-lints`. It finds the two bodies in one group. Rename the locals and the match persists. Remove the second helper and the structural check passes. For a full check, capture fresh production evidence after each source edit.
+To exercise structural matching, use this `src/lib.rs` in a scratch library with the starter ledger and an empty debt record. Run `cargo raf-census check --no-production-lints`. It finds the two bodies in one group. Rename the locals and the match persists. Remove the second helper and the structural check passes. For a full check, capture fresh production evidence after each source edit.
 
 ```rust
 pub fn scaled_total(samples: &[u64]) -> u64 {
@@ -115,10 +115,10 @@ pub fn batch_total(values: &[u64]) -> u64 {
 
 | Question | Command |
 | --- | --- |
-| Which sources, groups and classifications did the gate see? | `cargo census index` |
-| Which occurrences and fingerprints belong to a symbol? | `cargo census fingerprint demo::scaled_total` (use your crate and item name) |
-| Which occurrences matched a declared job? | `cargo census job JOB_ID` |
-| How many copies did that job classify? | `cargo census count JOB_ID` |
+| Which sources, groups and classifications did the gate see? | `cargo raf-census index` |
+| Which occurrences and fingerprints belong to a symbol? | `cargo raf-census fingerprint demo::scaled_total` (use your crate and item name) |
+| Which occurrences matched a declared job? | `cargo raf-census job JOB_ID` |
+| How many copies did that job classify? | `cargo raf-census count JOB_ID` |
 
 The starter ledger declares no job IDs. For policy beyond structural grouping, a job can identify a home symbol and forbidden competitors. A reference scan can compare local code with sources sealed from the Cargo lockfile and cached registry archives. Supply consumer-owned Rust rules and extension validators through the library gate when the policy requires them. The native CLI never launches the consumer to discover registrations. [Rule registration](docs/capabilities/census-rule-api.md) · [Reference scans](docs/capabilities/census-reference-scan.md)
 

@@ -5,7 +5,7 @@
 //!
 //! A repository that adopts [the complete policy](crate::strict) with findings it has
 //! not yet paid records them in `work/debt/default.md`, a record of type `Debt`
-//! that a tool writes ([`Gate::write_debt`], `cargo workplan debt --write`) and
+//! that a tool writes ([`Gate::write_debt`], `cargo raf-workplan debt --write`) and
 //! a person reviews. The rule is the one `arch:debt-ratchet` states for every
 //! ratchet of the repository, applied to the findings of the complete policy:
 //!
@@ -252,7 +252,7 @@ pub(crate) fn judge(plan: &Workplan<'_>) -> Judged {
 }
 
 /// The fix of `debt-resolved`.
-const RESOLVED_FIX: &str = "lower the record with `cargo workplan debt --write` or `Gate::write_debt`; the record always equals the present debt";
+const RESOLVED_FIX: &str = "lower the record with `cargo raf-workplan debt --write` or `Gate::write_debt`; the record always equals the present debt";
 
 /// The rows of the record that hold debt, by what they name.
 #[derive(Debug, Default)]
@@ -326,7 +326,7 @@ fn entry_invalid(record: &Loaded<DebtRecord>, list: &str, problem: &str) -> Find
         record.path(),
         Location::Key(list.to_string()),
         format!("a row of `{list}` is invalid: {problem}"),
-        "remove the row, or run `cargo workplan debt --write` to write the present debt; a row is written by the tool and not by hand",
+        "remove the row, or run `cargo raf-workplan debt --write` to write the present debt; a row is written by the tool and not by hand",
     )
 }
 
@@ -484,7 +484,7 @@ fn lines_judged(
             debt_path,
             Location::Key("lines".to_string()),
             message,
-            "bind or reach the items that explain the orphan lines, or add an exception with its reason; the debt record only ever shrinks, and is lowered with `cargo workplan debt --write`",
+            "bind or reach the items that explain the orphan lines, or add an exception with its reason; the debt record only ever shrinks, and is lowered with `cargo raf-workplan debt --write`",
         );
         out.growth.push(finding.clone());
         out.reported.push(finding);

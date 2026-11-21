@@ -391,7 +391,7 @@ inputs:
     digest: '0bc043da387671195ecfef4ce0d510e3c6336a70e2e814affe82a1e8e032fd08'
   - kind: symbol
     name: raf_census::check_normal_form
-    digest: 06ce3b7c873c268047a884b76f018848a7bb7fcd51f95b8c5b41c55b596a3812
+    digest: 6681eebc791302cb18854bad013bb583e5512d2e0fa7cff2d055e623a99f2ef5
   - kind: symbol
     name: raf_census::manifest
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327

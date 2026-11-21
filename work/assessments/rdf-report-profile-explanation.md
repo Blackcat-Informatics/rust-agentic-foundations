@@ -9,11 +9,11 @@ inputs:
     name: cap:rdf-report-profile#explanation
     digest: 23228a26bff86af9f44840c149fb4e03461c969be7725185140e4cd967b8320f
   - kind: symbol
-    name: cargo_workplan::bin_crate::cargo_workplan::result
-    digest: 56c7eec3381e9d6ca0a90156f88e90ffae2f2a8b448ada2d5bdf222a4ab100a1
+    name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::result
+    digest: 2a65f107bcd081697c27749bda6dbb1a6fc866372516a95d0a059f200fea9ec3
   - kind: symbol
-    name: cargo_workplan::bin_crate::cargo_workplan::result_graph
-    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+    name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph
+    digest: 02c262bd9fc9f8f99932436142226c737d6e97cb37330f9008c516f28278c148
   - kind: symbol
     name: raf_census::Baseline::to_ntriples
     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544

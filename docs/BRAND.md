@@ -9,9 +9,10 @@ The project name is **RAF**, short for *Rust Agentic Foundations*. Always write
 it in capitals as `RAF` in prose and titles. Spell out
 "Rust Agentic Foundations" on first use in a document.
 
-All machine identifiers stay lowercase: the library crates are `raf-okf`,
-`raf-source`, `raf-census` and `raf-workplan`, and the cargo subcommand crates
-are `cargo-census` and `cargo-workplan`.
+All machine identifiers stay lowercase. The public libraries are `raf-okf`,
+`raf-source`, `raf-rdf`, `raf-census` and `raf-workplan`. The packages and
+executables `cargo-raf-census` and `cargo-raf-workplan` provide
+`cargo raf-census` and `cargo raf-workplan`.
 
 ## Positioning
 

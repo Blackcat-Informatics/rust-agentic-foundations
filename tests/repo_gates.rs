@@ -36,7 +36,7 @@
 //! policy parses TOML, launch-boundary admission uses native Rust syntax, and the remaining helpers
 //! operate directly on text or bytes.
 
-mod support;
+use rust_agentic_foundations::gate_files as support;
 
 #[path = "repo_gates/dependencies.rs"]
 mod dependencies;
@@ -206,7 +206,7 @@ const ROOT_TESTS_DIR: &str = "tests";
 
 /// The two files no rule judges: the one place the private documentation watchdog reads the clock, and
 /// the gate's own file, which defines the word tables and the fixtures.
-const CLOCK_CLOCK_FILE: &str = "crates/cargo-workplan/src/trusted_docs/clock.rs";
+const CLOCK_CLOCK_FILE: &str = "crates/cargo-raf-workplan/src/trusted_docs/clock.rs";
 const CLOCK_GATE_FILE: &str = "tests/repo_gates.rs";
 const CLOCK_EXEMPT: [&str; 2] = [CLOCK_CLOCK_FILE, CLOCK_GATE_FILE];
 
@@ -899,7 +899,7 @@ fn crate_rule_dirs() -> Vec<String> {
     for name in [
         "raf-okf",
         "raf-workplan",
-        "cargo-workplan",
+        "cargo-raf-workplan",
         "raf-not-yet-written",
     ] {
         for dir in CRATE_DIRS {
@@ -1037,7 +1037,7 @@ fn time_in_crates_lets_the_runner_name_durations_and_limits() {
     for path in [
         "crates/raf-okf/src/a.rs",
         "crates/raf-workplan/tests/a.rs",
-        "crates/cargo-workplan/src/a.rs",
+        "crates/cargo-raf-workplan/src/a.rs",
         "tests/a.rs",
     ] {
         assert_eq!(
@@ -1074,7 +1074,10 @@ fn time_in_crates_exempts_the_gate_file_but_not_its_neighbours() {
         clock_hits(Path::new(CLOCK_GATE_FILE), &text),
         Vec::<String>::new()
     );
-    for path in ["tests/support/mod.rs", "tests/docs_contract.rs"] {
+    for path in [
+        "tests/support/mod.rs",
+        "crates/raf-docs-contract/tests/docs_contract.rs",
+    ] {
         assert_eq!(
             clock_hits(Path::new(path), &text),
             vec![format!("{path}:1: Instant")],
@@ -1094,7 +1097,7 @@ fn time_in_crates_passes_the_clean_neighbour() {
         "crates/raf-source/tests/a.rs",
         "crates/raf-source/examples/a.rs",
         "crates/raf-okf/src/a.rs",
-        "crates/cargo-workplan/tests/a.rs",
+        "crates/cargo-raf-workplan/tests/a.rs",
     ] {
         assert_eq!(clock_hits(Path::new(path), text), Vec::<String>::new());
     }

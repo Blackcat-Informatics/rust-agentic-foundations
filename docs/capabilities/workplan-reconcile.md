@@ -44,7 +44,7 @@ bindings:
     - raf_workplan::lifecycle
     - raf_workplan::git
   tests:
-    - cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners
+    - cargo_raf_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners
     - raf_workplan::obligation::tests::only_the_three_history_dependent_kinds_need_more_than_local_documents
     - raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract
     - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
@@ -78,8 +78,8 @@ bindings:
     - raf_workplan::test_crate::obligations::contract_effect_none_keeps_the_assessments_and_another_section_is_not_judged
     - raf_workplan::test_crate::assessments::with_no_bound_symbol_named_every_bound_symbol_is_an_input
     - raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input
-    - cargo_workplan::test_crate::reconcile::an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers
-    - cargo_workplan::test_crate::reconcile::unparseable_merge_base_source_is_an_error_beside_a_readable_base
+    - cargo_raf_workplan::test_crate::reconcile::an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers
+    - cargo_raf_workplan::test_crate::reconcile::unparseable_merge_base_source_is_an_error_beside_a_readable_base
     - raf_workplan::test_crate::obligations::a_dropped_or_moved_item_needs_a_reason_and_an_explained_outcome_is_accepted
     - raf_workplan::test_crate::untouched::a_section_edited_on_the_branch_is_not_reported_and_its_neighbour_is
     - raf_workplan::test_crate::untouched::an_edit_that_is_not_committed_counts_because_the_working_tree_is_compared
@@ -98,10 +98,10 @@ bindings:
     - raf_workplan::test_crate::untouched::reconcile_writes_nothing_and_prints_the_same_list_twice
     - raf_workplan::test_crate::scenarios::several_redesigns_leave_one_readable_present
     - raf_workplan::test_crate::scenarios::planning_produces_the_documentation
-    - cargo_workplan::test_crate::reconcile::a_list_with_obligations_is_printed_one_line_each_and_exits_one
-    - cargo_workplan::test_crate::reconcile::an_empty_list_prints_nothing_and_exits_zero
-    - cargo_workplan::test_crate::reconcile::fixing_an_obligation_removes_its_line_and_only_its_line
-    - cargo_workplan::test_crate::new::the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not
+    - cargo_raf_workplan::test_crate::reconcile::a_list_with_obligations_is_printed_one_line_each_and_exits_one
+    - cargo_raf_workplan::test_crate::reconcile::an_empty_list_prints_nothing_and_exits_zero
+    - cargo_raf_workplan::test_crate::reconcile::fixing_an_obligation_removes_its_line_and_only_its_line
+    - cargo_raf_workplan::test_crate::new::the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not
     - raf_workplan::test_crate::git::a_blob_is_returned_byte_for_byte
     - raf_workplan::test_crate::git::a_blob_over_one_mebibyte_is_an_error_and_exactly_one_mebibyte_is_read
     - raf_workplan::test_crate::git::a_default_branch_named_like_an_option_is_a_ref_and_never_an_option
@@ -202,7 +202,7 @@ Turn a change's documented effect into a concrete list of owed document and sour
 ## Contract
 
 **Source impact.** The source impact query compares indexed definitions and public export paths against a selected local Git commit. Public paths include exports hidden from rustdoc. A binding on a type or its method traces edits to trait implementations. A definition's own source digest excludes separately indexed nested definitions. A changed symbol reaches a capability through its declared binding. Section selection for code bindings follows the prose assessment naming rules. Tests and examples reach the sections they substantiate. Each affected section identifies its current authored guarantees, supporting tests, examples and recorded assessments. The trace labels a full or multi-segment name, a weak final-segment name, the conservative selection of all code bindings, section binding and explicit tested-by evidence. Removed paths use historical declarations. A changed path also retains historical bindings that the checkout withdrew, with the side identified for each binding. An unowned public item has its own result.
-<!-- raf:tested-by cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners -->
 
 **Static contract.** `change new` exclusively creates one owned change record
 for the listed capabilities. Each listed capability's Contract is affected by
@@ -256,7 +256,7 @@ The closed obligation vocabulary and the evidence needed to resolve each kind ar
 The typed evidence descriptions agree with this closed obligation table.
 <!-- raf:tested-by raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract -->
 
-Create the record with `cargo workplan change new SLUG --capability cap:NAME`. Inspect it with `change impact SLUG` and `change reconcile SLUG`. Reconciliation reads declarations and history; it never runs the named test or example bodies.
+Create the record with `cargo raf-workplan change new SLUG --capability cap:NAME`. Inspect it with `change impact SLUG` and `change reconcile SLUG`. Reconciliation reads declarations and history; it never runs the named test or example bodies.
 
 ## Examples
 
@@ -278,13 +278,13 @@ Named obligation fixtures cover every current kind. Native merge-base fixtures c
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::new::the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::a_list_with_obligations_is_printed_one_line_each_and_exits_one` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::an_empty_list_prints_nothing_and_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::fixing_an_obligation_removes_its_line_and_only_its_line` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::unparseable_merge_base_source_is_an_error_beside_a_readable_base` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::new::the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::reconcile::a_list_with_obligations_is_printed_one_line_each_and_exits_one` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::reconcile::an_empty_list_prints_nothing_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::reconcile::an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::reconcile::fixing_an_obligation_removes_its_line_and_only_its_line` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::reconcile::unparseable_merge_base_source_is_an_error_beside_a_readable_base` | test | [Verification](#verification) |
 | `raf_workplan::Workplan::impact` | doctest | [Usage](#usage) |
 | `raf_workplan::Workplan::new_change` | doctest | [Usage](#usage) |
 | `raf_workplan::Workplan::reconcile` | doctest | [Usage](#usage) |
