@@ -135,7 +135,7 @@ Use your project's copyright and documentation licence. Sync creates `docs/capab
 
 ### Run the check from a Rust test
 
-For a package at the workspace root, add the library to its `Cargo.toml` and use this integration test. In a virtual workspace, put the dev-dependency in a member package and pass the directory containing the workspace's `docs/capabilities` to `Gate::workspace`. If the package is in the coverage scope, account for the gate test in the repository's own verification bindings.
+For a package at the workspace root, add the library to its `Cargo.toml` and use this integration test. In a virtual workspace, put the dev-dependency in a member package and pass the directory containing the workspace's `docs/capabilities` to `Gate::workspace`.
 
 ```toml
 [dev-dependencies]
@@ -150,7 +150,14 @@ fn documented_contract_is_current() {
 }
 ```
 
-Run `cargo test --test workplan` from the owning package to resolve the new dependency and check the gate. Commit the updated lockfile for a reproducible `cargo test --locked --test workplan` in CI. RAF's own repository also requires every recorded assessment to be current and accepted. Its test shows how to add that policy. [RAF's Workplan gate](tests/self_workplan.rs)
+The new test is itself in the coverage scope. In the demo, add `demo::test_crate::workplan::documented_contract_is_current` to `bindings.tests` in `next-port.md`. In Verification, explain that it checks the document bindings. Keep the port boundary test attached to the behaviour it exercises. Refresh the matrix and run the gate from the owning package.
+
+```sh
+cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
+cargo test --test workplan
+```
+
+Commit the refreshed documents and updated lockfile for a reproducible `cargo test --locked --test workplan` in CI. RAF's own repository also requires every recorded assessment to be current and accepted. Its test shows how to add that policy. [RAF's Workplan gate](tests/self_workplan.rs)
 
 ## Change a delivered contract
 
