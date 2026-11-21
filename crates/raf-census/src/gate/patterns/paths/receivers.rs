@@ -6,7 +6,7 @@
 use std::cell::RefCell;
 
 use purrdf_jsonschema::ecma::MatchLimits;
-use purrdf_lex::allocation::{Memory, Resident};
+use purrdf_lex::allocation::{Memory, Resident, Shared, StorageError};
 use raf_source::{
     CodeResolveError, FieldShape, Item, ItemId, Namespace, SourceAuthorityId, SymbolKind, Workspace,
 };
@@ -24,9 +24,15 @@ pub(super) struct ReceiverBinding(Vec<ReceiverReach>);
 
 struct ReceiverReach {
     owner: ItemId,
-    // Source may refuse an alias. Report the refusal only at an admitted
-    // method token on this exact reach.
-    proof: Result<ItemId, RefCell<Option<Box<CodeResolveError>>>>,
+    proof: ReceiverProof,
+}
+
+#[derive(Clone)]
+enum ReceiverProof {
+    Nominal(ItemId),
+    // A propagated refusal remains shared with the source binding until an
+    // admitted method token reports it on this exact reach.
+    Refused(Shared<RefCell<Option<Box<CodeResolveError>>>>),
 }
 
 #[derive(Clone, Copy)]
@@ -34,20 +40,22 @@ pub(super) enum ReceiverPath<'a> {
     Written(&'a syn::Path),
     Braced(&'a syn::Path),
     Tuple(&'a syn::Path),
-    Unit(&'a syn::Path),
+    Value(&'a syn::Path),
 }
 
 impl<'a> ReceiverPath<'a> {
     fn path(self) -> &'a syn::Path {
         match self {
-            Self::Written(path) | Self::Braced(path) | Self::Tuple(path) | Self::Unit(path) => path,
+            Self::Written(path) | Self::Braced(path) | Self::Tuple(path) | Self::Value(path) => {
+                path
+            }
         }
     }
 
     pub(super) fn namespace(self) -> Namespace {
         match self {
             Self::Written(_) | Self::Braced(_) => Namespace::Type,
-            Self::Tuple(_) | Self::Unit(_) => Namespace::Value,
+            Self::Tuple(_) | Self::Value(_) => Namespace::Value,
         }
     }
 
@@ -59,7 +67,7 @@ impl<'a> ReceiverPath<'a> {
             Self::Written(_) => return true,
             Self::Braced(_) => FieldShape::Named,
             Self::Tuple(_) => FieldShape::Tuple,
-            Self::Unit(_) => FieldShape::Unit,
+            Self::Value(_) => FieldShape::Unit,
         };
         item.kind == SymbolKind::Struct && item.shape == Some(shape)
     }
@@ -93,10 +101,21 @@ impl ReceiverBinding {
             .map_err(|source| Error::PatternIndexStorage { source })?;
         scopes.admit_receiver(label, reaches.capacity().saturating_add(1), limits)?;
         let site = Site::at(file, span, Role::ReceiverType, receiver.namespace(), false);
+        let local = if let ReceiverPath::Value(path) = receiver
+            && let Some(name) = path.get_ident()
+        {
+            let name = name.unraw().to_string();
+            scopes
+                .written_receiver(&name, label, limits)?
+                .map(|(frame, binding)| ([name], frame, binding))
+        } else {
+            None
+        };
         let work = span
             .byte_range()
             .len()
-            .saturating_add(identifier.to_string().len());
+            .saturating_add(identifier.to_string().len())
+            .saturating_add(local.as_ref().map_or(0, |(_, _, binding)| binding.0.len()));
         for owner in owners {
             charge(label, limits, work.try_into().unwrap_or(u64::MAX))?;
             let lookup = Lookup {
@@ -108,12 +127,26 @@ impl ReceiverBinding {
                 receiver_workspace: Some(workspace),
                 enum_impl: None,
             };
-            let proof = match scopes
-                .with_receiver_lookup(|| nominal(&lookup, scopes, receiver, workspace, limits))
-            {
-                Ok(Some(id)) => Ok(id),
+            let proof = match scopes.with_receiver_lookup(|| {
+                if let Some((name, frame, binding)) = &local
+                    && let Some(reach) = binding.0.iter().find(|reach| reach.owner == owner.id)
+                    && lookup.receiver_reaches_binding(scopes, name, *frame, limits)?
+                {
+                    return Ok(Some(reach.proof.clone()));
+                }
+                // A nearer import can resolve to a unit constructor on this reach.
+                nominal(&lookup, scopes, receiver, workspace, limits)
+                    .map(|id| id.map(ReceiverProof::Nominal))
+            }) {
+                Ok(Some(proof)) => proof,
                 Ok(None) => continue,
-                Err(Error::CodePath { source, .. }) => Err(RefCell::new(Some(source))),
+                Err(Error::CodePath { source, .. }) => {
+                    ReceiverProof::Refused(Shared::try_new(RefCell::new(Some(source))).map_err(
+                        |_| Error::PatternIndexStorage {
+                            source: StorageError::AllocationFailed,
+                        },
+                    )?)
+                }
                 Err(error) => return Err(error),
             };
             reaches.push(ReceiverReach {
@@ -152,7 +185,7 @@ impl ReceiverBinding {
         let mut matched = Vec::new();
         for reach in &self.0 {
             if !owners.iter().any(|owner| owner.id == reach.owner)
-                || reach.proof.as_ref().is_ok_and(|id| !types.contains(id))
+                || matches!(reach.proof, ReceiverProof::Nominal(id) if !types.contains(&id))
             {
                 continue;
             }
@@ -169,8 +202,8 @@ impl ReceiverBinding {
                 continue;
             }
             match &reach.proof {
-                Ok(_) => matched.push(reach.owner),
-                Err(source) => {
+                ReceiverProof::Nominal(_) => matched.push(reach.owner),
+                ReceiverProof::Refused(source) => {
                     if crate::gate::evaluate::in_scope(
                         pattern.pattern,
                         (&site.file.path, site.byte, site.line),
@@ -249,7 +282,7 @@ pub(super) fn binding<'a>(
             let Some(initializer) = initializer else {
                 return Ok(None);
             };
-            let Some(receiver) = constructor(initializer, label, limits)? else {
+            let Some(receiver) = inferred(initializer, label, limits)? else {
                 return Ok(None);
             };
             receiver
@@ -264,7 +297,7 @@ pub(super) fn binding<'a>(
         .then_some((&identifier.ident, receiver)))
 }
 
-fn constructor<'a>(
+fn inferred<'a>(
     initializer: &'a syn::Expr,
     label: &str,
     limits: &mut MatchLimits,
@@ -284,7 +317,7 @@ fn constructor<'a>(
             };
             (callee, ReceiverPath::Tuple(&callee.path))
         }
-        syn::Expr::Path(path) => (path, ReceiverPath::Unit(&path.path)),
+        syn::Expr::Path(path) => (path, ReceiverPath::Value(&path.path)),
         _ => return Ok(None),
     };
     Ok((path.qself.is_none() && inert_attributes(&path.attrs)).then_some(proof))
