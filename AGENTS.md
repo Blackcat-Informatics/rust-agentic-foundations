@@ -154,8 +154,8 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
 ```
 
 - **The required gates are the hooks and CI.** The pre-commit hook runs fmt and
-  reuse on a checkout of the staged index, then the `repo_gates`, `docs_contract`,
-  `self_workplan` and `self_census` test binaries over that checkout. The binaries
+  reuse on a checkout of the staged index, then the `repo_gates`, `docs_contract`
+  and `self_census` test binaries over that checkout. The binaries
   are compiled from the working tree; only the files they judge come from the index.
   The pre-merge-commit hook runs the same gates on merge commits. CI runs on every
   pull request, and every hosted check is green before a merge.
@@ -174,7 +174,8 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
   tracker references and process wording, version agreement, the clock rule, the
   Python ban and the first-party manifest policy. `tests/docs_contract.rs` runs the
   workplan checks over the tracked documents and pins the capability inventory.
-  `tests/self_workplan.rs` requires every assessment to be current and accepted.
+  The same binary runs the production Workplan gate and requires every assessment
+  to be current and accepted. Both checks share the gate's source index.
   `tests/self_census.rs` runs the production Census gate through the locked check
   over the workspace and fuzz roots, with the canonical ledger and exact adopted
   debt; that ledger requires `purrdf.*` to supply the BLAKE3 digest and hexadecimal
