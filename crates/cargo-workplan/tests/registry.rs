@@ -506,7 +506,15 @@ fn assessments(repo: &Repo, found: &mut BTreeSet<String>) {
             .expect(0),
         found,
     );
+    repo.checkout();
     repo.edit("src/lib.rs", "pub fn real()", "pub fn moved()");
+    let impact = repo
+        .run(&["--format", "turtle", "impact", "--base", "HEAD"])
+        .expect(0);
+    terms(
+        &Graph::from_text(&impact.stdout, Format::Turtle).unwrap(),
+        found,
+    );
     observe(
         "assessment-unresolved",
         repo.run(&["--format", "turtle", "assess", "--list"])

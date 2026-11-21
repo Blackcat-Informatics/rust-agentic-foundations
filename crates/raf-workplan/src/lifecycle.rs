@@ -20,6 +20,7 @@ mod completion;
 mod create;
 mod impact;
 mod session;
+mod source_impact;
 mod state;
 mod touched;
 pub(crate) use touched::BaseTree;
@@ -32,6 +33,9 @@ pub use create::{
 };
 pub use impact::{Dependant, Impact, LinkingSection};
 pub use session::{Lifecycle, LifecycleError, Side};
+pub use source_impact::{
+    BindingImpact, GuaranteeImpact, ImpactReason, SectionImpact, SourceImpact, SymbolImpact,
+};
 pub use untouched::{SectionDigest, section_digest};
 pub use verification::{VerifyReport, verify};
 

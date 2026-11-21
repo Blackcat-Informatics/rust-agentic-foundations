@@ -170,6 +170,7 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
         CommandResult::OpenChanges(changes) => open_changes_fields(g, id, changes)?,
         CommandResult::NewChange(change) => new_change_fields(g, id, change)?,
         CommandResult::Impact(impact) => impact_fields(g, id, impact)?,
+        CommandResult::SourceImpact(impact) => source_impact_fields(g, id, impact)?,
         CommandResult::Obligation(obligation) => {
             class(g, id, "Obligation")?;
             obligation_fields(g, id, obligation)?;
@@ -205,9 +206,7 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
             package,
             kind,
         } => review::unreviewed_fields(g, id, items, package.as_deref(), *kind)?,
-        CommandResult::ReviewRecorded(recorded) => {
-            review::recorded_fields(g, id, recorded)?;
-        }
+        CommandResult::ReviewRecorded(recorded) => review::recorded_fields(g, id, recorded)?,
         CommandResult::History(history) => history_fields(g, id, history)?,
         CommandResult::Claims(report) => claims_fields(g, id, report)?,
         CommandResult::Lines(report) => lines_fields(g, id, report)?,
@@ -639,6 +638,53 @@ fn impact_fields(
         text(g, &n, "target", &link.target.to_string())?;
     }
 
+    Ok(())
+}
+
+fn source_impact_fields(
+    g: &mut Builder,
+    id: &str,
+    impact: &raf_workplan::lifecycle::SourceImpact,
+) -> Answer<()> {
+    class(g, id, "SourceImpact")?;
+    text(g, id, "base", &impact.base)?;
+    for (i, symbol) in impact.symbols.iter().enumerate() {
+        let node = child(g, id, "symbol", "ChangedSymbol", i)?;
+        text(g, &node, "path", &symbol.path)?;
+        text(g, &node, "change", symbol.change.name())?;
+        boolean(g, &node, "public", symbol.public)?;
+        boolean(g, &node, "unowned", symbol.is_unowned())?;
+        for (j, owner) in symbol.owners.iter().enumerate() {
+            let binding = child(g, &node, "binding", "ImpactBinding", j)?;
+            boolean(g, &binding, "atBase", owner.at_base)?;
+            text(g, &binding, "capability", &owner.capability)?;
+            text(g, &binding, "list", owner.kind.key())?;
+            text(g, &binding, "path", &owner.path)?;
+            for (k, section) in owner.sections.iter().enumerate() {
+                let section_node = child(g, &binding, "section", "SectionImpact", k)?;
+                text(g, &section_node, "subject", &section.section.to_string())?;
+                text(g, &section_node, "reason", section.reason.name())?;
+                for (ordinal, guarantee) in section.guarantees.iter().enumerate() {
+                    let claim =
+                        child(g, &section_node, "guarantee", "GuaranteeReference", ordinal)?;
+                    text(g, &claim, "id", &guarantee.key)?;
+                    text(g, &claim, "reason", guarantee.reason.name())?;
+                }
+                for (key, name, field, values) in [
+                    ("test", "TestReference", "path", &section.tests),
+                    ("example", "ExampleReference", "path", &section.examples),
+                    (
+                        "assessment",
+                        "AssessmentReference",
+                        "id",
+                        &section.assessments,
+                    ),
+                ] {
+                    strings(g, &section_node, key, name, field, values)?;
+                }
+            }
+        }
+    }
     Ok(())
 }
 

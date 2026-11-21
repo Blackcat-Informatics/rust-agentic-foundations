@@ -398,6 +398,13 @@ or a string containing another machine serialization.
 | `SectionReference` | `subject` string |
 | `Guidance` | `capability`, `state`, `advice` strings |
 | `Impact` | `change` string; `capability` ordered `CapabilityReference` nodes; `section` ordered `SectionReference` nodes; `binding` ordered `BindingResolution` nodes; `dependant` ordered `Dependant` nodes; `link` ordered `SectionLink` nodes |
+| `SourceImpact` | `base` commit id and ordered `symbol` children of type `ChangedSymbol` |
+| `ChangedSymbol` | `path` and `change` strings, `public` and `unowned` booleans, ordered `binding` children of type `ImpactBinding` |
+| `ImpactBinding` | `capability`, `list` and `path` strings, `atBase` boolean indicating historical declarations, ordered `section` children of type `SectionImpact` |
+| `SectionImpact` | `subject` and `reason` strings, ordered `guarantee`, `test`, `example` and `assessment` children of types `GuaranteeReference`, `TestReference`, `ExampleReference` and `AssessmentReference` |
+| `GuaranteeReference` | `id` and `reason` strings identifying the claim and how its binding selects it |
+| `ExampleReference` | `path` string identifying the example binding |
+| `AssessmentReference` | `id` string identifying the stored assessment |
 | `BindingResolution` | `capability`, `list`, `path` strings, `resolves` boolean; optional `reason` string |
 | `Dependant` | `capability`, `dependsOn` strings |
 | `SectionLink` | `from`, `target` strings |
