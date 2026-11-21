@@ -10,6 +10,7 @@ bindings:
   code:
     - raf_census::PRODUCTION_CLIPPY_ARGS
     - raf_census::ProductionInputs
+    - raf_source::Workspace::load_shipping_members
     - raf_census::ProductionInputs::read
     - raf_census::ProductionInputs::digest
     - raf_census::ProductionLintRun
@@ -91,8 +92,13 @@ the receipt and manifest requirements for structural-only analysis. The
 library reads the inspected repository as data. A first-party build script,
 an unproven feature-dependent target, a renamed or dynamic inclusion or a Cargo
 configuration override that changes the compiler invocation prevents a clean verdict.
+The gate refuses file-inclusion names in declarative macro definitions and names
+forwarded as macro arguments. Rust can resolve their paths at the expansion call
+site. Invoke literal inclusions directly in the consuming source.
 
-The trusted build reads the workspace with `ProductionInputs::read` and
+The trusted build reads the workspace with `ProductionInputs::read`. It requires
+`Cargo.lock` and uses `Workspace::load_shipping_members` to select library, binary
+and build-script roots before parsing source. The build
 records `ProductionInputs::digest` before running `PRODUCTION_CLIPPY_ARGS`.
 `ProductionLintRun::capture` checks that the arguments and the digest after
 the run match. `ProductionLintRun::to_turtle` and `ProductionLintRun::from_turtle`
@@ -407,8 +413,9 @@ cannot be recorded by debt publication.
 
 - Rule ids are `&'static str` and follow lowercase kebab case.
 <!-- raf:tested-by raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
-- The gate reads the workspace from disk through the source index and does not run
-  the compiler, so it needs no build of the code under test.
+- The gate reads workspace source and checks the trusted build's production
+  Clippy receipt. The build owns compiler execution. Structural-only analysis
+  needs only the repository inputs.
 <!-- raf:tested-by raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
 
 - A build dependency cannot supply an ordinary library's provider route. A shared
@@ -427,6 +434,10 @@ detectors. A rule is only trusted when its authors showed what it must not flag.
 The gate makes that a precondition of running the rule, not a review comment.
 
 ## Verification
+
+The production-lint fixture checks that a missing lockfile and an inclusion
+emitted by a macro refuse a receipt. Changing a directly included file changes
+the input digest. An invalid standalone integration test leaves it unchanged.
 
 The existing detector Gate case checks required findings with no jobs, valid
 neighboring source, unsupported IDs and home-dependent selection refusals.

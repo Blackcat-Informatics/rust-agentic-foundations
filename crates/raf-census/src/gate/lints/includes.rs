@@ -102,6 +102,13 @@ fn file_macro(name: &Ident) -> bool {
     .any(|spelling| name == *spelling)
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Origin {
+    Source,
+    MacroDefinition,
+    MacroArgument,
+}
+
 fn paths(path: &RelPath, text: &str, fragment: bool) -> Result<Vec<(RelPath, bool)>, Error> {
     if !(text.contains("include") || fragment && text.contains("mod")) {
         return Ok(Vec::new());
@@ -109,7 +116,7 @@ fn paths(path: &RelPath, text: &str, fragment: bool) -> Result<Vec<(RelPath, boo
     let parent = path.parent().unwrap_or_else(RelPath::root);
     let scan = |tokens, excluded: &[Range<usize>]| {
         let mut inputs = Vec::new();
-        let mut groups = vec![tokens];
+        let mut groups = vec![(tokens, Origin::Source)];
         while let Some(group) = groups.pop() {
             collect(
                 group,
@@ -154,12 +161,12 @@ fn literal_path(input: syn::parse::ParseStream<'_>) -> syn::Result<syn::LitStr> 
 }
 
 fn collect(
-    stream: TokenStream,
+    (stream, origin): (TokenStream, Origin),
     parent: &RelPath,
     path: &RelPath,
     fragment: bool,
     excluded: &[Range<usize>],
-    groups: &mut Vec<TokenStream>,
+    groups: &mut Vec<(TokenStream, Origin)>,
     inputs: &mut Vec<(RelPath, bool)>,
 ) -> Result<(), Error> {
     let mut tokens = stream.into_iter().peekable();
@@ -175,7 +182,7 @@ fn collect(
             }
         }
         match token {
-            TokenTree::Group(group) => groups.push(group.stream()),
+            TokenTree::Group(group) => groups.push((group.stream(), origin)),
             TokenTree::Ident(name) if fragment && name == "mod" => {
                 if matches!(tokens.peek(), Some(TokenTree::Ident(_))) {
                     tokens.next();
@@ -187,6 +194,11 @@ fn collect(
                 }
             }
             TokenTree::Ident(name) if file_macro(&name) => {
+                if origin == Origin::MacroDefinition {
+                    return Err(Error::Options(format!(
+                        "{path}: cannot establish the expansion call site of {name}! in a macro definition; invoke the inclusion directly in the consuming source"
+                    )));
+                }
                 let colon =
                     |token: &TokenTree| matches!(token, TokenTree::Punct(p) if p.as_char() == ':');
                 let grouped_import = tokens.next_if(colon).is_some()
@@ -201,6 +213,11 @@ fn collect(
                 }
                 if !matches!(tokens.peek(), Some(TokenTree::Punct(punct)) if punct.as_char() == '!')
                 {
+                    if origin == Origin::MacroArgument {
+                        return Err(Error::Options(format!(
+                            "{path}: cannot establish the expansion of forwarded {name}; invoke the inclusion directly in the consuming source"
+                        )));
+                    }
                     continue;
                 }
                 tokens.next();
@@ -212,6 +229,28 @@ fn collect(
                     .join(&literal.value())
                     .map_err(|e| Error::Options(format!("{path}: {name}! input: {e}")))?;
                 inputs.push((relative, name == "include" || name == "r#include"));
+            }
+            TokenTree::Ident(name)
+                if matches!(tokens.peek(), Some(TokenTree::Punct(p)) if p.as_char() == '!')
+                // A keyword before unary negation, such as `return !(...)`,
+                // does not introduce macro arguments.
+                && syn::parse2::<Ident>(TokenTree::Ident(name.clone()).into()).is_ok() =>
+            {
+                tokens.next();
+                let definition = (name == "macro_rules" || name == "r#macro_rules")
+                    && tokens
+                        .next_if(|t| matches!(t, TokenTree::Ident(_)))
+                        .is_some();
+                if let Some(TokenTree::Group(group)) =
+                    tokens.next_if(|t| matches!(t, TokenTree::Group(_)))
+                {
+                    let nested = if definition || origin == Origin::MacroDefinition {
+                        Origin::MacroDefinition
+                    } else {
+                        Origin::MacroArgument
+                    };
+                    groups.push((group.stream(), nested));
+                }
             }
             _ => (),
         }

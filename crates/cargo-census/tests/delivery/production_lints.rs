@@ -103,6 +103,7 @@ fn default_checks_require_passing_production_evidence_for_the_current_sources_an
     let structural = check(&root, None, &["--no-production-lints"]);
     assert!(structural.status.success(), "{structural:?}");
     let clean = capture(&root, 0, "");
+    locked_shipping_inputs(&root);
     assert_verdict(&root, &receipt, &clean, None);
     let inputs = ProductionInputs::read(&DiskTree::new(&root).unwrap()).unwrap();
     let mut other_targets = PRODUCTION_CLIPPY_ARGS.to_vec();
@@ -162,6 +163,65 @@ fn default_checks_require_passing_production_evidence_for_the_current_sources_an
     );
     member_configuration(&root, &receipt);
     unverified_inputs(&root, &receipt);
+    macro_call_site(&root);
+}
+
+fn locked_shipping_inputs(root: &Path) {
+    let tree = DiskTree::new(root).unwrap();
+    let expected = ProductionInputs::read(&tree).unwrap();
+    fs::create_dir(root.join("tests")).unwrap();
+    fs::write(root.join("tests/draft.rs"), "fn invalid( {").unwrap();
+    assert_eq!(
+        ProductionInputs::read(&tree).unwrap().digest(),
+        expected.digest()
+    );
+    fs::remove_file(root.join("tests/draft.rs")).unwrap();
+    fs::remove_file(root.join("Cargo.lock")).unwrap();
+    let error = ProductionInputs::read(&tree).unwrap_err().to_string();
+    assert!(error.contains("cargo generate-lockfile"), "{error}");
+    fs::write(root.join("Cargo.lock"), "version = 4\n").unwrap();
+}
+
+fn macro_call_site(root: &Path) {
+    // Rust resolves a macro-emitted inclusion at its call site. A same-named
+    // file beside the definition cannot attest the bytes the compiler reads.
+    let tree = DiskTree::new(root).unwrap();
+    fs::create_dir(root.join("src/helpers")).unwrap();
+    fs::write(root.join("src/helpers/message.txt"), "ab").unwrap();
+    fs::write(root.join("src/message.txt"), "a").unwrap();
+    let defs = root.join("src/helpers/defs.rs");
+    let main = root.join("src/lib.rs");
+    fs::write(&main, r#"#[macro_use] #[path = "helpers/defs.rs"] mod defs; pub const DATA: &[u8; 1] = message!();"#).unwrap();
+    fs::write(
+        &defs,
+        r#"macro_rules! message { () => {{ include_bytes!("message.txt") }} }"#,
+    )
+    .unwrap();
+    let error = ProductionInputs::read(&tree).unwrap_err().to_string();
+    assert!(
+        error.contains("expansion call site of include_bytes!"),
+        "{error}"
+    );
+    fs::write(
+        &defs,
+        r#"macro_rules! message { ($read:ident) => { $read!("message.txt") } }"#,
+    )
+    .unwrap();
+    fs::write(&main, r#"#[macro_use] #[path = "helpers/defs.rs"] mod defs; pub const DATA: &[u8; 1] = message!(include_bytes);"#).unwrap();
+    let error = ProductionInputs::read(&tree).unwrap_err().to_string();
+    assert!(error.contains("forwarded include_bytes"), "{error}");
+    fs::write(
+        &main,
+        r#"pub const DATA: &[u8; 1] = include_bytes!("message.txt");
+           pub fn skip(include: bool, enabled: bool) -> bool { return !(include && enabled); }"#,
+    )
+    .unwrap();
+    let direct = ProductionInputs::read(&tree).unwrap();
+    fs::write(root.join("src/message.txt"), "b").unwrap();
+    assert_ne!(
+        ProductionInputs::read(&tree).unwrap().digest(),
+        direct.digest()
+    );
 }
 
 fn member_configuration(root: &Path, receipt: &Path) {

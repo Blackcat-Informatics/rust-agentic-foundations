@@ -163,11 +163,14 @@ fn read_configuration(
         }
     }
     for path in paths {
-        if tree
+        let present = tree
             .entry(&path)
             .map_err(|e| file_error(&path, e))?
-            .is_some()
-        {
+            .is_some();
+        if !present && path.as_str() == "Cargo.lock" {
+            return Err(Error::Options("production Clippy requires Cargo.lock; run cargo generate-lockfile in the workspace root".into()));
+        }
+        if present {
             let bytes = tree
                 .read_bytes(&path, max_bytes)
                 .map_err(|e| file_error(&path, e))?;
@@ -196,7 +199,7 @@ impl ProductionInputs {
     /// Refuses missing inputs and every source discovery, parser or resource failure.
     pub fn read(tree: &impl Tree) -> Result<Self, Error> {
         let options = LoadOptions::default();
-        let workspace = Workspace::load_members(tree, &RelPath::root(), &options)?;
+        let workspace = Workspace::load_shipping_members(tree, &RelPath::root(), &options)?;
         let root = RelPath::new("Cargo.toml").map_err(|error| Error::Options(error.to_string()))?;
         let root_text = tree
             .read(&root, options.max_file_bytes)

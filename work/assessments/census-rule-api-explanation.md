@@ -46,7 +46,7 @@ inputs:
     digest: f2b1e0236c5f75b53c54a1f5b96f24c84643ca8e0fa8600395121079ef9bd6fe
   - kind: symbol
     name: raf_census::ProductionInputs::read
-    digest: 24492a2d7df5b66b0b4ae7a1a536b4052bd1a2d0409cc0a71bd15a433e562185
+    digest: 601163d6205aaf0ebc7a51acb49874fe4c92718110fbba0dd1828e3b8f9b0ffa
   - kind: symbol
     name: raf_census::ProductionLintRun
     digest: 6761d0070ed689c66286014b4d2869b7685e66ffd85f68276e8b1657908067c2
@@ -86,6 +86,9 @@ inputs:
   - kind: symbol
     name: raf_source::CargoLintManifest::setting
     digest: 96759e3fff87df823709d5553186918929e6d0cbee1ab1058e16e1213c27c6d9
+  - kind: symbol
+    name: raf_source::Workspace::load_shipping_members
+    digest: b24629146be42d59694fa5aff780063c6bbe743471213963d7374c0bc0b08ca9
 verdict: accepted
 by: agent
 ---

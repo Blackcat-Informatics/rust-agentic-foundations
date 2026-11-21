@@ -7,7 +7,7 @@ subject: cap:census-rule-api#contract
 inputs:
   - kind: section
     name: cap:census-rule-api#contract
-    digest: 1632f7c3a9bd351157a06d493d0e9b078bcf0c06b7a2057dd869f97f4ee8667c
+    digest: 29c5d235bdd54dd3e8194071a18f2f3a2e48a40c085ebac4f5481bdbe2ad96ad
   - kind: symbol
     name: raf_census::Gate::assert_clean
     digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25
@@ -43,7 +43,7 @@ inputs:
     digest: f2b1e0236c5f75b53c54a1f5b96f24c84643ca8e0fa8600395121079ef9bd6fe
   - kind: symbol
     name: raf_census::ProductionInputs::read
-    digest: 24492a2d7df5b66b0b4ae7a1a536b4052bd1a2d0409cc0a71bd15a433e562185
+    digest: 601163d6205aaf0ebc7a51acb49874fe4c92718110fbba0dd1828e3b8f9b0ffa
   - kind: symbol
     name: raf_census::ProductionLintRun::capture
     digest: 316d728d03febd818b98f51da58d46e37a5515d246b270226f25b0532faf5e93
@@ -74,6 +74,9 @@ inputs:
   - kind: symbol
     name: raf_source::CargoLintManifest::setting
     digest: 96759e3fff87df823709d5553186918929e6d0cbee1ab1058e16e1213c27c6d9
+  - kind: symbol
+    name: raf_source::Workspace::load_shipping_members
+    digest: b24629146be42d59694fa5aff780063c6bbe743471213963d7374c0bc0b08ca9
 verdict: accepted
 by: agent
 ---
