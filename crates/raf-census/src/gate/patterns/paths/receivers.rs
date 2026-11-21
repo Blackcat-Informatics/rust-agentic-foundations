@@ -34,33 +34,34 @@ pub(super) enum ReceiverPath<'a> {
     Written(&'a syn::Path),
     Braced(&'a syn::Path),
     Tuple(&'a syn::Path),
+    Unit(&'a syn::Path),
 }
 
 impl<'a> ReceiverPath<'a> {
     fn path(self) -> &'a syn::Path {
         match self {
-            Self::Written(path) | Self::Braced(path) | Self::Tuple(path) => path,
+            Self::Written(path) | Self::Braced(path) | Self::Tuple(path) | Self::Unit(path) => path,
         }
     }
 
     pub(super) fn namespace(self) -> Namespace {
         match self {
             Self::Written(_) | Self::Braced(_) => Namespace::Type,
-            Self::Tuple(_) => Namespace::Value,
+            Self::Tuple(_) | Self::Unit(_) => Namespace::Value,
         }
     }
 
     fn admits(self, item: &Item) -> bool {
-        first_party_nominal(item)
-            && match self {
-                Self::Written(_) => true,
-                Self::Braced(_) => {
-                    item.kind == SymbolKind::Struct && item.shape == Some(FieldShape::Named)
-                }
-                Self::Tuple(_) => {
-                    item.kind == SymbolKind::Struct && item.shape == Some(FieldShape::Tuple)
-                }
-            }
+        if !first_party_nominal(item) {
+            return false;
+        }
+        let shape = match self {
+            Self::Written(_) => return true,
+            Self::Braced(_) => FieldShape::Named,
+            Self::Tuple(_) => FieldShape::Tuple,
+            Self::Unit(_) => FieldShape::Unit,
+        };
+        item.kind == SymbolKind::Struct && item.shape == Some(shape)
     }
 }
 
@@ -256,19 +257,20 @@ pub(super) fn binding<'a>(
 fn constructor(initializer: &syn::Expr) -> Option<ReceiverPath<'_>> {
     use crate::syntax::inert_attributes;
 
-    match initializer {
+    let (path, proof) = match initializer {
         syn::Expr::Struct(expr) if expr.qself.is_none() && inert_attributes(&expr.attrs) => {
-            Some(ReceiverPath::Braced(&expr.path))
+            return Some(ReceiverPath::Braced(&expr.path));
         }
         syn::Expr::Call(call) if inert_attributes(&call.attrs) => {
             let syn::Expr::Path(callee) = call.func.as_ref() else {
                 return None;
             };
-            (callee.qself.is_none() && inert_attributes(&callee.attrs))
-                .then_some(ReceiverPath::Tuple(&callee.path))
+            (callee, ReceiverPath::Tuple(&callee.path))
         }
-        _ => None,
-    }
+        syn::Expr::Path(path) => (path, ReceiverPath::Unit(&path.path)),
+        _ => return None,
+    };
+    (path.qself.is_none() && inert_attributes(&path.attrs)).then_some(proof)
 }
 
 pub(super) fn local(receiver: &syn::Expr) -> Option<String> {

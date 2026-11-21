@@ -780,8 +780,8 @@ impl Paths<'_, '_, '_, '_> {
                 && let Some((identifier, receiver, label)) = candidate
                 && identifier == name
             {
-                // Tuple callees resolve before this local enters the value scope.
-                let tuple_proof = (receiver.namespace() == Namespace::Value)
+                // Value paths resolve before this local enters scope.
+                let value_proof = (receiver.namespace() == Namespace::Value)
                     .then(|| {
                         ReceiverBinding::prove(
                             name,
@@ -793,16 +793,16 @@ impl Paths<'_, '_, '_, '_> {
                         )
                     })
                     .transpose()?;
-                pending = Some((identifier, receiver, label, tuple_proof));
+                pending = Some((identifier, receiver, label, value_proof));
             }
             Ok(!constant)
         });
         self.error = result.err();
         if self.error.is_none()
-            && let Some((name, receiver, label, tuple_proof)) = pending
+            && let Some((name, receiver, label, value_proof)) = pending
         {
             self.error = self
-                .remember_receiver(name, receiver, label, tuple_proof)
+                .remember_receiver(name, receiver, label, value_proof)
                 .err();
         }
     }
@@ -812,9 +812,9 @@ impl Paths<'_, '_, '_, '_> {
         name: &syn::Ident,
         receiver: ReceiverPath<'_>,
         label: &str,
-        tuple_proof: Option<ReceiverBinding>,
+        value_proof: Option<ReceiverBinding>,
     ) -> Result<(), Error> {
-        let binding = if let Some(proof) = tuple_proof {
+        let binding = if let Some(proof) = value_proof {
             proof
         } else {
             ReceiverBinding::prove(
