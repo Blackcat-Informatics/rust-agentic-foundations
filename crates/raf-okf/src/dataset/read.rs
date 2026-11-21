@@ -180,21 +180,22 @@ fn rooted(mut reader: Reader<'_>, path: &str, root: TermId) -> Result<(Document,
         map,
         trailing_comments,
     };
-    let body = reader.string(root, "body")?.to_owned();
+    let body = reader.string(root, "body")?;
     if reader.seen.len() != reader.subjects.len() {
         return Err(E::shape(
             root_iri,
             "unrelated or orphan structural subjects",
         ));
     }
-    let mut document = Document::new(frontmatter.clone(), body).map_err(E::Construct)?;
-    if document.frontmatter() != &frontmatter {
+    let (mut document, head, tags_reordered) =
+        Document::new_with_head(frontmatter, body).map_err(E::Construct)?;
+    if tags_reordered {
         return Err(E::shape(
             root_iri,
             "representation changes under document normalization",
         ));
     }
-    if !document.read_rendered_head().map_err(E::Parse)? {
+    if !document.read_rendered_head(head).map_err(E::Parse)? {
         return Err(E::shape(
             root_iri,
             "styles, comments or values do not survive RAF rendering",

@@ -6,7 +6,7 @@
 use crate::body::{Body, Origin};
 use crate::error::{ConstructError, ParseError, SpliceError};
 use crate::frontmatter::reader::{LineEnding, read_head};
-use crate::frontmatter::value::{Frontmatter, ListItem, Value};
+use crate::frontmatter::value::{Frontmatter, ListItem, Scalar, Value};
 use crate::frontmatter::writer::write_frontmatter;
 use crate::limits::MAX_TEXT_BYTES;
 use crate::profile::DocType;
@@ -70,17 +70,24 @@ impl Document {
     /// size bound the reader enforces, and [`ConstructError::Body`] when the
     /// body does not read (a malformed marker, nesting over the bound).
     pub fn new(frontmatter: Frontmatter, body: impl Into<String>) -> Result<Self, ConstructError> {
-        let mut frontmatter = frontmatter;
-        sort_tags(&mut frontmatter);
-        let body_text = body.into();
+        Self::new_with_head(frontmatter, &body.into()).map(|(document, _, _)| document)
+    }
+
+    /// Construct the document with its rendered head and whether tags were reordered.
+    pub(crate) fn new_with_head(
+        mut frontmatter: Frontmatter,
+        body: &str,
+    ) -> Result<(Self, String, bool), ConstructError> {
+        let tags_reordered = sort_tags(&mut frontmatter);
         let mut document = Self {
             frontmatter,
             body: Body::parse_at("", Origin::START).map_err(ConstructError::Body)?,
             eol: LineEnding::Lf,
             closing_newline: true,
         };
-        let origin = document.body_origin();
-        let len = origin.byte + body_text.len();
+        let head = document.render_head();
+        let origin = body_origin(&head);
+        let len = origin.byte + body.len();
         if len > MAX_TEXT_BYTES {
             return Err(ConstructError::TooLarge {
                 len,
@@ -89,15 +96,14 @@ impl Document {
         }
         // Read the body where it sits in the rendered text, so that an error
         // carries the line and offset of that text.
-        document.body = Body::parse_at(&body_text, origin).map_err(ConstructError::Body)?;
-        Ok(document)
+        document.body = Body::parse_at(body, origin).map_err(ConstructError::Body)?;
+        Ok((document, head, tags_reordered))
     }
 
     /// Read a reconstructed head and install its parsed source positions.
     ///
     /// Return false if rendering changes the frontmatter or the body boundary.
-    pub(crate) fn read_rendered_head(&mut self) -> Result<bool, ParseError> {
-        let mut rendered = self.render_head();
+    pub(crate) fn read_rendered_head(&mut self, mut rendered: String) -> Result<bool, ParseError> {
         let mut head = read_head(&rendered)?;
         let origin = Origin::after_fences(&head.fences);
         let span = self.body.span();
@@ -143,16 +149,7 @@ impl Document {
 
     /// The body read again at the place it has in the rendered text.
     fn place_body(&self) -> Result<Body, ParseError> {
-        self.body.placed(self.body_origin())
-    }
-
-    /// Where the body starts in the rendered text.
-    fn body_origin(&self) -> Origin {
-        let head = self.render_head();
-        Origin {
-            byte: head.len(),
-            line: 1 + head.matches('\n').count() + usize::from(!head.ends_with('\n')),
-        }
+        self.body.placed(body_origin(&self.render_head()))
     }
 
     /// The frontmatter.
@@ -209,23 +206,38 @@ impl Document {
     }
 }
 
-/// Put the top-level `tags` list in sorted order. The sort is stable and
-/// orders scalars by their text.
-fn sort_tags(frontmatter: &mut Frontmatter) {
+/// Where the body starts in the rendered text.
+fn body_origin(head: &str) -> Origin {
+    Origin {
+        byte: head.len(),
+        line: 1 + head.matches('\n').count() + usize::from(!head.ends_with('\n')),
+    }
+}
+
+/// Put the top-level `tags` list in stable text order and report a reordering.
+fn sort_tags(frontmatter: &mut Frontmatter) -> bool {
     let Some(entry) = frontmatter
         .map
         .entries
         .iter_mut()
         .find(|entry| entry.key == "tags")
     else {
-        return;
+        return false;
     };
-    if let Value::List(list) = &mut entry.value {
-        list.items.sort_by(|left, right| {
-            let text = |item: &ListItem| item.value.as_scalar().map(|s| s.text.clone());
-            text(left).cmp(&text(right))
-        });
+    if let Value::List(list) = &mut entry.value
+        && !list
+            .items
+            .is_sorted_by(|left, right| tag_text(left) <= tag_text(right))
+    {
+        list.items
+            .sort_by(|left, right| tag_text(left).cmp(&tag_text(right)));
+        return true;
     }
+    false
+}
+
+fn tag_text(item: &ListItem) -> Option<&str> {
+    item.value.as_scalar().map(Scalar::text)
 }
 
 impl PartialEq for Document {

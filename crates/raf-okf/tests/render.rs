@@ -1172,6 +1172,8 @@ fn constructed_nesting_and_size_are_bounded_like_the_reader() {
 
 #[test]
 fn unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back() {
+    use purrdf_core::{RdfLiteral, RdfTerm};
+
     for text in [
         "---\ntype: Architecture\ntags: [b, a]\n---\nbody\n",
         "---\ntype: Capability\ntags:\n  - b # on b\n  - a\n---\nbody\n",
@@ -1195,6 +1197,34 @@ fn unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back()
     assert_ne!(
         parse("---\nnames: [b, a]\n---\n"),
         parse("---\nnames: [a, b]\n---\n")
+    );
+
+    // A carrier must already have canonical tag order. The text reader can
+    // normalize the same tags without losing their attached content.
+    let (_, _, path, fixture) = FIXTURES[2];
+    let original = parse(&fixture.replace("timestamp:", "tags: [omega, alpha]\ntimestamp:"));
+    let carrier = original.to_dataset(path).unwrap();
+    assert_eq!(Document::from_dataset(&carrier, path).unwrap(), original);
+
+    let mut rows: Vec<_> = carrier.owned_quads().collect();
+    for row in &mut rows {
+        if row.predicate != "https://blackcatinformatics.ca/raf/okf/1#text" {
+            continue;
+        }
+        let RdfTerm::Literal(literal) = &row.object else {
+            continue;
+        };
+        let corrected = match literal.lexical_form.as_str() {
+            "alpha" => "omega",
+            "omega" => "alpha",
+            _ => continue,
+        };
+        row.object = RdfTerm::Literal(RdfLiteral::simple(corrected));
+    }
+    shape_refusal(
+        &rows,
+        path,
+        "representation changes under document normalization",
     );
 }
 
