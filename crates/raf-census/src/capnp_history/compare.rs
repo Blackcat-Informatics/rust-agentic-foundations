@@ -119,6 +119,11 @@ pub enum ChangeKind {
     ChangedType,
     /// A compiled default changed, or an RPC input gained or lost an explicit default.
     ChangedDefault,
+    /// A retained field's applications of an annotation changed.
+    ChangedFieldAnnotation {
+        /// ID of the annotation declaration.
+        annotation: TypeId,
+    },
     /// An appended input parameter lacks an explicit default.
     MissingParameterDefault,
     /// A pointer slot became required in an existing struct.
@@ -173,6 +178,9 @@ impl fmt::Display for ChangeKind {
             Self::ChangedDiscriminant => "union discriminant changed",
             Self::ChangedType => "type changed",
             Self::ChangedDefault => "default changed",
+            Self::ChangedFieldAnnotation { annotation } => {
+                return write!(f, "field applications of annotation {annotation} changed");
+            }
             Self::MissingParameterDefault => "appended input parameter needs an explicit default",
             Self::RequiredField => "pointer field became required",
             Self::PairedPresence { peer } => {
@@ -399,6 +407,16 @@ fn structure(
             || (input_defaults && slot.explicit_default != current.explicit_default)
         {
             emit(name(), ChangeKind::ChangedDefault)?;
+        }
+        let annotation_ids: BTreeSet<_> = slot
+            .applications
+            .keys()
+            .chain(current.applications.keys())
+            .collect();
+        for &annotation in annotation_ids {
+            if slot.applications.get(&annotation) != current.applications.get(&annotation) {
+                emit(name(), ChangeKind::ChangedFieldAnnotation { annotation })?;
+            }
         }
     }
     for (&ordinal, slot) in &after.slots {

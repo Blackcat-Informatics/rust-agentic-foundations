@@ -1522,6 +1522,107 @@ fn capnp_history_checks_committed_compiler_layouts() {
     );
 }
 
+/// Strict history compares ordered applications within each annotation ID
+/// and checks values through the concrete brand of a generic declaration.
+#[test]
+fn capnp_history_compares_data_field_annotations() {
+    const SERVICE: &str = "0xefc1329300000057";
+    let descriptor = include_bytes!("fixtures/capnp/field-annotations-base.bin");
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, descriptor);
+    let compatible = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/field-annotations-compatible.bin"),
+    );
+    let clean = capnp_history(root, &base, &compatible, &[SERVICE], &[]);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(
+        clean.stdout.is_empty() && clean.stderr.is_empty(),
+        "{clean:?}"
+    );
+
+    let changed = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/field-annotations-changed.bin"),
+    );
+    assert_field_annotation_changes(
+        capnp_history(root, &base, &changed, &[SERVICE], &[]),
+        "0xefc1329300000055",
+        &[
+            ("name", "0xefc1329300000051"),
+            ("value", "0xefc1329300000054"),
+            ("names", "0xefc1329300000054"),
+            ("branded", "0xefc1329300000054"),
+            ("repeated", "0xefc1329300000051"),
+        ],
+    );
+    for (wrong_target, diagnostic) in [
+        (true, "must be declared for data fields"),
+        (false, "slot type and default value do not agree"),
+    ] {
+        let invalid = invalid_field_annotation_request(descriptor, wrong_target);
+        let current = commit_capnp_descriptor(root, &invalid);
+        assert_census_refused(
+            capnp_history(root, &base, &current, &[SERVICE], &[]),
+            diagnostic,
+        );
+    }
+}
+
+fn assert_field_annotation_changes(verdict: Output, owner: &str, findings: &[(&str, &str)]) {
+    use std::fmt::Write as _;
+
+    assert_eq!(verdict.status.code(), Some(1), "{verdict:?}");
+    assert!(verdict.stderr.is_empty(), "{verdict:?}");
+    let mut expected = String::new();
+    for (field, annotation) in findings {
+        writeln!(
+            expected,
+            "Cap'n Proto history for {owner}.{field}: field applications of annotation {annotation} changed"
+        )
+        .unwrap();
+    }
+    assert_eq!(String::from_utf8(verdict.stdout).unwrap(), expected);
+}
+
+fn invalid_field_annotation_request(mut descriptor: &[u8], wrong_target: bool) -> Vec<u8> {
+    use capnp::schema_capnp::{code_generator_request, node};
+
+    let descriptor =
+        capnp::serialize::read_message(&mut descriptor, capnp::message::ReaderOptions::new())
+            .unwrap();
+    let original = descriptor
+        .get_root::<code_generator_request::Reader<'_>>()
+        .unwrap();
+    compiler_request(|mut request| {
+        request.set_nodes(original.get_nodes().unwrap()).unwrap();
+        let mut nodes = request.get_nodes().unwrap();
+        let id = if wrong_target {
+            0xefc1_3293_0000_0051
+        } else {
+            0xefc1_3293_0000_0055
+        };
+        let position = (0..nodes.len())
+            .find(|&index| nodes.reborrow().get(index).get_id() == id)
+            .unwrap();
+        match nodes.get(position).which().unwrap() {
+            node::Annotation(mut declaration) => declaration.set_targets_field(false),
+            node::Struct(record) => record
+                .get_fields()
+                .unwrap()
+                .get(1)
+                .get_annotations()
+                .unwrap()
+                .get(0)
+                .init_value()
+                .set_bool(true),
+            _ => panic!("fixture annotation or record node"),
+        }
+    })
+}
+
 /// Required pointer presence is compared through the shipped command on
 /// selected committed structs. An invalid marker never yields a partial verdict.
 #[test]
@@ -1545,17 +1646,18 @@ fn capnp_history_compares_required_pointer_fields_in_committed_descriptors() {
 
     let history = |base: &str, current: &str, selected, marker: Option<&str>| {
         let options = marker.map(|id| ["--required-annotation", id]);
-        capnp_history(
-            root,
-            base,
-            current,
-            &[selected],
-            options.as_slice().as_flattened(),
-        )
+        let flags = options.as_slice().as_flattened();
+        capnp_history(root, base, current, &[selected], flags)
     };
-    let strict = history(&base, &current, ROOT, None);
-    assert!(strict.status.success(), "{strict:?}");
-    assert_eq!(strict.stdout, b"");
+    assert_field_annotation_changes(
+        history(&base, &current, ROOT, None),
+        ROOT,
+        &[
+            ("name", MARKER),
+            ("release", MARKER),
+            ("options.destination", MARKER),
+        ],
+    );
     let required = history(&base, &current, ROOT, Some(MARKER));
     assert_eq!(required.status.code(), Some(1), "{required:?}");
     assert_eq!(
@@ -1649,12 +1751,13 @@ fn capnp_history_compares_declared_pointer_pairs() {
     let invalid = commit(include_bytes!("fixtures/capnp/paired-invalid.bin"));
     let no_marker = commit(include_bytes!("fixtures/capnp/required-base.bin"));
 
-    for (before, after, options) in [
-        (&base, &current, &OPTIONS[..2]),
-        (&current, &base, OPTIONS),
-        (&current, &current, OPTIONS),
-    ] {
-        let clean = capnp_history(root, before, after, &[ROOT], options);
+    assert_field_annotation_changes(
+        capnp_history(root, &base, &current, &[ROOT], &OPTIONS[..2]),
+        ROOT,
+        &[("profile", OPTIONS[3])],
+    );
+    for (before, after) in [(&current, &base), (&current, &current)] {
+        let clean = capnp_history(root, before, after, &[ROOT], OPTIONS);
         assert!(clean.status.success(), "{clean:?}");
         assert_eq!(clean.stdout, b"");
     }

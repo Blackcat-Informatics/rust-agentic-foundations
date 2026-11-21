@@ -11,8 +11,8 @@ use capnp::{
 };
 
 use super::{
-    Annotations, DeclarationScopes, Endpoint, Error, Interface, Kind, Method, Node, Nodes,
-    Superclasses, TypeId, layout, member_name,
+    Annotations, DeclarationScopes, Endpoint, Error, Interface, Kind, LayoutScope, Method, Node,
+    Nodes, Superclasses, TypeId, layout, member_name,
 };
 use crate::capnp_history::shape::{self, Arguments, Brand, Pointer, Type, TypeScope};
 
@@ -50,7 +50,7 @@ pub(super) struct Projection {
 impl Projection {
     pub(super) fn read(nodes: &Nodes<'_>) -> Result<Self, Error> {
         let mut counts = BTreeMap::<TypeId, u8>::new();
-        for reader in nodes.0.values() {
+        for reader in nodes.by_id.values() {
             if let Ok(node::Interface(interface)) = reader.which() {
                 for method in interface.get_methods()? {
                     for id in [
@@ -59,7 +59,7 @@ impl Projection {
                     ] {
                         let id = TypeId(id);
                         if nodes
-                            .0
+                            .by_id
                             .get(&id)
                             .is_some_and(|endpoint| endpoint.get_scope_id() == 0)
                         {
@@ -310,12 +310,14 @@ impl Projection {
                             needed,
                             annotations,
                             scopes,
-                            (!owner.parameter_scopes.is_empty() || owner.implicit_arity != 0)
-                                .then_some(TypeScope::Inline {
-                                    owner: owner.id,
-                                    wrapper: target,
-                                    arity: owner.implicit_arity,
-                                }),
+                            LayoutScope::Inline(
+                                (!owner.parameter_scopes.is_empty() || owner.implicit_arity != 0)
+                                    .then_some(TypeScope::Inline {
+                                        owner: owner.id,
+                                        wrapper: target,
+                                        arity: owner.implicit_arity,
+                                    }),
+                            ),
                         )?;
                         return Ok(Endpoint::Inline {
                             id: target,
@@ -448,7 +450,7 @@ impl Projection {
             return Ok(claimed.contains(&id));
         }
         let mut claimed = BTreeSet::new();
-        for reader in nodes.0.values() {
+        for reader in nodes.by_id.values() {
             for child in reader.get_nested_nodes()? {
                 let child_id = TypeId(child.get_id());
                 if self.owns_inline(child_id) {
@@ -594,7 +596,7 @@ fn check_branded_type(
 
 fn lexical_owners(nodes: &Nodes<'_>) -> Result<Owners, Error> {
     let mut owners = Owners::new();
-    for (&scope, reader) in &nodes.0 {
+    for (&scope, reader) in &nodes.by_id {
         let mut names = BTreeMap::new();
         for child in reader.get_nested_nodes()? {
             let id = TypeId(child.get_id());
