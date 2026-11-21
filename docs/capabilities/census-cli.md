@@ -59,6 +59,7 @@ bindings:
     - cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_requires_exact_scope_and_output_validity
     - cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_refuses_changed_or_invalid_pair_blobs
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
+    - cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities
     - cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities
     - cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities
@@ -150,6 +151,16 @@ types. Struct-valued defaults are checked as native containers and
 compared by their canonical pointer bytes. The caller verifies
 acceptance by application readers.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
+
+Strict history compares applications on retained data fields by annotation
+declaration ID. The application list for one ID retains its authored order
+and repeated values. The descriptor supplies a declared annotation with a
+field target, and the application supplies a brand and a value of the
+instantiated type. Text and data retain their bytes, and pointer values
+compare in their bounded canonical representation. Each changed list reports
+at the owning field with the annotation ID. Explicitly selected required
+and paired-presence markers use their presence policies.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations -->
 
 The strict history check accepts explicitly selected interfaces. A generic
 interface can declare its own type parameters or inherit them from its lexical
@@ -796,6 +807,13 @@ The declaration history fixtures cover compatible additions, a partial import,
 local identity changes and the independent type layout verdict. Malformed scope
 claims and excessive nominal nesting refuse without a partial report.
 
+The data-field fixtures select a named result. They cover an annotated appended
+field, relative order across distinct annotation IDs, repeats within one ID,
+changed Text and List values, and equal bytes under different brands. The same
+method carries a valid annotation on an inline input. An invalid declaration target
+or a value inconsistent with its applied brand refuses the descriptor.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations -->
+
 The named RPC fixtures check an optional field with an implicit default,
 one finding per changed field in a shared layout, and a change of endpoint
 form at the same node ID. A change from Text to Data in a nested type
@@ -873,6 +891,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters` | test | [Contract](#contract) |
