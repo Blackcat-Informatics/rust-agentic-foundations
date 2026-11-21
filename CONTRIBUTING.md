@@ -66,20 +66,12 @@ The trusted documentation integration fixtures use Cargo's test target
 directory. Run them with an absolute `CARGO_TARGET_DIR` outside Git
 worktrees when Cargo defaults to an in-checkout target.
 
-The `repository_census` example shares the self-Census policy, including its
-required syntax rules, workspace and fuzz roots, and exact debt ratchet. The CLI
-reads the native ledger directly without building or executing that example:
-
-```bash
-cargo run --locked -p cargo-census -- census --workspace . check
-cargo run --locked -p cargo-census -- census --workspace . index \
-  --max-index-bytes 67108864
-```
-
-A complete index is emitted even when the check has findings; run `check` for
-the policy verdict. The example refuses debt publication. The index command
-explicitly admits 64 MiB for the complete serialized native index; the default
-allowance is 16 MiB. This does not bound native graph allocation.
+The `self_census` integration test checks the workspace and fuzz roots
+against the ledger and exact debt record. It shares the required syntax
+rules and locked registry configuration with the `repository_census`
+example. The test is read-only. The example can publish debt on an
+explicit write request. The consumer guides show how to set up each gate
+in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORKPLAN-HOWTO.md)
 
 - **`make check` is the gate.** It stops at the first failure. CI runs the
   documented compilation, test and policy checks; local `make check` additionally
@@ -144,13 +136,10 @@ allowance is 16 MiB. This does not bound native graph allocation.
   under the root `tests/`, names a clock reading or a wait on one (`Instant`,
   `SystemTime`, `UNIX_EPOCH`, `sleep`, the `*_timeout` waits, and each of these
   with a `_` suffix such as `sleep_ms` or `wait_timeout_while`; `raf-source` also
-  refuses `Duration` and `elapsed`). Only `crates/raf-workplan/src/exec/clock.rs`
-  and the gate file are exempt. The examples of `raf-source` are judged by the same
-  rule as its sources and tests, and `make clippy` also disallows the same types,
-  the sleeps and the timeout waits everywhere an `allow` with a reason does not
-  say otherwise. Script a clock in the test instead. A test that runs a real process
-  still goes through the runner's wall clock as a watchdog; it asserts nothing
-  about the time.
+  refuses `Duration` and `elapsed`). The documentation watchdog reads
+  the clock in `crates/cargo-workplan/src/trusted_docs/clock.rs`. The gate
+  source is exempt so it can name the forbidden calls. Drive time-dependent
+  test cases with a scripted clock.
 
 ## Versioning & releases
 
