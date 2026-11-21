@@ -18,6 +18,7 @@ use purrdf_shapes::{
     term::{NamedNode, Term},
 };
 
+use super::review::FindingStatus;
 use super::{BINDING_KEYS, Check, DocType, Entry, ItemValue, Map, Rule};
 use crate::frontmatter::value::List;
 
@@ -110,11 +111,18 @@ pub(super) struct KeyVerdicts<'a> {
     pub(super) exclusions: Vec<RowKeys<'a>>,
     pub(super) ceilings: Vec<RowKeys<'a>>,
     pub(super) exceptions: Vec<RowKeys<'a>>,
+    pub(super) review_findings: Vec<RowKeys<'a>>,
 }
 
 pub(super) struct RowKeys<'a> {
     pub(super) unknown: Vec<&'a str>,
     pub(super) missing: Vec<&'static str>,
+}
+
+impl RowKeys<'_> {
+    pub(super) fn is_exact(&self) -> bool {
+        self.unknown.is_empty() && self.missing.is_empty()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -126,6 +134,9 @@ enum RowShape {
     Exclusion,
     Ceiling,
     Exception,
+    ReviewFinding,
+    ReviewFindingWithRevision,
+    ReviewFindingWithReason,
 }
 
 struct RowSpec {
@@ -185,6 +196,55 @@ impl RowShape {
                 member: "urn:raf:okf:coverage-exception-member",
                 keys: &[("item", false), ("file", false), ("reason", true)],
             },
+            Self::ReviewFinding => RowSpec {
+                list: "findings",
+                name: "Review-finding",
+                member: "urn:raf:okf:review-finding-member",
+                keys: &[
+                    ("id", true),
+                    ("severity", true),
+                    ("location", true),
+                    ("status", true),
+                ],
+            },
+            Self::ReviewFindingWithRevision => RowSpec {
+                list: "findings",
+                name: "Review-finding-with-revision",
+                member: "urn:raf:okf:review-finding-with-revision-member",
+                keys: &[
+                    ("id", true),
+                    ("severity", true),
+                    ("location", true),
+                    ("status", true),
+                    ("revision", true),
+                ],
+            },
+            Self::ReviewFindingWithReason => RowSpec {
+                list: "findings",
+                name: "Review-finding-with-reason",
+                member: "urn:raf:okf:review-finding-with-reason-member",
+                keys: &[
+                    ("id", true),
+                    ("severity", true),
+                    ("location", true),
+                    ("status", true),
+                    ("reason", true),
+                ],
+            },
+        }
+    }
+
+    fn for_row(self, map: &Map) -> Self {
+        if !matches!(self, Self::ReviewFinding) {
+            return self;
+        }
+        match FindingStatus::in_row(map) {
+            Some(FindingStatus::Fixed) => Self::ReviewFindingWithRevision,
+            Some(FindingStatus::Accepted | FindingStatus::FalsePositive) => {
+                Self::ReviewFindingWithReason
+            }
+            // A malformed status is refused by the typed decoder.
+            Some(FindingStatus::Open) | None => self,
         }
     }
 }
@@ -266,6 +326,9 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
         RowShape::Exclusion,
         RowShape::Ceiling,
         RowShape::Exception,
+        RowShape::ReviewFinding,
+        RowShape::ReviewFindingWithRevision,
+        RowShape::ReviewFindingWithReason,
     ] {
         let spec = shape.spec();
         add_shape(
@@ -315,7 +378,8 @@ fn row_groups(map: &Map, doc_type: DocType) -> Vec<RowGroup<'_>> {
     let shapes: &[RowShape] = match doc_type {
         DocType::Change => &[RowShape::ChangeItem],
         DocType::Debt => &[RowShape::DebtFinding, RowShape::DebtLine],
-        DocType::Evidence | DocType::Assessment | DocType::Review => &[RowShape::Input],
+        DocType::Evidence | DocType::Assessment => &[RowShape::Input],
+        DocType::Review => &[RowShape::Input, RowShape::ReviewFinding],
         DocType::Coverage => &[RowShape::Exclusion, RowShape::Ceiling, RowShape::Exception],
         _ => &[],
     };
@@ -385,9 +449,14 @@ fn header_graph<'a>(
             let spec = group.shape.spec();
             let member = graph.intern_iri(spec.member)?;
             for (index, map) in group.maps().enumerate() {
+                let row_member = if matches!(group.shape, RowShape::ReviewFinding) {
+                    graph.intern_iri(group.shape.for_row(map).spec().member)?
+                } else {
+                    member
+                };
                 let name = format!("{FOCUS}{}:{index}", spec.name);
                 let focus = project(&mut graph, &name, map)?;
-                graph.push_quad(anchor, member, focus, None)?;
+                graph.push_quad(anchor, row_member, focus, None)?;
             }
         }
     }
@@ -497,7 +566,6 @@ fn report_keys<'a>(
     };
     let mut focuses = row_focuses.iter();
     for &group in groups {
-        let spec = group.shape.spec();
         let rows = match group.shape {
             RowShape::ChangeItem => &mut verdicts.items,
             RowShape::DebtFinding => &mut verdicts.debt_findings,
@@ -506,8 +574,12 @@ fn report_keys<'a>(
             RowShape::Exclusion => &mut verdicts.exclusions,
             RowShape::Ceiling => &mut verdicts.ceilings,
             RowShape::Exception => &mut verdicts.exceptions,
+            RowShape::ReviewFinding
+            | RowShape::ReviewFindingWithRevision
+            | RowShape::ReviewFindingWithReason => &mut verdicts.review_findings,
         };
         for map in group.maps() {
+            let spec = group.shape.for_row(map).spec();
             let focus = focus_iri(focuses.next().ok_or(HeaderShapeError::UnexpectedReport)?)?;
             let missing_keys = missing_row_keys(&mut missing, focus, map, spec.keys)?;
             let unknown = map

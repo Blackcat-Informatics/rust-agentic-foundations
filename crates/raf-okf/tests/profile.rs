@@ -57,6 +57,11 @@ const CHANGE: &str = "---\ntype: Change\nid: change:add-alpha\ntitle: Add alpha\
 const ALPHA_PATH: &str = "docs/capabilities/alpha.md";
 const OVERVIEW_PATH: &str = "docs/architecture/overview.md";
 const CHANGE_PATH: &str = "work/changes/add-alpha.md";
+const REVIEW_PATH: &str = "work/reviews/ledger-design.md";
+const REVIEW: &str = include_str!("fixtures/review.md");
+const REVIEW_FINDING_SHAPE: Rule = Rule::WrongShape {
+    expected: "closed finding rows with id, severity, location and status; locations use item:path or file:path#Lfirst-Llast with positive ordered lines; fixed requires revision, accepted and false-positive require reason",
+};
 
 fn alpha() -> String {
     capability("alpha", "designed", "[cap:beta]", "")
@@ -104,6 +109,96 @@ fn assert_hit(found: &[Violation], at: &Location, rule: &Rule) {
 fn mutate(text: &str, from: &str, to: &str) -> String {
     assert!(text.contains(from), "fixture has no `{from}`");
     text.replacen(from, to, 1)
+}
+
+fn review_with_findings(findings: &str) -> String {
+    let (head, _) = REVIEW
+        .split_once("findings:\n")
+        .expect("Review fixture findings");
+    format!("{head}{findings}---\n")
+}
+
+#[test]
+fn review_finding_status_selects_the_required_and_allowed_keys() {
+    // Every invalid row gets the same single profile finding, even when
+    // several fields fail and the next authored occurrence is identical.
+    let unsorted = mutate(REVIEW, "  - id: accepted\n", "  - id: z-accepted\n");
+    let RafDocument::Review(review) = clean(&unsorted, REVIEW_PATH) else {
+        panic!("expected Review fixture");
+    };
+    assert_eq!(
+        review
+            .findings
+            .iter()
+            .map(|finding| finding.id.as_str())
+            .collect::<Vec<_>>(),
+        ["fixed", "open", "spurious", "z-accepted"],
+    );
+    let common = "  - id: issue\n    severity: low\n    location: item:demo::read\n";
+    for disposition in [
+        "    status: open\n    reason: Unresolved.\n    note: Extra.\n",
+        "    status: fixed\n",
+        "    status: accepted\n    revision: abcdef0123456789abcdef0123456789abcdef01\n",
+        "    status: false-positive\n",
+        "    status: [open]\n",
+        "    status: closed\n",
+        "    status: fixed\n    revision: short\n",
+    ] {
+        let text = review_with_findings(&format!(
+            "findings:\n{common}{disposition}{common}{disposition}"
+        ));
+        let found = violations(&text, REVIEW_PATH);
+        assert_eq!(found.len(), 2, "{disposition}: {found:#?}");
+        for finding in &found {
+            assert_eq!(
+                (finding.at(), finding.rule()),
+                (&key("findings"), &REVIEW_FINDING_SHAPE),
+                "{disposition}"
+            );
+        }
+    }
+}
+
+#[test]
+fn review_finding_lists_refuse_wrong_shapes_and_count_only_valid_ids() {
+    // Reject malformed lists before any row checks. Only valid rows enter
+    // duplicate detection, whose finding follows the authored row findings.
+    let text = review_with_findings("findings: [plain]\n");
+    let found = violations(&text, REVIEW_PATH);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(
+        (found[0].at(), found[0].rule()),
+        (
+            &key("findings"),
+            &Rule::WrongShape {
+                expected: "a list of structured review findings"
+            }
+        )
+    );
+
+    let valid =
+        "  - id: repeated\n    severity: low\n    location: item:demo::read\n    status: open\n";
+    let invalid = format!("{valid}    reason: Unresolved.\n");
+    for (rows, expected) in [
+        (format!("{valid}{invalid}"), vec![REVIEW_FINDING_SHAPE]),
+        (
+            format!("{valid}{invalid}{valid}"),
+            vec![
+                REVIEW_FINDING_SHAPE,
+                Rule::WrongShape {
+                    expected: "findings with distinct kebab-case identifiers",
+                },
+            ],
+        ),
+    ] {
+        let text = review_with_findings(&format!("findings:\n{rows}"));
+        let found = violations(&text, REVIEW_PATH);
+        assert_eq!(
+            found.iter().map(Violation::rule).collect::<Vec<_>>(),
+            expected.iter().collect::<Vec<_>>()
+        );
+        assert!(found.iter().all(|finding| finding.at() == &key("findings")));
+    }
 }
 
 /// The two optional capability flags read `true` or `false`, and a neighbouring

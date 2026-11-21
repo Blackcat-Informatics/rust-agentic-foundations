@@ -343,9 +343,13 @@ in that type's directory. Each of these directories holds Markdown files only.
   `low` or `informational`. Location is `item:<canonical path>` or
   `file:<relative path>#L<first>-L<last>`, with a positive ordered line range.
   An `open` row has no extra field; `fixed` requires a full fixing `revision`;
-  `accepted` and `false-positive` require a non-empty `reason`. A clean review
-  has no findings. A findings verdict requires rows or **`findings_ref`**, a
-  readable repository document or an opaque HTTP or HTTPS reference. The URL
+  `accepted` and `false-positive` require a non-empty `reason`.
+  Each map gets its own focus and the status selects its prepared native
+  SHACL key shape. A scalar item refuses the entire list before row validation.
+  Each invalid map produces one structured-row finding at `findings` in
+  authored order. Only valid rows contribute to duplicate ID detection.
+  A clean review has no findings. A findings verdict requires rows or
+  **`findings_ref`**, a readable repository document or an opaque HTTP or HTTPS reference. The URL
   is validated as data and is never fetched by the review machinery.
 - **`exclusions`** is a list of maps with exactly the keys `item` and `reason`,
   each item once; the empty list `[]` holds none. The item is a path below a

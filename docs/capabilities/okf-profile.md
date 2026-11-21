@@ -154,6 +154,8 @@ bindings:
     - raf_okf::test_crate::validate_cost::a_capability_with_many_sections_and_blocks_is_refused_for_a_duplicated_section_at_the_cap
     - raf_okf::test_crate::profile::every_required_key_of_every_type_is_reported_when_missing
     - raf_okf::test_crate::profile::mixed_header_violations_keep_their_key_and_diagnostic_order
+    - raf_okf::test_crate::profile::review_finding_status_selects_the_required_and_allowed_keys
+    - raf_okf::test_crate::profile::review_finding_lists_refuse_wrong_shapes_and_count_only_valid_ids
     - raf_okf::test_crate::profile::an_unknown_key_is_reported_at_that_key
     - raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type
     - raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item
@@ -454,6 +456,14 @@ independent identities and records.
 
 The profile has eight types. `Review` is an empty-body record with a required RFC 3339 timestamp, full reviewed revision, source scope, kind, verdict, reviewer category, derived inputs and findings. Its optional findings reference names a readable repository file or an opaque HTTP(S) URL. Finding rows retain severity, source location and open, fixed, accepted or false-positive disposition. Capability headers optionally declare distinct closed `review_required` kinds and optionally state `review_strict: true`, which makes a required review count only when its verdict is clean. They optionally state `measured_evidence_required: true`, and an evidence record optionally states `units` and `conditions` for its values. The architecture profile states the complete closed key and value sets.
 <!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
+
+Prepared native SHACL closes Review finding keys according to the authored
+status. Each row has a focus. A fixed row requires `revision`, and an accepted
+or false-positive row requires `reason`, alongside the four common keys.
+A scalar item refuses the whole list. With a list of maps, each invalid map
+produces one structured-row finding at `findings` in authored order.
+Duplicate detection considers valid rows and reports after the row findings.
+<!-- raf:tested-by raf_okf::test_crate::profile::review_finding_status_selects_the_required_and_allowed_keys,raf_okf::test_crate::profile::review_finding_lists_refuse_wrong_shapes_and_count_only_valid_ids -->
 
 `is_commit_id` shares the profile's full revision spelling with callers: exactly
 40 or 64 lowercase hexadecimal digits, checked through native canonical hex
@@ -1511,6 +1521,8 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::profile::placeholder_scan_spares_code_longer_words_and_dotted_prose` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::placeholder_tokens_in_frontmatter_values_are_reported_at_the_key` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::placeholder_tokens_in_prose_are_reported_at_their_line` | test | [Verification](#verification) |
+| `raf_okf::test_crate::profile::review_finding_lists_refuse_wrong_shapes_and_count_only_valid_ids` | test | [Contract](#contract) |
+| `raf_okf::test_crate::profile::review_finding_status_selects_the_required_and_allowed_keys` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::tags_are_non_empty_unique_strings_and_a_timestamp_is_rfc_3339` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::the_key_resource_has_its_own_rule_on_every_type` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::the_three_outcomes_are_typed` | test | [Verification](#verification) |
