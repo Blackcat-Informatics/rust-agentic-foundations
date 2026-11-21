@@ -7,11 +7,17 @@ Census groups Rust helpers with the same normalized body or forwarding pattern. 
 
 ## Inspect the workspace
 
-On native Linux with Rust 1.98.1 or newer, install the CLI from a pinned RAF revision. Use the same revision for developer machines, CI and any RAF dev-dependency.
+On native Linux with Rust 1.98.1 or newer, select a RAF checkout containing this guide. From that checkout, record its commit and install the CLI at that revision. Use the same commit on developer machines, in CI and for the RAF dev-dependency.
 
 ```sh
+RAF_REV=$(git rev-parse HEAD)
 cargo install --locked --git https://github.com/Blackcat-Informatics/rust-agentic-foundations.git \
-  --rev 05138a5ea278377d745fca9809cae116ae37a667 cargo-census
+  --rev "$RAF_REV" cargo-census
+```
+
+From the consumer workspace, run the self-test and inspect its baseline.
+
+```sh
 cargo census self-test
 cargo census baseline --format turtle
 ```
@@ -20,23 +26,17 @@ Make sure Cargo's install directory (normally `$HOME/.cargo/bin`) is on `PATH`. 
 
 ## Install the ledger
 
-Create `helpers-ledger.ttl` at the workspace root. This complete starter ledger selects the current workspace (`.`), normal form 1 and report form 5. It lets you enforce structural duplicate groups immediately, with no named jobs. Copy all six lines exactly, including the final newline.
-
-```turtle
-VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/b6b4b0160ca994e7e3840c07807d4adb56ba5a2e003a910ad5efdf316f211c54>
-<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
-<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#root> "." .
-```
+From the workspace or one of its members, initialize the structural policy, inspect the resulting ledger, then check the source.
 
 ```sh
+cargo census init
 cargo census dump-ledger --format turtle
 cargo census check
 ```
 
-The first command validates and prints the ledger. The second evaluates it against the source and debt record. An absent `census-debt.ttl` counts as empty. A clean workspace passes immediately. A finding includes the group or policy violation to inspect. For `check`, exit status 0 means clean. Status 1 signals findings or an evaluation error. Status 2 signals invalid command usage or a ledger that requires Rust registrations the CLI lacks.
+`init` creates canonical `helpers-ledger.ttl` at the workspace root. Its sole scan root is `.` and it declares no jobs or allowances. An existing ledger path makes initialization fail and preserves the existing entry. Initialization leaves any debt record untouched.
+
+`dump-ledger` validates and prints the ledger. `check` evaluates it against the source and debt record. An absent `census-debt.ttl` counts as empty. A clean workspace passes immediately. A finding includes the group or policy violation to inspect. For `check`, exit status 0 means clean. Status 1 signals findings or an evaluation error. Status 2 signals invalid command usage or a ledger that requires Rust registrations the CLI lacks.
 
 The ledger reader requires canonical bytes. Even a whitespace edit can invalidate the file, and a policy edit changes the content-derived `BASE`. For a custom policy, construct the graph with `raf_rdf::Builder` and serialize it with `Graph::to_text(Format::Turtle)`. The example constructs a job, names its home and attaches an extension using that writer. [Ledger construction example](crates/raf-census/examples/support/ledger.rs) · [Ledger fields](docs/capabilities/census-ledger.md)
 
@@ -85,11 +85,11 @@ The starter ledger declares no job IDs. For policy beyond structural grouping, a
 
 ## Run the gate from a Rust test
 
-To use the same structural policy from your test suite, add the library to a package's `Cargo.toml`. In a virtual workspace, choose a member package that owns the integration test. Census discovers the workspace root from the member directory.
+To use the same structural policy from your test suite, add the library to a package at the commit selected above. In a virtual workspace, run this command in the member that owns the integration test. Census discovers the workspace root from the member directory.
 
-```toml
-[dev-dependencies]
-raf-census = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "05138a5ea278377d745fca9809cae116ae37a667" }
+```sh
+cargo add --dev raf-census --git https://github.com/Blackcat-Informatics/rust-agentic-foundations.git \
+  --rev "$RAF_REV"
 ```
 
 ```rust

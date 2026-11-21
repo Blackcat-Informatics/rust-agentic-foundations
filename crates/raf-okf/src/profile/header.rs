@@ -18,12 +18,15 @@ use purrdf_shapes::{
     term::{NamedNode, Term},
 };
 
-use super::{BINDING_KEYS, Check, DocType, Map, Rule};
+use super::{BINDING_KEYS, Check, DocType, Entry, ItemValue, Map, Rule};
+use crate::frontmatter::value::List;
 
 const KEY: &str = "urn:raf:okf:key:";
 const FOCUS: &str = "urn:raf:okf:header:";
 const SHAPE: &str = "urn:raf:okf:header-shape:";
 const BINDINGS_SHAPE: &str = "Capability-bindings";
+const ITEM_SHAPE: &str = "Change-item";
+const ITEM_MEMBER: &str = "urn:raf:okf:change-item-member";
 const RDF_TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 const XSD_BOOLEAN: &str = "http://www.w3.org/2001/XMLSchema#boolean";
 const XSD_INTEGER: &str = "http://www.w3.org/2001/XMLSchema#integer";
@@ -35,7 +38,7 @@ const MIN_COUNT: &str = "http://www.w3.org/ns/shacl#MinCountConstraintComponent"
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum HeaderShapeError {
-    /// The projected key bytes and their line separators exceed the document bound.
+    /// The projected key and list marker bytes exceed the document bound.
     KeyBytes,
     /// Native RDF graph storage refused schema or header construction.
     Storage(StorageError),
@@ -52,7 +55,7 @@ impl fmt::Display for HeaderShapeError {
         match self {
             Self::KeyBytes => write!(
                 f,
-                "authored header keys exceed the {} byte authoring bound",
+                "projected frontmatter exceeds the {} byte authoring bound",
                 crate::MAX_TEXT_BYTES
             ),
             Self::Storage(source) => write!(
@@ -99,12 +102,22 @@ impl From<RdfDiagnostic> for HeaderShapeError {
     }
 }
 
-/// Reports top-level key findings and returns the binding map's key-set verdict.
-pub(super) fn check(
+pub(super) struct KeyVerdicts<'a> {
+    pub(super) bindings_exact: bool,
+    pub(super) items: Vec<ItemKeys<'a>>,
+}
+
+pub(super) struct ItemKeys<'a> {
+    pub(super) claim: Option<&'a Entry>,
+    pub(super) unknown: Vec<&'a str>,
+}
+
+/// Reports top-level findings and returns the nested key verdicts in author order.
+pub(super) fn check<'a>(
     check: &mut Check<'_>,
-    map: &Map,
+    map: &'a Map,
     doc_type: DocType,
-) -> Result<bool, HeaderShapeError> {
+) -> Result<KeyVerdicts<'a>, HeaderShapeError> {
     static SCHEMA: OnceLock<PreparedShapes> = OnceLock::new();
     let focus = format!("{FOCUS}{}", doc_type.name());
     let bindings = if doc_type == DocType::Capability {
@@ -113,10 +126,13 @@ pub(super) fn check(
         None
     };
     let binding_focus = bindings.map(|_| format!("{FOCUS}{BINDINGS_SHAPE}"));
-    let data = header_graph([
-        Some((focus.as_str(), map)),
-        binding_focus.as_deref().zip(bindings),
-    ])?;
+    let (data, focuses) = header_graph(
+        [
+            Some((focus.as_str(), map)),
+            binding_focus.as_deref().zip(bindings),
+        ],
+        item_maps(map, doc_type),
+    )?;
     let binding = if let Some(schema) = SCHEMA.get() {
         schema.bind_shared_dataset(data)?
     } else {
@@ -126,16 +142,8 @@ pub(super) fn check(
         SCHEMA.get_or_init(|| schema);
         binding
     };
-    let focus = NamedNode::from(focus.as_str()).into_term();
-    let both;
-    let focuses = if let Some(name) = binding_focus {
-        both = [focus, NamedNode::from(name.as_str()).into_term()];
-        both.as_slice()
-    } else {
-        std::slice::from_ref(&focus)
-    };
-    let report = binding.validate_focus_nodes(focuses)?;
-    report_keys(&report, focuses, map, doc_type, check)
+    let report = binding.validate_focus_nodes(&focuses)?;
+    report_keys(&report, &focuses, map, doc_type, check)
 }
 
 fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
@@ -144,13 +152,21 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
         add_shape(
             &mut graph,
             doc_type.name(),
+            ("targetNode", &format!("{FOCUS}{}", doc_type.name())),
             doc_type.keys().iter().map(|spec| (spec.key, spec.required)),
         )?;
     }
     add_shape(
         &mut graph,
         BINDINGS_SHAPE,
+        ("targetNode", &format!("{FOCUS}{BINDINGS_SHAPE}")),
         BINDING_KEYS.into_iter().map(|key| (key, true)),
+    )?;
+    add_shape(
+        &mut graph,
+        ITEM_SHAPE,
+        ("targetObjectsOf", ITEM_MEMBER),
+        [("claim", true), ("outcome", false), ("reason", false)].into_iter(),
     )?;
     let shapes = shapes::from_dataset(&graph.freeze()?)?;
     Ok(PreparedShapes::new(Arc::new(shapes)))
@@ -159,11 +175,12 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
 fn add_shape(
     graph: &mut RdfDatasetBuilder,
     name: &str,
+    (target, focus): (&str, &str),
     keys: impl Iterator<Item = (&'static str, bool)>,
 ) -> Result<(), HeaderShapeError> {
     let rdf_type = graph.intern_iri(RDF_TYPE)?;
     let node_shape = graph.intern_iri(&format!("{SH}NodeShape"))?;
-    let target = graph.intern_iri(&format!("{SH}targetNode"))?;
+    let target = graph.intern_iri(&format!("{SH}{target}"))?;
     let closed = graph.intern_iri(&format!("{SH}closed"))?;
     let property = graph.intern_iri(&format!("{SH}property"))?;
     let path = graph.intern_iri(&format!("{SH}path"))?;
@@ -171,7 +188,7 @@ fn add_shape(
     let yes = graph.intern_literal(RdfLiteral::typed("true", XSD_BOOLEAN))?;
     let one = graph.intern_literal(RdfLiteral::typed("1", XSD_INTEGER))?;
     let shape = graph.intern_iri(&format!("{SHAPE}{name}"))?;
-    let focus = graph.intern_iri(&format!("{FOCUS}{name}"))?;
+    let focus = graph.intern_iri(focus)?;
     graph.push_quad(shape, rdf_type, node_shape, None)?;
     graph.push_quad(shape, target, focus, None)?;
     graph.push_quad(shape, closed, yes, None)?;
@@ -187,12 +204,40 @@ fn add_shape(
     Ok(())
 }
 
-fn header_graph(maps: [Option<(&str, &Map)>; 2]) -> Result<Arc<RdfDataset>, HeaderShapeError> {
+fn item_maps(map: &Map, doc_type: DocType) -> impl Iterator<Item = &Map> + Clone {
+    let list = if doc_type == DocType::Change {
+        map.get("items").and_then(|entry| entry.value().as_list())
+    } else {
+        None
+    };
+    list.into_iter()
+        .flat_map(List::items)
+        .map_while(|item| match item.value() {
+            ItemValue::Map(map) => Some(map),
+            ItemValue::Scalar(_) => None,
+        })
+}
+
+fn header_graph<'a>(
+    maps: [Option<(&str, &'a Map)>; 2],
+    items: impl Iterator<Item = &'a Map> + Clone,
+) -> Result<(Arc<RdfDataset>, Vec<Term>), HeaderShapeError> {
     // Both document constructors include at least the key, colon, and newline
     // in the authoring byte limit. Each admitted key gives one default-graph
     // triple. The separate report profile would require a report root.
-    let mut available = crate::MAX_TEXT_BYTES;
-    for entry in maps.iter().flatten().flat_map(|(_, map)| map.entries()) {
+    let item_count = items.clone().count();
+    // Each item also supplies the dash and space of its list marker.
+    let mut available = item_count
+        .checked_mul(2)
+        .and_then(|markers| crate::MAX_TEXT_BYTES.checked_sub(markers))
+        .ok_or(HeaderShapeError::KeyBytes)?;
+    let maps = maps.into_iter().flatten();
+    for entry in maps
+        .clone()
+        .map(|(_, map)| map)
+        .chain(items.clone())
+        .flat_map(Map::entries)
+    {
         available = available
             .checked_sub(2)
             .and_then(|remaining| remaining.checked_sub(entry.key().len()))
@@ -200,23 +245,44 @@ fn header_graph(maps: [Option<(&str, &Map)>; 2]) -> Result<Arc<RdfDataset>, Head
     }
     let mut graph = RdfDatasetBuilder::new();
     let present = graph.intern_iri("urn:raf:okf:key-present")?;
-    for (focus, map) in maps.into_iter().flatten() {
-        let focus = graph.intern_iri(focus)?;
+    let mut focuses = Vec::with_capacity(maps.clone().count() + item_count);
+    let mut project = |graph: &mut RdfDatasetBuilder, name: &str, map: &Map| {
+        let focus = graph.intern_iri(name)?;
+        focuses.push(NamedNode::from(name).into_term());
         for entry in map.entries() {
             let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
             graph.push_quad(focus, predicate, present, None)?;
         }
+        Ok::<_, HeaderShapeError>(focus)
+    };
+    for (focus, map) in maps {
+        project(&mut graph, focus, map)?;
     }
-    Ok(graph.freeze()?)
+    if item_count != 0 {
+        let anchor = graph.intern_iri("urn:raf:okf:change-items")?;
+        let member = graph.intern_iri(ITEM_MEMBER)?;
+        for (index, map) in items.enumerate() {
+            let focus = project(&mut graph, &format!("{FOCUS}{ITEM_SHAPE}:{index}"), map)?;
+            graph.push_quad(anchor, member, focus, None)?;
+        }
+    }
+    Ok((graph.freeze()?, focuses))
 }
 
-fn report_keys(
+fn focus_iri(term: &Term) -> Result<&str, HeaderShapeError> {
+    match term {
+        Term::NamedNode(name) => Ok(name.as_str()),
+        _ => Err(HeaderShapeError::UnexpectedReport),
+    }
+}
+
+fn report_keys<'a>(
     report: &ValidationReport,
     focuses: &[Term],
-    map: &Map,
+    map: &'a Map,
     doc_type: DocType,
     check: &mut Check<'_>,
-) -> Result<bool, HeaderShapeError> {
+) -> Result<KeyVerdicts<'a>, HeaderShapeError> {
     if report.conforms != report.results.is_empty() || !report.diagnostics.is_empty() {
         return Err(HeaderShapeError::UnexpectedReport);
     }
@@ -224,9 +290,15 @@ fn report_keys(
     let mut memory = Memory::new(&mut resident);
     let mut unknown = OrderedTable::default();
     let mut missing = OrderedTable::default();
-    let (focus, nested) = focuses
+    let (header, nested) = focuses
         .split_first()
         .ok_or(HeaderShapeError::UnexpectedReport)?;
+    let header = focus_iri(header)?;
+    let (bindings, item_focuses) = if doc_type == DocType::Capability {
+        (nested.first().map(focus_iri).transpose()?, &[][..])
+    } else {
+        (None, nested)
+    };
     let mut bindings_exact = true;
     for result in &report.results {
         let Some(Term::NamedNode(path)) = &result.result_path else {
@@ -241,18 +313,19 @@ fn report_keys(
             MIN_COUNT => &mut missing,
             _ => return Err(HeaderShapeError::UnexpectedReport),
         };
-        if nested.first() == Some(&result.focus_node) {
+        let focus = focus_iri(&result.focus_node)?;
+        if bindings == Some(focus) {
             bindings_exact = false;
             continue;
         }
-        if &result.focus_node != focus || keys.insert(key, (), &mut memory)?.is_some() {
+        if keys.insert((focus, key), (), &mut memory)?.is_some() {
             return Err(HeaderShapeError::UnexpectedReport);
         }
     }
     // Report unknown keys in author order, then missing keys in schema order.
     for entry in map.entries() {
         let key = entry.key();
-        if unknown.remove(&key).is_some() {
+        if unknown.remove(&(header, key)).is_some() {
             let rule = if key == "resource" {
                 Rule::ResourceKey { doc_type }
             } else {
@@ -262,7 +335,7 @@ fn report_keys(
         }
     }
     for spec in doc_type.keys() {
-        if spec.required && missing.remove(&spec.key).is_some() {
+        if spec.required && missing.remove(&(header, spec.key)).is_some() {
             check.key(
                 spec.key,
                 Rule::MissingKey {
@@ -271,8 +344,26 @@ fn report_keys(
             );
         }
     }
+    let mut items = Vec::with_capacity(item_focuses.len());
+    for (map, focus) in item_maps(map, doc_type).zip(item_focuses) {
+        let focus = focus_iri(focus)?;
+        let claim = map.get("claim");
+        if missing.remove(&(focus, "claim")).is_some() != claim.is_none() {
+            return Err(HeaderShapeError::UnexpectedReport);
+        }
+        let unknown = map
+            .entries()
+            .iter()
+            .map(Entry::key)
+            .filter(|key| unknown.remove(&(focus, *key)).is_some())
+            .collect();
+        items.push(ItemKeys { claim, unknown });
+    }
     if !unknown.is_empty() || !missing.is_empty() {
         return Err(HeaderShapeError::UnexpectedReport);
     }
-    Ok(bindings_exact)
+    Ok(KeyVerdicts {
+        bindings_exact,
+        items,
+    })
 }

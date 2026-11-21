@@ -168,6 +168,54 @@ impl Gate {
     pub fn root(&self) -> Result<PathBuf, Error> {
         disk_root(&self.dir)
     }
+
+    /// Create a canonical starter ledger at the workspace root, preserving any debt.
+    ///
+    /// # Errors
+    /// Refuses an occupied ledger path, unavailable workspace sources, a busy
+    /// publication lock, unsupported native publication or filesystem failure.
+    pub fn init_ledger(&self) -> Result<PathBuf, Error> {
+        #[cfg(target_os = "linux")]
+        {
+            use crate::publication::{Kind, Publication, PublicationMode};
+
+            let root = self.root()?;
+            if root.components().any(|part| part.as_os_str() == ".git")
+                || raf_source::git::Repository::discover(&root)
+                    .map_err(|source| Error::Io {
+                        file: root.display().to_string(),
+                        source: std::io::Error::other(source),
+                    })?
+                    .is_some_and(|repo| {
+                        root.starts_with(repo.git_dir()) || root.starts_with(repo.common_dir())
+                    })
+            {
+                return Err(Error::Options(format!(
+                    "{LEDGER_FILE} cannot be created inside Git administration"
+                )));
+            }
+            let tree = DiskTree::new(&root).map_err(|source| Error::Tree {
+                file: root.display().to_string(),
+                source,
+            })?;
+            let publication = Publication::acquire(&tree, Kind::Ledger)?;
+            if publication.exists()? {
+                return Err(Error::Options(format!(
+                    "{LEDGER_FILE} already exists; inspect the existing policy"
+                )));
+            }
+            // A missing target or #[path] module can name either write destination.
+            // Resolve the starter policy's source tree before creating any entry.
+            drop(Workspace::load(&tree, &["."])?);
+            publication.publish(&Ledger::starter_turtle()?, PublicationMode::Create)?;
+            Ok(root.join(LEDGER_FILE))
+        }
+        #[cfg(not(target_os = "linux"))]
+        Err(Error::Options(
+            "ledger initialization requires native Linux retained-directory locking".into(),
+        ))
+    }
+
     /// Find the workspace containing this directory when the gate is run.
     #[must_use]
     pub fn workspace(dir: impl AsRef<Path>) -> Self {

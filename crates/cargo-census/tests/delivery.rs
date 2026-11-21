@@ -134,6 +134,100 @@ fn run(root: &Path, words: &[&str]) -> Output {
     )
 }
 
+/// The starter enables the structural gate without granting any debt or replacing policy.
+#[cfg(target_os = "linux")]
+#[test]
+fn init_creates_a_clean_structural_policy_and_preserves_existing_records() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    source_fixture(root);
+    let ledger_path = root.join(raf_census::LEDGER_FILE);
+    let debt_path = root.join(raf_census::DEBT_FILE);
+    let source_path = root.join("src/lib.rs");
+    let body = "(0..n).filter(|value| value % 2 == 0).map(|value| value * 3).sum()";
+    let first = format!("pub fn first(n: u32) -> u32 {{ {body} }}\n");
+    fs::write(&source_path, &first).unwrap();
+
+    let lock = fs::File::open(root).unwrap();
+    lock.try_lock().unwrap();
+    let busy = run(root, &["init"]);
+    assert_eq!(busy.status.code(), Some(1), "{busy:?}");
+    assert!(
+        String::from_utf8(busy.stderr)
+            .unwrap()
+            .contains("ledger publication is busy")
+    );
+    assert!(!ledger_path.exists());
+    drop(lock);
+
+    let init = run(&root.join("src"), &["census", "init"]);
+    assert!(init.status.success(), "{init:?}");
+    let ledger = Ledger::from_turtle(&fs::read_to_string(&ledger_path).unwrap()).unwrap();
+    assert_eq!(ledger.roots(), ["."]);
+    assert!(ledger.jobs().is_empty());
+    let check = run(root, &["check"]);
+    assert!(check.status.success(), "{check:?}");
+    assert!(!debt_path.exists());
+
+    fs::write(
+        &source_path,
+        format!("{first}pub fn second(n: u32) -> u32 {{ {body} }}\n"),
+    )
+    .unwrap();
+    fs::remove_file(&ledger_path).unwrap();
+    fs::write(&debt_path, b"existing debt").unwrap();
+    let seeded = run(root, &["init"]);
+    assert!(seeded.status.success(), "{seeded:?}");
+    assert_eq!(fs::read(&debt_path).unwrap(), b"existing debt");
+    fs::remove_file(&debt_path).unwrap();
+    let check = run(root, &["check"]);
+    assert_eq!(check.status.code(), Some(1), "{check:?}");
+    assert!(
+        String::from_utf8(check.stdout)
+            .unwrap()
+            .contains("NewGroup")
+    );
+    assert!(!debt_path.exists());
+
+    fs::write(&ledger_path, b"existing policy").unwrap();
+    fs::write(&debt_path, b"existing debt").unwrap();
+    let retry = run(root, &["init"]);
+    assert_eq!(retry.status.code(), Some(1), "{retry:?}");
+    assert!(
+        String::from_utf8(retry.stderr)
+            .unwrap()
+            .contains("already exists")
+    );
+    assert_eq!(fs::read(ledger_path).unwrap(), b"existing policy");
+    assert_eq!(fs::read(debt_path).unwrap(), b"existing debt");
+}
+
+/// A destination or temporary named as a missing source file stays absent on refusal.
+#[cfg(target_os = "linux")]
+#[test]
+fn init_refuses_source_and_git_administration_destinations() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    source_fixture(root);
+    for name in [raf_census::LEDGER_FILE, ".helpers-ledger.ttl.write"] {
+        fs::write(
+            root.join("src/lib.rs"),
+            format!("#[path = \"../{name}\"] mod policy;"),
+        )
+        .unwrap();
+        let result = run(root, &["init"]);
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+        assert!(!root.join(name).exists());
+        assert!(!root.join(raf_census::LEDGER_FILE).exists());
+    }
+    let admin = root.join(".git");
+    fs::create_dir(&admin).unwrap();
+    source_fixture(&admin);
+    let refused = run(&admin, &["init"]);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert!(!admin.join(raf_census::LEDGER_FILE).exists());
+}
+
 fn capnp_history(
     root: &Path,
     base: &str,

@@ -631,7 +631,7 @@ that states one is `okf-bad-input-kind`. An older reader refuses a record that s
 the row for the same reason.
 
 ### Positioned validation results
-<!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations,raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list,raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item -->
+<!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations,raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list,raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item,raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome -->
 
 `Profile::validate` checks a parsed document and its path against the
 closed key set of its `type` and returns a typed result: the typed document
@@ -645,8 +645,9 @@ section or the line instead. The rules are:
 
 - the key table for the declared type supplies a prepared SHACL Core shape.
   The bounded native header graph carries a focus for the header and a
-  separate focus when a capability's `bindings` value is a map. Each
-  authored key supplies a predicate at its focus. The closed shapes
+  separate focus for a capability's binding map and for each map in a
+  Change's `items` list. Each authored key supplies a predicate at its
+  focus. The closed shapes
   refuse unknown keys, and required fields use `sh:minCount 1`.
   The profile reports unknown top-level keys in author order
   and missing keys in schema order. A separate diagnostic names the
@@ -668,7 +669,11 @@ section or the line instead. The rules are:
   entries are parsed into a non-empty claim, an optional outcome
   (`implemented`, `dropped` or `moved:change:<slug>`) and an optional reason, a
   non-empty line of text in `ChangeItem::reason` that is accepted beside any outcome
-  or none. A reason that is empty, holds only spaces or is not text is
+  or none. The native shape requires `claim` and permits `outcome` and
+  `reason`. Each map has its own focus. The profile reports unknown keys
+  in authored item and key order. A missing claim produces
+  `Rule::ItemClaimEmpty` at `items` before that item's outcome and reason
+  findings. A reason that is empty, holds only spaces or is not text is
   `Rule::ItemReasonEmpty`, which the workplan reports as `okf-item-reason-empty`,
   and the fix of an unknown item key names `claim`, `outcome` and `reason`.
   [Complete policy](./workplan-strict.md) asks for a reason on a `dropped` or `moved`
@@ -1476,7 +1481,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::profile::depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::every_required_key_of_every_type_is_reported_when_missing` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::future_tense_prose_is_not_a_violation` | test | [Constraints](#constraints) |
-| `raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome` | test | [Verification](#verification) |
+| `raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::mixed_header_violations_keep_their_key_and_diagnostic_order` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::placeholder_scan_spares_code_longer_words_and_dotted_prose` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::placeholder_tokens_in_frontmatter_values_are_reported_at_the_key` | test | [Verification](#verification) |
