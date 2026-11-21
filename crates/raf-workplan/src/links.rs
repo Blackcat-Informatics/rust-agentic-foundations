@@ -238,7 +238,7 @@ impl<'t> LinkContext<'t> {
 }
 
 /// Whether a repository path names a Markdown file.
-#[allow(
+#[expect(
     clippy::case_sensitive_file_extension_comparisons,
     reason = "the profile defines a Markdown file by the lowercase suffix `.md`"
 )]

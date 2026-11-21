@@ -7,6 +7,8 @@ mod bounds;
 mod context;
 pub use bounds::{BoundClassification, BoundRole, NumericBound};
 mod evaluate;
+mod lints;
+pub use lints::{PRODUCTION_CLIPPY_ARGS, ProductionInputs, ProductionLintRun};
 mod migrate;
 mod module_paths;
 mod owners;
@@ -150,6 +152,7 @@ impl GateReport {
 
 /// The census builder used by repositories as a dev-dependency.
 pub struct Gate {
+    production_lints: lints::Enforcement,
     reference_roots: Vec<ReferenceRoot>,
     external_references: Vec<ExternalReference>,
     dir: PathBuf,
@@ -161,6 +164,25 @@ pub struct Gate {
 }
 
 impl Gate {
+    /// Supply the production Clippy receipt from the calling build.
+    #[must_use]
+    pub fn with_production_lint_run(mut self, run: ProductionLintRun) -> Self {
+        self.production_lints = lints::Enforcement::Supplied(run);
+        self
+    }
+
+    /// Restrict checks to structural policy and debt. Explicit opt-out skips
+    /// both the manifest policy check and the external compiler verdict.
+    #[must_use]
+    pub fn without_production_lints(mut self) -> Self {
+        self.production_lints = lints::Enforcement::Disabled;
+        self
+    }
+
+    fn finish_check(&self, tree: &impl Tree, report: GateReport) -> Result<GateReport, Error> {
+        Ok(check_debt(tree, report)?.with_findings(self.production_lints.findings(tree)?))
+    }
+
     /// Discover the actual workspace root used by this gate's disk operations.
     ///
     /// # Errors
@@ -220,6 +242,7 @@ impl Gate {
     #[must_use]
     pub fn workspace(dir: impl AsRef<Path>) -> Self {
         Self {
+            production_lints: lints::Enforcement::Required,
             reference_roots: Vec::new(),
             external_references: Vec::new(),
             dir: dir.as_ref().to_path_buf(),
@@ -350,7 +373,7 @@ impl Gate {
             file: root.display().to_string(),
             source,
         })?;
-        check_debt(
+        self.finish_check(
             &tree,
             self.evaluate_reference_tree(&tree, Some(&root), &[])?,
         )
@@ -363,7 +386,7 @@ impl Gate {
     /// # Errors
     /// The ledger, source, rules and debt failures of [`Self::check`].
     pub fn check_tree(&self, tree: &impl Tree) -> Result<GateReport, Error> {
-        check_debt(tree, self.evaluate_tree(tree)?)
+        self.finish_check(tree, self.evaluate_tree(tree)?)
     }
 
     /// Evaluate caller-owned reference observations through the ordinary Gate.
@@ -377,7 +400,7 @@ impl Gate {
         tree: &impl Tree,
         references: &[ReferenceObservation],
     ) -> Result<GateReport, Error> {
-        check_debt(tree, self.evaluate_reference_tree(tree, None, references)?)
+        self.finish_check(tree, self.evaluate_reference_tree(tree, None, references)?)
     }
 
     /// Check the ledger's complete first-party roots with supplied locked sources.
@@ -398,7 +421,7 @@ impl Gate {
         local: &[LockedManifest<'_>],
         sources: &[LockedPackageRoots<'_>],
     ) -> Result<GateReport, Error> {
-        check_debt(
+        self.finish_check(
             tree,
             self.evaluate_locked(tree, None, &[], catalog, local, sources)?,
         )

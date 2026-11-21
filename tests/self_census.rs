@@ -27,7 +27,8 @@ fn repository_census_is_clean_and_duplicate_growth_is_refused() {
     let defaults = CensusOptions::default();
     assert_eq!(ledger.options().min_tokens, defaults.min_tokens);
     assert_eq!(ledger.options().max_file_bytes, defaults.max_file_bytes);
-    let gate = policy::gate(&root);
+    let gate =
+        policy::checked_gate(&root).expect("make test supplies the build-owned Clippy result");
     let report = policy::locked_report(&gate, &tree)
         .expect("evaluate the real repository through the locked production gate");
     assert!(report.is_clean(), "{}", report.findings().join("\n"));
@@ -63,7 +64,7 @@ fn repository_census_is_clean_and_duplicate_growth_is_refused() {
     };
     let source = "pub fn original(values: &[u64]) -> u64 { let mut sum = 0; for value in values { sum += value * 3; } sum }";
     let valid = fixture(source);
-    let gate = policy::gate(".");
+    let gate = policy::gate(".").without_production_lints();
     let before = gate.check_tree(&valid).expect("evaluate the valid fixture");
     assert!(before.is_clean(), "{:?}", before.findings());
     let duplicate = format!(
@@ -206,7 +207,7 @@ pub(crate) fn decorative_call_beside_an_initial_state() -> u32 {
             .expect("the planted line exists")
             + 1
     };
-    let gate = policy::gate(".");
+    let gate = policy::gate(".").without_production_lints();
     let report = policy::locked_report(&gate, &tree).expect("evaluate the planted repository");
     let findings = report.findings().join("\n");
     assert!(!report.is_clean(), "the planted competitors were accepted");
@@ -257,7 +258,7 @@ fn a_decorative_provider_call_cannot_stand_in_for_the_delegation() {
             "    let _ = purrdf_hash::hex::encode(purrdf_hash::blake3::Hash::as_bytes(&digest));\n    String::new()",
         )
     });
-    let gate = policy::gate(".");
+    let gate = policy::gate(".").without_production_lints();
     let refusal = policy::locked_report(&gate, &tree)
         .expect_err("a call whose result is discarded is not delegation");
     assert!(

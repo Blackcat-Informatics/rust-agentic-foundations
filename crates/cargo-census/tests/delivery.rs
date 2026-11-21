@@ -3,6 +3,9 @@
 
 //! Actual migration and debt commands, with read-only inputs and refusal neighbours.
 
+#[path = "delivery/production_lints.rs"]
+mod production_lints;
+
 use raf_fixtures::{files, git_repo, git_repo::assert_census_refused, layout};
 
 use raf_census::{
@@ -165,7 +168,7 @@ fn init_creates_a_clean_structural_policy_and_preserves_existing_records() {
     let ledger = Ledger::from_turtle(&fs::read_to_string(&ledger_path).unwrap()).unwrap();
     assert_eq!(ledger.roots(), ["."]);
     assert!(ledger.jobs().is_empty());
-    let check = run(root, &["check"]);
+    let check = run(root, &["check", "--no-production-lints"]);
     assert!(check.status.success(), "{check:?}");
     assert!(!debt_path.exists());
 
@@ -180,7 +183,7 @@ fn init_creates_a_clean_structural_policy_and_preserves_existing_records() {
     assert!(seeded.status.success(), "{seeded:?}");
     assert_eq!(fs::read(&debt_path).unwrap(), b"existing debt");
     fs::remove_file(&debt_path).unwrap();
-    let check = run(root, &["check"]);
+    let check = run(root, &["check", "--no-production-lints"]);
     assert_eq!(check.status.code(), Some(1), "{check:?}");
     assert!(
         String::from_utf8(check.stdout)
@@ -2578,7 +2581,10 @@ fn native_index_never_builds_or_executes_consumer_targets() {
     for path in ["build.rs", "examples/registered.rs", "tests/destructive.rs"] {
         fs::write(root.join(path), dangerous).unwrap();
     }
-    let report = Gate::workspace(root).check().unwrap();
+    let report = Gate::workspace(root)
+        .without_production_lints()
+        .check()
+        .unwrap();
     let expected = report
         .census()
         .index(report.jobs())
@@ -2588,7 +2594,7 @@ fn native_index_never_builds_or_executes_consumer_targets() {
     let result = run(root, &["index"]);
     assert!(result.status.success(), "{result:?}");
     assert_eq!(result.stdout, expected.as_bytes());
-    let checked = run(root, &["check"]);
+    let checked = run(root, &["check", "--no-production-lints"]);
     assert_eq!(checked.status.code(), Some(i32::from(!report.is_clean())));
     let bounded = run(root, &["index", "--max-index-bytes", "1"]);
     assert_eq!(bounded.status.code(), Some(1));
@@ -2600,7 +2606,14 @@ fn native_index_never_builds_or_executes_consumer_targets() {
     }
     let refused = run(
         root,
-        &["check", "--package", "demo", "--example", "registered"],
+        &[
+            "check",
+            "--no-production-lints",
+            "--package",
+            "demo",
+            "--example",
+            "registered",
+        ],
     );
     assert_eq!(refused.status.code(), Some(2));
 }
@@ -2906,7 +2919,13 @@ fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate()
     source(root, 1);
     let shrink = run(root, &["debt", "--write"]);
     assert!(shrink.status.success(), "{shrink:?}");
-    assert!(Gate::workspace(root).check().unwrap().is_clean());
+    assert!(
+        Gate::workspace(root)
+            .without_production_lints()
+            .check()
+            .unwrap()
+            .is_clean()
+    );
     let lower = fs::read_to_string(&path).unwrap();
     assert_eq!(
         DebtRecord::from_turtle(&lower).unwrap().job_copies()["number"],
@@ -2934,7 +2953,7 @@ fn ratcheted_hits_adopt_refuse_growth_and_lower(builtin: bool) {
     fs::write(root.join("helpers-ledger.ttl"), ratcheted_ledger(builtin)).unwrap();
     ratcheted_source(root, &["one", "two", "three"], builtin);
     let path = root.join("census-debt.ttl");
-    let unadopted = run(root, &["check"]);
+    let unadopted = run(root, &["check", "--no-production-lints"]);
     assert_eq!(unadopted.status.code(), Some(1), "{unadopted:?}");
     let adopted = run(root, &["debt", "--write"]);
     assert!(adopted.status.success(), "{adopted:?}");
@@ -2944,10 +2963,13 @@ fn ratcheted_hits_adopt_refuse_growth_and_lower(builtin: bool) {
     );
     let record = fs::read_to_string(&path).unwrap();
     assert_eq!(DebtRecord::from_turtle(&record).unwrap().sites().len(), 3);
-    let held = run(root, &["check"]);
+    let held = run(root, &["check", "--no-production-lints"]);
     assert!(held.status.success(), "{held:?}");
     ratcheted_source(root, &["one", "two", "three", "four"], builtin);
-    for words in [&["check"][..], &["debt", "--write"][..]] {
+    for words in [
+        &["check", "--no-production-lints"][..],
+        &["debt", "--write"][..],
+    ] {
         let grown = run(root, words);
         assert_eq!(grown.status.code(), Some(1), "{grown:?}");
         assert!(
@@ -2959,7 +2981,7 @@ fn ratcheted_hits_adopt_refuse_growth_and_lower(builtin: bool) {
     }
     assert_eq!(fs::read_to_string(&path).unwrap(), record);
     ratcheted_source(root, &["one", "two"], builtin);
-    let fallen = run(root, &["check"]);
+    let fallen = run(root, &["check", "--no-production-lints"]);
     assert_eq!(fallen.status.code(), Some(1), "{fallen:?}");
     let lowered = run(root, &["debt", "--write"]);
     assert!(lowered.status.success(), "{lowered:?}");
@@ -2970,7 +2992,7 @@ fn ratcheted_hits_adopt_refuse_growth_and_lower(builtin: bool) {
             .len(),
         2
     );
-    let settled = run(root, &["check"]);
+    let settled = run(root, &["check", "--no-production-lints"]);
     assert!(settled.status.success(), "{settled:?}");
 }
 
@@ -3271,7 +3293,10 @@ fn ledger_inspection() {
             .unwrap(),
         native.graph().snapshot().unwrap()
     );
-    let error = Gate::workspace(root).check().unwrap_err();
+    let error = Gate::workspace(root)
+        .without_production_lints()
+        .check()
+        .unwrap_err();
     assert!(
         matches!(&error, raf_census::Error::Load(source)
             if source.file.as_str() == "src/lib.rs"
@@ -3593,6 +3618,7 @@ fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
         root,
         &[
             "check",
+            "--no-production-lints",
             "--reference-repo",
             repository,
             "--reference-commit",
@@ -3609,6 +3635,7 @@ fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
         root,
         &[
             "check",
+            "--no-production-lints",
             "--reference-repo",
             repository,
             "--reference-pin-file",
@@ -3618,7 +3645,15 @@ fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
         ],
     );
     assert_eq!(from_file.stdout, pinned.stdout);
-    let unpinned = run(root, &["check", "--reference-unpinned", plain]);
+    let unpinned = run(
+        root,
+        &[
+            "check",
+            "--no-production-lints",
+            "--reference-unpinned",
+            plain,
+        ],
+    );
     assert_eq!(unpinned.stdout, pinned.stdout);
     unpinned_notice(root, plain, outside.path(), &pinned, &from_file);
     let index = |words: &[&str]| {
@@ -3643,10 +3678,21 @@ fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
 /// The refusals of the reference options, each beside the valid uses above.
 fn reference_option_refusals(root: &Path, repository: &str, commit: &str, plain: &str) {
     for words in [
-        &["check", "--reference-repo", repository][..],
-        &["check", "--reference-commit", commit],
         &[
             "check",
+            "--no-production-lints",
+            "--reference-repo",
+            repository,
+        ][..],
+        &[
+            "check",
+            "--no-production-lints",
+            "--reference-commit",
+            commit,
+        ],
+        &[
+            "check",
+            "--no-production-lints",
             "--reference-repo",
             repository,
             "--reference-pin-file",
@@ -3654,6 +3700,7 @@ fn reference_option_refusals(root: &Path, repository: &str, commit: &str, plain:
         ],
         &[
             "check",
+            "--no-production-lints",
             "--reference-repo",
             repository,
             "--reference-commit",
@@ -3682,7 +3729,15 @@ fn reference_option_refusals(root: &Path, repository: &str, commit: &str, plain:
 /// the pinned run, an unpinned run without reference findings says so too, a pinned run is silent,
 /// and an unpinned directory that does not exist refuses.
 fn unpinned_notice(root: &Path, plain: &str, outside: &Path, pinned: &Output, from_file: &Output) {
-    let unpinned = run(root, &["check", "--reference-unpinned", plain]);
+    let unpinned = run(
+        root,
+        &[
+            "check",
+            "--no-production-lints",
+            "--reference-unpinned",
+            plain,
+        ],
+    );
     let notice = String::from_utf8_lossy(&unpinned.stderr);
     assert!(
         notice.contains("unpinned reference") && notice.contains(plain),
@@ -3703,14 +3758,24 @@ fn unpinned_notice(root: &Path, plain: &str, outside: &Path, pinned: &Output, fr
     );
     let clean = run(
         root,
-        &["check", "--reference-unpinned", other.to_str().unwrap()],
+        &[
+            "check",
+            "--no-production-lints",
+            "--reference-unpinned",
+            other.to_str().unwrap(),
+        ],
     );
     assert!(!String::from_utf8_lossy(&clean.stdout).contains("REFERENCE-COPY"));
     assert!(String::from_utf8_lossy(&clean.stderr).contains("unpinned reference"));
     let missing = outside.join("absent");
     let refused = run(
         root,
-        &["check", "--reference-unpinned", missing.to_str().unwrap()],
+        &[
+            "check",
+            "--no-production-lints",
+            "--reference-unpinned",
+            missing.to_str().unwrap(),
+        ],
     );
     assert_eq!(refused.status.code(), Some(1), "{refused:?}");
     assert!(String::from_utf8_lossy(&refused.stderr).contains("absent"));
@@ -3843,7 +3908,7 @@ fn ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partia
     let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
     let root = ban_workspace(scratch.path());
     write_consumer(&root, &scaled(2, 7), "");
-    let checked = run(&root, &["check"]);
+    let checked = run(&root, &["check", "--no-production-lints"]);
     let stdout = String::from_utf8(checked.stdout).unwrap();
     assert_eq!(checked.status.code(), Some(1), "{stdout}");
     assert!(
@@ -3868,7 +3933,7 @@ fn ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partia
 
     // The neighbour with a changed body is clean and carries no witness.
     write_consumer(&root, &scaled(2, 8), "");
-    let clean = run(&root, &["check"]);
+    let clean = run(&root, &["check", "--no-production-lints"]);
     assert!(clean.status.success(), "{clean:?}");
     assert_eq!(clean.stdout, Vec::<u8>::new());
     let index = run(&root, &["index"]);
@@ -3906,6 +3971,7 @@ fn ledger_reference_composes_with_a_pinned_commit(scratch: &Path, root: &Path) {
         root,
         &[
             "check",
+            "--no-production-lints",
             "--reference-repo",
             upstream.to_str().unwrap(),
             "--reference-commit",
@@ -3928,7 +3994,11 @@ fn ledger_reference_composes_with_a_pinned_commit(scratch: &Path, root: &Path) {
 /// `index` and `fingerprint` with a message and an empty stdout.
 fn unusable_reference_inputs_refuse_without_a_verdict(scratch: &Path, root: &Path) {
     write_reference_ledger(root, "zz-*");
-    for words in [&["check"][..], &["index"], &["fingerprint", "demo::copy"]] {
+    for words in [
+        &["check", "--no-production-lints"][..],
+        &["index"],
+        &["fingerprint", "demo::copy"],
+    ] {
         let refused = run(root, words);
         assert_eq!(refused.status.code(), Some(1), "{words:?}");
         assert_eq!(refused.stdout, Vec::<u8>::new(), "{words:?}");
@@ -3940,7 +4010,7 @@ fn unusable_reference_inputs_refuse_without_a_verdict(scratch: &Path, root: &Pat
     }
     write_reference_ledger(root, "acme-*");
     fs::remove_dir_all(scratch.join("vendor")).unwrap();
-    for words in [&["check"][..], &["index"]] {
+    for words in [&["check", "--no-production-lints"][..], &["index"]] {
         let refused = run(root, words);
         assert_eq!(refused.status.code(), Some(1), "{words:?}");
         assert_eq!(refused.stdout, Vec::<u8>::new(), "{words:?}");
@@ -4029,7 +4099,10 @@ fn registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_se
     }
     write_consumer(&root, &scaled(2, 7), "");
 
-    let checked = run(&root, &sealed_words(&["check"], &cache));
+    let checked = run(
+        &root,
+        &sealed_words(&["check", "--no-production-lints"], &cache),
+    );
     let stdout = String::from_utf8(checked.stdout).unwrap();
     assert_eq!(checked.status.code(), Some(1), "{stdout}");
     assert!(
@@ -4048,7 +4121,7 @@ fn registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_se
     let fingerprint = run(&root, &sealed_words(&["fingerprint", "app::copy"], &cache));
     assert!(fingerprint.status.success(), "{fingerprint:?}");
     assert!(String::from_utf8_lossy(&fingerprint.stdout).contains("acme_core::provided"));
-    let ordinary = run(&root, &["check"]);
+    let ordinary = run(&root, &["check", "--no-production-lints"]);
     assert!(!String::from_utf8_lossy(&ordinary.stdout).contains("acme_core::provided"));
 
     // The default cache is the Cargo home's, named by the environment.
@@ -4059,7 +4132,12 @@ fn registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_se
         Command::new(env!("CARGO_BIN_EXE_cargo-census"))
             .current_dir(&root)
             .env("CARGO_HOME", &home)
-            .args(["check", "--registry-features", "acme-core="]),
+            .args([
+                "check",
+                "--no-production-lints",
+                "--registry-features",
+                "acme-core=",
+            ]),
     );
     assert_eq!(from_home.status.code(), Some(1), "{from_home:?}");
     assert_eq!(from_home.stdout, stdout.as_bytes());
@@ -4067,7 +4145,10 @@ fn registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_se
 
     // The neighbour with a changed body is clean and carries no witness.
     write_consumer(&root, &scaled(2, 8), "");
-    let clean = run(&root, &sealed_words(&["check"], &cache));
+    let clean = run(
+        &root,
+        &sealed_words(&["check", "--no-production-lints"], &cache),
+    );
     assert!(clean.status.success(), "{clean:?}");
     assert_eq!(clean.stdout, Vec::<u8>::new());
     let index = run(&root, &sealed_words(&["index"], &cache));
@@ -4180,6 +4261,7 @@ fn a_sealed_registry_selector_is_a_reference_without_a_ledger_entry() {
     let sealed = |selector: &'static str| {
         vec![
             "check",
+            "--no-production-lints",
             "--registry-cache",
             cache_text,
             "--registry-features",
@@ -4189,7 +4271,7 @@ fn a_sealed_registry_selector_is_a_reference_without_a_ledger_entry() {
         ]
     };
     write_consumer(&root, &scaled(2, 7), "");
-    let unflagged = run(&root, &["check"]);
+    let unflagged = run(&root, &["check", "--no-production-lints"]);
     assert!(unflagged.status.success(), "{unflagged:?}");
     assert_eq!(unflagged.stdout, Vec::<u8>::new());
     for selector in ["acme-core", "acme-*"] {
@@ -4327,7 +4409,10 @@ fn a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_ne
 
     raf_fixtures::registry::place(&cache, "index.crates.io-0", "acme-core", "1.0.0", &archive);
     write_consumer(&root, &scaled(2, 8), "");
-    let clean = run(&root, &sealed_words(&["check"], &cache));
+    let clean = run(
+        &root,
+        &sealed_words(&["check", "--no-production-lints"], &cache),
+    );
     assert!(clean.status.success(), "{clean:?}");
     assert_eq!(clean.stdout, Vec::<u8>::new());
 }
@@ -4361,11 +4446,18 @@ fn module_paths_in_package_are_required_by_the_flag_beside_a_clean_run_without_i
     let debt = root.join("census-debt.ttl");
     let written = run(root, &["debt", "--write"]);
     assert!(written.status.success(), "{written:?}");
-    let plain = run(root, &["check"]);
+    let plain = run(root, &["check", "--no-production-lints"]);
     assert!(plain.status.success(), "{plain:?}");
     let record = fs::read(&debt).unwrap();
 
-    let required = run(root, &["check", "--require-module-paths-in-package"]);
+    let required = run(
+        root,
+        &[
+            "check",
+            "--no-production-lints",
+            "--require-module-paths-in-package",
+        ],
+    );
     assert_eq!(required.status.code(), Some(1), "{required:?}");
     let stdout = String::from_utf8_lossy(&required.stdout);
     assert!(
@@ -4381,7 +4473,14 @@ fn module_paths_in_package_are_required_by_the_flag_beside_a_clean_run_without_i
     assert_eq!(fs::read(&debt).unwrap(), record);
 
     source(root, 2);
-    let contained = run(root, &["check", "--require-module-paths-in-package"]);
+    let contained = run(
+        root,
+        &[
+            "check",
+            "--no-production-lints",
+            "--require-module-paths-in-package",
+        ],
+    );
     assert!(contained.status.success(), "{contained:?}");
     let rewritten = run(
         root,

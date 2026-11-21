@@ -49,7 +49,7 @@
 
 mod support;
 
-#[allow(
+#[expect(
     dead_code,
     reason = "the shared maintenance implementation also supplies the explicit generator example"
 )]

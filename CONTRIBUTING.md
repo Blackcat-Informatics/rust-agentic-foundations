@@ -75,11 +75,18 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
 
 - **`make check` is the gate.** It stops at the first failure. CI runs the
   documented compilation, test and policy checks; local `make check` additionally
-  runs optimized instrumented fuzzing. The pre-commit hook runs fmt and reuse on a checkout of the staged
-  index, plus the `repo_gates`, `docs_contract` and `self_census` test binaries over
+  runs optimized instrumented fuzzing. The pre-commit hook runs fmt, reuse
+  and production Clippy on a checkout of the staged index, plus the
+  `repo_gates`, `docs_contract` and `self_census` test binaries over
   that checkout. The binaries are compiled from the working tree, not the index.
   A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
   hook. [Staged gate measurements](docs/staged-gate-cost.md)
+- **Production lint coverage.** `make clippy-production` checks the locked
+  workspace libraries and binaries. A private helper whose only caller is a
+  test can fail this check. The staged hook uses the same command on staged
+  sources and manifests. `make test` captures a fresh receipt for Census,
+  and `make check` also runs the all-target Clippy pass. The exact flags are
+  in the [production lint helper](.githooks/production-clippy).
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.
@@ -174,9 +181,8 @@ their wording becomes the changelog. Releases are tagged `v<semver>` (for exampl
 - Install the hooks with `make hooks`.
 - `cargo clippy --workspace --all-targets` must be warning-free. The workspace lint
   table (clippy pedantic; `missing_docs`, `unreachable_pub` and `unsafe_code`
-  denied) is inherited by every crate, and CI denies warnings. Prefer fixing code
-  over adding `#[allow]`; when an allow is genuinely right, scope it tightly and
-  give it a reason.
+  denied) is inherited by every crate, and CI denies warnings. Fix lint findings in the code. When a lint exception is necessary, use
+  a tightly scoped `#[expect(..., reason = "...")]`.
 - Every file must carry an SPDX header: `MIT OR Apache-2.0 OR MulanPSL-2.0` for
   code, configuration and templates, and `CC-BY-4.0` for every Markdown document.
 - Reconcile the capability documents with the change, and bump `normal_form` if a

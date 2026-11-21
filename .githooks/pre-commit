@@ -12,16 +12,20 @@
 # from the index. The test binaries themselves are compiled from the working
 # tree, not the index: building inside the snapshot would cost a cold build on
 # every commit. Their gate logic therefore comes from the working tree, and
-# only the files they judge come from the index. Clippy and the rest of the
-# tests stay in `make check` and CI. Install with `make hooks`.
+# only the files they judge come from the index. Production Clippy reads the
+# staged source and manifests. Its receipt supplies the static Census gate.
 
 set -euo pipefail
 
 top=$(git rev-parse --show-toplevel)
 cd "$top"
 
-snapshot=$(mktemp -d)
-trap 'rm -rf "$snapshot"' EXIT
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+snapshot="$scratch/snapshot"
+mkdir "$snapshot"
+export RAF_CENSUS_LINT_EVIDENCE="$scratch/production-lints.ttl"
+
 git checkout-index --all --force --prefix="$snapshot/"
 
 failed=0
@@ -36,6 +40,8 @@ run() {
 
 run fmt make --no-print-directory fmt ROOT="$snapshot"
 run reuse make --no-print-directory reuse ROOT="$snapshot"
+clippy_target=$(realpath -m -- "${CARGO_TARGET_DIR:-$top/target}")
+run clippy-production env CARGO_TARGET_DIR="$clippy_target" make --no-print-directory clippy-production ROOT="$snapshot"
 run gates env RAF_GATE_ROOT="$snapshot" cargo test --locked --no-fail-fast --test repo_gates --test docs_contract --test self_census
 
 if [ "$failed" -ne 0 ]; then

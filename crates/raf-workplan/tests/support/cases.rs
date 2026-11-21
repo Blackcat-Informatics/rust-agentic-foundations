@@ -228,7 +228,7 @@ fn record_case(name: &str, kind: &str, record: &str, from: &str, to: &str, at: L
     Case::new(name, repo, kind, &path, at)
 }
 
-#[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
+#[expect(clippy::too_many_lines, reason = "one arm per rule of the profile")]
 fn rule_case_unplaced(tag: RuleTag) -> Case {
     let name = format!("okf-{tag}");
     let kind = name.clone();
@@ -507,7 +507,7 @@ fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
 }
 
 /// The case for a way a document fails to read.
-#[allow(
+#[expect(
     clippy::too_many_lines,
     reason = "one arm per error kind of the reader"
 )]
@@ -1865,7 +1865,7 @@ fn ambiguous_surface_case(repo: Repo) -> Case {
 
 /// The cases for the generated blocks: a synced repository with one break
 /// each, judged with every finding kept.
-#[allow(
+#[expect(
     clippy::too_many_lines,
     reason = "one block per generated-block kind, each a repository with one break"
 )]

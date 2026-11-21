@@ -24,7 +24,6 @@
 //! With no arguments, the example loads the four-link chain through that same path.
 
 #[path = "../tests/support/shapes/globs.rs"]
-#[allow(dead_code, reason = "the example selects one shape by its name")]
 mod shapes;
 
 #[path = "../tests/support/number.rs"]

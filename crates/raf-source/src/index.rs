@@ -685,10 +685,6 @@ impl<'a> Builder<'a> {
         Ok(idx)
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "an item is built from the fact, its place and the file context"
-    )]
     fn push(
         &mut self,
         fact: &ItemFact,
@@ -1514,7 +1510,7 @@ impl Index {
     ///
     /// Returns a [`LoadError`] naming the member's file and line when the
     /// record passes the item-bytes budget.
-    #[allow(
+    #[expect(
         clippy::too_many_arguments,
         reason = "a member is built from its impl, its fact and what the impl resolved to"
     )]

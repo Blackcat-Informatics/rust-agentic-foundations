@@ -255,7 +255,7 @@ fn syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound() {
                     table(&rows)
                 );
             }
-            #[allow(clippy::cast_precision_loss, reason = "a ratio of two small counts")]
+            #[expect(clippy::cast_precision_loss, reason = "a ratio of two small counts")]
             let ratio = row.peak as f64 / limit as f64;
             highest = highest.max(ratio);
         }
@@ -280,7 +280,7 @@ fn a_byte_dense_shape_just_above_the_floor_holds_its_bound() {
     let limit = SyntaxBound::MEASURED
         .bytes(row.nodes, row.bytes)
         .expect("the bound fits");
-    #[allow(clippy::cast_precision_loss, reason = "a ratio of two small counts")]
+    #[expect(clippy::cast_precision_loss, reason = "a ratio of two small counts")]
     let ratio = row.peak as f64 / limit as f64;
     eprintln!("{} reaches {ratio:.4} of its bound", row.name);
     assert!(row.peak < limit, "within the bound: {ratio:.4}");

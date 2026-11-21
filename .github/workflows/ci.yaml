@@ -164,6 +164,7 @@ jobs:
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
         with:
           toolchain: nightly # keep in sync with rust-toolchain.toml
+          components: ${{ contains(matrix.args, 'self_census') && 'clippy' || '' }}
       # The root package's self-census seals the locked PurRDF registry sources
       # from the registry cache, and a package-scoped test run stores only that
       # package's closure. Fetch both lock files completely first.
@@ -172,6 +173,12 @@ jobs:
         run: |
           cargo fetch --locked
           cargo fetch --locked --manifest-path fuzz/Cargo.toml
+      - name: Capture the production compiler verdict for the Census gate
+        if: matrix.package == 'rust-agentic-foundations' && contains(matrix.args, 'self_census')
+        run: |
+          export RAF_CENSUS_LINT_EVIDENCE="$RUNNER_TEMP/production-clippy.ttl"
+          make clippy-production
+          echo "RAF_CENSUS_LINT_EVIDENCE=$RAF_CENSUS_LINT_EVIDENCE" >> "$GITHUB_ENV"
       - name: Unit, integration and documentation tests
         run: |
           jq -j '.[] | . + "\u0000"' <<< "$RAF_CI_ARGS" > "$RUNNER_TEMP/test-args"
@@ -185,7 +192,9 @@ jobs:
           # and without generating native debug line tables for this shard.
           if [[ "$RAF_CI_PACKAGE" == rust-agentic-foundations && "${args[*]}" == '--test docs_contract' ]]; then
             export CARGO_PROFILE_TEST_DEBUG=0
-            args+=(--config 'profile.test.opt-level=1')
+            # Build the root's unused Census dev-dependency at level zero on this shard.
+            # Keep the document checks and their runtime dependencies optimized.
+            args+=(--config 'profile.test.opt-level=1' --config 'profile.test.package.raf-census.opt-level=0')
           fi
           cargo test --locked --package "$RAF_CI_PACKAGE" "${args[@]}"
           if test "$RAF_CI_DOCS" = true; then

@@ -9,7 +9,7 @@ use raf_source::{
     RegistryArchiveTree, RegistryIndex, RelPath, TargetKind,
 };
 
-use super::{Format, Gate, Term, Triple, provider_policy, put, vocab};
+use super::{Format, Term, Triple, fixture_gate, provider_policy, put, vocab};
 
 #[path = "../support/native_hash.rs"]
 mod native_hash;
@@ -137,7 +137,7 @@ pub(super) fn actual_registry_hasher() {
         LockedTree::Registry(&registry),
         &roots,
     )];
-    let gate = Gate::workspace(".");
+    let gate = fixture_gate(".");
     let report = gate
         .check_locked(&tree, &catalog, &local, &sources)
         .unwrap();

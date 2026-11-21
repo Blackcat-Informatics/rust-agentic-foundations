@@ -8,10 +8,6 @@ use std::fs;
 use std::path::Path;
 
 /// Write the shape table to an explicit maintenance destination.
-#[allow(
-    dead_code,
-    reason = "called by the corpus_generate example, not ordinary integration tests"
-)]
 pub(crate) fn generate_corpus(dir: &Path) {
     write_shapes(dir, &shapes::all());
 }

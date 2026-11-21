@@ -7,7 +7,7 @@ subject: cap:census-rule-api#contract
 inputs:
   - kind: section
     name: cap:census-rule-api#contract
-    digest: 9251795be25652334a9225b1dcdd9167287ef127ff1ec71c1b66ad1dc474a1cd
+    digest: 29c5d235bdd54dd3e8194071a18f2f3a2e48a40c085ebac4f5481bdbe2ad96ad
   - kind: symbol
     name: raf_census::Gate::assert_clean
     digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25
@@ -27,14 +27,56 @@ inputs:
     name: raf_census::Gate::self_test
     digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86
   - kind: symbol
+    name: raf_census::Gate::with_production_lint_run
+    digest: 0d8a51a9b223dce2b179a65de00ed2947d9cdf48a199674c2f7e402b9b53355d
+  - kind: symbol
+    name: raf_census::Gate::without_production_lints
+    digest: 620a9a9df0171d6398c862e126dc7e1ae0a0ce1741530b10f07095fd7c60aa86
+  - kind: symbol
     name: raf_census::Gate::workspace
-    digest: ee73f3e1b34baee6fe1444c47168271822b40aa62a586a43e5f2a752bad1e91a
+    digest: 0503ad24db1afab83d45d098775da0f6d1304ee95c9a905293ccd91d1b73bbd5
+  - kind: symbol
+    name: raf_census::PRODUCTION_CLIPPY_ARGS
+    digest: 3e66378dece710f9cd38e9254f2fefe53f8a30108a45b8050d4ab355c5e05f16
+  - kind: symbol
+    name: raf_census::ProductionInputs::digest
+    digest: f2b1e0236c5f75b53c54a1f5b96f24c84643ca8e0fa8600395121079ef9bd6fe
+  - kind: symbol
+    name: raf_census::ProductionInputs::read
+    digest: 601163d6205aaf0ebc7a51acb49874fe4c92718110fbba0dd1828e3b8f9b0ffa
+  - kind: symbol
+    name: raf_census::ProductionLintRun::capture
+    digest: 316d728d03febd818b98f51da58d46e37a5515d246b270226f25b0532faf5e93
+  - kind: symbol
+    name: raf_census::ProductionLintRun::from_turtle
+    digest: dbfd611f0689f5dba6f8d499b5e5b4e9d45ce7b04119d85e03bdb8af20e177a8
+  - kind: symbol
+    name: raf_census::ProductionLintRun::read_external
+    digest: 4d72a1017a537ff1d52abf5ffb497e21cc02117ff1a8377c41b406d39d61cb38
+  - kind: symbol
+    name: raf_census::ProductionLintRun::to_turtle
+    digest: af6c9f264b8fe8d5ba6cf1abfdc4f5d0493cfd7ded0d06213554581f933441d2
   - kind: symbol
     name: raf_census::gate::rules
     digest: 25a1ce6ed6de9dcc776c326ae9d343656a72d8a00a659fdcf10aed319308e9f7
   - kind: symbol
     name: raf_census::rule
     digest: cd623ae43036600b4791b82d9442d7f6305472d959d8329aef8eeeeb80d67c3c
+  - kind: symbol
+    name: raf_source::CargoLintManifest::inherits
+    digest: 0697a74f0bbaeb8e4cd753f0f4c5eac541606cd0b4f79f3bd6119d119673efae
+  - kind: symbol
+    name: raf_source::CargoLintManifest::parse
+    digest: '0b3c096375f7f54fd6ce5fab86f204289bbd14ec5eaa1d051ea1577b7676b6a2'
+  - kind: symbol
+    name: raf_source::CargoLintManifest::production_config_override
+    digest: 337c10d0a4f89fb44f40b414a2b0df9e18afdba936dabf0618f48a6484a1243d
+  - kind: symbol
+    name: raf_source::CargoLintManifest::setting
+    digest: 96759e3fff87df823709d5553186918929e6d0cbee1ab1058e16e1213c27c6d9
+  - kind: symbol
+    name: raf_source::Workspace::load_shipping_members
+    digest: b24629146be42d59694fa5aff780063c6bbe743471213963d7374c0bc0b08ca9
 verdict: accepted
 by: agent
 ---

@@ -14,7 +14,11 @@ use raf_source::DiskTree;
 fn main() -> Result<ExitCode, Box<dyn Error>> {
     let operation = RegisteredOperation::from_args(std::env::args_os().skip(1))?;
     let root = rust_agentic_foundations::gate_root();
-    let gate = policy::gate(&root);
+    let gate = if matches!(operation, RegisteredOperation::Check) {
+        policy::checked_gate(&root)?
+    } else {
+        policy::gate(&root).without_production_lints()
+    };
     let tree = DiskTree::new(&root)?;
     let locked = || {
         policy::locked_report(&gate, &tree).map_err(|error| CensusError::Options(error.to_string()))
@@ -29,7 +33,7 @@ fn main() -> Result<ExitCode, Box<dyn Error>> {
             (report.census().index(report.jobs())?.to_ntriples()?, 0)
         }
         RegisteredOperation::WriteDebt => {
-            let written = policy::write_locked_debt(&gate, &tree)?;
+            let written = gate.write_debt_registry(&policy::registry(&tree)?)?;
             (format!("{written}\n"), 0)
         }
     };

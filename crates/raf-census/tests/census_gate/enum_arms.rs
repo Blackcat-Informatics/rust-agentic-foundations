@@ -3,7 +3,7 @@
 
 //! Enum policy through the production gate.
 
-use super::{Gate, Term, base, detector_fixtures, job, put, tree};
+use super::{Term, base, detector_fixtures, fixture_gate, job, put, tree};
 
 const ENUM_USAGE_FIXTURE: &str = r#"
         pub enum State { Unit, Tuple(u8), Named { value: u8 }, Idle }
@@ -84,7 +84,7 @@ fn designated_enum_requires_shipping_values_and_current_retentions() {
                 "use crate::State::Idle as Current; const _: crate::State = Current;".into(),
             )
             .unwrap();
-        Gate::workspace(".").check_tree(&fixture)
+        fixture_gate(".").check_tree(&fixture)
     };
     let missing = check(source, &[]).unwrap();
     let [finding] = missing.findings() else {
@@ -163,7 +163,7 @@ fn enum_assignees_preserve_real_value_expressions_in_places() {
         }
     ";
     let check = |source| {
-        Gate::workspace(".")
+        fixture_gate(".")
             .check_tree(&tree(source, enum_policy(&[]), 0))
             .unwrap()
     };
@@ -236,7 +236,7 @@ fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
         fn exceeds_limit(items: &[u8]) -> bool { items.len() > WORK_LIMIT }
     ";
     let numeric = super::numeric_bounds::registry(base(), "strict");
-    let required = Gate::workspace(".")
+    let required = fixture_gate(".")
         .require_rules([id])
         .check_tree(&tree(source, numeric, 0))
         .unwrap();
@@ -264,7 +264,7 @@ fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
         );
         graph
     };
-    let forbidden = Gate::workspace(".")
+    let forbidden = fixture_gate(".")
         .check_tree(&tree(source, policy(), 0))
         .unwrap();
     assert_eq!(forbidden.jobs()[0].copies, 1);
@@ -284,7 +284,7 @@ fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
         "ratchetedRule",
         Term::simple_literal(id),
     );
-    let report = Gate::workspace(".")
+    let report = fixture_gate(".")
         .check_tree(&tree(source, ratcheted, 0))
         .unwrap();
     assert!(report.debt().ratcheted().contains(id));
@@ -320,7 +320,7 @@ fn enum_catch_alls_keep_only_arms_proved_across_shared_reaches() {
             ),
             ("helpers-ledger.ttl", ledger.as_str()),
         ]);
-        Gate::workspace(".")
+        fixture_gate(".")
             .require_rules([detector_fixtures::ENUM_MATCH.0])
             .check_tree(&tree)
             .unwrap()

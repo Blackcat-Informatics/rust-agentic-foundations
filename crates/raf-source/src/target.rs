@@ -95,7 +95,7 @@ pub struct Package {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
-#[allow(
+#[expect(
     clippy::struct_excessive_bools,
     reason = "harness, test and doctest are Cargo's boolean target keys, kept one to one"
 )]
