@@ -13,8 +13,8 @@ use raf_source::RelPath;
 use super::{
     Error, TypeId,
     descriptor::{
-        AnnotationTarget, Applications, Declaration, DeclarationBody, DeclarationKind, Endpoint,
-        Enumerant, Interface, Method, Node, Schema, Struct,
+        AnnotationTarget, ApplicationNodeKind, Applications, Declaration, DeclarationBody,
+        DeclarationKind, Endpoint, Enumerant, Interface, Method, Node, Schema, Struct,
     },
 };
 
@@ -134,6 +134,16 @@ pub enum ChangeKind {
         /// ID of the annotation declaration.
         annotation: TypeId,
     },
+    /// A retained file's applications of an annotation changed.
+    ChangedFileAnnotation {
+        /// ID of the annotation declaration.
+        annotation: TypeId,
+    },
+    /// A retained constant or annotation declaration's applications changed.
+    ChangedScalarAnnotation {
+        /// ID of the annotation declaration.
+        annotation: TypeId,
+    },
     /// An appended input parameter lacks an explicit default.
     MissingParameterDefault,
     /// A pointer slot became required in an existing struct.
@@ -197,11 +207,15 @@ impl fmt::Display for ChangeKind {
                     "enumerant applications of annotation {annotation} changed"
                 );
             }
-            Self::ChangedNominalAnnotation { annotation } => {
+            Self::ChangedNominalAnnotation { annotation }
+            | Self::ChangedScalarAnnotation { annotation } => {
                 return write!(
                     f,
                     "declaration applications of annotation {annotation} changed"
                 );
+            }
+            Self::ChangedFileAnnotation { annotation } => {
+                return write!(f, "file applications of annotation {annotation} changed");
             }
             Self::MissingParameterDefault => "appended input parameter needs an explicit default",
             Self::RequiredField => "pointer field became required",
@@ -259,16 +273,21 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
         push(id, None, kind)?;
     }
     declaration_changes(&base.declarations, &current.declarations, &mut push)?;
-    for (&node, before) in &base.nominal_applications {
-        if let Some(after) = current.nominal_applications.get(&node)
+    for (&node, before) in &base.node_applications {
+        if let Some(after) = current.node_applications.get(&node)
             && before.kind == after.kind
         {
             compare_applications(&before.applications, &after.applications, |annotation| {
-                push(
-                    node,
-                    None,
-                    ChangeKind::ChangedNominalAnnotation { annotation },
-                )
+                let kind = match before.kind {
+                    ApplicationNodeKind::File => ChangeKind::ChangedFileAnnotation { annotation },
+                    ApplicationNodeKind::Declaration(
+                        DeclarationKind::Constant | DeclarationKind::Annotation,
+                    ) => ChangeKind::ChangedScalarAnnotation { annotation },
+                    ApplicationNodeKind::Declaration(_) => {
+                        ChangeKind::ChangedNominalAnnotation { annotation }
+                    }
+                };
+                push(node, None, kind)
             })?;
         }
     }

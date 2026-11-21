@@ -48,7 +48,7 @@ pub(super) struct Schema {
     pub(super) nodes: BTreeMap<TypeId, Node>,
     pub(super) files: BTreeMap<TypeId, RelPath>,
     pub(super) declarations: BTreeMap<TypeId, Declaration>,
-    pub(super) nominal_applications: BTreeMap<TypeId, NominalApplications>,
+    pub(super) node_applications: BTreeMap<TypeId, NodeApplications>,
     pub(super) named_endpoint_parameters: BTreeMap<TypeId, BTreeMap<TypeId, u32>>,
 }
 
@@ -65,9 +65,15 @@ pub(super) struct Declaration {
 }
 
 #[derive(Debug)]
-pub(super) struct NominalApplications {
-    pub(super) kind: Kind,
+pub(super) struct NodeApplications {
+    pub(super) kind: ApplicationNodeKind,
     pub(super) applications: Applications,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ApplicationNodeKind {
+    File,
+    Declaration(DeclarationKind),
 }
 
 #[derive(Debug)]
@@ -262,7 +268,7 @@ pub(super) fn read(
         Roots::Require(selected) | Roots::AllowMissing(selected) => {
             projected.files = files::project(request, &nodes, selected, require_roots)?;
             projected.declarations = declarations::project(&nodes, selected)?;
-            projected.nominal_applications = nodes.nominal_applications(&projected, &mut scopes)?;
+            projected.node_applications = nodes.node_applications(&projected, &mut scopes)?;
         }
     }
     Ok(projected)
@@ -466,7 +472,7 @@ impl<'a> Nodes<'a> {
             nodes,
             files: BTreeMap::new(),
             declarations: BTreeMap::new(),
-            nominal_applications: BTreeMap::new(),
+            node_applications: BTreeMap::new(),
             named_endpoint_parameters,
         })
     }
