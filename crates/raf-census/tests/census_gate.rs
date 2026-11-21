@@ -2003,6 +2003,33 @@ pub fn outside() {
 }
 ";
 
+const UNIT_RECEIVER_SOURCE: &str = r"
+pub mod home {
+    pub struct Banned;
+    pub struct Other;
+    impl Banned { pub fn run(&self) {} }
+    impl Other { pub fn run(&self) {} }
+    pub fn sanctioned(value: Banned) { value.run(); }
+}
+pub use home as alias;
+pub use home::Banned as Reexport;
+
+pub fn outside() {
+    use crate::Reexport as BUILD;
+    let typed: BUILD = BUILD;
+    typed.run(); // hit
+    let inferred = BUILD;
+    inferred.run(); // hit
+    let other = home::Other;
+    other.run();
+    {
+        const BUILD: home::Other = home::Other;
+        let shadowed = BUILD;
+        shadowed.run();
+    }
+}
+";
+
 #[test]
 fn written_receiver_methods_keep_declaration_identity_and_runtime_shadowing() {
     use std::collections::BTreeSet;
@@ -2013,6 +2040,7 @@ fn written_receiver_methods_keep_declaration_identity_and_runtime_shadowing() {
         WRITTEN_RECEIVER_SOURCE,
         CONSTRUCTOR_RECEIVER_SOURCE,
         TUPLE_RECEIVER_SOURCE,
+        UNIT_RECEIVER_SOURCE,
     ] {
         let report = Gate::workspace(".")
             .check_tree(&lexical_pattern_tree(

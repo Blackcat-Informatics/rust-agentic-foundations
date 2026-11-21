@@ -179,16 +179,17 @@ physical first-party struct, enum or union and a method identifier. The selector
 admits an optional leading `::` and a raw method identifier. A simple named
 local or an ordinary function or closure parameter can supply a bare written
 type path. A simple local without an annotation can supply a direct braced
-initializer for a first-party named-field struct or a direct call to a
-first-party tuple struct constructor. The local, initializer and tuple callee
-carry only inert attributes. Struct updates and empty named-field initializers
-use the braced proof. An explicit annotation takes precedence.
+initializer for a named-field struct, a direct tuple constructor call, or
+a direct unit struct value. Each constructor requires a first-party struct.
+The local, initializer and tuple callee carry only inert attributes. Struct
+updates and empty named-field initializers use the braced proof. An explicit
+annotation takes precedence.
 Each path has plain segments without generic arguments or a qualified self
 type. Census resolves written types and braced paths in the Type namespace
-through admitted imports, reexports and unconditional nominal aliases. A tuple
-callee must resolve uniquely in the Value namespace at the initializer,
-including through value imports and reexports. An opaque block wildcard on
-the lookup route prevents attribution.
+through admitted imports, reexports and unconditional nominal aliases. A
+tuple callee or unit value must resolve uniquely in the Value namespace at
+the initializer, including through value imports and reexports. An opaque
+block wildcard on the lookup route prevents attribution.
 
 Receiver lookup skips definitely excluded named, grouped and wildcard
 block imports. A conditionally active import with a possible binding in the
@@ -385,9 +386,11 @@ annotation precedence, an initializer using the previous local, and
 uncertain and excluded imports.
 The tuple fixture reports the written annotation and the direct constructor
 call through a reexport. It leaves numeric braced tuple syntax, the unrelated
-constructor, a same-named function and an indirect call clear. A shared-file
-fixture tests typed and constructor receivers under separate source reaches
-and scope selections.
+constructor, a same-named function and an indirect call clear. The unit
+fixture reports the typed call and the inferred call through a value reexport.
+An unrelated unit struct and a constant that shadows the constructor's
+value name stay clear. A shared-file fixture tests typed and constructor
+receivers under separate source reaches and scope selections.
 <!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing,raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file -->
 
 <!-- raf:generated:verification-matrix -->
