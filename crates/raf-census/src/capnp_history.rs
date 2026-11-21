@@ -144,6 +144,15 @@ pub enum DescriptorError {
         /// Native descriptor refusal.
         source: Box<Self>,
     },
+    /// Reading annotations on a nominal declaration failed.
+    NominalApplication {
+        /// ID of the annotated struct, enum or interface.
+        owner: TypeId,
+        /// ID of the annotation when the failure occurs at one application.
+        annotation: Option<TypeId>,
+        /// Native descriptor refusal.
+        source: Box<Self>,
+    },
     /// A descriptor does not agree with its signed compiler capture.
     Capture(CaptureError),
 }
@@ -178,6 +187,16 @@ impl fmt::Display for DescriptorError {
                 annotation,
                 source,
             } => write!(f, "annotation {annotation} at {owner}.{member}: {source}"),
+            Self::NominalApplication {
+                owner,
+                annotation: Some(annotation),
+                source,
+            } => write!(f, "annotation {annotation} at {owner}: {source}"),
+            Self::NominalApplication {
+                owner,
+                annotation: None,
+                source,
+            } => write!(f, "annotations at {owner}: {source}"),
             Self::Capture(source) => source.fmt(f),
         }
     }
@@ -189,7 +208,9 @@ impl std::error::Error for DescriptorError {
             Self::Wire(source) => Some(source),
             Self::Tag(source) => Some(source),
             Self::Layout(_) => None,
-            Self::EnumerantApplication { source, .. } => Some(source.as_ref()),
+            Self::EnumerantApplication { source, .. } | Self::NominalApplication { source, .. } => {
+                Some(source.as_ref())
+            }
             Self::Capture(source) => Some(source),
         }
     }
