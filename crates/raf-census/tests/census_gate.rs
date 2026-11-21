@@ -1941,11 +1941,17 @@ pub fn outside() {
     fn Constructor() {}
     let mut annotated: Constructor = factory();
     annotated.run(); // hit
+    ((annotated))
+        .run(); // hit
     let mut value = Constructor {};
     value.run(); // hit
     let mut value = Constructor { ..{ value.run(); Constructor {} } }; // hit
     value.run(); // hit
     { let mut value = other::Banned {}; value.run(); }
+    { let mut value = ((Constructor {})); (value).run(); } // hit
+    { let mut value = (other::Banned {}); (value).run(); }
+    { let mut value = (#[cfg(feature = "alternate")] (Constructor {})); (value).run(); }
+    { let mut value = Constructor {}; (#[cfg(feature = "alternate")] (value)).run(); }
     { let mut value = factory(); value.run(); }
     { let mut value: _ = Constructor {}; value.run(); }
     { let ref mut value = Constructor {}; value.run(); }
@@ -1990,16 +1996,18 @@ pub fn outside() {
     braced.run();
     let inferred = make(3);
     inferred.run(); // hit
+    let inferred = (((make))(3));
+    ((inferred)).run(); // hit
     let other = home::Other(4);
     other.run();
     {
         fn make(value: u8) -> home::Other { home::Other(value) }
-        let shadowed = make(5);
-        shadowed.run();
+        let shadowed = ((make)(5));
+        (shadowed).run();
     }
     let callable = make;
-    let indirect = callable(6);
-    indirect.run();
+    let indirect = ((callable)(6));
+    (indirect).run();
 }
 ";
 
@@ -2020,12 +2028,14 @@ pub fn outside() {
     typed.run(); // hit
     let inferred = BUILD;
     inferred.run(); // hit
+    let inferred = ((BUILD));
+    (inferred).run(); // hit
     let other = home::Other;
     other.run();
     {
         const BUILD: home::Other = home::Other;
-        let shadowed = BUILD;
-        shadowed.run();
+        let shadowed = (BUILD);
+        (shadowed).run();
     }
 }
 ";
@@ -2178,8 +2188,8 @@ pub mod shipping {{
                 "src/shared.rs",
                 "pub fn copy(value: super::Choice) {
     value.run();
-    let inferred = super::Choice {};
-    inferred.run();
+    let inferred = (super::Choice {});
+    (inferred).run();
 }"
                 .to_owned(),
             ),
