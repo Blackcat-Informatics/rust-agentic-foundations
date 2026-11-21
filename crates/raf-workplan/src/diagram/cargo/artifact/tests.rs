@@ -10,6 +10,11 @@ use std::fs;
 
 const HTML: &[u8] = b"<!doctype html><title>selected output</title>";
 
+fn admit(selection: &Selection, messages: &[Value]) -> Result<Vec<LibraryArtifact>, DiagramError> {
+    let disk = DiskTree::new(&selection.target_directory).unwrap();
+    super::admit(&disk, selection, messages)
+}
+
 fn fixture() -> (purrdf_testkit::TempDir, Selection, PathBuf) {
     let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
     let root = scratch.path().canonicalize().unwrap();
@@ -101,6 +106,7 @@ fn reported_html_requires_exact_selected_receipts_and_contained_files() {
     assert_reported_features(&selection, &valid);
     assert_identity_refusals(&selection, &valid);
     assert_output_refusals(&selection, &valid, &path);
+    assert_companion_observation_requires_identity_and_bytes(&selection, &admitted[0], &path);
 
     let mut other = selection.libraries[0].clone();
     other.package_id = "opaque-other-package".into();
@@ -125,6 +131,26 @@ fn reported_html_requires_exact_selected_receipts_and_contained_files() {
             .len(),
         2
     );
+}
+
+// The companion refuses both an identical replacement file and an in-place edit.
+fn assert_companion_observation_requires_identity_and_bytes(
+    selection: &Selection,
+    entry: &LibraryArtifact,
+    path: &Path,
+) {
+    let target = DocumentationTarget::open(selection.target_directory()).unwrap();
+    target.verify_entry(entry).unwrap();
+    let saved = path.with_extension("saved");
+    fs::rename(path, &saved).unwrap();
+    fs::write(path, HTML).unwrap();
+    assert!(target.verify_entry(entry).is_err());
+    fs::rename(saved, path).unwrap();
+    target.verify_entry(entry).unwrap();
+    fs::write(path, "<!doctype html><title>edited output</title>").unwrap();
+    assert!(target.verify_entry(entry).is_err());
+    fs::write(path, HTML).unwrap();
+    target.verify_entry(entry).unwrap();
 }
 
 fn assert_identity_refusals(selection: &Selection, valid: &Value) {

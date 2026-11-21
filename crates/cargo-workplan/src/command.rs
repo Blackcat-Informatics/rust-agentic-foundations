@@ -207,24 +207,9 @@ fn standalone(root: &Path, args: &StandaloneArgs) -> Result<Report, Failure> {
         .split_once('#')
         .map(|(_, name)| name)
         .ok_or_else(|| Failure::new("named view requires an owner and fragment"))?;
-    let entry = directory.join(format!("{name}.html"));
-    let directory = directory
-        .into_os_string()
-        .into_string()
-        .map_err(|_| Failure::new("documentation directory cannot be represented as UTF-8"))?;
-    let entry = entry
-        .into_os_string()
-        .into_string()
-        .map_err(|_| Failure::new("documentation entry cannot be represented as UTF-8"))?;
-    let message = format!("published {} at {entry}", args.view);
-    Ok(Report::of([Record::outcome(
-        CommandResult::DocumentationBuilt {
-            view: args.view.clone(),
-            directory,
-            entry,
-        },
-        message,
-    )]))
+    Ok(Report::of([crate::docs::publication_record(
+        &args.view, name, directory,
+    )?]))
 }
 
 /// The public authoring codec owns the profile and native dataset shape.

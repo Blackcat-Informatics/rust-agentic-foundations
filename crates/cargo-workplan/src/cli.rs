@@ -513,6 +513,9 @@ pub(crate) struct LibraryArgs {
 pub(crate) struct TrustedDocsArgs {
     #[command(flatten)]
     pub(crate) libraries: LibraryArgs,
+    /// Publish this named Workplan view beside the selected library documentation.
+    #[arg(long)]
+    pub(crate) view: Option<String>,
     /// Existing directory containing the fixed cargo, rustc and rustdoc binaries.
     #[arg(long)]
     pub(crate) toolchain_directory: PathBuf,

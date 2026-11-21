@@ -11,7 +11,7 @@ mod clock;
 mod configuration;
 
 use crate::exit::Failure;
-use raf_workplan::diagram::cargo::{self, CargoDocOptions};
+use raf_workplan::diagram::cargo::{self, CargoDocOptions, DocumentationTarget, Selection};
 use std::path::{Component, Path, PathBuf};
 
 const STREAM_BYTES: usize = 16 * 1024 * 1024;
@@ -29,8 +29,8 @@ pub(crate) struct BuildRequest {
 
 /// Bounded documentation outputs; no test execution or full-environment receipt.
 pub(crate) struct BuiltDocumentation {
-    pub(crate) metadata_before: Vec<u8>,
-    pub(crate) metadata_after: Vec<u8>,
+    pub(crate) selection: Selection,
+    pub(crate) target: DocumentationTarget,
     pub(crate) messages: Vec<u8>,
     pub(crate) diagnostics: Vec<u8>,
     pub(crate) cargo_version: String,
@@ -95,6 +95,7 @@ pub(crate) fn build(request: &BuildRequest) -> Result<BuiltDocumentation, Failur
             "authorized target directory changed while it was created",
         ));
     }
+    let target = DocumentationTarget::open(&checked.target)?;
     let mut diagnostics = Vec::new();
     let cargo_version = version(&checked, Operation::CargoVersion, &mut diagnostics)?;
     let rustc_version = version(&checked, Operation::RustcVersion, &mut diagnostics)?;
@@ -112,7 +113,7 @@ pub(crate) fn build(request: &BuildRequest) -> Result<BuiltDocumentation, Failur
     append(&mut diagnostics, &documented.stderr)?;
     let after = capture::run(&checked, Operation::Metadata)?;
     append(&mut diagnostics, &after.stderr)?;
-    cargo::read_metadata(
+    let selection = cargo::read_metadata(
         &checked.root,
         &checked.target,
         &checked.options,
@@ -124,8 +125,8 @@ pub(crate) fn build(request: &BuildRequest) -> Result<BuiltDocumentation, Failur
         ));
     }
     Ok(BuiltDocumentation {
-        metadata_before: before.stdout,
-        metadata_after: after.stdout,
+        selection,
+        target,
         messages: documented.stdout,
         diagnostics,
         cargo_version,

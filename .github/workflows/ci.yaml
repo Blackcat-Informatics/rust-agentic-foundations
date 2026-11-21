@@ -176,6 +176,11 @@ jobs:
         run: |
           jq -j '.[] | . + "\u0000"' <<< "$RAF_CI_ARGS" > "$RUNNER_TEMP/test-args"
           mapfile -d '' -t args < "$RUNNER_TEMP/test-args"
+          # Trusted documentation fixtures use Cargo's test target directory.
+          # The documentation target must sit outside the Git worktree.
+          if [[ "$RAF_CI_PACKAGE" == cargo-workplan ]]; then
+            export CARGO_TARGET_DIR="$RUNNER_TEMP/cargo-workplan-target"
+          fi
           # Keep the full round trip within the job budget with light optimization
           # and without generating native debug line tables for this shard.
           if [[ "$RAF_CI_PACKAGE" == rust-agentic-foundations && "${args[*]}" == '--test docs_contract' ]]; then

@@ -62,6 +62,10 @@ make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath
 make help    # list every target
 ```
 
+The trusted documentation integration fixtures use Cargo's test target
+directory. Run them with an absolute `CARGO_TARGET_DIR` outside Git
+worktrees when Cargo defaults to an in-checkout target.
+
 The `repository_census` example shares the self-Census policy, including its
 required syntax rules, workspace and fuzz roots, and exact debt ratchet. The CLI
 reads the native ledger directly without building or executing that example:
