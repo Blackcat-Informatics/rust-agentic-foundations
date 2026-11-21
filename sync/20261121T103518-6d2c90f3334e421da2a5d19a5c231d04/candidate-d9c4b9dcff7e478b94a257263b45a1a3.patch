@@ -1,0 +1,1610 @@
+diff --git .github/workflows/ci.yaml .github/workflows/ci.yaml
+index 6a337be1..5f5377ab 100644
+--- .github/workflows/ci.yaml
++++ .github/workflows/ci.yaml
+@@ -192,7 +192,9 @@ jobs:
+           # and without generating native debug line tables for this shard.
+           if [[ "$RAF_CI_PACKAGE" == rust-agentic-foundations && "${args[*]}" == '--test docs_contract' ]]; then
+             export CARGO_PROFILE_TEST_DEBUG=0
+-            args+=(--config 'profile.test.opt-level=1')
++            # Build the root's unused Census dev-dependency at level zero on this shard.
++            # Keep the document checks and their runtime dependencies optimized.
++            args+=(--config 'profile.test.opt-level=1' --config 'profile.test.package.raf-census.opt-level=0')
+           fi
+           cargo test --locked --package "$RAF_CI_PACKAGE" "${args[@]}"
+           if test "$RAF_CI_DOCS" = true; then
+diff --git crates/cargo-census/tests/delivery.rs crates/cargo-census/tests/delivery.rs
+index 78f96cd5..ce42b720 100644
+--- crates/cargo-census/tests/delivery.rs
++++ crates/cargo-census/tests/delivery.rs
+@@ -1107,6 +1107,95 @@ fn capnp_history_refuses_invalid_implicit_rpc_parameters() {
+     );
+ }
+ 
++/// Omitted and explicit unbound arguments compare alike even in an enclosing
++/// scope. Bound positions and a shared endpoint's enclosing arity stay visible.
++#[test]
++fn capnp_history_compares_unbound_rpc_endpoints() {
++    const READER: &str = "0xcd8cb54000000005";
++    let compatible = include_bytes!("fixtures/capnp/rpc-unbound-compatible.bin");
++    let wire_unbound = unbound_binding_request(compatible);
++    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
++    let root = scratch.path();
++    git_repo::init(root);
++    let base = commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-unbound-base.bin"));
++    for (descriptor, code, expected) in [
++        (compatible.as_slice(), 0, ""),
++        (wire_unbound.as_slice(), 0, ""),
++        (
++            include_bytes!("fixtures/capnp/rpc-unbound-changed.bin").as_slice(),
++            1,
++            concat!(
++                "Cap'n Proto history for 0xcd8cb54000000004: enclosing scope 0xcd8cb54000000003 type parameter count changed\n",
++                "Cap'n Proto history for 0xcd8cb54000000005.explicit.results: type changed\n",
++                "Cap'n Proto history for 0xcd8cb54000000005.shared.results: type changed\n",
++            ),
++        ),
++    ] {
++        let current = commit_capnp_descriptor(root, descriptor);
++        let verdict = capnp_history(root, &base, &current, &[READER], &[]);
++        assert_eq!(verdict.status.code(), Some(code), "{verdict:?}");
++        assert!(verdict.stderr.is_empty(), "{verdict:?}");
++        assert_eq!(String::from_utf8(verdict.stdout).unwrap(), expected);
++    }
++
++    // Short Bind lists leave trailing positions unbound, including nested
++    // bindings and ranges in a different lexical declaration.
++    let sparse =
++        commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-named-invalid.bin"));
++    let verdict = capnp_history(
++        root,
++        &sparse,
++        &sparse,
++        &[
++            "0xeec3000000000011",
++            "0xeec3000000000015",
++            "0xeec3000000000016",
++            "0xeec3000000000019",
++            "0xeec3000000000023",
++        ],
++        &[],
++    );
++    assert!(verdict.status.success(), "{verdict:?}");
++    assert!(verdict.stderr.is_empty(), "{verdict:?}");
++    assert!(verdict.stdout.is_empty(), "{verdict:?}");
++}
++
++fn unbound_binding_request(mut descriptor: &[u8]) -> Vec<u8> {
++    use capnp::schema_capnp::{brand, code_generator_request, node};
++
++    let descriptor =
++        capnp::serialize::read_message(&mut descriptor, capnp::message::ReaderOptions::new())
++            .unwrap();
++    let original = descriptor
++        .get_root::<code_generator_request::Reader<'_>>()
++        .unwrap();
++    compiler_request(|mut request| {
++        request.set_nodes(original.get_nodes().unwrap()).unwrap();
++        let mut nodes = request.get_nodes().unwrap();
++        let reader = (0..nodes.len())
++            .find(|&index| nodes.reborrow().get(index).get_id() == 0xcd8c_b540_0000_0005)
++            .unwrap();
++        let node::Interface(interface) = nodes.get(reader).which().unwrap() else {
++            panic!("fixture Reader interface");
++        };
++        let brand::scope::Bind(bindings) = interface
++            .get_methods()
++            .unwrap()
++            .get(1)
++            .get_result_brand()
++            .unwrap()
++            .get_scopes()
++            .unwrap()
++            .get(0)
++            .which()
++            .unwrap()
++        else {
++            panic!("fixture Pair result bindings");
++        };
++        bindings.unwrap().get(0).set_unbound(());
++    })
++}
++
+ /// Named method roles require an ordinary struct and an unambiguous reciprocal
+ /// declaration chain, including the generic state of every enclosing scope.
+ #[test]
+@@ -1128,28 +1217,12 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
+             "has a lexical declaration claim despite its zero scope",
+         ),
+         ("0xeec300000000000f", "must be a nongroup struct"),
+-        (
+-            "0xeec3000000000011",
+-            "requires a complete concrete endpoint brand",
+-        ),
+         (
+             "0xeec3000000000013",
+             "requires unique reciprocal declarations",
+         ),
+-        ("0xeec3000000000015", "method @1 unbound parameters"),
+-        (
+-            "0xeec3000000000016",
+-            "requires a complete concrete endpoint brand",
+-        ),
+-        (
+-            "0xeec3000000000019",
+-            "requires a complete concrete endpoint brand",
+-        ),
+         ("0xeec300000000001a", "invalid or repeated brand scope"),
+-        (
+-            "0xeec300000000001b",
+-            "requires a complete concrete endpoint brand",
+-        ),
++        ("0xeec300000000001b", "declares no parameters"),
+         ("0xeec300000000001c", "consistent generic flags"),
+         (
+             "0xeec300000000001f",
+@@ -1160,7 +1233,8 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
+             "must inherit exactly the generic method owner's scopes",
+         ),
+         ("0xeec3000000000022", "invalid parameter 1"),
+-        ("0xeec3000000000023", "requires a complete endpoint brand"),
++        ("0xeec3000000000024", "invalid or repeated brand scope"),
++        ("0xeec3000000000025", "non-pointer brand binding"),
+     ] {
+         let result = capnp_history(root, &invalid, &invalid, &[selected], &[]);
+         assert_eq!(result.status.code(), Some(1), "{result:?}");
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.bin crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.bin
+index 10a5e5c5a7facba6837124bee59ef766e81626ec..863bcbad4adda005596a7b9f4e64c8106df2a4fc 100644
+GIT binary patch
+delta 1031
+zc-n=MO=uHA6vyXnc9WfKwoRI(YrdM=*n@{2DxyJ@x*{avL9Iw56iaGzks=a2Bwiw3
+z1W#_>B?^LyhbmHv0g<8<6_29y=FJ?v2s!lNLG;b;2tzI|{Ac&~-n@@_J6j9iPfr13
+z>`#cXvrK(-X46_3^V}@-y!nMNL>P-`o;&09s_?@b?BG{R$7k>s+TOsymR5!~Ua*Q<
+z+r(XM6Xt}q7utY5boCv0*9W5ra0%<0gXQoB6#TFFq}h#}?;5({P`M;tj#hp9n@EkH
+zp^D>VO?wY2#vH+2&rM>>tb&K{&2t7f89VB^IeZK{9_Gv3HiLi+1;7vod<8P1i(0e_
+z&+$og#o(OIB(m(Y%0`{Q@!S%&teQ5@ao4)SZ62hU#&1?-Vn_)q%1{y<yRps8rxEiB
+z8B`KM8I8U`@n)p=faq!)_Ztq(iW5DhO+dYLZu<csgFgQJMe8+ENa1@VL-KE0?~uX@
+zi~Xj;4@q1yP~t-h3%}rKz#YH9BFP$QAg1st$sX~KDSV6trxd(LYm*dLSQJc19?Anu
+z_}mE$B4JY5aEp}s52qFGk|vdcuSm{FgP9S3)~_!&2t!U8(Famq8KK~!WP|vHxF(W0
+z1S6l3Y(tQ*BsoF6E$)EiGz1fx4Sq{tSnWR=&uLSOjT?>n&BofPX8rma`7d6ruh*OZ
+zsQ)@~#KxEDlxTrf@N;1aj~AEmeoBW57E(*No{wSGiQ~yB6V0suj_AP^!!P-RxRsig
+Lv4s?Z>AA(f1L)MO
+
+delta 943
+zc-n=MJxc>Y5Qg_I*}F|H@grZN5sjv@R0N|SS|~{=Ru&>^r<DqVh!7PdL=e1er643-
+z5F%<iK}fXn2iS;(DMTz3EG$w8&gSOga*cbu!#+E+GqZd9GIco-AuzsO1c#gW!DjsC
+zUYBxgj!tL=jgU9RtoEDv6kTD2B+b5HPASqsobw7mT}Rke6AkDv_o8ZD=TGVdE!obz
+zt4KF(SacWZI6^r_nL-~mbWLhSdWMkG=RCJC?|`;~e94<~+ffzpJOH$UCu|myv;>f8
+zG{I7|-LCV(5;O}iB09R#`Iu+HbEI3_I>okijLdmc^rYDxz(Dha09hMiMuOIuIAJx;
+zca1sqit#4{axyDtjMt20U|ochzhN?d>bvNib}ZlGrnuOYE;zhj=-mP-jZcjG&v&q^
+zAeY34Ad36}b|0ikEaI8OryvjV7uX>}(#?erYk_#B0<$2)(ST3lWsu+DZ;^P6Sceh(
+z3U&k3Ch-u|C+)aU!xID~772qAZ-YYra9H9TC?XZSCf2KJHkcMK!V%CV1qhBxH*^Q;
+zmab56FY-6obMYFG>v-k;$Um4bj;z4HRc^`$ZBeyc2@L!BbI%Ol3H$h3Y=-B1-F&_$
+F^b1(K#1a4i
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.txt crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.txt
+index f440eb55..37066afd 100644
+--- crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.txt
++++ crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.txt
+@@ -32,7 +32,9 @@
+      (name = "CompetingMethodOwner", id = 17204595001485426719),
+      (name = "MissingInlineOwner", id = 17204595001485426720),
+      (name = "InvalidOwnerParameter", id = 17204595001485426722),
+-     (name = "IncompleteOwnerBinding", id = 17204595001485426723)]),
++     (name = "IncompleteOwnerBinding", id = 17204595001485426723),
++     (name = "RepeatedBrand", id = 17204595001485426724),
++     (name = "ScalarBrand", id = 17204595001485426725)]),
+   (id = 17204595001485426689, scopeId = 17204595001485426688,
+    interface = (methods = [
+      (name = "read", paramStructType = 17204595001485426690, resultStructType = 17204595001485426690)])),
+@@ -141,4 +143,15 @@
+      (name = "read", paramStructType = 17204595001485426712, resultStructType = 17204595001485426702,
+       paramBrand = (scopes = [
+         (scopeId = 17204595001485426712, bind = [(type = (anyPointer = (
+-          parameter = (scopeId = 17204595001485426723, parameterIndex = 0))))])]))]))])
++          parameter = (scopeId = 17204595001485426723, parameterIndex = 0))))])]))])),
++  (id = 17204595001485426724, scopeId = 17204595001485426688,
++   interface = (methods = [
++     (name = "read", paramStructType = 17204595001485426706, resultStructType = 17204595001485426702,
++      paramBrand = (scopes = [
++        (scopeId = 17204595001485426706, bind = [(unbound = void)]),
++        (scopeId = 17204595001485426706, bind = [(type = (text = void))])]))])),
++  (id = 17204595001485426725, scopeId = 17204595001485426688,
++   interface = (methods = [
++     (name = "read", paramStructType = 17204595001485426706, resultStructType = 17204595001485426702,
++      paramBrand = (scopes = [
++        (scopeId = 17204595001485426706, bind = [(type = (uint32 = void))])]))]))])
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-unbound-base.bin crates/cargo-census/tests/fixtures/capnp/rpc-unbound-base.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..a697b3930f051c387481ae37ac2a4c662019a97e
+GIT binary patch
+literal 4152
+zc-qBRO=uHA6rR~lnh2Ku5GnqHMykc6T3Vz<sfx8IXlqNodDte~8cCBho2ZB)dht?)
+zf*uNr^ic7jQWa?tPwK%-FM>x83L@&IdamM|-8b9GWY%m1>npRf^YXrL-n@Blc1j2#
+zH5x$)kOp{;>V(8Xgf!b4LMXJ38bUtX??Kx#%5d<<WdE~?g$CkJZUNbI=<h(^>%*QR
+ze-pm*`6vmM*vvv(gf;_%AJ9LBJ|yrwgmJep{siMX=rs?1P2y*q$Kd51w2$!qLE?W8
+z<8#9J1Q0V$-GiS<{CzAg(2fA^D~yK_?<MT_I@}+|w-I@CkN8}K$2_ziz-^%pJ|y|u
+zt(a%)w}p7R?d_LMg8z<`@^cvjo->sAmbuoEd#{!b&G_YKeqX49f9i^M^X{XiS-<@I
+zfPc6O{-ChGdddEl=I{%6KvI!ynv+YrrTE8S+zU420Y}ezw!isYB38@{XN#F+Y}l~O
+zc*4kKa)i{|ywt6awa|A7`Md`D79k&4eYOey)}sAjDl?ik3F$XddFIDpBAbID88D5c
+znfIE%i^Fhz)XqcQeyXBMNG;CKC2ZSM60v=z<gAe{GQLI$O{I7?dhA2M^~9OyB=ULq
+z&zI|>!WI1AA^9Ig|97GP)J4z|WDMiXWjo^95jT>`TLs0sHJ|IY%tSVm6!Ekwd>Bzd
+zAwQVEhtaP=<oC)0Oc(r4Q1?8d$aCDZ3TCqE{jquD9J~T~ru&SShrdp_#Is|m0(czl
+zH}b}qRoT9fH&SURrRacZ71IT)l6}Swh(P~mdm(NSdyT=ebDh`MB=iS`bxugJox&4S
+zu1lV0*P%bEz|Uj<6Y-jq-~9alF5wpu*G`?j2fw$vbguJ!>!hW1#&KK@AU+_R7d%f{
+z-yz|->_nbv#N!Uz%$t!%!}{TTs#}bCK9^1<QUx(<MZA2@v2l}7S0XRV=SCm*CXruL
+z@Hb<9i2S@>__*HZd~!Vn72iSjE6@0U?WdO?)yA#TzGm=<supLRHu5T5wRuqQ@x2hg
+z1}m8dt9{*?Xvujlei!<R1^e9EVEe1Napd<WE(WyALLKw_Etg4LcO~KHKEHp<!sEs7
+z|6InQ?GetwS@+Cx<dQId`MxYm#OBb*|B^t3`NMzdUnO4WcioN8D&qWK*nr=Oddv&2
+z`!5mlH4BfuxR<}+J)o7}8zZ1wr_is*J9$l@)V~(c#kKOfY6V57!k+#AG^DUU1&UFH
+z{Z-Ii)5`B1On*aL&TFo}4Z3NCJ=5P;*gpW>6UBO;f^JUX=R7E0D*Sv6x;M;T(*Fje
+Cn2huQ
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-unbound-base.capnp crates/cargo-census/tests/fixtures/capnp/rpc-unbound-base.capnp
+new file mode 100644
+index 00000000..4952c571
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-unbound-base.capnp
+@@ -0,0 +1,27 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xcd8cb54000000000;
++
++struct Single @0xcd8cb54000000001 (Value) {
++  value @0 :Value;
++}
++
++struct Pair @0xcd8cb54000000002 (First, Second) {
++  first @0 :First;
++  second @1 :Second;
++}
++
++struct Scope @0xcd8cb54000000003 (Value) {
++  struct Nested @0xcd8cb54000000004 {
++    value @0 :Value;
++  }
++}
++
++interface Reader @0xcd8cb54000000005 (Outer) {
++  omitted @0 () -> Single;
++  explicit @1 Single(AnyPointer) -> Pair(AnyPointer, Outer);
++  trailing @2 Pair(Outer, AnyPointer) -> ();
++  nested @3 () -> Scope.Nested;
++  shared @4 Scope.Nested -> Single(Pair(AnyPointer, Text));
++}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-unbound-changed.bin crates/cargo-census/tests/fixtures/capnp/rpc-unbound-changed.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..9472afa04670435044a27f666e729273c01e1b3f
+GIT binary patch
+literal 4208
+zc-qZZT}V_x6rP!TSGPhkS&@FAEWrxhN|aEFe#oStG?${F9&Wo=U0CmK`%@7_R8N8h
+zMn3oy5=Fg~5K{J#gijH^2)zV7Mo0wKV;FSqy=T_Bv-f)M7E(uM&YiR8d~@c^IWr?6
+zgj6wtq>^>e_bY^SRua-^NeH3PPE-)`#rh6enhnq@;LoIklf$zS5{yOxY!3K1@U8&*
+z6!ACUH=mD^N{7w_v;}BSVXzw76tqeKXA;H-gz+~RuLaIL@R@}F!;ArZe1i59zUL+U
+z&oI6sjL!jZ9dN}1pGf%K(7lCr3hWs03ux~}{C5@cwjhq;5ue-8O+z~kb{)WV=Ja1<
+z&iHWJ_H{OzYMGm_7yP%$iO=ae;M}4lFumN>_jqRU$fKb6rr-C<z#qHG?mu|8I1v=z
+zjQ_PV@I%7>Dvtei=I{)39|60a+4*@)ihn1JyFfmq+H#Yd`I*hcn+wLpbiqh8#|Jc{
+zUr$8iTE@trUA2Wzi*>Rdc!!YJwZL}@d12Ofi{N(^>c^5se@Z8$M@wc++*mxFfg$PD
+zwS=Bs#*YqeDXy1Vd8t^vTa@9<K|eT!EqzKNmhY5Y)=~u%v_`U~QhaMX_C+mvV$X91
+z@x0f;S8iK{ef-}c`QL#4??(S=(SkZGn=#&;wxeAu+Vv%~xxCA|S-^GY^my7xi1xHB
+z`!HICggi0*J&JzC5Pz9`urfy#^1wciY@CyNF0Uut=MncQmeI1y@0T@Cl;f>*-YEg&
+z=k2duNzwFRG7la%^k`XaFz2tI&uYmOlvqQro-3sCxuEkHR$%xvzWQ?gMyxf5O6~z(
+ze<Q#T3pT@2tjF+#mFt%0;T_<|UF=^W|AqEU%71=ee3$GO(5{u*yc6$dMY;!gKDJY5
+z9dbKPhtOUX&J&);CU2AMIW-~9INIZOTgaOchhg4xJhxYmel?Ry#*=w5i$#0+95lyu
+z#rK-?%rW!3CcryO#Ahz}jaV-tKCd4t+(+VkRJteq>PPm9r~m)zXSw@o;CWT9U2Xu*
+z!^Gd`LAA$yBHk7&5nnF~ng`<fF5c_ig}ilmZL<7j#W?c!R`Goc?S@dt{5{NR1lR3H
+z{2t)%b(wg)`2P!>E<xKXoP!g^GYj9%!u+NCvP2OJgOPtls?Yr4KlINJ*Zy58#%C3=
+z|BtN2dm@5);rCu9Lf)pK+lPA^f~nWA()Z;?kkz}$w}Pw*T7~NLa}UVcSZRIjH{bUz
+z`e#9Q-bFtF0>edr2xNCz>3hVKkFurw=JJOid*Y&R%AdRFzW~{k%X(jf?2U_`(;#@~
+M;^%vieQ=Tg20|8^%m4rY
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-unbound-changed.capnp crates/cargo-census/tests/fixtures/capnp/rpc-unbound-changed.capnp
+new file mode 100644
+index 00000000..067576d8
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-unbound-changed.capnp
+@@ -0,0 +1,27 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xcd8cb54000000000;
++
++struct Single @0xcd8cb54000000001 (Value) {
++  value @0 :Value;
++}
++
++struct Pair @0xcd8cb54000000002 (First, Second) {
++  first @0 :First;
++  second @1 :Second;
++}
++
++struct Scope @0xcd8cb54000000003 (Value, Spare) {
++  struct Nested @0xcd8cb54000000004 {
++    value @0 :Value;
++  }
++}
++
++interface Reader @0xcd8cb54000000005 (Outer) {
++  omitted @0 () -> Single;
++  explicit @1 Single(AnyPointer) -> Pair(Outer, AnyPointer);
++  trailing @2 Pair(Outer, AnyPointer) -> ();
++  nested @3 () -> Scope.Nested;
++  shared @4 Scope.Nested -> Single(Pair(AnyPointer, AnyPointer));
++}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-unbound-compatible.bin crates/cargo-census/tests/fixtures/capnp/rpc-unbound-compatible.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..92de72f820056791818cea294ac85e49cf4df026
+GIT binary patch
+literal 4472
+zc-qBST}Tx{6rS0=R}B*FqDWB`dC3yIh6tfAMrcA%nqtsH(0W~M;d<}&{!|Y|*h@Y5
+zV$?$tNDoB?i9JXf1wp-3NYP^y^b%naSkRkAXLir5v*WCHwX`F%XXo5=zBzN|oS7X7
+zAta^|q!8Hz&jFo~2gQWc*b+i0w3#A8KHKkMTQdr+2>uxDpBkC1BEjeyfPDde6L@<7
+zeTw+o@STrGNwG&~652epyU^JQZ3bGgfHMXC7NP$Q`end1AAC*1{{ihVynKKbp^m+X
+zKL`CYLjME+vzX{U_(a0*fX5?fJz%#5xQX_D#C|Ws^<j9`h@<<&=Nvqy5x)z#rFs2l
+zcrA)?s=v<05)E(XqJsYpdGR?71I`#Ff$3p=|LtcBt+#^W4+8$Z72sbV)~=3EEKCN)
+zKMwd;R)8NC)>rqeuQ!Ju!{ZZRw`op(_DJzR3jKDF{|q^D#@YI2(($@{vNx4a_SMBx
+zgJ~mY^(M?%+(;+W%&y$Vr*55W2Hq^>btUjxAum{cHwb>0qJFoP97vdibQ)HM;daMU
+zY3PzJ)95oZ%lpyHjotZDJ1=$nsfscorRWEz5?h~=3fp%|P8*3lLySn)RElrJXI(<B
+zC(by>5O3Le@W~7FC@C<HJ<>d)IFG$J59(S_k7XUkozrf#Yec(#E0fJB=C1{uf7Xnr
+zl6|5*U6FkWT7`vtVg4ROzq%2B`Mkg+a?cU!?pGA?j+oh;*|*B|vhiaaVqNl24;a5?
+z{dS5fmKwBj;CZyu$QXm!;C8u;VI`pCqFrV-pU7o{+9mBkd4>yO=ZR~D9fR<a^MTjp
+zDDVS997fRc2J#oU^UC$i^YRJsLyCA#qxLVf*Q9#j=g4=-eje=_sl(gw+}5S@f#+ot
+z_0}b~YehbU_90=P;rYzCDcPSyyAk9R_kCP@d;Z%IN5gvKc=8z{>dE^c>sJYNCfc*S
+zjs!Z*C^65b6IR^H`Hib7#;w8n5y$2A#QWs|{gCS|tT<2Eue=7<+D|_}A_2ZzgRCpp
+zPU0rE+I-O0C?B$?jEu^!e?8vc=6AWz`6!-#>zT(J1IAZ8uf+4OBcHQ(-mSL3nwtmw
+zJCc(D?Silm@$Y<2qd4zE#MhJGLuBId;`bm<L(ujK`}m~0=Q?y=7=P)yEK-Gyp^^VZ
+zp#tNVtkS<ixX$mo8=notxgS^JIah&sQRp5(guESxM=P%BZ+H)BOTU}L?EVO?DCG5L
+z2gr6Q^lLTe{{(W~)PtZ&fy3@IJqmqxFCI|nUj*4DZRz*bWp*F)(I3+m^PbD^fb6~k
+nX98r?3LK{YRDtsxWG@wQcm=Z8ig~>O!8-;1dysu(`jY$)>A|vV
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-unbound-compatible.capnp crates/cargo-census/tests/fixtures/capnp/rpc-unbound-compatible.capnp
+new file mode 100644
+index 00000000..018df733
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-unbound-compatible.capnp
+@@ -0,0 +1,27 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xcd8cb54000000000;
++
++struct Single @0xcd8cb54000000001 (Value) {
++  value @0 :Value;
++}
++
++struct Pair @0xcd8cb54000000002 (First, Second) {
++  first @0 :First;
++  second @1 :Second;
++}
++
++struct Scope @0xcd8cb54000000003 (Value) {
++  struct Nested @0xcd8cb54000000004 {
++    value @0 :Value;
++  }
++}
++
++interface Reader @0xcd8cb54000000005 (Outer) {
++  omitted @0 () -> Single(AnyPointer);
++  explicit @1 Single -> Pair(AnyPointer, Outer);
++  trailing @2 Pair(Outer, AnyPointer) -> ();
++  nested @3 () -> Scope(AnyPointer).Nested;
++  shared @4 Scope(AnyPointer).Nested -> Single(Pair(AnyPointer, Text));
++}
+diff --git crates/raf-census/src/capnp_history/compare.rs crates/raf-census/src/capnp_history/compare.rs
+index c0ee3a79..bf21d8d1 100644
+--- crates/raf-census/src/capnp_history/compare.rs
++++ crates/raf-census/src/capnp_history/compare.rs
+@@ -93,7 +93,7 @@ pub enum ChangeKind {
+     },
+     /// The count of a type's own parameters changed.
+     ChangedParameters,
+-    /// The arity of a lexical parameter scope available to an RPC interface changed.
++    /// The count of parameters in a scope enclosing an RPC interface or named endpoint changed.
+     ChangedEnclosingParameters {
+         /// ID of the enclosing declaration.
+         scope: TypeId,
+@@ -239,6 +239,12 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
+                 if before.parameters != after.parameters {
+                     emit(None, ChangeKind::ChangedParameters)?;
+                 }
++                if let (Some(previous), Some(current)) = (
++                    base.named_endpoint_parameters.get(&node),
++                    current.named_endpoint_parameters.get(&node),
++                ) {
++                    enclosing_parameters(previous, current, &mut emit)?;
++                }
+                 structure(before, after, false, &mut emit)
+             }
+             (Node::Enum(before), Node::Enum(after)) => {
+@@ -465,16 +471,11 @@ fn interface(
+     if before.parameters != after.parameters {
+         emit(None, ChangeKind::ChangedParameters)?;
+     }
+-    for (&scope, &count) in &before.enclosing_parameters {
+-        if after.enclosing_parameters.get(&scope) != Some(&count) {
+-            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
+-        }
+-    }
+-    for &scope in after.enclosing_parameters.keys() {
+-        if !before.enclosing_parameters.contains_key(&scope) {
+-            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
+-        }
+-    }
++    enclosing_parameters(
++        &before.enclosing_parameters,
++        &after.enclosing_parameters,
++        emit,
++    )?;
+     for (&superclass, previous) in &before.superclasses {
+         match after.superclasses.get(&superclass) {
+             None => emit(None, ChangeKind::RemovedSuperclass { superclass })?,
+@@ -493,6 +494,24 @@ fn interface(
+     )
+ }
+ 
++fn enclosing_parameters(
++    before: &BTreeMap<TypeId, u32>,
++    after: &BTreeMap<TypeId, u32>,
++    emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
++) -> Result<(), Error> {
++    for (&scope, &count) in before {
++        if after.get(&scope) != Some(&count) {
++            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
++        }
++    }
++    for &scope in after.keys() {
++        if !before.contains_key(&scope) {
++            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
++        }
++    }
++    Ok(())
++}
++
+ fn method(
+     old: &Method,
+     new: &Method,
+diff --git crates/raf-census/src/capnp_history/descriptor.rs crates/raf-census/src/capnp_history/descriptor.rs
+index e68921f5..79f8ab93 100644
+--- crates/raf-census/src/capnp_history/descriptor.rs
++++ crates/raf-census/src/capnp_history/descriptor.rs
+@@ -47,6 +47,7 @@ pub(super) struct Schema {
+     pub(super) nodes: BTreeMap<TypeId, Node>,
+     pub(super) files: BTreeMap<TypeId, RelPath>,
+     pub(super) declarations: BTreeMap<TypeId, Declaration>,
++    pub(super) named_endpoint_parameters: BTreeMap<TypeId, BTreeMap<TypeId, u32>>,
+ }
+ 
+ use declarations::AnnotationTargets;
+@@ -415,14 +416,18 @@ impl<'a> Nodes<'a> {
+                 self.project_node(id, &mut needed, annotations, scopes, &mut rpc)?,
+             );
+         }
+-        if let Some(projection) = rpc {
++        let named_endpoint_parameters = if let Some(projection) = rpc {
+             projection.check_inheritance(&nodes)?;
+-        }
++            projection.named_endpoint_parameters()
++        } else {
++            BTreeMap::new()
++        };
+         Ok(Schema {
+             roots: present,
+             nodes,
+             files: BTreeMap::new(),
+             declarations: BTreeMap::new(),
++            named_endpoint_parameters,
+         })
+     }
+ 
+diff --git crates/raf-census/src/capnp_history/descriptor/rpc.rs crates/raf-census/src/capnp_history/descriptor/rpc.rs
+index 46fa0b58..bde00652 100644
+--- crates/raf-census/src/capnp_history/descriptor/rpc.rs
++++ crates/raf-census/src/capnp_history/descriptor/rpc.rs
+@@ -26,6 +26,12 @@ enum ScopePolicy {
+     LexicalGenerics,
+ }
+ 
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum BrandCoverage {
++    Complete,
++    AllowsUnbound,
++}
++
+ #[derive(Clone, Copy)]
+ struct MethodOwner<'a> {
+     id: TypeId,
+@@ -36,7 +42,7 @@ struct MethodOwner<'a> {
+ pub(super) struct Projection {
+     inline_owners: BTreeMap<TypeId, u8>,
+     declared_inline: Option<BTreeSet<TypeId>>,
+-    named: BTreeSet<TypeId>,
++    named: BTreeMap<TypeId, BTreeMap<TypeId, u32>>,
+     owners: Option<Owners>,
+     proved_declarations: BTreeSet<(TypeId, ScopePolicy)>,
+ }
+@@ -67,7 +73,7 @@ impl Projection {
+         Ok(Self {
+             inline_owners: counts,
+             declared_inline: None,
+-            named: BTreeSet::new(),
++            named: BTreeMap::new(),
+             owners: None,
+             proved_declarations: BTreeSet::new(),
+         })
+@@ -84,6 +90,10 @@ impl Projection {
+         Ok(())
+     }
+ 
++    pub(super) fn named_endpoint_parameters(self) -> BTreeMap<TypeId, BTreeMap<TypeId, u32>> {
++        self.named
++    }
++
+     pub(super) fn interface<'a>(
+         &mut self,
+         nodes: &Nodes<'a>,
+@@ -159,7 +169,7 @@ impl Projection {
+                 let brand =
+                     shape::read_brand(reader, nodes, (TypeScope::Lexical(derived), id), needed)?;
+                 if u32::try_from(brand.len()) != Ok(count)
+-                    || !complete_brand(nodes, id, &brand, parameter_scopes)?
++                    || !check_brand(nodes, id, &brand, parameter_scopes, BrandCoverage::Complete)?
+                 {
+                     return Err(layout(format!(
+                         "RPC interface {derived} superclass {id} requires a complete brand"
+@@ -269,66 +279,52 @@ impl Projection {
+                 parameter_scopes,
+                 implicit_arity: implicit.len(),
+             };
+-            let mut endpoint = |target,
+-                                brand: brand::Reader<'_>,
+-                                role|
+-             -> Result<Endpoint, Error> {
+-                let reader = nodes.node(target)?;
+-                let error =
+-                    |reason: &str| layout(format!("{} {role} node {target} {reason}", location()));
+-                let node::Struct(data) = reader.which()? else {
+-                    return Err(error("must be a nongroup struct"));
+-                };
+-                if data.get_is_group() {
+-                    return Err(error("must be a nongroup struct"));
+-                }
+-                if reader.get_scope_id() == 0 {
+-                    self.inline(
+-                        reader,
+-                        data,
+-                        (owner.parameter_scopes, brand),
+-                        implicit,
+-                        error,
+-                    )?;
+-                    if self.has_declaring_scope(nodes, target)? {
+-                        return Err(error(
+-                            "has a lexical declaration claim despite its zero scope",
+-                        ));
++            let mut endpoint =
++                |target, brand: brand::Reader<'_>, role| -> Result<Endpoint, Error> {
++                    let reader = nodes.node(target)?;
++                    let error = |reason: &str| {
++                        layout(format!("{} {role} node {target} {reason}", location()))
++                    };
++                    let node::Struct(data) = reader.which()? else {
++                        return Err(error("must be a nongroup struct"));
++                    };
++                    if data.get_is_group() {
++                        return Err(error("must be a nongroup struct"));
+                     }
+-                    let structure = nodes.structure(
+-                        target,
+-                        data,
+-                        needed,
+-                        annotations,
+-                        scopes,
+-                        (!owner.parameter_scopes.is_empty() || owner.implicit_arity != 0)
+-                            .then_some(TypeScope::Inline {
+-                                owner: owner.id,
+-                                wrapper: target,
+-                                arity: owner.implicit_arity,
+-                            }),
+-                    )?;
+-                    return Ok(Endpoint::Inline {
+-                        id: target,
+-                        structure,
+-                    });
+-                }
+-                let endpoint = if brand.get_scopes()?.is_empty() {
+-                    if !nongeneric(reader)?
+-                        || (!self.named.contains(&target)
+-                            && !nodes.declaration_chain(target, scopes, nongeneric)?)
+-                    {
+-                        return Err(error("requires a reciprocal nongeneric declaration chain"));
++                    if reader.get_scope_id() == 0 {
++                        self.inline(
++                            reader,
++                            data,
++                            (owner.parameter_scopes, brand),
++                            implicit,
++                            error,
++                        )?;
++                        if self.has_declaring_scope(nodes, target)? {
++                            return Err(error(
++                                "has a lexical declaration claim despite its zero scope",
++                            ));
++                        }
++                        let structure = nodes.structure(
++                            target,
++                            data,
++                            needed,
++                            annotations,
++                            scopes,
++                            (!owner.parameter_scopes.is_empty() || owner.implicit_arity != 0)
++                                .then_some(TypeScope::Inline {
++                                    owner: owner.id,
++                                    wrapper: target,
++                                    arity: owner.implicit_arity,
++                                }),
++                        )?;
++                        return Ok(Endpoint::Inline {
++                            id: target,
++                            structure,
++                        });
+                     }
+-                    Type::Named(Kind::Struct, target, BTreeMap::new())
+-                } else {
+-                    self.branded_endpoint(nodes, (owner, reader), brand, needed, scopes, error)?
++                    self.named_endpoint(nodes, (owner, reader), brand, needed, scopes, error)
++                        .map(Endpoint::Named)
+                 };
+-                if self.named.insert(target) {
+-                    needed.insert(target);
+-                }
+-                Ok(Endpoint::Named(endpoint))
+-            };
+             let params = endpoint(
+                 TypeId(method.get_param_struct_type()),
+                 method.get_param_brand()?,
+@@ -349,6 +345,50 @@ impl Projection {
+         Ok(methods)
+     }
+ 
++    fn named_endpoint(
++        &mut self,
++        nodes: &Nodes<'_>,
++        (owner, reader): (MethodOwner<'_>, node::Reader<'_>),
++        brand: brand::Reader<'_>,
++        needed: &mut BTreeSet<TypeId>,
++        scopes: &mut DeclarationScopes,
++        error: impl Fn(&str) -> Error,
++    ) -> Result<Type, Error> {
++        let id = TypeId(reader.get_id());
++        let endpoint = if !reader.get_is_generic() && brand.get_scopes()?.is_empty() {
++            if !nongeneric(reader)?
++                || (!self.named.contains_key(&id)
++                    && !nodes.declaration_chain(id, scopes, nongeneric)?)
++            {
++                return Err(error("requires a reciprocal nongeneric declaration chain"));
++            }
++            Type::Named(Kind::Struct, id, Brand::new())
++        } else {
++            self.branded_endpoint(nodes, (owner, reader), brand, needed, scopes, error)?
++        };
++        if let Entry::Vacant(entry) = self.named.entry(id) {
++            let mut enclosing = BTreeMap::new();
++            // An unbound enclosing scope need not have any row in the brand.
++            if reader.get_is_generic()
++                && !nodes.declaration_chain(id, scopes, |declaration| {
++                    let scope = TypeId(declaration.get_id());
++                    let count = declaration.get_parameters()?.len();
++                    if scope != id && count != 0 {
++                        enclosing.insert(scope, count);
++                    }
++                    Ok(true)
++                })?
++            {
++                return Err(layout(format!(
++                    "missing declaration chain for RPC endpoint {id}"
++                )));
++            }
++            entry.insert(enclosing);
++            needed.insert(id);
++        }
++        Ok(endpoint)
++    }
++
+     fn branded_endpoint(
+         &mut self,
+         nodes: &Nodes<'_>,
+@@ -376,7 +416,6 @@ impl Projection {
+                 "requires unique reciprocal declarations and consistent generic flags in the endpoint's scopes",
+             ));
+         }
+-        let scope_count = brand.get_scopes()?.len();
+         let brand = shape::read_brand(
+             brand,
+             nodes,
+@@ -389,18 +428,14 @@ impl Projection {
+             ),
+             needed,
+         )?;
+-        // Canonicalization drops empty scopes, which method brands cannot carry.
+-        if brand.is_empty()
+-            || u32::try_from(brand.len()) != Ok(scope_count)
+-            || !complete_brand(nodes, id, &brand, owner.parameter_scopes)?
+-        {
+-            return Err(error(
+-                if owner.parameter_scopes.is_empty() && owner.implicit_arity == 0 {
+-                    "requires a complete concrete endpoint brand"
+-                } else {
+-                    "requires a complete endpoint brand in the method's parameter scopes"
+-                },
+-            ));
++        if !check_brand(
++            nodes,
++            id,
++            &brand,
++            owner.parameter_scopes,
++            BrandCoverage::AllowsUnbound,
++        )? {
++            return Err(error("has a brand outside the method's parameter scopes"));
+         }
+         Ok(Type::Named(Kind::Struct, id, brand))
+     }
+@@ -506,11 +541,12 @@ fn nongeneric(reader: node::Reader<'_>) -> Result<bool, Error> {
+     Ok(!reader.get_is_generic() && reader.get_parameters()?.is_empty())
+ }
+ 
+-fn complete_brand(
++fn check_brand(
+     nodes: &Nodes<'_>,
+     mut id: TypeId,
+     brand: &Brand,
+     parameter_scopes: &BTreeMap<TypeId, u32>,
++    coverage: BrandCoverage,
+ ) -> Result<bool, Error> {
+     for _ in 0..=super::MAX_DEPTH {
+         let node = nodes.node(id)?;
+@@ -519,13 +555,17 @@ fn complete_brand(
+             match brand.get(&id) {
+                 Some(Arguments::Inherited(arity))
+                     if parameter_scopes.get(&id) == Some(arity) && *arity == count => {}
+-                Some(Arguments::Bound(values)) if u32::try_from(values.len()) == Ok(count) => {
++                Some(Arguments::Bound(values))
++                    if coverage == BrandCoverage::AllowsUnbound
++                        || u32::try_from(values.len()) == Ok(count) =>
++                {
+                     for value in values {
+-                        if !complete_type(nodes, value, parameter_scopes)? {
++                        if !check_branded_type(nodes, value, parameter_scopes, coverage)? {
+                             return Ok(false);
+                         }
+                     }
+                 }
++                None if coverage == BrandCoverage::AllowsUnbound => {}
+                 _ => return Ok(false),
+             }
+         }
+@@ -537,15 +577,16 @@ fn complete_brand(
+     Ok(false)
+ }
+ 
+-fn complete_type(
++fn check_branded_type(
+     nodes: &Nodes<'_>,
+     ty: &Type,
+     parameter_scopes: &BTreeMap<TypeId, u32>,
++    coverage: BrandCoverage,
+ ) -> Result<bool, Error> {
+     match ty {
+-        Type::Named(_, id, brand) => complete_brand(nodes, *id, brand, parameter_scopes),
+-        Type::List(element) => complete_type(nodes, element, parameter_scopes),
+-        Type::Pointer(Pointer::Any) => Ok(false),
++        Type::Named(_, id, brand) => check_brand(nodes, *id, brand, parameter_scopes, coverage),
++        Type::List(element) => check_branded_type(nodes, element, parameter_scopes, coverage),
++        Type::Pointer(Pointer::Any) => Ok(coverage == BrandCoverage::AllowsUnbound),
+         Type::Pointer(Pointer::Parameter(scope, _)) => Ok(parameter_scopes.contains_key(scope)),
+         Type::Atom(_) | Type::Pointer(_) => Ok(true),
+     }
+diff --git crates/raf-census/src/capnp_history/shape.rs crates/raf-census/src/capnp_history/shape.rs
+index 1251f0b4..71e7b960 100644
+--- crates/raf-census/src/capnp_history/shape.rs
++++ crates/raf-census/src/capnp_history/shape.rs
+@@ -259,6 +259,11 @@ pub(super) fn read_brand(
+             )));
+         }
+         let count = nodes.parameters(id)?;
++        if count == 0 && matches!(context, TypeScope::MethodBrand { .. }) {
++            return Err(layout(format!(
++                "brand scope {id} of {target} declares no parameters"
++            )));
++        }
+         let arguments = match scope.which()? {
+             brand::scope::Inherit(()) => {
+                 if !nodes.contains_scope(context.owner(), id)? {
+diff --git crates/raf-okf/src/profile/header.rs crates/raf-okf/src/profile/header.rs
+index 7c4aabc3..452cb04c 100644
+--- crates/raf-okf/src/profile/header.rs
++++ crates/raf-okf/src/profile/header.rs
+@@ -18,12 +18,15 @@ use purrdf_shapes::{
+     term::{NamedNode, Term},
+ };
+ 
+-use super::{BINDING_KEYS, Check, DocType, Map, Rule};
++use super::{BINDING_KEYS, Check, DocType, Entry, ItemValue, Map, Rule};
++use crate::frontmatter::value::List;
+ 
+ const KEY: &str = "urn:raf:okf:key:";
+ const FOCUS: &str = "urn:raf:okf:header:";
+ const SHAPE: &str = "urn:raf:okf:header-shape:";
+ const BINDINGS_SHAPE: &str = "Capability-bindings";
++const ITEM_SHAPE: &str = "Change-item";
++const ITEM_MEMBER: &str = "urn:raf:okf:change-item-member";
+ const RDF_TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+ const XSD_BOOLEAN: &str = "http://www.w3.org/2001/XMLSchema#boolean";
+ const XSD_INTEGER: &str = "http://www.w3.org/2001/XMLSchema#integer";
+@@ -35,7 +38,7 @@ const MIN_COUNT: &str = "http://www.w3.org/ns/shacl#MinCountConstraintComponent"
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ #[non_exhaustive]
+ pub enum HeaderShapeError {
+-    /// The projected key bytes and their line separators exceed the document bound.
++    /// The projected key and list marker bytes exceed the document bound.
+     KeyBytes,
+     /// Native RDF graph storage refused schema or header construction.
+     Storage(StorageError),
+@@ -52,7 +55,7 @@ impl fmt::Display for HeaderShapeError {
+         match self {
+             Self::KeyBytes => write!(
+                 f,
+-                "authored header keys exceed the {} byte authoring bound",
++                "projected frontmatter exceeds the {} byte authoring bound",
+                 crate::MAX_TEXT_BYTES
+             ),
+             Self::Storage(source) => write!(
+@@ -99,12 +102,22 @@ impl From<RdfDiagnostic> for HeaderShapeError {
+     }
+ }
+ 
+-/// Reports top-level key findings and returns the binding map's key-set verdict.
+-pub(super) fn check(
++pub(super) struct KeyVerdicts<'a> {
++    pub(super) bindings_exact: bool,
++    pub(super) items: Vec<ItemKeys<'a>>,
++}
++
++pub(super) struct ItemKeys<'a> {
++    pub(super) claim: Option<&'a Entry>,
++    pub(super) unknown: Vec<&'a str>,
++}
++
++/// Reports top-level findings and returns the nested key verdicts in author order.
++pub(super) fn check<'a>(
+     check: &mut Check<'_>,
+-    map: &Map,
++    map: &'a Map,
+     doc_type: DocType,
+-) -> Result<bool, HeaderShapeError> {
++) -> Result<KeyVerdicts<'a>, HeaderShapeError> {
+     static SCHEMA: OnceLock<PreparedShapes> = OnceLock::new();
+     let focus = format!("{FOCUS}{}", doc_type.name());
+     let bindings = if doc_type == DocType::Capability {
+@@ -113,10 +126,13 @@ pub(super) fn check(
+         None
+     };
+     let binding_focus = bindings.map(|_| format!("{FOCUS}{BINDINGS_SHAPE}"));
+-    let data = header_graph([
+-        Some((focus.as_str(), map)),
+-        binding_focus.as_deref().zip(bindings),
+-    ])?;
++    let (data, focuses) = header_graph(
++        [
++            Some((focus.as_str(), map)),
++            binding_focus.as_deref().zip(bindings),
++        ],
++        item_maps(map, doc_type),
++    )?;
+     let binding = if let Some(schema) = SCHEMA.get() {
+         schema.bind_shared_dataset(data)?
+     } else {
+@@ -126,16 +142,8 @@ pub(super) fn check(
+         SCHEMA.get_or_init(|| schema);
+         binding
+     };
+-    let focus = NamedNode::from(focus.as_str()).into_term();
+-    let both;
+-    let focuses = if let Some(name) = binding_focus {
+-        both = [focus, NamedNode::from(name.as_str()).into_term()];
+-        both.as_slice()
+-    } else {
+-        std::slice::from_ref(&focus)
+-    };
+-    let report = binding.validate_focus_nodes(focuses)?;
+-    report_keys(&report, focuses, map, doc_type, check)
++    let report = binding.validate_focus_nodes(&focuses)?;
++    report_keys(&report, &focuses, map, doc_type, check)
+ }
+ 
+ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
+@@ -144,14 +152,22 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
+         add_shape(
+             &mut graph,
+             doc_type.name(),
++            ("targetNode", &format!("{FOCUS}{}", doc_type.name())),
+             doc_type.keys().iter().map(|spec| (spec.key, spec.required)),
+         )?;
+     }
+     add_shape(
+         &mut graph,
+         BINDINGS_SHAPE,
++        ("targetNode", &format!("{FOCUS}{BINDINGS_SHAPE}")),
+         BINDING_KEYS.into_iter().map(|key| (key, true)),
+     )?;
++    add_shape(
++        &mut graph,
++        ITEM_SHAPE,
++        ("targetObjectsOf", ITEM_MEMBER),
++        [("claim", true), ("outcome", false), ("reason", false)].into_iter(),
++    )?;
+     let shapes = shapes::from_dataset(&graph.freeze()?)?;
+     Ok(PreparedShapes::new(Arc::new(shapes)))
+ }
+@@ -159,11 +175,12 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
+ fn add_shape(
+     graph: &mut RdfDatasetBuilder,
+     name: &str,
++    (target, focus): (&str, &str),
+     keys: impl Iterator<Item = (&'static str, bool)>,
+ ) -> Result<(), HeaderShapeError> {
+     let rdf_type = graph.intern_iri(RDF_TYPE)?;
+     let node_shape = graph.intern_iri(&format!("{SH}NodeShape"))?;
+-    let target = graph.intern_iri(&format!("{SH}targetNode"))?;
++    let target = graph.intern_iri(&format!("{SH}{target}"))?;
+     let closed = graph.intern_iri(&format!("{SH}closed"))?;
+     let property = graph.intern_iri(&format!("{SH}property"))?;
+     let path = graph.intern_iri(&format!("{SH}path"))?;
+@@ -171,7 +188,7 @@ fn add_shape(
+     let yes = graph.intern_literal(RdfLiteral::typed("true", XSD_BOOLEAN))?;
+     let one = graph.intern_literal(RdfLiteral::typed("1", XSD_INTEGER))?;
+     let shape = graph.intern_iri(&format!("{SHAPE}{name}"))?;
+-    let focus = graph.intern_iri(&format!("{FOCUS}{name}"))?;
++    let focus = graph.intern_iri(focus)?;
+     graph.push_quad(shape, rdf_type, node_shape, None)?;
+     graph.push_quad(shape, target, focus, None)?;
+     graph.push_quad(shape, closed, yes, None)?;
+@@ -187,12 +204,40 @@ fn add_shape(
+     Ok(())
+ }
+ 
+-fn header_graph(maps: [Option<(&str, &Map)>; 2]) -> Result<Arc<RdfDataset>, HeaderShapeError> {
++fn item_maps(map: &Map, doc_type: DocType) -> impl Iterator<Item = &Map> + Clone {
++    let list = if doc_type == DocType::Change {
++        map.get("items").and_then(|entry| entry.value().as_list())
++    } else {
++        None
++    };
++    list.into_iter()
++        .flat_map(List::items)
++        .map_while(|item| match item.value() {
++            ItemValue::Map(map) => Some(map),
++            ItemValue::Scalar(_) => None,
++        })
++}
++
++fn header_graph<'a>(
++    maps: [Option<(&str, &'a Map)>; 2],
++    items: impl Iterator<Item = &'a Map> + Clone,
++) -> Result<(Arc<RdfDataset>, Vec<Term>), HeaderShapeError> {
+     // Both document constructors include at least the key, colon, and newline
+     // in the authoring byte limit. Each admitted key gives one default-graph
+     // triple. The separate report profile would require a report root.
+-    let mut available = crate::MAX_TEXT_BYTES;
+-    for entry in maps.iter().flatten().flat_map(|(_, map)| map.entries()) {
++    let item_count = items.clone().count();
++    // Each item also supplies the dash and space of its list marker.
++    let mut available = item_count
++        .checked_mul(2)
++        .and_then(|markers| crate::MAX_TEXT_BYTES.checked_sub(markers))
++        .ok_or(HeaderShapeError::KeyBytes)?;
++    let maps = maps.into_iter().flatten();
++    for entry in maps
++        .clone()
++        .map(|(_, map)| map)
++        .chain(items.clone())
++        .flat_map(Map::entries)
++    {
+         available = available
+             .checked_sub(2)
+             .and_then(|remaining| remaining.checked_sub(entry.key().len()))
+@@ -200,23 +245,44 @@ fn header_graph(maps: [Option<(&str, &Map)>; 2]) -> Result<Arc<RdfDataset>, Head
+     }
+     let mut graph = RdfDatasetBuilder::new();
+     let present = graph.intern_iri("urn:raf:okf:key-present")?;
+-    for (focus, map) in maps.into_iter().flatten() {
+-        let focus = graph.intern_iri(focus)?;
++    let mut focuses = Vec::with_capacity(maps.clone().count() + item_count);
++    let mut project = |graph: &mut RdfDatasetBuilder, name: &str, map: &Map| {
++        let focus = graph.intern_iri(name)?;
++        focuses.push(NamedNode::from(name).into_term());
+         for entry in map.entries() {
+             let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
+             graph.push_quad(focus, predicate, present, None)?;
+         }
++        Ok::<_, HeaderShapeError>(focus)
++    };
++    for (focus, map) in maps {
++        project(&mut graph, focus, map)?;
+     }
+-    Ok(graph.freeze()?)
++    if item_count != 0 {
++        let anchor = graph.intern_iri("urn:raf:okf:change-items")?;
++        let member = graph.intern_iri(ITEM_MEMBER)?;
++        for (index, map) in items.enumerate() {
++            let focus = project(&mut graph, &format!("{FOCUS}{ITEM_SHAPE}:{index}"), map)?;
++            graph.push_quad(anchor, member, focus, None)?;
++        }
++    }
++    Ok((graph.freeze()?, focuses))
+ }
+ 
+-fn report_keys(
++fn focus_iri(term: &Term) -> Result<&str, HeaderShapeError> {
++    match term {
++        Term::NamedNode(name) => Ok(name.as_str()),
++        _ => Err(HeaderShapeError::UnexpectedReport),
++    }
++}
++
++fn report_keys<'a>(
+     report: &ValidationReport,
+     focuses: &[Term],
+-    map: &Map,
++    map: &'a Map,
+     doc_type: DocType,
+     check: &mut Check<'_>,
+-) -> Result<bool, HeaderShapeError> {
++) -> Result<KeyVerdicts<'a>, HeaderShapeError> {
+     if report.conforms != report.results.is_empty() || !report.diagnostics.is_empty() {
+         return Err(HeaderShapeError::UnexpectedReport);
+     }
+@@ -224,9 +290,15 @@ fn report_keys(
+     let mut memory = Memory::new(&mut resident);
+     let mut unknown = OrderedTable::default();
+     let mut missing = OrderedTable::default();
+-    let (focus, nested) = focuses
++    let (header, nested) = focuses
+         .split_first()
+         .ok_or(HeaderShapeError::UnexpectedReport)?;
++    let header = focus_iri(header)?;
++    let (bindings, item_focuses) = if doc_type == DocType::Capability {
++        (nested.first().map(focus_iri).transpose()?, &[][..])
++    } else {
++        (None, nested)
++    };
+     let mut bindings_exact = true;
+     for result in &report.results {
+         let Some(Term::NamedNode(path)) = &result.result_path else {
+@@ -241,18 +313,19 @@ fn report_keys(
+             MIN_COUNT => &mut missing,
+             _ => return Err(HeaderShapeError::UnexpectedReport),
+         };
+-        if nested.first() == Some(&result.focus_node) {
++        let focus = focus_iri(&result.focus_node)?;
++        if bindings == Some(focus) {
+             bindings_exact = false;
+             continue;
+         }
+-        if &result.focus_node != focus || keys.insert(key, (), &mut memory)?.is_some() {
++        if keys.insert((focus, key), (), &mut memory)?.is_some() {
+             return Err(HeaderShapeError::UnexpectedReport);
+         }
+     }
+     // Report unknown keys in author order, then missing keys in schema order.
+     for entry in map.entries() {
+         let key = entry.key();
+-        if unknown.remove(&key).is_some() {
++        if unknown.remove(&(header, key)).is_some() {
+             let rule = if key == "resource" {
+                 Rule::ResourceKey { doc_type }
+             } else {
+@@ -262,7 +335,7 @@ fn report_keys(
+         }
+     }
+     for spec in doc_type.keys() {
+-        if spec.required && missing.remove(&spec.key).is_some() {
++        if spec.required && missing.remove(&(header, spec.key)).is_some() {
+             check.key(
+                 spec.key,
+                 Rule::MissingKey {
+@@ -271,8 +344,26 @@ fn report_keys(
+             );
+         }
+     }
++    let mut items = Vec::with_capacity(item_focuses.len());
++    for (map, focus) in item_maps(map, doc_type).zip(item_focuses) {
++        let focus = focus_iri(focus)?;
++        let claim = map.get("claim");
++        if missing.remove(&(focus, "claim")).is_some() != claim.is_none() {
++            return Err(HeaderShapeError::UnexpectedReport);
++        }
++        let unknown = map
++            .entries()
++            .iter()
++            .map(Entry::key)
++            .filter(|key| unknown.remove(&(focus, *key)).is_some())
++            .collect();
++        items.push(ItemKeys { claim, unknown });
++    }
+     if !unknown.is_empty() || !missing.is_empty() {
+         return Err(HeaderShapeError::UnexpectedReport);
+     }
+-    Ok(bindings_exact)
++    Ok(KeyVerdicts {
++        bindings_exact,
++        items,
++    })
+ }
+diff --git crates/raf-okf/src/profile/mod.rs crates/raf-okf/src/profile/mod.rs
+index c8c3e4d7..254542fc 100644
+--- crates/raf-okf/src/profile/mod.rs
++++ crates/raf-okf/src/profile/mod.rs
+@@ -258,15 +258,15 @@ impl Profile {
+             check.key("type", Rule::WrongDirectory { declared: doc_type });
+         }
+         let prior_findings = check.out.len();
+-        let bindings_exact = match header::check(&mut check, map, doc_type) {
+-            Ok(exact) => exact,
++        let keys = match header::check(&mut check, map, doc_type) {
++            Ok(keys) => keys,
+             Err(source) => {
+                 check.out.truncate(prior_findings);
+                 check.add(Location::Document, Rule::HeaderShape { source });
+                 return Err(check.out);
+             }
+         };
+-        let collected = check_values(&mut check, map, doc_type, file_stem(path), bindings_exact);
++        let collected = check_values(&mut check, map, doc_type, file_stem(path), &keys);
+         check_frontmatter_placeholders(&mut check, map);
+         let body = document.body();
+         body_rules::check_sections(doc_type, body, path, &mut check.out);
+@@ -286,7 +286,7 @@ fn check_values(
+     map: &Map,
+     doc_type: DocType,
+     stem: &str,
+-    bindings_exact: bool,
++    keys: &header::KeyVerdicts<'_>,
+ ) -> Collected {
+     let mut found = Collected::default();
+     for spec in doc_type.keys() {
+@@ -316,7 +316,7 @@ fn check_values(
+                 found.review_required = Slot::from_check(review::check_required(check, entry));
+             }
+             ValueKind::Bindings => {
+-                found.bindings = check_bindings(check, entry, found.state, bindings_exact);
++                found.bindings = check_bindings(check, entry, found.state, keys.bindings_exact);
+             }
+             ValueKind::CapabilityIds => {
+                 let ids = check_capability_ids(check, entry, key == "changes");
+@@ -341,7 +341,7 @@ fn check_values(
+                 found.affects = check_affects(check, entry, &found.change_ids);
+             }
+             ValueKind::ContractEffect => found.effect = check_effect(check, entry),
+-            ValueKind::Items => found.items = check_items(check, entry),
++            ValueKind::Items => found.items = check_items(check, entry, &keys.items),
+             ValueKind::Subject => {
+                 found.subject = records::check_subject(check, entry, doc_type);
+             }
+@@ -789,7 +789,11 @@ fn check_effect(check: &mut Check<'_>, entry: &Entry) -> Option<ContractEffect>
+     effect
+ }
+ 
+-fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>> {
++fn check_items(
++    check: &mut Check<'_>,
++    entry: &Entry,
++    keys: &[header::ItemKeys<'_>],
++) -> Option<Vec<ChangeItem>> {
+     let shape = Rule::WrongShape {
+         expected: "a list of maps with `claim` and optional `outcome`",
+     };
+@@ -799,29 +803,32 @@ fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>>
+     };
+     let mut items = Vec::new();
+     let mut valid = true;
++    let mut keys = keys.iter();
+     for item in list.items() {
+         let ItemValue::Map(map) = item.value() else {
+             check.key("items", shape);
+             return None;
+         };
+-        let mut claim = None;
+-        for field in map.entries() {
+-            if !matches!(field.key(), "claim" | "outcome" | "reason") {
+-                check.key(
+-                    "items",
+-                    Rule::ItemUnknownKey {
+-                        key: field.key().to_string(),
+-                    },
+-                );
+-                valid = false;
+-            }
++        let keys = keys
++            .next()
++            .expect("INVARIANT: header validation covers every map before the first non-map item");
++        for key in &keys.unknown {
++            check.key(
++                "items",
++                Rule::ItemUnknownKey {
++                    key: (*key).to_owned(),
++                },
++            );
++            valid = false;
+         }
+-        match map.get("claim").and_then(scalar_text) {
+-            Some(text) if !text.trim().is_empty() => claim = Some(text.to_string()),
+-            _ => {
+-                check.key("items", Rule::ItemClaimEmpty);
+-                valid = false;
+-            }
++        let claim = keys
++            .claim
++            .and_then(scalar_text)
++            .filter(|text| !text.trim().is_empty())
++            .map(str::to_owned);
++        if claim.is_none() {
++            check.key("items", Rule::ItemClaimEmpty);
++            valid = false;
+         }
+         let mut outcome = None;
+         if let Some(entry) = map.get("outcome") {
+diff --git crates/raf-okf/tests/profile.rs crates/raf-okf/tests/profile.rs
+index 484bd5ae..ee147b59 100644
+--- crates/raf-okf/tests/profile.rs
++++ crates/raf-okf/tests/profile.rs
+@@ -1256,6 +1256,35 @@ fn with_items(items: &str) -> String {
+ 
+ #[test]
+ fn items_need_a_claim_known_keys_and_a_known_outcome() {
++    // Identical maps each get a finding, in their authored sequence.
++    let ordered = with_items(concat!(
++        "items:\n  - zebra: 1\n    ant: 2\n    outcome: held\n",
++        "  - claim: x\n    zebra: 3\n",
++        "  - claim: x\n    zebra: 3\n",
++    ));
++    let found = violations(&ordered, CHANGE_PATH);
++    let expected = [
++        Rule::ItemUnknownKey {
++            key: "zebra".into(),
++        },
++        Rule::ItemUnknownKey { key: "ant".into() },
++        Rule::ItemClaimEmpty,
++        Rule::BadOutcome {
++            found: "held".into(),
++        },
++        Rule::ItemUnknownKey {
++            key: "zebra".into(),
++        },
++        Rule::ItemUnknownKey {
++            key: "zebra".into(),
++        },
++    ];
++    assert_eq!(found.len(), expected.len(), "{found:#?}");
++    let location = key("items");
++    for (finding, rule) in found.iter().zip(expected) {
++        assert_eq!(finding.at(), &location);
++        assert_eq!(finding.rule(), &rule);
++    }
+     for (items, rule) in [
+         (
+             "items:\n  - claim: \"x\"\n    owner: me\n",
+diff --git docs/architecture/okf-profile.md docs/architecture/okf-profile.md
+index 3dcb5f16..365cdb91 100644
+--- docs/architecture/okf-profile.md
++++ docs/architecture/okf-profile.md
+@@ -281,7 +281,9 @@ in that type's directory. Each of these directories holds Markdown files only.
+   `verification`, and the slug appears in `changes`.
+ - **`contract_effect`** is `none` or `changes`.
+ - **`items`** is a list of maps with a non-empty `claim`, an optional
+-  `outcome` and an optional `reason`. The outcome is `implemented`, `dropped` or
++  `outcome` and an optional `reason`. The native header graph gives each
++  map its own focus. The prepared shape closes the map and requires the
++  claim key. The outcome is `implemented`, `dropped` or
+   `moved:change:<slug>`. It is optional until the change is completed, and every
+   item has one then. A `moved:change:<slug>` outcome names a change record that
+   exists. The reason is a non-empty line of text that says why the item has its
+diff --git docs/capabilities/census-cli.md docs/capabilities/census-cli.md
+index 5bae0f24..d36c5fd8 100644
+--- docs/capabilities/census-cli.md
++++ docs/capabilities/census-cli.md
+@@ -68,6 +68,7 @@ bindings:
+     - cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting
+     - cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods
+     - cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints
++    - cargo_census::test_crate::delivery::capnp_history_compares_unbound_rpc_endpoints
+     - cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners
+     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners
+     - cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters
+@@ -189,12 +190,12 @@ A diamond projects each defining interface once.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance -->
+ 
+ A named endpoint must be a declared nongroup struct with reciprocal lexical
+-ownership. A generic endpoint requires an explicit brand with complete
+-pointer bindings for every parameter-bearing scope in its declaration chain.
+-An endpoint can bind the parameters of enclosing declarations alone.
+-Nested type arguments must also be fully bound. An unconstrained
+-`AnyPointer` counts as an unbound argument.
+-The branded endpoint and its method interface each require a unique
++ownership. A generic endpoint can bind any of its own or enclosing parameters.
++An omitted argument, a descriptor's unbound entry and an unconstrained
++`AnyPointer` compare alike, including in nested type arguments. Each bound
++argument retains its position. Census refuses repeated or foreign scopes,
++scope rows without declared parameters and non-pointer arguments.
++The generic endpoint and its method interface each require a unique
+ reciprocal declaration chain. A method can bind its own implicit positions
+ and its interface's lexical parameter positions. A named endpoint can inherit
+ any lexical parameter scope that also belongs to its declaration chain.
+@@ -202,8 +203,10 @@ The endpoint's generic flags must agree with its own and enclosing parameter
+ declarations.
+ Several methods and roles can share one endpoint declaration with different
+ brands. Census compares its layout once by type ID using ordinary struct
+-evolution, including implicit defaults for optional additions.
+-<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
++evolution, including implicit defaults for optional additions. Changed
++enclosing parameter counts report on the named declaration even if every
++method role leaves its arguments unbound.
++<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_compares_unbound_rpc_endpoints -->
+ 
+ A compiler-generated inline list belongs to one method ordinal and endpoint
+ role. It must be a detached struct without a lexical declaration claim and
+@@ -798,15 +801,22 @@ one finding per changed field in a shared layout, and a change of endpoint
+ form at the same node ID. A change from Text to Data in a nested type
+ argument or an enclosing lexical argument reports a type finding on the
+ affected method role. An endpoint with only enclosing bindings passes.
+-Incomplete, foreign and redundant scope bindings refuse, as do ambiguous
+-lexical ownership and inconsistent generic flags.
++Foreign, repeated and parameterless scope rows refuse, as do non-pointer
++arguments, ambiguous lexical ownership and inconsistent generic flags.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
+ 
++The unbound endpoint fixtures compare omitted and explicit arguments in
++both endpoint and enclosing scopes. The descriptor fixture also checks
++an unbound entry and a shortened argument list. Changing a bound position
++in a nested argument reports a type change on its method role. Adding an
++unused enclosing parameter reports one finding for the shared endpoint.
++<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_unbound_rpc_endpoints -->
++
+ The file-scoped generic interface fixtures accept an appended method and
+ compare owner arity, an inherited inline slot and a bound named role.
+ They admit both named roles inheriting the same owner scope and report
+ one layout finding per changed named field. Competing ownership, missing
+-brands and out-of-range owner parameter positions refuse.
++inline brands and out-of-range owner parameter positions refuse.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints -->
+ 
+ The nested interface fixtures bind named and inline roles across multiple
+@@ -870,6 +880,7 @@ to a generic owner with changed implicit method parameters.
+ | `cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
++| `cargo_census::test_crate::delivery::capnp_history_compares_unbound_rpc_endpoints` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
+diff --git docs/capabilities/okf-profile.md docs/capabilities/okf-profile.md
+index b66d0abc..0e6e9b48 100644
+--- docs/capabilities/okf-profile.md
++++ docs/capabilities/okf-profile.md
+@@ -631,7 +631,7 @@ that states one is `okf-bad-input-kind`. An older reader refuses a record that s
+ the row for the same reason.
+ 
+ ### Positioned validation results
+-<!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations,raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list,raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item -->
++<!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations,raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list,raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item,raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome -->
+ 
+ `Profile::validate` checks a parsed document and its path against the
+ closed key set of its `type` and returns a typed result: the typed document
+@@ -645,8 +645,9 @@ section or the line instead. The rules are:
+ 
+ - the key table for the declared type supplies a prepared SHACL Core shape.
+   The bounded native header graph carries a focus for the header and a
+-  separate focus when a capability's `bindings` value is a map. Each
+-  authored key supplies a predicate at its focus. The closed shapes
++  separate focus for a capability's binding map and for each map in a
++  Change's `items` list. Each authored key supplies a predicate at its
++  focus. The closed shapes
+   refuse unknown keys, and required fields use `sh:minCount 1`.
+   The profile reports unknown top-level keys in author order
+   and missing keys in schema order. A separate diagnostic names the
+@@ -668,7 +669,11 @@ section or the line instead. The rules are:
+   entries are parsed into a non-empty claim, an optional outcome
+   (`implemented`, `dropped` or `moved:change:<slug>`) and an optional reason, a
+   non-empty line of text in `ChangeItem::reason` that is accepted beside any outcome
+-  or none. A reason that is empty, holds only spaces or is not text is
++  or none. The native shape requires `claim` and permits `outcome` and
++  `reason`. Each map has its own focus. The profile reports unknown keys
++  in authored item and key order. A missing claim produces
++  `Rule::ItemClaimEmpty` at `items` before that item's outcome and reason
++  findings. A reason that is empty, holds only spaces or is not text is
+   `Rule::ItemReasonEmpty`, which the workplan reports as `okf-item-reason-empty`,
+   and the fix of an unknown item key names `claim`, `outcome` and `reason`.
+   [Complete policy](./workplan-strict.md) asks for a reason on a `dropped` or `moved`
+@@ -1476,7 +1481,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
+ | `raf_okf::test_crate::profile::depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::every_required_key_of_every_type_is_reported_when_missing` | test | [Contract](#contract) |
+ | `raf_okf::test_crate::profile::future_tense_prose_is_not_a_violation` | test | [Constraints](#constraints) |
+-| `raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome` | test | [Verification](#verification) |
++| `raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome` | test | [Contract](#contract) |
+ | `raf_okf::test_crate::profile::mixed_header_violations_keep_their_key_and_diagnostic_order` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::placeholder_scan_spares_code_longer_words_and_dotted_prose` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::placeholder_tokens_in_frontmatter_values_are_reported_at_the_key` | test | [Verification](#verification) |
+diff --git work/assessments/census-cli-constraints.md work/assessments/census-cli-constraints.md
+index 6e61c6e6..50d3aa63 100644
+--- work/assessments/census-cli-constraints.md
++++ work/assessments/census-cli-constraints.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
++    digest: 8ad5073efae45acb97cfe315547e30807efe5613a631fb83ea08f2b53c82e724
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-contract.md work/assessments/census-cli-contract.md
+index 120e6bfc..6c0e6996 100644
+--- work/assessments/census-cli-contract.md
++++ work/assessments/census-cli-contract.md
+@@ -7,7 +7,7 @@ subject: cap:census-cli#contract
+ inputs:
+   - kind: section
+     name: cap:census-cli#contract
+-    digest: 237db689bc4d82ff720ce06ad46b04bb6d8c39bad7eca92065543838f8686867
++    digest: 744b244a5c8eaa2cdf8fe2852540320ca9f512feb6d55eb8f2cf484e59c244b7
+   - kind: symbol
+     name: cargo_census::run
+     digest: b32049f8a2619291edf0a2a43585c53654afca013fc0074ed2898c73a9c661fd
+diff --git work/assessments/census-cli-examples.md work/assessments/census-cli-examples.md
+index f796a410..ef80417e 100644
+--- work/assessments/census-cli-examples.md
++++ work/assessments/census-cli-examples.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
++    digest: 8ad5073efae45acb97cfe315547e30807efe5613a631fb83ea08f2b53c82e724
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-explanation.md work/assessments/census-cli-explanation.md
+index 0fd47067..38393fe3 100644
+--- work/assessments/census-cli-explanation.md
++++ work/assessments/census-cli-explanation.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
++    digest: 8ad5073efae45acb97cfe315547e30807efe5613a631fb83ea08f2b53c82e724
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-purpose.md work/assessments/census-cli-purpose.md
+index df473f79..47063f83 100644
+--- work/assessments/census-cli-purpose.md
++++ work/assessments/census-cli-purpose.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
++    digest: 8ad5073efae45acb97cfe315547e30807efe5613a631fb83ea08f2b53c82e724
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-verification.md work/assessments/census-cli-verification.md
+index a45a10b8..fc840c9e 100644
+--- work/assessments/census-cli-verification.md
++++ work/assessments/census-cli-verification.md
+@@ -7,7 +7,7 @@ subject: cap:census-cli#verification
+ inputs:
+   - kind: section
+     name: cap:census-cli#verification
+-    digest: fbdc9a1a913d939d928733f43a6bb07d4b170fdf5088245eac01da4335eaf176
++    digest: 40be7251e29bf75242a4d8da310f8780e7239aa579f9ef5d28db9acdb4d1b70d
+   - kind: symbol
+     name: cargo_census::bin_crate::cargo_census::main
+     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
+@@ -61,7 +61,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
++    digest: 8ad5073efae45acb97cfe315547e30807efe5613a631fb83ea08f2b53c82e724
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/okf-profile-constraints.md work/assessments/okf-profile-constraints.md
+index 49bddf42..1202a25c 100644
+--- work/assessments/okf-profile-constraints.md
++++ work/assessments/okf-profile-constraints.md
+@@ -193,7 +193,7 @@ inputs:
+     digest: fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
+   - kind: symbol
+     name: raf_okf::HeaderShapeError
+-    digest: cf9b5e0ef7943fc808f762346a5421f47898ea4fa21746d1cdb8770b099661b2
++    digest: 2fd75f79536bcb931a73e515ee0d604f9e1bd3fca8131f3085d72fb2dd90df94
+   - kind: symbol
+     name: raf_okf::Heading
+     digest: 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
+@@ -370,7 +370,7 @@ inputs:
+     digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
+   - kind: symbol
+     name: raf_okf::profile::check_values
+-    digest: c329a862fcf152673d789f5200d4a9aded458eaefedb1215359cd53e2a797bc2
++    digest: 2d1af832e3deae9d55e0ebafc0f43fc564a5baa267dc73e9cfcb40ffb4051c2f
+   - kind: symbol
+     name: raf_okf::profile::diagrams
+     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e
+diff --git work/assessments/okf-profile-contract.md work/assessments/okf-profile-contract.md
+index 77a22079..f42ba754 100644
+--- work/assessments/okf-profile-contract.md
++++ work/assessments/okf-profile-contract.md
+@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
+ inputs:
+   - kind: section
+     name: cap:okf-profile#contract
+-    digest: 5c028a78fc7e74c11d188f293fe8725ab78c34f43d9c260a85e3bc9a046d7208
++    digest: 83ea869ad7826f3b3e560ed47534546007fc44cfeeda792767858d5962aabcd5
+   - kind: symbol
+     name: raf_okf::Actor
+     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
+diff --git work/assessments/okf-profile-explanation.md work/assessments/okf-profile-explanation.md
+index 89f07643..879b5ba7 100644
+--- work/assessments/okf-profile-explanation.md
++++ work/assessments/okf-profile-explanation.md
+@@ -193,7 +193,7 @@ inputs:
+     digest: fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
+   - kind: symbol
+     name: raf_okf::HeaderShapeError
+-    digest: cf9b5e0ef7943fc808f762346a5421f47898ea4fa21746d1cdb8770b099661b2
++    digest: 2fd75f79536bcb931a73e515ee0d604f9e1bd3fca8131f3085d72fb2dd90df94
+   - kind: symbol
+     name: raf_okf::Heading
+     digest: 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
+@@ -370,7 +370,7 @@ inputs:
+     digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
+   - kind: symbol
+     name: raf_okf::profile::check_values
+-    digest: c329a862fcf152673d789f5200d4a9aded458eaefedb1215359cd53e2a797bc2
++    digest: 2d1af832e3deae9d55e0ebafc0f43fc564a5baa267dc73e9cfcb40ffb4051c2f
+   - kind: symbol
+     name: raf_okf::profile::diagrams
+     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e
+diff --git work/assessments/okf-profile-purpose.md work/assessments/okf-profile-purpose.md
+index d876d14c..e3efb98a 100644
+--- work/assessments/okf-profile-purpose.md
++++ work/assessments/okf-profile-purpose.md
+@@ -193,7 +193,7 @@ inputs:
+     digest: fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
+   - kind: symbol
+     name: raf_okf::HeaderShapeError
+-    digest: cf9b5e0ef7943fc808f762346a5421f47898ea4fa21746d1cdb8770b099661b2
++    digest: 2fd75f79536bcb931a73e515ee0d604f9e1bd3fca8131f3085d72fb2dd90df94
+   - kind: symbol
+     name: raf_okf::Heading
+     digest: 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
+@@ -370,7 +370,7 @@ inputs:
+     digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
+   - kind: symbol
+     name: raf_okf::profile::check_values
+-    digest: c329a862fcf152673d789f5200d4a9aded458eaefedb1215359cd53e2a797bc2
++    digest: 2d1af832e3deae9d55e0ebafc0f43fc564a5baa267dc73e9cfcb40ffb4051c2f
+   - kind: symbol
+     name: raf_okf::profile::diagrams
+     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e

@@ -1,0 +1,146 @@
+[
+  {
+    "path": ".githooks/pre-commit",
+    "kind": "file",
+    "executable": true,
+    "content": "original/0.bin"
+  },
+  {
+    "path": "AGENTS.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/1.bin"
+  },
+  {
+    "path": "CENSUS-HOWTO.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/2.bin"
+  },
+  {
+    "path": "CONTRIBUTING.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/3.bin"
+  },
+  {
+    "path": "Makefile",
+    "kind": "file",
+    "executable": false,
+    "content": "original/4.bin"
+  },
+  {
+    "path": "docs/capabilities/census-cli.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/5.bin"
+  },
+  {
+    "path": "tests/self_workplan.rs",
+    "kind": "file",
+    "executable": false,
+    "content": "original/6.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-constraints.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/7.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-contract.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/8.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-examples.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/9.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-explanation.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/10.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-purpose.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/11.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-usage.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/12.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-verification.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/13.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-constraints.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/14.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-contract.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/15.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-examples.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/16.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-explanation.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/17.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-purpose.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/18.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-verification.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/19.bin"
+  },
+  {
+    "path": "work/assessments/census-normal-form-examples.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/20.bin"
+  },
+  {
+    "path": "work/assessments/census-normal-form-purpose.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/21.bin"
+  },
+  {
+    "path": "work/assessments/census-normal-form-verification.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/22.bin"
+  },
+  {
+    "path": "work/assessments/repository-contract-contract.md",
+    "kind": "file",
+    "executable": false,
+    "content": "original/23.bin"
+  }
+]

@@ -1,0 +1,144 @@
+[
+  {
+    "path": ".githooks/pre-commit",
+    "kind": "file",
+    "executable": true,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/0.bin"
+  },
+  {
+    "path": "AGENTS.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/1.bin"
+  },
+  {
+    "path": "CENSUS-HOWTO.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/2.bin"
+  },
+  {
+    "path": "CONTRIBUTING.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/3.bin"
+  },
+  {
+    "path": "Makefile",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/4.bin"
+  },
+  {
+    "path": "docs/capabilities/census-cli.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/5.bin"
+  },
+  {
+    "path": "tests/self_workplan.rs",
+    "kind": "absent"
+  },
+  {
+    "path": "work/assessments/census-cli-constraints.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/7.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-contract.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/8.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-examples.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/9.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-explanation.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/10.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-purpose.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/11.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-usage.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/12.bin"
+  },
+  {
+    "path": "work/assessments/census-cli-verification.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/13.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-constraints.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/14.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-contract.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/15.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-examples.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/16.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-explanation.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/17.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-purpose.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/18.bin"
+  },
+  {
+    "path": "work/assessments/census-migration-verification.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/19.bin"
+  },
+  {
+    "path": "work/assessments/census-normal-form-examples.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/20.bin"
+  },
+  {
+    "path": "work/assessments/census-normal-form-purpose.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/21.bin"
+  },
+  {
+    "path": "work/assessments/census-normal-form-verification.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/22.bin"
+  },
+  {
+    "path": "work/assessments/repository-contract-contract.md",
+    "kind": "file",
+    "executable": false,
+    "content": "accepted-a5df3b16036349d58c7bcecd55b4a71b/23.bin"
+  }
+]

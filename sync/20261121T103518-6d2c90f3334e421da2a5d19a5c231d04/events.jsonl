@@ -1,0 +1,7 @@
+{"time": "2026-11-21T10:35:18.446781+00:00", "status": "started"}
+{"time": "2026-11-21T10:35:26.482051+00:00", "status": "merging"}
+{"time": "2026-11-21T10:35:27.927541+00:00", "status": "conflicted"}
+{"time": "2026-11-21T10:35:28.185838+00:00", "status": "review_required", "reused_paths": [], "rerere_output": "Recorded preimage for 'work/assessments/census-cli-contract.md'\n"}
+{"time": "2026-11-21T10:41:19.268254+00:00", "status": "committing", "candidate_tree": "02d43bccb69516c97e405b9260dccc933875d41d", "candidate_patch": "candidate-d9c4b9dcff7e478b94a257263b45a1a3.patch", "stdout_log": "commit-d9c4b9dcff7e478b94a257263b45a1a3.stdout.log", "stderr_log": "commit-d9c4b9dcff7e478b94a257263b45a1a3.stderr.log", "validation_records": []}
+{"time": "2026-11-21T10:52:17.780511+00:00", "status": "commit_returned", "exit_code": 0, "commit_duration_seconds": 658.4677267049847, "stdout_log": "commit-d9c4b9dcff7e478b94a257263b45a1a3.stdout.log", "stderr_log": "commit-d9c4b9dcff7e478b94a257263b45a1a3.stderr.log"}
+{"time": "2026-11-21T10:52:18.235092+00:00", "status": "completed", "commit": "1553d8b7ca713c5b26814b95570349c04eae0d7e", "tree": "02d43bccb69516c97e405b9260dccc933875d41d", "exit_code": 0, "stdout_log": "commit-d9c4b9dcff7e478b94a257263b45a1a3.stdout.log", "stderr_log": "commit-d9c4b9dcff7e478b94a257263b45a1a3.stderr.log"}

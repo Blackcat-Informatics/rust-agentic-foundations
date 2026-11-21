@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/378-enforce-production-only-clippy-lints-in",
+  "branch": "paudley/378-enforce-production-only-clippy-lints-in",
+  "base_ref": "origin/main",
+  "head": "d7d3649cbb124bed97f9e70e21f359ecfd9b8b91",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/378-enforce-production-only-clippy-lints-in/.stage/lint-integration/sync/20261121T103518-6d2c90f3334e421da2a5d19a5c231d04",
+  "conflicts": [
+    "work/assessments/census-cli-contract.md"
+  ],
+  "status": "completed",
+  "base": "912f31902c7aad469e30a1c98988df764cb59c63",
+  "merge_bases": [
+    "6e8a0a0afaf62fff0b4daea83b8bf03e69177525"
+  ],
+  "merge_index": "1ba6fab16be1def3e0501ae3b84c58838a810946ae9b0a52e04c9cfcc04b1689",
+  "reused_paths": [],
+  "rerere_output": "Recorded preimage for 'work/assessments/census-cli-contract.md'\n",
+  "candidate_tree": "02d43bccb69516c97e405b9260dccc933875d41d",
+  "candidate_patch": "candidate-d9c4b9dcff7e478b94a257263b45a1a3.patch",
+  "stdout_log": "commit-d9c4b9dcff7e478b94a257263b45a1a3.stdout.log",
+  "stderr_log": "commit-d9c4b9dcff7e478b94a257263b45a1a3.stderr.log",
+  "validation_records": [],
+  "commit_duration_seconds": 658.4677267049847,
+  "commit": "1553d8b7ca713c5b26814b95570349c04eae0d7e",
+  "tree": "02d43bccb69516c97e405b9260dccc933875d41d",
+  "exit_code": 0
+}
