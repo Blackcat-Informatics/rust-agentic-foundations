@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Closed Linux debt destinations sharing Source's original directory handle.
+//! Closed Linux ledger and debt destinations sharing Source's original directory handle.
 
 use crate::Error;
 use raf_source::DiskTree;
@@ -14,6 +14,7 @@ use std::path::PathBuf;
 
 #[derive(Clone, Copy)]
 pub(crate) enum Kind {
+    Ledger,
     WholeBody,
     Embedded,
 }
@@ -21,12 +22,14 @@ pub(crate) enum Kind {
 impl Kind {
     pub(crate) const fn target(self) -> &'static str {
         match self {
+            Self::Ledger => crate::LEDGER_FILE,
             Self::WholeBody => crate::DEBT_FILE,
             Self::Embedded => crate::embedded::DEBT_FILE,
         }
     }
     const fn temporary(self) -> &'static str {
         match self {
+            Self::Ledger => ".helpers-ledger.ttl.write",
             Self::WholeBody => ".census-debt.ttl.write",
             Self::Embedded => ".census-embedded-debt.ttl.write",
         }
@@ -70,7 +73,14 @@ impl<'tree> Publication<'tree> {
                     "workspace directory",
                     std::io::Error::new(
                         std::io::ErrorKind::WouldBlock,
-                        "debt publication is busy; retry after the other writer ends",
+                        match kind {
+                            Kind::Ledger => {
+                                "ledger publication is busy; retry after the other writer ends"
+                            }
+                            Kind::WholeBody | Kind::Embedded => {
+                                "debt publication is busy; retry after the other writer ends"
+                            }
+                        },
                     ),
                 ));
             }

@@ -7,10 +7,13 @@ subject: cap:census-cli#contract
 inputs:
   - kind: section
     name: cap:census-cli#contract
-    digest: 266ec0eb38ec1f3d7e59687c02606971faace4c032cc9a8353875838bdcb4562
+    digest: 8857762a762ad0fe97ad69052416a22bd119541cf37a880cc5009fb423bed580
   - kind: symbol
     name: cargo_census::run
     digest: b32049f8a2619291edf0a2a43585c53654afca013fc0074ed2898c73a9c661fd
+  - kind: symbol
+    name: raf_census::Gate::init_ledger
+    digest: cb109237dc9ea01dda2751059871fb0d33ef7202daf14ea05359890e35a52adc
   - kind: symbol
     name: raf_census::Gate::self_test
     digest: f2c6b0abfe9c026c6f57fcd57bc2e4c943f71a5cb8b494d5979cff3a06f4dd86

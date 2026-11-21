@@ -7,7 +7,7 @@ subject: cap:census-cli#usage
 inputs:
   - kind: section
     name: cap:census-cli#usage
-    digest: ba198329d6dc524393c1ce0a14441b3b4267eae8f95e2c1e2dd6eee1a48f078d
+    digest: 06d366f85f8df2dcd3523582e5c85c5feb8014374dcce6f7a5eff3dc42b8cb13
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad

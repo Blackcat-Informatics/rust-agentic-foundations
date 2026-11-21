@@ -168,6 +168,18 @@ pub struct Ledger {
 }
 
 impl Ledger {
+    /// Canonical starter policy scanning the entire workspace with default options.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn starter_turtle() -> Result<String, E> {
+        let mut graph = Builder::new();
+        super::write::root(&mut graph, "Ledger", crate::NORMAL_FORM)?;
+        super::write::text(&mut graph, "", "root", ".")?;
+        graph
+            .finish()
+            .and_then(|graph| graph.to_text(Format::Turtle))
+            .map_err(E::Ground)
+    }
+
     /// Borrow the uniquely owned extension with this normalized local root id.
     /// Absolute snapshot aliases and ids outside an extension return `None`.
     #[must_use]
