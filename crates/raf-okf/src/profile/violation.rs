@@ -362,7 +362,7 @@ pub enum Rule {
         /// Original refusal with positions in the decoded scalar.
         source: purrdf_markdown::SyntaxError,
     },
-    /// Native top-level shape validation could not establish a verdict.
+    /// Native frontmatter key validation could not establish a verdict.
     HeaderShape {
         /// Original refusal from header graph construction or validation.
         source: HeaderShapeError,
@@ -377,7 +377,7 @@ impl fmt::Display for Rule {
                 f,
                 "native Markdown reader refused the decoded scalar: {source}"
             ),
-            Self::HeaderShape { source } => write!(f, "cannot check top-level keys ({source})"),
+            Self::HeaderShape { source } => write!(f, "cannot check frontmatter keys ({source})"),
             Self::MissingKey { key } => write!(f, "missing required key `{key}`"),
             Self::UnknownKey { key } => write!(f, "unknown key `{key}`"),
             Self::ResourceKey { doc_type } => {

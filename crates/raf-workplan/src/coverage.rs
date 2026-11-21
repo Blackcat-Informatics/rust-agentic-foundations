@@ -852,7 +852,7 @@ pub(crate) fn covering_path<'g>(
 /// The path below which the bound item `id` covers every item, as
 /// [`Bound::of`] keeps it: its own path, unless it is a crate root, which
 /// covers nothing below it.
-fn below_bound(source: &Workspace, id: ItemId) -> Option<&str> {
+pub(crate) fn below_bound(source: &Workspace, id: ItemId) -> Option<&str> {
     let item = source.item(id)?;
     let root = source
         .target(item.target)

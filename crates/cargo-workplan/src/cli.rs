@@ -69,6 +69,12 @@ pub(crate) enum Command {
     /// Print the roadmap: capabilities by state, with the gaps of the
     /// implementing ones and the open changes.
     Status,
+    /// Trace changed source items to documented guarantees and supporting evidence.
+    Impact {
+        /// Compare the checkout against HEAD, a full Git reference or a full commit id.
+        #[arg(long, value_name = "REV", value_parser = word)]
+        base: String,
+    },
     /// Generate one named semantic diagram bundle and print an artifact.
     Diagram(DiagramArgs),
     /// Generated documentation and native authoring document export.

@@ -24,7 +24,7 @@ use super::{
     DescriptorError as Error, TypeId,
     capture::Capture,
     occupancy::{Occupancy, POINTER_BASE},
-    shape::{self, DefaultValue, Type, TypeScope},
+    shape::{self, Brand, DefaultValue, Type, TypeScope},
 };
 
 pub(super) const MAX_BYTES: u64 = 2 * 1024 * 1024;
@@ -34,7 +34,7 @@ const MAX_NAME_BYTES: usize = 256;
 
 pub(super) type GroupPath = Rc<[Rc<str>]>;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Kind {
     Struct,
     Enum,
@@ -90,11 +90,13 @@ pub(super) enum Node {
     Interface(Interface),
 }
 
+pub(super) type Superclasses = BTreeMap<TypeId, BTreeSet<Brand>>;
+
 #[derive(Debug)]
 pub(super) struct Interface {
     pub(super) parameters: u32,
     pub(super) enclosing_parameters: BTreeMap<TypeId, u32>,
-    pub(super) superclasses: BTreeSet<TypeId>,
+    pub(super) superclasses: Superclasses,
     pub(super) methods: Vec<Method>,
 }
 

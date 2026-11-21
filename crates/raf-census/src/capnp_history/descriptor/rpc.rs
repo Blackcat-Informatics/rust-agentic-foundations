@@ -11,10 +11,10 @@ use capnp::{
 };
 
 use super::{
-    Annotations, DeclarationScopes, Endpoint, Error, Interface, Kind, Method, Node, Nodes, TypeId,
-    layout, member_name,
+    Annotations, DeclarationScopes, Endpoint, Error, Interface, Kind, Method, Node, Nodes,
+    Superclasses, TypeId, layout, member_name,
 };
-use crate::capnp_history::shape::{self, Arguments, Pointer, Type, TypeScope};
+use crate::capnp_history::shape::{self, Arguments, Brand, Pointer, Type, TypeScope};
 
 // A present entry with no owner records an invalid or competing declaration.
 type Owners = BTreeMap<TypeId, Option<TypeId>>;
@@ -115,8 +115,9 @@ impl Projection {
                 "generic RPC interface {id} requires a unique reciprocal declaration chain with consistent generic flags"
             )));
         }
-        let superclasses = self.superclasses(nodes, id, data, scopes)?;
-        needed.extend(superclasses.iter().copied());
+        let superclasses =
+            self.superclasses(nodes, (id, &parameter_scopes), data, needed, scopes)?;
+        needed.extend(superclasses.keys().copied());
         let methods = self.methods(
             nodes,
             (id, &parameter_scopes),
@@ -137,29 +138,45 @@ impl Projection {
     fn superclasses(
         &mut self,
         nodes: &Nodes<'_>,
-        derived: TypeId,
+        (derived, parameter_scopes): (TypeId, &BTreeMap<TypeId, u32>),
         interface: node::interface::Reader<'_>,
+        needed: &mut BTreeSet<TypeId>,
         scopes: &mut DeclarationScopes,
-    ) -> Result<BTreeSet<TypeId>, Error> {
-        let mut bases = BTreeSet::new();
-        for superclass in interface.get_superclasses()? {
+    ) -> Result<Superclasses, Error> {
+        let list = interface.get_superclasses()?;
+        let mut bases = Superclasses::new();
+        if list.is_empty() {
+            return Ok(bases);
+        }
+        self.require_inheritance_declaration(nodes, derived, scopes)?;
+        for superclass in list {
             let id = TypeId(superclass.get_id());
-            if !bases.insert(id) {
-                return Err(layout(format!(
-                    "RPC interface {derived} repeats direct superclass {id}"
-                )));
-            }
-            if !superclass.get_brand()?.get_scopes()?.is_empty() {
+            nodes.require_kind(id, Kind::Interface)?;
+            self.require_inheritance_declaration(nodes, id, scopes)?;
+            let reader = superclass.get_brand()?;
+            let count = reader.get_scopes()?.len();
+            let brand = if nodes.node(id)?.get_is_generic() {
+                let brand =
+                    shape::read_brand(reader, nodes, (TypeScope::Lexical(derived), id), needed)?;
+                if u32::try_from(brand.len()) != Ok(count)
+                    || !complete_brand(nodes, id, &brand, parameter_scopes)?
+                {
+                    return Err(layout(format!(
+                        "RPC interface {derived} superclass {id} requires a complete brand"
+                    )));
+                }
+                brand
+            } else if count == 0 {
+                Brand::new()
+            } else {
                 return Err(layout(format!(
                     "RPC interface {derived} superclass {id} must have an empty brand"
                 )));
-            }
-            nodes.require_kind(id, Kind::Interface)?;
-        }
-        if !bases.is_empty() {
-            self.require_inheritance_declaration(nodes, derived, scopes)?;
-            for &id in &bases {
-                self.require_inheritance_declaration(nodes, id, scopes)?;
+            };
+            if !bases.entry(id).or_default().insert(brand) {
+                return Err(layout(format!(
+                    "RPC interface {derived} repeats direct superclass {id} with the same brand"
+                )));
             }
         }
         Ok(bases)
@@ -171,9 +188,9 @@ impl Projection {
         id: TypeId,
         scopes: &mut DeclarationScopes,
     ) -> Result<(), Error> {
-        if !self.reciprocal_declaration(nodes, id, ScopePolicy::Nongeneric, scopes)? {
+        if !self.reciprocal_declaration(nodes, id, ScopePolicy::LexicalGenerics, scopes)? {
             return Err(layout(format!(
-                "RPC inheritance interface {id} requires a reciprocal nongeneric declaration chain"
+                "RPC inheritance interface {id} requires a unique reciprocal declaration chain with consistent generic flags"
             )));
         }
         Ok(())
@@ -492,7 +509,7 @@ fn nongeneric(reader: node::Reader<'_>) -> Result<bool, Error> {
 fn complete_brand(
     nodes: &Nodes<'_>,
     mut id: TypeId,
-    brand: &BTreeMap<TypeId, Arguments>,
+    brand: &Brand,
     parameter_scopes: &BTreeMap<TypeId, u32>,
 ) -> Result<bool, Error> {
     for _ in 0..=super::MAX_DEPTH {
@@ -580,7 +597,7 @@ fn check_cycles(nodes: &BTreeMap<TypeId, Node>) -> Result<(), Error> {
             continue;
         }
         visits.insert(root, Visit::Active);
-        stack.push((root, interface.superclasses.iter()));
+        stack.push((root, interface.superclasses.keys()));
         while let Some((id, bases)) = stack.last_mut() {
             let Some(&base) = bases.next() else {
                 visits.insert(*id, Visit::Complete);
@@ -597,7 +614,7 @@ fn check_cycles(nodes: &BTreeMap<TypeId, Node>) -> Result<(), Error> {
                         return Err(layout(format!("missing projected RPC superclass {base}")));
                     };
                     entry.insert(Visit::Active);
-                    stack.push((base, interface.superclasses.iter()));
+                    stack.push((base, interface.superclasses.keys()));
                 }
             }
         }

@@ -211,3 +211,134 @@ fn impact_finds_the_root_from_below_and_by_root() {
     let rooted = repo.rooted(&["change", "impact", "grow"]).expect(0);
     assert_eq!(rooted.stdout, direct.stdout);
 }
+
+/// A committed capability with a shared source file, a test, an example and an assessment.
+fn source_impact_fixture() -> (Repo, String) {
+    let repo = Repo::bare("source-impact");
+    let cap = support::capability(
+        "reader",
+        "delivered",
+        [
+            "[demo::real, demo::other]",
+            "[demo::test_crate::it::case]",
+            "[demo::real]",
+        ],
+        "[]",
+        &[(
+            "Contract",
+            "The guarantee covers `demo::real`.\n<!-- raf:tested-by demo::real -->\n",
+        )],
+    );
+    repo.put("docs/capabilities/reader.md", &cap);
+    let source = format!(
+        "{}pub fn other() {{}}\n#[doc(hidden)]\npub fn orphan() {{}}\n\
+         pub struct C; trait LocalOnly {{ fn hidden(&self); }}\n\
+         impl LocalOnly for C {{ fn hidden(&self) {{}} }}\n",
+        repo.read("src/lib.rs")
+    );
+    repo.put("src/lib.rs", &source);
+    repo.run(&[
+        "assess",
+        "cap:reader#contract",
+        "--verdict",
+        "accepted",
+        "--by",
+        "human",
+    ])
+    .expect(0);
+    repo.checkout();
+    (repo, source)
+}
+
+/// An impact trace starts at the edited definition, even when several
+/// documented and undocumented definitions share its file and Git revision.
+#[test]
+fn source_impact_traces_bound_guarantees_and_marks_public_items_without_owners() {
+    let (repo, source) = source_impact_fixture();
+    repo.edit("src/lib.rs", "other() {}", "other() { let _x = 1; }");
+    let neighbour = repo.run(&["impact", "--base", "HEAD"]).expect(0);
+    assert!(
+        neighbour.stdout.contains("changed demo::other"),
+        "{neighbour:#?}"
+    );
+    assert!(
+        !neighbour.stdout.contains("cap:reader#contract"),
+        "{neighbour:#?}"
+    );
+
+    repo.put(
+        "src/lib.rs",
+        &source
+            .replace("real() {}", "real() { let _y = 2; }")
+            .replace("orphan() {}", "orphan() { let _z = 3; }")
+            .replace("hidden(&self) {}", "hidden(&self) { let _w = 4; }"),
+    );
+    let before = repo.snapshot();
+    let run = repo
+        .both(&["impact", "--base", "refs/heads/main"])
+        .expect(0);
+    for expected in [
+        "changed demo::real\n  public item with a documented owner",
+        "cap:reader via code demo::real",
+        "cap:reader#contract",
+        "guarantee cap:reader#contract/result (named)",
+        "guarantee cap:reader#contract/result (tested-by)",
+        "cap:reader#purpose (all-code-bindings)",
+        "test demo::test_crate::it::case",
+        "example demo::real",
+        "assessment assessment:reader-contract",
+        "changed demo::orphan\n  public item without a documented owner",
+    ] {
+        assert!(
+            run.stdout.contains(expected),
+            "missing {expected}: {run:#?}"
+        );
+    }
+    assert!(!run.stdout.contains("test demo::real\n"), "{run:#?}");
+    assert!(!run.stdout.contains("demo::C::hidden"), "{run:#?}");
+    let rdf = Rdf::of(
+        &repo
+            .run(&["--format", "turtle", "impact", "--base", "HEAD"])
+            .expect(0),
+    );
+    let symbols = rdf.rows("SourceImpact")[0].children("symbol");
+    let real = symbols
+        .iter()
+        .find(|s| s.required("path") == "demo::real")
+        .expect("changed bound item");
+    assert!(real.children("binding").iter().any(|b| {
+        b.required("list") == "code"
+            && b.required("path") == "demo::real"
+            && b.children("section").iter().any(|s| {
+                s.required("subject") == "cap:reader#contract"
+                    && !s.children("assessment").is_empty()
+            })
+    }));
+    let missing = repo
+        .run(&["impact", "--base", "refs/heads/absent"])
+        .expect(2);
+    assert_eq!(missing.stdout, "");
+    assert_eq!(repo.snapshot(), before);
+
+    repo.edit(
+        "docs/capabilities/reader.md",
+        "[demo::real, demo::other]",
+        "[demo::other]",
+    );
+    let withdrawn = repo.run(&["impact", "--base", "HEAD"]).expect(0);
+    assert!(
+        withdrawn
+            .stdout
+            .contains("changed demo::real\n  public item without a documented owner")
+    );
+    assert!(
+        withdrawn
+            .stdout
+            .contains("cap:reader via code demo::real (base)")
+    );
+    assert!(
+        withdrawn
+            .stdout
+            .contains("cap:reader via examples demo::real (checkout)")
+    );
+}

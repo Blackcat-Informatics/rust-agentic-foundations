@@ -18,7 +18,7 @@ use super::{
     descriptor::{Kind, Nodes, layout},
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Atom {
     Void,
     Bool,
@@ -36,7 +36,7 @@ pub(super) enum Atom {
     Data,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Pointer {
     Any,
     Struct,
@@ -70,15 +70,17 @@ impl TypeScope {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+pub(super) type Brand = BTreeMap<TypeId, Arguments>;
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Type {
     Atom(Atom),
     List(Box<Self>),
-    Named(Kind, TypeId, BTreeMap<TypeId, Arguments>),
+    Named(Kind, TypeId, Brand),
     Pointer(Pointer),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Arguments {
     Inherited(u32),
     Bound(Vec<Type>),
@@ -247,7 +249,7 @@ pub(super) fn read_brand(
     nodes: &Nodes<'_>,
     (context, target): (TypeScope, TypeId),
     dependencies: &mut BTreeSet<TypeId>,
-) -> Result<BTreeMap<TypeId, Arguments>, Error> {
+) -> Result<Brand, Error> {
     let mut brand = BTreeMap::new();
     for scope in reader.get_scopes()? {
         let id = TypeId(scope.get_scope_id());

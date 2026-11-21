@@ -10,10 +10,10 @@ inputs:
     digest: aede25f72bb681f342151a7ff60de593a7837a7474c0f3c0800d219764a6c5d9
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
-    digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
+    digest: 56c7eec3381e9d6ca0a90156f88e90ffae2f2a8b448ada2d5bdf222a4ab100a1
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
+    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
   - kind: symbol
     name: raf_census::Baseline::to_ntriples
     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
@@ -106,7 +106,7 @@ inputs:
     digest: 5f901d1f4b7c89215e0220800bb3f97dbae3b10f040201289a5f356462e08fe7
   - kind: symbol
     name: raf_workplan::report
-    digest: 64974fbb2ad89048871716738854ab862b79160d4390d9ec45beb1bcfcdabb27
+    digest: cbd569a94bdf933dcdecadcc9cbd6edb948995904f4d9b684c87f436850de83f
 verdict: accepted
 by: agent
 ---
