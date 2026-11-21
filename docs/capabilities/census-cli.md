@@ -60,6 +60,7 @@ bindings:
     - cargo_census::test_crate::capnp_capture::migration_admission::capnp_migration_refuses_changed_or_invalid_pair_blobs
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
     - cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations
+    - cargo_census::test_crate::delivery::capnp_history_compares_enumerant_annotations
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities
     - cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities
     - cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities
@@ -161,6 +162,17 @@ compare in their bounded canonical representation. Each changed list reports
 at the owning field with the annotation ID. Explicitly selected required
 and paired-presence markers use their presence policies.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations -->
+
+Census validates applications on each enumerant in the selected strict-history
+closure. The annotation declares an enumerant target. The application supplies
+a value of the declared type as instantiated by its brand in the enum's lexical
+scope. Census compares ordered applications per ID on retained names and
+reports changes at the owning enum and enumerant. A trailing enumerant with
+valid applications is compatible. Rename and ordinal findings still apply.
+Field presence markers with an enumerant target count as ordinary applications
+on enumerants. A malformed application identifies its owning member and retains
+the native wire or tag cause when present.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_enumerant_annotations -->
 
 The strict history check accepts explicitly selected interfaces. A generic
 interface can declare its own type parameters or inherit them from its lexical
@@ -893,6 +905,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_enumerant_annotations` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints` | test | [Contract](#contract), [Usage](#usage) |
