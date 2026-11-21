@@ -1,0 +1,1141 @@
+diff --git crates/cargo-census/tests/capnp_capture/persistence.rs crates/cargo-census/tests/capnp_capture/persistence.rs
+index 0dbe5a72..9e01e2cb 100644
+--- crates/cargo-census/tests/capnp_capture/persistence.rs
++++ crates/cargo-census/tests/capnp_capture/persistence.rs
+@@ -183,6 +183,11 @@ fn capnp_persistence_ignores_rpc_endpoint_layouts() {
+             include_bytes!("../fixtures/capnp/rpc-inheritance-base.bin").as_slice(),
+             include_bytes!("../fixtures/capnp/rpc-inheritance-changed.bin").as_slice(),
+         ),
++        (
++            "0xeec4400000000003",
++            include_bytes!("../fixtures/capnp/rpc-implicit-base.bin").as_slice(),
++            include_bytes!("../fixtures/capnp/rpc-implicit-changed.bin").as_slice(),
++        ),
+     ] {
+         let row = || policy(&[("packet", "persist-fixture", "persist_fixture::Packet", id)]);
+         let base = commit(root, before, row());
+diff --git crates/cargo-census/tests/delivery.rs crates/cargo-census/tests/delivery.rs
+index 5ca3f5d5..fdb9fa40 100644
+--- crates/cargo-census/tests/delivery.rs
++++ crates/cargo-census/tests/delivery.rs
+@@ -915,20 +915,24 @@ fn capnp_history_compares_nested_generic_rpc_owners() {
+ /// an owner that inherits every parameter must carry the generic flag.
+ #[test]
+ fn capnp_history_refuses_invalid_nested_generic_rpc_owners() {
++    assert_capnp_rpc_refusals(
++        include_bytes!("fixtures/capnp/rpc-nested-invalid.bin"),
++        &[
++            ("0xeec4300000000003", "must inherit exactly"),
++            ("0xeec4300000000004", "must inherit exactly"),
++            ("0xeec4300000000005", "must inherit exactly"),
++            ("0xeec4300000000006", "must inherit exactly"),
++            ("0xeec4300000000007", "consistent generic flags"),
++        ],
++    );
++}
++
++fn assert_capnp_rpc_refusals(descriptor: &[u8], refusals: &[(&str, &str)]) {
+     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+     let root = scratch.path();
+     git_repo::init(root);
+-    let invalid = commit_capnp_descriptor(
+-        root,
+-        include_bytes!("fixtures/capnp/rpc-nested-invalid.bin"),
+-    );
+-    for (selected, reason) in [
+-        ("0xeec4300000000003", "must inherit exactly"),
+-        ("0xeec4300000000004", "must inherit exactly"),
+-        ("0xeec4300000000005", "must inherit exactly"),
+-        ("0xeec4300000000006", "must inherit exactly"),
+-        ("0xeec4300000000007", "consistent generic flags"),
+-    ] {
++    let invalid = commit_capnp_descriptor(root, descriptor);
++    for &(selected, reason) in refusals {
+         assert_census_refused(
+             capnp_history(root, &invalid, &invalid, &[selected], &[]),
+             reason,
+@@ -936,6 +940,76 @@ fn capnp_history_refuses_invalid_nested_generic_rpc_owners() {
+     }
+ }
+ 
++/// Method and lexical positions remain distinct, and unused arity changes
++/// produce one method finding with no duplicate findings on its empty roles.
++#[test]
++fn capnp_history_compares_implicit_rpc_parameters() {
++    const READER: &str = "0xeec4400000000002";
++    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
++    let root = scratch.path();
++    git_repo::init(root);
++    let base =
++        commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-implicit-base.bin"));
++    for (descriptor, code, expected) in [
++        (
++            include_bytes!("fixtures/capnp/rpc-implicit-compatible.bin").as_slice(),
++            0,
++            "",
++        ),
++        (
++            include_bytes!("fixtures/capnp/rpc-implicit-changed.bin").as_slice(),
++            1,
++            concat!(
++                "Cap'n Proto history for 0xeec4400000000002.read.parameters.source: type changed\n",
++                "Cap'n Proto history for 0xeec4400000000002.read.results: type changed\n",
++                "Cap'n Proto history for 0xeec4400000000002.marker: implicit method parameter count changed\n",
++            ),
++        ),
++    ] {
++        let current = commit_capnp_descriptor(root, descriptor);
++        let verdict = capnp_history(root, &base, &current, &[READER], &[]);
++        assert_eq!(verdict.status.code(), Some(code), "{verdict:?}");
++        assert!(verdict.stderr.is_empty(), "{verdict:?}");
++        assert_eq!(String::from_utf8(verdict.stdout).unwrap(), expected);
++    }
++}
++
++/// Both implicit encodings require a proved method position. A detached role
++/// cannot borrow another wrapper's scope, and even an empty role must agree.
++#[test]
++fn capnp_history_refuses_invalid_implicit_rpc_parameters() {
++    assert_capnp_rpc_refusals(
++        include_bytes!("fixtures/capnp/rpc-implicit-invalid.bin"),
++        &[
++            ("0xeec4500000000001", "invalid implicit method parameter 1"),
++            (
++                "0xeec4500000000003",
++                "must declare its method's implicit parameters",
++            ),
++            (
++                "0xeec4500000000004",
++                "invalid parameter 0 in scope 0xeec4500000000012",
++            ),
++            (
++                "0xeec4500000000005",
++                "implicit method parameter requires an RPC method brand",
++            ),
++            (
++                "0xeec4500000000006",
++                "must declare its method's implicit parameters",
++            ),
++            (
++                "0xeec4500000000007",
++                "implicit method parameter requires an RPC method brand",
++            ),
++            (
++                "0xeec4500000000009",
++                "invalid method parameter 1 in wrapper",
++            ),
++        ],
++    );
++}
++
+ /// Named method roles require an ordinary struct and an unambiguous reciprocal
+ /// declaration chain, including the generic state of every enclosing scope.
+ #[test]
+@@ -1069,7 +1143,7 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
+ }
+ 
+ /// Detached endpoints belong to exactly one method and role across the request.
+-/// Generic inheritance and implicit method parameters refuse.
++/// Generic inheritance remains outside the supported profile.
+ #[test]
+ fn capnp_history_refuses_unsupported_rpc_endpoints() {
+     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+@@ -1088,7 +1162,7 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
+         root,
+         &unsupported,
+         &unsupported,
+-        &["0xadb4bfe48ad45105"],
++        &["0xadb4bfe48ad45105", "0xba6c33c22a5d3e73"],
+         &[],
+     );
+     assert!(concrete.status.success(), "{concrete:?}");
+@@ -1120,12 +1194,6 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
+             "0xeec6000000000001",
+             "requires a reciprocal nongeneric declaration chain",
+         ),
+-        (
+-            &unsupported,
+-            &unsupported,
+-            "0xba6c33c22a5d3e73",
+-            "must have no implicit method type parameters",
+-        ),
+     ] {
+         let refused = capnp_history(root, before, after, &[selected], &[]);
+         assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-implicit-base.bin crates/cargo-census/tests/fixtures/capnp/rpc-implicit-base.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..2a67575755dc1d5930d4a5d7a5f6261934cfdbb9
+GIT binary patch
+literal 3928
+zc-pmB&1=*^6ragvyDN0*2gM2^^{`MCwn$ZqEBHkf3zgOu1w{{WH`VBVHJfd{`5$=k
+zpr8juL<B*-c<`W5{P-I@6e(E2B1I1(ih^&FH|b=OX<}(#na<4HdB2(WHS<CUAxo4X
+z>7)z(XHtah%MjA<atL8RUuYxbkvmSiE4M>ygFlxJzgg}k$;bq-Iq0j<4<%Sn5q}FG
+z<6I+|z?x^!(lD@~Ey1`2eMZ2UhWV^8Uxaxt^iQ4--FPs+@VQUK2TDo!oaSM2j)u?q
+z1$a+|`GV%*XY*TU-W6Uymhq_q{{zTfiNIe3{vlz$4SduA{oC6wHh=7yx+CKg1%56S
+zjW1Id$3Ku-{`Pa^S5kZma&`jzG~#Q5e^Y{g<rv6NZ}AUkzi}VYzkh-Mp7~w(_^j{X
+zm=W<q1JVEu@<*YWx`#il2l1<V(Egn4MyX&`8x^Z$IfaWx(;O%njaq}WyZcc;epz1a
+z67<bMR}{{-3FqU6Wi!@<X_QSEO*(bkEGzdZ^7RDw%et7loIyVA#B*@UyXz_0?Vim$
+zFZIz@r~qwHnD0Qjy(m{PryR!bmUg9*KUMdHZC$$T1mx*|$!BqO8ud%#c}MYF6Ns;}
+zqi62{8@l|sVH?$^hua=w&tvE}KeW&;qcQdzk?c8)a^onc@mRqzr<0QZPN3Xflxx;o
+zcF7F;f!}j+cC63VSlET+wS<0XU_5pz{4aX958oF}$P>}Z{peRJ*e;9u@_8rD<+xGl
+ztJ0@4L0k=DTrqzix9ld1r%AI^ua#rtYSy+KGe2QATNS5CQ18{^DksGU*SiPpHDgp-
+zW`th+y@~UaE?A50a|ZEZ^r#y4RnrzSM8sisIbCZt&2mzl6@#n|XT|4Uo~C{Mxc_-v
+zos#lq6eZ7Nf1h~owR~@Jdp?x>aSvC0!u|&l-ZSA{=I`fs>7MwCa(}STQBR&-Kzx5O
+zKQ#Z{3fD&)kw=;$ZsPJNX}-7#v4Q80ySKDe>dho}SLKfv*lYJ+lKsT|;9U7UV=c!`
+z4^{r~x<ZtXyN`+y_t7w(+s1tCQrKN}?`skM?)ASrs8o}CdA@4hs^EL~rsmgMyx!w<
+z1ka@+_WPKi7q3S-oyFgI{POP+|NDao-#a0@1pQ2v(Mhnb)W~|#dgEo+i0A2@^6kUw
+z;W_kY#($rwvfd^_yj(|rGc*Sn*J!v7xe1J05&W0Hcoo6l11jy;!f{;$#zDr{gZlgf
+DMW$U&
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-implicit-base.capnp crates/cargo-census/tests/fixtures/capnp/rpc-implicit-base.capnp
+new file mode 100644
+index 00000000..62270cf4
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-implicit-base.capnp
+@@ -0,0 +1,20 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xeec4400000000000;
++
++struct Pair @0xeec4400000000001 (Left, Right) {
++  left @0 :Left;
++  right @1 :Right;
++}
++
++interface Reader @0xeec4400000000002 (Outer) {
++  read @0 [First, Second] (source :First, owner :Outer, pair :Pair(Second, Outer))
++       -> Pair(First, Outer);
++  write @1 [Value] Pair(Outer, Value) -> (value :Value);
++  marker @2 [Unused] () -> ();
++}
++
++struct Stored @0xeec4400000000003 {
++  reader @0 :Reader(Text);
++}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-implicit-changed.bin crates/cargo-census/tests/fixtures/capnp/rpc-implicit-changed.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..6cc2591fa2939abd2d52bd21d42b0f60c71205ac
+GIT binary patch
+literal 4016
+zc-pmB&1(}u6rbHqnka@grL{;AKL}KX6e&U>J!qvCE0xw31wju>vTcL;>SojGNf12f
+z!HbBB9uyG~1oh&@LoZhU2cbwog@P766cIf5X7{~ycCwpnYx}}vcHYkW&HJ30WsI>k
+zg&{>)68>WvV;5tL_1GN7`0MK}j6JiTqxQ_b&|2VU)3JA}oh%#~0QM33S?K#i%vTV<
+zo1Ss3vY2PiD`-)8C_+=AU4a%8aB47~7se|v?t=cs>;79$mX^Qn7x95K37=>g2BuQ4
+z=Xc<}6vkgv2S1+bo_n8OcrN2B0r*QGcg+WX1^7pW@ji%AEA)%^-t7F;G4(*kX94(0
+z%^zQ;PR-GOaX?%B@oVIFSo{RY-CPI0D#TY4;w$Gs4F2M(gWnF%yESiocft4r^!FnU
+zpZBeV>61T-N1CzifPD(ujfjI!I7D|MUjGxBm25g+tQ7Luyp_(*=%r~R*PGQVrHb=@
+zhrO=i<}t6YLxSB2=rV$y+i*Ot=S|L<F!Y=OPm@;JG;)pB%aDk@THMBr$d%;MLDYjN
+zWzSdGVOuvxU&TfHM`>t%!uSBn9YMK*F=cUnyR@nz#kD;kFU<V(jOCG6)+Hau*-^AF
+ziu#VCUK5Dlz>kj0drjz4<GQIAs~E>d{yc$kb5jicGTOwSBa%OdP;MOMRLT{6COR#}
+z?<C4SM7e6YW@e50IH)20Se`HOwA-+J1(UHYApT->_ux6B3UwlSxd-E_2)>J>y)<sa
+zv79%wzsvdt+0zyxulg{rc)W-6W|imDq>(L`a$)jn-ppG@YQm`23Rcy&yHQ>xr2HVe
+zJJ4TqdZA|c*hS|~vp7WrZ}D}`AzpJkin@8pFsVXB|73)^J6oz%`Mx!n%keHeE;-1@
+z|Nn(AWuH^mQI|*gLV0*bs<Tm)yny{<=A2{lK1cq4D#h;+&iah~8gtGms%<*Y>D>J(
+z?JM6<?hp0}yvOj}iq;qFNp;V=`g_$@)Sb%w5C3L$7q-6a>e)j5o9%OIgL`TizX#Qu
+zll2>qU(md;bwgUo`i<2ryJi~H6<tj{broh`%lPbTLuikQ#hMI=N6`79`s6{E`yHc5
+zcYLS*8&NWV@9e*-dvBxrBheu06-4~~m|z#(Z;8(1d&+D2z9E`r!uM01U%dII1ZFMW
+zPgS;AwApy^4dOX=Yp#Fzy_$b_cH);y2WCgJ`#Tfz<|@i@R0|lFmHK<lZD8E>;lBmO
+Wf)9THOdC||^ZPh3hB-gtwd*geW@yp?
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-implicit-changed.capnp crates/cargo-census/tests/fixtures/capnp/rpc-implicit-changed.capnp
+new file mode 100644
+index 00000000..7e21729f
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-implicit-changed.capnp
+@@ -0,0 +1,20 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xeec4400000000000;
++
++struct Pair @0xeec4400000000001 (Left, Right) {
++  left @0 :Left;
++  right @1 :Right;
++}
++
++interface Reader @0xeec4400000000002 (Outer) {
++  read @0 [First, Second] (source :Outer, owner :Outer, pair :Pair(Second, Outer))
++       -> Pair(Second, Outer);
++  write @1 [Value] Pair(Outer, Value) -> (value :Value);
++  marker @2 [Unused, Added] () -> ();
++}
++
++struct Stored @0xeec4400000000003 {
++  reader @0 :Reader(Text);
++}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-implicit-compatible.bin crates/cargo-census/tests/fixtures/capnp/rpc-implicit-compatible.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..acd615f4dca5c45d68575f463c718ff442d44684
+GIT binary patch
+literal 4816
+zc-pmCO=#3W6rRcM+7&8orM04>mx@-{B1N#&g9@!!Q7jb&@f3HXF7BV%Y+J<QMK6LP
+zcu=Y*MMP2jfeH%#V)f*~qe2l81P>MQA|i-ylK0|dHrZrr_m$bnyv+MD?`Ph;DPxT7
+z*BDZqwZZS37-O?Z#@5&z#yGTvFuq|wC+wMPp)G(vo3_0Awv<JqX#o2H{X6J4MwrhL
+ze<eNRSYu6|IrpF?;NdN_Wzc4zHAy({VLT>{cY)5G(BHnl@!YkUPhVEc_&_lQpJ))|
+z&hYAW?gjo`89(OWC%cx9zD_;6sp9h>e2|;;!w3FmX?zyOEyA9c9xnOVe(17_&jRo#
+z0`OHjP57H)-@gAG`V|$w0&-U);7=g_)*GLGU;cdHM^yXdLGBj!$CK?dh4|-BO@0{d
+z{_`>_{&kRh;DbM<;LjqyCdFq=icd9$o8YGpCeOg6b=;Ac<MV6Gne!y!@I~K3m_G5(
+zJ<^Qz1NL!fcM=Xh;SfDac-K#4meQ$gzLd+RvsNly%$Ia4doXA8r1esv1n-;e?{aq^
+ziu|xn(tDBkwzSTLI3CusreKX2dd7gKJyy{)G9lmVCn>TUXGt47u4V+6x^X>3UG{v=
+z*4t}z*3DhCf0TmOD~;Ep+y<1(8HX&vU#xtUEB;*^5Z`9@@Da-+&+C#;;_L+Km%#Pz
+z#C44zer<a?*6%T)>l)TgJzpmL<`BCMq95ImL;LIuvFngx*8!9pMmddQ2cO-1srYd_
+z%3VRZa<O8jjcR{T{tmNeajYQ1uu5Kw=#LUcW@|tk$X;HB=cXp@8`;Wh(7#-=T@v-B
+zaVw71_zBWCNT1dS@zsm*CH%cDYnDY^?J?5DLMCE-jhR`?=o&G~m7G<kN}_grEmGoy
+z^lwMIjq16I;iDg&r(ynzOI8!#*@t+M^vUbyQN#4?7#UC4X>XxYHZt|$$p-o_JiSyh
+z3K>J*(~Yt>ozL~!dvM$`bylxF|18ufeW)I2q&{*saQ1P+#ijjAdEuCn_i`wC0{a)t
+zsUy|%hxWm=Vu$BAE6$z1gG+UaR4-Cp*T%hhz8U3KV4vbr9U{d8*|8hm?~u<?l<UKO
+z2<62QMC+IHqvqB#)pdU(@~9Tz@31@?HDB7Puz~9jJGZnN_oyg#56YWP3Y)wCqI^%z
+zgOn2L#ha_1w7-d~zTaK3?2TP}|5KIg#R<z}{XThY0M~C~MrjN1dr;k>`NUhNd!OgZ
+zU6<SSU@dA3;5+$NbL)S)hY)SWbp?@lzgyCa?ny-Zp&gd;9^LcZdmoejk5FY7ufKWV
+z?x1^)#^#G!=NXUHsN?4H9mgIq*KXq8CJy-yyxF&7)P&s+nG{baQBI&*z!>M%b@ByZ
+cT=d~T2F6n#{!vivm{uM4CNM??Kkn7*FN9auT>t<8
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-implicit-compatible.capnp crates/cargo-census/tests/fixtures/capnp/rpc-implicit-compatible.capnp
+new file mode 100644
+index 00000000..88392fa6
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-implicit-compatible.capnp
+@@ -0,0 +1,21 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xeec4400000000000;
++
++struct Pair @0xeec4400000000001 (Left, Right) {
++  left @0 :Left;
++  right @1 :Right;
++}
++
++interface Reader @0xeec4400000000002 (Outer) {
++  read @0 [First, Second] (source :First, owner :Outer, pair :Pair(Second, Outer))
++       -> Pair(First, Outer);
++  write @1 [Value] Pair(Outer, Value) -> (value :Value);
++  marker @2 [Unused] () -> ();
++  appended @3 [Extra] (value :Extra) -> (value :Extra);
++}
++
++struct Stored @0xeec4400000000003 {
++  reader @0 :Reader(Text);
++}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-implicit-invalid.bin crates/cargo-census/tests/fixtures/capnp/rpc-implicit-invalid.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..7a89675fee145afb5ff9a429288cc8017c6158dd
+GIT binary patch
+literal 3304
+zc-qxfy-ve05OzY^f&`+JR*Wo6Y*b>PQpJxbhyf^nLa<rHs*KvCa>7p;c?1>~o`jhf
+z;RSdG?DiZTA%TRZ0!~V-v(M-6zB``@A>_#*AQqXD|3aR`%9{N01Pq!lZzQF>nuI(i
+zurrYVF+KT%^XhW*cEr4i{24L+4U%5CJa1ZK&H(>z4E|yi{wNMp%7Hv@u3rhG<$opy
+zzmXFEy7a$_^d9hE8WBGy;6IlUKPxf(%x1(-J;cuy;Lm4-|11W7d4&8I$l!~*ziE9g
+zh4|4jo}fPrBNG|%KNG`$C8PSOg!tKo`dR4jH-bLBE{Ai}SCzhj`d}T_Eu`O}d!+OS
+zRF`W1Gs<&A4)-W8O0OawmHnms_GpLMJC4n6fl}IQyVNG9!gX5v!e(MHzvT+XTh6JV
+z-L9HDq&GWGn>(!Odfex(qvPeC$DLNA)Af5zDx`Ox39oOzNqrhvH`|n}J>W1vVD&l3
+zeR_9v9I6j4B7P@BnOP<Sz6Fy(z{))MHKk^T>PD^W{vG58WK3$M07rE8E%0JM4?RvW
+zkK-$T6JJ<zfLF&i4(H?`ziO<hd~xCVay()eu48|+tASk=t!w)*KK<^LQsBe<f6apx
+zd%LCpAMP(IA7#kJHEmxp{cfS%rG$N9*u2gDAaB3Hi<z=NCXK&5qWE>pe}M-aZ{?rl
+LTX(R^koVvnI@-p~
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-implicit-invalid.txt crates/cargo-census/tests/fixtures/capnp/rpc-implicit-invalid.txt
+new file mode 100644
+index 00000000..fc2a69c4
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-implicit-invalid.txt
+@@ -0,0 +1,56 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++# The invalid slot types must refuse before the placeholder defaults are read.
++(nodes = [
++  (id = 17204964437392359424, file = void, nestedNodes = [
++    (name = "NamedIndex", id = 17204964437392359425),
++    (name = "Payload", id = 17204964437392359426),
++    (name = "WrongOrder", id = 17204964437392359427),
++    (name = "ForeignWrapper", id = 17204964437392359428),
++    (name = "RawInlinePosition", id = 17204964437392359429),
++    (name = "MissingEmptyParameters", id = 17204964437392359430),
++    (name = "RawDataPosition", id = 17204964437392359431),
++    (name = "Plain", id = 17204964437392359432),
++    (name = "WrapperIndex", id = 17204964437392359433)]),
++  (id = 17204964437392359425, scopeId = 17204964437392359424, interface = (methods = [
++    (name = "read", implicitParameters = [(name = "T")],
++     paramStructType = 17204964437392359426, resultStructType = 17204964437392359432,
++     paramBrand = (scopes = [(scopeId = 17204964437392359426, bind = [
++       (type = (anyPointer = (implicitMethodParameter = (parameterIndex = 1))))])]))])),
++  (id = 17204964437392359426, scopeId = 17204964437392359424, isGeneric = true, parameters = [(name = "T")], struct = ()),
++  (id = 17204964437392359427, scopeId = 17204964437392359424, interface = (methods = [
++    (name = "read", implicitParameters = [(name = "First"), (name = "Second")],
++     paramStructType = 17204964437392359440, resultStructType = 17204964437392359432)])),
++  (id = 17204964437392359440, isGeneric = true, parameters = [(name = "Second"), (name = "First")], struct = ()),
++  (id = 17204964437392359428, scopeId = 17204964437392359424, interface = (methods = [
++    (name = "read", implicitParameters = [(name = "T")],
++     paramStructType = 17204964437392359441, resultStructType = 17204964437392359442)])),
++  (id = 17204964437392359441, isGeneric = true, parameters = [(name = "T")], struct = (pointerCount = 1, fields = [
++     (name = "value", ordinal = (explicit = 0),
++      slot = (type = (anyPointer = (parameter = (scopeId = 17204964437392359442, parameterIndex = 0))),
++              defaultValue = (void = void)))])),
++  (id = 17204964437392359442, isGeneric = true, parameters = [(name = "T")], struct = ()),
++  (id = 17204964437392359429, scopeId = 17204964437392359424, interface = (methods = [
++    (name = "read", implicitParameters = [(name = "T")],
++     paramStructType = 17204964437392359443, resultStructType = 17204964437392359432)])),
++  (id = 17204964437392359443, isGeneric = true, parameters = [(name = "T")], struct = (pointerCount = 1, fields = [
++     (name = "value", ordinal = (explicit = 0),
++      slot = (type = (anyPointer = (implicitMethodParameter = (parameterIndex = 0))),
++              defaultValue = (void = void)))])),
++  (id = 17204964437392359430, scopeId = 17204964437392359424, interface = (methods = [
++    (name = "read", implicitParameters = [(name = "T")],
++     paramStructType = 17204964437392359444, resultStructType = 17204964437392359432)])),
++  (id = 17204964437392359444, isGeneric = true, parameters = [], struct = ()),
++  (id = 17204964437392359431, scopeId = 17204964437392359424, struct = (pointerCount = 1, fields = [
++     (name = "value", ordinal = (explicit = 0),
++      slot = (type = (anyPointer = (implicitMethodParameter = (parameterIndex = 0))),
++              defaultValue = (void = void)))])),
++  (id = 17204964437392359432, scopeId = 17204964437392359424, struct = ()),
++  (id = 17204964437392359433, scopeId = 17204964437392359424, interface = (methods = [
++    (name = "read", implicitParameters = [(name = "T")],
++     paramStructType = 17204964437392359445, resultStructType = 17204964437392359432)])),
++  (id = 17204964437392359445, isGeneric = true, parameters = [(name = "T")], struct = (pointerCount = 1, fields = [
++     (name = "value", ordinal = (explicit = 0),
++      slot = (type = (anyPointer = (parameter = (scopeId = 17204964437392359445, parameterIndex = 1))),
++              defaultValue = (void = void)))]))])
+diff --git crates/raf-census/src/capnp_history/compare.rs crates/raf-census/src/capnp_history/compare.rs
+index 06a8215a..143facfb 100644
+--- crates/raf-census/src/capnp_history/compare.rs
++++ crates/raf-census/src/capnp_history/compare.rs
+@@ -93,6 +93,8 @@ pub enum ChangeKind {
+         /// ID of the enclosing declaration.
+         scope: TypeId,
+     },
++    /// The count of an RPC method's implicit parameters changed.
++    ChangedMethodParameters,
+     /// An existing member disappeared.
+     RemovedMember,
+     /// The old ordinal now has a different name.
+@@ -154,6 +156,7 @@ impl fmt::Display for ChangeKind {
+             Self::ChangedEnclosingParameters { scope } => {
+                 return write!(f, "enclosing scope {scope} type parameter count changed");
+             }
++            Self::ChangedMethodParameters => "implicit method parameter count changed",
+             Self::RemovedMember => "member removed",
+             Self::RenamedMember { current } => return write!(f, "member renamed to {current}"),
+             Self::ChangedOrdinal => "ordinal changed",
+@@ -225,6 +228,9 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
+         let mut emit = |member, kind| push(node, member, kind);
+         match (before, after) {
+             (Node::Struct(before), Node::Struct(after)) => {
++                if before.parameters != after.parameters {
++                    emit(None, ChangeKind::ChangedParameters)?;
++                }
+                 structure(before, after, false, &mut emit)
+             }
+             (Node::Enum(before), Node::Enum(after)) => {
+@@ -309,9 +315,6 @@ fn structure(
+     input_defaults: bool,
+     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
+ ) -> Result<(), Error> {
+-    if before.parameters != after.parameters {
+-        emit(None, ChangeKind::ChangedParameters)?;
+-    }
+     for (path, group) in &before.groups {
+         let member = || (!path.is_empty()).then(|| path.join("."));
+         let Some(current) = after.groups.get(path) else {
+@@ -481,6 +484,9 @@ fn method(
+     new: &Method,
+     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
+ ) -> Result<(), Error> {
++    if old.implicit_arity != new.implicit_arity {
++        emit(Some(old.name.clone()), ChangeKind::ChangedMethodParameters)?;
++    }
+     for (before, after, role, input) in [
+         (&old.params, &new.params, "parameters", true),
+         (&old.results, &new.results, "results", false),
+diff --git crates/raf-census/src/capnp_history/descriptor.rs crates/raf-census/src/capnp_history/descriptor.rs
+index 1c80fa96..63c478fd 100644
+--- crates/raf-census/src/capnp_history/descriptor.rs
++++ crates/raf-census/src/capnp_history/descriptor.rs
+@@ -24,7 +24,7 @@ use super::{
+     DescriptorError as Error, TypeId,
+     capture::Capture,
+     occupancy::{Occupancy, POINTER_BASE},
+-    shape::{self, DefaultValue, Type},
++    shape::{self, DefaultValue, Type, TypeScope},
+ };
+ 
+ pub(super) const MAX_BYTES: u64 = 2 * 1024 * 1024;
+@@ -101,6 +101,7 @@ pub(super) struct Interface {
+ #[derive(Debug)]
+ pub(super) struct Method {
+     pub(super) name: String,
++    pub(super) implicit_arity: u32,
+     pub(super) params: Endpoint,
+     pub(super) results: Endpoint,
+ }
+@@ -501,7 +502,7 @@ impl<'a> Nodes<'a> {
+         needed: &mut BTreeSet<TypeId>,
+         annotations: Annotations,
+         scopes: &mut DeclarationScopes,
+-        inline_type_scope: Option<TypeId>,
++        inline_type_scope: Option<TypeScope>,
+     ) -> Result<Struct, Error> {
+         let mut collector = Fields {
+             nodes: self,
+@@ -595,7 +596,7 @@ struct Fields<'a, 'b> {
+     used_groups: BTreeSet<TypeId>,
+     ordinals: BTreeSet<u16>,
+     sizes: (u16, u16),
+-    inline_type_scope: Option<TypeId>,
++    inline_type_scope: Option<TypeScope>,
+ }
+ 
+ impl<'a> Fields<'a, '_> {
+@@ -641,7 +642,10 @@ impl<'a> Fields<'a, '_> {
+             shape::read_brand(
+                 annotation.get_brand()?,
+                 self.nodes,
+-                (self.inline_type_scope.unwrap_or(owner), marker),
++                (
++                    TypeScope::Lexical(self.inline_type_scope.map_or(owner, TypeScope::owner)),
++                    marker,
++                ),
+                 &mut BTreeSet::new(),
+             )?;
+         }
+@@ -849,7 +853,7 @@ impl<'a> Fields<'a, '_> {
+                 "missing type or default at {owner}.{name} @{ordinal}"
+             )));
+         }
+-        let type_scope = self.inline_type_scope.unwrap_or(owner);
++        let type_scope = self.inline_type_scope.unwrap_or(TypeScope::Lexical(owner));
+         let ty = Type::read(slot.get_type()?, self.nodes, type_scope, self.needed)?;
+         let default = shape::default(&ty, slot.get_default_value()?, self.nodes)?;
+         let offset = slot.get_offset();
+diff --git crates/raf-census/src/capnp_history/descriptor/declarations.rs crates/raf-census/src/capnp_history/descriptor/declarations.rs
+index af5d0bcd..dd54294c 100644
+--- crates/raf-census/src/capnp_history/descriptor/declarations.rs
++++ crates/raf-census/src/capnp_history/descriptor/declarations.rs
+@@ -11,7 +11,8 @@ use std::{
+ use capnp::schema_capnp::{node, type_};
+ 
+ use super::{
+-    Declaration, DeclarationBody, Error, MAX_DEPTH, Nodes, Type, TypeId, layout, member_name,
++    Declaration, DeclarationBody, Error, MAX_DEPTH, Nodes, Type, TypeId, TypeScope, layout,
++    member_name,
+ };
+ 
+ /// Kind of a written Cap'n Proto declaration.
+@@ -271,7 +272,7 @@ fn declared_type(
+     let reader =
+         reader.ok_or_else(|| layout(format!("{kind} declaration {name} ({id}) has no type")))?;
+     // Type references validate nominal identity without selecting their layouts.
+-    Type::read(reader?, nodes, id, &mut BTreeSet::new())
++    Type::read(reader?, nodes, TypeScope::Lexical(id), &mut BTreeSet::new())
+ }
+ 
+ fn verify_other_nodes(
+diff --git crates/raf-census/src/capnp_history/descriptor/rpc.rs crates/raf-census/src/capnp_history/descriptor/rpc.rs
+index 3011a999..209e3fdb 100644
+--- crates/raf-census/src/capnp_history/descriptor/rpc.rs
++++ crates/raf-census/src/capnp_history/descriptor/rpc.rs
+@@ -5,16 +5,20 @@
+ 
+ use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
+ 
+-use capnp::schema_capnp::{brand, field, node};
++use capnp::{
++    schema_capnp::{brand, field, method, node},
++    struct_list,
++};
+ 
+ use super::{
+     Annotations, DeclarationScopes, Endpoint, Error, Interface, Kind, Method, Node, Nodes, TypeId,
+     layout, member_name,
+ };
+-use crate::capnp_history::shape::{self, Arguments, Pointer, Type};
++use crate::capnp_history::shape::{self, Arguments, Pointer, Type, TypeScope};
+ 
+ // A present entry with no owner records an invalid or competing declaration.
+ type Owners = BTreeMap<TypeId, Option<TypeId>>;
++type Parameters<'a> = struct_list::Reader<'a, node::parameter::Owned>;
+ 
+ #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+ enum ScopePolicy {
+@@ -26,6 +30,7 @@ enum ScopePolicy {
+ struct MethodOwner<'a> {
+     id: TypeId,
+     parameter_scopes: &'a BTreeMap<TypeId, u32>,
++    implicit_arity: u32,
+ }
+ 
+ pub(super) struct Projection {
+@@ -112,11 +117,14 @@ impl Projection {
+         }
+         let superclasses = self.superclasses(nodes, id, data, scopes)?;
+         needed.extend(superclasses.iter().copied());
+-        let owner = MethodOwner {
+-            id,
+-            parameter_scopes: &parameter_scopes,
+-        };
+-        let methods = self.methods(nodes, owner, data, needed, annotations, scopes)?;
++        let methods = self.methods(
++            nodes,
++            (id, &parameter_scopes),
++            data,
++            needed,
++            annotations,
++            scopes,
++        )?;
+         let parameters = parameter_scopes.remove(&id).unwrap_or(0);
+         Ok(Interface {
+             parameters,
+@@ -218,13 +226,12 @@ impl Projection {
+     fn methods<'a>(
+         &mut self,
+         nodes: &Nodes<'a>,
+-        owner: MethodOwner<'_>,
++        (id, parameter_scopes): (TypeId, &BTreeMap<TypeId, u32>),
+         interface: node::interface::Reader<'a>,
+         needed: &mut BTreeSet<TypeId>,
+         annotations: Annotations,
+         scopes: &mut DeclarationScopes,
+     ) -> Result<Vec<Method>, Error> {
+-        let id = owner.id;
+         let list = interface.get_methods()?;
+         if list.len() > u32::from(u16::MAX) + 1 {
+             return Err(layout(format!(
+@@ -239,12 +246,12 @@ impl Projection {
+                 return Err(layout(format!("repeated RPC method {id}.{name}")));
+             }
+             let location = || format!("RPC interface {id} method @{ordinal} {name}");
+-            if !method.get_implicit_parameters()?.is_empty() {
+-                return Err(layout(format!(
+-                    "{} must have no implicit method type parameters",
+-                    location()
+-                )));
+-            }
++            let implicit = implicit_parameters(method)?;
++            let owner = MethodOwner {
++                id,
++                parameter_scopes,
++                implicit_arity: implicit.len(),
++            };
+             let mut endpoint = |target,
+                                 brand: brand::Reader<'_>,
+                                 role|
+@@ -259,7 +266,13 @@ impl Projection {
+                     return Err(error("must be a nongroup struct"));
+                 }
+                 if reader.get_scope_id() == 0 {
+-                    self.inline(reader, data, (owner.parameter_scopes, brand), error)?;
++                    self.inline(
++                        reader,
++                        data,
++                        (owner.parameter_scopes, brand),
++                        implicit,
++                        error,
++                    )?;
+                     if self.has_declaring_scope(nodes, target)? {
+                         return Err(error(
+                             "has a lexical declaration claim despite its zero scope",
+@@ -271,7 +284,12 @@ impl Projection {
+                         needed,
+                         annotations,
+                         scopes,
+-                        (!owner.parameter_scopes.is_empty()).then_some(owner.id),
++                        (!owner.parameter_scopes.is_empty() || owner.implicit_arity != 0)
++                            .then_some(TypeScope::Inline {
++                                owner: owner.id,
++                                wrapper: target,
++                                arity: owner.implicit_arity,
++                            }),
+                     )?;
+                     return Ok(Endpoint::Inline {
+                         id: target,
+@@ -306,6 +324,7 @@ impl Projection {
+             )?;
+             methods.push(Method {
+                 name: name.to_owned(),
++                implicit_arity: owner.implicit_arity,
+                 params,
+                 results,
+             });
+@@ -341,17 +360,30 @@ impl Projection {
+             ));
+         }
+         let scope_count = brand.get_scopes()?.len();
+-        let brand = shape::read_brand(brand, nodes, (owner.id, id), needed)?;
++        let brand = shape::read_brand(
++            brand,
++            nodes,
++            (
++                TypeScope::MethodBrand {
++                    owner: owner.id,
++                    arity: owner.implicit_arity,
++                },
++                id,
++            ),
++            needed,
++        )?;
+         // Canonicalization drops empty scopes, which method brands cannot carry.
+         if brand.is_empty()
+             || u32::try_from(brand.len()) != Ok(scope_count)
+             || !complete_brand(nodes, id, &brand, owner.parameter_scopes)?
+         {
+-            return Err(error(if owner.parameter_scopes.is_empty() {
+-                "requires a complete concrete endpoint brand"
+-            } else {
+-                "requires a complete endpoint brand within the generic method owner's scopes"
+-            }));
++            return Err(error(
++                if owner.parameter_scopes.is_empty() && owner.implicit_arity == 0 {
++                    "requires a complete concrete endpoint brand"
++                } else {
++                    "requires a complete endpoint brand in the method's parameter scopes"
++                },
++            ));
+         }
+         Ok(Type::Named(Kind::Struct, id, brand))
+     }
+@@ -380,6 +412,7 @@ impl Projection {
+         reader: node::Reader<'_>,
+         data: node::struct_::Reader<'_>,
+         (parameter_scopes, brand): (&BTreeMap<TypeId, u32>, brand::Reader<'_>),
++        implicit: Parameters<'_>,
+         error: impl FnOnce(&str) -> Error,
+     ) -> Result<(), Error> {
+         let scopes = brand.get_scopes()?;
+@@ -402,14 +435,23 @@ impl Projection {
+         } else if !scopes.is_empty() {
+             return Err(error("must have an empty inline endpoint brand"));
+         }
+-        if reader.get_is_generic() != generic
+-            || !reader.get_parameters()?.is_empty()
++        if reader.get_is_generic() != (generic || !implicit.is_empty())
+             || !reader.get_nested_nodes()?.is_empty()
+         {
+             return Err(error(
+-                "must match the method owner's generic flag and have no declarations or own parameters",
++                "must match the method's generic state and have no declarations",
+             ));
+         }
++        let parameters = reader.get_parameters()?;
++        let reason = "must declare its method's implicit parameters in order";
++        if parameters.len() != implicit.len() {
++            return Err(error(reason));
++        }
++        for (parameter, expected) in parameters.into_iter().zip(implicit) {
++            if member_name(parameter.get_name()?)? != member_name(expected.get_name()?)? {
++                return Err(error(reason));
++            }
++        }
+         let id = TypeId(reader.get_id());
+         if self.inline_owners.get(&id) != Some(&1) {
+             return Err(error("must have exactly one owning method role"));
+@@ -435,6 +477,14 @@ impl Projection {
+     }
+ }
+ 
++fn implicit_parameters(method: method::Reader<'_>) -> Result<Parameters<'_>, Error> {
++    let parameters = method.get_implicit_parameters()?;
++    for parameter in parameters {
++        member_name(parameter.get_name()?)?;
++    }
++    Ok(parameters)
++}
++
+ fn nongeneric(reader: node::Reader<'_>) -> Result<bool, Error> {
+     Ok(!reader.get_is_generic() && reader.get_parameters()?.is_empty())
+ }
+diff --git crates/raf-census/src/capnp_history/shape.rs crates/raf-census/src/capnp_history/shape.rs
+index bcff9077..15ab8220 100644
+--- crates/raf-census/src/capnp_history/shape.rs
++++ crates/raf-census/src/capnp_history/shape.rs
+@@ -43,6 +43,31 @@ pub(super) enum Pointer {
+     List,
+     Capability,
+     Parameter(TypeId, u16),
++    MethodParameter(u16),
++}
++
++#[derive(Clone, Copy)]
++pub(super) enum TypeScope {
++    Lexical(TypeId),
++    MethodBrand {
++        owner: TypeId,
++        arity: u32,
++    },
++    Inline {
++        owner: TypeId,
++        wrapper: TypeId,
++        arity: u32,
++    },
++}
++
++impl TypeScope {
++    pub(super) const fn owner(self) -> TypeId {
++        match self {
++            Self::Lexical(owner) | Self::MethodBrand { owner, .. } | Self::Inline { owner, .. } => {
++                owner
++            }
++        }
++    }
+ }
+ 
+ #[derive(Debug, PartialEq, Eq)]
+@@ -84,7 +109,7 @@ impl Type {
+     pub(super) fn read(
+         reader: type_::Reader<'_>,
+         nodes: &Nodes<'_>,
+-        owner: TypeId,
++        scope: TypeScope,
+         dependencies: &mut BTreeSet<TypeId>,
+     ) -> Result<Self, Error> {
+         use type_::Which;
+@@ -107,7 +132,7 @@ impl Type {
+                 if !list.has_element_type() {
+                     return Err(layout("list type has no element type"));
+                 }
+-                return Self::read(list.get_element_type()?, nodes, owner, dependencies)
++                return Self::read(list.get_element_type()?, nodes, scope, dependencies)
+                     .map(|item| Self::List(Box::new(item)));
+             }
+             Which::Enum(data) => {
+@@ -116,7 +141,7 @@ impl Type {
+                     TypeId(data.get_type_id()),
+                     data.get_brand()?,
+                     nodes,
+-                    owner,
++                    scope,
+                     dependencies,
+                 );
+             }
+@@ -126,7 +151,7 @@ impl Type {
+                     TypeId(data.get_type_id()),
+                     data.get_brand()?,
+                     nodes,
+-                    owner,
++                    scope,
+                     dependencies,
+                 );
+             }
+@@ -136,12 +161,12 @@ impl Type {
+                     TypeId(data.get_type_id()),
+                     data.get_brand()?,
+                     nodes,
+-                    owner,
++                    scope,
+                     dependencies,
+                 );
+             }
+             Which::AnyPointer(pointer) => {
+-                return read_pointer(pointer, nodes, owner).map(Self::Pointer);
++                return read_pointer(pointer, nodes, scope).map(Self::Pointer);
+             }
+         };
+         Ok(Self::Atom(atom))
+@@ -152,7 +177,7 @@ impl Type {
+         id: TypeId,
+         brand: brand::Reader<'_>,
+         nodes: &Nodes<'_>,
+-        owner: TypeId,
++        scope: TypeScope,
+         dependencies: &mut BTreeSet<TypeId>,
+     ) -> Result<Self, Error> {
+         nodes.require_kind(id, kind)?;
+@@ -162,7 +187,7 @@ impl Type {
+         Ok(Self::Named(
+             kind,
+             id,
+-            read_brand(brand, nodes, (owner, id), dependencies)?,
++            read_brand(brand, nodes, (scope, id), dependencies)?,
+         ))
+     }
+ }
+@@ -170,7 +195,7 @@ impl Type {
+ fn read_pointer(
+     reader: type_::any_pointer::Reader<'_>,
+     nodes: &Nodes<'_>,
+-    owner: TypeId,
++    context: TypeScope,
+ ) -> Result<Pointer, Error> {
+     use type_::any_pointer::{Which, unconstrained};
+     Ok(match reader.which()? {
+@@ -183,7 +208,17 @@ fn read_pointer(
+         Which::Parameter(value) => {
+             let scope = TypeId(value.get_scope_id());
+             let index = value.get_parameter_index();
+-            if !nodes.contains_scope(owner, scope)?
++            if let TypeScope::Inline { wrapper, arity, .. } = context
++                && scope == wrapper
++            {
++                if u32::from(index) >= arity {
++                    return Err(layout(format!(
++                        "invalid method parameter {index} in wrapper {wrapper}"
++                    )));
++                }
++                return Ok(Pointer::MethodParameter(index));
++            }
++            if !nodes.contains_scope(context.owner(), scope)?
+                 || u32::from(index) >= nodes.parameters(scope)?
+             {
+                 return Err(layout(format!(
+@@ -192,8 +227,17 @@ fn read_pointer(
+             }
+             Pointer::Parameter(scope, index)
+         }
+-        Which::ImplicitMethodParameter(_) => {
+-            return Err(layout("method parameter in a persisted data type"));
++        Which::ImplicitMethodParameter(parameter) => {
++            let TypeScope::MethodBrand { arity, .. } = context else {
++                return Err(layout(
++                    "implicit method parameter requires an RPC method brand",
++                ));
++            };
++            let index = parameter.get_parameter_index();
++            if u32::from(index) >= arity {
++                return Err(layout(format!("invalid implicit method parameter {index}")));
++            }
++            Pointer::MethodParameter(index)
+         }
+     })
+ }
+@@ -201,7 +245,7 @@ fn read_pointer(
+ pub(super) fn read_brand(
+     reader: brand::Reader<'_>,
+     nodes: &Nodes<'_>,
+-    (owner, target): (TypeId, TypeId),
++    (context, target): (TypeScope, TypeId),
+     dependencies: &mut BTreeSet<TypeId>,
+ ) -> Result<BTreeMap<TypeId, Arguments>, Error> {
+     let mut brand = BTreeMap::new();
+@@ -215,7 +259,7 @@ pub(super) fn read_brand(
+         let count = nodes.parameters(id)?;
+         let arguments = match scope.which()? {
+             brand::scope::Inherit(()) => {
+-                if !nodes.contains_scope(owner, id)? {
++                if !nodes.contains_scope(context.owner(), id)? {
+                     return Err(layout(format!("unavailable inherited brand scope {id}")));
+                 }
+                 Arguments::Inherited(count)
+@@ -230,7 +274,7 @@ pub(super) fn read_brand(
+                     let value = match binding.which()? {
+                         brand::binding::Unbound(()) => Type::Pointer(Pointer::Any),
+                         brand::binding::Type(value) => {
+-                            Type::read(value?, nodes, owner, dependencies)?
++                            Type::read(value?, nodes, context, dependencies)?
+                         }
+                     };
+                     if !value.storage().is_some_and(|(pointer, _)| pointer) {
+@@ -336,7 +380,10 @@ fn check_any_pointer(value: any_pointer::Reader<'_>, kind: Pointer) -> Result<()
+         Pointer::Capability if !value.is_null() => {
+             return Err(layout("non-null capability default"));
+         }
+-        Pointer::Any | Pointer::Capability | Pointer::Parameter(..) => {}
++        Pointer::Any
++        | Pointer::Capability
++        | Pointer::Parameter(..)
++        | Pointer::MethodParameter(_) => {}
+     }
+     Ok(())
+ }
+diff --git docs/capabilities/census-cli.md docs/capabilities/census-cli.md
+index 872110e3..3fd1e268 100644
+--- docs/capabilities/census-cli.md
++++ docs/capabilities/census-cli.md
+@@ -66,6 +66,8 @@ bindings:
+     - cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints
+     - cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners
+     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners
++    - cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters
++    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters
+     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints
+     - cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance
+     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance
+@@ -141,6 +143,13 @@ parameters and results independently. A new trailing method with valid
+ endpoints is allowed.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners -->
+ 
++A method's implicit type parameters supplement the interface's lexical
++parameters. Census compares each kind by position within its scope and
++reports a changed implicit parameter count once on the method, including
++when the changed position is unused. A method brand can carry an implicit
++position only within the method's declared range.
++<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters -->
++
+ Census follows the direct superclass IDs of each selected interface and its
+ bases. Both interfaces on an inheritance edge must be named and nongeneric.
+ The edge must have an empty brand. The declaration chain must have reciprocal ownership
+@@ -161,10 +170,9 @@ An endpoint can bind the parameters of enclosing declarations alone.
+ Nested type arguments must also be fully bound. An unconstrained
+ `AnyPointer` counts as an unbound argument.
+ The branded endpoint and its method interface each require a unique
+-reciprocal declaration chain. A nongeneric method owner requires concrete
+-arguments. A generic owner permits bindings to its own and enclosing parameter
+-positions. A named endpoint can inherit any of these scopes that also belong
+-to its declaration chain.
++reciprocal declaration chain. A method can bind its own implicit positions
++and its interface's lexical parameter positions. A named endpoint can inherit
++any lexical parameter scope that also belongs to its declaration chain.
+ The endpoint's generic flags must agree with its own and enclosing parameter
+ declarations.
+ Several methods and roles can share one endpoint declaration with different
+@@ -173,18 +181,19 @@ evolution, including implicit defaults for optional additions.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
+ 
+ A compiler-generated inline list belongs to one method ordinal and endpoint
+-role. It must be a detached struct without its own type parameters or a
+-lexical declaration claim. A generic owner requires the inline list to
+-inherit each parameter-bearing scope in its declaration chain exactly once.
+-Census reads the inline field types in the owner's lexical scopes and retains
+-the detached struct ID for layout. The list for a nongeneric owner
+-requires an empty brand. Fields use explicit ordinals in order from zero and
++role. It must be a detached struct without a lexical declaration claim and
++must declare the method's implicit parameters in the same order, even if the
++role has no fields. Its generic state reflects those declarations and the
++interface's parameter-bearing scopes. The inline brand inherits each lexical
++parameter scope exactly once. Fields can use ordinary positions from their
++own wrapper and lexical positions from the owner. The detached ID still
++identifies the role layout. Fields use explicit ordinals in order from zero and
+ the same layout checks as ordinary data, including referenced types. Census checks each
+ retained inline input's explicit-default marker and requires an explicit
+ default for each appended inline input. It also compares the layout when a
+-renamed method retains its ordinal. Method type parameters, direct selection of a
+-detached endpoint and wrappers shared across method roles refuse.
+-<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
++renamed method retains its ordinal. Direct selection of a detached endpoint
++and wrappers shared across method roles refuse.
++<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters -->
+ 
+ Persistence declarations bind declared data structs and enums. An
+ interface-typed pointer records its nominal identity as part of the data shape.
+@@ -771,9 +780,17 @@ its detached role IDs and slot types stay stable. Missing, repeated, foreign
+ and bound inline scope rows refuse, as does an inconsistent owner flag.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners -->
+ 
++The implicit RPC fixtures accept an appended generic method. They distinguish
++method and lexical positions with the same index, report a named role's
++changed binding, and report one arity finding for an empty method's unused
++parameter. Out-of-range positions, conflicting declarations and references
++to another wrapper refuse. A raw implicit position also refuses in inline
++slots and ordinary data types.
++<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters -->
++
+ A persisted interface pointer keeps its data verdict across changes in
+ RPC inheritance and method layouts, including a stable branded pointer
+-to a generic owner.
++to a generic owner with changed implicit method parameters.
+ <!-- raf:tested-by cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_ignores_rpc_endpoint_layouts -->
+ 
+ <!-- raf:generated:verification-matrix -->
+@@ -810,12 +827,14 @@ to a generic owner.
+ | `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract), [Usage](#usage) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
++| `cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints` | test | [Contract](#contract), [Usage](#usage) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
++| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance` | test | [Contract](#contract) |
+diff --git work/assessments/census-cli-constraints.md work/assessments/census-cli-constraints.md
+index 623e6dbf..a2df75b9 100644
+--- work/assessments/census-cli-constraints.md
++++ work/assessments/census-cli-constraints.md
+@@ -58,7 +58,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 1bd6da25e1d99c39e59c5a7bf2c87a279f208f16343d2409985cc524c3b8056b
++    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-contract.md work/assessments/census-cli-contract.md
+index 1bb59df2..a1b4b488 100644
+--- work/assessments/census-cli-contract.md
++++ work/assessments/census-cli-contract.md
+@@ -7,7 +7,7 @@ subject: cap:census-cli#contract
+ inputs:
+   - kind: section
+     name: cap:census-cli#contract
+-    digest: 173120be699144435ab4676f8f3310e687681b716d16b4ae2d0ed6661b7bd778
++    digest: 266ec0eb38ec1f3d7e59687c02606971faace4c032cc9a8353875838bdcb4562
+   - kind: symbol
+     name: cargo_census::run
+     digest: b32049f8a2619291edf0a2a43585c53654afca013fc0074ed2898c73a9c661fd
+diff --git work/assessments/census-cli-examples.md work/assessments/census-cli-examples.md
+index f3e63c29..b49b0205 100644
+--- work/assessments/census-cli-examples.md
++++ work/assessments/census-cli-examples.md
+@@ -58,7 +58,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 1bd6da25e1d99c39e59c5a7bf2c87a279f208f16343d2409985cc524c3b8056b
++    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-explanation.md work/assessments/census-cli-explanation.md
+index 1afc1ebf..19fdaed7 100644
+--- work/assessments/census-cli-explanation.md
++++ work/assessments/census-cli-explanation.md
+@@ -58,7 +58,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 1bd6da25e1d99c39e59c5a7bf2c87a279f208f16343d2409985cc524c3b8056b
++    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-purpose.md work/assessments/census-cli-purpose.md
+index ab054431..3dd1701b 100644
+--- work/assessments/census-cli-purpose.md
++++ work/assessments/census-cli-purpose.md
+@@ -58,7 +58,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 1bd6da25e1d99c39e59c5a7bf2c87a279f208f16343d2409985cc524c3b8056b
++    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-verification.md work/assessments/census-cli-verification.md
+index 0e84bcb0..91ec3ea3 100644
+--- work/assessments/census-cli-verification.md
++++ work/assessments/census-cli-verification.md
+@@ -7,7 +7,7 @@ subject: cap:census-cli#verification
+ inputs:
+   - kind: section
+     name: cap:census-cli#verification
+-    digest: e6c8a90f29cd513be65121f312f388404c9ca9e328da925b786402b9904f59bc
++    digest: b1a82ff9104f256b9e074477773fe4f2b9eecedcc77f18bbe6cce6b09f7ae6d8
+   - kind: symbol
+     name: cargo_census::bin_crate::cargo_census::main
+     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
+@@ -58,7 +58,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 1bd6da25e1d99c39e59c5a7bf2c87a279f208f16343d2409985cc524c3b8056b
++    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6

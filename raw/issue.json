@@ -1,0 +1,20 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "Validate the nested capability bindings map with native SHACL Core.\nDerive the shape from the existing keys for code, tests and examples.\nAll three keys are required and the map is closed.\n\n- Use the bounded header graph and prepared validator from #367. Include\n  the binding-map focus only when the authored value is a map.\n- Preserve one `BindingsKeys` finding at `bindings` when the authored map\n  has any extra or missing key. Preserve its order among profile value\n  findings and carry native failures through the existing typed diagnostic.\n- Keep the existing wrong-shape, list and capability-state rules. Preserve\n  the canonical RDF authoring round trip.\n- Exercise an extra key, a missing key and a valid neighbor through the\n  actual profile entry point. Verify that native key-set validation\n  preserves the diagnosed locations and accepted cases.\n\nParent #41 retains other nested record shapes, value constraints and\nremaining graph-wide validation.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-11-21T05:00:24Z",
+  "labels": [],
+  "milestone": null,
+  "number": 375,
+  "state": "OPEN",
+  "title": "okf: validate closed capability binding keys with native SHACL",
+  "updatedAt": "2026-11-21T05:00:24Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/375"
+}

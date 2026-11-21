@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "issue": 375,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "anon-read",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/375-okf-validate-closed-capability-binding",
+  "branch": "paudley/375-okf-validate-closed-capability-binding",
+  "slug": "okf-validate-closed-capability-binding",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/375-okf-validate-closed-capability-binding/.stage/okf-validate-closed-capability-binding",
+  "stage_tracked": true,
+  "base": "refs/remotes/origin/main",
+  "base_oid": "854d564818b2ef4975919cfefa64f0a567abf852",
+  "reused": false,
+  "adr_repo": false,
+  "created": [
+    "worktree:/home/paudley/Active/rust-agentic-foundations/.worktrees/375-okf-validate-closed-capability-binding",
+    "branch:paudley/375-okf-validate-closed-capability-binding",
+    "ignored:515 files (515 reflinked, 0 written)",
+    "rust-caches:reflinked /home/paudley/Active/rust-agentic-foundations/.worktrees/371-census-compare-implicit-capn-proto-rpc caches into /home/paudley/Active/rust-agentic-foundations/.worktrees/375-okf-validate-closed-capability-binding plus 0 dependency units from 0 other checkouts in 20.3s; 1366 unchanged files keep their built mtimes; 54 other files take the seed time and rebuild; 8 units naming another checkout rebuild",
+    "stage:/home/paudley/Active/rust-agentic-foundations/.worktrees/375-okf-validate-closed-capability-binding/.stage/okf-validate-closed-capability-binding",
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/375-okf-validate-closed-capability-binding/.stage/okf-validate-closed-capability-binding/issue.md"
+  ],
+  "warnings": [],
+  "timestamp": "2026-11-20T23:04:58-0600",
+  "seed_error": ""
+}
