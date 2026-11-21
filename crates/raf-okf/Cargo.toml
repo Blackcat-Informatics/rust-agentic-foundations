@@ -20,6 +20,7 @@ purrdf-core.workspace = true
 purrdf-hash.workspace = true
 purrdf-lex.workspace = true
 purrdf-markdown.workspace = true
+purrdf-shapes.workspace = true
 purrdf-xsd.workspace = true
 
 [dev-dependencies]

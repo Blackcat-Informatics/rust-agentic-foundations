@@ -159,13 +159,14 @@ pub(crate) fn rule_case(tag: RuleTag) -> Option<Case> {
         // Native operational refusals are exercised by finding's native result
         // fixture and raf-okf's scalar-result propagation fixture. A document
         // cannot deterministically induce an allocator or sufficient-grant failure.
-        RuleTag::Markdown => None,
+        RuleTag::Markdown | RuleTag::HeaderShape => None,
         tag => Some(rule_case_unplaced(tag)),
     }
 }
 
 /// Operational kinds exercised with actual native refusal results in unit tests.
-pub(crate) const OPERATIONAL_KINDS: [&str; 2] = ["okf-markdown", "okf-parse-markdown"];
+pub(crate) const OPERATIONAL_KINDS: [&str; 3] =
+    ["okf-header-shape", "okf-markdown", "okf-parse-markdown"];
 
 pub(crate) const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
 

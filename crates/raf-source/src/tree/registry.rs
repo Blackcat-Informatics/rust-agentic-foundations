@@ -84,7 +84,7 @@ impl<'a> RegistryArchiveTree<'a> {
             .source()
             .ok_or_else(|| refused("registry source is absent"))?;
         let tar = decode(archive, options, &meter)?;
-        let image = image(&tar, options, package, catalog.usage().item_bytes, &meter)?;
+        let image = image(&tar, options, package, &meter)?;
         Ok(Self {
             package,
             source,
@@ -171,7 +171,6 @@ fn image(
     tar: &[u8],
     options: &LoadOptions,
     package: &LockedPackage,
-    catalog_bytes: usize,
     meter: &Meter,
 ) -> Result<Shared<Image>, LoadError> {
     let path = RelPath::root();
@@ -251,15 +250,18 @@ fn image(
             Ok::<_, LoadError>(a.path.cmp(&b.path))
         })?;
         meter.work(records.len().saturating_mul(11), &path, None)?;
-        merge_directories(&mut records, meter)?;
+        let retained = merge_directories(&mut records, meter)?;
         if !records
             .iter()
             .any(|record| record.path == "Cargo.toml" && record.bytes.is_some())
         {
             return Err(refused("registry package requires a root Cargo.toml file"));
         }
-        meter.items(Shared::<Image>::allocation_layout().size(), &path, None)?;
-        let retained = meter.usage().item_bytes.saturating_sub(catalog_bytes);
+        let owner = Shared::<Image>::allocation_layout().size();
+        meter.items(owner, &path, None)?;
+        // A different load inherits only the image, after all archive-opening
+        // scratch covered by this constructor's meter has been released.
+        let retained = retained.saturating_add(owner);
         let image = Shared::try_new(Image { records, retained })
             .map_err(|_| storage(StorageError::AllocationFailed))?;
         Ok(image)
@@ -310,10 +312,11 @@ fn push_record<S: purrdf_lex::allocation::Admission + ?Sized>(
 }
 
 /// Collapse repeated directory records of a sorted inventory; any repeated path
-/// that is or names a file conflicts. One linear pass keeps large valid archives
-/// inside the work grant.
-fn merge_directories(records: &mut Vec<Record>, meter: &Meter) -> Result<(), LoadError> {
+/// that is or names a file conflicts. Count the live storage of the resulting
+/// inventory while compacting it.
+fn merge_directories(records: &mut Vec<Record>, meter: &Meter) -> Result<usize, LoadError> {
     let mut kept = 0;
+    let mut retained = records.capacity().saturating_mul(size_of::<Record>());
     for index in 0..records.len() {
         if kept > 0 {
             let (done, rest) = records.split_at(index);
@@ -336,11 +339,16 @@ fn merge_directories(records: &mut Vec<Record>, meter: &Meter) -> Result<(), Loa
                 continue;
             }
         }
+        let record = &records[index];
+        retained = retained.saturating_add(record.path.capacity());
+        if let Some(bytes) = &record.bytes {
+            retained = retained.saturating_add(bytes.capacity());
+        }
         records.swap(kept, index);
         kept += 1;
     }
     records.truncate(kept);
-    Ok(())
+    Ok(retained)
 }
 
 impl Tree for RegistryArchiveTree<'_> {

@@ -192,6 +192,9 @@ inputs:
     name: raf_okf::Header
     digest: fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
   - kind: symbol
+    name: raf_okf::HeaderShapeError
+    digest: 4a49ada02bb2cf654f37f232f0d615ab5257184f8d5bfe9ce59ee6972394ecb4
+  - kind: symbol
     name: raf_okf::Heading
     digest: 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
   - kind: symbol
@@ -295,10 +298,10 @@ inputs:
     digest: a4cd7152d67abbc58275e413c07a2a150ffee773a947672ea7a88bad688fe9e9
   - kind: symbol
     name: raf_okf::Rule
-    digest: 140a63ab869aa78e3c72a61334ed30629e9d766e4d1dd7d054e57bafcc8563bc
+    digest: 766221dd28a7d54a8709a30fe252f28cdb80de71e948b1a2f35e872e646022d3
   - kind: symbol
     name: raf_okf::RuleTag
-    digest: e80683fab12bc93338fa976c3c99727f4087f0c38ed8fc15534607e60617a019
+    digest: 451cea50b086b19593a106a0fa1525873d3140a9ff729b7f648431e739b17a41
   - kind: symbol
     name: raf_okf::Scalar
     digest: 4170302e3e314c6dddf0f25495efc20ff874f6e3bd6b845803b3d69da67a4ed0

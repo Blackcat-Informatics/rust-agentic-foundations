@@ -606,6 +606,51 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
     assert_eq!(foreign_seen, 21 + 25 + 27 + 20 + 27 + 29 + 29 + 23);
 }
 
+/// Closed and minimum-count findings retain authored and schema order.
+#[test]
+fn mixed_header_violations_keep_their_key_and_diagnostic_order() {
+    clean(ARCHITECTURE, OVERVIEW_PATH);
+    let text = mutate(
+        ARCHITECTURE,
+        "title: Overview\ndescription: How it fits.\n",
+        "zeta: 1\nresource: forbidden\naardvark: 2\n",
+    );
+    let found = violations(&text, OVERVIEW_PATH);
+    let expected = [
+        ("zeta", Rule::UnknownKey { key: "zeta".into() }),
+        (
+            "resource",
+            Rule::ResourceKey {
+                doc_type: DocType::Architecture,
+            },
+        ),
+        (
+            "aardvark",
+            Rule::UnknownKey {
+                key: "aardvark".into(),
+            },
+        ),
+        (
+            "title",
+            Rule::MissingKey {
+                key: "title".into(),
+            },
+        ),
+        (
+            "description",
+            Rule::MissingKey {
+                key: "description".into(),
+            },
+        ),
+    ];
+    assert_eq!(found.len(), expected.len());
+    for (violation, (name, rule)) in found.iter().zip(expected) {
+        assert_eq!(violation.file(), OVERVIEW_PATH);
+        assert_eq!(violation.at(), &key(name));
+        assert_eq!(violation.rule(), &rule);
+    }
+}
+
 fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
     match doc_type {
         DocType::Capability => [

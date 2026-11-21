@@ -142,11 +142,11 @@ pub use profile::{
     CeilingLimit, Change, ChangeItem, Component, ComponentKind, ContractEffect, CoverageRecord,
     DebtFinding, DebtLine, DebtRecord, DeclaredRelation, DiagramDeclaration, DiagramGrouping,
     DiagramKind, DiagramKindError, DocType, EvidenceRecord, EvidenceSubject, EvidenceVerdict,
-    Exception, ExceptionTarget, Exclusion, ExclusionItem, ExternalActor, Header, Input, InputKind,
-    KeySpec, Location, Measure, ModelBindings, Number, Outcome, Profile, RafDocument, RecordHeader,
-    ReviewDisposition, ReviewFinding, ReviewKind, ReviewLocation, ReviewRecord, ReviewScope,
-    ReviewSeverity, ReviewVerdict, Rule, RuleTag, Scenario, ScenarioRegion, ScenarioRegionKind,
-    ScenarioStep, SectionRef, State, TimestampError, Unit, ValueKind, Violation, is_commit_id,
-    validate_timestamp,
+    Exception, ExceptionTarget, Exclusion, ExclusionItem, ExternalActor, Header, HeaderShapeError,
+    Input, InputKind, KeySpec, Location, Measure, ModelBindings, Number, Outcome, Profile,
+    RafDocument, RecordHeader, ReviewDisposition, ReviewFinding, ReviewKind, ReviewLocation,
+    ReviewRecord, ReviewScope, ReviewSeverity, ReviewVerdict, Rule, RuleTag, Scenario,
+    ScenarioRegion, ScenarioRegionKind, ScenarioStep, SectionRef, State, TimestampError, Unit,
+    ValueKind, Violation, is_commit_id, validate_timestamp,
 };
 pub use span::Span;

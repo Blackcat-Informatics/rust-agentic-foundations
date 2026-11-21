@@ -17,9 +17,11 @@ fn every_rule_has_a_fixture_reported_with_file_and_location() {
     support::assert_clean(&support::check(&valid()));
     for tag in Rule::ALL {
         let Some(case) = rule_case(tag) else {
-            assert_eq!(
-                tag,
-                raf_okf::RuleTag::Markdown,
+            assert!(
+                matches!(
+                    tag,
+                    raf_okf::RuleTag::Markdown | raf_okf::RuleTag::HeaderShape
+                ),
                 "only tested native operational refusals have no document fixture"
             );
             continue;

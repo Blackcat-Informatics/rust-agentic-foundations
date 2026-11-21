@@ -5,8 +5,8 @@
 
 use purrdf_gts::files::{FileEntry, FileEntryKind};
 use raf_source::{
-    EntryKind, LoadOptions, LockedCatalog, LockedManifest, MemoryTree, Opened, ReferenceTree,
-    RegistryArchiveTree, RelPath, Tree, TreeError, Workspace,
+    Budget, EntryKind, LoadErrorKind, LoadOptions, LockedCatalog, LockedManifest, MemoryTree,
+    Opened, ReferenceTree, RegistryArchiveTree, RelPath, Tree, TreeError, Workspace,
 };
 
 fn file(path: &str, bytes: &[u8]) -> FileEntry {
@@ -294,6 +294,47 @@ fn a_first_party_archive_cannot_bind_to_a_different_catalogs_row() {
     load(&own, own_row).expect("the archive under its own catalog loads");
     let refused = load(&other, other_row).expect_err("another catalog's row refuses");
     assert!(refused.to_string().contains("differs"), "{refused}");
+}
+
+/// Composition imports the sealed file payloads into its own grant. The
+/// decompressed tar and opening scratch have already left the archive's view.
+#[test]
+fn locked_registry_load_charges_the_retained_image() {
+    const PAYLOAD_BYTES: usize = 256 * 1024;
+    let mut entries = valid();
+    entries.push(file("demo-1.0.0/archive-data.bin", &vec![0; PAYLOAD_BYTES]));
+    let bytes = gzip(&archive(&entries));
+    let catalog = catalog(&bytes);
+    let row = catalog.packages().next().unwrap().id();
+    let tree = RegistryArchiveTree::from_bytes(&catalog, row, &bytes, &LoadOptions::default())
+        .expect("valid archive");
+    let local = [LockedManifest::new(
+        row,
+        RelPath::new("Cargo.toml").unwrap(),
+        &[],
+    )];
+    let load = |max_item_bytes| {
+        let mut options = LoadOptions::default();
+        options.max_item_bytes = max_item_bytes;
+        Workspace::load_reference_sources_under(
+            &catalog,
+            ReferenceTree::Registry(&tree),
+            &[RelPath::root()],
+            &local,
+            &[],
+            &options,
+        )
+    };
+    let workspace = load(384 * 1024).expect("only the retained archive and source index fit");
+    workspace
+        .resolve("demo::provided")
+        .expect("indexed archive");
+    let limit = PAYLOAD_BYTES - 1;
+    let error = load(limit).expect_err("even an unread payload occupies the shared grant");
+    assert!(matches!(
+        error.kind,
+        LoadErrorKind::Budget { budget: Budget::ItemBytes, limit: actual } if actual == limit
+    ));
 }
 
 /// A locked configuration names the library target of the root manifest alone:

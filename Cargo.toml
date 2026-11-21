@@ -54,6 +54,7 @@ purrdf-lex = { version = "=4" }
 purrdf-jsonschema = { version = "=4" }
 purrdf-xsd = { version = "=4" }
 purrdf-rdf = { version = "=4" }
+purrdf-shapes = { version = "=4" }
 purrdf-core = { version = "=4" }
 purrdf-iri = { version = "=4" }
 purrdf-deflate = { version = "=4" }

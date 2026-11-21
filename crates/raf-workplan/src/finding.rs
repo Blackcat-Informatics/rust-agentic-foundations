@@ -160,6 +160,7 @@ kinds! {
     OKF_CONDITIONS_MISSING = "okf-conditions-missing";
     OKF_UNIT_WITHOUT_VALUE = "okf-unit-without-value";
     OKF_MARKDOWN = "okf-markdown";
+    OKF_HEADER_SHAPE = "okf-header-shape";
     OKF_PARSE_UNCLOSED_FENCE = "okf-parse-unclosed-fence";
     OKF_PARSE_TOO_LARGE = "okf-parse-too-large";
     OKF_PARSE_MIXED_LINE_ENDINGS = "okf-parse-mixed-line-endings";
@@ -658,6 +659,10 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
             kind::OKF_MARKDOWN,
             "resolve the native refusal shown for this decoded scalar; resource and storage failures must be corrected before validation",
         ),
+        RuleTag::HeaderShape => (
+            kind::OKF_HEADER_SHAPE,
+            "resolve the reported native header validation failure before retrying",
+        ),
         RuleTag::ValueWithoutUnit => (
             kind::OKF_VALUE_WITHOUT_UNIT,
             "give every measured value its unit under `units`, or remove `units` and `conditions` from the record",
@@ -914,20 +919,42 @@ mod tests {
         let scalar = Finding::from_rule(&rule, "docs/a.md", Location::Key("title".to_string()));
         let reader =
             Finding::from_reader_kind("docs/a.md", &raf_okf::ErrorKind::Markdown { source }, 7);
-        for (finding, expected, location) in [
-            (scalar, "okf-markdown", Location::Key("title".to_string())),
-            (reader, "okf-parse-markdown", Location::Line(7)),
+        let header = Finding::from_rule(
+            &Rule::HeaderShape {
+                source: raf_okf::HeaderShapeError::UnexpectedReport,
+            },
+            "docs/a.md",
+            Location::Document,
+        );
+        for (finding, expected, location, message) in [
+            (
+                scalar,
+                "okf-markdown",
+                Location::Key("title".to_string()),
+                "work requires 6, limit 0",
+            ),
+            (
+                reader,
+                "okf-parse-markdown",
+                Location::Line(7),
+                "work requires 6, limit 0",
+            ),
+            (
+                header,
+                "okf-header-shape",
+                Location::Document,
+                "unexpected header result",
+            ),
         ] {
             assert_eq!(finding.kind, expected);
             assert_eq!(finding.file, "docs/a.md");
             assert_eq!(finding.location, location);
-            assert!(
-                finding.message.contains("work requires 6, limit 0"),
-                "{}",
-                finding.message
-            );
+            assert!(finding.message.contains(message), "{}", finding.message);
             assert_ne!(finding.fix, "");
             assert!(Finding::KINDS.contains(&finding.kind));
+            let rdf = crate::report::findings(&[finding], raf_rdf::Format::NTriples)
+                .expect("the report profile admits the operational finding");
+            assert!(rdf.contains(expected), "{rdf}");
         }
     }
 }

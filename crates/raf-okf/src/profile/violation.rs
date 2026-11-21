@@ -6,6 +6,7 @@
 use std::fmt;
 
 use crate::body::LinkForm;
+use crate::profile::header::HeaderShapeError;
 use crate::profile::schema::DocType;
 use crate::profile::timestamp::TimestampError;
 use crate::profile::typed::{Actor, InputKind, State};
@@ -361,6 +362,11 @@ pub enum Rule {
         /// Original refusal with positions in the decoded scalar.
         source: purrdf_markdown::SyntaxError,
     },
+    /// Native top-level shape validation could not establish a verdict.
+    HeaderShape {
+        /// Original refusal from header graph construction or validation.
+        source: HeaderShapeError,
+    },
 }
 
 impl fmt::Display for Rule {
@@ -371,6 +377,7 @@ impl fmt::Display for Rule {
                 f,
                 "native Markdown reader refused the decoded scalar: {source}"
             ),
+            Self::HeaderShape { source } => write!(f, "cannot check top-level keys ({source})"),
             Self::MissingKey { key } => write!(f, "missing required key `{key}`"),
             Self::UnknownKey { key } => write!(f, "unknown key `{key}`"),
             Self::ResourceKey { doc_type } => {
@@ -694,6 +701,7 @@ impl std::error::Error for Rule {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Markdown { source } => Some(source),
+            Self::HeaderShape { source } => Some(source),
             _ => None,
         }
     }
@@ -848,6 +856,8 @@ pub enum RuleTag {
     UnitWithoutValue,
     /// Native decoded-scalar refusal.
     Markdown,
+    /// [`Rule::HeaderShape`].
+    HeaderShape,
 }
 
 impl RuleTag {
@@ -922,6 +932,7 @@ impl RuleTag {
             Self::ConditionsMissing => "conditions-missing",
             Self::UnitWithoutValue => "unit-without-value",
             Self::Markdown => "markdown",
+            Self::HeaderShape => "header-shape",
         }
     }
 }
@@ -934,7 +945,7 @@ impl fmt::Display for RuleTag {
 
 impl Rule {
     /// Every tag, in the order of the variants of [`Rule`].
-    pub const ALL: [RuleTag; 67] = [
+    pub const ALL: [RuleTag; 68] = [
         RuleTag::MissingKey,
         RuleTag::UnknownKey,
         RuleTag::ResourceKey,
@@ -1002,6 +1013,7 @@ impl Rule {
         RuleTag::ConditionsMissing,
         RuleTag::UnitWithoutValue,
         RuleTag::Markdown,
+        RuleTag::HeaderShape,
     ];
 
     /// The tag of this value, which drops its data.
@@ -1075,13 +1087,14 @@ impl Rule {
             Self::ConditionsMissing => RuleTag::ConditionsMissing,
             Self::UnitWithoutValue { .. } => RuleTag::UnitWithoutValue,
             Self::Markdown { .. } => RuleTag::Markdown,
+            Self::HeaderShape { .. } => RuleTag::HeaderShape,
         }
     }
 }
 
 #[cfg(test)]
 mod tag_tests {
-    use super::{Rule, RuleTag};
+    use super::{HeaderShapeError, Rule, RuleTag};
     use crate::body::LinkForm;
     use crate::profile::schema::DocType;
     use crate::profile::timestamp::validate_timestamp;
@@ -1092,6 +1105,9 @@ mod tag_tests {
     #[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
     fn sample(tag: RuleTag) -> Rule {
         match tag {
+            RuleTag::HeaderShape => Rule::HeaderShape {
+                source: HeaderShapeError::UnexpectedReport,
+            },
             RuleTag::Markdown => Rule::Markdown {
                 source: purrdf_markdown::SyntaxError::Limit {
                     position: purrdf_markdown::syntax::SourcePosition {
@@ -1342,11 +1358,12 @@ mod tag_tests {
             Rule::ConditionsMissing => 64,
             Rule::UnitWithoutValue { .. } => 65,
             Rule::Markdown { .. } => 66,
+            Rule::HeaderShape { .. } => 67,
         }
     }
 
     /// How many variants `Rule` has.
-    const VARIANTS: usize = 67;
+    const VARIANTS: usize = 68;
 
     #[test]
     fn all_lists_every_rule_once_in_variant_order() {
