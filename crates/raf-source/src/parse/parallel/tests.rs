@@ -276,7 +276,7 @@ fn run_worker(file: &RelPath) -> Result<bool, crate::LoadError> {
         text,
         scan,
         control: &control,
-        configuration: None,
+        configurations: None,
         probe: None,
     };
     std::thread::scope(|scope| {

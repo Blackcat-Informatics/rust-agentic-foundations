@@ -33,7 +33,7 @@ fn tree_with_options(dependency: &str, shared: bool, required: bool, options: &s
     let source = if shared {
         "#[path=\"../shared.rs\"] mod shared; pub fn reader() {}"
     } else {
-        "pub fn reader() {}"
+        "#[cfg(test)] pub struct WorkerTest; pub fn reader() {}"
     };
     let library = if shared {
         "#[path=\"../shared.rs\"] pub mod shared; pub struct Local; pub fn lib_reader() {}"
@@ -79,6 +79,25 @@ fn load_under(
     dependency: &str,
     options: &LoadOptions,
 ) -> Result<Workspace, LoadError> {
+    load_with(
+        tree,
+        configs,
+        dependency,
+        options,
+        |catalog, tree, hints| Workspace::load_locked_sources(catalog, tree, hints, &[], options),
+    )
+}
+fn load_with(
+    tree: &MemoryTree,
+    configs: &[DeclaredConfiguration<'_>],
+    dependency: &str,
+    options: &LoadOptions,
+    load: impl FnOnce(
+        &LockedCatalog,
+        &MemoryTree,
+        &[LockedManifest<'_>],
+    ) -> Result<Workspace, LoadError>,
+) -> Result<Workspace, LoadError> {
     let catalog = LockedCatalog::load(tree, &RelPath::new("Cargo.lock").unwrap(), options)?;
     let row = |name| {
         catalog
@@ -102,7 +121,7 @@ fn load_under(
         )
         .with_configuration(context(TargetKind::Lib, "provider", false)),
     ];
-    Workspace::load_locked_sources(&catalog, tree, &hints, &[], options)
+    load(&catalog, tree, &hints)
 }
 fn reader(ws: &Workspace, kind: TargetKind) -> raf_source::ItemId {
     ws.items()
@@ -227,6 +246,69 @@ fn shared_files_reuse_only_the_same_actual_syntax_selection() {
         error.to_string().contains("physical source file"),
         "{error}"
     );
+}
+
+/// Raw parser tasks can run ahead, while the canonical reach grants the actual
+/// target configuration and owns whether an earlier physical file can be reused.
+#[cfg(target_os = "linux")]
+#[test]
+fn locked_parallel_parsing_keeps_target_context_and_canonical_alias_refusal() {
+    let options = LoadOptions::default();
+    let parallel = raf_source::ParallelOptions::default();
+    let configurations = [
+        context(TargetKind::Lib, "consumer_library", false),
+        context(TargetKind::Bin, "worker", true),
+    ];
+    let dependency = "dependencies.renamed";
+    let compare = |tree: &MemoryTree| {
+        let roots = [RelPath::root()];
+        let serial = load_with(
+            tree,
+            &configurations,
+            dependency,
+            &options,
+            |catalog, tree, hints| {
+                Workspace::load_locked_sources_under(catalog, tree, &roots, hints, &[], &options)
+            },
+        );
+        let concurrent = load_with(
+            tree,
+            &configurations,
+            dependency,
+            &options,
+            |catalog, tree, hints| {
+                Workspace::par_load_locked_sources_under(
+                    catalog,
+                    tree,
+                    &roots,
+                    hints,
+                    &[],
+                    &options,
+                    &parallel,
+                )
+            },
+        );
+        (serial, concurrent)
+    };
+
+    let (serial, concurrent) = compare(&tree("dependencies", false, false));
+    let serial = serial.unwrap();
+    let concurrent = concurrent.unwrap();
+    assert_eq!(serial, concurrent);
+    assert_eq!(serial.usage(), concurrent.usage());
+    assert!(concurrent.items().any(|item| item.name == "WorkerTest"));
+    assert!(!concurrent.items().any(|item| item.name == "OnlyTest"));
+    let workers = concurrent.parallel_usage().unwrap().peak_worker_stack_bytes;
+    assert_eq!(workers, 2 * raf_source::PARSE_STACK_BYTES);
+
+    let (serial, concurrent) = compare(&tree("dependencies", true, false));
+    let serial = serial.unwrap_err();
+    let concurrent = concurrent.unwrap_err();
+    assert!(serial.to_string().contains("physical source file"));
+    assert_eq!(serial.file, concurrent.file);
+    assert_eq!(serial.line, concurrent.line);
+    assert_eq!(serial.origin, concurrent.origin);
+    assert_eq!(serial.to_string(), concurrent.to_string());
 }
 
 #[test]

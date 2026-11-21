@@ -4,13 +4,12 @@
 //! Coordinator-owned speculation; native syntax never leaves its fresh worker.
 
 use super::{
-    Candidate, Extracted as Parsed, PARSE_STACK_BYTES, Parser, PreparedSource, extract_head,
-    parse_syntax, storage,
+    Candidate, ConfigurationKey, Extracted as Parsed, ExtractionGrant, PARSE_STACK_BYTES, Parser,
+    PreparedSource, extract_head, parse_syntax, storage,
 };
-use crate::meter::{FactAllowance, Usage};
 use crate::{
-    ActiveConfiguration, DiskTree, FileId, LoadError, LoadErrorKind, LoadOptions, MemoryTree,
-    Opened, RelPath, Tree, TreeError,
+    ActiveConfiguration, DiskTree, FileId, LoadError, LoadErrorKind, LoadOptions, LockedBinding,
+    MemoryTree, Opened, RelPath, SourceAuthorityId, Tree, TreeError,
 };
 #[cfg(test)]
 use purrdf_lex::allocation::Shared;
@@ -158,8 +157,7 @@ enum Grant {
 
 struct HeadGrant {
     path: RelPath,
-    allowance: FactAllowance,
-    usage: Usage,
+    extraction: ExtractionGrant,
 }
 
 #[derive(Default)]
@@ -175,9 +173,28 @@ struct WorkerInput<'a> {
     text: String,
     scan: crate::prescan::Scan,
     control: &'a Control,
-    configuration: Option<(&'a ActiveConfiguration, &'a LoadOptions)>,
+    configurations: Option<(&'a LoadOptions, ExtractionConfigurations<'a>)>,
     #[cfg(test)]
     probe: Option<Shared<tests::Probe>>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ExtractionConfigurations<'a> {
+    Selected(&'a ActiveConfiguration),
+    Locked(&'a [LockedBinding]),
+}
+
+impl<'a> ExtractionConfigurations<'a> {
+    fn get(self, key: ConfigurationKey) -> Option<&'a ActiveConfiguration> {
+        match (self, key) {
+            (Self::Selected(active), ConfigurationKey::Selected) => Some(active),
+            (Self::Locked(bindings), ConfigurationKey::Locked(package, ordinal)) => bindings
+                .get(package.index())?
+                .configurations()
+                .get(ordinal.0),
+            _ => None,
+        }
+    }
 }
 
 impl WorkerInput<'_> {
@@ -194,13 +211,34 @@ impl WorkerInput<'_> {
         let mut tree = syntax?;
         #[cfg(test)]
         tests::extracting(&grant.path);
+        let context = grant
+            .extraction
+            .configuration
+            .map(|key| {
+                self.configurations
+                    .and_then(|(options, configurations)| {
+                        configurations
+                            .get(key)
+                            .map(|active| (active, options, grant.extraction.usage))
+                    })
+                    .ok_or_else(|| {
+                        LoadError::new(
+                            &grant.path,
+                            None,
+                            LoadErrorKind::Internal {
+                                what: "parser grant carried an unavailable target configuration"
+                                    .into(),
+                            },
+                        )
+                    })
+            })
+            .transpose()?;
         let head = extract_head(
             &mut tree,
             &grant.path,
             &self.text,
-            grant.allowance,
-            self.configuration
-                .map(|(active, options)| (active, options, grant.usage)),
+            grant.extraction.allowance,
+            context,
         );
         drop(tree);
         Ok(Some(Parsed {
@@ -364,7 +402,7 @@ pub(crate) struct Executor<'scope, 'env> {
     scope: &'scope Scope<'scope, 'env>,
     controls: &'scope [Control],
     account: &'scope RefCell<Account>,
-    configuration: Option<(&'scope ActiveConfiguration, &'scope LoadOptions)>,
+    configurations: Option<(&'scope LoadOptions, ExtractionConfigurations<'scope>)>,
     state: RefCell<State<'scope>>,
     #[cfg(test)]
     probe: Option<Shared<tests::Probe>>,
@@ -375,7 +413,7 @@ impl<'scope, 'env> Executor<'scope, 'env> {
         scope: &'scope Scope<'scope, 'env>,
         resources: &'scope Resources,
         options: &ParallelOptions,
-        configuration: Option<(&'scope ActiveConfiguration, &'scope LoadOptions)>,
+        configurations: Option<(&'scope LoadOptions, ExtractionConfigurations<'scope>)>,
     ) -> Result<Self, LoadError> {
         let mut tasks = Vec::new();
         resources
@@ -388,7 +426,7 @@ impl<'scope, 'env> Executor<'scope, 'env> {
             scope,
             controls: &resources.controls,
             account: &resources.account,
-            configuration,
+            configurations,
             state: RefCell::new(State {
                 tasks,
                 live_jobs: 0,
@@ -580,7 +618,7 @@ impl<'scope, 'env> Executor<'scope, 'env> {
                     text,
                     scan,
                     control,
-                    configuration: self.configuration,
+                    configurations: self.configurations,
                     #[cfg(test)]
                     probe: self.probe.clone(),
                 };
@@ -631,6 +669,17 @@ impl Parser for Executor<'_, '_> {
         options: &LoadOptions,
         seen: &dyn Fn(&FileId) -> bool,
     ) -> bool {
+        let path = match candidate {
+            Candidate::Existing(path) | Candidate::Joined { base: path, .. } => path,
+        };
+        if matches!(
+            self.configurations,
+            Some((_, ExtractionConfigurations::Locked(_)))
+        ) && path.authority() != SourceAuthorityId::FIRST_PARTY
+        {
+            // Sealed backends charge the canonical budget during their reads.
+            return true;
+        }
         let mut state = self.state.borrow_mut();
         // Slot zero always belongs to canonical progress, including a newly
         // discovered descendant that sorts before every parked sibling.
@@ -704,8 +753,7 @@ impl Parser for Executor<'_, '_> {
         id: &FileId,
         text: String,
         options: &LoadOptions,
-        allowance: FactAllowance,
-        usage: Usage,
+        extraction: ExtractionGrant,
     ) -> Result<Parsed, LoadError> {
         let (slot, task, observed) = {
             let mut state = self.state.borrow_mut();
@@ -736,8 +784,7 @@ impl Parser for Executor<'_, '_> {
         };
         self.controls[slot].set(Grant::Extract(HeadGrant {
             path: path.clone(),
-            allowance,
-            usage,
+            extraction,
         }));
         let result = match task.running {
             Running::Failed(error) => Err(error),
