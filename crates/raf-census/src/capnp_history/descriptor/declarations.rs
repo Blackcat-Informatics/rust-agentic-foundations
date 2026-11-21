@@ -11,7 +11,8 @@ use std::{
 use capnp::schema_capnp::{node, type_};
 
 use super::{
-    Declaration, DeclarationBody, Error, MAX_DEPTH, Nodes, Type, TypeId, layout, member_name,
+    Declaration, DeclarationBody, Error, MAX_DEPTH, Nodes, Type, TypeId, TypeScope, layout,
+    member_name,
 };
 
 /// Kind of a written Cap'n Proto declaration.
@@ -271,7 +272,7 @@ fn declared_type(
     let reader =
         reader.ok_or_else(|| layout(format!("{kind} declaration {name} ({id}) has no type")))?;
     // Type references validate nominal identity without selecting their layouts.
-    Type::read(reader?, nodes, id, &mut BTreeSet::new())
+    Type::read(reader?, nodes, TypeScope::Lexical(id), &mut BTreeSet::new())
 }
 
 fn verify_other_nodes(

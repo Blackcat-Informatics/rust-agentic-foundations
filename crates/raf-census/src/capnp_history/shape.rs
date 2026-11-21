@@ -43,6 +43,31 @@ pub(super) enum Pointer {
     List,
     Capability,
     Parameter(TypeId, u16),
+    MethodParameter(u16),
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum TypeScope {
+    Lexical(TypeId),
+    MethodBrand {
+        owner: TypeId,
+        arity: u32,
+    },
+    Inline {
+        owner: TypeId,
+        wrapper: TypeId,
+        arity: u32,
+    },
+}
+
+impl TypeScope {
+    pub(super) const fn owner(self) -> TypeId {
+        match self {
+            Self::Lexical(owner) | Self::MethodBrand { owner, .. } | Self::Inline { owner, .. } => {
+                owner
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -84,7 +109,7 @@ impl Type {
     pub(super) fn read(
         reader: type_::Reader<'_>,
         nodes: &Nodes<'_>,
-        owner: TypeId,
+        scope: TypeScope,
         dependencies: &mut BTreeSet<TypeId>,
     ) -> Result<Self, Error> {
         use type_::Which;
@@ -107,7 +132,7 @@ impl Type {
                 if !list.has_element_type() {
                     return Err(layout("list type has no element type"));
                 }
-                return Self::read(list.get_element_type()?, nodes, owner, dependencies)
+                return Self::read(list.get_element_type()?, nodes, scope, dependencies)
                     .map(|item| Self::List(Box::new(item)));
             }
             Which::Enum(data) => {
@@ -116,7 +141,7 @@ impl Type {
                     TypeId(data.get_type_id()),
                     data.get_brand()?,
                     nodes,
-                    owner,
+                    scope,
                     dependencies,
                 );
             }
@@ -126,7 +151,7 @@ impl Type {
                     TypeId(data.get_type_id()),
                     data.get_brand()?,
                     nodes,
-                    owner,
+                    scope,
                     dependencies,
                 );
             }
@@ -136,12 +161,12 @@ impl Type {
                     TypeId(data.get_type_id()),
                     data.get_brand()?,
                     nodes,
-                    owner,
+                    scope,
                     dependencies,
                 );
             }
             Which::AnyPointer(pointer) => {
-                return read_pointer(pointer, nodes, owner).map(Self::Pointer);
+                return read_pointer(pointer, nodes, scope).map(Self::Pointer);
             }
         };
         Ok(Self::Atom(atom))
@@ -152,7 +177,7 @@ impl Type {
         id: TypeId,
         brand: brand::Reader<'_>,
         nodes: &Nodes<'_>,
-        owner: TypeId,
+        scope: TypeScope,
         dependencies: &mut BTreeSet<TypeId>,
     ) -> Result<Self, Error> {
         nodes.require_kind(id, kind)?;
@@ -162,7 +187,7 @@ impl Type {
         Ok(Self::Named(
             kind,
             id,
-            read_brand(brand, nodes, (owner, id), dependencies)?,
+            read_brand(brand, nodes, (scope, id), dependencies)?,
         ))
     }
 }
@@ -170,7 +195,7 @@ impl Type {
 fn read_pointer(
     reader: type_::any_pointer::Reader<'_>,
     nodes: &Nodes<'_>,
-    owner: TypeId,
+    context: TypeScope,
 ) -> Result<Pointer, Error> {
     use type_::any_pointer::{Which, unconstrained};
     Ok(match reader.which()? {
@@ -183,7 +208,17 @@ fn read_pointer(
         Which::Parameter(value) => {
             let scope = TypeId(value.get_scope_id());
             let index = value.get_parameter_index();
-            if !nodes.contains_scope(owner, scope)?
+            if let TypeScope::Inline { wrapper, arity, .. } = context
+                && scope == wrapper
+            {
+                if u32::from(index) >= arity {
+                    return Err(layout(format!(
+                        "invalid method parameter {index} in wrapper {wrapper}"
+                    )));
+                }
+                return Ok(Pointer::MethodParameter(index));
+            }
+            if !nodes.contains_scope(context.owner(), scope)?
                 || u32::from(index) >= nodes.parameters(scope)?
             {
                 return Err(layout(format!(
@@ -192,8 +227,17 @@ fn read_pointer(
             }
             Pointer::Parameter(scope, index)
         }
-        Which::ImplicitMethodParameter(_) => {
-            return Err(layout("method parameter in a persisted data type"));
+        Which::ImplicitMethodParameter(parameter) => {
+            let TypeScope::MethodBrand { arity, .. } = context else {
+                return Err(layout(
+                    "implicit method parameter requires an RPC method brand",
+                ));
+            };
+            let index = parameter.get_parameter_index();
+            if u32::from(index) >= arity {
+                return Err(layout(format!("invalid implicit method parameter {index}")));
+            }
+            Pointer::MethodParameter(index)
         }
     })
 }
@@ -201,7 +245,7 @@ fn read_pointer(
 pub(super) fn read_brand(
     reader: brand::Reader<'_>,
     nodes: &Nodes<'_>,
-    (owner, target): (TypeId, TypeId),
+    (context, target): (TypeScope, TypeId),
     dependencies: &mut BTreeSet<TypeId>,
 ) -> Result<BTreeMap<TypeId, Arguments>, Error> {
     let mut brand = BTreeMap::new();
@@ -215,7 +259,7 @@ pub(super) fn read_brand(
         let count = nodes.parameters(id)?;
         let arguments = match scope.which()? {
             brand::scope::Inherit(()) => {
-                if !nodes.contains_scope(owner, id)? {
+                if !nodes.contains_scope(context.owner(), id)? {
                     return Err(layout(format!("unavailable inherited brand scope {id}")));
                 }
                 Arguments::Inherited(count)
@@ -230,7 +274,7 @@ pub(super) fn read_brand(
                     let value = match binding.which()? {
                         brand::binding::Unbound(()) => Type::Pointer(Pointer::Any),
                         brand::binding::Type(value) => {
-                            Type::read(value?, nodes, owner, dependencies)?
+                            Type::read(value?, nodes, context, dependencies)?
                         }
                     };
                     if !value.storage().is_some_and(|(pointer, _)| pointer) {
@@ -336,7 +380,10 @@ fn check_any_pointer(value: any_pointer::Reader<'_>, kind: Pointer) -> Result<()
         Pointer::Capability if !value.is_null() => {
             return Err(layout("non-null capability default"));
         }
-        Pointer::Any | Pointer::Capability | Pointer::Parameter(..) => {}
+        Pointer::Any
+        | Pointer::Capability
+        | Pointer::Parameter(..)
+        | Pointer::MethodParameter(_) => {}
     }
     Ok(())
 }

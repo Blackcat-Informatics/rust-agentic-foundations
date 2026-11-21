@@ -5,16 +5,20 @@
 
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 
-use capnp::schema_capnp::{brand, field, node};
+use capnp::{
+    schema_capnp::{brand, field, method, node},
+    struct_list,
+};
 
 use super::{
     Annotations, DeclarationScopes, Endpoint, Error, Interface, Kind, Method, Node, Nodes, TypeId,
     layout, member_name,
 };
-use crate::capnp_history::shape::{self, Arguments, Pointer, Type};
+use crate::capnp_history::shape::{self, Arguments, Pointer, Type, TypeScope};
 
 // A present entry with no owner records an invalid or competing declaration.
 type Owners = BTreeMap<TypeId, Option<TypeId>>;
+type Parameters<'a> = struct_list::Reader<'a, node::parameter::Owned>;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum ScopePolicy {
@@ -26,6 +30,7 @@ enum ScopePolicy {
 struct MethodOwner<'a> {
     id: TypeId,
     parameter_scopes: &'a BTreeMap<TypeId, u32>,
+    implicit_arity: u32,
 }
 
 pub(super) struct Projection {
@@ -112,11 +117,14 @@ impl Projection {
         }
         let superclasses = self.superclasses(nodes, id, data, scopes)?;
         needed.extend(superclasses.iter().copied());
-        let owner = MethodOwner {
-            id,
-            parameter_scopes: &parameter_scopes,
-        };
-        let methods = self.methods(nodes, owner, data, needed, annotations, scopes)?;
+        let methods = self.methods(
+            nodes,
+            (id, &parameter_scopes),
+            data,
+            needed,
+            annotations,
+            scopes,
+        )?;
         let parameters = parameter_scopes.remove(&id).unwrap_or(0);
         Ok(Interface {
             parameters,
@@ -218,13 +226,12 @@ impl Projection {
     fn methods<'a>(
         &mut self,
         nodes: &Nodes<'a>,
-        owner: MethodOwner<'_>,
+        (id, parameter_scopes): (TypeId, &BTreeMap<TypeId, u32>),
         interface: node::interface::Reader<'a>,
         needed: &mut BTreeSet<TypeId>,
         annotations: Annotations,
         scopes: &mut DeclarationScopes,
     ) -> Result<Vec<Method>, Error> {
-        let id = owner.id;
         let list = interface.get_methods()?;
         if list.len() > u32::from(u16::MAX) + 1 {
             return Err(layout(format!(
@@ -239,12 +246,12 @@ impl Projection {
                 return Err(layout(format!("repeated RPC method {id}.{name}")));
             }
             let location = || format!("RPC interface {id} method @{ordinal} {name}");
-            if !method.get_implicit_parameters()?.is_empty() {
-                return Err(layout(format!(
-                    "{} must have no implicit method type parameters",
-                    location()
-                )));
-            }
+            let implicit = implicit_parameters(method)?;
+            let owner = MethodOwner {
+                id,
+                parameter_scopes,
+                implicit_arity: implicit.len(),
+            };
             let mut endpoint = |target,
                                 brand: brand::Reader<'_>,
                                 role|
@@ -259,7 +266,13 @@ impl Projection {
                     return Err(error("must be a nongroup struct"));
                 }
                 if reader.get_scope_id() == 0 {
-                    self.inline(reader, data, (owner.parameter_scopes, brand), error)?;
+                    self.inline(
+                        reader,
+                        data,
+                        (owner.parameter_scopes, brand),
+                        implicit,
+                        error,
+                    )?;
                     if self.has_declaring_scope(nodes, target)? {
                         return Err(error(
                             "has a lexical declaration claim despite its zero scope",
@@ -271,7 +284,12 @@ impl Projection {
                         needed,
                         annotations,
                         scopes,
-                        (!owner.parameter_scopes.is_empty()).then_some(owner.id),
+                        (!owner.parameter_scopes.is_empty() || owner.implicit_arity != 0)
+                            .then_some(TypeScope::Inline {
+                                owner: owner.id,
+                                wrapper: target,
+                                arity: owner.implicit_arity,
+                            }),
                     )?;
                     return Ok(Endpoint::Inline {
                         id: target,
@@ -306,6 +324,7 @@ impl Projection {
             )?;
             methods.push(Method {
                 name: name.to_owned(),
+                implicit_arity: owner.implicit_arity,
                 params,
                 results,
             });
@@ -341,17 +360,30 @@ impl Projection {
             ));
         }
         let scope_count = brand.get_scopes()?.len();
-        let brand = shape::read_brand(brand, nodes, (owner.id, id), needed)?;
+        let brand = shape::read_brand(
+            brand,
+            nodes,
+            (
+                TypeScope::MethodBrand {
+                    owner: owner.id,
+                    arity: owner.implicit_arity,
+                },
+                id,
+            ),
+            needed,
+        )?;
         // Canonicalization drops empty scopes, which method brands cannot carry.
         if brand.is_empty()
             || u32::try_from(brand.len()) != Ok(scope_count)
             || !complete_brand(nodes, id, &brand, owner.parameter_scopes)?
         {
-            return Err(error(if owner.parameter_scopes.is_empty() {
-                "requires a complete concrete endpoint brand"
-            } else {
-                "requires a complete endpoint brand within the generic method owner's scopes"
-            }));
+            return Err(error(
+                if owner.parameter_scopes.is_empty() && owner.implicit_arity == 0 {
+                    "requires a complete concrete endpoint brand"
+                } else {
+                    "requires a complete endpoint brand in the method's parameter scopes"
+                },
+            ));
         }
         Ok(Type::Named(Kind::Struct, id, brand))
     }
@@ -380,6 +412,7 @@ impl Projection {
         reader: node::Reader<'_>,
         data: node::struct_::Reader<'_>,
         (parameter_scopes, brand): (&BTreeMap<TypeId, u32>, brand::Reader<'_>),
+        implicit: Parameters<'_>,
         error: impl FnOnce(&str) -> Error,
     ) -> Result<(), Error> {
         let scopes = brand.get_scopes()?;
@@ -402,13 +435,22 @@ impl Projection {
         } else if !scopes.is_empty() {
             return Err(error("must have an empty inline endpoint brand"));
         }
-        if reader.get_is_generic() != generic
-            || !reader.get_parameters()?.is_empty()
+        if reader.get_is_generic() != (generic || !implicit.is_empty())
             || !reader.get_nested_nodes()?.is_empty()
         {
             return Err(error(
-                "must match the method owner's generic flag and have no declarations or own parameters",
+                "must match the method's generic state and have no declarations",
             ));
+        }
+        let parameters = reader.get_parameters()?;
+        let reason = "must declare its method's implicit parameters in order";
+        if parameters.len() != implicit.len() {
+            return Err(error(reason));
+        }
+        for (parameter, expected) in parameters.into_iter().zip(implicit) {
+            if member_name(parameter.get_name()?)? != member_name(expected.get_name()?)? {
+                return Err(error(reason));
+            }
         }
         let id = TypeId(reader.get_id());
         if self.inline_owners.get(&id) != Some(&1) {
@@ -433,6 +475,14 @@ impl Projection {
         }
         Ok(())
     }
+}
+
+fn implicit_parameters(method: method::Reader<'_>) -> Result<Parameters<'_>, Error> {
+    let parameters = method.get_implicit_parameters()?;
+    for parameter in parameters {
+        member_name(parameter.get_name()?)?;
+    }
+    Ok(parameters)
 }
 
 fn nongeneric(reader: node::Reader<'_>) -> Result<bool, Error> {

@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# The invalid slot types must refuse before the placeholder defaults are read.
+(nodes = [
+  (id = 17204964437392359424, file = void, nestedNodes = [
+    (name = "NamedIndex", id = 17204964437392359425),
+    (name = "Payload", id = 17204964437392359426),
+    (name = "WrongOrder", id = 17204964437392359427),
+    (name = "ForeignWrapper", id = 17204964437392359428),
+    (name = "RawInlinePosition", id = 17204964437392359429),
+    (name = "MissingEmptyParameters", id = 17204964437392359430),
+    (name = "RawDataPosition", id = 17204964437392359431),
+    (name = "Plain", id = 17204964437392359432),
+    (name = "WrapperIndex", id = 17204964437392359433)]),
+  (id = 17204964437392359425, scopeId = 17204964437392359424, interface = (methods = [
+    (name = "read", implicitParameters = [(name = "T")],
+     paramStructType = 17204964437392359426, resultStructType = 17204964437392359432,
+     paramBrand = (scopes = [(scopeId = 17204964437392359426, bind = [
+       (type = (anyPointer = (implicitMethodParameter = (parameterIndex = 1))))])]))])),
+  (id = 17204964437392359426, scopeId = 17204964437392359424, isGeneric = true, parameters = [(name = "T")], struct = ()),
+  (id = 17204964437392359427, scopeId = 17204964437392359424, interface = (methods = [
+    (name = "read", implicitParameters = [(name = "First"), (name = "Second")],
+     paramStructType = 17204964437392359440, resultStructType = 17204964437392359432)])),
+  (id = 17204964437392359440, isGeneric = true, parameters = [(name = "Second"), (name = "First")], struct = ()),
+  (id = 17204964437392359428, scopeId = 17204964437392359424, interface = (methods = [
+    (name = "read", implicitParameters = [(name = "T")],
+     paramStructType = 17204964437392359441, resultStructType = 17204964437392359442)])),
+  (id = 17204964437392359441, isGeneric = true, parameters = [(name = "T")], struct = (pointerCount = 1, fields = [
+     (name = "value", ordinal = (explicit = 0),
+      slot = (type = (anyPointer = (parameter = (scopeId = 17204964437392359442, parameterIndex = 0))),
+              defaultValue = (void = void)))])),
+  (id = 17204964437392359442, isGeneric = true, parameters = [(name = "T")], struct = ()),
+  (id = 17204964437392359429, scopeId = 17204964437392359424, interface = (methods = [
+    (name = "read", implicitParameters = [(name = "T")],
+     paramStructType = 17204964437392359443, resultStructType = 17204964437392359432)])),
+  (id = 17204964437392359443, isGeneric = true, parameters = [(name = "T")], struct = (pointerCount = 1, fields = [
+     (name = "value", ordinal = (explicit = 0),
+      slot = (type = (anyPointer = (implicitMethodParameter = (parameterIndex = 0))),
+              defaultValue = (void = void)))])),
+  (id = 17204964437392359430, scopeId = 17204964437392359424, interface = (methods = [
+    (name = "read", implicitParameters = [(name = "T")],
+     paramStructType = 17204964437392359444, resultStructType = 17204964437392359432)])),
+  (id = 17204964437392359444, isGeneric = true, parameters = [], struct = ()),
+  (id = 17204964437392359431, scopeId = 17204964437392359424, struct = (pointerCount = 1, fields = [
+     (name = "value", ordinal = (explicit = 0),
+      slot = (type = (anyPointer = (implicitMethodParameter = (parameterIndex = 0))),
+              defaultValue = (void = void)))])),
+  (id = 17204964437392359432, scopeId = 17204964437392359424, struct = ()),
+  (id = 17204964437392359433, scopeId = 17204964437392359424, interface = (methods = [
+    (name = "read", implicitParameters = [(name = "T")],
+     paramStructType = 17204964437392359445, resultStructType = 17204964437392359432)])),
+  (id = 17204964437392359445, isGeneric = true, parameters = [(name = "T")], struct = (pointerCount = 1, fields = [
+     (name = "value", ordinal = (explicit = 0),
+      slot = (type = (anyPointer = (parameter = (scopeId = 17204964437392359445, parameterIndex = 1))),
+              defaultValue = (void = void)))]))])

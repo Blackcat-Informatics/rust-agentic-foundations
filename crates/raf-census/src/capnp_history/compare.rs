@@ -93,6 +93,8 @@ pub enum ChangeKind {
         /// ID of the enclosing declaration.
         scope: TypeId,
     },
+    /// The count of an RPC method's implicit parameters changed.
+    ChangedMethodParameters,
     /// An existing member disappeared.
     RemovedMember,
     /// The old ordinal now has a different name.
@@ -154,6 +156,7 @@ impl fmt::Display for ChangeKind {
             Self::ChangedEnclosingParameters { scope } => {
                 return write!(f, "enclosing scope {scope} type parameter count changed");
             }
+            Self::ChangedMethodParameters => "implicit method parameter count changed",
             Self::RemovedMember => "member removed",
             Self::RenamedMember { current } => return write!(f, "member renamed to {current}"),
             Self::ChangedOrdinal => "ordinal changed",
@@ -225,6 +228,9 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
         let mut emit = |member, kind| push(node, member, kind);
         match (before, after) {
             (Node::Struct(before), Node::Struct(after)) => {
+                if before.parameters != after.parameters {
+                    emit(None, ChangeKind::ChangedParameters)?;
+                }
                 structure(before, after, false, &mut emit)
             }
             (Node::Enum(before), Node::Enum(after)) => {
@@ -309,9 +315,6 @@ fn structure(
     input_defaults: bool,
     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
 ) -> Result<(), Error> {
-    if before.parameters != after.parameters {
-        emit(None, ChangeKind::ChangedParameters)?;
-    }
     for (path, group) in &before.groups {
         let member = || (!path.is_empty()).then(|| path.join("."));
         let Some(current) = after.groups.get(path) else {
@@ -481,6 +484,9 @@ fn method(
     new: &Method,
     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
 ) -> Result<(), Error> {
+    if old.implicit_arity != new.implicit_arity {
+        emit(Some(old.name.clone()), ChangeKind::ChangedMethodParameters)?;
+    }
     for (before, after, role, input) in [
         (&old.params, &new.params, "parameters", true),
         (&old.results, &new.results, "results", false),

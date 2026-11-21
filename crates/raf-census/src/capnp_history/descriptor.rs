@@ -24,7 +24,7 @@ use super::{
     DescriptorError as Error, TypeId,
     capture::Capture,
     occupancy::{Occupancy, POINTER_BASE},
-    shape::{self, DefaultValue, Type},
+    shape::{self, DefaultValue, Type, TypeScope},
 };
 
 pub(super) const MAX_BYTES: u64 = 2 * 1024 * 1024;
@@ -101,6 +101,7 @@ pub(super) struct Interface {
 #[derive(Debug)]
 pub(super) struct Method {
     pub(super) name: String,
+    pub(super) implicit_arity: u32,
     pub(super) params: Endpoint,
     pub(super) results: Endpoint,
 }
@@ -501,7 +502,7 @@ impl<'a> Nodes<'a> {
         needed: &mut BTreeSet<TypeId>,
         annotations: Annotations,
         scopes: &mut DeclarationScopes,
-        inline_type_scope: Option<TypeId>,
+        inline_type_scope: Option<TypeScope>,
     ) -> Result<Struct, Error> {
         let mut collector = Fields {
             nodes: self,
@@ -595,7 +596,7 @@ struct Fields<'a, 'b> {
     used_groups: BTreeSet<TypeId>,
     ordinals: BTreeSet<u16>,
     sizes: (u16, u16),
-    inline_type_scope: Option<TypeId>,
+    inline_type_scope: Option<TypeScope>,
 }
 
 impl<'a> Fields<'a, '_> {
@@ -641,7 +642,10 @@ impl<'a> Fields<'a, '_> {
             shape::read_brand(
                 annotation.get_brand()?,
                 self.nodes,
-                (self.inline_type_scope.unwrap_or(owner), marker),
+                (
+                    TypeScope::Lexical(self.inline_type_scope.map_or(owner, TypeScope::owner)),
+                    marker,
+                ),
                 &mut BTreeSet::new(),
             )?;
         }
@@ -849,7 +853,7 @@ impl<'a> Fields<'a, '_> {
                 "missing type or default at {owner}.{name} @{ordinal}"
             )));
         }
-        let type_scope = self.inline_type_scope.unwrap_or(owner);
+        let type_scope = self.inline_type_scope.unwrap_or(TypeScope::Lexical(owner));
         let ty = Type::read(slot.get_type()?, self.nodes, type_scope, self.needed)?;
         let default = shape::default(&ty, slot.get_default_value()?, self.nodes)?;
         let offset = slot.get_offset();
