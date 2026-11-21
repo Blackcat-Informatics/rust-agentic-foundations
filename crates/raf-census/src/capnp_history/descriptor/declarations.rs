@@ -91,7 +91,7 @@ impl AnnotationTarget {
         1 << self as u16
     }
 
-    fn enabled(self, annotation: node::annotation::Reader<'_>) -> bool {
+    pub(super) fn enabled(self, annotation: node::annotation::Reader<'_>) -> bool {
         match self {
             Self::File => annotation.get_targets_file(),
             Self::Const => annotation.get_targets_const(),

@@ -13,8 +13,8 @@ use raf_source::RelPath;
 use super::{
     Error, TypeId,
     descriptor::{
-        AnnotationTarget, Declaration, DeclarationBody, DeclarationKind, Endpoint, Interface,
-        Method, Node, Schema, Struct,
+        AnnotationTarget, Applications, Declaration, DeclarationBody, DeclarationKind, Endpoint,
+        Enumerant, Interface, Method, Node, Schema, Struct,
     },
 };
 
@@ -124,6 +124,11 @@ pub enum ChangeKind {
         /// ID of the annotation declaration.
         annotation: TypeId,
     },
+    /// A retained enumerant's applications of an annotation changed.
+    ChangedEnumerantAnnotation {
+        /// ID of the annotation declaration.
+        annotation: TypeId,
+    },
     /// An appended input parameter lacks an explicit default.
     MissingParameterDefault,
     /// A pointer slot became required in an existing struct.
@@ -180,6 +185,12 @@ impl fmt::Display for ChangeKind {
             Self::ChangedDefault => "default changed",
             Self::ChangedFieldAnnotation { annotation } => {
                 return write!(f, "field applications of annotation {annotation} changed");
+            }
+            Self::ChangedEnumerantAnnotation { annotation } => {
+                return write!(
+                    f,
+                    "enumerant applications of annotation {annotation} changed"
+                );
             }
             Self::MissingParameterDefault => "appended input parameter needs an explicit default",
             Self::RequiredField => "pointer field became required",
@@ -255,9 +266,13 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
                 }
                 structure(before, after, false, &mut emit)
             }
-            (Node::Enum(before), Node::Enum(after)) => {
-                ordinals(before, after, String::as_str, &mut emit, |_, _, _| Ok(()))
-            }
+            (Node::Enum(before), Node::Enum(after)) => ordinals(
+                before,
+                after,
+                |enumerant| enumerant.name.as_str(),
+                &mut emit,
+                compare_enumerant,
+            ),
             (Node::Interface(before), Node::Interface(after)) => {
                 interface(before, after, &mut emit)
             }
@@ -408,16 +423,9 @@ fn structure(
         {
             emit(name(), ChangeKind::ChangedDefault)?;
         }
-        let annotation_ids: BTreeSet<_> = slot
-            .applications
-            .keys()
-            .chain(current.applications.keys())
-            .collect();
-        for &annotation in annotation_ids {
-            if slot.applications.get(&annotation) != current.applications.get(&annotation) {
-                emit(name(), ChangeKind::ChangedFieldAnnotation { annotation })?;
-            }
-        }
+        compare_applications(&slot.applications, &current.applications, |annotation| {
+            emit(name(), ChangeKind::ChangedFieldAnnotation { annotation })
+        })?;
     }
     for (&ordinal, slot) in &after.slots {
         if slot.required && !before.slots.get(&ordinal).is_some_and(|old| old.required) {
@@ -434,6 +442,36 @@ fn structure(
                 peer: after.slots[&peer].name.clone(),
             },
         )?;
+    }
+    Ok(())
+}
+
+fn compare_applications(
+    before: &Applications,
+    after: &Applications,
+    mut emit: impl FnMut(TypeId) -> Result<(), Error>,
+) -> Result<(), Error> {
+    let annotation_ids: BTreeSet<_> = before.keys().chain(after.keys()).copied().collect();
+    for annotation in annotation_ids {
+        if before.get(&annotation) != after.get(&annotation) {
+            emit(annotation)?;
+        }
+    }
+    Ok(())
+}
+
+fn compare_enumerant(
+    before: &Enumerant,
+    after: &Enumerant,
+    emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
+) -> Result<(), Error> {
+    if before.name == after.name {
+        compare_applications(&before.applications, &after.applications, |annotation| {
+            emit(
+                Some(before.name.clone()),
+                ChangeKind::ChangedEnumerantAnnotation { annotation },
+            )
+        })?;
     }
     Ok(())
 }
