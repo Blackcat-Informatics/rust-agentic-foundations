@@ -193,13 +193,17 @@ jobs:
           if [[ "$RAF_CI_PACKAGE" == cargo-raf-workplan ]]; then
             export CARGO_TARGET_DIR="$RUNNER_TEMP/cargo-raf-workplan-target"
           fi
-          # Keep the full round trip within the job budget. Optimize its
-          # runtime libraries and compile the test harness at level zero.
+          # Optimize the source-index and document paths while keeping the
+          # cold build of the remaining dependencies at level zero.
           if [[ "$RAF_CI_PACKAGE" == raf-docs-contract ]]; then
             export CARGO_PROFILE_TEST_DEBUG=0
             args+=(
-              --config 'profile.test.opt-level=1'
-              --config 'profile.test.package.raf-docs-contract.opt-level=0'
+              --config 'profile.test.package.raf-source.opt-level=1'
+              --config 'profile.test.package.raf-workplan.opt-level=1'
+              --config 'profile.test.package."syn:3.0.8".opt-level=1'
+              --config 'profile.test.package.purrdf-lex.opt-level=1'
+              --config 'profile.test.package.purrdf-markdown.opt-level=1'
+              --config 'profile.test.package.purrdf-toml.opt-level=1'
             )
           fi
           cargo test --locked --package "$RAF_CI_PACKAGE" "${args[@]}"

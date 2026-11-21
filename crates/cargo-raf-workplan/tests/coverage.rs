@@ -249,6 +249,7 @@ fn this_repository_has_no_code_or_test_gaps_in_its_scoped_packages() {
                 "cargo-raf-census",
                 "cargo-raf-workplan",
                 "raf-census",
+                "raf-docs-contract",
                 "raf-fixtures",
                 "raf-okf",
                 "raf-rdf",
