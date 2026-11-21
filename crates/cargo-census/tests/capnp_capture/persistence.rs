@@ -183,6 +183,11 @@ fn capnp_persistence_ignores_rpc_endpoint_layouts() {
             include_bytes!("../fixtures/capnp/rpc-inheritance-base.bin").as_slice(),
             include_bytes!("../fixtures/capnp/rpc-inheritance-changed.bin").as_slice(),
         ),
+        (
+            "0xeec4400000000003",
+            include_bytes!("../fixtures/capnp/rpc-implicit-base.bin").as_slice(),
+            include_bytes!("../fixtures/capnp/rpc-implicit-changed.bin").as_slice(),
+        ),
     ] {
         let row = || policy(&[("packet", "persist-fixture", "persist_fixture::Packet", id)]);
         let base = commit(root, before, row());

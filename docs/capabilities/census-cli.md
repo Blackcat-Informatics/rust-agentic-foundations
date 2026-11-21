@@ -66,6 +66,8 @@ bindings:
     - cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners
+    - cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters
+    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance
@@ -141,6 +143,13 @@ parameters and results independently. A new trailing method with valid
 endpoints is allowed.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners -->
 
+A method's implicit type parameters supplement the interface's lexical
+parameters. Census compares each kind by position within its scope and
+reports a changed implicit parameter count once on the method, including
+when the changed position is unused. A method brand can carry an implicit
+position only within the method's declared range.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters -->
+
 Census follows the direct superclass IDs of each selected interface and its
 bases. Both interfaces on an inheritance edge must be named and nongeneric.
 The edge must have an empty brand. The declaration chain must have reciprocal ownership
@@ -161,10 +170,9 @@ An endpoint can bind the parameters of enclosing declarations alone.
 Nested type arguments must also be fully bound. An unconstrained
 `AnyPointer` counts as an unbound argument.
 The branded endpoint and its method interface each require a unique
-reciprocal declaration chain. A nongeneric method owner requires concrete
-arguments. A generic owner permits bindings to its own and enclosing parameter
-positions. A named endpoint can inherit any of these scopes that also belong
-to its declaration chain.
+reciprocal declaration chain. A method can bind its own implicit positions
+and its interface's lexical parameter positions. A named endpoint can inherit
+any lexical parameter scope that also belongs to its declaration chain.
 The endpoint's generic flags must agree with its own and enclosing parameter
 declarations.
 Several methods and roles can share one endpoint declaration with different
@@ -173,18 +181,19 @@ evolution, including implicit defaults for optional additions.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
 
 A compiler-generated inline list belongs to one method ordinal and endpoint
-role. It must be a detached struct without its own type parameters or a
-lexical declaration claim. A generic owner requires the inline list to
-inherit each parameter-bearing scope in its declaration chain exactly once.
-Census reads the inline field types in the owner's lexical scopes and retains
-the detached struct ID for layout. The list for a nongeneric owner
-requires an empty brand. Fields use explicit ordinals in order from zero and
+role. It must be a detached struct without a lexical declaration claim and
+must declare the method's implicit parameters in the same order, even if the
+role has no fields. Its generic state reflects those declarations and the
+interface's parameter-bearing scopes. The inline brand inherits each lexical
+parameter scope exactly once. Fields can use ordinary positions from their
+own wrapper and lexical positions from the owner. The detached ID still
+identifies the role layout. Fields use explicit ordinals in order from zero and
 the same layout checks as ordinary data, including referenced types. Census checks each
 retained inline input's explicit-default marker and requires an explicit
 default for each appended inline input. It also compares the layout when a
-renamed method retains its ordinal. Method type parameters, direct selection of a
-detached endpoint and wrappers shared across method roles refuse.
-<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
+renamed method retains its ordinal. Direct selection of a detached endpoint
+and wrappers shared across method roles refuse.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters -->
 
 Persistence declarations bind declared data structs and enums. An
 interface-typed pointer records its nominal identity as part of the data shape.
@@ -771,9 +780,17 @@ its detached role IDs and slot types stay stable. Missing, repeated, foreign
 and bound inline scope rows refuse, as does an inconsistent owner flag.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners -->
 
+The implicit RPC fixtures accept an appended generic method. They distinguish
+method and lexical positions with the same index, report a named role's
+changed binding, and report one arity finding for an empty method's unused
+parameter. Out-of-range positions, conflicting declarations and references
+to another wrapper refuse. A raw implicit position also refuses in inline
+slots and ordinary data types.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters -->
+
 A persisted interface pointer keeps its data verdict across changes in
 RPC inheritance and method layouts, including a stable branded pointer
-to a generic owner.
+to a generic owner with changed implicit method parameters.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_ignores_rpc_endpoint_layouts -->
 
 <!-- raf:generated:verification-matrix -->
@@ -810,12 +827,14 @@ to a generic owner.
 | `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance` | test | [Contract](#contract) |
