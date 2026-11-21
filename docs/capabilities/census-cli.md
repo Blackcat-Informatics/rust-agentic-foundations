@@ -71,6 +71,8 @@ bindings:
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance
+    - cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance
+    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance
     - cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
     - cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs
@@ -150,18 +152,23 @@ when the changed position is unused. A method brand can carry an implicit
 position only within the method's declared range.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters -->
 
-Census follows the direct superclass IDs of each selected interface and its
-bases. Both interfaces on an inheritance edge must be named and nongeneric.
-The edge must have an empty brand. The declaration chain must have reciprocal ownership
-and unique names through a file node. Missing or wrong-kind targets, duplicate
-bases, broken ownership and cycles refuse.
+Census follows the direct superclasses of each selected interface and its
+bases. Both ends of an inheritance edge require reciprocal declaration
+ownership, unique names and consistent generic flags through a file node.
+A nongeneric superclass takes an empty brand. A generic superclass binds
+every parameter of its declaration and enclosing scopes. Bindings can
+reference positions in the derived interface's proved lexical scopes.
+A missing or wrong-kind target, incomplete brand, repeated canonical edge,
+or cycle refuses.
 
-Census compares the direct superclass set independently of descriptor list
-order. Adding a valid base is compatible. Removing a direct base reports a
-strict finding on the interface that declared it, even if a transitive route
-still reaches that base. The defining interface ID owns each inherited method,
-ordinal and endpoint layout. A diamond projects each defining interface once.
-<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance -->
+Census compares the canonical set of brands per direct superclass ID.
+Reordering and valid additions are compatible, including another
+instantiation of a retained superclass. Removing a direct ID or losing
+a brand under a retained ID reports a strict finding on the interface
+that declared the edge, even if a transitive path still reaches that base.
+Each defining interface owns its methods, ordinals and endpoint layouts.
+A diamond projects each defining interface once.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance -->
 
 A named endpoint must be a declared nongroup struct with reciprocal lexical
 ownership. A generic endpoint requires an explicit brand with complete
@@ -681,6 +688,13 @@ when a transitive route still reaches the formerly direct base. Controlled reque
 valid inheritance graph with malformed edges, ownership failures and a cycle.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance -->
 
+Branded inheritance fixtures bind concrete and lexical types to a nested
+superclass and accept distinct instantiations of one direct base. They
+report a lost instantiation on the derived interface, and a mixed-brand
+diamond reports one changed default on the defining method. An explicit
+self-binding and an inherited scope normalize to the same brand.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance -->
+
 Migration fixtures compare strict and admitted verdicts for the same
 committed declarations. They distinguish base inputs from current and
 checkout copies and verify outputs from the signed evidence revision.
@@ -825,6 +839,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract), [Usage](#usage) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters` | test | [Contract](#contract) |
@@ -833,6 +848,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
