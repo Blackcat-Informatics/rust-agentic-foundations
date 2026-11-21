@@ -400,6 +400,49 @@ fn input_rows_have_exactly_kind_name_and_digest() {
         &Rule::EmptyList { list: "inputs" },
     );
     clean(&evidence(), EVIDENCE_PATH);
+    let expected = [
+        Rule::RowUnknownKey {
+            list: "inputs",
+            key: "zebra".into(),
+        },
+        Rule::RowUnknownKey {
+            list: "inputs",
+            key: "ant".into(),
+        },
+        Rule::RowMissingKey {
+            list: "inputs",
+            key: "kind",
+        },
+        Rule::RowMissingKey {
+            list: "inputs",
+            key: "name",
+        },
+        Rule::RowMissingKey {
+            list: "inputs",
+            key: "digest",
+        },
+    ];
+    for (text, path) in [
+        (evidence(), EVIDENCE_PATH),
+        (assessment(), ASSESSMENT_PATH),
+        (
+            include_str!("fixtures/review.md").to_owned(),
+            "work/reviews/ledger-design.md",
+        ),
+    ] {
+        clean(&text, path);
+        let (before, inputs) = text.split_once("inputs:\n").unwrap();
+        let (_, after) = inputs.split_once("verdict:").unwrap();
+        let repeated = format!(
+            "{before}inputs:\n  - zebra: x\n    ant: y\n  - zebra: x\n    ant: y\nverdict:{after}"
+        );
+        let found = validate(&repeated, path).unwrap_err();
+        let location = key("inputs");
+        assert_eq!(found.len(), expected.len() * 2, "{found:#?}");
+        for (finding, rule) in found.iter().zip(expected.iter().cycle()) {
+            assert_eq!((finding.at(), finding.rule()), (&location, rule));
+        }
+    }
 }
 
 #[test]
@@ -889,6 +932,36 @@ fn an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root() {
 
 #[test]
 fn an_exclusion_has_a_reason_with_no_placeholder() {
+    // A list of scalars holds no row maps for the shape to check.
+    let malformed =
+        "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: [plain]\n---\n";
+    assert_only(
+        malformed,
+        COVERAGE_PATH,
+        &key("exclusions"),
+        &Rule::WrongShape {
+            expected: "a list of maps with `item` and `reason`",
+        },
+    );
+    let repeated = "---\ntype: Coverage\nid: coverage:default\nscope: []\n\
+                    exclusions:\n  - item: probe::item\n    memo: x\n  \
+                    - item: probe::item\n    memo: x\n---\n";
+    let found = validate(repeated, COVERAGE_PATH).unwrap_err();
+    let expected = [
+        Rule::RowUnknownKey {
+            list: "exclusions",
+            key: "memo".into(),
+        },
+        Rule::RowMissingKey {
+            list: "exclusions",
+            key: "reason",
+        },
+    ];
+    assert_eq!(found.len(), expected.len() * 2, "{found:#?}");
+    let location = key("exclusions");
+    for (finding, rule) in found.iter().zip(expected.iter().cycle()) {
+        assert_eq!((finding.at(), finding.rule()), (&location, rule));
+    }
     let empty = mutate(&coverage(), "\"Built by the load only.\"", "\"  \"");
     assert_only(
         &empty,
