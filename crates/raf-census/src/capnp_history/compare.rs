@@ -86,8 +86,13 @@ pub enum ChangeKind {
         /// ID of the former direct superclass.
         superclass: TypeId,
     },
-    /// The count of a struct's own type parameters changed.
+    /// The count of a type's own parameters changed.
     ChangedParameters,
+    /// The arity of a lexical parameter scope available to an RPC interface changed.
+    ChangedEnclosingParameters {
+        /// ID of the enclosing declaration.
+        scope: TypeId,
+    },
     /// An existing member disappeared.
     RemovedMember,
     /// The old ordinal now has a different name.
@@ -146,6 +151,9 @@ impl fmt::Display for ChangeKind {
                 return write!(f, "direct superclass {superclass} removed");
             }
             Self::ChangedParameters => "type parameter count changed",
+            Self::ChangedEnclosingParameters { scope } => {
+                return write!(f, "enclosing scope {scope} type parameter count changed");
+            }
             Self::RemovedMember => "member removed",
             Self::RenamedMember { current } => return write!(f, "member renamed to {current}"),
             Self::ChangedOrdinal => "ordinal changed",
@@ -443,6 +451,19 @@ fn interface(
     after: &Interface,
     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
 ) -> Result<(), Error> {
+    if before.parameters != after.parameters {
+        emit(None, ChangeKind::ChangedParameters)?;
+    }
+    for (&scope, &count) in &before.enclosing_parameters {
+        if after.enclosing_parameters.get(&scope) != Some(&count) {
+            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
+        }
+    }
+    for &scope in after.enclosing_parameters.keys() {
+        if !before.enclosing_parameters.contains_key(&scope) {
+            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
+        }
+    }
     for &superclass in before.superclasses.difference(&after.superclasses) {
         emit(None, ChangeKind::RemovedSuperclass { superclass })?;
     }

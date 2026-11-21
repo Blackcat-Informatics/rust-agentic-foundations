@@ -44,6 +44,22 @@ interface Reader @0xeec2000000000005 {
   enclosingOnly @5 Envelope(Text).Stamp -> ();
 }
 
+interface GenericReader @0xeec200000000000b (First, Second) {
+  struct Record @0xeec200000000000c {
+    value @0 :First;
+  }
+
+  fetch @0 (value :First) -> Generic(First);
+  inherited @1 Record -> Record;
+
+  ready @2 () -> (ok :Bool);
+}
+
+interface ArityReader @0xeec200000000000d (First) {
+  ready @0 () -> ();
+}
+
 struct Stored @0xeec2000000000006 {
   reader @0 :Reader;
+  genericReader @1 :GenericReader(Text, Data);
 }

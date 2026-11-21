@@ -816,12 +816,14 @@ fn capnp_history_checks_inline_rpc_methods() {
     }
 }
 
-/// Shared named endpoints use ordinary struct evolution and produce one layout
-/// verdict per retained ID. A role protects its endpoint form, ID and brand.
+/// The interface owns its parameter count and its methods' endpoint types.
+/// Shared named endpoint layouts are compared once by declaration ID.
 #[test]
 fn capnp_history_compares_named_rpc_endpoints() {
     const READER: &str = "0xeec2000000000005";
     const INPUT: &str = "0xeec2000000000002";
+    const GENERIC_READER: &str = "0xeec200000000000b";
+    const ARITY_READER: &str = "0xeec200000000000d";
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
     git_repo::init(root);
@@ -838,28 +840,99 @@ fn capnp_history_compares_named_rpc_endpoints() {
             &["--required-annotation", "0xeec2000000000010"],
         )
     };
-    for selected in [&[READER][..], &[READER, INPUT]] {
+    let ordinary_findings = [
+        "0xeec2000000000005.first.parameters: type changed",
+        "0xeec2000000000005.second.results: type changed",
+        "0xeec2000000000005.fourth.parameters: type changed",
+        "0xeec2000000000005.scoped.parameters: type changed",
+        "0xeec2000000000002.count: default changed",
+        "0xeec2000000000002.token: pointer field became required",
+        "0xeec2000000000007.value: member renamed to renamed",
+    ];
+    let generic_findings = [
+        "0xeec200000000000d: type parameter count changed",
+        "0xeec200000000000b.fetch.parameters.value: type changed",
+        "0xeec200000000000b.fetch.results: type changed",
+        "0xeec2000000000007.value: member renamed to renamed",
+        "0xeec200000000000c.value: member renamed to label",
+    ];
+    for (selected, expected) in [
+        (&[READER][..], &ordinary_findings[..]),
+        (&[READER, INPUT][..], &ordinary_findings[..]),
+        (&[GENERIC_READER, ARITY_READER][..], &generic_findings[..]),
+    ] {
         let clean = history(&compatible, selected);
         assert!(clean.status.success(), "{clean:?}");
         assert!(clean.stdout.is_empty(), "{clean:?}");
+        assert!(clean.stderr.is_empty(), "{clean:?}");
 
         let broken = history(&changed, selected);
         assert_eq!(broken.status.code(), Some(1), "{broken:?}");
         assert!(broken.stderr.is_empty(), "{broken:?}");
         let findings = String::from_utf8(broken.stdout).unwrap();
-        let expected = [
-            "0xeec2000000000005.first.parameters: type changed",
-            "0xeec2000000000005.second.results: type changed",
-            "0xeec2000000000005.fourth.parameters: type changed",
-            "0xeec2000000000005.scoped.parameters: type changed",
-            "0xeec2000000000002.count: default changed",
-            "0xeec2000000000002.token: pointer field became required",
-            "0xeec2000000000007.value: member renamed to renamed",
-        ];
         assert_eq!(findings.lines().count(), expected.len(), "{findings}");
-        for finding in expected {
+        for &finding in expected {
             assert!(findings.contains(finding), "{findings}");
         }
+    }
+}
+
+/// Enclosing arity is visible on the selected interface even when its detached
+/// role IDs and slot types are stable. Bindings can span all lexical scopes.
+#[test]
+fn capnp_history_compares_nested_generic_rpc_owners() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let commit = |bytes| commit_capnp_descriptor(root, bytes);
+    let base = commit(include_bytes!("fixtures/capnp/rpc-nested-base.bin"));
+    let compatible = commit(include_bytes!("fixtures/capnp/rpc-nested-compatible.bin"));
+    let changed = commit(include_bytes!("fixtures/capnp/rpc-nested-changed.bin"));
+    let selected = ["0xeec4200000000004", "0xeec4200000000007"];
+    let clean = capnp_history(root, &base, &compatible, &selected, &[]);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(
+        clean.stdout.is_empty() && clean.stderr.is_empty(),
+        "{clean:?}"
+    );
+
+    let broken = capnp_history(root, &base, &changed, &selected, &[]);
+    assert_eq!(broken.status.code(), Some(1), "{broken:?}");
+    assert!(broken.stderr.is_empty(), "{broken:?}");
+    let findings = String::from_utf8(broken.stdout).unwrap();
+    assert_eq!(
+        findings.lines().collect::<Vec<_>>(),
+        [
+            "Cap'n Proto history for 0xeec4200000000004.read.parameters.second: type changed",
+            "Cap'n Proto history for 0xeec4200000000004.read.results: type changed",
+            "Cap'n Proto history for 0xeec4200000000005.item: type changed",
+            "Cap'n Proto history for 0xeec4200000000007: enclosing scope 0xeec4200000000006 type parameter count changed",
+        ]
+    );
+}
+
+/// Inline roles inherit exactly the declared parameter-bearing scopes, and
+/// an owner that inherits every parameter must carry the generic flag.
+#[test]
+fn capnp_history_refuses_invalid_nested_generic_rpc_owners() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let invalid = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-nested-invalid.bin"),
+    );
+    for (selected, reason) in [
+        ("0xeec4300000000003", "must inherit exactly"),
+        ("0xeec4300000000004", "must inherit exactly"),
+        ("0xeec4300000000005", "must inherit exactly"),
+        ("0xeec4300000000006", "must inherit exactly"),
+        ("0xeec4300000000007", "consistent generic flags"),
+    ] {
+        assert_census_refused(
+            capnp_history(root, &invalid, &invalid, &[selected], &[]),
+            reason,
+        );
     }
 }
 
@@ -907,6 +980,16 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
             "requires a complete concrete endpoint brand",
         ),
         ("0xeec300000000001c", "consistent generic flags"),
+        (
+            "0xeec300000000001f",
+            "requires a unique reciprocal declaration chain",
+        ),
+        (
+            "0xeec3000000000020",
+            "must inherit exactly the generic method owner's scopes",
+        ),
+        ("0xeec3000000000022", "invalid parameter 1"),
+        ("0xeec3000000000023", "requires a complete endpoint brand"),
     ] {
         let result = capnp_history(root, &invalid, &invalid, &[selected], &[]);
         assert_eq!(result.status.code(), Some(1), "{result:?}");
@@ -986,7 +1069,7 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
 }
 
 /// Detached endpoints belong to exactly one method and role across the request.
-/// Explicit interface roots require a supported nongeneric signature.
+/// Generic inheritance and implicit method parameters refuse.
 #[test]
 fn capnp_history_refuses_unsupported_rpc_endpoints() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -1034,8 +1117,8 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
         (
             &unsupported,
             &unsupported,
-            "0xa6615df804a45ef7",
-            "must be nongeneric",
+            "0xeec6000000000001",
+            "requires a reciprocal nongeneric declaration chain",
         ),
         (
             &unsupported,
