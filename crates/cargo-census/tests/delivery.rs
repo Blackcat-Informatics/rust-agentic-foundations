@@ -877,6 +877,65 @@ fn capnp_history_compares_named_rpc_endpoints() {
     }
 }
 
+/// Enclosing arity is visible on the selected interface even when its detached
+/// role IDs and slot types are stable. Bindings can span all lexical scopes.
+#[test]
+fn capnp_history_compares_nested_generic_rpc_owners() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let commit = |bytes| commit_capnp_descriptor(root, bytes);
+    let base = commit(include_bytes!("fixtures/capnp/rpc-nested-base.bin"));
+    let compatible = commit(include_bytes!("fixtures/capnp/rpc-nested-compatible.bin"));
+    let changed = commit(include_bytes!("fixtures/capnp/rpc-nested-changed.bin"));
+    let selected = ["0xeec4200000000004", "0xeec4200000000007"];
+    let clean = capnp_history(root, &base, &compatible, &selected, &[]);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(
+        clean.stdout.is_empty() && clean.stderr.is_empty(),
+        "{clean:?}"
+    );
+
+    let broken = capnp_history(root, &base, &changed, &selected, &[]);
+    assert_eq!(broken.status.code(), Some(1), "{broken:?}");
+    assert!(broken.stderr.is_empty(), "{broken:?}");
+    let findings = String::from_utf8(broken.stdout).unwrap();
+    assert_eq!(
+        findings.lines().collect::<Vec<_>>(),
+        [
+            "Cap'n Proto history for 0xeec4200000000004.read.parameters.second: type changed",
+            "Cap'n Proto history for 0xeec4200000000004.read.results: type changed",
+            "Cap'n Proto history for 0xeec4200000000005.item: type changed",
+            "Cap'n Proto history for 0xeec4200000000007: enclosing scope 0xeec4200000000006 type parameter count changed",
+        ]
+    );
+}
+
+/// Inline roles inherit exactly the declared parameter-bearing scopes, and
+/// an owner that inherits every parameter must carry the generic flag.
+#[test]
+fn capnp_history_refuses_invalid_nested_generic_rpc_owners() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let invalid = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-nested-invalid.bin"),
+    );
+    for (selected, reason) in [
+        ("0xeec4300000000003", "must inherit exactly"),
+        ("0xeec4300000000004", "must inherit exactly"),
+        ("0xeec4300000000005", "must inherit exactly"),
+        ("0xeec4300000000006", "must inherit exactly"),
+        ("0xeec4300000000007", "consistent generic flags"),
+    ] {
+        assert_census_refused(
+            capnp_history(root, &invalid, &invalid, &[selected], &[]),
+            reason,
+        );
+    }
+}
+
 /// Named method roles require an ordinary struct and an unambiguous reciprocal
 /// declaration chain, including the generic state of every enclosing scope.
 #[test]
@@ -927,7 +986,7 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
         ),
         (
             "0xeec3000000000020",
-            "must inherit exactly the generic method owner's scope",
+            "must inherit exactly the generic method owner's scopes",
         ),
         ("0xeec3000000000022", "invalid parameter 1"),
         ("0xeec3000000000023", "requires a complete endpoint brand"),
@@ -1010,7 +1069,7 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
 }
 
 /// Detached endpoints belong to exactly one method and role across the request.
-/// Generic interface owners with ordinary methods must be declared at file scope.
+/// Generic inheritance and implicit method parameters refuse.
 #[test]
 fn capnp_history_refuses_unsupported_rpc_endpoints() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -1054,12 +1113,6 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
             &base,
             "0xd766b858756a10ab",
             "must be selected through its owning method",
-        ),
-        (
-            &unsupported,
-            &unsupported,
-            "0xa6615df804a45ef7",
-            "must declare its own parameters at file scope",
         ),
         (
             &unsupported,

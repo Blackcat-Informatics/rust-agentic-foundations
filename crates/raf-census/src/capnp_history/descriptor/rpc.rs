@@ -23,9 +23,9 @@ enum ScopePolicy {
 }
 
 #[derive(Clone, Copy)]
-struct MethodOwner {
+struct MethodOwner<'a> {
     id: TypeId,
-    parameter_scope: Option<TypeId>,
+    parameter_scopes: &'a BTreeMap<TypeId, u32>,
 }
 
 pub(super) struct Projection {
@@ -89,32 +89,38 @@ impl Projection {
         scopes: &mut DeclarationScopes,
     ) -> Result<Interface, Error> {
         let id = TypeId(reader.get_id());
-        let parameters = reader.get_parameters()?.len();
-        if reader.get_is_generic() || parameters != 0 {
-            let parent = TypeId(reader.get_scope_id());
-            if !reader.get_is_generic()
-                || parameters == 0
-                || !matches!(nodes.node(parent)?.which()?, node::File(()))
-            {
-                return Err(layout(format!(
-                    "generic RPC interface {id} must declare its own parameters at file scope"
-                )));
+        let mut parameter_scopes = BTreeMap::new();
+        let mut has_generic_flag = false;
+        if !nodes.declaration_chain(id, scopes, |declaration| {
+            let count = declaration.get_parameters()?.len();
+            if count != 0 {
+                parameter_scopes.insert(TypeId(declaration.get_id()), count);
             }
-            if !self.reciprocal_declaration(nodes, id, ScopePolicy::LexicalGenerics, scopes)? {
-                return Err(layout(format!(
-                    "generic RPC interface {id} requires a unique reciprocal declaration chain"
-                )));
-            }
+            has_generic_flag |= declaration.get_is_generic();
+            Ok(true)
+        })? {
+            return Err(layout(format!(
+                "RPC interface {id} must be declared in the schema"
+            )));
+        }
+        if (has_generic_flag || !parameter_scopes.is_empty())
+            && !self.reciprocal_declaration(nodes, id, ScopePolicy::LexicalGenerics, scopes)?
+        {
+            return Err(layout(format!(
+                "generic RPC interface {id} requires a unique reciprocal declaration chain with consistent generic flags"
+            )));
         }
         let superclasses = self.superclasses(nodes, id, data, scopes)?;
         needed.extend(superclasses.iter().copied());
         let owner = MethodOwner {
             id,
-            parameter_scope: (parameters != 0).then_some(id),
+            parameter_scopes: &parameter_scopes,
         };
         let methods = self.methods(nodes, owner, data, needed, annotations, scopes)?;
+        let parameters = parameter_scopes.remove(&id).unwrap_or(0);
         Ok(Interface {
             parameters,
+            enclosing_parameters: parameter_scopes,
             superclasses,
             methods,
         })
@@ -212,7 +218,7 @@ impl Projection {
     fn methods<'a>(
         &mut self,
         nodes: &Nodes<'a>,
-        owner: MethodOwner,
+        owner: MethodOwner<'_>,
         interface: node::interface::Reader<'a>,
         needed: &mut BTreeSet<TypeId>,
         annotations: Annotations,
@@ -253,7 +259,7 @@ impl Projection {
                     return Err(error("must be a nongroup struct"));
                 }
                 if reader.get_scope_id() == 0 {
-                    self.inline(reader, data, (owner.parameter_scope, brand), error)?;
+                    self.inline(reader, data, (owner.parameter_scopes, brand), error)?;
                     if self.has_declaring_scope(nodes, target)? {
                         return Err(error(
                             "has a lexical declaration claim despite its zero scope",
@@ -265,7 +271,7 @@ impl Projection {
                         needed,
                         annotations,
                         scopes,
-                        owner.parameter_scope,
+                        (!owner.parameter_scopes.is_empty()).then_some(owner.id),
                     )?;
                     return Ok(Endpoint::Inline {
                         id: target,
@@ -310,7 +316,7 @@ impl Projection {
     fn branded_endpoint(
         &mut self,
         nodes: &Nodes<'_>,
-        (owner, endpoint): (MethodOwner, node::Reader<'_>),
+        (owner, endpoint): (MethodOwner<'_>, node::Reader<'_>),
         brand: brand::Reader<'_>,
         needed: &mut BTreeSet<TypeId>,
         scopes: &mut DeclarationScopes,
@@ -322,7 +328,7 @@ impl Projection {
                 "must have an empty brand for a nongeneric declaration",
             ));
         }
-        if owner.parameter_scope.is_none()
+        if owner.parameter_scopes.is_empty()
             && !self.reciprocal_declaration(nodes, owner.id, ScopePolicy::Nongeneric, scopes)?
         {
             return Err(error(
@@ -339,12 +345,12 @@ impl Projection {
         // Canonicalization drops empty scopes, which method brands cannot carry.
         if brand.is_empty()
             || u32::try_from(brand.len()) != Ok(scope_count)
-            || !complete_brand(nodes, id, &brand, owner.parameter_scope)?
+            || !complete_brand(nodes, id, &brand, owner.parameter_scopes)?
         {
-            return Err(error(if owner.parameter_scope.is_some() {
-                "requires a complete endpoint brand within the generic method owner's scope"
-            } else {
+            return Err(error(if owner.parameter_scopes.is_empty() {
                 "requires a complete concrete endpoint brand"
+            } else {
+                "requires a complete endpoint brand within the generic method owner's scopes"
             }));
         }
         Ok(Type::Named(Kind::Struct, id, brand))
@@ -373,23 +379,30 @@ impl Projection {
         &self,
         reader: node::Reader<'_>,
         data: node::struct_::Reader<'_>,
-        (parameter_scope, brand): (Option<TypeId>, brand::Reader<'_>),
+        (parameter_scopes, brand): (&BTreeMap<TypeId, u32>, brand::Reader<'_>),
         error: impl FnOnce(&str) -> Error,
     ) -> Result<(), Error> {
         let scopes = brand.get_scopes()?;
-        if let Some(owner) = parameter_scope {
-            if scopes.len() != 1
-                || scopes.get(0).get_scope_id() != owner.0
-                || !matches!(scopes.get(0).which()?, brand::scope::Inherit(()))
-            {
-                return Err(error(
-                    "must inherit exactly the generic method owner's scope",
-                ));
+        let generic = !parameter_scopes.is_empty();
+        if generic {
+            let reason = "must inherit exactly the generic method owner's scopes";
+            if usize::try_from(scopes.len()) != Ok(parameter_scopes.len()) {
+                return Err(error(reason));
+            }
+            let mut inherited = BTreeSet::new();
+            for scope in scopes {
+                let id = TypeId(scope.get_scope_id());
+                if !parameter_scopes.contains_key(&id)
+                    || !matches!(scope.which()?, brand::scope::Inherit(()))
+                    || !inherited.insert(id)
+                {
+                    return Err(error(reason));
+                }
             }
         } else if !scopes.is_empty() {
             return Err(error("must have an empty inline endpoint brand"));
         }
-        if reader.get_is_generic() != parameter_scope.is_some()
+        if reader.get_is_generic() != generic
             || !reader.get_parameters()?.is_empty()
             || !reader.get_nested_nodes()?.is_empty()
         {
@@ -430,7 +443,7 @@ fn complete_brand(
     nodes: &Nodes<'_>,
     mut id: TypeId,
     brand: &BTreeMap<TypeId, Arguments>,
-    parameter_scope: Option<TypeId>,
+    parameter_scopes: &BTreeMap<TypeId, u32>,
 ) -> Result<bool, Error> {
     for _ in 0..=super::MAX_DEPTH {
         let node = nodes.node(id)?;
@@ -438,10 +451,10 @@ fn complete_brand(
         if count != 0 {
             match brand.get(&id) {
                 Some(Arguments::Inherited(arity))
-                    if parameter_scope == Some(id) && *arity == count => {}
+                    if parameter_scopes.get(&id) == Some(arity) && *arity == count => {}
                 Some(Arguments::Bound(values)) if u32::try_from(values.len()) == Ok(count) => {
                     for value in values {
-                        if !complete_type(nodes, value, parameter_scope)? {
+                        if !complete_type(nodes, value, parameter_scopes)? {
                             return Ok(false);
                         }
                     }
@@ -460,13 +473,13 @@ fn complete_brand(
 fn complete_type(
     nodes: &Nodes<'_>,
     ty: &Type,
-    parameter_scope: Option<TypeId>,
+    parameter_scopes: &BTreeMap<TypeId, u32>,
 ) -> Result<bool, Error> {
     match ty {
-        Type::Named(_, id, brand) => complete_brand(nodes, *id, brand, parameter_scope),
-        Type::List(element) => complete_type(nodes, element, parameter_scope),
+        Type::Named(_, id, brand) => complete_brand(nodes, *id, brand, parameter_scopes),
+        Type::List(element) => complete_type(nodes, element, parameter_scopes),
         Type::Pointer(Pointer::Any) => Ok(false),
-        Type::Pointer(Pointer::Parameter(scope, _)) => Ok(parameter_scope == Some(*scope)),
+        Type::Pointer(Pointer::Parameter(scope, _)) => Ok(parameter_scopes.contains_key(scope)),
         Type::Atom(_) | Type::Pointer(_) => Ok(true),
     }
 }

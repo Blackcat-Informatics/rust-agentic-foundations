@@ -64,6 +64,8 @@ bindings:
     - cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting
     - cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods
     - cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints
+    - cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners
+    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance
@@ -114,8 +116,8 @@ Expose native duplication and ledger data without building or executing reposito
 
 **Cap'n Proto history.** `capnp-history` compares unpacked compiler
 descriptors read from explicit base and current Git commits. The caller
-selects struct and enum roots by type ID. Census follows their data type
-references and groups. It reports an old root or member that disappears
+selects struct, enum and interface roots by type ID. From a data root,
+Census follows data type references and groups. It reports an old root or member that disappears
 and changes to existing names, ordinals, types, slots, discriminants and
 defaults. The layout comparison permits a defaulted field or enum variant
 that preserves the old layout. Written declaration order is ignored. A field
@@ -126,16 +128,18 @@ compared by their canonical pointer bytes. The caller verifies
 acceptance by application readers.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
 
-The strict history check accepts explicitly selected nongeneric interfaces
-and generic interfaces that declare their own type parameters at file scope.
-A generic interface requires a unique reciprocal declaration. The comparison
-reports a change in its own type-parameter count on the interface ID.
+The strict history check accepts explicitly selected interfaces. A generic
+interface can declare its own type parameters or inherit them from its lexical
+scopes. It requires a unique reciprocal declaration chain and generic flags
+consistent with the declared parameters in that chain. The comparison reports
+changes to its own or enclosing parameter counts on the interface ID and names
+the enclosing scope in that finding.
 A method can use named structs or inline lists for its parameters and results.
 Census reports removed, renamed or moved methods and changes to an endpoint
 ID, its named or inline form, or its canonical type arguments. It compares
 parameters and results independently. A new trailing method with valid
 endpoints is allowed.
-<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints -->
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners -->
 
 Census follows the direct superclass IDs of each selected interface and its
 bases. Both interfaces on an inheritance edge must be named and nongeneric.
@@ -158,8 +162,9 @@ Nested type arguments must also be fully bound. An unconstrained
 `AnyPointer` counts as an unbound argument.
 The branded endpoint and its method interface each require a unique
 reciprocal declaration chain. A nongeneric method owner requires concrete
-arguments. A file-scoped generic owner also permits bindings to its own
-parameter positions and inheritance of its scope by a nested named endpoint.
+arguments. A generic owner permits bindings to its own and enclosing parameter
+positions. A named endpoint can inherit any of these scopes that also belong
+to its declaration chain.
 The endpoint's generic flags must agree with its own and enclosing parameter
 declarations.
 Several methods and roles can share one endpoint declaration with different
@@ -170,8 +175,9 @@ evolution, including implicit defaults for optional additions.
 A compiler-generated inline list belongs to one method ordinal and endpoint
 role. It must be a detached struct without its own type parameters or a
 lexical declaration claim. A generic owner requires the inline list to
-inherit its scope. Census reads the inline field types in that scope and
-retains the detached struct ID for layout. The list for a nongeneric owner
+inherit each parameter-bearing scope in its declaration chain exactly once.
+Census reads the inline field types in the owner's lexical scopes and retains
+the detached struct ID for layout. The list for a nongeneric owner
 requires an empty brand. Fields use explicit ordinals in order from zero and
 the same layout checks as ordinary data, including referenced types. Census checks each
 retained inline input's explicit-default marker and requires an explicit
@@ -757,6 +763,14 @@ one layout finding per changed named field. Competing ownership, missing
 brands and out-of-range owner parameter positions refuse.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints -->
 
+The nested interface fixtures bind named and inline roles across multiple
+lexical scopes. They accept an appended method and report changes to an
+inline slot, a named role's binding and a named endpoint's field. An interface
+that only inherits parameters reports the changed enclosing count even when
+its detached role IDs and slot types stay stable. Missing, repeated, foreign
+and bound inline scope rows refuse, as does an inconsistent owner flag.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners -->
+
 A persisted interface pointer keeps its data verdict across changes in
 RPC inheritance and method layouts, including a stable branded pointer
 to a generic owner.
@@ -797,11 +811,13 @@ to a generic owner.
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints` | test | [Contract](#contract), [Usage](#usage) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_annotation_types` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types` | test | [Contract](#contract) |

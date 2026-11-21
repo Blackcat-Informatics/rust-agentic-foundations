@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+(nodes = [
+  (id = 17204929253020270592, file = void, nestedNodes = [
+    (name = "Outer", id = 17204929253020270593),
+    (name = "Result", id = 17204929253020270601)]),
+  (id = 17204929253020270593, scopeId = 17204929253020270592, isGeneric = true, parameters = [(name = "A")],
+   nestedNodes = [(name = "Inner", id = 17204929253020270594)], struct = ()),
+  (id = 17204929253020270594, scopeId = 17204929253020270593, isGeneric = true, parameters = [(name = "B")],
+   nestedNodes = [
+     (name = "MissingScope", id = 17204929253020270595),
+     (name = "RepeatedScope", id = 17204929253020270596),
+     (name = "ForeignScope", id = 17204929253020270597),
+     (name = "BoundScope", id = 17204929253020270598),
+     (name = "MissingGenericFlag", id = 17204929253020270599)], struct = ()),
+  (id = 17204929253020270595, scopeId = 17204929253020270594, isGeneric = true, interface = (methods = [
+    (name = "read", paramStructType = 17204929253020270608, resultStructType = 17204929253020270601,
+     paramBrand = (scopes = [(scopeId = 17204929253020270593, inherit = void)]))])),
+  (id = 17204929253020270608, isGeneric = true, struct = ()),
+  (id = 17204929253020270596, scopeId = 17204929253020270594, isGeneric = true, interface = (methods = [
+    (name = "read", paramStructType = 17204929253020270609, resultStructType = 17204929253020270601,
+     paramBrand = (scopes = [(scopeId = 17204929253020270593, inherit = void), (scopeId = 17204929253020270593, inherit = void)]))])),
+  (id = 17204929253020270609, isGeneric = true, struct = ()),
+  (id = 17204929253020270597, scopeId = 17204929253020270594, isGeneric = true, interface = (methods = [
+    (name = "read", paramStructType = 17204929253020270610, resultStructType = 17204929253020270601,
+     paramBrand = (scopes = [(scopeId = 17204929253020270593, inherit = void), (scopeId = 17204929253020270601, inherit = void)]))])),
+  (id = 17204929253020270610, isGeneric = true, struct = ()),
+  (id = 17204929253020270598, scopeId = 17204929253020270594, isGeneric = true, interface = (methods = [
+    (name = "read", paramStructType = 17204929253020270611, resultStructType = 17204929253020270601,
+     paramBrand = (scopes = [(scopeId = 17204929253020270593, inherit = void), (scopeId = 17204929253020270594, bind = [(type = (text = void))])]))])),
+  (id = 17204929253020270611, isGeneric = true, struct = ()),
+  (id = 17204929253020270599, scopeId = 17204929253020270594, interface = ()),
+  (id = 17204929253020270601, scopeId = 17204929253020270592, struct = ())])
