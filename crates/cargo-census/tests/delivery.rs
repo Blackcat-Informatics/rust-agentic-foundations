@@ -1628,6 +1628,9 @@ fn edit_descriptor_node(
         .unwrap();
     compiler_request(|mut request| {
         request.set_nodes(original.get_nodes().unwrap()).unwrap();
+        request
+            .set_requested_files(original.get_requested_files().unwrap())
+            .unwrap();
         let mut nodes = request.get_nodes().unwrap();
         let position = (0..nodes.len())
             .find(|&index| nodes.reborrow().get(index).get_id() == id)
@@ -1735,6 +1738,372 @@ fn capnp_history_compares_enumerant_annotations() {
     assert_eq!(
         String::from_utf8(renamed.stdout).unwrap(),
         "Cap'n Proto history for 0xfa42ee5500000075.red: member renamed to crimson\n",
+    );
+}
+
+const NOMINAL_ANNOTATIONS: &[u8] = include_bytes!("fixtures/capnp/nominal-annotations.bin");
+const NOMINAL_FILE: &str = "0xfa42ee5500000080";
+const NOMINAL_MARKER: u64 = 0xfa42_ee55_0000_0082;
+const NOMINAL_RECORD: u64 = 0xfa42_ee55_0000_0083;
+const NOMINAL_SERVICE: u64 = 0xfa42_ee55_0000_0085;
+
+/// Closing over a type and selecting its file produce one application verdict.
+/// The generic record's header uses its own parameter to bind the annotation.
+#[test]
+fn capnp_history_compares_nominal_declaration_annotations() {
+    use capnp::schema_capnp::brand;
+
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, NOMINAL_ANNOTATIONS);
+    let removed = edit_descriptor_node(NOMINAL_ANNOTATIONS, NOMINAL_RECORD, |record| {
+        record.init_annotations(0);
+    });
+    let rebranded = edit_descriptor_node(&removed, 0xfa42_ee55_0000_0084, |shade| {
+        let brand::scope::Bind(bindings) = shade
+            .get_annotations()
+            .unwrap()
+            .get(0)
+            .get_brand()
+            .unwrap()
+            .get_scopes()
+            .unwrap()
+            .get(0)
+            .which()
+            .unwrap()
+        else {
+            panic!("expected Shade marker bindings");
+        };
+        bindings.unwrap().get(0).set_unbound(());
+    });
+    let changed = edit_descriptor_node(&rebranded, NOMINAL_SERVICE, |service| {
+        let mut annotations = service.get_annotations().unwrap();
+        for (index, label) in [(1, "second"), (2, "base")] {
+            annotations
+                .reborrow()
+                .get(index)
+                .init_value()
+                .init_list()
+                .initn_as::<capnp::text_list::Builder<'_>>(1)
+                .set(0, label);
+        }
+    });
+    let current = commit_capnp_descriptor(root, &changed);
+    let file = ["--file-id", NOMINAL_FILE];
+    let selections: [(&[&str], &[&str]); 3] = [
+        (&["0xfa42ee5500000087", "0xfa42ee5500000085"], &[]),
+        (&[], &file),
+        (&["0xfa42ee5500000083", "0xfa42ee5500000085"], &file),
+    ];
+    for (types, options) in selections {
+        for (before, after) in [(&base, &current), (&current, &base)] {
+            let report = capnp_history(root, before, after, types, options);
+            assert_eq!(report.status.code(), Some(1), "{report:?}");
+            assert!(report.stderr.is_empty(), "{report:?}");
+            assert_eq!(
+                String::from_utf8(report.stdout).unwrap(),
+                concat!(
+                    "Cap'n Proto history for 0xfa42ee5500000083: declaration applications of annotation 0xfa42ee5500000082 changed\n",
+                    "Cap'n Proto history for 0xfa42ee5500000084: declaration applications of annotation 0xfa42ee5500000082 changed\n",
+                    "Cap'n Proto history for 0xfa42ee5500000085: declaration applications of annotation 0xfa42ee5500000086 changed\n",
+                ),
+            );
+        }
+    }
+}
+
+/// Applications require an authored carrier, the exact target and a native value.
+#[test]
+fn capnp_history_refuses_invalid_nominal_declaration_annotations() {
+    use capnp::schema_capnp::node;
+    use raf_census::capnp_history::{self as history, DescriptorError, HistoryOptions, Snapshot};
+
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, NOMINAL_ANNOTATIONS);
+    let detached = edit_descriptor_node(NOMINAL_ANNOTATIONS, NOMINAL_RECORD, |mut record| {
+        record.set_scope_id(0);
+    });
+    let current = commit_capnp_descriptor(root, &detached);
+    assert_census_refused(
+        capnp_history(root, &base, &current, &["0xfa42ee5500000083"], &[]),
+        "annotated declaration 0xfa42ee5500000083 must have a reciprocal declaration chain",
+    );
+    let target = edit_descriptor_node(NOMINAL_ANNOTATIONS, NOMINAL_MARKER, |entry| {
+        let node::Annotation(mut annotation) = entry.which().unwrap() else {
+            panic!("expected marker annotation declaration");
+        };
+        annotation.set_targets_enum(false);
+    });
+    let current = commit_capnp_descriptor(root, &target);
+    assert_census_refused(
+        capnp_history(root, &base, &current, &[], &["--file-id", NOMINAL_FILE]),
+        "annotation 0xfa42ee5500000082 at 0xfa42ee5500000084 must be declared for enum declarations",
+    );
+
+    let malformed = edit_descriptor_node(NOMINAL_ANNOTATIONS, NOMINAL_SERVICE, |service| {
+        service
+            .get_annotations()
+            .unwrap()
+            .get(1)
+            .init_value()
+            .init_list()
+            .initn_as::<capnp::primitive_list::Builder<'_, u32>>(1)
+            .set(0, 7);
+    });
+    let current = commit_capnp_descriptor(root, &malformed);
+    assert_census_refused(
+        capnp_history(root, &base, &current, &[], &["--file-id", NOMINAL_FILE]),
+        "annotation 0xfa42ee5500000086 at 0xfa42ee5500000085:",
+    );
+    let descriptor = raf_source::RelPath::new("schema.bin").unwrap();
+    let error = history::check(
+        root,
+        Snapshot {
+            commit: &base,
+            descriptor: &descriptor,
+        },
+        Snapshot {
+            commit: &current,
+            descriptor: &descriptor,
+        },
+        HistoryOptions {
+            roots: &[],
+            file_ids: &[NOMINAL_FILE.parse().unwrap()],
+            required_annotation: None,
+            paired_presence_annotation: None,
+            capture: None,
+        },
+    )
+    .unwrap_err();
+    let service = "0xfa42ee5500000085".parse().unwrap();
+    let labels = "0xfa42ee5500000086".parse().unwrap();
+    assert!(
+        matches!(
+            &error,
+            history::Error::Descriptor {
+                source: DescriptorError::NominalApplication {
+                    owner,
+                    annotation: Some(annotation),
+                    source,
+                },
+                ..
+            } if *owner == service
+                && *annotation == labels
+                && matches!(source.as_ref(), DescriptorError::Wire(_))
+        ),
+        "{error}",
+    );
+}
+
+const FILE_APPLICATIONS: &[u8] = include_bytes!("fixtures/capnp/file-applications.bin");
+const APPLICATION_FILE: &str = "0xfa42ee5500000090";
+const APPLICATION_FILE_ID: u64 = 0xfa42_ee55_0000_0090;
+const APPLICATION_TAGS_ID: u64 = 0xfa42_ee55_0000_0091;
+const APPLICATION_FILE_TAG_ID: u64 = 0xfa42_ee55_0000_0092;
+const APPLICATION_CONST_ID: u64 = 0xfa42_ee55_0000_0095;
+const APPLICATION_MARKER_ID: u64 = 0xfa42_ee55_0000_0097;
+
+/// A selected file compares its own applications and those on its declarations.
+/// The same changes are invisible when only a nominal type is selected.
+#[test]
+fn capnp_history_compares_file_and_scalar_annotation_applications() {
+    use capnp::schema_capnp::{brand, node};
+
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, FILE_APPLICATIONS);
+    let compatible = edit_descriptor_node(FILE_APPLICATIONS, APPLICATION_CONST_ID, |version| {
+        let node::Const(value) = version.which().unwrap() else {
+            panic!("expected version constant");
+        };
+        value.get_value().unwrap().set_uint32(2);
+    });
+    let compatible = commit_capnp_descriptor(root, &compatible);
+    let file = ["--file-id", APPLICATION_FILE];
+    let clean = capnp_history(root, &base, &compatible, &[], &file);
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(
+        clean.stdout.is_empty() && clean.stderr.is_empty(),
+        "{clean:?}"
+    );
+
+    let edited_file = edit_descriptor_node(FILE_APPLICATIONS, APPLICATION_FILE_ID, |carrier| {
+        carrier
+            .get_annotations()
+            .unwrap()
+            .get(0)
+            .init_value()
+            .set_text("changed");
+    });
+    let without_const = edit_descriptor_node(&edited_file, APPLICATION_CONST_ID, |version| {
+        version.init_annotations(0);
+    });
+    let changed = edit_descriptor_node(&without_const, APPLICATION_MARKER_ID, |marker| {
+        let brand::scope::Bind(bindings) = marker
+            .get_annotations()
+            .unwrap()
+            .get(0)
+            .get_brand()
+            .unwrap()
+            .get_scopes()
+            .unwrap()
+            .get(0)
+            .which()
+            .unwrap()
+        else {
+            panic!("expected marker brand binding");
+        };
+        bindings.unwrap().get(0).init_type().set_text(());
+    });
+    let current = commit_capnp_descriptor(root, &changed);
+    for (before, after) in [(&base, &current), (&current, &base)] {
+        let output = capnp_history(root, before, after, &[], &file);
+        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        assert!(output.stderr.is_empty(), "{output:?}");
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            concat!(
+                "Cap'n Proto history for 0xfa42ee5500000090: file applications of annotation 0xfa42ee5500000092 changed\n",
+                "Cap'n Proto history for 0xfa42ee5500000095: declaration applications of annotation 0xfa42ee5500000093 changed\n",
+                "Cap'n Proto history for 0xfa42ee5500000097: declaration applications of annotation 0xfa42ee5500000094 changed\n",
+            ),
+        );
+    }
+    let type_only = capnp_history(root, &base, &current, &["0xfa42ee5500000096"], &[]);
+    assert!(type_only.status.success(), "{type_only:?}");
+    assert!(
+        type_only.stdout.is_empty() && type_only.stderr.is_empty(),
+        "{type_only:?}"
+    );
+}
+
+/// Scoped applications reject a wrong target, fabricated parameter or bad wire value.
+#[test]
+fn capnp_history_refuses_invalid_file_and_scalar_annotation_applications() {
+    use capnp::schema_capnp::{brand, node};
+
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, FILE_APPLICATIONS);
+    let file = ["--file-id", APPLICATION_FILE];
+    let wrong_target = edit_descriptor_node(FILE_APPLICATIONS, APPLICATION_FILE_TAG_ID, |tag| {
+        let node::Annotation(mut declaration) = tag.which().unwrap() else {
+            panic!("expected fileTag declaration");
+        };
+        declaration.set_targets_file(false);
+        declaration.set_targets_const(true);
+    });
+    let current = commit_capnp_descriptor(root, &wrong_target);
+    assert_census_refused(
+        capnp_history(root, &base, &current, &[], &file),
+        "annotation 0xfa42ee5500000092 at 0xfa42ee5500000090 must be declared for files",
+    );
+    for owner in [
+        APPLICATION_FILE_ID,
+        APPLICATION_CONST_ID,
+        APPLICATION_MARKER_ID,
+    ] {
+        let forged = edit_descriptor_node(FILE_APPLICATIONS, owner, |entry| {
+            entry.init_parameters(1).get(0).set_name("Forged");
+        });
+        let current = commit_capnp_descriptor(root, &forged);
+        assert_census_refused(
+            capnp_history(root, &base, &current, &[], &file),
+            &format!("file or scalar declaration 0x{owner:016x} cannot declare type parameters"),
+        );
+    }
+    let foreign_scope = edit_descriptor_node(FILE_APPLICATIONS, APPLICATION_MARKER_ID, |marker| {
+        let brand::scope::Bind(bindings) = marker
+            .get_annotations()
+            .unwrap()
+            .get(0)
+            .get_brand()
+            .unwrap()
+            .get_scopes()
+            .unwrap()
+            .get(0)
+            .which()
+            .unwrap()
+        else {
+            panic!("expected marker brand binding");
+        };
+        bindings
+            .unwrap()
+            .get(0)
+            .init_type()
+            .init_any_pointer()
+            .init_parameter()
+            .set_scope_id(APPLICATION_TAGS_ID);
+    });
+    let current = commit_capnp_descriptor(root, &foreign_scope);
+    assert_census_refused(
+        capnp_history(root, &base, &current, &[], &file),
+        "annotation 0xfa42ee5500000094 at 0xfa42ee5500000097: invalid parameter 0 in scope 0xfa42ee5500000091",
+    );
+
+    let malformed = edit_descriptor_node(FILE_APPLICATIONS, APPLICATION_FILE_ID, |carrier| {
+        carrier
+            .get_annotations()
+            .unwrap()
+            .get(1)
+            .init_value()
+            .init_list()
+            .initn_as::<capnp::primitive_list::Builder<'_, u32>>(1)
+            .set(0, 7);
+    });
+    let current = commit_capnp_descriptor(root, &malformed);
+    assert_census_refused(
+        capnp_history(root, &base, &current, &[], &file),
+        "annotation 0xfa42ee5500000098 at 0xfa42ee5500000090:",
+    );
+    assert_file_application_wire_cause(root, &base, &current);
+}
+
+fn assert_file_application_wire_cause(root: &Path, base: &str, current: &str) {
+    use raf_census::capnp_history::{self as history, DescriptorError, HistoryOptions, Snapshot};
+
+    let descriptor = raf_source::RelPath::new("schema.bin").unwrap();
+    let file_id = APPLICATION_FILE.parse().unwrap();
+    let error = history::check(
+        root,
+        Snapshot {
+            commit: base,
+            descriptor: &descriptor,
+        },
+        Snapshot {
+            commit: current,
+            descriptor: &descriptor,
+        },
+        HistoryOptions {
+            roots: &[],
+            file_ids: &[file_id],
+            required_annotation: None,
+            paired_presence_annotation: None,
+            capture: None,
+        },
+    )
+    .unwrap_err();
+    let file_items = "0xfa42ee5500000098".parse().unwrap();
+    assert!(
+        matches!(
+            &error,
+            history::Error::Descriptor {
+                source: DescriptorError::NodeApplication {
+                    owner,
+                    annotation: Some(annotation),
+                    source,
+                },
+                ..
+            } if *owner == file_id
+                && *annotation == file_items
+                && matches!(source.as_ref(), DescriptorError::Wire(_))
+        ),
+        "{error}",
     );
 }
 

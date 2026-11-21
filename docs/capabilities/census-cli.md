@@ -61,6 +61,10 @@ bindings:
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts
     - cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations
     - cargo_census::test_crate::delivery::capnp_history_compares_enumerant_annotations
+    - cargo_census::test_crate::delivery::capnp_history_compares_nominal_declaration_annotations
+    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nominal_declaration_annotations
+    - cargo_census::test_crate::delivery::capnp_history_compares_file_and_scalar_annotation_applications
+    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_file_and_scalar_annotation_applications
     - cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities
     - cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities
     - cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities
@@ -173,6 +177,20 @@ Field presence markers with an enumerant target count as ordinary applications
 on enumerants. A malformed application identifies its owning member and retains
 the native wire or tag cause when present.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_enumerant_annotations -->
+
+Strict history also checks applications on declared structs, enums and
+interfaces selected through the type closure or a committed file. The
+annotation must declare a target that matches the annotated declaration's kind.
+The application's brand resolves in the annotated declaration's lexical scope,
+and its value uses the same canonical typed checks as a data-field application.
+Census compares each annotation ID's ordered list on a retained declaration of
+the same kind. A changed list reports once at the owning declaration and
+annotation ID, including when both selections reach the declaration. A
+malformed application reports those IDs and retains the native cause when
+present. File-only selection checks declaration metadata and applications
+without projecting member layouts. Persistence, reader and migration admission
+remain independent.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_nominal_declaration_annotations,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nominal_declaration_annotations -->
 
 The strict history check accepts explicitly selected interfaces. A generic
 interface can declare its own type parameters or inherit them from its lexical
@@ -298,6 +316,18 @@ A selected annotation requires an explicit declared type with valid
 nominal references and brands. Layout checks follow the independent
 `--type` selection.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities,cargo_census::test_crate::delivery::capnp_history_refuses_malformed_annotation_types -->
+
+Strict file history checks direct annotation applications on the selected
+files and on their constants and annotation declarations. Each application
+requires the exact file, constant or annotation target. A file supplies no
+lexical parameters. Constants and annotation declarations can refer to
+parameters in their reciprocally declared enclosing scopes. Census resolves
+each brand in the annotated carrier's scope and checks its value against the
+instantiated type. It compares the ordered applications for each annotation
+ID on a retained carrier of the same kind. Findings identify the carrier
+and the annotation, and native descriptor failures retain their source.
+These carriers enter through file selection independently of type roots.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_file_and_scalar_annotation_applications,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_file_and_scalar_annotation_applications -->
 
 A caller can select a compiler-declared Void field annotation for
 required pointer presence. Census validates the marker in both
@@ -906,19 +936,23 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_enumerant_annotations` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_file_and_scalar_annotation_applications` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_nominal_declaration_annotations` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_unbound_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_file_and_scalar_annotation_applications` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nominal_declaration_annotations` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_annotation_types` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types` | test | [Contract](#contract) |

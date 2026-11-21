@@ -42,6 +42,7 @@ bindings:
     - raf_census::test_crate::census_gate::macro_type_hits_use_the_scope_of_the_reach_that_resolves_the_type
     - raf_census::test_crate::census_gate::written_type_alias_hits_share_physical_sites_and_respect_shipping_scope
     - raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing
+    - raf_census::test_crate::census_gate::written_receiver_alias_keeps_a_native_refusal_at_the_first_matching_method
     - raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file
     - raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths
     - raf_census::test_crate::census_gate::lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes
@@ -201,6 +202,15 @@ identifier, an admitted initializer or a tuple constructor callee. Each wrapper
 carries only inert attributes and consumes one step of the pattern budget.
 A wrapped receiver identifier also carries only inert attributes.
 
+A simple unannotated local can take its receiver proof from a plain local
+initializer, including one wrapped in inert parentheses. Lookup uses the
+earlier binding before the destination enters scope and verifies the source
+on each configured reach. A reach that resolves the value as a unit
+constructor can use the ordinary constructor proof. Aliases spend the shared
+binding-state and work allowances. A deferred native refusal stays attached
+to the reach until an admitted matching method reports it at its method token.
+<!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing,raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file,raf_census::test_crate::census_gate::written_receiver_alias_keeps_a_native_refusal_at_the_first_matching_method -->
+
 A nearer unproved or unsupported binding shadows older proof. The matcher
 skips definitely excluded local declarations and their initializers. A local
 initializer and its `else` block are read before the local binds. A nearer block
@@ -334,8 +344,9 @@ different workspace definition is never replaced by a spelling match.
 <!-- raf:tested-by raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows,raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function -->
 
 - Matching observes written syntax before macro expansion. Method matching
-establishes the nominal receiver type from the written annotation or admitted
-constructor initializer and records the method name. Automatic adjustments,
+establishes the nominal receiver type from a written annotation, an admitted
+constructor initializer, or a proved local used directly as an initializer.
+It records the method name. Automatic adjustments,
 general type inference and method implementation selection are outside that proof.
 Macro expression-list and statement/repetition arguments are observed through
 the existing Rust parser; other macro languages remain token syntax. Named
@@ -400,6 +411,12 @@ The same fixtures cover nested parentheses, a parenthesized tuple callee,
 non-inert wrapper attributes and the method token's reported line.
 <!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing,raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file -->
 
+Receiver fixtures cover a direct alias, an alias chain, same-name
+rebinding, lexical shadows, and exact reaches in a shared file. A deferred
+refusal fixture verifies the original Source cause and the first matching
+method's line.
+<!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_alias_keeps_a_native_refusal_at_the_first_matching_method -->
+
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
@@ -449,6 +466,7 @@ non-inert wrapper attributes and the method token's reported line.
 | `raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
+| `raf_census::test_crate::census_gate::written_receiver_alias_keeps_a_native_refusal_at_the_first_matching_method` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing` | test | [Contract](#contract), [Constraints](#constraints) |
