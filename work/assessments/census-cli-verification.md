@@ -7,16 +7,16 @@ subject: cap:census-cli#verification
 inputs:
   - kind: section
     name: cap:census-cli#verification
-    digest: fbdc9a1a913d939d928733f43a6bb07d4b170fdf5088245eac01da4335eaf176
+    digest: 40be7251e29bf75242a4d8da310f8780e7239aa579f9ef5d28db9acdb4d1b70d
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
   - kind: symbol
     name: cargo_census::cli
-    digest: 5c246abea589516cfb5188ccd9d3152c83a14c49c4a06f9fe44d8dd9285ae8d3
+    digest: 7eb9dde0a704fdfd8ea0244b1dcd8bda22ae4d08f85b7ec400f17482f63932d0
   - kind: symbol
     name: cargo_census::command
-    digest: 1ee6a46d85772c957a65214de2f1d8274177af4ca1e0fe6e305132559d79cde0
+    digest: bb781bb9590428dbcbca4c7cfc09449e21e1686a6caef3a16f19006b171e62d1
   - kind: symbol
     name: cargo_census::error
     digest: d368c2653a7adfc685940b91a52e1ca7e946b508577849e120a7628a9dfa0f96
@@ -61,7 +61,7 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
+    digest: 8ad5073efae45acb97cfe315547e30807efe5613a631fb83ea08f2b53c82e724
   - kind: symbol
     name: raf_census::capnp_history::persistence::admission::check
     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
@@ -79,7 +79,7 @@ inputs:
     digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
   - kind: symbol
     name: raf_census::selftest
-    digest: 9557611b2160cfef1e2c87e3bfcbc232d7b92d8954077b7502ec54f9010b9967
+    digest: 22f4971efcd0f48fbade5d5d190cd7f9113ce8f93cfa857119dd9360cb5f488b
 verdict: accepted
 by: agent
 ---

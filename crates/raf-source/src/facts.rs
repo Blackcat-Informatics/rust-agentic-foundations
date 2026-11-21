@@ -1101,7 +1101,7 @@ struct Extractor<'t> {
 }
 
 impl Extractor<'_> {
-    #[allow(
+    #[expect(
         clippy::too_many_arguments,
         reason = "every field of an item fact comes from the syntax node separately"
     )]

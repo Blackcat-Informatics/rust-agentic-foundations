@@ -196,11 +196,16 @@ block imports. A conditionally active import with a possible binding in the
 queried namespace prevents receiver proof. A binding from a chained wildcard
 requires a proved route through its provider.
 
-The receiver expression must be a plain local identifier. A nearer unproved or
-unsupported binding shadows older proof. The matcher skips definitely excluded
-local declarations and their initializers. A local initializer and its `else`
-block are read before the local binds. A nearer block import in the Value
-namespace can shadow an enclosing receiver, including a name from a wildcard.
+The receiver expression must be a local identifier. Parentheses can wrap that
+identifier, an admitted initializer or a tuple constructor callee. Each wrapper
+carries only inert attributes and consumes one step of the pattern budget.
+A wrapped receiver identifier also carries only inert attributes.
+
+A nearer unproved or unsupported binding shadows older proof. The matcher
+skips definitely excluded local declarations and their initializers. A local
+initializer and its `else` block are read before the local binds. A nearer block
+import in the Value namespace can shadow an enclosing receiver, including a name
+from a wildcard.
 An opaque wildcard in a nearer block stops lookup across that block. A local
 binding takes precedence over a wildcard in its own block. Closures can
 capture enclosing bindings.
@@ -391,6 +396,8 @@ fixture reports the typed call and the inferred call through a value reexport.
 An unrelated unit struct and a constant that shadows the constructor's
 value name stay clear. A shared-file fixture tests typed and constructor
 receivers under separate source reaches and scope selections.
+The same fixtures cover nested parentheses, a parenthesized tuple callee,
+non-inert wrapper attributes and the method token's reported line.
 <!-- raf:tested-by raf_census::test_crate::census_gate::written_receiver_methods_keep_declaration_identity_and_runtime_shadowing,raf_census::test_crate::census_gate::written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file -->
 
 <!-- raf:generated:verification-matrix -->

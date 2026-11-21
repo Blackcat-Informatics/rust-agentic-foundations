@@ -3,7 +3,7 @@
 
 //! Selectable assertions of the actual registry-scanning example.
 
-#[allow(
+#[expect(
     dead_code,
     reason = "the example entrypoint and orchestration are not called by every fixture test"
 )]

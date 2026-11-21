@@ -14,7 +14,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         "pub fn body(value:u32)->u32 { let doubled=value*2; doubled+11 }\npub fn shim(value:u32)->u32 { std::convert::identity(value) }",
         "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } pub fn second(input:u32)->u32 { let result=input*2; result+11 } pub fn shim(value:u32)->u32 { std::convert::identity(value) } }",
     );
-    let report = Gate::workspace(".").check_tree(&tree)?;
+    let report = Gate::workspace(".")
+        .without_production_lints()
+        .check_tree(&tree)?;
     assert_eq!(report.jobs()[0].copies, 2);
     assert_eq!(report.census().groups(), []);
     let index = report.census().index(report.jobs())?;

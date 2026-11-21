@@ -97,7 +97,7 @@ fn scan_directory(
 
 /// Whether a file name is a Markdown document name. The profile spells the
 /// extension in lowercase only, so `NOTES.MD` is not a document.
-#[allow(
+#[expect(
     clippy::case_sensitive_file_extension_comparisons,
     reason = "the profile defines a document file name by the lowercase suffix `.md`"
 )]

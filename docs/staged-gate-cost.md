@@ -23,7 +23,7 @@ A two-module crate with a re-export gives equal source workspaces and resource u
 
 ## Inputs and measurement
 
-The native Linux sample uses Git tree `566c505001750b48746d0a1f37afe73ad260372f` from commit `b784a526bab523c493062bca78862d95be06322f`. Both hook implementations check that tree. The host has an AMD Ryzen AI Max+ 395 processor, Linux `7.3.4-1-cachyos`, glibc 2.44 and Rust nightly `5df8c02af` with LLVM 23.1.5. The test binaries use the hook's default unoptimized test profile.
+The native Linux sample uses Git tree `566c505001750b48746d0a1f37afe73ad260372f` from commit `b784a526bab523c493062bca78862d95be06322f`. Both hook implementations check that tree. The shared-index implementation is at commit `789a6184`. Both measurements cover formatting, licensing and the repository test binaries. The current hook also runs production Clippy on the staged libraries and binaries. The host has an AMD Ryzen AI Max+ 395 processor, Linux `7.3.4-1-cachyos`, glibc 2.44 and Rust nightly `5df8c02af` with LLVM 23.1.5. The test binaries use the hook's default unoptimized test profile.
 
 To reproduce the comparison, retain the same Git index and change the hook and test implementations in the working tree. Check `git write-tree` before and after each run. Warm the hook's selected test executables with `cargo test --locked --no-fail-fast --no-run` and the hook's exact list of test targets. Execute `.githooks/pre-commit` once per configuration. Preserve its exit status, the sorted list of test names and their outcomes, stdout and stderr.
 

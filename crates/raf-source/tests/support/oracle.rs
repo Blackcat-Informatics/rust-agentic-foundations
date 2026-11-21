@@ -1315,10 +1315,6 @@ pub(crate) fn describe(program: &Program, divergence: &Divergence) -> String {
 /// renamed after its shape; the
 /// first of each kind of unclassified disagreement is reduced and printed, to
 /// be examined. Run with `RAF_ORACLE_PROGRAMS` set to search further.
-#[allow(
-    dead_code,
-    reason = "the full search is an explicit corpus_generate example operation"
-)]
 pub(crate) fn generate_corpus(dir: &Path) {
     let programs = generated_from(BASE, program_count());
     let results = evaluate_all(&programs);

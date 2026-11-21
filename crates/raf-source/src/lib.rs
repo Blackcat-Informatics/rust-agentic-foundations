@@ -210,6 +210,7 @@ pub use locked::{
     LockedCatalog, LockedGitReference, LockedPackage, LockedPackageId, LockedSource,
     LockedSourceKind, RegistryIndex,
 };
+pub use manifest::native::CargoLintManifest;
 pub use manifest::{
     DependencyDeclaration, DependencyKind, DependencySpec, InheritedDependency, library_target_name,
 };

@@ -225,6 +225,13 @@ and the citation version must equal the workspace version. Altered text, missing
 fingerprint records and a version changed on only one side are refused.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::licenses_accepts_bytes_that_hash_to_the_pin,rust_agentic_foundations::test_crate::repo_gates::licenses_rejects_an_altered_mulan_text,rust_agentic_foundations::test_crate::repo_gates::licenses_rejects_a_record_without_a_fingerprint_line,rust_agentic_foundations::test_crate::repo_gates::citation_accepts_matching_versions,rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_manifest_bump_without_a_matching_citation -->
 
+**Production lint coverage.** The aggregate Make check and staged hooks run
+Clippy over the workspace libraries and binaries with the locked dependency
+graph and denied warnings. The staged hook supplies the source, manifests
+and build-owned receipt for the same snapshot to the Census gate. The
+all-target lint pass also checks tests, examples and benchmarks.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused -->
+
 **Manifest policy.** Every first-party manifest inherits the workspace lint
 policy. The fuzz workspace mirrors the root lint and deny configuration with its
 declared scoped exception. First-party normal, build, development, workspace and
@@ -257,8 +264,10 @@ apply this Rust gate to a checkout of the staged index; CI runs the same gate.
 Use `cargo test --locked --package <package>` for one package's ordinary suite.
 Use the static verification command to inspect declared example and test bindings. It never initiates the consumer programs named by those declarations.
 
-Run `cargo test --locked --test self_census` to judge the repository ledger and
-debt. Adopt missing debt or lower resolved debt explicitly with
+Run `make test` to capture production lint evidence and judge the repository
+ledger and debt. With a current build-owned receipt in `RAF_CENSUS_LINT_EVIDENCE`,
+run `cargo test --locked --test self_census` for the Census test alone.
+Adopt missing debt or lower resolved debt explicitly with
 `cargo run --locked --example repository_census -- --census-debt-write-v1`, then review the complete
 `census-debt.ttl` diff. The writer refuses growth into a current record; deleting
 that record and adopting again does not prove that debt did not grow.

@@ -5,7 +5,7 @@
 
 use raf_census::{BoundClassification, BoundRole, GateReport};
 
-use super::{Builder, Format, Gate, Ledger, MemoryTree, Term, base, job, put, vocab};
+use super::{Builder, Format, Ledger, MemoryTree, Term, base, fixture_gate, job, put, vocab};
 
 pub(super) fn registry(mut graph: Builder, mode: &str) -> Builder {
     put(&mut graph, "", "numericBounds", Term::iri("#bounds"));
@@ -65,7 +65,7 @@ fn check(source: &str, graph: Builder, record: Option<&str>) -> GateReport {
     if let Some(record) = record {
         entries.push(("census-debt.ttl", record));
     }
-    Gate::workspace(".")
+    fixture_gate(".")
         .check_tree(&MemoryTree::from_iter(entries))
         .unwrap()
 }
@@ -343,7 +343,7 @@ fn numeric_size_arguments_require_agreement_at_shared_physical_sites() {
             ),
             ("helpers-ledger.ttl", ledger.as_str()),
         ]);
-        Gate::workspace(".").check_tree(&tree)
+        fixture_gate(".").check_tree(&tree)
     };
     let agreed = check("#[path=\"shared.rs\"] mod shared; fn configure(limit: usize) {} const MAX_ITEMS: usize = 7;").unwrap();
     assert_eq!(agreed.numeric_bounds().len(), 3, "{:?}", agreed.findings());
@@ -370,7 +370,7 @@ fn numeric_size_arguments_require_agreement_at_shared_physical_sites() {
 fn numeric_inventory_refuses_a_signature_beyond_the_state_grant() {
     let source = "pub fn configure(a: usize, b: usize, c: usize, d: usize, size: usize) {}";
     let check = |source, states| {
-        Gate::workspace(".")
+        fixture_gate(".")
             .matching_limits(purrdf_jsonschema::ecma::MatchLimits {
                 states,
                 ..Default::default()

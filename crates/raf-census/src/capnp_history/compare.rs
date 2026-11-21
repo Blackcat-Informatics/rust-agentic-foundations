@@ -93,7 +93,7 @@ pub enum ChangeKind {
     },
     /// The count of a type's own parameters changed.
     ChangedParameters,
-    /// The arity of a lexical parameter scope available to an RPC interface changed.
+    /// The count of parameters in a scope enclosing an RPC interface or named endpoint changed.
     ChangedEnclosingParameters {
         /// ID of the enclosing declaration.
         scope: TypeId,
@@ -238,6 +238,12 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
             (Node::Struct(before), Node::Struct(after)) => {
                 if before.parameters != after.parameters {
                     emit(None, ChangeKind::ChangedParameters)?;
+                }
+                if let (Some(previous), Some(current)) = (
+                    base.named_endpoint_parameters.get(&node),
+                    current.named_endpoint_parameters.get(&node),
+                ) {
+                    enclosing_parameters(previous, current, &mut emit)?;
                 }
                 structure(before, after, false, &mut emit)
             }
@@ -465,16 +471,11 @@ fn interface(
     if before.parameters != after.parameters {
         emit(None, ChangeKind::ChangedParameters)?;
     }
-    for (&scope, &count) in &before.enclosing_parameters {
-        if after.enclosing_parameters.get(&scope) != Some(&count) {
-            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
-        }
-    }
-    for &scope in after.enclosing_parameters.keys() {
-        if !before.enclosing_parameters.contains_key(&scope) {
-            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
-        }
-    }
+    enclosing_parameters(
+        &before.enclosing_parameters,
+        &after.enclosing_parameters,
+        emit,
+    )?;
     for (&superclass, previous) in &before.superclasses {
         match after.superclasses.get(&superclass) {
             None => emit(None, ChangeKind::RemovedSuperclass { superclass })?,
@@ -491,6 +492,24 @@ fn interface(
         emit,
         method,
     )
+}
+
+fn enclosing_parameters(
+    before: &BTreeMap<TypeId, u32>,
+    after: &BTreeMap<TypeId, u32>,
+    emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
+) -> Result<(), Error> {
+    for (&scope, &count) in before {
+        if after.get(&scope) != Some(&count) {
+            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
+        }
+    }
+    for &scope in after.keys() {
+        if !before.contains_key(&scope) {
+            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
+        }
+    }
+    Ok(())
 }
 
 fn method(

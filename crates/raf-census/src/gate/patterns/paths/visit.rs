@@ -405,7 +405,7 @@ struct Paths<'a, 'p, 'w, 'c> {
     owners: super::OwnerCache<'w>,
 }
 
-impl Paths<'_, '_, '_, '_> {
+impl<'p> Paths<'_, 'p, '_, '_> {
     fn excludes_from_inventory(&self, attributes: &[syn::Attribute]) -> bool {
         self.enum_hits.is_some() && crate::syntax::definitely_excluded(attributes)
     }
@@ -702,6 +702,22 @@ impl Paths<'_, '_, '_, '_> {
         self.bind_with_receiver(pattern, None, None);
     }
 
+    fn receiver_candidate<'n>(
+        &mut self,
+        pattern: &'n syn::Pat,
+        ty: Option<&'n syn::Type>,
+        initializer: Option<&'n syn::Expr>,
+    ) -> Result<Option<(&'n syn::Ident, ReceiverPath<'n>, &'p str)>, Error> {
+        let Some(matcher) = self.receiver_matcher else {
+            return Ok(None);
+        };
+        let label = matcher.pattern.id.as_str();
+        Ok(
+            receivers::binding(pattern, ty, initializer, label, self.limits)?
+                .map(|(name, receiver)| (name, receiver, label)),
+        )
+    }
+
     fn bind_with_receiver(
         &mut self,
         pattern: &syn::Pat,
@@ -719,10 +735,13 @@ impl Paths<'_, '_, '_, '_> {
             },
             |compiled| compiled.pattern.id.as_str(),
         );
-        let candidate = self.receiver_matcher.and_then(|matcher| {
-            receivers::binding(pattern, ty, initializer)
-                .map(|(name, receiver)| (name, receiver, matcher.pattern.id.as_str()))
-        });
+        let candidate = match self.receiver_candidate(pattern, ty, initializer) {
+            Ok(candidate) => candidate,
+            Err(error) => {
+                self.error = Some(error);
+                return;
+            }
+        };
         let mut pending = None;
         let live_binding = self.receiver_matcher.is_some();
         let result = self.scopes.bind(pattern, live_binding, |scopes, name| {
@@ -844,7 +863,7 @@ impl Paths<'_, '_, '_, '_> {
             .len()
             .saturating_mul(method.len().saturating_add(1));
         super::charge(label, self.limits, work.try_into().unwrap_or(u64::MAX))?;
-        let Some(name) = receivers::local(&node.receiver) else {
+        let Some(name) = receivers::local(&node.receiver, label, self.limits)? else {
             return Ok(());
         };
         let method = node.method.unraw().to_string();

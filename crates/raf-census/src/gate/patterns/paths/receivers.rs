@@ -230,58 +230,94 @@ pub(super) fn binding<'a>(
     pattern: &'a syn::Pat,
     ty: Option<&'a syn::Type>,
     initializer: Option<&'a syn::Expr>,
-) -> Option<(&'a syn::Ident, ReceiverPath<'a>)> {
+    label: &str,
+    limits: &mut MatchLimits,
+) -> Result<Option<(&'a syn::Ident, ReceiverPath<'a>)>, Error> {
     let (pattern, ty) = match (pattern, ty) {
         (syn::Pat::Type(typed), None) => (&*typed.pat, Some(&*typed.ty)),
         (pattern, ty) => (pattern, ty),
     };
     let syn::Pat::Ident(identifier) = pattern else {
-        return None;
+        return Ok(None);
     };
     if identifier.by_ref.is_some() || identifier.subpat.is_some() {
-        return None;
+        return Ok(None);
     }
     let receiver = match ty {
         Some(syn::Type::Path(ty)) if ty.qself.is_none() => ReceiverPath::Written(&ty.path),
-        None => constructor(initializer?)?,
-        _ => return None,
+        None => {
+            let Some(initializer) = initializer else {
+                return Ok(None);
+            };
+            let Some(receiver) = constructor(initializer, label, limits)? else {
+                return Ok(None);
+            };
+            receiver
+        }
+        _ => return Ok(None),
     };
-    receiver
+    Ok(receiver
         .path()
         .segments
         .iter()
         .all(|segment| segment.arguments.is_empty())
-        .then_some((&identifier.ident, receiver))
+        .then_some((&identifier.ident, receiver)))
 }
 
-fn constructor(initializer: &syn::Expr) -> Option<ReceiverPath<'_>> {
+fn constructor<'a>(
+    initializer: &'a syn::Expr,
+    label: &str,
+    limits: &mut MatchLimits,
+) -> Result<Option<ReceiverPath<'a>>, Error> {
     use crate::syntax::inert_attributes;
 
+    let Some(initializer) = unparenthesized(initializer, label, limits)? else {
+        return Ok(None);
+    };
     let (path, proof) = match initializer {
         syn::Expr::Struct(expr) if expr.qself.is_none() && inert_attributes(&expr.attrs) => {
-            return Some(ReceiverPath::Braced(&expr.path));
+            return Ok(Some(ReceiverPath::Braced(&expr.path)));
         }
         syn::Expr::Call(call) if inert_attributes(&call.attrs) => {
-            let syn::Expr::Path(callee) = call.func.as_ref() else {
-                return None;
+            let Some(syn::Expr::Path(callee)) = unparenthesized(&call.func, label, limits)? else {
+                return Ok(None);
             };
             (callee, ReceiverPath::Tuple(&callee.path))
         }
         syn::Expr::Path(path) => (path, ReceiverPath::Unit(&path.path)),
-        _ => return None,
+        _ => return Ok(None),
     };
-    (path.qself.is_none() && inert_attributes(&path.attrs)).then_some(proof)
+    Ok((path.qself.is_none() && inert_attributes(&path.attrs)).then_some(proof))
 }
 
-pub(super) fn local(receiver: &syn::Expr) -> Option<String> {
-    let syn::Expr::Path(receiver) = receiver else {
-        return None;
+pub(super) fn local(
+    receiver: &syn::Expr,
+    label: &str,
+    limits: &mut MatchLimits,
+) -> Result<Option<String>, Error> {
+    let Some(syn::Expr::Path(path)) = unparenthesized(receiver, label, limits)? else {
+        return Ok(None);
     };
-    if receiver.qself.is_some() {
-        return None;
+    if path.qself.is_some()
+        || (matches!(receiver, syn::Expr::Paren(_))
+            && !crate::syntax::inert_attributes(&path.attrs))
+    {
+        return Ok(None);
     }
-    receiver
-        .path
-        .get_ident()
-        .map(|ident| ident.unraw().to_string())
+    Ok(path.path.get_ident().map(|ident| ident.unraw().to_string()))
+}
+
+fn unparenthesized<'a>(
+    mut expression: &'a syn::Expr,
+    label: &str,
+    limits: &mut MatchLimits,
+) -> Result<Option<&'a syn::Expr>, Error> {
+    while let syn::Expr::Paren(wrapper) = expression {
+        charge(label, limits, 1)?;
+        if !crate::syntax::inert_attributes(&wrapper.attrs) {
+            return Ok(None);
+        }
+        expression = &wrapper.expr;
+    }
+    Ok(Some(expression))
 }

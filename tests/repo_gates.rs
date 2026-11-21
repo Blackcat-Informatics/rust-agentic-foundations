@@ -52,7 +52,11 @@ mod runtime;
 
 use std::path::{Path, PathBuf};
 
-use support::{banned_in_line, decode_text, gate_root, read_tracked, tracked_paths};
+use support::{decode_text, gate_root, read_tracked, tracked_paths};
+
+fn banned_in_line(line: &str) -> Option<&'static str> {
+    raf_workplan::refs::banned_in_line(line).map(raf_workplan::refs::Banned::description)
+}
 
 /// Digest both Mulan texts must match.
 const MULAN_SHA256: &str = "eb7a1d713eb919b146787629e22e4c975cb701f529a65d4d7e0fcd417558bf1c";

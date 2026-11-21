@@ -144,7 +144,10 @@ fn reference_index() -> Index {
         "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+65536 }",
         "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+65536 } }",
     );
-    let report = raf_census::Gate::workspace(".").check_tree(&tree).unwrap();
+    let report = raf_census::Gate::workspace(".")
+        .without_production_lints()
+        .check_tree(&tree)
+        .unwrap();
     report.census().index(report.jobs()).unwrap()
 }
 
