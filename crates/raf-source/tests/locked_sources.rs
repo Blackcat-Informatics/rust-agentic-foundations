@@ -743,6 +743,22 @@ impl Fixture {
         edges: &[LockedEdge<'_>],
         options: &LoadOptions,
     ) -> Result<Workspace, LoadError> {
+        self.load_with(consumer, kit_manifest, edges, |tree, local, sources| {
+            Workspace::load_locked_sources(&self.catalog, tree, local, sources, options)
+        })
+    }
+
+    fn load_with(
+        &self,
+        consumer: &MemoryTree,
+        kit_manifest: &str,
+        edges: &[LockedEdge<'_>],
+        load: impl FnOnce(
+            &MemoryTree,
+            &[LockedManifest<'_>],
+            &[LockedPackageRoots<'_>],
+        ) -> Result<Workspace, LoadError>,
+    ) -> Result<Workspace, LoadError> {
         let first_kit = self.row("kit", Some("https://example.test/first"));
         let other_kit = self.row("kit", Some("https://example.test/other"));
         let first = CommittedGitTree::open(
@@ -787,15 +803,13 @@ impl Fixture {
                 &[],
             ),
         ];
-        Workspace::load_locked_sources(
-            &self.catalog,
+        load(
             consumer,
             &local,
             &[
                 LockedPackageRoots::new(LockedTree::Git(&first), &first_roots),
                 LockedPackageRoots::new(LockedTree::Git(&other), &other_roots),
             ],
-            options,
         )
     }
 }
@@ -956,6 +970,27 @@ fn all_snapshots_catalog_and_walker_use_one_original_resource_grant() {
     fixture
         .load(&tree, "kit/Cargo.toml", &edges, &options)
         .expect("exact combined allowance");
+    #[cfg(target_os = "linux")]
+    let concurrent = |options: &LoadOptions| {
+        fixture.load_with(&tree, "kit/Cargo.toml", &edges, |tree, local, sources| {
+            Workspace::par_load_locked_sources(
+                &fixture.catalog,
+                tree,
+                local,
+                sources,
+                options,
+                &raf_source::ParallelOptions::default(),
+            )
+        })
+    };
+    #[cfg(target_os = "linux")]
+    {
+        // Opening a sealed source ahead of canonical reach would spend the grant twice.
+        let parallel =
+            concurrent(&options).expect("exact combined allowance with parallel parsing");
+        assert_eq!(parallel, baseline);
+        assert_eq!(parallel.usage(), usage);
+    }
     for budget in [Budget::Work, Budget::ItemBytes, Budget::TotalBytes] {
         let mut short = options.clone();
         match budget {
@@ -971,6 +1006,14 @@ fn all_snapshots_catalog_and_walker_use_one_original_resource_grant() {
             matches!(error.kind, LoadErrorKind::Budget { budget: actual, .. } if actual == budget),
             "{error}"
         );
+        #[cfg(target_os = "linux")]
+        {
+            let parallel = concurrent(&short).expect_err("same one-short combined grant");
+            assert_eq!(parallel.file, error.file);
+            assert_eq!(parallel.line, error.line);
+            assert_eq!(parallel.origin, error.origin);
+            assert_eq!(parallel.to_string(), error.to_string());
+        }
     }
 }
 

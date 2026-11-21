@@ -28,7 +28,7 @@ inputs:
     digest: c86ad8e58151210ec1ffd4f0de601b6f82dd60eeccde1eb0b5d815a28ceec492
   - kind: symbol
     name: raf_source::Workspace::par_load
-    digest: 291fdcb8347d4ebecabdd2c8f49093517e72fcdbee26c1a00b374528df967ee2
+    digest: 18422716e62aae10c723656efe6562e89b9103ac5d220b9af5884bd14eb1fc6c
   - kind: symbol
     name: raf_source::cargo_version
     digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e

@@ -108,6 +108,8 @@ pub(super) struct KeyVerdicts<'a> {
     pub(super) debt_lines: Vec<RowKeys<'a>>,
     pub(super) inputs: Vec<RowKeys<'a>>,
     pub(super) exclusions: Vec<RowKeys<'a>>,
+    pub(super) ceilings: Vec<RowKeys<'a>>,
+    pub(super) exceptions: Vec<RowKeys<'a>>,
 }
 
 pub(super) struct RowKeys<'a> {
@@ -122,6 +124,8 @@ enum RowShape {
     DebtLine,
     Input,
     Exclusion,
+    Ceiling,
+    Exception,
 }
 
 struct RowSpec {
@@ -163,6 +167,23 @@ impl RowShape {
                 name: "Coverage-exclusion",
                 member: "urn:raf:okf:coverage-exclusion-member",
                 keys: &[("item", true), ("reason", true)],
+            },
+            Self::Ceiling => RowSpec {
+                list: "ceilings",
+                name: "Coverage-ceiling",
+                member: "urn:raf:okf:coverage-ceiling-member",
+                keys: &[
+                    ("crate", true),
+                    ("lines", false),
+                    ("percent", false),
+                    ("of", false),
+                ],
+            },
+            Self::Exception => RowSpec {
+                list: "exceptions",
+                name: "Coverage-exception",
+                member: "urn:raf:okf:coverage-exception-member",
+                keys: &[("item", false), ("file", false), ("reason", true)],
             },
         }
     }
@@ -243,6 +264,8 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
         RowShape::DebtLine,
         RowShape::Input,
         RowShape::Exclusion,
+        RowShape::Ceiling,
+        RowShape::Exception,
     ] {
         let spec = shape.spec();
         add_shape(
@@ -293,7 +316,7 @@ fn row_groups(map: &Map, doc_type: DocType) -> Vec<RowGroup<'_>> {
         DocType::Change => &[RowShape::ChangeItem],
         DocType::Debt => &[RowShape::DebtFinding, RowShape::DebtLine],
         DocType::Evidence | DocType::Assessment | DocType::Review => &[RowShape::Input],
-        DocType::Coverage => &[RowShape::Exclusion],
+        DocType::Coverage => &[RowShape::Exclusion, RowShape::Ceiling, RowShape::Exception],
         _ => &[],
     };
     shapes
@@ -481,6 +504,8 @@ fn report_keys<'a>(
             RowShape::DebtLine => &mut verdicts.debt_lines,
             RowShape::Input => &mut verdicts.inputs,
             RowShape::Exclusion => &mut verdicts.exclusions,
+            RowShape::Ceiling => &mut verdicts.ceilings,
+            RowShape::Exception => &mut verdicts.exceptions,
         };
         for map in group.maps() {
             let focus = focus_iri(focuses.next().ok_or(HeaderShapeError::UnexpectedReport)?)?;

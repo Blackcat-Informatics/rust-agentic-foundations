@@ -45,6 +45,8 @@ use crate::meter::{Meter, over_budget};
 use crate::parse::{
     Candidate, Extracted, ExtractionError, Parser, extract_head, parse_counted_mut, storage,
 };
+#[cfg(target_os = "linux")]
+use crate::parse::{ConfigurationKey, ExtractionGrant};
 use crate::path::RelPath;
 use crate::tree::{EntryKind, FileId, Opened, Tree};
 use crate::workspace::SourceFile;
@@ -511,8 +513,16 @@ fn reach_bytes(reach: &Reach) -> usize {
         + vec_first::<&SourceFile>()
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct WalkConfiguration<'a> {
+    pub(crate) package: PackageId,
+    pub(crate) active: &'a ActiveConfiguration,
+    #[cfg(target_os = "linux")]
+    pub(crate) key: ConfigurationKey,
+}
+
 pub(crate) struct Walker<'a> {
-    configuration: Option<(PackageId, &'a ActiveConfiguration)>,
+    configuration: Option<WalkConfiguration<'a>>,
     tree: &'a dyn Tree,
     meter: &'a Meter,
     /// Every file read, in the order it was first reached.
@@ -564,10 +574,7 @@ impl<'a> Walker<'a> {
         walker.stack.parser = parser;
         walker
     }
-    pub(crate) fn configure(
-        &mut self,
-        configuration: Option<(PackageId, &'a ActiveConfiguration)>,
-    ) {
+    pub(crate) fn configure(&mut self, configuration: Option<WalkConfiguration<'a>>) {
         self.configuration = configuration;
     }
 
@@ -740,9 +747,9 @@ impl<'a> Walker<'a> {
             target,
             module_path,
             test: match self.configuration {
-                Some((_, cfg)) => crate::configuration::evaluate(
+                Some(configuration) => crate::configuration::evaluate(
                     &crate::cfg::CfgExpr::Test,
-                    cfg,
+                    configuration.active,
                     false,
                     self.meter,
                     root,
@@ -846,6 +853,9 @@ impl<'a> Walker<'a> {
         origin: &Origin,
         reach: Reach,
     ) -> Result<Rc<Parsed>, LoadError> {
+        let configuration = self
+            .configuration
+            .map(|context| (context.package, context.active));
         let Some(text) = text else {
             let position = *self.by_id.get(&id).ok_or_else(|| {
                 LoadError::new(
@@ -857,7 +867,7 @@ impl<'a> Walker<'a> {
                 )
             })?;
             let known = &mut self.files[position];
-            if !match (known.configuration, self.configuration) {
+            if !match (known.configuration, configuration) {
                 (None, None) => true,
                 (Some((left, a)), Some((right, b))) => {
                     left == right && a.same_syntax_under(b, self.meter, path)?
@@ -881,7 +891,13 @@ impl<'a> Walker<'a> {
             .map_err(|error| error.reached_by(origin))?;
         let before = self.meter.usage();
         let Extracted { text, head, scan } = self
-            .extract(path, &id, text, before)
+            .extract(
+                path,
+                #[cfg(target_os = "linux")]
+                &id,
+                text,
+                before,
+            )
             .map_err(|error| error.reached_by(origin))?;
         if let Some(after) = head.configuration_usage {
             self.meter.configuration_spent(before, after, path)?;
@@ -899,7 +915,7 @@ impl<'a> Walker<'a> {
         let position = self.files.len();
         self.visits.push((position, 0));
         self.files.push(Known {
-            configuration: self.configuration,
+            configuration,
             path: path.clone(),
             parsed: Rc::clone(&parsed),
             reached: vec![reach],
@@ -911,18 +927,29 @@ impl<'a> Walker<'a> {
     fn extract(
         &self,
         path: &RelPath,
-        id: &FileId,
+        #[cfg(target_os = "linux")] id: &FileId,
         text: String,
         before: crate::Usage,
     ) -> Result<Extracted, LoadError> {
         let options = self.meter.options();
         let allowance = self.meter.fact_allowance();
+        #[cfg(target_os = "linux")]
         if let Some(parser) = self.parser {
-            return parser.parse(path, id, text, options, allowance, before);
+            return parser.parse(
+                path,
+                id,
+                text,
+                options,
+                ExtractionGrant {
+                    allowance,
+                    usage: before,
+                    configuration: self.configuration.map(|configuration| configuration.key),
+                },
+            );
         }
         let configuration = self
             .configuration
-            .map(|(_, active)| (active, options, before));
+            .map(|configuration| (configuration.active, options, before));
         let (head, scan) = parse_counted_mut(path, &text, options.max_file_tokens, |tree| {
             extract_head(tree, path, &text, allowance, configuration)
         })?;

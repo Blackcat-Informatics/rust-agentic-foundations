@@ -32,8 +32,10 @@ use crate::manifest::{
 };
 use crate::members::members;
 use crate::meter::{ItemAdmission, Meter, Usage};
-use crate::modtree::{Reach, TargetId, Visited, Walked, Walker, tidy};
+use crate::modtree::{Reach, TargetId, Visited, WalkConfiguration, Walked, Walker, tidy};
 use crate::options::LoadOptions;
+#[cfg(target_os = "linux")]
+use crate::parse::ConfigurationKey;
 use crate::path::{PathError, RelPath};
 use crate::reach::{self, Node, ReachError, Reachability};
 use crate::resolve::{Resolution, ResolutionAttempt, ResolveError};
@@ -48,6 +50,8 @@ enum SyntaxLoad<'a> {
     Configured(crate::DeclaredConfiguration<'a>),
     #[cfg(target_os = "linux")]
     ConfiguredParallel(crate::DeclaredConfiguration<'a>, &'a crate::ParallelOptions),
+    #[cfg(target_os = "linux")]
+    LockedParallel(&'a crate::ParallelOptions),
 }
 
 impl<'a> SyntaxLoad<'a> {
@@ -57,6 +61,8 @@ impl<'a> SyntaxLoad<'a> {
             Self::Configured(configuration) => Some(configuration),
             #[cfg(target_os = "linux")]
             Self::ConfiguredParallel(configuration, _) => Some(configuration),
+            #[cfg(target_os = "linux")]
+            Self::LockedParallel(_) => None,
         }
     }
 }
@@ -256,13 +262,13 @@ impl Workspace {
         std::thread::scope(|scope| {
             let parser = crate::parse::parallel::Executor::new(scope, &resources, parallel, None)?;
             let meter = Meter::new(options);
-            let result = Self::load_meter_with_parser(
+            let result = Self::load_meter_with_syntax(
                 tree,
                 &root_paths,
                 options,
                 &meter,
                 None,
-                Some(&parser),
+                SyntaxLoad::Ordinary(Some(&parser)),
             );
             let usage = parser.finish();
             result.map(|mut workspace| {
@@ -342,16 +348,23 @@ impl Workspace {
         meter: &Meter,
         binding: Option<&locked::BindingLoad<'_>>,
     ) -> Result<Self, LoadError> {
-        Self::load_meter_with_parser(tree, roots, options, meter, binding, None)
+        Self::load_meter_with_syntax(
+            tree,
+            roots,
+            options,
+            meter,
+            binding,
+            SyntaxLoad::Ordinary(None),
+        )
     }
 
-    fn load_meter_with_parser(
+    fn load_meter_with_syntax(
         tree: &dyn Tree,
         roots: &[RelPath],
         options: &LoadOptions,
         meter: &Meter,
         binding: Option<&locked::BindingLoad<'_>>,
-        parser: Option<&dyn crate::parse::Parser>,
+        syntax: SyntaxLoad<'_>,
     ) -> Result<Self, LoadError> {
         let root = RelPath::root();
         if roots.is_empty() {
@@ -359,14 +372,7 @@ impl Workspace {
         }
         meter.items(LOAD_BASE_BYTES, &root, None)?;
         let discovered = discover(tree, roots, meter)?;
-        Self::build_discovered_with_syntax(
-            tree,
-            options,
-            meter,
-            binding,
-            &discovered,
-            SyntaxLoad::Ordinary(parser),
-        )
+        Self::build_discovered_with_syntax(tree, options, meter, binding, &discovered, syntax)
     }
 
     fn build_discovered(
@@ -1822,28 +1828,40 @@ fn walk_source_syntax(
     syntax: SyntaxLoad<'_>,
 ) -> Result<SourceWalk, LoadError> {
     #[cfg(target_os = "linux")]
-    if let SyntaxLoad::ConfiguredParallel(_, parallel) = syntax {
-        let selected = selected.ok_or_else(|| {
-            internal(
-                &RelPath::root(),
-                None,
-                "parallel target configuration was not admitted".to_owned(),
-            )
-        })?;
+    if let Some((parallel, configurations)) = match syntax {
+        SyntaxLoad::ConfiguredParallel(_, parallel) => {
+            let active = selected.ok_or_else(|| {
+                internal(
+                    &RelPath::root(),
+                    None,
+                    "parallel target configuration was not admitted".to_owned(),
+                )
+            })?;
+            Some((
+                parallel,
+                crate::parse::parallel::ExtractionConfigurations::Selected(active),
+            ))
+        }
+        SyntaxLoad::LockedParallel(parallel) => Some((
+            parallel,
+            crate::parse::parallel::ExtractionConfigurations::Locked(bindings),
+        )),
+        _ => None,
+    } {
         let resources = crate::parse::parallel::Resources::new(parallel)?;
         return std::thread::scope(|scope| {
             let parser = crate::parse::parallel::Executor::new(
                 scope,
                 &resources,
                 parallel,
-                Some((selected, meter.options())),
+                Some((meter.options(), configurations)),
             )?;
             let walked = walk_sources(
                 tree,
                 targets,
                 origins,
                 bindings,
-                Some(selected),
+                selected,
                 meter,
                 Some(&parser),
             );
@@ -1887,22 +1905,34 @@ fn walk_sources(
                 frontier += 1;
             }
         }
-        walker.configure(
-            selected
-                .or(bindings
-                    .get(target.package_id.index())
-                    .map(|proof| {
-                        proof.configuration_for_under(
-                            target.kind,
-                            &target.name,
-                            meter,
-                            &target.root,
-                        )
-                    })
-                    .transpose()?
-                    .flatten())
-                .map(|config| (target.package_id, config)),
-        );
+        let locked = bindings
+            .get(target.package_id.index())
+            .map(|proof| {
+                proof.admitted_configuration_for_under(
+                    target.kind,
+                    &target.name,
+                    meter,
+                    &target.root,
+                )
+            })
+            .transpose()?
+            .flatten();
+        let configuration = selected
+            .map(|active| WalkConfiguration {
+                package: target.package_id,
+                active,
+                #[cfg(target_os = "linux")]
+                key: ConfigurationKey::Selected,
+            })
+            .or_else(|| {
+                locked.map(|configuration| WalkConfiguration {
+                    package: target.package_id,
+                    active: configuration.active,
+                    #[cfg(target_os = "linux")]
+                    key: ConfigurationKey::Locked(target.package_id, configuration.ordinal),
+                })
+            });
+        walker.configure(configuration);
         walker.root(TargetId(index), &target.root, &target.crate_path, origin)?;
     }
     walker.finish()
