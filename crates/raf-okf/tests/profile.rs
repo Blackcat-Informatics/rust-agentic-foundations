@@ -1256,6 +1256,35 @@ fn with_items(items: &str) -> String {
 
 #[test]
 fn items_need_a_claim_known_keys_and_a_known_outcome() {
+    // Identical maps each get a finding, in their authored sequence.
+    let ordered = with_items(concat!(
+        "items:\n  - zebra: 1\n    ant: 2\n    outcome: held\n",
+        "  - claim: x\n    zebra: 3\n",
+        "  - claim: x\n    zebra: 3\n",
+    ));
+    let found = violations(&ordered, CHANGE_PATH);
+    let expected = [
+        Rule::ItemUnknownKey {
+            key: "zebra".into(),
+        },
+        Rule::ItemUnknownKey { key: "ant".into() },
+        Rule::ItemClaimEmpty,
+        Rule::BadOutcome {
+            found: "held".into(),
+        },
+        Rule::ItemUnknownKey {
+            key: "zebra".into(),
+        },
+        Rule::ItemUnknownKey {
+            key: "zebra".into(),
+        },
+    ];
+    assert_eq!(found.len(), expected.len(), "{found:#?}");
+    let location = key("items");
+    for (finding, rule) in found.iter().zip(expected) {
+        assert_eq!(finding.at(), &location);
+        assert_eq!(finding.rule(), &rule);
+    }
     for (items, rule) in [
         (
             "items:\n  - claim: \"x\"\n    owner: me\n",

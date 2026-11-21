@@ -281,7 +281,9 @@ in that type's directory. Each of these directories holds Markdown files only.
   `verification`, and the slug appears in `changes`.
 - **`contract_effect`** is `none` or `changes`.
 - **`items`** is a list of maps with a non-empty `claim`, an optional
-  `outcome` and an optional `reason`. The outcome is `implemented`, `dropped` or
+  `outcome` and an optional `reason`. The native header graph gives each
+  map its own focus. The prepared shape closes the map and requires the
+  claim key. The outcome is `implemented`, `dropped` or
   `moved:change:<slug>`. It is optional until the change is completed, and every
   item has one then. A `moved:change:<slug>` outcome names a change record that
   exists. The reason is a non-empty line of text that says why the item has its
