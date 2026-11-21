@@ -1974,16 +1974,32 @@ pub fn outside() {
 const TUPLE_RECEIVER_SOURCE: &str = r"
 pub mod home {
     pub struct Banned(pub u8);
+    pub struct Other(pub u8);
     impl Banned { pub fn run(&self) {} }
+    impl Other { pub fn run(&self) {} }
     pub fn sanctioned(value: Banned) { value.run(); }
 }
 pub use home as alias;
+pub use home::Banned as Reexport;
 
 pub fn outside() {
+    use crate::Reexport as make;
     let typed: home::Banned = home::Banned { 0: 1 };
     typed.run(); // hit
-    let inferred = home::Banned { 0: 2 };
-    inferred.run();
+    let braced = home::Banned { 0: 2 };
+    braced.run();
+    let inferred = make(3);
+    inferred.run(); // hit
+    let other = home::Other(4);
+    other.run();
+    {
+        fn make(value: u8) -> home::Other { home::Other(value) }
+        let shadowed = make(5);
+        shadowed.run();
+    }
+    let callable = make;
+    let indirect = callable(6);
+    indirect.run();
 }
 ";
 
