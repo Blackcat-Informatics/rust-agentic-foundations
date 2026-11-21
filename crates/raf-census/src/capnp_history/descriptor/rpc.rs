@@ -26,6 +26,12 @@ enum ScopePolicy {
     LexicalGenerics,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BrandCoverage {
+    Complete,
+    AllowsUnbound,
+}
+
 #[derive(Clone, Copy)]
 struct MethodOwner<'a> {
     id: TypeId,
@@ -36,7 +42,7 @@ struct MethodOwner<'a> {
 pub(super) struct Projection {
     inline_owners: BTreeMap<TypeId, u8>,
     declared_inline: Option<BTreeSet<TypeId>>,
-    named: BTreeSet<TypeId>,
+    named: BTreeMap<TypeId, BTreeMap<TypeId, u32>>,
     owners: Option<Owners>,
     proved_declarations: BTreeSet<(TypeId, ScopePolicy)>,
 }
@@ -67,7 +73,7 @@ impl Projection {
         Ok(Self {
             inline_owners: counts,
             declared_inline: None,
-            named: BTreeSet::new(),
+            named: BTreeMap::new(),
             owners: None,
             proved_declarations: BTreeSet::new(),
         })
@@ -82,6 +88,10 @@ impl Projection {
             check_cycles(nodes)?;
         }
         Ok(())
+    }
+
+    pub(super) fn named_endpoint_parameters(self) -> BTreeMap<TypeId, BTreeMap<TypeId, u32>> {
+        self.named
     }
 
     pub(super) fn interface<'a>(
@@ -159,7 +169,7 @@ impl Projection {
                 let brand =
                     shape::read_brand(reader, nodes, (TypeScope::Lexical(derived), id), needed)?;
                 if u32::try_from(brand.len()) != Ok(count)
-                    || !complete_brand(nodes, id, &brand, parameter_scopes)?
+                    || !check_brand(nodes, id, &brand, parameter_scopes, BrandCoverage::Complete)?
                 {
                     return Err(layout(format!(
                         "RPC interface {derived} superclass {id} requires a complete brand"
@@ -269,66 +279,52 @@ impl Projection {
                 parameter_scopes,
                 implicit_arity: implicit.len(),
             };
-            let mut endpoint = |target,
-                                brand: brand::Reader<'_>,
-                                role|
-             -> Result<Endpoint, Error> {
-                let reader = nodes.node(target)?;
-                let error =
-                    |reason: &str| layout(format!("{} {role} node {target} {reason}", location()));
-                let node::Struct(data) = reader.which()? else {
-                    return Err(error("must be a nongroup struct"));
-                };
-                if data.get_is_group() {
-                    return Err(error("must be a nongroup struct"));
-                }
-                if reader.get_scope_id() == 0 {
-                    self.inline(
-                        reader,
-                        data,
-                        (owner.parameter_scopes, brand),
-                        implicit,
-                        error,
-                    )?;
-                    if self.has_declaring_scope(nodes, target)? {
-                        return Err(error(
-                            "has a lexical declaration claim despite its zero scope",
-                        ));
+            let mut endpoint =
+                |target, brand: brand::Reader<'_>, role| -> Result<Endpoint, Error> {
+                    let reader = nodes.node(target)?;
+                    let error = |reason: &str| {
+                        layout(format!("{} {role} node {target} {reason}", location()))
+                    };
+                    let node::Struct(data) = reader.which()? else {
+                        return Err(error("must be a nongroup struct"));
+                    };
+                    if data.get_is_group() {
+                        return Err(error("must be a nongroup struct"));
                     }
-                    let structure = nodes.structure(
-                        target,
-                        data,
-                        needed,
-                        annotations,
-                        scopes,
-                        (!owner.parameter_scopes.is_empty() || owner.implicit_arity != 0)
-                            .then_some(TypeScope::Inline {
-                                owner: owner.id,
-                                wrapper: target,
-                                arity: owner.implicit_arity,
-                            }),
-                    )?;
-                    return Ok(Endpoint::Inline {
-                        id: target,
-                        structure,
-                    });
-                }
-                let endpoint = if brand.get_scopes()?.is_empty() {
-                    if !nongeneric(reader)?
-                        || (!self.named.contains(&target)
-                            && !nodes.declaration_chain(target, scopes, nongeneric)?)
-                    {
-                        return Err(error("requires a reciprocal nongeneric declaration chain"));
+                    if reader.get_scope_id() == 0 {
+                        self.inline(
+                            reader,
+                            data,
+                            (owner.parameter_scopes, brand),
+                            implicit,
+                            error,
+                        )?;
+                        if self.has_declaring_scope(nodes, target)? {
+                            return Err(error(
+                                "has a lexical declaration claim despite its zero scope",
+                            ));
+                        }
+                        let structure = nodes.structure(
+                            target,
+                            data,
+                            needed,
+                            annotations,
+                            scopes,
+                            (!owner.parameter_scopes.is_empty() || owner.implicit_arity != 0)
+                                .then_some(TypeScope::Inline {
+                                    owner: owner.id,
+                                    wrapper: target,
+                                    arity: owner.implicit_arity,
+                                }),
+                        )?;
+                        return Ok(Endpoint::Inline {
+                            id: target,
+                            structure,
+                        });
                     }
-                    Type::Named(Kind::Struct, target, BTreeMap::new())
-                } else {
-                    self.branded_endpoint(nodes, (owner, reader), brand, needed, scopes, error)?
+                    self.named_endpoint(nodes, (owner, reader), brand, needed, scopes, error)
+                        .map(Endpoint::Named)
                 };
-                if self.named.insert(target) {
-                    needed.insert(target);
-                }
-                Ok(Endpoint::Named(endpoint))
-            };
             let params = endpoint(
                 TypeId(method.get_param_struct_type()),
                 method.get_param_brand()?,
@@ -347,6 +343,50 @@ impl Projection {
             });
         }
         Ok(methods)
+    }
+
+    fn named_endpoint(
+        &mut self,
+        nodes: &Nodes<'_>,
+        (owner, reader): (MethodOwner<'_>, node::Reader<'_>),
+        brand: brand::Reader<'_>,
+        needed: &mut BTreeSet<TypeId>,
+        scopes: &mut DeclarationScopes,
+        error: impl Fn(&str) -> Error,
+    ) -> Result<Type, Error> {
+        let id = TypeId(reader.get_id());
+        let endpoint = if !reader.get_is_generic() && brand.get_scopes()?.is_empty() {
+            if !nongeneric(reader)?
+                || (!self.named.contains_key(&id)
+                    && !nodes.declaration_chain(id, scopes, nongeneric)?)
+            {
+                return Err(error("requires a reciprocal nongeneric declaration chain"));
+            }
+            Type::Named(Kind::Struct, id, Brand::new())
+        } else {
+            self.branded_endpoint(nodes, (owner, reader), brand, needed, scopes, error)?
+        };
+        if let Entry::Vacant(entry) = self.named.entry(id) {
+            let mut enclosing = BTreeMap::new();
+            // An unbound enclosing scope need not have any row in the brand.
+            if reader.get_is_generic()
+                && !nodes.declaration_chain(id, scopes, |declaration| {
+                    let scope = TypeId(declaration.get_id());
+                    let count = declaration.get_parameters()?.len();
+                    if scope != id && count != 0 {
+                        enclosing.insert(scope, count);
+                    }
+                    Ok(true)
+                })?
+            {
+                return Err(layout(format!(
+                    "missing declaration chain for RPC endpoint {id}"
+                )));
+            }
+            entry.insert(enclosing);
+            needed.insert(id);
+        }
+        Ok(endpoint)
     }
 
     fn branded_endpoint(
@@ -376,7 +416,6 @@ impl Projection {
                 "requires unique reciprocal declarations and consistent generic flags in the endpoint's scopes",
             ));
         }
-        let scope_count = brand.get_scopes()?.len();
         let brand = shape::read_brand(
             brand,
             nodes,
@@ -389,18 +428,14 @@ impl Projection {
             ),
             needed,
         )?;
-        // Canonicalization drops empty scopes, which method brands cannot carry.
-        if brand.is_empty()
-            || u32::try_from(brand.len()) != Ok(scope_count)
-            || !complete_brand(nodes, id, &brand, owner.parameter_scopes)?
-        {
-            return Err(error(
-                if owner.parameter_scopes.is_empty() && owner.implicit_arity == 0 {
-                    "requires a complete concrete endpoint brand"
-                } else {
-                    "requires a complete endpoint brand in the method's parameter scopes"
-                },
-            ));
+        if !check_brand(
+            nodes,
+            id,
+            &brand,
+            owner.parameter_scopes,
+            BrandCoverage::AllowsUnbound,
+        )? {
+            return Err(error("has a brand outside the method's parameter scopes"));
         }
         Ok(Type::Named(Kind::Struct, id, brand))
     }
@@ -506,11 +541,12 @@ fn nongeneric(reader: node::Reader<'_>) -> Result<bool, Error> {
     Ok(!reader.get_is_generic() && reader.get_parameters()?.is_empty())
 }
 
-fn complete_brand(
+fn check_brand(
     nodes: &Nodes<'_>,
     mut id: TypeId,
     brand: &Brand,
     parameter_scopes: &BTreeMap<TypeId, u32>,
+    coverage: BrandCoverage,
 ) -> Result<bool, Error> {
     for _ in 0..=super::MAX_DEPTH {
         let node = nodes.node(id)?;
@@ -519,13 +555,17 @@ fn complete_brand(
             match brand.get(&id) {
                 Some(Arguments::Inherited(arity))
                     if parameter_scopes.get(&id) == Some(arity) && *arity == count => {}
-                Some(Arguments::Bound(values)) if u32::try_from(values.len()) == Ok(count) => {
+                Some(Arguments::Bound(values))
+                    if coverage == BrandCoverage::AllowsUnbound
+                        || u32::try_from(values.len()) == Ok(count) =>
+                {
                     for value in values {
-                        if !complete_type(nodes, value, parameter_scopes)? {
+                        if !check_branded_type(nodes, value, parameter_scopes, coverage)? {
                             return Ok(false);
                         }
                     }
                 }
+                None if coverage == BrandCoverage::AllowsUnbound => {}
                 _ => return Ok(false),
             }
         }
@@ -537,15 +577,16 @@ fn complete_brand(
     Ok(false)
 }
 
-fn complete_type(
+fn check_branded_type(
     nodes: &Nodes<'_>,
     ty: &Type,
     parameter_scopes: &BTreeMap<TypeId, u32>,
+    coverage: BrandCoverage,
 ) -> Result<bool, Error> {
     match ty {
-        Type::Named(_, id, brand) => complete_brand(nodes, *id, brand, parameter_scopes),
-        Type::List(element) => complete_type(nodes, element, parameter_scopes),
-        Type::Pointer(Pointer::Any) => Ok(false),
+        Type::Named(_, id, brand) => check_brand(nodes, *id, brand, parameter_scopes, coverage),
+        Type::List(element) => check_branded_type(nodes, element, parameter_scopes, coverage),
+        Type::Pointer(Pointer::Any) => Ok(coverage == BrandCoverage::AllowsUnbound),
         Type::Pointer(Pointer::Parameter(scope, _)) => Ok(parameter_scopes.contains_key(scope)),
         Type::Atom(_) | Type::Pointer(_) => Ok(true),
     }

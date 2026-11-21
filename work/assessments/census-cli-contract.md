@@ -7,7 +7,7 @@ subject: cap:census-cli#contract
 inputs:
   - kind: section
     name: cap:census-cli#contract
-    digest: 4dc848983463f7220cc0e9632bc5af6290abae323005ae649b6a9d1038af9a10
+    digest: c5931840a71e914860690749404f5207a8ed68e88747a136f64a9956e0362b92
   - kind: symbol
     name: cargo_census::run
     digest: b32049f8a2619291edf0a2a43585c53654afca013fc0074ed2898c73a9c661fd

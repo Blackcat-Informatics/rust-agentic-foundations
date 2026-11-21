@@ -64,6 +64,7 @@ bindings:
     - cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting
     - cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods
     - cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints
+    - cargo_census::test_crate::delivery::capnp_history_compares_unbound_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners
     - cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters
@@ -171,12 +172,12 @@ A diamond projects each defining interface once.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance -->
 
 A named endpoint must be a declared nongroup struct with reciprocal lexical
-ownership. A generic endpoint requires an explicit brand with complete
-pointer bindings for every parameter-bearing scope in its declaration chain.
-An endpoint can bind the parameters of enclosing declarations alone.
-Nested type arguments must also be fully bound. An unconstrained
-`AnyPointer` counts as an unbound argument.
-The branded endpoint and its method interface each require a unique
+ownership. A generic endpoint can bind any of its own or enclosing parameters.
+An omitted argument, a descriptor's unbound entry and an unconstrained
+`AnyPointer` compare alike, including in nested type arguments. Each bound
+argument retains its position. Census refuses repeated or foreign scopes,
+scope rows without declared parameters and non-pointer arguments.
+The generic endpoint and its method interface each require a unique
 reciprocal declaration chain. A method can bind its own implicit positions
 and its interface's lexical parameter positions. A named endpoint can inherit
 any lexical parameter scope that also belongs to its declaration chain.
@@ -184,8 +185,10 @@ The endpoint's generic flags must agree with its own and enclosing parameter
 declarations.
 Several methods and roles can share one endpoint declaration with different
 brands. Census compares its layout once by type ID using ordinary struct
-evolution, including implicit defaults for optional additions.
-<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
+evolution, including implicit defaults for optional additions. Changed
+enclosing parameter counts report on the named declaration even if every
+method role leaves its arguments unbound.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_compares_unbound_rpc_endpoints -->
 
 A compiler-generated inline list belongs to one method ordinal and endpoint
 role. It must be a detached struct without a lexical declaration claim and
@@ -775,15 +778,22 @@ one finding per changed field in a shared layout, and a change of endpoint
 form at the same node ID. A change from Text to Data in a nested type
 argument or an enclosing lexical argument reports a type finding on the
 affected method role. An endpoint with only enclosing bindings passes.
-Incomplete, foreign and redundant scope bindings refuse, as do ambiguous
-lexical ownership and inconsistent generic flags.
+Foreign, repeated and parameterless scope rows refuse, as do non-pointer
+arguments, ambiguous lexical ownership and inconsistent generic flags.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
+
+The unbound endpoint fixtures compare omitted and explicit arguments in
+both endpoint and enclosing scopes. The descriptor fixture also checks
+an unbound entry and a shortened argument list. Changing a bound position
+in a nested argument reports a type change on its method role. Adding an
+unused enclosing parameter reports one finding for the shared endpoint.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_unbound_rpc_endpoints -->
 
 The file-scoped generic interface fixtures accept an appended method and
 compare owner arity, an inherited inline slot and a bound named role.
 They admit both named roles inheriting the same owner scope and report
 one layout finding per changed named field. Competing ownership, missing
-brands and out-of-range owner parameter positions refuse.
+inline brands and out-of-range owner parameter positions refuse.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints -->
 
 The nested interface fixtures bind named and inline roles across multiple
@@ -847,6 +857,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_unbound_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
