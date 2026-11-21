@@ -76,10 +76,10 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
 - **`make check` is the gate.** It stops at the first failure. CI runs the
   documented compilation, test and policy checks; local `make check` additionally
   runs optimized instrumented fuzzing. The pre-commit hook runs fmt and reuse on a checkout of the staged
-  index, plus the `repo_gates`, `docs_contract`, `self_workplan` and `self_census` test binaries over
+  index, plus the `repo_gates`, `docs_contract` and `self_census` test binaries over
   that checkout. The binaries are compiled from the working tree, not the index.
   A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
-  hook.
+  hook. [Staged gate measurements](docs/staged-gate-cost.md)
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.

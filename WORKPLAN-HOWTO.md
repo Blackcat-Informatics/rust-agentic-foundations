@@ -158,7 +158,7 @@ cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
 cargo test --test workplan
 ```
 
-Commit the refreshed documents and updated lockfile for a reproducible `cargo test --locked --test workplan` in CI. RAF's own repository also requires every recorded assessment to be current and accepted. Its test shows how to add that policy. [RAF's Workplan gate](tests/self_workplan.rs)
+Commit the refreshed documents and updated lockfile for a reproducible `cargo test --locked --test workplan` in CI. RAF's own repository also requires every recorded assessment to be current and accepted. Its test shows how to add that policy. [RAF's Workplan gate](tests/docs_contract.rs)
 
 ## Change a delivered contract
 
