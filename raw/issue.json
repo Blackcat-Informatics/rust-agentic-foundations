@@ -1,0 +1,20 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "Extend strict Cap'n Proto history from #355, #359 and #371 to named RPC\nparameter and result structs that leave type arguments unbound. Preserve\nthe committed descriptor input and the separate signed admission verdicts\nin #214.\n\nAn omitted parameter position, an unbound descriptor entry and an explicit\nunconstrained `AnyPointer` denote the same argument. Apply that comparison\nto the endpoint and enclosing declaration scopes and to nested type\narguments. Keep positional distinctions when other arguments are bound.\nCompare each method role independently and each named layout once by its\ndefining ID. Keep the enclosing parameters in the declaration comparison\nso an unbound brand still exposes a changed enclosing parameter count.\n\n- Compiler descriptors for equivalent omitted and explicit arguments pass\n  strict history together.\n- Changing a bound argument to an unbound argument reports a type change on\n  the affected method role.\n- A changed enclosing parameter count reports one finding on the shared\n  named endpoint declaration, including when all its arguments stay unbound.\n- Malformed brands still refuse, including duplicate scopes, zero-parameter\n  scope rows, invalid parameter references and non-pointer bindings.\n- Existing inline owner and direct superclass admission rules continue to\n  apply.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-11-21T08:18:22Z",
+  "labels": [],
+  "milestone": null,
+  "number": 390,
+  "state": "OPEN",
+  "title": "Census: compare unbound Cap\u2019n Proto RPC endpoint arguments",
+  "updatedAt": "2026-11-21T08:18:22Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/390"
+}

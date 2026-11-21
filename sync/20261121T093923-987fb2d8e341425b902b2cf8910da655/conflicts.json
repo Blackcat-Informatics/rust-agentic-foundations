@@ -1,0 +1,22 @@
+{
+  "work/assessments/census-cli-contract.md": [
+    {
+      "mode": "100644",
+      "oid": "e1ff3f1f34c8ef5f8536b290e988a4bbf153c6ce",
+      "stage": 1,
+      "content": "inputs/0-1.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "e23cb93ef9935033e9afbcadd501787c7c999bde",
+      "stage": 2,
+      "content": "inputs/0-2.bin"
+    },
+    {
+      "mode": "100644",
+      "oid": "480ea4d1c9ad55701c5aca3d98439da453e1a87b",
+      "stage": 3,
+      "content": "inputs/0-3.bin"
+    }
+  ]
+}

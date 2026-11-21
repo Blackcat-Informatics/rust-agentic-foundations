@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/390-census-compare-unbound-capn-proto-rpc",
+  "branch": "paudley/390-census-compare-unbound-capn-proto-rpc",
+  "base_ref": "refs/remotes/origin/main",
+  "head": "2dbbaa14cb910a1e265fcfae04806d1ac0d58f18",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/390-census-compare-unbound-capn-proto-rpc/.stage/census-compare-unbound-capn-proto-rpc/sync/20261121T093923-987fb2d8e341425b902b2cf8910da655",
+  "conflicts": [
+    "work/assessments/census-cli-contract.md"
+  ],
+  "status": "completed",
+  "base": "f1895d9562e1ef811cde2fd61f3b172ddc2bb3eb",
+  "merge_bases": [
+    "e094582e63c3477c46974d686c8566c2ad484a4b"
+  ],
+  "merge_index": "5fdd07e28ae1d8ce56ca5aa68d5b993dcc4fe9770642a648368a05d46043a8eb",
+  "reused_paths": [],
+  "rerere_output": "Recorded preimage for 'work/assessments/census-cli-contract.md'\n",
+  "candidate_tree": "04d11f8d691a7ba3cfc7e7b19c8c84a55f107757",
+  "candidate_patch": "candidate-0d258c55d43b480b8e82243b2cf4c724.patch",
+  "stdout_log": "commit-0d258c55d43b480b8e82243b2cf4c724.stdout.log",
+  "stderr_log": "commit-0d258c55d43b480b8e82243b2cf4c724.stderr.log",
+  "validation_records": [],
+  "commit_duration_seconds": 807.7364483859856,
+  "commit": "bab6cf12c9dafaa43eb6f730c85d22fd6e9d7be5",
+  "tree": "04d11f8d691a7ba3cfc7e7b19c8c84a55f107757",
+  "exit_code": 0
+}
