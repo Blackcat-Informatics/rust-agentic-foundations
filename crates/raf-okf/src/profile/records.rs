@@ -18,12 +18,6 @@ use crate::profile::violation::{Rule, input_kind_allowed};
 use crate::profile::{Check, is_capability_id, is_kebab, scalar_text};
 use crate::work::{Work, add};
 
-/// The keys of a row of `inputs`, in writing order.
-const INPUT_KEYS: [&str; 3] = ["kind", "name", "digest"];
-
-/// The keys of a row of `exclusions`, in writing order.
-const EXCLUSION_KEYS: [&str; 2] = ["item", "reason"];
-
 /// The subject of a record, by type.
 #[derive(Debug, Clone)]
 pub(super) enum Subject {
@@ -180,37 +174,6 @@ fn is_artifact_path(text: &str) -> bool {
         })
 }
 
-/// The keys of a row outside `keys`, and the keys of `keys` it lacks, as
-/// violations; whether the row holds exactly `keys`.
-fn row_keys(
-    check: &mut Check<'_>,
-    key: &str,
-    list: &'static str,
-    row: &Map,
-    keys: &[&'static str],
-) -> bool {
-    let mut exact = true;
-    for field in row.entries() {
-        if !keys.contains(&field.key()) {
-            check.key(
-                key,
-                Rule::RowUnknownKey {
-                    list,
-                    key: field.key().to_string(),
-                },
-            );
-            exact = false;
-        }
-    }
-    for wanted in keys {
-        if row.get(wanted).is_none() {
-            check.key(key, Rule::RowMissingKey { list, key: wanted });
-            exact = false;
-        }
-    }
-    exact
-}
-
 /// The rows of a list of maps, or a `WrongShape` violation. An empty flow
 /// list `[]` holds no rows.
 pub(super) fn rows<'e>(
@@ -237,11 +200,13 @@ pub(super) fn check_inputs(
     check: &mut Check<'_>,
     entry: &Entry,
     doc_type: DocType,
+    keys: &[RowKeys<'_>],
 ) -> Option<Vec<Input>> {
-    let rows = rows(
+    let rows = keyed_rows(
         check,
         entry,
         "a list of maps with `kind`, `name` and `digest`",
+        keys,
     )?;
     let mut valid = true;
     if rows.is_empty() {
@@ -250,8 +215,8 @@ pub(super) fn check_inputs(
     }
     let mut inputs = Vec::new();
     let mut seen = HashSet::new();
-    for row in rows {
-        if !row_keys(check, "inputs", "inputs", row, &INPUT_KEYS) {
+    for (row, keys) in rows.into_iter().zip(keys) {
+        if !report_row_keys(check, "inputs", keys) {
             valid = false;
             continue;
         }
@@ -515,13 +480,22 @@ fn exclusion_item(text: &str) -> Result<ExclusionItem, Rule> {
     }
 }
 
-pub(super) fn check_exclusions(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<Exclusion>> {
-    let rows = rows(check, entry, "a list of maps with `item` and `reason`")?;
+pub(super) fn check_exclusions(
+    check: &mut Check<'_>,
+    entry: &Entry,
+    keys: &[RowKeys<'_>],
+) -> Option<Vec<Exclusion>> {
+    let rows = keyed_rows(
+        check,
+        entry,
+        "a list of maps with `item` and `reason`",
+        keys,
+    )?;
     let mut exclusions = Vec::new();
     let mut valid = true;
     let mut seen = HashSet::new();
-    for row in rows {
-        if !row_keys(check, "exclusions", "exclusions", row, &EXCLUSION_KEYS) {
+    for (row, keys) in rows.into_iter().zip(keys) {
+        if !report_row_keys(check, "exclusions", keys) {
             valid = false;
             continue;
         }
@@ -573,7 +547,22 @@ pub(super) fn check_exclusions(check: &mut Check<'_>, entry: &Entry) -> Option<V
     valid.then_some(exclusions)
 }
 
-fn report_debt_keys(check: &mut Check<'_>, list: &'static str, keys: &RowKeys<'_>) -> bool {
+fn keyed_rows<'e>(
+    check: &mut Check<'_>,
+    entry: &'e Entry,
+    expected: &'static str,
+    keys: &[RowKeys<'_>],
+) -> Option<Vec<&'e Map>> {
+    let rows = rows(check, entry, expected)?;
+    assert_eq!(
+        rows.len(),
+        keys.len(),
+        "INVARIANT: every admitted row has a key verdict"
+    );
+    Some(rows)
+}
+
+fn report_row_keys(check: &mut Check<'_>, list: &'static str, keys: &RowKeys<'_>) -> bool {
     for key in &keys.unknown {
         check.key(
             list,
@@ -598,17 +587,17 @@ pub(super) fn check_debt_findings(
     entry: &Entry,
     keys: &[RowKeys<'_>],
 ) -> Option<Vec<DebtFinding>> {
-    let rows = rows(check, entry, "a list of maps with `kind` and `subject`")?;
-    assert_eq!(
-        rows.len(),
-        keys.len(),
-        "INVARIANT: every debt finding map has a key verdict"
-    );
+    let rows = keyed_rows(
+        check,
+        entry,
+        "a list of maps with `kind` and `subject`",
+        keys,
+    )?;
     let mut findings = Vec::new();
     let mut valid = true;
     let mut seen = HashSet::new();
     for (row, keys) in rows.into_iter().zip(keys) {
-        if !report_debt_keys(check, "findings", keys) {
+        if !report_row_keys(check, "findings", keys) {
             valid = false;
             continue;
         }
@@ -645,17 +634,17 @@ pub(super) fn check_debt_lines(
     entry: &Entry,
     keys: &[RowKeys<'_>],
 ) -> Option<Vec<DebtLine>> {
-    let rows = rows(check, entry, "a list of maps with `item` and `orphans`")?;
-    assert_eq!(
-        rows.len(),
-        keys.len(),
-        "INVARIANT: every debt line map has a key verdict"
-    );
+    let rows = keyed_rows(
+        check,
+        entry,
+        "a list of maps with `item` and `orphans`",
+        keys,
+    )?;
     let mut lines = Vec::new();
     let mut valid = true;
     let mut seen = HashSet::new();
     for (row, keys) in rows.into_iter().zip(keys) {
-        if !report_debt_keys(check, "lines", keys) {
+        if !report_row_keys(check, "lines", keys) {
             valid = false;
             continue;
         }

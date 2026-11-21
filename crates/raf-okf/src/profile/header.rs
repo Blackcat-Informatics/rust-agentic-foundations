@@ -106,6 +106,8 @@ pub(super) struct KeyVerdicts<'a> {
     pub(super) items: Vec<RowKeys<'a>>,
     pub(super) debt_findings: Vec<RowKeys<'a>>,
     pub(super) debt_lines: Vec<RowKeys<'a>>,
+    pub(super) inputs: Vec<RowKeys<'a>>,
+    pub(super) exclusions: Vec<RowKeys<'a>>,
 }
 
 pub(super) struct RowKeys<'a> {
@@ -118,6 +120,8 @@ enum RowShape {
     ChangeItem,
     DebtFinding,
     DebtLine,
+    Input,
+    Exclusion,
 }
 
 struct RowSpec {
@@ -147,6 +151,18 @@ impl RowShape {
                 name: "Debt-line",
                 member: "urn:raf:okf:debt-line-member",
                 keys: &[("item", true), ("orphans", true)],
+            },
+            Self::Input => RowSpec {
+                list: "inputs",
+                name: "Record-input",
+                member: "urn:raf:okf:record-input-member",
+                keys: &[("kind", true), ("name", true), ("digest", true)],
+            },
+            Self::Exclusion => RowSpec {
+                list: "exclusions",
+                name: "Coverage-exclusion",
+                member: "urn:raf:okf:coverage-exclusion-member",
+                keys: &[("item", true), ("reason", true)],
             },
         }
     }
@@ -225,6 +241,8 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
         RowShape::ChangeItem,
         RowShape::DebtFinding,
         RowShape::DebtLine,
+        RowShape::Input,
+        RowShape::Exclusion,
     ] {
         let spec = shape.spec();
         add_shape(
@@ -274,14 +292,17 @@ fn row_groups(map: &Map, doc_type: DocType) -> Vec<RowGroup<'_>> {
     let shapes: &[RowShape] = match doc_type {
         DocType::Change => &[RowShape::ChangeItem],
         DocType::Debt => &[RowShape::DebtFinding, RowShape::DebtLine],
+        DocType::Evidence | DocType::Assessment | DocType::Review => &[RowShape::Input],
+        DocType::Coverage => &[RowShape::Exclusion],
         _ => &[],
     };
     shapes
         .iter()
         .filter_map(|&shape| {
             let list = map.get(shape.spec().list)?.value().as_list()?;
-            // A debt list's shape is checked before any of its row keys.
-            if doc_type == DocType::Debt
+            // Change reports item keys until the first scalar. The other
+            // lists refuse the entire list before checking any row keys.
+            if !matches!(shape, RowShape::ChangeItem)
                 && list
                     .items()
                     .iter()
@@ -458,6 +479,8 @@ fn report_keys<'a>(
             RowShape::ChangeItem => &mut verdicts.items,
             RowShape::DebtFinding => &mut verdicts.debt_findings,
             RowShape::DebtLine => &mut verdicts.debt_lines,
+            RowShape::Input => &mut verdicts.inputs,
+            RowShape::Exclusion => &mut verdicts.exclusions,
         };
         for map in group.maps() {
             let focus = focus_iri(focuses.next().ok_or(HeaderShapeError::UnexpectedReport)?)?;
