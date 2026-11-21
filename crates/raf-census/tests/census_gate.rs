@@ -1918,6 +1918,21 @@ pub fn outside(mut value: Selected, other: home::Other) {
     fn nested() { value.run(); }
     match () { () if value.run() => (), _ => () } // hit
     match Some(home::Other) { Some(value) if value.run() => (), _ => () }
+    {
+        let seed: Selected = home::Banned;
+        let mut moved = seed;
+        moved.run(); // hit
+        let mut chained = ((moved));
+        chained.run(); // hit
+        let mut chained = (chained);
+        (chained).run(); // hit
+    }
+    { let moved = (other); moved.run(); }
+    { let mut moved: _ = value; moved.run(); }
+    { let value = &mut value; let moved = (value); moved.run(); }
+    { use crate::home::exported_value as value; let moved = (value); moved.run(); }
+    { use opaque::*; let moved = (value); moved.run(); }
+    { let mut moved = (#[cfg(feature = "alternate")] (value)); moved.run(); }
     let value: home::Other = { value.run(); home::Other }; // hit
     value.run();
 }
@@ -2041,6 +2056,14 @@ pub fn outside() {
         let shadowed = (BUILD);
         (shadowed).run();
     }
+    {
+        let build = home::Other;
+        {
+            use crate::Reexport as build;
+            let from_import = (build);
+            from_import.run(); // hit
+        }
+    }
 }
 ";
 
@@ -2048,8 +2071,8 @@ pub fn outside() {
 fn written_receiver_methods_keep_declaration_identity_and_runtime_shadowing() {
     use std::collections::BTreeSet;
 
-    // The declaration supplies nominal identity, and a nearer binding can
-    // shadow that proof whether it has a supported type or initializer.
+    // An alias retains its source's nominal identity, subject to the same
+    // shadowing rules as written types and constructor initializers.
     for source in [
         WRITTEN_RECEIVER_SOURCE,
         CONSTRUCTOR_RECEIVER_SOURCE,
@@ -2194,6 +2217,8 @@ pub mod shipping {{
     value.run();
     let inferred = (super::Choice {});
     (inferred).run();
+    let inferred = ((inferred));
+    inferred.run();
 }"
                 .to_owned(),
             ),
@@ -2207,7 +2232,7 @@ pub mod shipping {{
             "{shipping} {tests}: {:?}",
             report.findings()
         );
-        for position in ["shared.rs:2: job", "shared.rs:4: job"] {
+        for position in ["shared.rs:2: job", "shared.rs:4: job", "shared.rs:6: job"] {
             assert_eq!(
                 report
                     .findings()
@@ -2220,6 +2245,56 @@ pub mod shipping {{
             );
         }
     }
+}
+
+#[test]
+fn written_receiver_alias_keeps_a_native_refusal_at_the_first_matching_method() {
+    // Moving a receiver never reports its deferred Source refusal. The
+    // first matching method on the new binding reports the original cause.
+    let source = r"
+pub mod home {
+    pub struct Banned;
+    #[cfg(unix)] pub type Conditional = Banned;
+    pub fn sanctioned(value: Banned) { value.run(); }
+}
+pub use home as alias;
+pub fn outside(value: home::Conditional) {
+    let moved = ((value));
+    let moved = moved;
+    (moved)
+        .run(); // selected
+    value.run(); // selected
+}
+";
+    let first_method = source
+        .lines()
+        .position(|line| line.contains("// selected"))
+        .expect("source has a matching method")
+        + 1;
+    let gate = fixture_gate(".");
+    let check = |source| {
+        gate.check_tree(&lexical_pattern_tree(
+            source,
+            "methodOn",
+            "demo::home::Banned::run",
+        ))
+    };
+    let quiet = source.replace("run(); // selected", "observe();");
+    assert!(
+        check(&quiet)
+            .expect("no matching outside method")
+            .is_clean()
+    );
+    let error = check(source).expect_err("the moved receiver's method reports its source refusal");
+    assert!(
+        matches!(
+            &error,
+            raf_census::Error::CodePath { line, source, .. }
+                if *line == first_method
+                    && matches!(source.as_ref(), raf_source::CodeResolveError::AliasMember { .. })
+        ),
+        "{error}"
+    );
 }
 
 #[test]
