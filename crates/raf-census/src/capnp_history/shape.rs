@@ -259,6 +259,11 @@ pub(super) fn read_brand(
             )));
         }
         let count = nodes.parameters(id)?;
+        if count == 0 && matches!(context, TypeScope::MethodBrand { .. }) {
+            return Err(layout(format!(
+                "brand scope {id} of {target} declares no parameters"
+            )));
+        }
         let arguments = match scope.which()? {
             brand::scope::Inherit(()) => {
                 if !nodes.contains_scope(context.owner(), id)? {

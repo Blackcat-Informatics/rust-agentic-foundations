@@ -1104,6 +1104,95 @@ fn capnp_history_refuses_invalid_implicit_rpc_parameters() {
     );
 }
 
+/// Omitted and explicit unbound arguments compare alike even in an enclosing
+/// scope. Bound positions and a shared endpoint's enclosing arity stay visible.
+#[test]
+fn capnp_history_compares_unbound_rpc_endpoints() {
+    const READER: &str = "0xcd8cb54000000005";
+    let compatible = include_bytes!("fixtures/capnp/rpc-unbound-compatible.bin");
+    let wire_unbound = unbound_binding_request(compatible);
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-unbound-base.bin"));
+    for (descriptor, code, expected) in [
+        (compatible.as_slice(), 0, ""),
+        (wire_unbound.as_slice(), 0, ""),
+        (
+            include_bytes!("fixtures/capnp/rpc-unbound-changed.bin").as_slice(),
+            1,
+            concat!(
+                "Cap'n Proto history for 0xcd8cb54000000004: enclosing scope 0xcd8cb54000000003 type parameter count changed\n",
+                "Cap'n Proto history for 0xcd8cb54000000005.explicit.results: type changed\n",
+                "Cap'n Proto history for 0xcd8cb54000000005.shared.results: type changed\n",
+            ),
+        ),
+    ] {
+        let current = commit_capnp_descriptor(root, descriptor);
+        let verdict = capnp_history(root, &base, &current, &[READER], &[]);
+        assert_eq!(verdict.status.code(), Some(code), "{verdict:?}");
+        assert!(verdict.stderr.is_empty(), "{verdict:?}");
+        assert_eq!(String::from_utf8(verdict.stdout).unwrap(), expected);
+    }
+
+    // Short Bind lists leave trailing positions unbound, including nested
+    // bindings and ranges in a different lexical declaration.
+    let sparse =
+        commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-named-invalid.bin"));
+    let verdict = capnp_history(
+        root,
+        &sparse,
+        &sparse,
+        &[
+            "0xeec3000000000011",
+            "0xeec3000000000015",
+            "0xeec3000000000016",
+            "0xeec3000000000019",
+            "0xeec3000000000023",
+        ],
+        &[],
+    );
+    assert!(verdict.status.success(), "{verdict:?}");
+    assert!(verdict.stderr.is_empty(), "{verdict:?}");
+    assert!(verdict.stdout.is_empty(), "{verdict:?}");
+}
+
+fn unbound_binding_request(mut descriptor: &[u8]) -> Vec<u8> {
+    use capnp::schema_capnp::{brand, code_generator_request, node};
+
+    let descriptor =
+        capnp::serialize::read_message(&mut descriptor, capnp::message::ReaderOptions::new())
+            .unwrap();
+    let original = descriptor
+        .get_root::<code_generator_request::Reader<'_>>()
+        .unwrap();
+    compiler_request(|mut request| {
+        request.set_nodes(original.get_nodes().unwrap()).unwrap();
+        let mut nodes = request.get_nodes().unwrap();
+        let reader = (0..nodes.len())
+            .find(|&index| nodes.reborrow().get(index).get_id() == 0xcd8c_b540_0000_0005)
+            .unwrap();
+        let node::Interface(interface) = nodes.get(reader).which().unwrap() else {
+            panic!("fixture Reader interface");
+        };
+        let brand::scope::Bind(bindings) = interface
+            .get_methods()
+            .unwrap()
+            .get(1)
+            .get_result_brand()
+            .unwrap()
+            .get_scopes()
+            .unwrap()
+            .get(0)
+            .which()
+            .unwrap()
+        else {
+            panic!("fixture Pair result bindings");
+        };
+        bindings.unwrap().get(0).set_unbound(());
+    })
+}
+
 /// Named method roles require an ordinary struct and an unambiguous reciprocal
 /// declaration chain, including the generic state of every enclosing scope.
 #[test]
@@ -1126,27 +1215,11 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
         ),
         ("0xeec300000000000f", "must be a nongroup struct"),
         (
-            "0xeec3000000000011",
-            "requires a complete concrete endpoint brand",
-        ),
-        (
             "0xeec3000000000013",
             "requires unique reciprocal declarations",
         ),
-        ("0xeec3000000000015", "method @1 unbound parameters"),
-        (
-            "0xeec3000000000016",
-            "requires a complete concrete endpoint brand",
-        ),
-        (
-            "0xeec3000000000019",
-            "requires a complete concrete endpoint brand",
-        ),
         ("0xeec300000000001a", "invalid or repeated brand scope"),
-        (
-            "0xeec300000000001b",
-            "requires a complete concrete endpoint brand",
-        ),
+        ("0xeec300000000001b", "declares no parameters"),
         ("0xeec300000000001c", "consistent generic flags"),
         (
             "0xeec300000000001f",
@@ -1157,7 +1230,8 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
             "must inherit exactly the generic method owner's scopes",
         ),
         ("0xeec3000000000022", "invalid parameter 1"),
-        ("0xeec3000000000023", "requires a complete endpoint brand"),
+        ("0xeec3000000000024", "invalid or repeated brand scope"),
+        ("0xeec3000000000025", "non-pointer brand binding"),
     ] {
         let result = capnp_history(root, &invalid, &invalid, &[selected], &[]);
         assert_eq!(result.status.code(), Some(1), "{result:?}");

@@ -47,6 +47,7 @@ pub(super) struct Schema {
     pub(super) nodes: BTreeMap<TypeId, Node>,
     pub(super) files: BTreeMap<TypeId, RelPath>,
     pub(super) declarations: BTreeMap<TypeId, Declaration>,
+    pub(super) named_endpoint_parameters: BTreeMap<TypeId, BTreeMap<TypeId, u32>>,
 }
 
 use declarations::AnnotationTargets;
@@ -415,14 +416,18 @@ impl<'a> Nodes<'a> {
                 self.project_node(id, &mut needed, annotations, scopes, &mut rpc)?,
             );
         }
-        if let Some(projection) = rpc {
+        let named_endpoint_parameters = if let Some(projection) = rpc {
             projection.check_inheritance(&nodes)?;
-        }
+            projection.named_endpoint_parameters()
+        } else {
+            BTreeMap::new()
+        };
         Ok(Schema {
             roots: present,
             nodes,
             files: BTreeMap::new(),
             declarations: BTreeMap::new(),
+            named_endpoint_parameters,
         })
     }
 
