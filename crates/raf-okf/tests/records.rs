@@ -1361,6 +1361,44 @@ fn a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_vi
 
 #[test]
 fn a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once() {
+    // Identical rows report their own keys before the sibling list's shape finding.
+    let invalid = concat!(
+        "---\ntype: Debt\nid: debt:default\nfindings:\n",
+        "  - zebra: x\n    ant: y\n  - zebra: x\n    ant: y\n",
+        "lines: [plain]\n---\n",
+    );
+    let found = validate(invalid, DEBT_PATH).unwrap_err();
+    let expected = [
+        Rule::RowUnknownKey {
+            list: "findings",
+            key: "zebra".into(),
+        },
+        Rule::RowUnknownKey {
+            list: "findings",
+            key: "ant".into(),
+        },
+        Rule::RowMissingKey {
+            list: "findings",
+            key: "kind",
+        },
+        Rule::RowMissingKey {
+            list: "findings",
+            key: "subject",
+        },
+    ];
+    assert_eq!(found.len(), 9, "{found:#?}");
+    let location = key("findings");
+    for (finding, rule) in found[..8].iter().zip(expected.iter().cycle()) {
+        assert_eq!((finding.at(), finding.rule()), (&location, rule));
+    }
+    assert_eq!(found[8].at(), &key("lines"));
+    assert_eq!(
+        found[8].rule(),
+        &Rule::WrongShape {
+            expected: "a list of maps with `item` and `orphans`"
+        }
+    );
+
     let unknown = mutate(
         &debt(),
         "    subject: raf_okf::Actor\n",
@@ -1421,6 +1459,41 @@ fn a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once() {
 
 #[test]
 fn a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once() {
+    // A key-invalid row has no value findings. The next row still checks its count.
+    let invalid = concat!(
+        "---\ntype: Debt\nid: debt:default\nfindings: []\nlines:\n",
+        "  - zebra: x\n    ant: y\n  - item: raf_okf::Body\n    orphans: broken\n---\n",
+    );
+    let found = validate(invalid, DEBT_PATH).unwrap_err();
+    let expected = [
+        Rule::RowUnknownKey {
+            list: "lines",
+            key: "zebra".into(),
+        },
+        Rule::RowUnknownKey {
+            list: "lines",
+            key: "ant".into(),
+        },
+        Rule::RowMissingKey {
+            list: "lines",
+            key: "item",
+        },
+        Rule::RowMissingKey {
+            list: "lines",
+            key: "orphans",
+        },
+        Rule::BadMeasure {
+            list: "lines",
+            name: "orphans".into(),
+            found: "broken".into(),
+        },
+    ];
+    assert_eq!(found.len(), expected.len(), "{found:#?}");
+    let location = key("lines");
+    for (finding, rule) in found.iter().zip(&expected) {
+        assert_eq!((finding.at(), finding.rule()), (&location, rule));
+    }
+
     let unknown = mutate(
         &debt(),
         "    orphans: 12\n",

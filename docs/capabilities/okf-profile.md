@@ -608,7 +608,12 @@ id `debt:default`, as the coverage record has `coverage:default`.
 validates them: the debt record has the keys `type`, `id`, the optional `tags` and
 `timestamp`, `findings`, rows of exactly `kind` and `subject`, and `lines`, rows of
 exactly `item` and `orphans`, each pair or item once, and an empty body; an `orphans`
-that is not a whole number is `okf-bad-measure`. It is validated into
+that is not a whole number is `okf-bad-measure`. The bounded native header
+graph gives each map its own focus. Prepared shapes close both key sets and
+require each listed key. The profile reports unknown keys in authored order
+and missing keys in schema order at the list that contains the row. A list
+with the wrong shape gets a finding at its key before row validation.
+The profile validates the record into
 `RafDocument::Debt` holding a `DebtRecord` of `DebtFinding` and `DebtLine` rows, which
 `DebtRecord::new` builds, sorted, and `DebtRecord::to_document` writes as the other
 records are written, with the rows in that order. Which kinds a row may hold and what
@@ -646,8 +651,8 @@ section or the line instead. The rules are:
 - the key table for the declared type supplies a prepared SHACL Core shape.
   The bounded native header graph carries a focus for the header and a
   separate focus for a capability's binding map and for each map in a
-  Change's `items` list. Each authored key supplies a predicate at its
-  focus. The closed shapes
+  Change's `items` list or a Debt's `findings` and `lines` lists. Each
+  authored key supplies a predicate at its focus. The closed shapes
   refuse unknown keys, and required fields use `sh:minCount 1`.
   The profile reports unknown top-level keys in author order
   and missing keys in schema order. A separate diagnostic names the

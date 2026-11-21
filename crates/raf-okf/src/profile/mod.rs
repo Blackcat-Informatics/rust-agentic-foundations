@@ -367,7 +367,13 @@ fn check_values(
             ValueKind::Exceptions => {
                 found.exceptions = Slot::from_check(records::check_exceptions(check, entry));
             }
-            ValueKind::DebtFindings | ValueKind::DebtLines => debt_rows(check, entry, &mut found),
+            ValueKind::DebtFindings => {
+                found.debt_findings =
+                    records::check_debt_findings(check, entry, &keys.debt_findings);
+            }
+            ValueKind::DebtLines => {
+                found.debt_lines = records::check_debt_lines(check, entry, &keys.debt_lines);
+            }
             ValueKind::ReviewScope => found.review_scope = review::check_scope(check, entry),
             ValueKind::ReviewKind => {
                 found.review_kind = review::check_kind(check, entry);
@@ -432,15 +438,6 @@ fn check_record_consistency(
             found.review_findings.as_deref(),
             !matches!(&found.review_reference, Slot::Absent),
         );
-    }
-}
-
-/// Check a list of the debt record and keep the rows that are valid.
-fn debt_rows(check: &mut Check<'_>, entry: &Entry, found: &mut Collected) {
-    if entry.key() == "findings" {
-        found.debt_findings = records::check_debt_findings(check, entry);
-    } else {
-        found.debt_lines = records::check_debt_lines(check, entry);
     }
 }
 
@@ -792,7 +789,7 @@ fn check_effect(check: &mut Check<'_>, entry: &Entry) -> Option<ContractEffect> 
 fn check_items(
     check: &mut Check<'_>,
     entry: &Entry,
-    keys: &[header::ItemKeys<'_>],
+    keys: &[header::RowKeys<'_>],
 ) -> Option<Vec<ChangeItem>> {
     let shape = Rule::WrongShape {
         expected: "a list of maps with `claim` and optional `outcome`",
@@ -821,8 +818,8 @@ fn check_items(
             );
             valid = false;
         }
-        let claim = keys
-            .claim
+        let claim = map
+            .get("claim")
             .and_then(scalar_text)
             .filter(|text| !text.trim().is_empty())
             .map(str::to_owned);
