@@ -631,7 +631,7 @@ that states one is `okf-bad-input-kind`. An older reader refuses a record that s
 the row for the same reason.
 
 ### Positioned validation results
-<!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations -->
+<!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations,raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list,raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item -->
 
 `Profile::validate` checks a parsed document and its path against the
 closed key set of its `type` and returns a typed result: the typed document
@@ -644,9 +644,11 @@ names the file, the rule and, for a frontmatter rule, the key; a body rule names
 section or the line instead. The rules are:
 
 - the key table for the declared type supplies a prepared SHACL Core shape.
-  The bounded native header graph carries one focus and one predicate per
-  authored key. The closed shape refuses unknown keys, and required fields
-  use `sh:minCount 1`. The profile reports unknown keys in author order
+  The bounded native header graph carries a focus for the header and a
+  separate focus when a capability's `bindings` value is a map. Each
+  authored key supplies a predicate at its focus. The closed shapes
+  refuse unknown keys, and required fields use `sh:minCount 1`.
+  The profile reports unknown top-level keys in author order
   and missing keys in schema order. A separate diagnostic names the
   forbidden base key `resource`. A native refusal yields a document-level
   `Rule::HeaderShape` finding with its typed cause;
@@ -656,8 +658,10 @@ section or the line instead. The rules are:
 - the `id` carries the prefix of its type and a kebab-case slug equal to the file name
   without `.md`; `title` and `description` are non-empty strings;
 - `state` is an enumeration, and `bindings` is a map with exactly `code`, `tests` and
-  `examples`, each a list. A `designed` or `considered` capability binds nothing, and a
-  `delivered` one binds at least one `code` and one `tests` entry;
+  `examples`, each a list. The binding shape yields one `Rule::BindingsKeys`
+  finding at `bindings` when any key is missing or extra. A `designed` or
+  `considered` capability binds nothing, and a `delivered` one binds at least
+  one `code` and one `tests` entry;
 - `depends` and `changes` hold capability ids (`changes` at least one), `affects`
   entries are parsed into a capability id and one of the seven sections, and name a
   capability listed in `changes`; `contract_effect` is `none` or `changes`; `items`
@@ -1449,7 +1453,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::profile::a_document_must_sit_directly_in_the_directory_of_its_type` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_okf::test_crate::profile::a_missing_type_key_is_the_only_violation` | test | [Verification](#verification) |
-| `raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item` | test | [Constraints](#constraints) |
+| `raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_okf::test_crate::profile::a_placeholder_token_in_a_code_span_of_a_frontmatter_value_is_spared` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_proposed_block_is_valid_only_inside_a_section_of_a_capability` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_section_is_empty_when_only_comments_and_generated_blocks_remain` | test | [Verification](#verification) |
@@ -1466,7 +1470,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_okf::test_crate::profile::an_unknown_type_is_one_violation_at_the_type_key` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests` | test | [Verification](#verification) |
-| `raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list` | test | [Verification](#verification) |
+| `raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::changes_is_a_non_empty_list_of_cap_ids` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::contract_effect_is_none_or_changes` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist` | test | [Verification](#verification) |
