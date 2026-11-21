@@ -7,7 +7,7 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use purrdf_core::{RdfDataset, RdfDatasetBuilder};
 use purrdf_lex::allocation::{Ceiling, Memory};
-use raf_okf::{DatasetError, Document, Index};
+use raf_okf::Index;
 use raf_source::RelPath;
 
 use super::{
@@ -90,23 +90,23 @@ impl Writer<'_> {
         if !self.paths.insert(canonical_path(path)?) {
             return Err(Error::shape(path, "duplicate document path"));
         }
-        let document = Document::parse(&loaded.text())
-            .map_err(|source| Error::document(path, DatasetError::Parse(source)))?;
-        let root = document
+        let profiled = loaded.profiled();
+        let root = profiled
+            .document()
             .dataset_iri()
             .map_err(|source| Error::document(path, source))?;
         if self.roots.contains(&root) {
             return Err(Error::shape(&root, "duplicate document identity"));
         }
-        let dataset = document
-            .to_dataset(path)
+        let dataset = profiled
+            .to_dataset()
             .map_err(|source| Error::document(path, source))?;
         self.carrier(path, &dataset)?;
         declarations((path, &root), declared, |s, p, o| {
             self.statement(ClaimRelation::Assertion, s, p, o)
         })?;
         if matches!(declared, Declarations::Capability(_)) {
-            claims((path, &root), document.body(), |row| {
+            claims((path, &root), loaded.body(), |row| {
                 row.apply(self, Self::statement, Self::reifier)
             })?;
         }

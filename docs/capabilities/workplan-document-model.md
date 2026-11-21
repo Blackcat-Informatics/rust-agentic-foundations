@@ -568,7 +568,9 @@ and the source.
 repository into one closed RDF 1.2 default graph. A fixed repository subject
 lists records that bind each canonical repository-relative path to its asserted
 OKF document IRI. Each document uses the ordinary closed authoring shape, with
-its original styles, list forms, comments and body bytes.
+its original styles, list forms, comments and body bytes. Export uses the parsed
+document and path retained by profile validation during loading. Workplan also
+retains the original frontmatter text for source rewrites.
 
 The graph records every declared capability binding and dependency with its
 owner and position in the authored list. Bindings retain the code, tests or

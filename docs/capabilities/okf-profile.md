@@ -24,6 +24,13 @@ bindings:
     - raf_okf::profile::id_slug
     - raf_okf::DocType::document_iri
     - raf_okf::Document::to_dataset
+    - raf_okf::Profile::validate_owned
+    - raf_okf::ProfiledDocument
+    - raf_okf::ProfiledDocument::document
+    - raf_okf::ProfiledDocument::path
+    - raf_okf::ProfiledDocument::to_dataset
+    - raf_okf::ProfileRejection
+    - raf_okf::ProfileRejection::into_parts
     - raf_okf::Document::from_dataset
     - raf_okf::Document::dataset_iri
     - raf_okf::Document::from_dataset_subjects
@@ -944,8 +951,13 @@ Index IRI and accounts for all other rows across the shared graph.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers -->
 
 `Document::to_dataset(path)` validates one of the eight RAF types and returns a
-native PurRDF dataset. `Document::from_dataset(dataset, path)` recovers its model
-through the existing constructors, Markdown writer, parser and profile validator.
+native PurRDF dataset. `Profile::validate_owned` returns the typed profile value
+and a `ProfiledDocument` holding the immutable parsed document and its validated
+path. On refusal, `ProfileRejection::into_parts` returns the original document
+and its violations. `ProfiledDocument::to_dataset` reuses that validation and
+applies the same native writer bounds. `Document::from_dataset(dataset, path)`
+recovers its model through the existing constructors, Markdown writer, parser
+and profile validator.
 
 The decoder reads the rendered frontmatter and verifies that the closing fence
 places the body at its constructed byte and line. The reconstructed frontmatter
@@ -972,6 +984,12 @@ named graphs, blank nodes and statement layers. Both directions admit at most
 131072 structural nodes, 1048576 asserted triples and 1 MiB of aggregate authoring
 text, checked before cloning values. Native failures retain their error source.
 The generated navigation `Index` uses its own dataset codec.
+
+The decoder requires canonical tag order in the carrier. It reparses the
+rendered YAML head at the same boundary used to place the body. If an early
+closing fence shifts malformed Markdown into the body, the decoder returns
+the parser's error at the shifted location.
+<!-- raf:tested-by raf_okf::test_crate::render::unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back,raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
 
 `Document::dataset_iri` exposes the asserted identity from the document's type
 and id. `DATASET_NODE_IRI_BASE` and `dataset_node_prefix` expose the existing
@@ -1630,7 +1648,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::render::tags_render_sorted_and_stay_sorted` | test | [Contract](#contract) |
 | `raf_okf::test_crate::render::the_body_span_locates_the_body_in_the_text` | test | [Verification](#verification) |
 | `raf_okf::test_crate::render::the_body_span_uses_the_coordinates_of_the_text_the_document_came_from` | test | [Verification](#verification) |
-| `raf_okf::test_crate::render::unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back` | test | [Verification](#verification) |
+| `raf_okf::test_crate::render::unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back` | test | [Contract](#contract) |
 | `raf_okf::test_crate::repo_markdown::no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block` | test | [Verification](#verification) |
 | `raf_okf::test_crate::schema::a_type_is_found_by_its_exact_name_only` | test | [Verification](#verification) |
 | `raf_okf::test_crate::schema::each_type_lists_its_keys_in_the_order_of_the_architecture_page` | test | [Contract](#contract) |

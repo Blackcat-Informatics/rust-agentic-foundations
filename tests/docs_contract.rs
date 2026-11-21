@@ -46,7 +46,7 @@ use purrdf_rdf::{
     NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
     parse_dataset_with, serialize_dataset_with,
 };
-use raf_okf::{AssessmentVerdict, Body, DocType, Document, ErrorKind, FencedBlock};
+use raf_okf::{AssessmentVerdict, Body, DocType, Document, ErrorKind, FencedBlock, ParseError};
 use raf_source::{MemoryTree, RelPath, Workspace};
 use raf_workplan::{Finding, Gate, GateError, LinkContext, Opened, Workplan, authoring, plain};
 
@@ -418,13 +418,29 @@ fn in_document_directory(path: &Path) -> bool {
 // Inventory
 // ---------------------------------------------------------------------------
 
+type InventoryDocuments<'a> = BTreeMap<&'a Path, Result<Document, ParseError>>;
+
+/// Parse the tracked typed pages independently of both Workplan models.
+fn inventory_documents(repo: &Repo) -> InventoryDocuments<'_> {
+    repo.iter()
+        .filter(|(path, _)| expected_type(path).is_some() && path.as_path() != Path::new(INDEX))
+        .map(|(path, text)| (path.as_path(), Document::parse(text)))
+        .collect()
+}
+
 /// The `id` and `state` of the document at `path`, or why it cannot be read.
-fn identity(repo: &Repo, path: &str) -> Result<(String, Option<String>), String> {
-    let text = repo.get(Path::new(path)).ok_or("the document is missing")?;
-    let document = Document::parse(text).map_err(|error| match error.kind() {
-        ErrorKind::MissingFence => "the document has no frontmatter".to_string(),
-        _ => format!("unparseable document: {error}"),
-    })?;
+fn identity(
+    documents: &InventoryDocuments<'_>,
+    path: &str,
+) -> Result<(String, Option<String>), String> {
+    let document = documents
+        .get(Path::new(path))
+        .ok_or("the document is missing")?
+        .as_ref()
+        .map_err(|error| match error.kind() {
+            ErrorKind::MissingFence => "the document has no frontmatter".to_string(),
+            _ => format!("unparseable document: {error}"),
+        })?;
     let scalar = |key: &str| {
         document
             .frontmatter()
@@ -439,10 +455,15 @@ fn identity(repo: &Repo, path: &str) -> Result<(String, Option<String>), String>
 
 /// The capability ids that the `changes` key of the change record at `path`
 /// lists, in its order.
-fn listed_capabilities(repo: &Repo, path: &str) -> Result<Vec<String>, String> {
-    let text = repo.get(Path::new(path)).ok_or("the document is missing")?;
-    let document =
-        Document::parse(text).map_err(|error| format!("unparseable document: {error}"))?;
+fn listed_capabilities(
+    documents: &InventoryDocuments<'_>,
+    path: &str,
+) -> Result<Vec<String>, String> {
+    let document = documents
+        .get(Path::new(path))
+        .ok_or("the document is missing")?
+        .as_ref()
+        .map_err(|error| format!("unparseable document: {error}"))?;
     let list = document
         .frontmatter()
         .map()
@@ -466,7 +487,10 @@ fn listed_capabilities(repo: &Repo, path: &str) -> Result<Vec<String>, String> {
 /// and each capability whose state is not `delivered` is listed by a record of
 /// the table. A missing record is reported by the identity check, and a record
 /// with no `changes` key by the profile (`okf-missing-key`).
-fn change_record_violations(repo: &Repo, inventory: &Inventory) -> Vec<String> {
+fn change_record_violations(
+    documents: &InventoryDocuments<'_>,
+    inventory: &Inventory,
+) -> Vec<String> {
     let mut out = Vec::new();
     for (slug, capabilities) in inventory.changes {
         let path = format!("work/changes/{slug}.md");
@@ -493,7 +517,7 @@ fn change_record_violations(repo: &Repo, inventory: &Inventory) -> Vec<String> {
                 ));
             }
         }
-        if let Ok(found) = listed_capabilities(repo, &path) {
+        if let Ok(found) = listed_capabilities(documents, &path) {
             let wanted: Vec<String> = capabilities
                 .iter()
                 .map(|cap| format!("cap:{cap}"))
@@ -530,11 +554,15 @@ fn change_record_violations(repo: &Repo, inventory: &Inventory) -> Vec<String> {
 /// capabilities the table gives it, every open capability is listed by a
 /// change record of the table, every generated document exists, and no
 /// document exists that the inventory does not list.
-fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
+fn check_inventory(
+    repo: &Repo,
+    documents: &InventoryDocuments<'_>,
+    inventory: &Inventory,
+) -> Vec<String> {
     let mut out = Vec::new();
     let mut listed: BTreeSet<String> = BTreeSet::new();
     let mut expect = |path: String, id: String, state: Option<&str>| {
-        match identity(repo, &path) {
+        match identity(documents, &path) {
             Err(reason) => out.push(violation(Path::new(&path), reason)),
             Ok((found_id, found_state)) => {
                 if found_id != id {
@@ -602,7 +630,7 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
         }
         listed.insert((*path).to_string());
     }
-    out.extend(change_record_violations(repo, inventory));
+    out.extend(change_record_violations(documents, inventory));
     out.extend(unknown_records);
     for path in repo.keys() {
         let known = path.to_str().is_some_and(|p| listed.contains(p));
@@ -854,19 +882,25 @@ fn judge_plan(checkout: &Checkout, plan: &Workplan<'_>, context: &LinkContext<'_
 /// Markdown-only document directories, the pages with frontmatter outside the
 /// document directories, the inventory table. The production model enforces the verification matrix.
 fn violations(checkout: &Checkout, source: &Workspace, inventory: &Inventory) -> Vec<String> {
-    checkout_violations(checkout, &judge(checkout, source), inventory)
+    checkout_violations(
+        checkout,
+        &judge(checkout, source),
+        &inventory_documents(&checkout.markdown),
+        inventory,
+    )
 }
 
 fn checkout_violations(
     checkout: &Checkout,
     verdict: &Verdict,
+    documents: &InventoryDocuments<'_>,
     inventory: &Inventory,
 ) -> Vec<String> {
     let mut out: Vec<String> = verdict.findings.iter().map(ToString::to_string).collect();
     out.extend(symlink_violations(&checkout.symlinks));
     out.extend(layout_violations(&checkout.paths));
     out.extend(outside_violations(&checkout.markdown));
-    out.extend(check_inventory(&checkout.markdown, inventory));
+    out.extend(check_inventory(&checkout.markdown, documents, inventory));
     out
 }
 
@@ -895,6 +929,7 @@ fn ntriples(dataset: &purrdf_core::RdfDataset) -> Result<Vec<u8>, Box<dyn Error>
 fn check_authoring_roundtrip(
     plan: &Workplan<'_>,
     checkout: &Checkout,
+    expected: &InventoryDocuments<'_>,
 ) -> Result<(), Box<dyn Error>> {
     let bytes = ntriples(plan.authoring_dataset()?.as_ref())?;
     let restored = parse_dataset_with(
@@ -914,17 +949,17 @@ fn check_authoring_roundtrip(
     } = authoring::repository_from_dataset(&restored.dataset)?;
     let index = index.expect("the tracked navigation Index is in the authoring graph");
     assert_eq!(index.body().text(), checkout.markdown[Path::new(INDEX)]);
-    for (path, text) in &checkout.markdown {
-        if expected_type(path).is_some() && path.file_name().is_some_and(|name| name != "index.md")
-        {
-            let original = Document::parse(text)?;
-            assert_eq!(
-                documents.remove(&rel(path)).as_ref(),
-                Some(&original),
-                "{}",
-                path.display()
-            );
+    for (&path, original) in expected {
+        if path.file_name().is_some_and(|name| name == "index.md") {
+            continue;
         }
+        let original = original.as_ref().map_err(Clone::clone)?;
+        assert_eq!(
+            documents.remove(&rel(path)).as_ref(),
+            Some(original),
+            "{}",
+            path.display()
+        );
     }
     assert!(
         documents.is_empty(),
@@ -957,9 +992,10 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
         "the tracked diagram ownership manifest is admitted"
     );
     let source = repository_gate().workspace();
+    let documents = inventory_documents(&checkout.markdown);
     let verdict = with_plan(&checkout, source, |plan, context| {
         let verdict = judge_plan(&checkout, plan, context);
-        let found = checkout_violations(&checkout, &verdict, &INVENTORY);
+        let found = checkout_violations(&checkout, &verdict, &documents, &INVENTORY);
         assert!(
             found.is_empty(),
             "{} profile violations:\n{}",
@@ -967,7 +1003,7 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
             report(&found)
         );
         check_repository_bindings(source, &verdict)?;
-        check_authoring_roundtrip(plan, &checkout)?;
+        check_authoring_roundtrip(plan, &checkout, &documents)?;
         Ok::<_, Box<dyn Error>>(verdict)
     })?;
     // A load that found nothing would pass the checks above, so require the

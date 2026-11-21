@@ -4,8 +4,8 @@
 //! Reading the document directories through a tree.
 
 use raf_okf::{
-    Body, DocType, Document, ErrorTag, Index, Location, MAX_TEXT_BYTES, Profile, RafDocument, Rule,
-    Violation, is_capability_index,
+    DocType, Document, ErrorTag, Index, Location, MAX_TEXT_BYTES, Profile, ProfiledDocument,
+    RafDocument, Rule, Violation, is_capability_index,
 };
 use raf_source::{EntryKind, RelPath, Tree, TreeError, Workspace};
 
@@ -247,15 +247,16 @@ fn read_file(
             format!("move the file directly into {}", declared.directory()),
         ));
     }
-    match Profile.validate(&document, path) {
-        Ok(typed) => {
+    match Profile.validate_owned(document, path) {
+        Ok((profiled, typed)) => {
             if let RafDocument::Review(review) = &typed {
                 plan.findings
                     .extend(crate::review::reference_findings(docs, path, review));
             }
-            admit(plan, path, typed, document.body().clone(), &text);
+            admit(plan, profiled, typed, &text);
         }
-        Err(violations) => {
+        Err(rejection) => {
+            let (document, violations) = rejection.into_parts();
             // The blocks of a document that does not validate still name
             // change records; the rules between documents judge them once
             // every record is read.
@@ -280,36 +281,35 @@ fn read_file(
 }
 
 /// Add a document that satisfies the profile to the model.
-fn admit(plan: &mut Workplan<'_>, path: &str, typed: RafDocument, body: Body, text: &str) {
-    let path = path.to_string();
+fn admit(plan: &mut Workplan<'_>, profiled: ProfiledDocument, typed: RafDocument, text: &str) {
     match typed {
         RafDocument::Capability(value) => {
-            plan.capabilities.push(Loaded::new(path, value, body, text));
+            plan.capabilities.push(Loaded::new(profiled, value, text));
         }
         RafDocument::Change(value) => {
-            plan.changes.push(Loaded::new(path, value, body, text));
+            plan.changes.push(Loaded::new(profiled, value, text));
         }
         RafDocument::Architecture(value) => {
-            plan.architecture.push(Loaded::new(path, value, body, text));
+            plan.architecture.push(Loaded::new(profiled, value, text));
         }
         RafDocument::Evidence(value) => {
-            plan.evidence.push(Loaded::new(path, value, body, text));
+            plan.evidence.push(Loaded::new(profiled, value, text));
         }
         RafDocument::Assessment(value) => {
-            plan.assessments.push(Loaded::new(path, value, body, text));
+            plan.assessments.push(Loaded::new(profiled, value, text));
         }
         RafDocument::Review(value) => {
-            plan.reviews.push(Loaded::new(path, value, body, text));
+            plan.reviews.push(Loaded::new(profiled, value, text));
         }
         // The profile validates a coverage record only as
         // `work/coverage/default.md`, the one file of its directory the load
         // reads, so at most one is admitted.
         RafDocument::Coverage(value) => {
-            plan.coverage = Some(Loaded::new(path, value, body, text));
+            plan.coverage = Some(Loaded::new(profiled, value, text));
         }
         // The same holds for the debt record, `work/debt/default.md`.
         RafDocument::Debt(value) => {
-            plan.debt = Some(Loaded::new(path, value, body, text));
+            plan.debt = Some(Loaded::new(profiled, value, text));
         }
     }
 }

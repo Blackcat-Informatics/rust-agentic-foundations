@@ -24,8 +24,11 @@ inputs:
     name: raf_okf::Index::to_dataset
     digest: 81fbfbc362952f0b3e7e93bc94c77581a42f12c93671d99e78af2121ec42cb58
   - kind: symbol
+    name: raf_okf::ProfiledDocument::to_dataset
+    digest: b50cbfbeb142addab3f38ad44c30081218276de9500b201b82de2347b4e8d8de
+  - kind: symbol
     name: raf_okf::dataset
-    digest: 3bca37d4c44301840e8a28595f5e685c36cbc722892e5c064ef96abece663499
+    digest: 8a8effc3392c57dc07e6cca7a90269ff250d9e9a2158d862c490008580e3a66f
 verdict: accepted
 by: agent
 ---

@@ -455,6 +455,29 @@ fn dataset_refusals() {
         document.to_dataset("docs/capabilities/index.md"),
         Err(raf_okf::DatasetError::NavigationIndex)
     ));
+    profiled_carrier_refusals(document);
+}
+
+fn profiled_carrier_refusals(document: Document) {
+    let wrong_path = "docs/architecture/other.md";
+    let expected = Profile.validate(&document, wrong_path).unwrap_err();
+    let span = document.body().span().clone();
+    let (original, violations) = Profile
+        .validate_owned(document, wrong_path)
+        .unwrap_err()
+        .into_parts();
+    assert_eq!(violations, expected);
+    assert_eq!(original.render(), FIXTURES[2].3);
+    assert_eq!(original.body().span(), &span);
+
+    let document = parse(&FIXTURES[0].3.replace("cap:ledger-sync", "cap:index"));
+    let (profiled, _) = Profile
+        .validate_owned(document, "docs/capabilities/index.md")
+        .unwrap();
+    assert!(matches!(
+        profiled.to_dataset(),
+        Err(raf_okf::DatasetError::NavigationIndex)
+    ));
 }
 
 fn dataset_layer_refusal(rows: &[purrdf_core::RdfQuad], path: &str) {
@@ -514,6 +537,8 @@ fn dataset_round_trip(document: &Document, path: &str) {
     let dataset = document
         .to_dataset(path)
         .expect("validated authoring dataset");
+    let (profiled, _) = Profile.validate_owned(document.clone(), path).unwrap();
+    let reused = profiled.to_dataset().unwrap();
     let decoded = Document::from_dataset(&dataset, path).unwrap();
     assert_eq!(decoded, *document, "{path}");
     // Dataset readers expose positions in the reconstructed Markdown.
@@ -538,9 +563,8 @@ fn dataset_round_trip(document: &Document, path: &str) {
         (NativeRdfFormat::NTriples, "application/n-triples"),
     ] {
         let output = serialize_dataset_with(dataset.as_ref(), format, None, &options).unwrap();
-        let fresh = document.to_dataset(path).unwrap();
         assert_eq!(
-            serialize_dataset_with(fresh.as_ref(), format, None, &options)
+            serialize_dataset_with(reused.as_ref(), format, None, &options)
                 .unwrap()
                 .bytes,
             output.bytes
@@ -1172,6 +1196,8 @@ fn constructed_nesting_and_size_are_bounded_like_the_reader() {
 
 #[test]
 fn unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back() {
+    use purrdf_core::{RdfLiteral, RdfTerm};
+
     for text in [
         "---\ntype: Architecture\ntags: [b, a]\n---\nbody\n",
         "---\ntype: Capability\ntags:\n  - b # on b\n  - a\n---\nbody\n",
@@ -1195,6 +1221,34 @@ fn unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back()
     assert_ne!(
         parse("---\nnames: [b, a]\n---\n"),
         parse("---\nnames: [a, b]\n---\n")
+    );
+
+    // A carrier must already have canonical tag order. The text reader can
+    // normalize the same tags without losing their attached content.
+    let (_, _, path, fixture) = FIXTURES[2];
+    let original = parse(&fixture.replace("timestamp:", "tags: [omega, alpha]\ntimestamp:"));
+    let carrier = original.to_dataset(path).unwrap();
+    assert_eq!(Document::from_dataset(&carrier, path).unwrap(), original);
+
+    let mut rows: Vec<_> = carrier.owned_quads().collect();
+    for row in &mut rows {
+        if row.predicate != "https://blackcatinformatics.ca/raf/okf/1#text" {
+            continue;
+        }
+        let RdfTerm::Literal(literal) = &row.object else {
+            continue;
+        };
+        let corrected = match literal.lexical_form.as_str() {
+            "alpha" => "omega",
+            "omega" => "alpha",
+            _ => continue,
+        };
+        row.object = RdfTerm::Literal(RdfLiteral::simple(corrected));
+    }
+    shape_refusal(
+        &rows,
+        path,
+        "representation changes under document normalization",
     );
 }
 
