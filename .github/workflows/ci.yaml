@@ -188,13 +188,18 @@ jobs:
           if [[ "$RAF_CI_PACKAGE" == cargo-workplan ]]; then
             export CARGO_TARGET_DIR="$RUNNER_TEMP/cargo-workplan-target"
           fi
-          # Keep the full round trip within the job budget with light optimization
-          # and without generating native debug line tables for this shard.
+          # Keep the full round trip within the job budget. Optimize its
+          # runtime libraries and compile the test harness at level zero.
           if [[ "$RAF_CI_PACKAGE" == rust-agentic-foundations && "${args[*]}" == '--test docs_contract' ]]; then
             export CARGO_PROFILE_TEST_DEBUG=0
-            # Build the root's unused Census dev-dependency at level zero on this shard.
-            # Keep the document checks and their runtime dependencies optimized.
-            args+=(--config 'profile.test.opt-level=1' --config 'profile.test.package.raf-census.opt-level=0')
+            args+=(
+              --config 'profile.test.opt-level=1'
+              --config 'profile.test.package.rust-agentic-foundations.opt-level=0'
+              # Cargo builds these Census-only dependencies for the root test package.
+              --config 'profile.test.package.raf-census.opt-level=0'
+              --config 'profile.test.package.capnp.opt-level=0'
+              --config 'profile.test.package.purrdf-jsonschema.opt-level=0'
+            )
           fi
           cargo test --locked --package "$RAF_CI_PACKAGE" "${args[@]}"
           if test "$RAF_CI_DOCS" = true; then
