@@ -78,6 +78,23 @@ pub(crate) enum Candidate<'a> {
     },
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct ConfigurationOrdinal(pub(crate) usize);
+
+/// A configuration admitted during canonical target selection.
+#[derive(Clone, Copy)]
+pub(crate) enum ConfigurationKey {
+    Selected,
+    Locked(crate::PackageId, ConfigurationOrdinal),
+}
+
+/// The canonical reach's allowances and optional extraction context.
+pub(crate) struct ExtractionGrant {
+    pub(crate) allowance: FactAllowance,
+    pub(crate) usage: Usage,
+    pub(crate) configuration: Option<ConfigurationKey>,
+}
+
 /// A coordinator-only parse executor, with no shared Tree or meter.
 pub(crate) trait Parser {
     /// Whether another speculative candidate can be inspected now.
@@ -101,8 +118,7 @@ pub(crate) trait Parser {
         id: &crate::FileId,
         text: String,
         options: &LoadOptions,
-        allowance: FactAllowance,
-        usage: Usage,
+        grant: ExtractionGrant,
     ) -> Result<Extracted, LoadError>;
 }
 

@@ -60,6 +60,7 @@ bindings:
     - raf_source::ExternLibrary
     - raf_source::ExternRouteKind
     - raf_source::Workspace::load_locked_sources_under
+    - raf_source::Workspace::par_load_locked_sources_under
     - raf_source::code
     - raf_source::visit_pattern_bindings
     - raf_source::CompilerPlatform
@@ -129,6 +130,7 @@ bindings:
     - raf_source::PinnedGitTree
     - raf_source::PinnedGitTree::open
     - raf_source::Workspace::load_locked_sources
+    - raf_source::Workspace::par_load_locked_sources
     - raf_source::Workspace::locked_binding
     - raf_source::LockedBinding
     - raf_source::LockedManifest
@@ -380,6 +382,7 @@ bindings:
     - raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes
     - raf_source::test_crate::configured_targets::missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection
     - raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection
+    - raf_source::test_crate::configured_targets::locked_parallel_parsing_keeps_target_context_and_canonical_alias_refusal
     - raf_source::test_crate::configured_targets::development_edges_require_a_real_development_or_declared_test_context
     - raf_source::test_crate::configured_targets::conditional_and_optional_edges_keep_each_targets_actual_activation
     - raf_source::test_crate::configured_targets::retained_target_lists_and_configuration_queries_spend_the_original_grants
@@ -1325,6 +1328,18 @@ sealed external source. An omitted or extra local association refuses; an
 explicitly narrower root admits its exact association set. Native storage keeps
 one valid allocation owner for each retained buffer, spends the original load
 grant and preserves the original typed refusal with its file, line and origin.
+
+On native Linux, `Workspace::par_load_locked_sources` and
+`Workspace::par_load_locked_sources_under` accept a first-party `ParallelTree`
+and a bounded parser scheduler. The locked join, root discovery, configured
+target selection and index construction follow the corresponding serial load.
+Workers can prepare first-party syntax ahead of canonical reach. Sealed Git
+and registry reads spend the original budgets in canonical order. The
+canonical walk grants the reached target's configuration before fact
+extraction and checks configuration compatibility when a physical file is
+shared. Scheduler usage is separate from load usage. Workers are joined on
+success, refusal or panic.
+<!-- raf:tested-by raf_source::test_crate::configured_targets::locked_parallel_parsing_keeps_target_context_and_canonical_alias_refusal,raf_source::test_crate::locked_sources::all_snapshots_catalog_and_walker_use_one_original_resource_grant -->
 
 ### Borrowed external library identities
 <!-- raf:tested-by raf_source::test_crate::code_paths::external_library_receipts_keep_actual_names_exports_and_definition_identity,raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root,raf_source::test_crate::code_paths::complete_module_paths_return_actual_type_sites_without_becoming_values -->
@@ -5647,6 +5662,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::configured_targets::conditional_and_optional_edges_keep_each_targets_actual_activation` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_targets::configured_syntax_queries_select_the_actual_target_and_preserve_budget_causes` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_targets::development_edges_require_a_real_development_or_declared_test_context` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_targets::locked_parallel_parsing_keeps_target_context_and_canonical_alias_refusal` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_targets::missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::configured_targets::retained_target_lists_and_configuration_queries_spend_the_original_grants` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
