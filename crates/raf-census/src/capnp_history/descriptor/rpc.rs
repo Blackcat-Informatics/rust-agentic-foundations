@@ -154,7 +154,7 @@ impl Projection {
             Some(ref owners) => owners,
             None => self.owners.insert(lexical_owners(nodes)?),
         };
-        let mut expected_parent_generic = None;
+        let mut expected_parent_generic: Option<bool> = None;
         if !nodes.declaration_chain(id, scopes, |reader| {
             let parent = TypeId(reader.get_scope_id());
             let owner = owners.get(&TypeId(reader.get_id()));
