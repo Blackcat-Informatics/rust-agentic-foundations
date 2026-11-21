@@ -377,6 +377,10 @@ in that type's directory. Each of these directories holds Markdown files only.
   whole number of lines, written plain and never as a range. The writer emits the
   rows of both lists in sorted order, so equal debts write equal bytes, and a Debt
   record has no body.
+  Each Debt row has its own focus in the bounded header graph. Prepared
+  native shapes close both row key sets and require every listed key.
+  Unknown keys report in authored order and missing keys in schema order
+  at the list that contains the row.
 - **Scalars** are quoted or plain. A quoted value closes its quote. A plain value
   contains no `: `, does not start with one of `>`, `|`, `&`, `*`, `!`, `%`, `@` or
   a backtick, and is not a block scalar header. A trailing ` # comment` after a

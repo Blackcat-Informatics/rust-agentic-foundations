@@ -7,6 +7,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::frontmatter::value::{Entry, ItemValue, Map, Scalar};
+use crate::profile::header::RowKeys;
 use crate::profile::schema::DocType;
 use crate::profile::typed::{
     Actor, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass, CeilingLimit, DebtFinding,
@@ -572,11 +573,21 @@ pub(super) fn check_exclusions(check: &mut Check<'_>, entry: &Entry) -> Option<V
     valid.then_some(exclusions)
 }
 
-/// The keys of a row of the `findings` of a debt record, in writing order.
-const DEBT_FINDING_KEYS: [&str; 2] = ["kind", "subject"];
-
-/// The keys of a row of the `lines` of a debt record, in writing order.
-const DEBT_LINE_KEYS: [&str; 2] = ["item", "orphans"];
+fn report_debt_keys(check: &mut Check<'_>, list: &'static str, keys: &RowKeys<'_>) -> bool {
+    for key in &keys.unknown {
+        check.key(
+            list,
+            Rule::RowUnknownKey {
+                list,
+                key: (*key).to_owned(),
+            },
+        );
+    }
+    for &key in &keys.missing {
+        check.key(list, Rule::RowMissingKey { list, key });
+    }
+    keys.unknown.is_empty() && keys.missing.is_empty()
+}
 
 /// The rows of `findings` of a debt record: each exactly a `kind` and a
 /// `subject`, none twice. Whether the kind is one a tool may record as debt
@@ -585,13 +596,19 @@ const DEBT_LINE_KEYS: [&str; 2] = ["item", "orphans"];
 pub(super) fn check_debt_findings(
     check: &mut Check<'_>,
     entry: &Entry,
+    keys: &[RowKeys<'_>],
 ) -> Option<Vec<DebtFinding>> {
     let rows = rows(check, entry, "a list of maps with `kind` and `subject`")?;
+    assert_eq!(
+        rows.len(),
+        keys.len(),
+        "INVARIANT: every debt finding map has a key verdict"
+    );
     let mut findings = Vec::new();
     let mut valid = true;
     let mut seen = HashSet::new();
-    for row in rows {
-        if !row_keys(check, "findings", "findings", row, &DEBT_FINDING_KEYS) {
+    for (row, keys) in rows.into_iter().zip(keys) {
+        if !report_debt_keys(check, "findings", keys) {
             valid = false;
             continue;
         }
@@ -623,13 +640,22 @@ pub(super) fn check_debt_findings(
 
 /// The rows of `lines` of a debt record: each exactly an `item` and
 /// `orphans`, a whole number of lines, no item twice.
-pub(super) fn check_debt_lines(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<DebtLine>> {
+pub(super) fn check_debt_lines(
+    check: &mut Check<'_>,
+    entry: &Entry,
+    keys: &[RowKeys<'_>],
+) -> Option<Vec<DebtLine>> {
     let rows = rows(check, entry, "a list of maps with `item` and `orphans`")?;
+    assert_eq!(
+        rows.len(),
+        keys.len(),
+        "INVARIANT: every debt line map has a key verdict"
+    );
     let mut lines = Vec::new();
     let mut valid = true;
     let mut seen = HashSet::new();
-    for row in rows {
-        if !row_keys(check, "lines", "lines", row, &DEBT_LINE_KEYS) {
+    for (row, keys) in rows.into_iter().zip(keys) {
+        if !report_debt_keys(check, "lines", keys) {
             valid = false;
             continue;
         }
