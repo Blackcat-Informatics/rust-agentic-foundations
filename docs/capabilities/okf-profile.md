@@ -213,6 +213,7 @@ bindings:
     - raf_okf::test_crate::records::an_exception_names_one_item_prefix_file_or_directory_and_its_reason
     - raf_okf::test_crate::records::a_ceiling_of_another_shape_is_refused_with_its_rule
     - raf_okf::test_crate::records::an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule
+    - raf_okf::test_crate::records::coverage_policy_key_findings_repeat_in_authored_row_order
     - raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type
     - raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name
     - raf_okf::test_crate::records::a_digest_is_sixty_four_lowercase_hex_digits
@@ -588,6 +589,15 @@ placeholder token is refused as an exclusion's is, and a target written twice is
 `okf-duplicate-entry`. Whether an exception matches anything is judged by the
 workplan, which needs the source index.
 
+Prepared native SHACL closes the ceiling and exception row key sets.
+It requires `crate` in a ceiling and `reason` in an exception.
+Each map has its own focus, so repeated maps retain separate findings.
+For each row, unknown keys report in authored order before the
+required-key finding. Both kinds point to the list key. A scalar item
+refuses the entire list before row-key validation. Rows with the
+required key retain typed value diagnostics even when an unknown key is present.
+<!-- raf:tested-by raf_okf::test_crate::records::coverage_policy_key_findings_repeat_in_authored_row_order,raf_okf::test_crate::records::a_ceiling_of_another_shape_is_refused_with_its_rule,raf_okf::test_crate::records::an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule -->
+
 ### Coverage extension writer
 <!-- raf:tested-by raf_okf::test_crate::record_writer::ceilings_and_exceptions_are_written_after_the_exclusions_and_read_back_equal -->
 
@@ -651,7 +661,8 @@ section or the line instead. The rules are:
 - the key table for the declared type supplies a prepared SHACL Core shape.
   The bounded native header graph carries a focus for the header and a
   separate focus for a capability's binding map and for each map in a
-  Change's `items` list or a Debt's `findings` and `lines` lists. Each
+  Change's `items` list, a Debt's `findings` and `lines` lists, the
+  `inputs` of Evidence, Assessment and Review, and Coverage `exclusions`. Each
   authored key supplies a predicate at its focus. The closed shapes
   refuse unknown keys, and required fields use `sh:minCount 1`.
   The profile reports unknown top-level keys in author order
@@ -703,6 +714,11 @@ section or the line instead. The rules are:
 
 The records follow the key table and value rules of the architecture page:
 
+- prepared SHACL requires exactly `kind`, `name` and `digest` on input
+  rows and exactly `item` and `reason` on exclusion rows. A scalar item
+  produces a shape finding for the whole list before row checks. For
+  each map the profile reports unknown keys in authored order and missing
+  keys in schema order at its parent list;
 - evidence and an assessment share the trace keys `subject`, `inputs`, `verdict`
   and `by`. The subject is parsed into an `EvidenceSubject` (`command` or
   `binding:<path>`) or a `SectionRef`, each input row into an `Input` with its
@@ -1302,6 +1318,10 @@ stable identity across body edits and malformed carriers beside valid neighbors.
   commit id, an empty exclusion reason, a crate-root exclusion, a repeated scope
   entry, a record in another directory or under another file name, and a
   coverage record under another slug.
+- Input and exclusion fixtures verify separate findings for identical maps,
+  authored unknown-key order, schema missing-key order, and an invalid
+  scalar list beside a valid list of maps.
+<!-- raf:tested-by raf_okf::test_crate::records::input_rows_have_exactly_kind_name_and_digest,raf_okf::test_crate::records::an_exclusion_has_a_reason_with_no_placeholder -->
 - Ceiling and exception fixtures, each beside an accepted neighbour: ceilings of
   each class, a percent with a fraction and the bounds 0 and 100 accepted; an `of`
   of another value, both or neither of `lines` and `percent`, a fractional or a
@@ -1537,6 +1557,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::records::both_lists_of_a_debt_record_are_required` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::coverage_is_one_record_at_its_one_path` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::coverage_policy_key_findings_repeat_in_authored_row_order` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::debt_is_one_record_at_its_one_path` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::evidence_from_a_bound_test_has_no_command_and_may_have_no_measures` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::for_lists_at_least_one_capability_id` | test | [Verification](#verification) |

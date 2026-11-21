@@ -370,7 +370,7 @@ inputs:
     digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
   - kind: symbol
     name: raf_okf::profile::check_values
-    digest: d84163b617ac45ac9213bbc7ce6e0b3d279e2b6e7815501e8ba12cb7b0980ec1
+    digest: f57bb6dcbf125753c84425e5b851d8d51a0d3b8181457eb27bbd909cae280f2b
   - kind: symbol
     name: raf_okf::profile::diagrams
     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e

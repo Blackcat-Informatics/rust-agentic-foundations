@@ -1081,6 +1081,16 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
             "    - demo::missing\n    - demo::real\n    - demo::missing\n",
         );
     let expected = Document::parse(capability)?;
+    let (_, coverage) = files
+        .iter_mut()
+        .find(|(path, _)| *path == checkouts::COVERAGE)
+        .unwrap();
+    *coverage = coverage.replace(
+        "exclusions: []\n",
+        "exclusions: []\nceilings:\n  - crate: demo\n    lines: 3\n\
+         exceptions:\n  - item: demo::real\n    reason: Demonstrates an authored exception.\n",
+    );
+    let expected_coverage = Document::parse(coverage)?;
     let records = input_records();
     let expected_records = records
         .iter()
@@ -1105,6 +1115,10 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
     for (path, document) in &expected_records {
         assert_eq!(restored.documents.get(&RelPath::new(path)?), Some(document));
     }
+    assert_eq!(
+        restored.documents.get(&RelPath::new(checkouts::COVERAGE)?),
+        Some(&expected_coverage)
+    );
     let (_, index_text) = files.iter().find(|(path, _)| *path == INDEX).unwrap();
     assert_eq!(restored.index.unwrap().body().text(), index_text);
     let no_index = MemoryTree::try_from_iter(
@@ -1674,7 +1688,7 @@ mod checkouts {
 
     pub(super) const LAYERS: &str = "docs/architecture/layers.md";
     pub(super) const DEMO: &str = "docs/capabilities/demo.md";
-    const COVERAGE: &str = "work/coverage/default.md";
+    pub(super) const COVERAGE: &str = "work/coverage/default.md";
     const INDEX: &str = "docs/capabilities/index.md";
 
     /// The line the generated verification matrix opens with, and the block.

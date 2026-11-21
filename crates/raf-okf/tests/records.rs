@@ -400,6 +400,49 @@ fn input_rows_have_exactly_kind_name_and_digest() {
         &Rule::EmptyList { list: "inputs" },
     );
     clean(&evidence(), EVIDENCE_PATH);
+    let expected = [
+        Rule::RowUnknownKey {
+            list: "inputs",
+            key: "zebra".into(),
+        },
+        Rule::RowUnknownKey {
+            list: "inputs",
+            key: "ant".into(),
+        },
+        Rule::RowMissingKey {
+            list: "inputs",
+            key: "kind",
+        },
+        Rule::RowMissingKey {
+            list: "inputs",
+            key: "name",
+        },
+        Rule::RowMissingKey {
+            list: "inputs",
+            key: "digest",
+        },
+    ];
+    for (text, path) in [
+        (evidence(), EVIDENCE_PATH),
+        (assessment(), ASSESSMENT_PATH),
+        (
+            include_str!("fixtures/review.md").to_owned(),
+            "work/reviews/ledger-design.md",
+        ),
+    ] {
+        clean(&text, path);
+        let (before, inputs) = text.split_once("inputs:\n").unwrap();
+        let (_, after) = inputs.split_once("verdict:").unwrap();
+        let repeated = format!(
+            "{before}inputs:\n  - zebra: x\n    ant: y\n  - zebra: x\n    ant: y\nverdict:{after}"
+        );
+        let found = validate(&repeated, path).unwrap_err();
+        let location = key("inputs");
+        assert_eq!(found.len(), expected.len() * 2, "{found:#?}");
+        for (finding, rule) in found.iter().zip(expected.iter().cycle()) {
+            assert_eq!((finding.at(), finding.rule()), (&location, rule));
+        }
+    }
 }
 
 #[test]
@@ -889,6 +932,36 @@ fn an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root() {
 
 #[test]
 fn an_exclusion_has_a_reason_with_no_placeholder() {
+    // A list of scalars holds no row maps for the shape to check.
+    let malformed =
+        "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: [plain]\n---\n";
+    assert_only(
+        malformed,
+        COVERAGE_PATH,
+        &key("exclusions"),
+        &Rule::WrongShape {
+            expected: "a list of maps with `item` and `reason`",
+        },
+    );
+    let repeated = "---\ntype: Coverage\nid: coverage:default\nscope: []\n\
+                    exclusions:\n  - item: probe::item\n    memo: x\n  \
+                    - item: probe::item\n    memo: x\n---\n";
+    let found = validate(repeated, COVERAGE_PATH).unwrap_err();
+    let expected = [
+        Rule::RowUnknownKey {
+            list: "exclusions",
+            key: "memo".into(),
+        },
+        Rule::RowMissingKey {
+            list: "exclusions",
+            key: "reason",
+        },
+    ];
+    assert_eq!(found.len(), expected.len() * 2, "{found:#?}");
+    let location = key("exclusions");
+    for (finding, rule) in found.iter().zip(expected.iter().cycle()) {
+        assert_eq!((finding.at(), finding.rule()), (&location, rule));
+    }
     let empty = mutate(&coverage(), "\"Built by the load only.\"", "\"  \"");
     assert_only(
         &empty,
@@ -1037,13 +1110,6 @@ fn a_ceiling_of_another_shape_is_refused_with_its_rule() {
                 found: "1e3".to_string(),
             },
         ),
-        (
-            "    lines: 3\n    note: x\n",
-            Rule::RowUnknownKey {
-                list: "ceilings",
-                key: "note".to_string(),
-            },
-        ),
     ];
     for (row, rule) in rows {
         let text = coverage_with(&format!("ceilings:\n  - crate: demo\n{row}"));
@@ -1074,6 +1140,50 @@ fn a_ceiling_of_another_shape_is_refused_with_its_rule() {
         expected: "a list of maps with `crate`, `lines` or `percent`, and an optional `of`",
     };
     assert_only(&flat, COVERAGE_PATH, &key("ceilings"), &rule);
+    let invalid = coverage_with("ceilings:\n  - crate: demo\n    lines: many\n    note: x\n");
+    let found = validate(&invalid, COVERAGE_PATH).expect_err("both row rules apply");
+    assert_eq!(
+        found.iter().map(Violation::rule).collect::<Vec<_>>(),
+        [
+            &Rule::RowUnknownKey {
+                list: "ceilings",
+                key: "note".to_owned(),
+            },
+            &Rule::BadMeasure {
+                list: "ceilings",
+                name: "lines".to_owned(),
+                found: "many".to_owned(),
+            },
+        ]
+    );
+    assert!(found.iter().all(|finding| *finding.at() == key("ceilings")));
+}
+
+#[test]
+fn coverage_policy_key_findings_repeat_in_authored_row_order() {
+    // Every occurrence has its own focus, even for identical malformed maps.
+    for (list, missing) in [("ceilings", "crate"), ("exceptions", "reason")] {
+        let text = coverage_with(&format!(
+            "{list}:\n  - zebra: x\n    alpha: y\n  - zebra: x\n    alpha: y\n",
+        ));
+        let found = validate(&text, COVERAGE_PATH).expect_err("both rows have key findings");
+        let unknown = |key: &str| Rule::RowUnknownKey {
+            list,
+            key: key.to_owned(),
+        };
+        let row = [
+            unknown("zebra"),
+            unknown("alpha"),
+            Rule::RowMissingKey { list, key: missing },
+        ];
+        let wanted: Vec<_> = row.iter().chain(&row).collect();
+        assert_eq!(
+            found.iter().map(Violation::rule).collect::<Vec<_>>(),
+            wanted
+        );
+        let at = key(list);
+        assert!(found.iter().all(|finding| finding.at() == &at));
+    }
 }
 
 #[test]
@@ -1179,6 +1289,11 @@ fn an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule() 
         key: "reason",
     };
     assert_only(&missing, COVERAGE_PATH, &key("exceptions"), &rule);
+    let flat = coverage_with("exceptions: [demo::real]\n");
+    let rule = Rule::WrongShape {
+        expected: "a list of maps with `item` or `file`, and `reason`",
+    };
+    assert_only(&flat, COVERAGE_PATH, &key("exceptions"), &rule);
     let twice = coverage_with(
         "exceptions:\n  - file: src/\n    reason: \"One.\"\n  - file: src/\n    reason: \"Two.\"\n",
     );
