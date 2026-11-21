@@ -1,0 +1,2042 @@
+diff --git CENSUS-HOWTO.md CENSUS-HOWTO.md
+new file mode 100644
+index 00000000..8c0620be
+--- /dev/null
++++ CENSUS-HOWTO.md
+@@ -0,0 +1,103 @@
++<!-- SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca> -->
++<!-- SPDX-License-Identifier: CC-BY-4.0 -->
++
++# Use Census in a Rust repository
++
++Census groups Rust helpers with the same normalized body or forwarding pattern. Use a baseline to see what already matches, a ledger to declare the repository's policy, and a check in CI to catch new copies. Start with structural duplication. Add named jobs when you need to enforce a particular implementation as the home of a helper.
++
++## Inspect the workspace
++
++On native Linux with Rust 1.98.1 or newer, install the CLI from a pinned RAF revision. Use the same revision for developer machines, CI and any RAF dev-dependency.
++
++```sh
++cargo install --locked --git https://github.com/Blackcat-Informatics/rust-agentic-foundations.git \
++  --rev 05138a5ea278377d745fca9809cae116ae37a667 cargo-census
++cargo census self-test
++cargo census baseline --format turtle
++```
++
++Make sure Cargo's install directory (normally `$HOME/.cargo/bin`) is on `PATH`. Run the baseline in the consumer workspace, or select it with `cargo census --workspace /path/to/workspace baseline`. Baseline discovery needs a Cargo manifest and readable sources. It prints an RDF 1.2 report using the default Census options and makes no policy decision. To save a report, add `--out baseline.ttl`. The self-test checks the installed detectors against seeded cases independently of your workspace.
++
++## Install the ledger
++
++Create `helpers-ledger.ttl` at the workspace root. This complete starter ledger selects the current workspace (`.`), normal form 1 and report form 5. It lets you enforce structural duplicate groups immediately, with no named jobs. Copy all six lines exactly, including the final newline.
++
++```turtle
++VERSION "1.2"
++BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/b6b4b0160ca994e7e3840c07807d4adb56ba5a2e003a910ad5efdf316f211c54>
++<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
++<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<> <https://blackcatinformatics.ca/raf/report/1#root> "." .
++```
++
++```sh
++cargo census dump-ledger --format turtle
++cargo census check
++```
++
++The first command validates and prints the ledger. The second evaluates it against the source and debt record. An absent `census-debt.ttl` counts as empty. A clean workspace passes immediately. A finding includes the group or policy violation to inspect. For `check`, exit status 0 means clean. Status 1 signals findings or an evaluation error. Status 2 signals invalid command usage or a ledger that requires Rust registrations the CLI lacks.
++
++The ledger reader requires canonical bytes. Even a whitespace edit can invalidate the file, and a policy edit changes the content-derived `BASE`. For a custom policy, construct the graph with `raf_rdf::Builder` and serialize it with `Graph::to_text(Format::Turtle)`. The example constructs a job, names its home and attaches an extension using that writer. [Ledger construction example](crates/raf-census/examples/support/ledger.rs) · [Ledger fields](docs/capabilities/census-ledger.md)
++
++## Adopt existing duplication
++
++Inspect the reported occurrences together. Consolidate copies that should share one implementation. When you deliberately accept some existing duplication as the starting point, publish and review the exact record.
++
++```sh
++cargo census debt --write
++cargo census check
++git add helpers-ledger.ttl census-debt.ttl
++```
++
++Commit the ledger and any adopted debt. Run **only the read-only `cargo census check`** as the CI gate. A new duplicate group or a count above its record fails. Removing a copy can also produce a finding because the record now grants more than the code uses. Rerun `debt --write` to lower it, review the diff and run `check` again. The writer refuses growth against an existing record of the same normal form. Hard policy errors need a code or policy repair before debt can be written. [Debt ratchet](docs/capabilities/census-debt-ratchet.md)
++
++For a small demonstration, use this `src/lib.rs` in a scratch library with the starter ledger. With an empty debt record, `check` finds the two bodies in one group. Rename the locals and the match persists. Remove the second helper and the empty-debt check passes.
++
++```rust
++pub fn scaled_total(samples: &[u64]) -> u64 {
++    let mut sum = 0;
++    for sample in samples {
++        sum += sample * 3;
++    }
++    sum
++}
++
++pub fn batch_total(values: &[u64]) -> u64 {
++    let mut total = 0;
++    for value in values {
++        total += value * 3;
++    }
++    total
++}
++```
++
++## Find the source of a finding
++
++| Question | Command |
++| --- | --- |
++| Which sources, groups and classifications did the gate see? | `cargo census index` |
++| Which occurrences and fingerprints belong to a symbol? | `cargo census fingerprint demo::scaled_total` (use your crate and item name) |
++| Which occurrences matched a declared job? | `cargo census job JOB_ID` |
++| How many copies did that job classify? | `cargo census count JOB_ID` |
++
++The starter ledger declares no job IDs. For policy beyond structural grouping, a job can identify a home symbol and forbidden competitors. A reference scan can compare local code with sources sealed from the Cargo lockfile and cached registry archives. Supply consumer-owned Rust rules and extension validators through the library gate when the policy requires them. The native CLI never launches the consumer to discover registrations. [Rule registration](docs/capabilities/census-rule-api.md) · [Reference scans](docs/capabilities/census-reference-scan.md)
++
++## Run the gate from a Rust test
++
++To use the same structural policy from your test suite, add the library to a package's `Cargo.toml`. In a virtual workspace, choose a member package that owns the integration test. Census discovers the workspace root from the member directory.
++
++```toml
++[dev-dependencies]
++raf-census = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "05138a5ea278377d745fca9809cae116ae37a667" }
++```
++
++```rust
++// tests/census.rs
++#[test]
++fn duplicate_helpers_match_the_record() {
++    raf_census::Gate::workspace(env!("CARGO_MANIFEST_DIR")).assert_clean();
++}
++```
++
++Run `cargo test --test census` from the owning package to resolve the new dependency and check the gate. Commit the updated lockfile for a reproducible `cargo test --locked --test census` in CI. For a policy with custom rules or required providers, share the gate configuration across the enforcing entry points. RAF's own test shows a locked registry check over the workspace and its separate fuzz root. [RAF's Census gate](tests/self_census.rs) · [CLI reference](docs/capabilities/census-cli.md)
+diff --git CONTRIBUTING.md CONTRIBUTING.md
+index 5887dfd9..337f3916 100644
+--- CONTRIBUTING.md
++++ CONTRIBUTING.md
+@@ -66,20 +66,12 @@ The trusted documentation integration fixtures use Cargo's test target
+ directory. Run them with an absolute `CARGO_TARGET_DIR` outside Git
+ worktrees when Cargo defaults to an in-checkout target.
+ 
+-The `repository_census` example shares the self-Census policy, including its
+-required syntax rules, workspace and fuzz roots, and exact debt ratchet. The CLI
+-reads the native ledger directly without building or executing that example:
+-
+-```bash
+-cargo run --locked -p cargo-census -- census --workspace . check
+-cargo run --locked -p cargo-census -- census --workspace . index \
+-  --max-index-bytes 67108864
+-```
+-
+-A complete index is emitted even when the check has findings; run `check` for
+-the policy verdict. The example refuses debt publication. The index command
+-explicitly admits 64 MiB for the complete serialized native index; the default
+-allowance is 16 MiB. This does not bound native graph allocation.
++The `self_census` integration test checks the workspace and fuzz roots
++against the ledger and exact debt record. It shares the required syntax
++rules and locked registry configuration with the `repository_census`
++example. The test is read-only. The example can publish debt on an
++explicit write request. The consumer guides show how to set up each gate
++in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORKPLAN-HOWTO.md)
+ 
+ - **`make check` is the gate.** It stops at the first failure. CI runs the
+   documented compilation, test and policy checks; local `make check` additionally
+@@ -144,13 +136,10 @@ allowance is 16 MiB. This does not bound native graph allocation.
+   under the root `tests/`, names a clock reading or a wait on one (`Instant`,
+   `SystemTime`, `UNIX_EPOCH`, `sleep`, the `*_timeout` waits, and each of these
+   with a `_` suffix such as `sleep_ms` or `wait_timeout_while`; `raf-source` also
+-  refuses `Duration` and `elapsed`). Only `crates/raf-workplan/src/exec/clock.rs`
+-  and the gate file are exempt. The examples of `raf-source` are judged by the same
+-  rule as its sources and tests, and `make clippy` also disallows the same types,
+-  the sleeps and the timeout waits everywhere an `allow` with a reason does not
+-  say otherwise. Script a clock in the test instead. A test that runs a real process
+-  still goes through the runner's wall clock as a watchdog; it asserts nothing
+-  about the time.
++  refuses `Duration` and `elapsed`). The documentation watchdog reads
++  the clock in `crates/cargo-workplan/src/trusted_docs/clock.rs`. The gate
++  source is exempt so it can name the forbidden calls. Drive time-dependent
++  test cases with a scripted clock.
+ 
+ ## Versioning & releases
+ 
+diff --git README.md README.md
+index 798cdff5..431db7ae 100644
+--- README.md
++++ README.md
+@@ -9,238 +9,28 @@
+ 
+ [![REUSE status](https://api.reuse.software/badge/github.com/Blackcat-Informatics/rust-agentic-foundations)](https://api.reuse.software/info/github.com/Blackcat-Informatics/rust-agentic-foundations)
+ 
+-RAF is a set of dev-dependency libraries and cargo subcommands, not yet
+-published, that keep Rust
+-repositories free of duplicated helpers and keep their documentation an accurate,
+-current account of the system. A census finds near-duplicate helper code and
+-ratchets recorded debt down; a spec-first workplan reconciles capability documents
+-with the code, tests and examples that implement them. Both are built to be driven
+-by humans and coding agents alike, and both fail hard with a message that says how
+-to fix the problem.
++RAF provides two tools for Rust repositories. **Workplan** checks that the code, tests and examples named in a capability document resolve, and tracks which sections need review when they change. **Census** finds structurally duplicated helpers and enforces the duplication policy a repository adopts. Both offer a Cargo subcommand and a Rust library for use in integration tests.
++
++## Using the commands in another repository
++
++| To adopt | Start here |
++| --- | --- |
++| Workplan | Bind a guarantee to its implementation and test, generate the catalogue, run the gate in CI, and reconcile a change. [Workplan how-to](WORKPLAN-HOWTO.md) |
++| Census | Inspect a baseline, install a canonical ledger, adopt existing duplication, and catch a new copy. [Census how-to](CENSUS-HOWTO.md) |
++
++The guides pin the CLI and dev-dependency to the same Git revision. The consumer build needs Rust 1.98.1 or newer. RAF uses PurRDF 4 and exact parser requirements for `syn`, `proc-macro2` and `quote`. Check those requirements when adding RAF to an existing dependency graph. [Workspace manifest](Cargo.toml)
+ 
+ ## Crates
+ 
+-Delivered contracts and the remaining Census designs are listed in the
+-[capability catalogue](docs/capabilities/index.md), with resolved bindings and
+-generated verification matrices. This repository runs the workplan gate on itself
+-(`tests/self_workplan.rs`) and runs the production Census gate over its workspace
+-and fuzz roots (`tests/self_census.rs`). The canonical `helpers-ledger.ttl` and
+-`census-debt.ttl` hold its policy and exact adopted duplication. The `use`-path resolution of `raf-source` is
+-checked against `rustc` on generated programs
+-(`crates/raf-source/tests/rustc_oracle.rs`).
+-`raf-workplan` delivers its document model, generated documentation blocks,
+-reconcile step, `verify` and completion gate, entity history, authored evidence metadata
+-and its claims, prose assessments, two-way coverage and the current-rationale
+-check, and `cargo-workplan` runs `check`, `status`, `docs sync|preview`,
+-`change new|impact|reconcile|complete`, `verify`, `history`,
+-`evidence claims|for`, `assess` and `coverage code|tests`: their contract
+-is stated in [workplan-cli](docs/capabilities/workplan-cli.md). The
+-[complete policy](docs/capabilities/workplan-strict.md) is delivered and applies
+-to every check, reconciliation and completion. It enforces section content,
+-package ownership, claims, line coverage and change outcomes, with explicit debt
+-recording that can only shrink.
+-
+-`raf-census` delivers normal form 1, fingerprints, grouping, canonical RDF reports,
+-the strict ledger, the production Gate, counted debt and bounded migration.
+-`cargo-census` supplies native `check`, `job`, `count` and `fingerprint`
+-queries, `migrate` and direct `debt --write`. Complete detector/provider execution
+-retains its own capability state in the catalogue.
+-
+-| Crate | Kind | Purpose | Status | Specification |
+-|---|---|---|---|---|
+-| `raf-okf` | library | Reads and writes the RAF profile of OKF documents. | **delivered** | [okf-profile](docs/capabilities/okf-profile.md) |
+-| `raf-rdf` | library | Canonical ground RDF 1.2 reports over native PurRDF storage. | **delivered** | [rdf-report-profile](docs/capabilities/rdf-report-profile.md) |
+-| `raf-source` | library | Indexes Rust source so tools can bind documents to code. | **delivered** | [source-index](docs/capabilities/source-index.md) |
+-| `raf-census` | library | The duplicate-helper census, strict ledger, counted debt, migration and Gate. | **delivered** for the capabilities listed — not yet published | [census-normal-form](docs/capabilities/census-normal-form.md), [census-ledger](docs/capabilities/census-ledger.md), [census-debt-ratchet](docs/capabilities/census-debt-ratchet.md), [census-migration](docs/capabilities/census-migration.md) |
+-| `cargo-census` | cargo subcommand | Runs native checks and job, count and fingerprint queries, migrates ledgers and writes admitted debt through the production Gate. | **complete command interface delivered** — not yet published | [census-migration](docs/capabilities/census-migration.md), [census-debt-ratchet](docs/capabilities/census-debt-ratchet.md), [census-cli](docs/capabilities/census-cli.md) |
+-| `raf-workplan` | library | The workplan document model, generated documentation blocks, reconcile step, completion gate, entity history, evidence and claims, prose assessments, two-way coverage and current rationale. | **delivered** for the capabilities listed — not yet published | [workplan-document-model](docs/capabilities/workplan-document-model.md), [workplan-generated-docs](docs/capabilities/workplan-generated-docs.md), [workplan-reconcile](docs/capabilities/workplan-reconcile.md), [workplan-complete-gate](docs/capabilities/workplan-complete-gate.md), [workplan-entity-history](docs/capabilities/workplan-entity-history.md), [workplan-evidence-claims](docs/capabilities/workplan-evidence-claims.md), [workplan-prose-assessment](docs/capabilities/workplan-prose-assessment.md), [workplan-two-way-coverage](docs/capabilities/workplan-two-way-coverage.md), [workplan-current-rationale](docs/capabilities/workplan-current-rationale.md) |
+-| `cargo-workplan` | cargo subcommand | Runs the workplan from the command line. | **delivered** — not yet published | [workplan-cli](docs/capabilities/workplan-cli.md) |
+-
+-## Usage
+-
+-A project consumes RAF as dev-dependencies. The workplan gate runs on this
+-repository. A caller can install the Census Gate with explicitly supplied Rust rules and extensions. The CLI evaluates its native Gate directly; it never builds or executes repository examples. Native index, job, count and fingerprint queries use that same data path. Migration and explicit debt writes use the library APIs. Analysis and static verification never run consumer tests, examples or doctests. Documentation compilation is a separate CLI operation requiring invocation-scoped --trust-docs. The crates are not published yet, so a consumer names a Git revision of this repository; the dependency form is given in [Using the commands in another repository](#using-the-commands-in-another-repository).
+-
+-```rust
+-// tests/workplan.rs
+-#[test]
+-fn workplan_is_reconciled() {
+-    raf_workplan::Gate::workspace(env!("CARGO_MANIFEST_DIR"))
+-        .assert_clean();
+-}
+-```
+-
+-The census gate, once built, takes the same shape, with `raf-census` in place of `raf-workplan`:
+-
+-```rust
+-// tests/census.rs
+-#[test]
+-fn no_new_duplicate_helpers() {
+-    raf_census::Gate::workspace(env!("CARGO_MANIFEST_DIR"))
+-        .assert_clean();
+-}
+-```
+-
+-### Using the commands in another repository
+-
+-The crates are not published and no release is tagged, so name a commit of this repository. Install both commands from it with the locked dependency set, from any directory outside a checkout of RAF:
+-
+-```bash
+-cargo install --locked \
+-  --git https://github.com/Blackcat-Informatics/rust-agentic-foundations.git \
+-  --rev c7d0b8b7f51f1664e822b1858909dd2fbb08b1be cargo-census cargo-workplan
+-```
+-
+-To install another commit, replace the hash after `--rev` with the full hash of that commit. The build compiles from source and needs Rust 1.98.1 or newer, the `rust-version` of this workspace. The workspace, which includes both commands, is checked on Rust 1.98.1 by the `make msrv` gate (`cargo check --workspace --all-targets --locked`); the install uses whichever toolchain rustup selects for the directory you run it in, so a directory that carries a toolchain file older than 1.98.1 makes the build fail. Cargo puts the programs in `$CARGO_HOME/bin`, which is `$HOME/.cargo/bin` by default; with `cargo install --root DIRECTORY` it puts them in `DIRECTORY/bin`. Put that `bin` directory on `PATH`, and cargo then runs the programs as `cargo census` and `cargo workplan`.
+-
+-The two commands select the repository differently:
+-
+-- `cargo census --workspace DIRECTORY` takes a directory inside the consumer's workspace, defaults to the current directory, and finds the workspace root from the ancestor manifests.
+-- `cargo workplan` finds the root from the ancestor manifests of the current directory when you give no option. `cargo workplan --root DIRECTORY` takes the repository root itself, with no ancestor search: a subdirectory that holds no `docs/capabilities/` is refused.
+-
+-`cargo census` does not build or run the consumer's code; [census-cli](docs/capabilities/census-cli.md) states this for `index`. A command whose input is missing exits with a non-zero status. Some commands write files; read the two capability documents before running one that is not listed here. What the commands covered here need in the consumer's repository:
+-
+-| Command | Needs in the consumer's repository |
++| Crate | Responsibility |
+ | --- | --- |
+-| `cargo census baseline` | The workspace's `Cargo.toml`. It prints the structural duplication report as RDF. |
+-| `cargo census index`, `check`, `dump-ledger`, `fingerprint SYMBOL` | The `Cargo.toml` and a valid RDF ledger, `helpers-ledger.ttl`, described in [census-ledger](docs/capabilities/census-ledger.md). `check` always compares the source with `census-debt.ttl`, and a missing `census-debt.ttl` counts as an empty record. Duplicate groups already in the code are then reported as growth and `check` exits with status 1 until `cargo census debt --write` records them. |
+-| `cargo census debt --write` | The same files as `check`, and a Linux host: publication needs native Linux directory locking and other platforms refuse. It creates or updates `census-debt.ttl`, and refuses debt that grew beyond an existing record. |
+-| `cargo workplan check`, `verify` | The `Cargo.toml` and `docs/capabilities/` holding capability documents in the form of the example below. `check` and `verify` also need `work/coverage/default.md` naming the crates to cover: without it they exit with status 1 and the finding `coverage-record-missing`. For `check` and `verify`, `docs/capabilities/index.md` must be current; `cargo workplan docs sync --copyright TEXT --licence ID` creates it. Inside a Git checkout the documents are judged by what the Git index tracks: a link to a file that exists but is not tracked is a broken link, and the generated index links to every capability document. Run `git add docs/capabilities work/coverage` (the new documents and the generated index) before `check` and `verify`, or they exit non-zero with a `link-broken` finding. In a directory that is not a Git repository every file counts as tracked. See [workplan-cli](docs/capabilities/workplan-cli.md) and [workplan-document-model](docs/capabilities/workplan-document-model.md). With `--root` and no `Cargo.toml`, `check` does not name the missing file; it reports unresolved bindings. |
+-| `cargo workplan status` | The `Cargo.toml` and `docs/capabilities/` holding at least one document. It prints the counts and exits with status zero without a coverage record, a current index or tracked documents; when the documents have findings it adds a note to run `check`. |
+-| `cargo workplan history ID` | A Git repository with at least one commit and the ID of a document, such as `cap:adder`. Without the ID it exits with status 2 and a usage error; without a commit it exits with status 2. |
++| `raf-workplan`, `cargo-workplan` | Capability documents, generated blocks, coverage, evidence, assessments, review and change completion. [Workplan commands](docs/capabilities/workplan-cli.md) |
++| `raf-census`, `cargo-census` | Structural fingerprints, policy jobs, detectors, reference scans, migration and counted debt. [Census commands](docs/capabilities/census-cli.md) |
++| `raf-source` | Shared Rust source index for resolving bindings and ledger homes. [Source index](docs/capabilities/source-index.md) |
++| `raf-okf` | Parser, writer and closed profile for the authored documents. [OKF profile](docs/capabilities/okf-profile.md) |
++| `raf-rdf` | Canonical ground RDF 1.2 reports over native PurRDF storage. [Report profile](docs/capabilities/rdf-report-profile.md) |
+ 
+-A consumer whose dependency comes from a registry can run the reference-copy ban from its own test, with nothing installed and nothing fetched by the check: [census-reference-scan](docs/capabilities/census-reference-scan.md) states the helper and a worked example, and the sibling-checkout options of `cargo census` stay available.
+-
+-This section does not cover `cargo workplan coverage code` and `coverage tests`, which list the gaps of every package of the workspace and exit with status 1 when any gap exists, whether or not a coverage record exists (a record's exclusions remove items from the gaps, and with no gap the status is zero), nor `cargo census migrate`, `job` or `count` with a working job, or the `cargo workplan` commands `coverage claims`, `coverage lines`, `diagram`, `review`, `change`, `docs` (apart from `docs sync`), `evidence`, `assess` and `debt`. The two capability documents above state their inputs, outputs and writes. `cargo workplan docs build rustdoc` compiles the consumer's documentation and needs `--trust-docs`, as [workplan-cli](docs/capabilities/workplan-cli.md) states.
+-
+-With the small project below, these commands exit with status zero: `cargo census baseline`, `index`, `check`, `dump-ledger`, `fingerprint demo::add_one` and `debt --write`, and `cargo workplan docs sync`, `check`, `status`, `verify` and `history cap:adder`, once the files are tracked in Git and, for `history`, committed. `cargo census job` and `count` refuse an unknown job with status 1, and the ledger below declares no job, so they refuse every name; a ledger that declares a job is outside this section. The project is a crate named `demo`, with this `Cargo.toml`:
+-
+-```toml
+-[package]
+-name = "demo"
+-version = "0.1.0"
+-edition = "2021"
+-```
+-
+-Its `src/lib.rs` holds:
+-
+-```rust
+-//! Demo library.
+-
+-/// Adds one.
+-pub fn add_one(value: u32) -> u32 {
+-    value + 1
+-}
+-
+-#[cfg(test)]
+-mod tests {
+-    /// `add_one` returns its argument plus one.
+-    #[test]
+-    fn adds_one() {
+-        assert_eq!(super::add_one(1), 2);
+-    }
+-}
+-```
+-
+-The ledger below declares the normal form, the report form and the root of the sources to count. Its `BASE` identifier is the digest of the ledger, so an edit that changes the content also needs `BASE` updated. The reader requires the file to equal the canonical rendering byte for byte; any other spelling, including a whitespace-only edit, is refused with `report spelling differs from canonical bytes at line N`. The canonical spelling has the `VERSION` and `BASE` lines, then one triple per line with absolute IRIs, single spaces, a closing ` .` and a final newline (as in the file below). Copy the file below unchanged, including its final newline. The file `helpers-ledger.ttl`:
+-
+-```turtle
+-VERSION "1.2"
+-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/b6b4b0160ca994e7e3840c07807d4adb56ba5a2e003a910ad5efdf316f211c54>
+-<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
+-<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<> <https://blackcatinformatics.ca/raf/report/1#root> "." .
+-```
+-
+-The file `work/coverage/default.md`:
+-
+-```markdown
+----
+-type: Coverage
+-id: coverage:default
+-scope: [demo]
+-exclusions: []
+----
+-```
+-
+-The file `docs/capabilities/adder.md`. A delivered capability needs bindings for code, tests and examples, at least twenty words of prose in every section, a bold lead on each guarantee of the Contract, a `raf:tested-by` marker after each guarantee and limitation, a list item in Constraints, and a verification matrix that `cargo workplan docs sync` fills in:
+-
+-```markdown
+----
+-type: Capability
+-id: cap:adder
+-title: "Adder"
+-description: "Adds one to a number."
+-state: delivered
+-bindings:
+-  code:
+-    - demo::add_one
+-  tests:
+-    - demo::tests::adds_one
+-  examples:
+-    - demo::add_one
+-depends: []
+----
+-
+-# Adder
+-
+-## Purpose
+-
+-The adder gives the demo project one small function that increases a number by exactly one, so that the capability documents of the project have a real, bound piece of code to describe.
+-
+-## Contract
+-
+-**Increase by one.** The function returns its argument increased by exactly one, and it returns that value to the caller without any other effect on the program.
+-<!-- raf:tested-by demo::tests::adds_one -->
+-
+-## Usage
+-
+-Call `demo::add_one` with a number and use the number it returns. The function takes no other input, reads nothing from the environment and keeps no state between calls.
+-
+-## Examples
+-
+-Calling the function with the number one returns the number two, which is the smallest case that shows the increase and that the unit test of the project checks directly.
+-
+-## Constraints
+-
+-- The argument must be below the largest value of the number type, otherwise the addition overflows, and the function offers no checked or saturating variant for callers near that limit.
+-<!-- raf:tested-by demo::tests::adds_one -->
+-
+-## Explanation
+-
+-The function is deliberately the smallest useful unit of code, because the demo project exists only to show that the commands of the tool accept a repository that supplies every file they need.
+-
+-## Verification
+-
+-The unit test of the project calls the function with the number one and compares the result with the number two, and reading the single function body confirms the rest.
+-
+-<!-- raf:generated:verification-matrix -->
+-<!-- raf:generated:end -->
+-```
+-
+-Then run these in the project root; the census commands above use their own files, `Cargo.toml` and `helpers-ledger.ttl`, and are not part of this sequence. `docs sync` creates `docs/capabilities/index.md` and fills in the verification matrix. In a Git repository, `check` and `verify` exit with status 1 and report ``docs/capabilities/index.md: line 9: broken link `./adder.md` [link-broken]`` until the files are tracked, so stage them first:
+-
+-```bash
+-git init
+-cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
+-git add -A
+-cargo workplan check
+-cargo workplan verify
+-cargo workplan status
+-```
+-
+-`cargo workplan history cap:adder` also needs a commit, made with your own Git identity and signing configuration.
+-
+-To use the library from a consumer's tests instead, depend on the same commit:
+-
+-```toml
+-[dev-dependencies]
+-raf-census = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "c7d0b8b7f51f1664e822b1858909dd2fbb08b1be" }
+-raf-workplan = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "c7d0b8b7f51f1664e822b1858909dd2fbb08b1be" }
+-```
+-
+-Every PurRDF crate in this repository comes from crates.io with the requirement `=4`. A consumer's lock needs packages compatible with those requirements. The same applies to the parser crates: [AGENTS.md](AGENTS.md) requires a consumer to align its `syn`, `proc-macro2` and `quote` requirements with the exact pins in the workspace `Cargo.toml` of this repository (`=3.0.8`, `=1.0.107` and `=1.0.47`); conflicting requirements fail during Cargo resolution.
++RAF runs Workplan against its own documents and Census against its workspace and fuzz roots. The linked tests show the additional policies RAF enforces on itself. The catalogue records the delivery state of each capability, including embedded-clone matching and Rustdoc assembly. [Workplan gate](tests/self_workplan.rs) · [Census gate](tests/self_census.rs) · [Capability catalogue](docs/capabilities/index.md)
+ 
+ ## Development
+ 
+diff --git WORKPLAN-HOWTO.md WORKPLAN-HOWTO.md
+new file mode 100644
+index 00000000..4c28ec60
+--- /dev/null
++++ WORKPLAN-HOWTO.md
+@@ -0,0 +1,189 @@
++<!-- SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca> -->
++<!-- SPDX-License-Identifier: CC-BY-4.0 -->
++
++# Use Workplan in a Rust repository
++
++Workplan answers two questions about a documented guarantee. Does its named implementation still exist, and does the document identify the test that supports it? When the guarantee changes, Workplan tracks which sections need rewriting and assessment. Your normal Cargo test job establishes whether the implementation passes those tests.
++
++## Install the command
++
++On native Linux with Rust 1.98.1 or newer, install the CLI from a pinned RAF revision. Keep the same revision for developer machines, CI and any RAF dev-dependency.
++
++```sh
++cargo install --locked --git https://github.com/Blackcat-Informatics/rust-agentic-foundations.git \
++  --rev 05138a5ea278377d745fca9809cae116ae37a667 cargo-workplan
++```
++
++Make sure Cargo's install directory (normally `$HOME/.cargo/bin`) is on `PATH`. Run the commands below from your workspace root. From another directory, pass the root itself, for example `cargo workplan --root /path/to/workspace check`.
++
++## Bind one guarantee
++
++Start with a small API whose ordinary and boundary behaviour you can explain. The example uses a library package named `demo`. In an existing repository, substitute your package, symbols, example and test wherever they appear.
++
++`src/lib.rs`
++
++```rust
++//! Helpers for choosing port numbers.
++
++/// Returns the next port number, or None at the upper limit.
++pub fn next_port(port: u16) -> Option<u16> {
++    port.checked_add(1)
++}
++
++#[cfg(test)]
++mod tests {
++    #[test]
++    fn advances_until_the_last_port() {
++        assert_eq!(super::next_port(443), Some(444));
++        assert_eq!(super::next_port(65_534), Some(65_535));
++        assert_eq!(super::next_port(65_535), None);
++    }
++}
++```
++
++`examples/ports.rs`
++
++```rust
++fn main() {
++    assert_eq!(demo::next_port(443), Some(444));
++}
++```
++
++Create `work/coverage/default.md`. Use Cargo **package names** in `scope`. The source bindings below use Rust item paths.
++
++```yaml
++---
++type: Coverage
++id: coverage:default
++scope: [demo]
++exclusions: []
++---
++```
++
++Create `docs/capabilities/next-port.md`. A delivered capability has seven sections in this order. Write at least twenty words of authored prose in each. Name the bound example in a code span in Usage. Attach the test marker directly to the guarantee or constraint it supports. Leave the verification matrix delimiters in place for Workplan to fill.
++
++```markdown
++---
++type: Capability
++id: cap:next-port
++title: "Next port number"
++description: "Advances a port number within the unsigned sixteen-bit range."
++state: delivered
++bindings:
++  code:
++    - demo::next_port
++  tests:
++    - demo::tests::advances_until_the_last_port
++  examples:
++    - demo::example_crate::ports
++depends: []
++---
++
++# Next port number
++
++## Purpose
++
++A caller walking a range of port numbers needs a way to advance one position and to recognise when it has reached the end of the range.
++
++## Contract
++
++**Advance one port.** Given any port below the maximum, the function returns the next number wrapped in Some, including the step from the penultimate port to the last one.
++<!-- raf:tested-by demo::tests::advances_until_the_last_port -->
++
++## Usage
++
++Pass the current port to the function as shown in `demo::example_crate::ports`. Use the returned number for the next iteration and end the iteration on None.
++
++## Examples
++
++Starting at port 443 gives the caller port 444. The ports example demonstrates this step with the same public function an application uses.
++
++## Constraints
++
++- At port 65535 the function returns None. A caller that needs to restart its scan at zero must make that choice explicitly after reaching the upper limit.
++<!-- raf:tested-by demo::tests::advances_until_the_last_port -->
++
++## Explanation
++
++Checked addition expresses the boundary in the return type. Every valid port number, including zero, therefore remains available to the caller as an ordinary input.
++
++## Verification
++
++The bound unit test covers an ordinary port, the last successful increment, and the first input with no successor. The example shows the ordinary case through the public API.
++
++<!-- raf:generated:verification-matrix -->
++<!-- raf:generated:end -->
++```
++
++## Generate the catalogue and run the gate
++
++```sh
++cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
++git add src/lib.rs examples/ports.rs docs/capabilities work/coverage/default.md
++cargo workplan check
++cargo workplan verify
++```
++
++Use your project's copyright and documentation licence. Sync creates `docs/capabilities/index.md` and fills the matrix with resolved bindings. Git tracking matters because Workplan validates relative links against the index. Commit the authored documents and generated output together. A clean check exits zero. In CI, run `cargo workplan check` on the checkout alongside the project's existing Rust tests.
++
++| Finding | What to inspect |
++| --- | --- |
++| Broken link in the generated catalogue | Stage the capability file and generated index in Git. |
++| Unresolved binding | Check the Rust crate, module, target and item name. An integration test uses `crate_name::test_crate::target_name::test_name`. |
++| Missing coverage or unclaimed code | Set the coverage scope, then use `cargo workplan coverage code`, `coverage tests` and `coverage lines` to locate gaps. Bind each item to its contract or give a supported exclusion a specific reason. |
++| Existing strict debt during adoption | Fix document and binding errors first. Run `cargo workplan debt --write` deliberately to record admissible debt in `work/debt/default.md`. Review and commit it. Run the writer again when debt shrinks. |
++
++### Run the check from a Rust test
++
++For a package at the workspace root, add the library to its `Cargo.toml` and use this integration test. In a virtual workspace, put the dev-dependency in a member package and pass the directory containing the workspace's `docs/capabilities` to `Gate::workspace`.
++
++```toml
++[dev-dependencies]
++raf-workplan = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "05138a5ea278377d745fca9809cae116ae37a667" }
++```
++
++```rust
++// tests/workplan.rs
++#[test]
++fn documented_contract_is_current() {
++    raf_workplan::Gate::workspace(env!("CARGO_MANIFEST_DIR")).assert_clean();
++}
++```
++
++The new test is itself in the coverage scope. In the demo, add `demo::test_crate::workplan::documented_contract_is_current` to `bindings.tests` in `next-port.md`. In Verification, explain that it checks the document bindings. Keep the port boundary test attached to the behaviour it exercises. Refresh the matrix and run the gate from the owning package.
++
++```sh
++cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
++cargo test --test workplan
++```
++
++Commit the refreshed documents and updated lockfile for a reproducible `cargo test --locked --test workplan` in CI. RAF's own repository also requires every recorded assessment to be current and accepted. Its test shows how to add that policy. [RAF's Workplan gate](tests/self_workplan.rs)
++
++## Change a delivered contract
++
++With the initial documents committed, open a change against the capability and name each affected section. Reconciliation reads the merge base with the symbolic default branch `refs/remotes/origin/HEAD`. Use a clone that has that reference and the necessary commit history.
++
++```sh
++cargo workplan change new port-range --capability cap:next-port \
++  --affects 'cap:next-port#contract'
++cargo workplan change impact port-range
++```
++
++Edit `work/changes/port-range.md` to state the intended outcome. Put proposed wording in the affected section under `> [!PROPOSED change:port-range]`. As the behaviour lands, replace the proposal with current prose, update the source and test bindings, and give each item an outcome. Use `implemented`, `dropped` with a reason, or `moved:change:<slug>` with a reason and an existing destination record.
++
++```sh
++cargo workplan docs sync --copyright "2026 Demo" --licence CC-BY-4.0
++cargo workplan assess 'cap:next-port#contract' --context
++```
++
++Read the section against the inputs the command prints. Record `accepted` only when the prose matches those inputs. Repeat for each affected authored section and address any other obligations that reconciliation reports.
++
++```sh
++cargo workplan assess 'cap:next-port#contract' --verdict accepted --by human
++cargo workplan change reconcile port-range
++cargo workplan verify port-range
++cargo workplan change complete port-range
++cargo workplan check
++```
++
++Successful completion removes the change record and returns a capability to delivered when this was its last implementing change. Review and commit the resulting documents and assessments. Verification and completion inspect the repository as data. Building Rustdoc is a separate operation that requires explicit `--trust-docs` for that invocation and runs build scripts and procedural macros with the caller's permissions. [Completion contract](docs/capabilities/workplan-complete-gate.md) · [Command reference](docs/capabilities/workplan-cli.md)
+diff --git crates/cargo-census/tests/delivery.rs crates/cargo-census/tests/delivery.rs
+index 163893c4..5ca3f5d5 100644
+--- crates/cargo-census/tests/delivery.rs
++++ crates/cargo-census/tests/delivery.rs
+@@ -816,12 +816,14 @@ fn capnp_history_checks_inline_rpc_methods() {
+     }
+ }
+ 
+-/// Shared named endpoints use ordinary struct evolution and produce one layout
+-/// verdict per retained ID. A role protects its endpoint form, ID and brand.
++/// The interface owns its parameter count and its methods' endpoint types.
++/// Shared named endpoint layouts are compared once by declaration ID.
+ #[test]
+ fn capnp_history_compares_named_rpc_endpoints() {
+     const READER: &str = "0xeec2000000000005";
+     const INPUT: &str = "0xeec2000000000002";
++    const GENERIC_READER: &str = "0xeec200000000000b";
++    const ARITY_READER: &str = "0xeec200000000000d";
+     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+     let root = scratch.path();
+     git_repo::init(root);
+@@ -838,31 +840,102 @@ fn capnp_history_compares_named_rpc_endpoints() {
+             &["--required-annotation", "0xeec2000000000010"],
+         )
+     };
+-    for selected in [&[READER][..], &[READER, INPUT]] {
++    let ordinary_findings = [
++        "0xeec2000000000005.first.parameters: type changed",
++        "0xeec2000000000005.second.results: type changed",
++        "0xeec2000000000005.fourth.parameters: type changed",
++        "0xeec2000000000005.scoped.parameters: type changed",
++        "0xeec2000000000002.count: default changed",
++        "0xeec2000000000002.token: pointer field became required",
++        "0xeec2000000000007.value: member renamed to renamed",
++    ];
++    let generic_findings = [
++        "0xeec200000000000d: type parameter count changed",
++        "0xeec200000000000b.fetch.parameters.value: type changed",
++        "0xeec200000000000b.fetch.results: type changed",
++        "0xeec2000000000007.value: member renamed to renamed",
++        "0xeec200000000000c.value: member renamed to label",
++    ];
++    for (selected, expected) in [
++        (&[READER][..], &ordinary_findings[..]),
++        (&[READER, INPUT][..], &ordinary_findings[..]),
++        (&[GENERIC_READER, ARITY_READER][..], &generic_findings[..]),
++    ] {
+         let clean = history(&compatible, selected);
+         assert!(clean.status.success(), "{clean:?}");
+         assert!(clean.stdout.is_empty(), "{clean:?}");
++        assert!(clean.stderr.is_empty(), "{clean:?}");
+ 
+         let broken = history(&changed, selected);
+         assert_eq!(broken.status.code(), Some(1), "{broken:?}");
+         assert!(broken.stderr.is_empty(), "{broken:?}");
+         let findings = String::from_utf8(broken.stdout).unwrap();
+-        let expected = [
+-            "0xeec2000000000005.first.parameters: type changed",
+-            "0xeec2000000000005.second.results: type changed",
+-            "0xeec2000000000005.fourth.parameters: type changed",
+-            "0xeec2000000000005.scoped.parameters: type changed",
+-            "0xeec2000000000002.count: default changed",
+-            "0xeec2000000000002.token: pointer field became required",
+-            "0xeec2000000000007.value: member renamed to renamed",
+-        ];
+         assert_eq!(findings.lines().count(), expected.len(), "{findings}");
+-        for finding in expected {
++        for &finding in expected {
+             assert!(findings.contains(finding), "{findings}");
+         }
+     }
+ }
+ 
++/// Enclosing arity is visible on the selected interface even when its detached
++/// role IDs and slot types are stable. Bindings can span all lexical scopes.
++#[test]
++fn capnp_history_compares_nested_generic_rpc_owners() {
++    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
++    let root = scratch.path();
++    git_repo::init(root);
++    let commit = |bytes| commit_capnp_descriptor(root, bytes);
++    let base = commit(include_bytes!("fixtures/capnp/rpc-nested-base.bin"));
++    let compatible = commit(include_bytes!("fixtures/capnp/rpc-nested-compatible.bin"));
++    let changed = commit(include_bytes!("fixtures/capnp/rpc-nested-changed.bin"));
++    let selected = ["0xeec4200000000004", "0xeec4200000000007"];
++    let clean = capnp_history(root, &base, &compatible, &selected, &[]);
++    assert!(clean.status.success(), "{clean:?}");
++    assert!(
++        clean.stdout.is_empty() && clean.stderr.is_empty(),
++        "{clean:?}"
++    );
++
++    let broken = capnp_history(root, &base, &changed, &selected, &[]);
++    assert_eq!(broken.status.code(), Some(1), "{broken:?}");
++    assert!(broken.stderr.is_empty(), "{broken:?}");
++    let findings = String::from_utf8(broken.stdout).unwrap();
++    assert_eq!(
++        findings.lines().collect::<Vec<_>>(),
++        [
++            "Cap'n Proto history for 0xeec4200000000004.read.parameters.second: type changed",
++            "Cap'n Proto history for 0xeec4200000000004.read.results: type changed",
++            "Cap'n Proto history for 0xeec4200000000005.item: type changed",
++            "Cap'n Proto history for 0xeec4200000000007: enclosing scope 0xeec4200000000006 type parameter count changed",
++        ]
++    );
++}
++
++/// Inline roles inherit exactly the declared parameter-bearing scopes, and
++/// an owner that inherits every parameter must carry the generic flag.
++#[test]
++fn capnp_history_refuses_invalid_nested_generic_rpc_owners() {
++    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
++    let root = scratch.path();
++    git_repo::init(root);
++    let invalid = commit_capnp_descriptor(
++        root,
++        include_bytes!("fixtures/capnp/rpc-nested-invalid.bin"),
++    );
++    for (selected, reason) in [
++        ("0xeec4300000000003", "must inherit exactly"),
++        ("0xeec4300000000004", "must inherit exactly"),
++        ("0xeec4300000000005", "must inherit exactly"),
++        ("0xeec4300000000006", "must inherit exactly"),
++        ("0xeec4300000000007", "consistent generic flags"),
++    ] {
++        assert_census_refused(
++            capnp_history(root, &invalid, &invalid, &[selected], &[]),
++            reason,
++        );
++    }
++}
++
+ /// Named method roles require an ordinary struct and an unambiguous reciprocal
+ /// declaration chain, including the generic state of every enclosing scope.
+ #[test]
+@@ -907,6 +980,16 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
+             "requires a complete concrete endpoint brand",
+         ),
+         ("0xeec300000000001c", "consistent generic flags"),
++        (
++            "0xeec300000000001f",
++            "requires a unique reciprocal declaration chain",
++        ),
++        (
++            "0xeec3000000000020",
++            "must inherit exactly the generic method owner's scopes",
++        ),
++        ("0xeec3000000000022", "invalid parameter 1"),
++        ("0xeec3000000000023", "requires a complete endpoint brand"),
+     ] {
+         let result = capnp_history(root, &invalid, &invalid, &[selected], &[]);
+         assert_eq!(result.status.code(), Some(1), "{result:?}");
+@@ -986,7 +1069,7 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
+ }
+ 
+ /// Detached endpoints belong to exactly one method and role across the request.
+-/// Explicit interface roots require a supported nongeneric signature.
++/// Generic inheritance and implicit method parameters refuse.
+ #[test]
+ fn capnp_history_refuses_unsupported_rpc_endpoints() {
+     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+@@ -1034,8 +1117,8 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
+         (
+             &unsupported,
+             &unsupported,
+-            "0xa6615df804a45ef7",
+-            "must be nongeneric",
++            "0xeec6000000000001",
++            "requires a reciprocal nongeneric declaration chain",
+         ),
+         (
+             &unsupported,
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-named-base.bin crates/cargo-census/tests/fixtures/capnp/rpc-named-base.bin
+index 060c11d397af7c7013bcafc137bf7f48e5346a69..0ed89ab8e7f4ad8e9a0f418d4294f0ff898e1696 100644
+GIT binary patch
+literal 9248
+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
+
+delta 1045
+zc-m!>&ubGw6vt=wSCg2fS=!K~&1N@7hz$`o&?YEqO|dAwNW3YO#zV!62SE@IA~}@W
+z<N6TsAXq_KyjUr{StOovQS6_P-t^!>5R4%B-Q8KTU1xW8_WRyv-kW*6S66rE&N7T8
+znTeq=1K(|xvF-`RD!zp=j`=wWJNN!opFHojn)<%P*jtDLtQ&5-?Cv<0ieNusGq8@a
+z(MUtfjMKtImeRbY53%Pv>>fXby>y2=<~JCpk;QXHH~)fOaN85q2V{s0W-LQq7Eq_C
+zP)(|t^Dz8@qZI=$gy0j&sos!-bF9UnTOJhAFJwBB8v3S4{tRoyZO=$sGA+uDsw)R4
+z--?BK3H>0V4TWCIjXXzPPjXKl$8~zorzoK~`Yb#*xiHfkjshu8z76X#Xa9{Ae_vm5
+zw1*&`a;g`rbXs-lYmi3(?!^+_h2B7*L+!X-qfMzi>mLQg70i7th|r6X2b!qjZgTRm
+zXR!TN;Vk33KmG7}Ygx2Us27>n1%aLyekG!>voJ}ZJw73HUGQo|pYx9Fzc8GkL1J~U
+zlUzyDqiOU?>J&|83Y3_+RGI@I;nBq2@N(hk(ZIBpdiZ;enG)1G+U|oiqW)r9n91;j
+z@O5MUCas(0e0Ya1xcpdz7*fl$_>fAbRT_$Dl3>TdUgJ@AP^eJ9VAD>)b~_r~&Sl)y
+z6x!S7IqDXh<k%gk-}KeWjT@qJLG?MkOJ=iSB<??qeMGAJdx!S6l)H$_UsguN4AFn4
+CGLs$v
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-named-base.capnp crates/cargo-census/tests/fixtures/capnp/rpc-named-base.capnp
+index 0f8281be..f9ffd3ea 100644
+--- crates/cargo-census/tests/fixtures/capnp/rpc-named-base.capnp
++++ crates/cargo-census/tests/fixtures/capnp/rpc-named-base.capnp
+@@ -43,6 +43,20 @@ interface Reader @0xeec2000000000005 {
+   enclosingOnly @5 Envelope(Text).Stamp -> ();
+ }
+ 
++interface GenericReader @0xeec200000000000b (First, Second) {
++  struct Record @0xeec200000000000c {
++    value @0 :First;
++  }
++
++  fetch @0 (value :First) -> Generic(First);
++  inherited @1 Record -> Record;
++}
++
++interface ArityReader @0xeec200000000000d (First) {
++  ready @0 () -> ();
++}
++
+ struct Stored @0xeec2000000000006 {
+   reader @0 :Reader;
++  genericReader @1 :GenericReader(Text, Data);
+ }
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-named-changed.bin crates/cargo-census/tests/fixtures/capnp/rpc-named-changed.bin
+index 8e1e3250e668e62f0b57de1229ecbbabc5da71e0..c76d5bd41e35cdc99de35c0e2ac5a3fe553a2a7c 100644
+GIT binary patch
+literal 10312
+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
+E1s_VUG5`Po
+
+delta 977
+zc-m!?O=uHQ5Xa}eynNCviA54WHoN&KP4=`Enl{0<NudV?ArUY3AXpH3>q#0!P*0u|
+z*EtkCi69bDNC*`pc*(^c6zoYV6e)t(gVl?Qg5bRDTWr<|yR-j!zc+7Ycd}V;PnUu0
+zasZSGNYMRJ5TG~$FfoV#FuG2~0A4Zq92}4*o!Ydv!2$XtUXovT8acdfMx1uRI7|s+
+z1do#s!#^`g2Y}&+R1!y-rD>!&aYx7}<^C0B>whTO2?}by%~8^8PGb!3n-P4=3i=Io
+zisJ)sk)9{;ZYF{@FX%1OS>k#=ZbNa{j)(9zxAZLv93pVn2kv;_XKq`+RLwy#3^CI4
+z2XtBBLZGA-g<E8q{Djju#uo)X2$ZZT;dZ&`OH(7gcCbi+T$J>O6s|BShw+Y3rL72C
+ze?wxK!GE^xL7T!3eJAml;l-?lg`hpTOY%1{Uwn!8NZ+JfXTrnr5bp6@Q9eB(;uBqy
+zVK>99k1U7PsnwC>HOLR<h(Ua?*59wu{j{1bPcMKR4_D8s_4@f|KQEp8@m%U<HILr<
+zS@2GDwcH<3x~%rQ(>mq`DzX6uOkpRw+O5WBH2kK=u{oN@*NNlUOjolr1aSI!sMo1y
+zTYyXE1>OOCVWy>fZ_e?jfJZZF=_;9Yut%67KX(uC3Wdqt%gnJBZfA^Wix$^qFUYb6
+wnz?4TnyWLsW2B-9)lwWghLHgE(&S6}N`H&1-A?`;Pwh}GABERjf8VR?FI6Ct7XSbN
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-named-changed.capnp crates/cargo-census/tests/fixtures/capnp/rpc-named-changed.capnp
+index 8b94b927..83a342f8 100644
+--- crates/cargo-census/tests/fixtures/capnp/rpc-named-changed.capnp
++++ crates/cargo-census/tests/fixtures/capnp/rpc-named-changed.capnp
+@@ -49,6 +49,22 @@ interface Reader @0xeec2000000000005 {
+   enclosingOnly @5 Envelope(Text).Stamp -> ();
+ }
+ 
++interface GenericReader @0xeec200000000000b (First, Second) {
++  struct Record @0xeec200000000000c {
++    label @0 :First;
++  }
++
++  fetch @0 (value :Second) -> Generic(Second);
++  inherited @1 Record -> Record;
++
++  ready @2 () -> (ok :Bool);
++}
++
++interface ArityReader @0xeec200000000000d (First, Second) {
++  ready @0 () -> ();
++}
++
+ struct Stored @0xeec2000000000006 {
+   reader @0 :Reader;
++  genericReader @1 :GenericReader(Text, Data);
+ }
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-named-compatible.bin crates/cargo-census/tests/fixtures/capnp/rpc-named-compatible.bin
+index a5e600b845eba0526b245381e5ba2e5b988eb80f..0c2d10cec73338029abfea9c6d06171c44cbac3d 100644
+GIT binary patch
+literal 10200
+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
+
+delta 1078
+zc-n1~PiPZC6vk&~cav^3+Gs-3>bkp4B{8(HK}}FBY9Sy!C@F$^kknf|2=?F~yr_p#
+z6$F<@@g#@{>cLa-(1Vl|gn$ZqvWg1vuGoWz9s+)o%+T%XEVDD;d%t<_&CcxVsdnWM
+zLu=|xHiM<`er7V(-NIO*XJJf3pGd&2iMiP$j|9i7$yc1QFAyz^^FciyJog<7!A1ZM
+zVT`klmWI}uM$5S@ZPQ9g4SE<{3S$;)sj2z)9|W3$(TXfKp|1t?ozw<&US_xyfi6NH
+z70`!_L1TQ(o`azTa3KN)3cSPp(o0##>j<<YppahE=?AYQJ2Lqi#zIiv#k)F9>Xp(@
+zy<fRzY!1^Em521KK~MCGeF4}s@GB8~){vzQ7`}ZU;-1F-X^#}t1hfQk<3G?F1+@)7
+z)`3{j=%ZJnqUo34L+-$uZ;|Yuq32<rh;O#X=q}Ii6Ehpc8FVk+k5G<~<8hhwR$};O
+z-{kggkj4gkYUP)>a#QkFDLu)=<>>2!(r<+HG*fB%TJQr>mnCn8^kGr70><fu)mSVh
+z_9yABouT5^QF@x%O=tHU^9}&ucw!P&+f%JYw>_uU!t5b>LQ)I3rSEv?jL{u*OZsc@
+z1rdLh_ImjtwTJK6d^SX^Q^$2`>oSho`D0LDLr1IpT>7`e*NFJ5H0R=9a$P#%y1`70
+zuBHcrMuKMYtMp*xH(hpeRz`l!GzCsU{P4Z=5rIA-^!3Gaqsu&Z5>=cwHa@FL@)s^K
+Blq~=N
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-named-compatible.capnp crates/cargo-census/tests/fixtures/capnp/rpc-named-compatible.capnp
+index 6d3ff8e4..3cb3d844 100644
+--- crates/cargo-census/tests/fixtures/capnp/rpc-named-compatible.capnp
++++ crates/cargo-census/tests/fixtures/capnp/rpc-named-compatible.capnp
+@@ -44,6 +44,22 @@ interface Reader @0xeec2000000000005 {
+   enclosingOnly @5 Envelope(Text).Stamp -> ();
+ }
+ 
++interface GenericReader @0xeec200000000000b (First, Second) {
++  struct Record @0xeec200000000000c {
++    value @0 :First;
++  }
++
++  fetch @0 (value :First) -> Generic(First);
++  inherited @1 Record -> Record;
++
++  ready @2 () -> (ok :Bool);
++}
++
++interface ArityReader @0xeec200000000000d (First) {
++  ready @0 () -> ();
++}
++
+ struct Stored @0xeec2000000000006 {
+   reader @0 :Reader;
++  genericReader @1 :GenericReader(Text, Data);
+ }
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.bin crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.bin
+index b19bd74e6ba8576be7f4f2f040c0808892b6e1f5..10a5e5c5a7facba6837124bee59ef766e81626ec 100644
+GIT binary patch
+literal 8112
+zc-qxiy>App6raVH^8sFCE+#$$cK9d|Q5t9vks`$=#<GwB84y*9_3hX!+M7N0BYc!;
+z5RoD!=@KagWg?}(Wh9!U${)ZVK!Fg2kz7zvATfLUW_dU4_?EkOAjb0Uy`7!k{N^`r
+z-n<>g7<)0opj4PGuXk-`EI-Tts{G5!f6v)Fmiw~lQ>*uT7Q)Zz_0gYKV{EbD`3{7a
+z_SNhY-&973_@6NFuW0-kG5=49_`e)2=3niTe~LHNqkfOPk81c;Vtr~v`uuIsXXlXT
+zcNY==#K3<y!rL(f{$oV^zc%o<3-zZf<3pa`Jw*CEsut@ru?>F;z4j9E|HHt)UPAwV
+z#__P4#ivh+`2T6(KRG1+|5r2L*+&)MB;MVE=bsVb?=`I7sXq0&C-F{g)87NwUm6<z
+z6p{Wv0sb_RJ~s^d>?gwi&47P^2>-Yt|2as6f6stFQ(}IL%H!Jh`H3pC8vYEC|2(K=
+z{_}YWefsiGz&}KUe?!y%7r;MUVm}#VpE*Lre?jB_5cnS@!oRQKZvp<TPJ1i=PI@M<
+z*U@)JYX6Ax_)U5J0p-D)@O};1zoWc!OI}YRdlT$k2!93Td8+?0WUrz;O4W}e`zw^E
+zJdxKB<rPn$Ka~eO2L5$qUq}0FYTrToqRHNe>|fD7l=ioQ*16(0t<~>G^&2S8rTYAf
+z;?fq_Y8}3i*T2xZc?o(eKYRsv%5N+=vH!?l%U%?DV*OGxXmj?)Ug2vz<f6%yUo3LL
+zL$5g}A4PF^TiF+G%3E6hZPNC=rW13m<&tP8vAoauo)gLY)i4n2=RDym{}xGWLAdR}
+z6LH55ort?R9d^cdycTyA3|rw*;>%x)VUV;@!;anQuNk!3K9Bi)=*V7xXWssdtmUyB
+zVOGuNTC3iA5+o74k=sD{idYR2;m)naJe*H|F*PpL&v_{bcL9!dn7g@-3!>=<(VOnr
+z*&yWJx_ImP3U?*ABVw&)+40wcP%5B3&&RRM<7<JN&ja+kBz#Zs{AtSfd&l>(_bxi2
+z(~``?u5om#=H<-D=GpiE2&`^=o}upPy7{6+d<nVZs`CVlr_L8DM0o0Zd~^W3G}@{5
+z7Q}}okx5vAh-yKMxQxbud8l}{lW1Hj{_Q5hQ}J?~2ycQIuigW1%&@a5JPTrCrQ@?!
+z*LN7swJKfvn>tgo0KeC{jMZUWhy4%x!xe*HOcIZ4l6YJu|E~3zpA)c7RQa+;=ApO$
+zPG09r_{%E9-ZJxh40vN5YM_IK{I-lPcCYiPY=8J5eq3gp-+(<)a4vx}#bK`-yTo~0
+zirPSWokaPK4f)Lss^38I*|Z;?b^M4!5|D49J>ofjZd%U`;`wb1VLemxy#VhO@tp>~
+z`giPcc&7W)Y4G1c##hwNE)l=W#09(5`S8c1KP%9G^aJRxR+p~NEP+0!U_MiQX0`F!
+z27P7-)>%I~sCKg`-%R(xi_UF7aNKR<P?<dRFhO2crk@7!yfujCt=_e>b)Ux!I&bew
+SmqGT2x^@P1v|#*2<9H2siCpUd
+
+delta 797
+zc-n=LyGsK>5XN^ex0|~}O=8T`2P%lzX&?}7LJINhL@aC~DhMJdVkKe-*oaoyEJ7mK
+z*m#wwu}Bca2No8B(Z;_*u(J`Idjtj>_xOhU?d<G+vwM*>(@_Fr&O_Xxl6Ht^evwPk
+zT``vBmkf}K+@Po!bVM#GG4XBEFFC+t^0kl4TY5?xHf<{z*5HK1M6O$DaQUX3({(#j
+z@t8Di|IMo=`+*&&L@q4vqP*6}6v~cTGZ}8Od<%k6t?ZrA3&1h(6c$xOZRP6TdHnz&
+z0EvjGPO)`>eJiuA8LZh__Mv6iG*}w8EakaO=?nTecghk_Mtf~n-?~939e+MU_Vc)`
+z`wVal&C0kxBTKp}uazFT>0d17y-xWmh}xeu9zUNUu7Ny=4?)c37l?Zxj@VkSAwCA_
+zE;k{j5WhHFBtCS&EXe=IKpWy^Q2U>J2jU6hG-L4-#4S(|v1K6S^1a<ak&sR_VQm;j
+zyaVd`ha-r~peQ=<ia3vr4JL4Y6haa$unM}-6+M7@&=o$^P69WyRu64*SxRa{aW|*C
+U-SxW6+`XnZHdeN3h4{Pr3u}O>F8}}l
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.txt crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.txt
+index 8c60d2e0..f440eb55 100644
+--- crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.txt
++++ crates/cargo-census/tests/fixtures/capnp/rpc-named-invalid.txt
+@@ -28,7 +28,11 @@
+      (name = "MissingEnclosingBrand", id = 17204595001485426713),
+      (name = "ForeignEnclosingBrand", id = 17204595001485426714),
+      (name = "RedundantEnclosingBrand", id = 17204595001485426715),
+-     (name = "MalformedEnclosingBrand", id = 17204595001485426716)]),
++     (name = "MalformedEnclosingBrand", id = 17204595001485426716),
++     (name = "CompetingMethodOwner", id = 17204595001485426719),
++     (name = "MissingInlineOwner", id = 17204595001485426720),
++     (name = "InvalidOwnerParameter", id = 17204595001485426722),
++     (name = "IncompleteOwnerBinding", id = 17204595001485426723)]),
+   (id = 17204595001485426689, scopeId = 17204595001485426688,
+    interface = (methods = [
+      (name = "read", paramStructType = 17204595001485426690, resultStructType = 17204595001485426690)])),
+@@ -87,6 +91,7 @@
+   (id = 17204595001485426711, scopeId = 17204595001485426688,
+    isGeneric = true, parameters = [(name = "T")], nestedNodes = [
+      (name = "Inner", id = 17204595001485426712),
++     (name = "CompetingMethodOwner", id = 17204595001485426719),
+      (name = "FalseGenericEnclosing", id = 17204595001485426717)], struct = ()),
+   (id = 17204595001485426712, scopeId = 17204595001485426711,
+    isGeneric = true, parameters = [(name = "U")], struct = ()),
+@@ -117,4 +122,23 @@
+   (id = 17204595001485426717, scopeId = 17204595001485426711, nestedNodes = [
+      (name = "Payload", id = 17204595001485426718)], struct = ()),
+   (id = 17204595001485426718, scopeId = 17204595001485426717,
+-   isGeneric = true, parameters = [(name = "U")], struct = ())])
++   isGeneric = true, parameters = [(name = "U")], struct = ()),
++  (id = 17204595001485426719, scopeId = 17204595001485426688,
++   isGeneric = true, parameters = [(name = "T")], interface = ()),
++  (id = 17204595001485426720, scopeId = 17204595001485426688,
++   isGeneric = true, parameters = [(name = "T")], interface = (methods = [
++     (name = "read", paramStructType = 17204595001485426721, resultStructType = 17204595001485426702)])),
++  (id = 17204595001485426721, isGeneric = true, struct = ()),
++  (id = 17204595001485426722, scopeId = 17204595001485426688,
++   isGeneric = true, parameters = [(name = "T")], interface = (methods = [
++     (name = "read", paramStructType = 17204595001485426712, resultStructType = 17204595001485426702,
++      paramBrand = (scopes = [
++        (scopeId = 17204595001485426712, bind = [(type = (anyPointer = (
++          parameter = (scopeId = 17204595001485426722, parameterIndex = 1))))]),
++        (scopeId = 17204595001485426711, bind = [(type = (data = void))])]))])),
++  (id = 17204595001485426723, scopeId = 17204595001485426688,
++   isGeneric = true, parameters = [(name = "T")], interface = (methods = [
++     (name = "read", paramStructType = 17204595001485426712, resultStructType = 17204595001485426702,
++      paramBrand = (scopes = [
++        (scopeId = 17204595001485426712, bind = [(type = (anyPointer = (
++          parameter = (scopeId = 17204595001485426723, parameterIndex = 0))))])]))]))])
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-nested-base.bin crates/cargo-census/tests/fixtures/capnp/rpc-nested-base.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..7083504b5a181743bec15b0d5ca2bf9369e723bc
+GIT binary patch
+literal 5112
+zc-q}qJ!lj`6n?XJn=@cYPDDkN2u2hkC#Vofqw$9*CY%Wh3K~3ft2wxwarXqHC|FoT
+zD+|jY7AY(wF@>m=iXw;>f+98+S}1`Cg7&`IeQz^6w|m)DBj_A^Z|CQIZ|42Y%mM&h
+zGJr}NviScw4KUsau-<I}5crf9VO_{~(;c}Lp9cK7WzEyCEfB99LRr&Dk0I@dF<ub<
+zGJdCe3NnE)Q}{ID%Mrw#!FLO3M!_jyeNw4sQvj_<jR<_u@SE{(!0`A!VtqBz<#pyQ
+z`<s!b2yYeP7!ml}@b4&gHX*}G5g-4~L}uv2xq<r|)%m+}gZNw|{<H|kn+%b&eD>s2
+zZ~4U!9Umg_?;_4a0kO;Yy0&W<zPI0ui$9L|PZHppq;JMgQ(b8IH}LNbK4XY~73r;1
+z(0`=d?IHM#x0Y<3^6eY+;UfMWM*BX%0sZ*?O0(}<tUpIOW_ofZZFXZUo_`)k?DzPL
+znx21NG3)ye<3GIJw&mjEZJ%`giwONo{4oEKcwzdPb?(ia-}LfPT>DO#$^0jy#8*nu
+zm#+UY)Xh75uA83zC(NLIZ(+R~={K$29vN(}SWeX{wx1|CR&KB`QW?Sa#V)S!^OMY*
+zol1N+A=#|Vr;+Lh?b1lu0?41OS~k|Z>{4|!N=_$_=5+{HZp!nz5bXi%Avs)jxZ?%%
+zxO4O7D}1!MvXAD^WjFC1AU=cFM(<pDHF<l9?;!D=EZI&K-<N2!6`GxvMA+A{22WRt
+zD!)j?UmYsh#ejSx5&vQu-AH3}+C}4b65UnLZ#voPysrvBUkK8FZ>d<67EddyRpr#d
+z%`vZvpVsjEtwK>wLC4=28$ahk<ZL8u2MTs!*daar4}NL<vS0GP`>TE#+)w7?PiCi4
+z-%v^U`Yq>dx#}d~>qpJFO9M4;rRVVvnJ+gg^+jZ_rDU&C)f$Gsp)Ux=k69Bx-s(Jm
+zH+_6QhjCu%)7H~Nv#t_-O?#Kn&RKjOdZzjBBjWo)G%GxQLp$gAR0QM36C_{*(LUmr
+zR_5+J#j&B~4G5eo!`qFBc3E#FeHzMssrGm1`ze+dvOm{XX!SKzj~l=9#b=a1ajzQ<
+z3#_Mwz-4r2s9;;ge|P?B9#QwL`ui=PuIA!7qsWo5zNa!+KJAn$r}CBZC?wr?UHn`C
+zL)#Y@D(^M?R^E%8H>dmfe4%-ME-&)^g6{!YZM}THT1B)SYV(qsKN@1@nTDAD)aH&i
+ze81p(0+-8#%Xoaxid)W5TyQ+_J<z{5Q9tKxzK8nv5|Ynx!`}%YB7XQgMbvi`{!XH<
+zFCVy9hL?2B39I&;T(3WA`O|oRd;Xrhl&@ELUy$FuvgF?_yst#uFG1N4^Zxl7dF3}E
+WqxSyNg>Bu&oF8%fer)RtY5xhsH|<XV
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-nested-base.capnp crates/cargo-census/tests/fixtures/capnp/rpc-nested-base.capnp
+new file mode 100644
+index 00000000..4a0d410e
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-nested-base.capnp
+@@ -0,0 +1,30 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xeec4200000000000;
++
++struct Triple @0xeec4200000000001 (A, B, C) {
++  first @0 :A;
++  second @1 :B;
++  third @2 :C;
++}
++
++struct Outer @0xeec4200000000002 (A) {
++  struct Middle @0xeec4200000000003 (B) {
++    interface Reader @0xeec4200000000004 (C) {
++      struct Record @0xeec4200000000005 {
++        item @0 :C;
++      }
++
++      read @0 (first :A, second :B, third :C) -> Triple(A, B, C);
++      ready @1 () -> ();
++      shared @2 Record -> Record;
++    }
++  }
++}
++
++struct Arity @0xeec4200000000006 (A) {
++  interface EnclosingOnly @0xeec4200000000007 {
++    read @0 (item :A) -> ();
++  }
++}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-nested-changed.bin crates/cargo-census/tests/fixtures/capnp/rpc-nested-changed.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..965d930c264181fc59a720d21b55ae9214692b7e
+GIT binary patch
+literal 5208
+zc-q}qO=ufO6rR~1DFz$Yj!jZ1*a7E<f>dw<3BDw8ZQ2Gqj*Wc^X%X7Btsu+pt_*QX
+z4?Vg)73zZzrL^FK52nebG=YEv2_dGJmYf2~A!%s{xTp5gQ{U{qx0)GgrCld3v`?(w
+z&d>X1=KamgGRD~F21Bw~7ySQjF?OeovExAvV;r8<15oDT-41%5f+qvNfco$KagZgW
+z85nB^cmeq71pPVUze(>{Hd$8ba|50Zc)0?&2JjN_tc2r2`Fp9{Yckdc+=#(v8h$4a
+z=Pcy@hVl{Mhnmb=w08nG5w8z%j2Qeg@b?ikc7ebkPmaH}k)3~f?ZY2)^8ABwReU0W
+zzr*YCj+&}|hz{+}-WV_M{H5cw82np+^9yH*>Fc8dUwras?wh3en}Gi~1-^~?CVUIa
+zT*F_3zen(_1O9iwZ<?zAY(e>K1AM|ehPE~%`>H<dz~5!C??dQt72cm{_WcdY4}h=R
+z;kbf#1~Hb*KZ}6<D?F=q=$~tLbN^Y#_S>5SCqKP==DDta9;5#+?Z*DIVK>&#uK&Z!
+z>+k%uoz%W}?R5T=mEy~k^rh?nE6~j|cy8LE{_oqWeZ{!%iTKE<_1;o3S8@HS>*R{_
+zh02`k<co!+$`ZA=2lzb7QzCy3Npao*Y*3n48<wZN(o)%FY+||UdQd*^m8vUE#v395
+z9IriCucc?oh(>W7qH{ri&c=edh4bYRT8%!y`4f$x+$EGVXl?jTG_H;JKFUp_+-%A7
+ztMJ~f&6aES>W;Cq?-my;jx5hp$yet~o}-L!q>^vP-fh@N=jXBCF!Fa>_|Fg;-omw*
+zQC<r5KVEViVQx!WtvpV1+&qa#_?Cu0<rW+oU&bF!gP#vk@*c2(O9ij6;LG~@KlrDy
+zXa7tmU+<sl{?bZ5wY^qUgY7|n%JrAaReuliQ=qJ1wY6BbTKJ2|qi;*)18Bb<v|p*}
+zF0fayUz+(dDX#3gxC)mR`oCQ}Kj1ly^39~So-v$t75UG&w{h(pM(3sbnm=!&+zaGg
+zJd`)Ib5O*&8b{$koSi^EiSokK)I5Q4ZD{#~Dd*0{^+rs+DEFa04QU^h+fVEJEYKTh
+ze<~l=%KcbQ>JMC-znb@3-%^5**k?WM2QH!e^99d!{=4&+^N75kwcLmC;6?GAmBtZ)
+zK3XZ37yVLYZlY3N!MsDa;BJhoA!%QpsVw_KkIl!+E3l3B&;81WnODt+vGZ59gH-bM
+z`#>#k(*1<)5nbB4>0I^}@*JzrTXKHMB+NsZg#I=V^fw~Ep?e0=XNXI9bWcl4A7k85
+zywE+8XcgNjuhTu2=vy40;)=dAu$cIw?;LU8Vdy)HyuJzLUfP(fx)WLb`MOzqT6*1h
+z|MvXD@ytlC;+`SCoAsi9_t3u6;(p4ceRD3_Hvt2t+F{h+e|n(qu=s{%sq-0ux(i0l
+N&#3+))J-?2{|7_)0VDtb
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-nested-changed.capnp crates/cargo-census/tests/fixtures/capnp/rpc-nested-changed.capnp
+new file mode 100644
+index 00000000..140511ca
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-nested-changed.capnp
+@@ -0,0 +1,30 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xeec4200000000000;
++
++struct Triple @0xeec4200000000001 (A, B, C) {
++  first @0 :A;
++  second @1 :B;
++  third @2 :C;
++}
++
++struct Outer @0xeec4200000000002 (A) {
++  struct Middle @0xeec4200000000003 (B) {
++    interface Reader @0xeec4200000000004 (C) {
++      struct Record @0xeec4200000000005 {
++        item @0 :A;
++      }
++
++      read @0 (first :A, second :A, third :C) -> Triple(A, B, Text);
++      ready @1 () -> ();
++      shared @2 Record -> Record;
++    }
++  }
++}
++
++struct Arity @0xeec4200000000006 (A, Unused) {
++  interface EnclosingOnly @0xeec4200000000007 {
++    read @0 (item :A) -> ();
++  }
++}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-nested-compatible.bin crates/cargo-census/tests/fixtures/capnp/rpc-nested-compatible.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ee81414623437278e4a9ae2ff6c3c4a0e3e4b76
+GIT binary patch
+literal 5816
+zc-q}qU5FG%5U!rto%O`y^zbJJ!6V!u3GDiZC`UlgM9yfAGlxDJ*zAnn!rtEA%p7<o
+zBKjt3K+wmKCkc57`f~XZ0x{$zA$bcvhG_61f*~=U;DccGOx0{p@6PV*;)>eKY)$uc
+zeN|muU0vM(0JjXFl7UtD|3wzy@p6DoK?{Ju=es_v3;CW6dcKX1g}<N-{q)aTNLLn7
+z)*Ylbk?u^<Ul9HVey6$#xmcg;`1Iq;_lWyC(%+Eg6r7*2eod(_m;f7*8VUHI;Sb>7
+zNh9PN#P@SZ*R{}Fejh+;65bnxV<h13!oL%Qe*oVvw!yzh_+MSkP5*J?!*92!`Ui63
+z_*_mQ-yPA2cgc*~hs(PA$F5IQep%A-Apw5`9p;{Z)aA30;qxCq%zvI1e+}Y4=m7ut
+zgKsY9Hl4nf7C(#lhLIls$l|{TAN@G~X<GaxwDa-~@U!GEjGv*p(D1L|-|zVRjrcd@
+zI?crW{|UD5Zi3HvZ<4Q?k$=Y5ppAb%>b)Kr&f<GM6Zg*@QXaO?SfN}=2Z9)pZhd`%
+z*h}~vwZio!`CIw_9O2*ia(Mfxo4fwf?JpASU$mP0|Gd@QKKH$^@15NI>knz?_mb6_
+z|L2tWU@G>~?SB<*^FKaktkC{ftoZy&x#LK0Ywd2Wl&?CT@7Vd$>`blbmp`gFg;KFr
+ztp(p#1o$F~voijVDsieG$u>o=KB^yf%e9IFFgfo#F4o7~vcJ$;-YE0b$0Y*!X6S`Y
+ztO>A><Z;;(^cV1cpkt`Fh|ucgJsJm>cZu&1@fkcudgn5s$=gqShl%f4+4X#UAJnuJ
+z+Pn=W%(v&1W~;W!FFNA)r^~J#lW%myzk+)AQ6HU-QNO)J-)ZkhqwE6^<qIN;BZB5(
+zqHNo8?la1$Re5dk3yct#lhNc%IYnD4qs!Ubp`1bpRB(|DA1b=V885QmtKhFj*Z#`+
+zMYsMM-*?*acQaoL%7k^tKjnDy72oTEzgVj|RojVtrfdGX3SHS@3g;~_ys}PO`K^re
+zZz=U<<VUN?kIKF?1J7?BqxGF_Sl{8eRtEZIBYe(-IS$Tg<EfC=mx=yId#}*)T+T=D
+zYU}Dx;#(#{x>bbyhL)!>9TD;MJVbo^iOvzfspYAhPdfPhfWmJR-vy$J#4r7o=VOxM
+zlcB{$h@A_Xw;KuVvc8e#*--KX_4`gej{u&Zdi^!6K1B7jaj9M0N%BYj8m#Lc+o>10
+zjP6YrUB`ZT_2;<OYk9pMhZ;}S{31=B#5uB>zvL8oGKbn%EmdZ{a`pIRwXy)+<x7E_
+zLJX-PkLlHZU_FEVAW?s1PwbFi+Xw6W2A?1KoVQ9FH|NV6h~}X&?yB+8N*PD3lzuiG
+z^fw|u;d3CDGla`{e2z|A=4id}I^lDEbdM$XCS`x)dxmJ=CHcIb_#O)q))n8QCEfG!
+zJzjLrMfyS0xE{a9h-b!)=bl#IJ1r}pG2V+Zu27yC*;}3q<$diM^83}ipSHPI03{!o
+ejLuDnfvWZ!jpx-dY#TS~e#Y$wvF(E<?N0%J{ArZ{
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-nested-compatible.capnp crates/cargo-census/tests/fixtures/capnp/rpc-nested-compatible.capnp
+new file mode 100644
+index 00000000..21309fa1
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-nested-compatible.capnp
+@@ -0,0 +1,31 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xeec4200000000000;
++
++struct Triple @0xeec4200000000001 (A, B, C) {
++  first @0 :A;
++  second @1 :B;
++  third @2 :C;
++}
++
++struct Outer @0xeec4200000000002 (A) {
++  struct Middle @0xeec4200000000003 (B) {
++    interface Reader @0xeec4200000000004 (C) {
++      struct Record @0xeec4200000000005 {
++        item @0 :C;
++      }
++
++      read @0 (first :A, second :B, third :C) -> Triple(A, B, C);
++      ready @1 () -> ();
++      shared @2 Record -> Record;
++      appended @3 () -> ();
++    }
++  }
++}
++
++struct Arity @0xeec4200000000006 (A) {
++  interface EnclosingOnly @0xeec4200000000007 {
++    read @0 (item :A) -> ();
++  }
++}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-nested-invalid.bin crates/cargo-census/tests/fixtures/capnp/rpc-nested-invalid.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..f36eddc08943e3bb03b8e919ad9a266932df4532
+GIT binary patch
+literal 2224
+zc-muNU|<ksWPkz|23{cfoP_}=FacsVAOr)0BkveU1c6Kp4C+LvV?;6^?mRU67_sQH
+z1)498$6Sy+KagfZGoO)2^EH7Q!||A32sNJ>$vkE>`|z2M4nlz%-LZ%ZU<)5?VMr!m
+zp_2OzakyWQ#_ngOlKUlbxL=6I?q{Qt`x$Y#Uzo=3XD7n_lmJd5$_GjS2iROjc)0+w
+z&j`t0Q2Me0V*k>T)FL1qlv-SxQv%61AYCy3GD7uv=H-Fau|PwX5t@b^q4tSDMPcQJ
+zB9O{L%7-9+5mLH_$+IExqmaTK#GeJkzL~|vnR)5K$@vAT3}AN_q$ZZ6roaT;@{3Y4
+z)AQi+PWh#Ia7l!I_f(+sGn3tN64Q~&2PA(uA(b1<5Lcp<Q?PIY<$EopaOT00(uz_O
+zQ(!XkP;;4(;)4-Od4+7RAQkL2ho%F3_7dwJAv(E-lSuan)5$&P`5q)M&Va}#$m*Ga
+JJRSo15&-i*hS>lB
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-nested-invalid.txt crates/cargo-census/tests/fixtures/capnp/rpc-nested-invalid.txt
+new file mode 100644
+index 00000000..dc3e3431
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-nested-invalid.txt
+@@ -0,0 +1,34 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++(nodes = [
++  (id = 17204929253020270592, file = void, nestedNodes = [
++    (name = "Outer", id = 17204929253020270593),
++    (name = "Result", id = 17204929253020270601)]),
++  (id = 17204929253020270593, scopeId = 17204929253020270592, isGeneric = true, parameters = [(name = "A")],
++   nestedNodes = [(name = "Inner", id = 17204929253020270594)], struct = ()),
++  (id = 17204929253020270594, scopeId = 17204929253020270593, isGeneric = true, parameters = [(name = "B")],
++   nestedNodes = [
++     (name = "MissingScope", id = 17204929253020270595),
++     (name = "RepeatedScope", id = 17204929253020270596),
++     (name = "ForeignScope", id = 17204929253020270597),
++     (name = "BoundScope", id = 17204929253020270598),
++     (name = "MissingGenericFlag", id = 17204929253020270599)], struct = ()),
++  (id = 17204929253020270595, scopeId = 17204929253020270594, isGeneric = true, interface = (methods = [
++    (name = "read", paramStructType = 17204929253020270608, resultStructType = 17204929253020270601,
++     paramBrand = (scopes = [(scopeId = 17204929253020270593, inherit = void)]))])),
++  (id = 17204929253020270608, isGeneric = true, struct = ()),
++  (id = 17204929253020270596, scopeId = 17204929253020270594, isGeneric = true, interface = (methods = [
++    (name = "read", paramStructType = 17204929253020270609, resultStructType = 17204929253020270601,
++     paramBrand = (scopes = [(scopeId = 17204929253020270593, inherit = void), (scopeId = 17204929253020270593, inherit = void)]))])),
++  (id = 17204929253020270609, isGeneric = true, struct = ()),
++  (id = 17204929253020270597, scopeId = 17204929253020270594, isGeneric = true, interface = (methods = [
++    (name = "read", paramStructType = 17204929253020270610, resultStructType = 17204929253020270601,
++     paramBrand = (scopes = [(scopeId = 17204929253020270593, inherit = void), (scopeId = 17204929253020270601, inherit = void)]))])),
++  (id = 17204929253020270610, isGeneric = true, struct = ()),
++  (id = 17204929253020270598, scopeId = 17204929253020270594, isGeneric = true, interface = (methods = [
++    (name = "read", paramStructType = 17204929253020270611, resultStructType = 17204929253020270601,
++     paramBrand = (scopes = [(scopeId = 17204929253020270593, inherit = void), (scopeId = 17204929253020270594, bind = [(type = (text = void))])]))])),
++  (id = 17204929253020270611, isGeneric = true, struct = ()),
++  (id = 17204929253020270599, scopeId = 17204929253020270594, interface = ()),
++  (id = 17204929253020270601, scopeId = 17204929253020270592, struct = ())])
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-unsupported.bin crates/cargo-census/tests/fixtures/capnp/rpc-unsupported.bin
+index 54852b23ad65132ca04bfa4aab2494d8928794dc..a4cf05b63d3fd2ed4804bbd6cfdd58b2302f9c6a 100644
+GIT binary patch
+literal 3400
+zc-plWOK4L;aP}o>Dk!$qnuA4ATdRc@t#~j+1#Kw>gIc_Js2Y+-TS$|b<W-`lR*F)n
+zMT>$UXwepb#VUFc#Lq#{OA(76{2ZiEY{i2p7K-5Pdppm~Yx44fx?y+T%+Act%+Ahk
+z006Et5X}vxIG%C?Y%2n&)+qpdI^Y3lX8hZub8f<3gun7f6R!u$-%gi+vsR@5+(TH4
+z@R$Ss3+!}Sd$;P#3SkGW$G~gyaQZm*N$j1d_ZvbDp;yv#6!D!BegpBP2nUB6E>G-v
+z@qz1iN&2mJyutn%`$d$SK{#U3KP>QJ3w`wJ!2D40^jtpuvphEFNFT~82+vyd3<#V<
+zpG5yrKmNVv@a{9#_<$uo)i|iw(<uK5jCFiAaqkoH`FZG?d#)`wS|RMG^<-YIzX693
+zGvdBh_#xZhBk&#z-AKLXU+v<<dD?Nf$$dci8kT*3y#jK-(!&1nr?*Z_J-IVmX|6@h
+zYq7y-Jb!vw{=DoG`a3T9!pf0`A*+6tLw_5}^|S2y<op~F`jb1_YMyP0Jj|Crw^8Rj
+z_VXhC+48d);VTP0wCv-{nfL2XuD6Mg+#aC(IR=iKXa8jX)Z_bO`RxCNIs=MfXFY!3
+zwb(f(?Dx1b>4|u#R*NRJcs!O!so}a%FdmH~y+Zegne}5c;=82tUW?y;>3nX)?^Y?l
+zIbJX2XBCderTyS|Lh_H}z1a5!(~(#(j4+`_QvfZ|4mHt<mI-_JYAKb=HLFpihZ=F{
+z=92;ssHu)v_|JS(G#rn0qN1#R`e`-FGp5&Tmp*38K7b{{FKWd)KZE566@=Zvh^FFq
+znMIo7NOEO4_S<b*V(=WW+b2Io2_z|QkH^Hb%VkDYmU9c7_SrU1{InZj%2B;zB45Nl
+z6zG?(w~k~B_s^Og;MmW??99lzx`Y}GSK^igyOMver&UdAkyKK)>wn}W)!%=cm)6s0
+zJzpM^M)wQZ!QW3ccJ&a9y3S){XP2Y=pz4sZa}NA6t4eOa=w6_6pUbaep<%1IF~~3O
+z&uZbHBGqAe_kGg2le2;E`(j783p4HCps%Ckm7w}f_oewh5%yBOr}u_D@0IF3-B;8!
+zAy4-Qy|=85?i+gVQB#F}I?wdpq;^ouQyl5NOD!PQr}{<jF?rr=bN|Zcgyo4NpLfbv
+zD8IqyGVNRh#{Y#<VSkC>%ysXBluzw~pT9d+B4G`K1@-a@(nhn;x1*_z%EEiE3280-
+Jjqc90{WtHD?{WYD
+
+delta 794
+zc-lK5bwkXO0SK}f8K8iLK@dnDXJ%mVWo2Mc2a7N;fTUZ240c8kn-#25W1^)w?@^$@
+zCLrf5kWQZ%C_gcQW#R$@&7VN-C!jDZ6HpHW0x$yk_DFooi9gL1HGzV!fE-ga#fDJ6
+z;p9L@dkaw@j|ph3BAO~$C?7<NBZ+^HTf*`qHgVbH4kiUdb)d#zAm(I(xJwkx5J4y(
+zPEWqcWX{MqS&&(sk#({qv$^J1pzbb41`NQ8<|Et5Gnw@@LxC!n0I@DmRtZSkqS<E&
+z<huju%*h{_?HPS18?uBOE(5Cj#t4x!0@9vndR(D;=EB4$C$h<;0BH$u1Tiv9W9+Cb
+zy)E}f6UcW0;{M6j^UwR7ysHXiTLJO1#l62Lb3Ff{2xJE#g^(gteX(7v)*<7ZU9v!S
+z5y)$SSGu0;-?CPAvL~xLyL)P0YEfqL=62R{#>xNK*`;7n$^Z!!W@xei@;9Gn|H;Iz
+z0OT++FaZ<A<ab<Lrm!G^fkYsdN3sRxeH8i0x!lr>iIY3I<rzaKujH0j^n~hyxg8d<
+xFyJ})CAa%z0UnLX2|P8d{y-6)$q#wt4W0qjyai%d7{S!P10_@-W@15&RshL9cc}mX
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-unsupported.capnp crates/cargo-census/tests/fixtures/capnp/rpc-unsupported.capnp
+index e9ae4994..3e83f339 100644
+--- crates/cargo-census/tests/fixtures/capnp/rpc-unsupported.capnp
++++ crates/cargo-census/tests/fixtures/capnp/rpc-unsupported.capnp
+@@ -11,7 +11,11 @@ interface Parent {}
+ 
+ interface Inherited @0xf8e70893fb8da3a6 extends(Parent) {}
+ 
+-interface Generic @0xa6615df804a45ef7 (T) {}
++struct Outer(T) {
++  interface Generic @0xa6615df804a45ef7 {}
++}
++
++interface GenericDerived @0xeec6000000000001 (T) extends(Parent) {}
+ 
+ interface GenericMethod @0xba6c33c22a5d3e73 {
+   read @0 [T] () -> (value :T);
+diff --git crates/raf-census/src/capnp_history/compare.rs crates/raf-census/src/capnp_history/compare.rs
+index 191b4a19..06a8215a 100644
+--- crates/raf-census/src/capnp_history/compare.rs
++++ crates/raf-census/src/capnp_history/compare.rs
+@@ -86,8 +86,13 @@ pub enum ChangeKind {
+         /// ID of the former direct superclass.
+         superclass: TypeId,
+     },
+-    /// The count of a struct's own type parameters changed.
++    /// The count of a type's own parameters changed.
+     ChangedParameters,
++    /// The arity of a lexical parameter scope available to an RPC interface changed.
++    ChangedEnclosingParameters {
++        /// ID of the enclosing declaration.
++        scope: TypeId,
++    },
+     /// An existing member disappeared.
+     RemovedMember,
+     /// The old ordinal now has a different name.
+@@ -146,6 +151,9 @@ impl fmt::Display for ChangeKind {
+                 return write!(f, "direct superclass {superclass} removed");
+             }
+             Self::ChangedParameters => "type parameter count changed",
++            Self::ChangedEnclosingParameters { scope } => {
++                return write!(f, "enclosing scope {scope} type parameter count changed");
++            }
+             Self::RemovedMember => "member removed",
+             Self::RenamedMember { current } => return write!(f, "member renamed to {current}"),
+             Self::ChangedOrdinal => "ordinal changed",
+@@ -443,6 +451,19 @@ fn interface(
+     after: &Interface,
+     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
+ ) -> Result<(), Error> {
++    if before.parameters != after.parameters {
++        emit(None, ChangeKind::ChangedParameters)?;
++    }
++    for (&scope, &count) in &before.enclosing_parameters {
++        if after.enclosing_parameters.get(&scope) != Some(&count) {
++            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
++        }
++    }
++    for &scope in after.enclosing_parameters.keys() {
++        if !before.enclosing_parameters.contains_key(&scope) {
++            emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
++        }
++    }
+     for &superclass in before.superclasses.difference(&after.superclasses) {
+         emit(None, ChangeKind::RemovedSuperclass { superclass })?;
+     }
+diff --git crates/raf-census/src/capnp_history/descriptor.rs crates/raf-census/src/capnp_history/descriptor.rs
+index 5df52272..1c80fa96 100644
+--- crates/raf-census/src/capnp_history/descriptor.rs
++++ crates/raf-census/src/capnp_history/descriptor.rs
+@@ -92,6 +92,8 @@ pub(super) enum Node {
+ 
+ #[derive(Debug)]
+ pub(super) struct Interface {
++    pub(super) parameters: u32,
++    pub(super) enclosing_parameters: BTreeMap<TypeId, u32>,
+     pub(super) superclasses: BTreeSet<TypeId>,
+     pub(super) methods: Vec<Method>,
+ }
+@@ -461,15 +463,11 @@ impl<'a> Nodes<'a> {
+                     needed,
+                     annotations,
+                     scopes,
++                    None,
+                 )?))
+             }
+             node::Enum(data) => Ok(Node::Enum(enumerants(id, data)?)),
+             node::Interface(data) => {
+-                if !self.is_declared(id, scopes)? {
+-                    return Err(layout(format!(
+-                        "RPC interface {id} must be declared in the schema"
+-                    )));
+-                }
+                 let interface = self.rpc_projection(rpc)?.interface(
+                     self,
+                     node,
+@@ -503,6 +501,7 @@ impl<'a> Nodes<'a> {
+         needed: &mut BTreeSet<TypeId>,
+         annotations: Annotations,
+         scopes: &mut DeclarationScopes,
++        inline_type_scope: Option<TypeId>,
+     ) -> Result<Struct, Error> {
+         let mut collector = Fields {
+             nodes: self,
+@@ -514,6 +513,7 @@ impl<'a> Nodes<'a> {
+             used_groups: BTreeSet::new(),
+             ordinals: BTreeSet::new(),
+             sizes: (reader.get_data_word_count(), reader.get_pointer_count()),
++            inline_type_scope,
+         };
+         collector.group(id, reader, Rc::from([]), (None, None), false)?;
+         collector.validate_peers(id)?;
+@@ -595,6 +595,7 @@ struct Fields<'a, 'b> {
+     used_groups: BTreeSet<TypeId>,
+     ordinals: BTreeSet<u16>,
+     sizes: (u16, u16),
++    inline_type_scope: Option<TypeId>,
+ }
+ 
+ impl<'a> Fields<'a, '_> {
+@@ -640,7 +641,7 @@ impl<'a> Fields<'a, '_> {
+             shape::read_brand(
+                 annotation.get_brand()?,
+                 self.nodes,
+-                (owner, marker),
++                (self.inline_type_scope.unwrap_or(owner), marker),
+                 &mut BTreeSet::new(),
+             )?;
+         }
+@@ -848,7 +849,8 @@ impl<'a> Fields<'a, '_> {
+                 "missing type or default at {owner}.{name} @{ordinal}"
+             )));
+         }
+-        let ty = Type::read(slot.get_type()?, self.nodes, owner, self.needed)?;
++        let type_scope = self.inline_type_scope.unwrap_or(owner);
++        let ty = Type::read(slot.get_type()?, self.nodes, type_scope, self.needed)?;
+         let default = shape::default(&ty, slot.get_default_value()?, self.nodes)?;
+         let offset = slot.get_offset();
+         let storage = ty.storage();
+diff --git crates/raf-census/src/capnp_history/descriptor/rpc.rs crates/raf-census/src/capnp_history/descriptor/rpc.rs
+index 51633a39..3011a999 100644
+--- crates/raf-census/src/capnp_history/descriptor/rpc.rs
++++ crates/raf-census/src/capnp_history/descriptor/rpc.rs
+@@ -19,7 +19,13 @@ type Owners = BTreeMap<TypeId, Option<TypeId>>;
+ #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+ enum ScopePolicy {
+     Nongeneric,
+-    BrandedEndpoint,
++    LexicalGenerics,
++}
++
++#[derive(Clone, Copy)]
++struct MethodOwner<'a> {
++    id: TypeId,
++    parameter_scopes: &'a BTreeMap<TypeId, u32>,
+ }
+ 
+ pub(super) struct Projection {
+@@ -83,13 +89,38 @@ impl Projection {
+         scopes: &mut DeclarationScopes,
+     ) -> Result<Interface, Error> {
+         let id = TypeId(reader.get_id());
+-        if !nongeneric(reader)? {
+-            return Err(layout(format!("RPC interface {id} must be nongeneric")));
++        let mut parameter_scopes = BTreeMap::new();
++        let mut has_generic_flag = false;
++        if !nodes.declaration_chain(id, scopes, |declaration| {
++            let count = declaration.get_parameters()?.len();
++            if count != 0 {
++                parameter_scopes.insert(TypeId(declaration.get_id()), count);
++            }
++            has_generic_flag |= declaration.get_is_generic();
++            Ok(true)
++        })? {
++            return Err(layout(format!(
++                "RPC interface {id} must be declared in the schema"
++            )));
++        }
++        if (has_generic_flag || !parameter_scopes.is_empty())
++            && !self.reciprocal_declaration(nodes, id, ScopePolicy::LexicalGenerics, scopes)?
++        {
++            return Err(layout(format!(
++                "generic RPC interface {id} requires a unique reciprocal declaration chain with consistent generic flags"
++            )));
+         }
+         let superclasses = self.superclasses(nodes, id, data, scopes)?;
+         needed.extend(superclasses.iter().copied());
+-        let methods = self.methods(nodes, id, data, needed, annotations, scopes)?;
++        let owner = MethodOwner {
++            id,
++            parameter_scopes: &parameter_scopes,
++        };
++        let methods = self.methods(nodes, owner, data, needed, annotations, scopes)?;
++        let parameters = parameter_scopes.remove(&id).unwrap_or(0);
+         Ok(Interface {
++            parameters,
++            enclosing_parameters: parameter_scopes,
+             superclasses,
+             methods,
+         })
+@@ -187,12 +218,13 @@ impl Projection {
+     fn methods<'a>(
+         &mut self,
+         nodes: &Nodes<'a>,
+-        id: TypeId,
++        owner: MethodOwner<'_>,
+         interface: node::interface::Reader<'a>,
+         needed: &mut BTreeSet<TypeId>,
+         annotations: Annotations,
+         scopes: &mut DeclarationScopes,
+     ) -> Result<Vec<Method>, Error> {
++        let id = owner.id;
+         let list = interface.get_methods()?;
+         if list.len() > u32::from(u16::MAX) + 1 {
+             return Err(layout(format!(
+@@ -227,16 +259,20 @@ impl Projection {
+                     return Err(error("must be a nongroup struct"));
+                 }
+                 if reader.get_scope_id() == 0 {
+-                    if !brand.get_scopes()?.is_empty() {
+-                        return Err(error("must have an empty inline endpoint brand"));
+-                    }
+-                    self.inline(reader, data, error)?;
++                    self.inline(reader, data, (owner.parameter_scopes, brand), error)?;
+                     if self.has_declaring_scope(nodes, target)? {
+                         return Err(error(
+                             "has a lexical declaration claim despite its zero scope",
+                         ));
+                     }
+-                    let structure = nodes.structure(target, data, needed, annotations, scopes)?;
++                    let structure = nodes.structure(
++                        target,
++                        data,
++                        needed,
++                        annotations,
++                        scopes,
++                        (!owner.parameter_scopes.is_empty()).then_some(owner.id),
++                    )?;
+                     return Ok(Endpoint::Inline {
+                         id: target,
+                         structure,
+@@ -251,7 +287,7 @@ impl Projection {
+                     }
+                     Type::Named(Kind::Struct, target, BTreeMap::new())
+                 } else {
+-                    self.branded_endpoint(nodes, (id, reader), brand, needed, scopes, error)?
++                    self.branded_endpoint(nodes, (owner, reader), brand, needed, scopes, error)?
+                 };
+                 if self.named.insert(target) {
+                     needed.insert(target);
+@@ -280,7 +316,7 @@ impl Projection {
+     fn branded_endpoint(
+         &mut self,
+         nodes: &Nodes<'_>,
+-        (interface, endpoint): (TypeId, node::Reader<'_>),
++        (owner, endpoint): (MethodOwner<'_>, node::Reader<'_>),
+         brand: brand::Reader<'_>,
+         needed: &mut BTreeSet<TypeId>,
+         scopes: &mut DeclarationScopes,
+@@ -292,24 +328,30 @@ impl Projection {
+                 "must have an empty brand for a nongeneric declaration",
+             ));
+         }
+-        if !self.reciprocal_declaration(nodes, interface, ScopePolicy::Nongeneric, scopes)? {
++        if owner.parameter_scopes.is_empty()
++            && !self.reciprocal_declaration(nodes, owner.id, ScopePolicy::Nongeneric, scopes)?
++        {
+             return Err(error(
+                 "requires unique reciprocal declarations in the nongeneric method owner's scopes",
+             ));
+         }
+-        if !self.reciprocal_declaration(nodes, id, ScopePolicy::BrandedEndpoint, scopes)? {
++        if !self.reciprocal_declaration(nodes, id, ScopePolicy::LexicalGenerics, scopes)? {
+             return Err(error(
+                 "requires unique reciprocal declarations and consistent generic flags in the endpoint's scopes",
+             ));
+         }
+         let scope_count = brand.get_scopes()?.len();
+-        let brand = shape::read_brand(brand, nodes, (interface, id), needed)?;
++        let brand = shape::read_brand(brand, nodes, (owner.id, id), needed)?;
+         // Canonicalization drops empty scopes, which method brands cannot carry.
+         if brand.is_empty()
+             || u32::try_from(brand.len()) != Ok(scope_count)
+-            || !concrete_brand(nodes, id, &brand)?
++            || !complete_brand(nodes, id, &brand, owner.parameter_scopes)?
+         {
+-            return Err(error("requires a complete concrete endpoint brand"));
++            return Err(error(if owner.parameter_scopes.is_empty() {
++                "requires a complete concrete endpoint brand"
++            } else {
++                "requires a complete endpoint brand within the generic method owner's scopes"
++            }));
+         }
+         Ok(Type::Named(Kind::Struct, id, brand))
+     }
+@@ -337,14 +379,38 @@ impl Projection {
+         &self,
+         reader: node::Reader<'_>,
+         data: node::struct_::Reader<'_>,
++        (parameter_scopes, brand): (&BTreeMap<TypeId, u32>, brand::Reader<'_>),
+         error: impl FnOnce(&str) -> Error,
+     ) -> Result<(), Error> {
+-        let id = TypeId(reader.get_id());
+-        if !nongeneric(reader)? || !reader.get_nested_nodes()?.is_empty() {
++        let scopes = brand.get_scopes()?;
++        let generic = !parameter_scopes.is_empty();
++        if generic {
++            let reason = "must inherit exactly the generic method owner's scopes";
++            if usize::try_from(scopes.len()) != Ok(parameter_scopes.len()) {
++                return Err(error(reason));
++            }
++            let mut inherited = BTreeSet::new();
++            for scope in scopes {
++                let id = TypeId(scope.get_scope_id());
++                if !parameter_scopes.contains_key(&id)
++                    || !matches!(scope.which()?, brand::scope::Inherit(()))
++                    || !inherited.insert(id)
++                {
++                    return Err(error(reason));
++                }
++            }
++        } else if !scopes.is_empty() {
++            return Err(error("must have an empty inline endpoint brand"));
++        }
++        if reader.get_is_generic() != generic
++            || !reader.get_parameters()?.is_empty()
++            || !reader.get_nested_nodes()?.is_empty()
++        {
+             return Err(error(
+-                "must be a detached nongeneric struct without declarations",
++                "must match the method owner's generic flag and have no declarations or own parameters",
+             ));
+         }
++        let id = TypeId(reader.get_id());
+         if self.inline_owners.get(&id) != Some(&1) {
+             return Err(error("must have exactly one owning method role"));
+         }
+@@ -373,25 +439,27 @@ fn nongeneric(reader: node::Reader<'_>) -> Result<bool, Error> {
+     Ok(!reader.get_is_generic() && reader.get_parameters()?.is_empty())
+ }
+ 
+-fn concrete_brand(
++fn complete_brand(
+     nodes: &Nodes<'_>,
+     mut id: TypeId,
+     brand: &BTreeMap<TypeId, Arguments>,
++    parameter_scopes: &BTreeMap<TypeId, u32>,
+ ) -> Result<bool, Error> {
+     for _ in 0..=super::MAX_DEPTH {
+         let node = nodes.node(id)?;
+         let count = node.get_parameters()?.len();
+         if count != 0 {
+-            let Some(Arguments::Bound(values)) = brand.get(&id) else {
+-                return Ok(false);
+-            };
+-            if u32::try_from(values.len()) != Ok(count) {
+-                return Ok(false);
+-            }
+-            for value in values {
+-                if !concrete_type(nodes, value)? {
+-                    return Ok(false);
++            match brand.get(&id) {
++                Some(Arguments::Inherited(arity))
++                    if parameter_scopes.get(&id) == Some(arity) && *arity == count => {}
++                Some(Arguments::Bound(values)) if u32::try_from(values.len()) == Ok(count) => {
++                    for value in values {
++                        if !complete_type(nodes, value, parameter_scopes)? {
++                            return Ok(false);
++                        }
++                    }
+                 }
++                _ => return Ok(false),
+             }
+         }
+         id = TypeId(node.get_scope_id());
+@@ -402,11 +470,16 @@ fn concrete_brand(
+     Ok(false)
+ }
+ 
+-fn concrete_type(nodes: &Nodes<'_>, ty: &Type) -> Result<bool, Error> {
++fn complete_type(
++    nodes: &Nodes<'_>,
++    ty: &Type,
++    parameter_scopes: &BTreeMap<TypeId, u32>,
++) -> Result<bool, Error> {
+     match ty {
+-        Type::Named(_, id, brand) => concrete_brand(nodes, *id, brand),
+-        Type::List(element) => concrete_type(nodes, element),
+-        Type::Pointer(Pointer::Any | Pointer::Parameter(..)) => Ok(false),
++        Type::Named(_, id, brand) => complete_brand(nodes, *id, brand, parameter_scopes),
++        Type::List(element) => complete_type(nodes, element, parameter_scopes),
++        Type::Pointer(Pointer::Any) => Ok(false),
++        Type::Pointer(Pointer::Parameter(scope, _)) => Ok(parameter_scopes.contains_key(scope)),
+         Type::Atom(_) | Type::Pointer(_) => Ok(true),
+     }
+ }
+diff --git docs/capabilities/census-cli.md docs/capabilities/census-cli.md
+index 50672cfe..872110e3 100644
+--- docs/capabilities/census-cli.md
++++ docs/capabilities/census-cli.md
+@@ -64,6 +64,8 @@ bindings:
+     - cargo_census::test_crate::delivery::capnp_history_bounds_file_declaration_nesting
+     - cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods
+     - cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints
++    - cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners
++    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners
+     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints
+     - cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance
+     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance
+@@ -114,8 +116,8 @@ Expose native duplication and ledger data without building or executing reposito
+ 
+ **Cap'n Proto history.** `capnp-history` compares unpacked compiler
+ descriptors read from explicit base and current Git commits. The caller
+-selects struct and enum roots by type ID. Census follows their data type
+-references and groups. It reports an old root or member that disappears
++selects struct, enum and interface roots by type ID. From a data root,
++Census follows data type references and groups. It reports an old root or member that disappears
+ and changes to existing names, ordinals, types, slots, discriminants and
+ defaults. The layout comparison permits a defaulted field or enum variant
+ that preserves the old layout. Written declaration order is ignored. A field
+@@ -126,17 +128,22 @@ compared by their canonical pointer bytes. The caller verifies
+ acceptance by application readers.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
+ 
+-The strict history check accepts explicitly selected nongeneric interfaces.
++The strict history check accepts explicitly selected interfaces. A generic
++interface can declare its own type parameters or inherit them from its lexical
++scopes. It requires a unique reciprocal declaration chain and generic flags
++consistent with the declared parameters in that chain. The comparison reports
++changes to its own or enclosing parameter counts on the interface ID and names
++the enclosing scope in that finding.
+ A method can use named structs or inline lists for its parameters and results.
+ Census reports removed, renamed or moved methods and changes to an endpoint
+ ID, its named or inline form, or its canonical type arguments. It compares
+ parameters and results independently. A new trailing method with valid
+ endpoints is allowed.
+-<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints -->
++<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners -->
+ 
+ Census follows the direct superclass IDs of each selected interface and its
+-bases. Each inheritance edge must target a named nongeneric interface and
+-have an empty brand. The declaration chain must have reciprocal ownership
++bases. Both interfaces on an inheritance edge must be named and nongeneric.
++The edge must have an empty brand. The declaration chain must have reciprocal ownership
+ and unique names through a file node. Missing or wrong-kind targets, duplicate
+ bases, broken ownership and cycles refuse.
+ 
+@@ -149,27 +156,33 @@ ordinal and endpoint layout. A diamond projects each defining interface once.
+ 
+ A named endpoint must be a declared nongroup struct with reciprocal lexical
+ ownership. A generic endpoint requires an explicit brand with complete
+-concrete pointer bindings for every parameter-bearing scope in its
+-declaration chain. An endpoint with no parameters of its own can bind
+-only the parameters of enclosing declarations. Nested type arguments
+-must also be fully bound. An unconstrained `AnyPointer` counts as an
+-unbound argument.
++pointer bindings for every parameter-bearing scope in its declaration chain.
++An endpoint can bind the parameters of enclosing declarations alone.
++Nested type arguments must also be fully bound. An unconstrained
++`AnyPointer` counts as an unbound argument.
+ The branded endpoint and its method interface each require a unique
+-reciprocal declaration chain. The method interface and its enclosing
+-declarations must be nongeneric. The endpoint's generic flags must agree
+-with its own and enclosing parameter declarations.
++reciprocal declaration chain. A nongeneric method owner requires concrete
++arguments. A generic owner permits bindings to its own and enclosing parameter
++positions. A named endpoint can inherit any of these scopes that also belong
++to its declaration chain.
++The endpoint's generic flags must agree with its own and enclosing parameter
++declarations.
+ Several methods and roles can share one endpoint declaration with different
+ brands. Census compares its layout once by type ID using ordinary struct
+ evolution, including implicit defaults for optional additions.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
+ 
+ A compiler-generated inline list belongs to one method ordinal and endpoint
+-role. It must be a detached nongeneric struct with no lexical declaration
+-claim. Its fields use explicit ordinals in order from zero and the same layout
+-checks as ordinary data, including referenced types. Census checks each
++role. It must be a detached struct without its own type parameters or a
++lexical declaration claim. A generic owner requires the inline list to
++inherit each parameter-bearing scope in its declaration chain exactly once.
++Census reads the inline field types in the owner's lexical scopes and retains
++the detached struct ID for layout. The list for a nongeneric owner
++requires an empty brand. Fields use explicit ordinals in order from zero and
++the same layout checks as ordinary data, including referenced types. Census checks each
+ retained inline input's explicit-default marker and requires an explicit
+ default for each appended inline input. It also compares the layout when a
+-renamed method retains its ordinal. Generic methods, direct selection of a
++renamed method retains its ordinal. Method type parameters, direct selection of a
+ detached endpoint and wrappers shared across method roles refuse.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
+ 
+@@ -743,8 +756,24 @@ Incomplete, foreign and redundant scope bindings refuse, as do ambiguous
+ lexical ownership and inconsistent generic flags.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
+ 
++The file-scoped generic interface fixtures accept an appended method and
++compare owner arity, an inherited inline slot and a bound named role.
++They admit both named roles inheriting the same owner scope and report
++one layout finding per changed named field. Competing ownership, missing
++brands and out-of-range owner parameter positions refuse.
++<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints -->
++
++The nested interface fixtures bind named and inline roles across multiple
++lexical scopes. They accept an appended method and report changes to an
++inline slot, a named role's binding and a named endpoint's field. An interface
++that only inherits parameters reports the changed enclosing count even when
++its detached role IDs and slot types stay stable. Missing, repeated, foreign
++and bound inline scope rows refuse, as does an inconsistent owner flag.
++<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners -->
++
+ A persisted interface pointer keeps its data verdict across changes in
+-RPC inheritance and method layouts.
++RPC inheritance and method layouts, including a stable branded pointer
++to a generic owner.
+ <!-- raf:tested-by cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_ignores_rpc_endpoint_layouts -->
+ 
+ <!-- raf:generated:verification-matrix -->
+@@ -782,11 +811,13 @@ RPC inheritance and method layouts.
+ | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints` | test | [Contract](#contract), [Usage](#usage) |
++| `cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
++| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_annotation_types` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types` | test | [Contract](#contract) |
+diff --git work/assessments/census-cli-constraints.md work/assessments/census-cli-constraints.md
+index c2d966d6..623e6dbf 100644
+--- work/assessments/census-cli-constraints.md
++++ work/assessments/census-cli-constraints.md
+@@ -58,7 +58,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 0635de0ef13de76a05dc5cc7d6ac66edd31177894430121a0f837f871b6f95b9
++    digest: 1bd6da25e1d99c39e59c5a7bf2c87a279f208f16343d2409985cc524c3b8056b
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-contract.md work/assessments/census-cli-contract.md
+index 752ebd0d..1bb59df2 100644
+--- work/assessments/census-cli-contract.md
++++ work/assessments/census-cli-contract.md
+@@ -7,7 +7,7 @@ subject: cap:census-cli#contract
+ inputs:
+   - kind: section
+     name: cap:census-cli#contract
+-    digest: 6c47154b295349b9cd7c918855f3e6c4bf4b103574461cf69e14aee00f94e808
++    digest: 173120be699144435ab4676f8f3310e687681b716d16b4ae2d0ed6661b7bd778
+   - kind: symbol
+     name: cargo_census::run
+     digest: b32049f8a2619291edf0a2a43585c53654afca013fc0074ed2898c73a9c661fd
+diff --git work/assessments/census-cli-examples.md work/assessments/census-cli-examples.md
+index 85520251..f3e63c29 100644
+--- work/assessments/census-cli-examples.md
++++ work/assessments/census-cli-examples.md
+@@ -58,7 +58,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 0635de0ef13de76a05dc5cc7d6ac66edd31177894430121a0f837f871b6f95b9
++    digest: 1bd6da25e1d99c39e59c5a7bf2c87a279f208f16343d2409985cc524c3b8056b
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-explanation.md work/assessments/census-cli-explanation.md
+index 1e3e065d..1afc1ebf 100644
+--- work/assessments/census-cli-explanation.md
++++ work/assessments/census-cli-explanation.md
+@@ -58,7 +58,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 0635de0ef13de76a05dc5cc7d6ac66edd31177894430121a0f837f871b6f95b9
++    digest: 1bd6da25e1d99c39e59c5a7bf2c87a279f208f16343d2409985cc524c3b8056b
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-purpose.md work/assessments/census-cli-purpose.md
+index f9f72e05..ab054431 100644
+--- work/assessments/census-cli-purpose.md
++++ work/assessments/census-cli-purpose.md
+@@ -58,7 +58,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 0635de0ef13de76a05dc5cc7d6ac66edd31177894430121a0f837f871b6f95b9
++    digest: 1bd6da25e1d99c39e59c5a7bf2c87a279f208f16343d2409985cc524c3b8056b
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-verification.md work/assessments/census-cli-verification.md
+index af0f1308..0e84bcb0 100644
+--- work/assessments/census-cli-verification.md
++++ work/assessments/census-cli-verification.md
+@@ -7,7 +7,7 @@ subject: cap:census-cli#verification
+ inputs:
+   - kind: section
+     name: cap:census-cli#verification
+-    digest: f6422cb6e460ecc8701d207faa10c46bfc06bbdf6f35beb6234a6269587edbd5
++    digest: e6c8a90f29cd513be65121f312f388404c9ca9e328da925b786402b9904f59bc
+   - kind: symbol
+     name: cargo_census::bin_crate::cargo_census::main
+     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
+@@ -58,7 +58,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: 0635de0ef13de76a05dc5cc7d6ac66edd31177894430121a0f837f871b6f95b9
++    digest: 1bd6da25e1d99c39e59c5a7bf2c87a279f208f16343d2409985cc524c3b8056b
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6

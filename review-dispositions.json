@@ -1,0 +1,44 @@
+{
+  "github:comment:IC_kwDOVFffUs8AAAABpKIgRw": {
+    "resolution": "addressed",
+    "reason": "The reply cites the parser and constructor invariants, required and foreign key cases, mixed order and the canonical authoring corpus gate. The updated PR description links the dependency needed for locked self-Census.",
+    "commit": "46c1320e67354d6f51b4dd9849f90f0b521bdd41",
+    "reply_url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/373#issuecomment-7057489351",
+    "revision": {
+      "updated_at": "2026-11-21T04:47:12Z",
+      "state": null,
+      "commit": null,
+      "path": null,
+      "line": null,
+      "body_sha256": "24af0dd6dc4fb8d1ab772a35f11936eff53a7ae969a06cb4cea1d49449445fd6"
+    }
+  },
+  "github:review:PRR_kwDOVFffUs8AAAABZczOLA": {
+    "resolution": "addressed",
+    "reason": "The PR description and review reply document the exact locked self-Census refusal introduced by the larger sealed PurRDF set and the successful retained-image correction with unchanged limits.",
+    "commit": "46c1320e67354d6f51b4dd9849f90f0b521bdd41",
+    "reply_url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/373#issuecomment-7057489351",
+    "revision": {
+      "updated_at": "2026-11-21T04:42:41Z",
+      "state": "COMMENTED",
+      "commit": "46c1320e67354d6f51b4dd9849f90f0b521bdd41",
+      "path": null,
+      "line": null,
+      "body_sha256": "93e3b3a130a169a8c62e19a8620f67bab0da886dff6d75eef2a4b9aafbdbc433"
+    }
+  },
+  "github:comment:IC_kwDOVFffUs8AAAABpKi9xw": {
+    "resolution": "acknowledged",
+    "reason": "This reply records the reviewed source and qualification evidence for the header contract and its locked source dependency.",
+    "commit": "46c1320e67354d6f51b4dd9849f90f0b521bdd41",
+    "reply_url": null,
+    "revision": {
+      "updated_at": "2026-11-21T04:47:58Z",
+      "state": null,
+      "commit": null,
+      "path": null,
+      "line": null,
+      "body_sha256": "454d4a473da635ffd1813bff1b986cb2d97086f0e715f666c73c65bf60d23757"
+    }
+  }
+}

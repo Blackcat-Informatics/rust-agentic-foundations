@@ -1,0 +1,5 @@
+{"time": "2026-11-21T04:25:20.586745+00:00", "status": "started"}
+{"time": "2026-11-21T04:25:23.789246+00:00", "status": "merging"}
+{"time": "2026-11-21T04:25:24.619282+00:00", "status": "committing", "candidate_tree": "6dfc4825d6b1c19a6b74dc621998426a064836fd", "candidate_patch": "candidate-73ba712030de44b9b8295cf73f6dba86.patch", "stdout_log": "commit-73ba712030de44b9b8295cf73f6dba86.stdout.log", "stderr_log": "commit-73ba712030de44b9b8295cf73f6dba86.stderr.log", "validation_records": []}
+{"time": "2026-11-21T04:35:19.142774+00:00", "status": "commit_returned", "exit_code": 0, "commit_duration_seconds": 594.5000905079942, "stdout_log": "commit-73ba712030de44b9b8295cf73f6dba86.stdout.log", "stderr_log": "commit-73ba712030de44b9b8295cf73f6dba86.stderr.log"}
+{"time": "2026-11-21T04:35:19.267602+00:00", "status": "completed", "commit": "46c1320e67354d6f51b4dd9849f90f0b521bdd41", "tree": "6dfc4825d6b1c19a6b74dc621998426a064836fd", "exit_code": 0, "stdout_log": "commit-73ba712030de44b9b8295cf73f6dba86.stdout.log", "stderr_log": "commit-73ba712030de44b9b8295cf73f6dba86.stderr.log"}

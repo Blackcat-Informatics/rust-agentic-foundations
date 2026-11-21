@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "issue": 367,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "anon-read",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/367-okf-validate-closed-top-level-header",
+  "branch": "paudley/367-okf-validate-closed-top-level-header",
+  "slug": "okf-validate-closed-top-level-header",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/367-okf-validate-closed-top-level-header/.stage/okf-validate-closed-top-level-header",
+  "stage_tracked": true,
+  "base": "refs/remotes/origin/main",
+  "base_oid": "8fe5678c87993ce090c063c7185132d7e19db7d2",
+  "reused": false,
+  "adr_repo": false,
+  "created": [
+    "worktree:/home/paudley/Active/rust-agentic-foundations/.worktrees/367-okf-validate-closed-top-level-header",
+    "branch:paudley/367-okf-validate-closed-top-level-header",
+    "ignored:515 files (515 reflinked, 0 written)",
+    "rust-caches:reflinked /home/paudley/Active/rust-agentic-foundations/.worktrees/365-census-compare-methods-on-file-scoped caches into /home/paudley/Active/rust-agentic-foundations/.worktrees/367-okf-validate-closed-top-level-header plus 0 dependency units from 0 other checkouts in 10.5s; 1342 unchanged files keep their built mtimes; 67 other files take the seed time and rebuild; 8 units naming another checkout rebuild",
+    "stage:/home/paudley/Active/rust-agentic-foundations/.worktrees/367-okf-validate-closed-top-level-header/.stage/okf-validate-closed-top-level-header",
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/367-okf-validate-closed-top-level-header/.stage/okf-validate-closed-top-level-header/issue.md"
+  ],
+  "warnings": [],
+  "timestamp": "2026-11-20T20:22:56-0600",
+  "seed_error": ""
+}

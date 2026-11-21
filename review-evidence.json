@@ -1,0 +1,49 @@
+{
+  "ok": true,
+  "head": "46c1320e67354d6f51b4dd9849f90f0b521bdd41",
+  "items": [
+    {
+      "id": "github:comment:IC_kwDOVFffUs8AAAABpKIgRw",
+      "kind": "comment",
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/373#issuecomment-7057055815",
+      "author": "coderabbitai",
+      "updated_at": "2026-11-21T04:47:12Z",
+      "state": null,
+      "commit": null,
+      "body_sha256": "24af0dd6dc4fb8d1ab772a35f11936eff53a7ae969a06cb4cea1d49449445fd6",
+      "body_bytes": 17663,
+      "body_archived": false
+    },
+    {
+      "id": "github:comment:IC_kwDOVFffUs8AAAABpKi9xw",
+      "kind": "comment",
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/373#issuecomment-7057489351",
+      "author": "paudley",
+      "updated_at": "2026-11-21T04:47:58Z",
+      "state": null,
+      "commit": null,
+      "body_sha256": "454d4a473da635ffd1813bff1b986cb2d97086f0e715f666c73c65bf60d23757",
+      "body_bytes": 2918,
+      "body_archived": false
+    },
+    {
+      "id": "github:review:PRR_kwDOVFffUs8AAAABZczOLA",
+      "kind": "review",
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/373#pullrequestreview-6002888236",
+      "author": "coderabbitai",
+      "updated_at": "2026-11-21T04:42:41Z",
+      "state": "COMMENTED",
+      "commit": "46c1320e67354d6f51b4dd9849f90f0b521bdd41",
+      "body_sha256": "93e3b3a130a169a8c62e19a8620f67bab0da886dff6d75eef2a4b9aafbdbc433",
+      "body_bytes": 6601,
+      "body_archived": false
+    }
+  ],
+  "coverage": {
+    "comments": "complete",
+    "reviews": "complete",
+    "inline_comments": "complete",
+    "threads": "complete"
+  },
+  "bodies": "kept on the forge; each item carries body_sha256 of the original"
+}

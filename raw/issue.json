@@ -1,0 +1,20 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "Validate closed top-level OKF header keys through native SHACL Core in\n`Profile::validate`. Derive each document type\u2019s shape from the existing\n`KeySpec` table. Use a bounded header graph with one focus and one row per\nauthored key. Document-type dispatch precedes shape selection.\n\n- Enforce the closed key set and the presence of required fields through\n  PurRDF\u2019s prepared validator. Keep the parser\u2019s unique-key invariant.\n- Map typed validation results back to the existing unknown, missing,\n  and forbidden-resource rules. Preserve authored order for unknown keys\n  and schema order for missing keys. A native refusal is an actionable\n  document finding.\n- Qualify required-key removal, accepted neighbors, unknown and foreign\n  keys, the `resource` diagnostic, and stable mixed diagnostic order on\n  the real profile entry point. Verify the admitted repository corpus\n  retains its canonical RDF authoring round trip.\n\nParent #41 retains nested record shapes, value constraints, complete\nprofile reconciliation, and the remaining graph-wide validation.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-11-21T02:15:41Z",
+  "labels": [],
+  "milestone": null,
+  "number": 367,
+  "state": "OPEN",
+  "title": "okf: validate closed top-level header keys with native SHACL",
+  "updatedAt": "2026-11-21T02:15:41Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/367"
+}
