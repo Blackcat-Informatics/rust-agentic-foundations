@@ -915,25 +915,99 @@ fn capnp_history_compares_nested_generic_rpc_owners() {
 /// an owner that inherits every parameter must carry the generic flag.
 #[test]
 fn capnp_history_refuses_invalid_nested_generic_rpc_owners() {
+    assert_capnp_rpc_refusals(
+        include_bytes!("fixtures/capnp/rpc-nested-invalid.bin"),
+        &[
+            ("0xeec4300000000003", "must inherit exactly"),
+            ("0xeec4300000000004", "must inherit exactly"),
+            ("0xeec4300000000005", "must inherit exactly"),
+            ("0xeec4300000000006", "must inherit exactly"),
+            ("0xeec4300000000007", "consistent generic flags"),
+        ],
+    );
+}
+
+fn assert_capnp_rpc_refusals(descriptor: &[u8], refusals: &[(&str, &str)]) {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
     git_repo::init(root);
-    let invalid = commit_capnp_descriptor(
-        root,
-        include_bytes!("fixtures/capnp/rpc-nested-invalid.bin"),
-    );
-    for (selected, reason) in [
-        ("0xeec4300000000003", "must inherit exactly"),
-        ("0xeec4300000000004", "must inherit exactly"),
-        ("0xeec4300000000005", "must inherit exactly"),
-        ("0xeec4300000000006", "must inherit exactly"),
-        ("0xeec4300000000007", "consistent generic flags"),
-    ] {
+    let invalid = commit_capnp_descriptor(root, descriptor);
+    for &(selected, reason) in refusals {
         assert_census_refused(
             capnp_history(root, &invalid, &invalid, &[selected], &[]),
             reason,
         );
     }
+}
+
+/// Method and lexical positions remain distinct, and unused arity changes
+/// produce one method finding with no duplicate findings on its empty roles.
+#[test]
+fn capnp_history_compares_implicit_rpc_parameters() {
+    const READER: &str = "0xeec4400000000002";
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base =
+        commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-implicit-base.bin"));
+    for (descriptor, code, expected) in [
+        (
+            include_bytes!("fixtures/capnp/rpc-implicit-compatible.bin").as_slice(),
+            0,
+            "",
+        ),
+        (
+            include_bytes!("fixtures/capnp/rpc-implicit-changed.bin").as_slice(),
+            1,
+            concat!(
+                "Cap'n Proto history for 0xeec4400000000002.read.parameters.source: type changed\n",
+                "Cap'n Proto history for 0xeec4400000000002.read.results: type changed\n",
+                "Cap'n Proto history for 0xeec4400000000002.marker: implicit method parameter count changed\n",
+            ),
+        ),
+    ] {
+        let current = commit_capnp_descriptor(root, descriptor);
+        let verdict = capnp_history(root, &base, &current, &[READER], &[]);
+        assert_eq!(verdict.status.code(), Some(code), "{verdict:?}");
+        assert!(verdict.stderr.is_empty(), "{verdict:?}");
+        assert_eq!(String::from_utf8(verdict.stdout).unwrap(), expected);
+    }
+}
+
+/// Both implicit encodings require a proved method position. A detached role
+/// cannot borrow another wrapper's scope, and even an empty role must agree.
+#[test]
+fn capnp_history_refuses_invalid_implicit_rpc_parameters() {
+    assert_capnp_rpc_refusals(
+        include_bytes!("fixtures/capnp/rpc-implicit-invalid.bin"),
+        &[
+            ("0xeec4500000000001", "invalid implicit method parameter 1"),
+            (
+                "0xeec4500000000003",
+                "must declare its method's implicit parameters",
+            ),
+            (
+                "0xeec4500000000004",
+                "invalid parameter 0 in scope 0xeec4500000000012",
+            ),
+            (
+                "0xeec4500000000005",
+                "implicit method parameter requires an RPC method brand",
+            ),
+            (
+                "0xeec4500000000006",
+                "must declare its method's implicit parameters",
+            ),
+            (
+                "0xeec4500000000007",
+                "implicit method parameter requires an RPC method brand",
+            ),
+            (
+                "0xeec4500000000009",
+                "invalid method parameter 1 in wrapper",
+            ),
+        ],
+    );
 }
 
 /// Named method roles require an ordinary struct and an unambiguous reciprocal
@@ -1069,7 +1143,7 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
 }
 
 /// Detached endpoints belong to exactly one method and role across the request.
-/// Generic inheritance and implicit method parameters refuse.
+/// Generic inheritance remains outside the supported profile.
 #[test]
 fn capnp_history_refuses_unsupported_rpc_endpoints() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -1088,7 +1162,7 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
         root,
         &unsupported,
         &unsupported,
-        &["0xadb4bfe48ad45105"],
+        &["0xadb4bfe48ad45105", "0xba6c33c22a5d3e73"],
         &[],
     );
     assert!(concrete.status.success(), "{concrete:?}");
@@ -1119,12 +1193,6 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
             &unsupported,
             "0xeec6000000000001",
             "requires a reciprocal nongeneric declaration chain",
-        ),
-        (
-            &unsupported,
-            &unsupported,
-            "0xba6c33c22a5d3e73",
-            "must have no implicit method type parameters",
         ),
     ] {
         let refused = capnp_history(root, before, after, &[selected], &[]);
