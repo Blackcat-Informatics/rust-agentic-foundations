@@ -1503,6 +1503,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "purrdf-datalog"
+version = "4.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8d3d67d1702de74031402ef8a5a546dfe4516dc4657be951b1d399a12085386"
+dependencies = [
+ "purrdf-core",
+ "purrdf-hash",
+ "purrdf-lex",
+ "rayon",
+]
+
+[[package]]
 name = "purrdf-deflate"
 version = "4.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1627,6 +1639,46 @@ dependencies = [
  "purrdf-sparql-algebra",
  "purrdf-sparql-eval",
  "purrdf-xsd",
+ "rayon",
+ "regex",
+ "sha2",
+]
+
+[[package]]
+name = "purrdf-shapes"
+version = "4.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77c2ae6b96c72d1f093d1238011ea1f86d5804633c0f9c24495376429f93c8cf"
+dependencies = [
+ "purrdf-core",
+ "purrdf-datalog",
+ "purrdf-deflate",
+ "purrdf-hash",
+ "purrdf-iri",
+ "purrdf-lex",
+ "purrdf-rdf",
+ "purrdf-slice",
+ "purrdf-sparql-algebra",
+ "purrdf-sparql-eval",
+ "purrdf-stack",
+ "purrdf-xsd",
+ "rayon",
+ "regex",
+]
+
+[[package]]
+name = "purrdf-slice"
+version = "4.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4e1551912073f63d23c48bbd50e038c9d4d3fd0e63a2e607d7b3cc45e344f7e"
+dependencies = [
+ "purrdf-core",
+ "purrdf-gts",
+ "purrdf-hash",
+ "purrdf-iri",
+ "purrdf-lex",
+ "purrdf-rdf",
+ "purrdf-sparql-algebra",
  "rayon",
  "regex",
  "sha2",
@@ -1810,6 +1862,7 @@ dependencies = [
  "purrdf-lex",
  "purrdf-markdown",
  "purrdf-rdf",
+ "purrdf-shapes",
  "purrdf-xsd",
 ]
 

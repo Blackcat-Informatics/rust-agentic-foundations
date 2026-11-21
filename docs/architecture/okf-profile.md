@@ -116,7 +116,9 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
 `type`, and leaves every other key open. RAF narrows that base into a profile:
 
 - The RAF types are closed sets. A document carries every required key listed for
-  its type and no key outside the list. The shared header keys `tags` and `timestamp`
+  its type and no key outside the list. Prepared native SHACL Core shapes derive
+  top-level closure and required key presence from these type tables. The shared
+  header keys `tags` and `timestamp`
   belong to every type; a Review requires its timestamp. Evidence and Coverage have
   optional keys of their own.
 - `id` is RAF's identity key. The closed key sets do not include the OKF base key

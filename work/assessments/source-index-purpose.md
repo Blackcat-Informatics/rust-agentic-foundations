@@ -358,7 +358,7 @@ inputs:
     digest: 9896488c9653e2b60b3f3b3b18b2a0648536939751ab7eedeef67e7ed5f050c6
   - kind: symbol
     name: raf_source::RegistryArchiveTree::from_bytes
-    digest: 57abba1275233d858eeb09d2970c682821a59e87d8a4950d3d45b019f092d855
+    digest: 1f0233c329bd2477255ef8c2ad6a2d95cb15994af7ca607773085e6f17ef5528
   - kind: symbol
     name: raf_source::RegistryIndex
     digest: 2907c4226ce8e2dcf3ea106df1dabe0916c702ecfe397942cae5b2dce3c81aba
@@ -574,7 +574,7 @@ inputs:
     digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
   - kind: symbol
     name: raf_source::tree
-    digest: 7f0bae00e8e8eb5fd6417a4a33d9430ae20549ed415702e92e64d58cd4599309
+    digest: 631432a51fc5d7fba82b85c14b7cb8f0ce2ccb1ac69f188e257109accb303e28
   - kind: symbol
     name: raf_source::tree::disk
     digest: faa6d96e34bb963e9ce92b80011a735b72229f96383019987b696f56fb3217bc

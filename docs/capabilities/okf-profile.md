@@ -91,6 +91,7 @@ bindings:
     - raf_okf::Frontmatter
     - raf_okf::GeneratedBlock
     - raf_okf::Header
+    - raf_okf::HeaderShapeError
     - raf_okf::Heading
     - raf_okf::Input
     - raf_okf::InputKind
@@ -152,6 +153,7 @@ bindings:
     - raf_okf::test_crate::validate_cost::a_change_with_maximal_affects_and_changes_validates_at_the_cap
     - raf_okf::test_crate::validate_cost::a_capability_with_many_sections_and_blocks_is_refused_for_a_duplicated_section_at_the_cap
     - raf_okf::test_crate::profile::every_required_key_of_every_type_is_reported_when_missing
+    - raf_okf::test_crate::profile::mixed_header_violations_keep_their_key_and_diagnostic_order
     - raf_okf::test_crate::profile::an_unknown_key_is_reported_at_that_key
     - raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type
     - raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item
@@ -641,10 +643,13 @@ their `Outcome`), a record as `RafDocument::Evidence`, `RafDocument::Assessment`
 names the file, the rule and, for a frontmatter rule, the key; a body rule names the
 section or the line instead. The rules are:
 
-- the key set comes from one table per type, in the order of the architecture page. A
-  key outside the table, a missing required key, and the base key `resource` (a rule of
-  its own, which names the key set of the type) are violations. The optional keys
-  `tags` and `timestamp` may be absent;
+- the key table for the declared type supplies a prepared SHACL Core shape.
+  The bounded native header graph carries one focus and one predicate per
+  authored key. The closed shape refuses unknown keys, and required fields
+  use `sh:minCount 1`. The profile reports unknown keys in author order
+  and missing keys in schema order. A separate diagnostic names the
+  forbidden base key `resource`. A native refusal yields a document-level
+  `Rule::HeaderShape` finding with its typed cause;
 - a missing `type`, or one outside `DocType::ALL`, is the only violation reported for
   that document, because no key set applies;
 - a document of a known type sits directly in the directory of its type;
@@ -1201,6 +1206,11 @@ would produce noise in the diff, and a clean check could not be told from a stal
 
 ## Verification
 
+The mixed-header fixture checks authored order for unknown keys, the separate
+`resource` diagnosis and schema order for missing keys. Each finding names
+the file and key. The accepted neighbour uses the same declared type.
+<!-- raf:tested-by raf_okf::test_crate::profile::mixed_header_violations_keep_their_key_and_diagnostic_order -->
+
 Native Turtle and N-Triples round trips preserve the actual generated Index
 and decorated mixed-line-ending Unicode bytes with deterministic output.
 Closed-carrier refusals, original body locations and exact aggregate text-limit
@@ -1463,6 +1473,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::profile::every_required_key_of_every_type_is_reported_when_missing` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::future_tense_prose_is_not_a_violation` | test | [Constraints](#constraints) |
 | `raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome` | test | [Verification](#verification) |
+| `raf_okf::test_crate::profile::mixed_header_violations_keep_their_key_and_diagnostic_order` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::placeholder_scan_spares_code_longer_words_and_dotted_prose` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::placeholder_tokens_in_frontmatter_values_are_reported_at_the_key` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::placeholder_tokens_in_prose_are_reported_at_their_line` | test | [Verification](#verification) |

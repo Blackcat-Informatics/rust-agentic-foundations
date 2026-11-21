@@ -8,6 +8,7 @@ mod body_rules;
 #[cfg(test)]
 mod cost_tests;
 mod diagrams;
+mod header;
 mod model;
 mod records;
 mod review;
@@ -25,6 +26,7 @@ use crate::work::{Work, add};
 
 pub(crate) use body_rules::placeholders;
 pub use diagrams::{DiagramDeclaration, DiagramGrouping, DiagramKind, DiagramKindError};
+pub use header::HeaderShapeError;
 pub use model::{
     ArchitectureModel, ArtifactFlow, Component, ComponentKind, DeclaredRelation, ExternalActor,
     ModelBindings, Scenario, ScenarioRegion, ScenarioRegionKind, ScenarioStep,
@@ -255,7 +257,12 @@ impl Profile {
         if !is_directly_in(path, doc_type.directory()) {
             check.key("type", Rule::WrongDirectory { declared: doc_type });
         }
-        check_key_set(&mut check, map, doc_type);
+        let prior_findings = check.out.len();
+        if let Err(source) = header::check(&mut check, map, doc_type) {
+            check.out.truncate(prior_findings);
+            check.add(Location::Document, Rule::HeaderShape { source });
+            return Err(check.out);
+        }
         let collected = check_values(&mut check, map, doc_type, file_stem(path));
         check_frontmatter_placeholders(&mut check, map);
         let body = document.body();
@@ -267,34 +274,6 @@ impl Profile {
         match build(doc_type, collected) {
             Some(typed) if check.out.is_empty() => Ok(typed),
             _ => Err(check.out),
-        }
-    }
-}
-
-fn check_key_set(check: &mut Check<'_>, map: &Map, doc_type: DocType) {
-    let table = doc_type.keys();
-    for entry in map.entries() {
-        let key = entry.key();
-        if table.iter().any(|spec| spec.key == key) {
-            continue;
-        }
-        let rule = if key == "resource" {
-            Rule::ResourceKey { doc_type }
-        } else {
-            Rule::UnknownKey {
-                key: key.to_string(),
-            }
-        };
-        check.key(key, rule);
-    }
-    for spec in table {
-        if spec.required && map.get(spec.key).is_none() {
-            check.key(
-                spec.key,
-                Rule::MissingKey {
-                    key: spec.key.to_string(),
-                },
-            );
         }
     }
 }
