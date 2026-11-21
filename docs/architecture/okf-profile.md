@@ -372,6 +372,11 @@ in that type's directory. Each of these directories holds Markdown files only.
   the repository root, of `/`-separated segments none of which is empty, `.`
   or `..`, or such a path with a trailing `/` for a directory; an absolute path
   is refused. The reason is non-empty and holds no placeholder token.
+  Prepared native SHACL closes the ceiling and exception row key sets.
+  It requires `crate` in a ceiling and `reason` in an exception. Each map
+  has its own focus. For each row, unknown keys report in authored order
+  before the required-key finding. Both kinds point to the list key. A
+  scalar item refuses the whole list before row-key validation.
 - **`findings`** of a Debt record is a list of maps with exactly the keys `kind`
   and `subject`, each pair once; the empty list `[]` holds none. A row is a
   finding of strict mode that the repository holds as debt: the kind of the rule

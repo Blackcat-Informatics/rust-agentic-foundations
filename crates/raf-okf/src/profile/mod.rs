@@ -362,10 +362,12 @@ fn check_values(
                 found.exclusions = records::check_exclusions(check, entry, &keys.exclusions);
             }
             ValueKind::Ceilings => {
-                found.ceilings = Slot::from_check(records::check_ceilings(check, entry));
+                found.ceilings =
+                    Slot::from_check(records::check_ceilings(check, entry, &keys.ceilings));
             }
             ValueKind::Exceptions => {
-                found.exceptions = Slot::from_check(records::check_exceptions(check, entry));
+                found.exceptions =
+                    Slot::from_check(records::check_exceptions(check, entry, &keys.exceptions));
             }
             ValueKind::DebtFindings => {
                 found.debt_findings =
@@ -375,9 +377,7 @@ fn check_values(
                 found.debt_lines = records::check_debt_lines(check, entry, &keys.debt_lines);
             }
             ValueKind::ReviewScope => found.review_scope = review::check_scope(check, entry),
-            ValueKind::ReviewKind => {
-                found.review_kind = review::check_kind(check, entry);
-            }
+            ValueKind::ReviewKind => found.review_kind = review::check_kind(check, entry),
             ValueKind::ReviewFindings => {
                 found.review_findings = review::check_findings(check, entry);
             }
