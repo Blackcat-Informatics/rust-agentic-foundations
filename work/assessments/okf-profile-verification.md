@@ -24,6 +24,9 @@ inputs:
     name: raf_okf::EvidenceRecord::to_document
     digest: 2d3bb6d017da493d437f304bc2a482ebe000946ce1d8933b6d36e929b8141081
   - kind: symbol
+    name: raf_okf::ProfiledDocument::path
+    digest: 35588bc00c1ebd91015245c964f228ef7d499470f836b637b21bd2afc2a9c8e0
+  - kind: symbol
     name: raf_okf::TestedBy
     digest: a95d6a117b904aa4780c69a620325c5f2f63513dbf7628641dfb19d13ba9ddd6
 verdict: accepted

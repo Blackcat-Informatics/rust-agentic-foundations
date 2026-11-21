@@ -144,9 +144,10 @@ pub use profile::{
     DiagramKind, DiagramKindError, DocType, EvidenceRecord, EvidenceSubject, EvidenceVerdict,
     Exception, ExceptionTarget, Exclusion, ExclusionItem, ExternalActor, Header, HeaderShapeError,
     Input, InputKind, KeySpec, Location, Measure, ModelBindings, Number, Outcome, Profile,
-    RafDocument, RecordHeader, ReviewDisposition, ReviewFinding, ReviewKind, ReviewLocation,
-    ReviewRecord, ReviewScope, ReviewSeverity, ReviewVerdict, Rule, RuleTag, Scenario,
-    ScenarioRegion, ScenarioRegionKind, ScenarioStep, SectionRef, State, TimestampError, Unit,
-    ValueKind, Violation, is_commit_id, validate_timestamp,
+    ProfileRejection, ProfiledDocument, RafDocument, RecordHeader, ReviewDisposition,
+    ReviewFinding, ReviewKind, ReviewLocation, ReviewRecord, ReviewScope, ReviewSeverity,
+    ReviewVerdict, Rule, RuleTag, Scenario, ScenarioRegion, ScenarioRegionKind, ScenarioStep,
+    SectionRef, State, TimestampError, Unit, ValueKind, Violation, is_commit_id,
+    validate_timestamp,
 };
 pub use span::Span;

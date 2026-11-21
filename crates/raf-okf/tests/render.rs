@@ -455,6 +455,29 @@ fn dataset_refusals() {
         document.to_dataset("docs/capabilities/index.md"),
         Err(raf_okf::DatasetError::NavigationIndex)
     ));
+    profiled_carrier_refusals(document);
+}
+
+fn profiled_carrier_refusals(document: Document) {
+    let wrong_path = "docs/architecture/other.md";
+    let expected = Profile.validate(&document, wrong_path).unwrap_err();
+    let span = document.body().span().clone();
+    let (original, violations) = Profile
+        .validate_owned(document, wrong_path)
+        .unwrap_err()
+        .into_parts();
+    assert_eq!(violations, expected);
+    assert_eq!(original.render(), FIXTURES[2].3);
+    assert_eq!(original.body().span(), &span);
+
+    let document = parse(&FIXTURES[0].3.replace("cap:ledger-sync", "cap:index"));
+    let (profiled, _) = Profile
+        .validate_owned(document, "docs/capabilities/index.md")
+        .unwrap();
+    assert!(matches!(
+        profiled.to_dataset(),
+        Err(raf_okf::DatasetError::NavigationIndex)
+    ));
 }
 
 fn dataset_layer_refusal(rows: &[purrdf_core::RdfQuad], path: &str) {
@@ -514,6 +537,8 @@ fn dataset_round_trip(document: &Document, path: &str) {
     let dataset = document
         .to_dataset(path)
         .expect("validated authoring dataset");
+    let (profiled, _) = Profile.validate_owned(document.clone(), path).unwrap();
+    let reused = profiled.to_dataset().unwrap();
     let decoded = Document::from_dataset(&dataset, path).unwrap();
     assert_eq!(decoded, *document, "{path}");
     // Dataset readers expose positions in the reconstructed Markdown.
@@ -538,9 +563,8 @@ fn dataset_round_trip(document: &Document, path: &str) {
         (NativeRdfFormat::NTriples, "application/n-triples"),
     ] {
         let output = serialize_dataset_with(dataset.as_ref(), format, None, &options).unwrap();
-        let fresh = document.to_dataset(path).unwrap();
         assert_eq!(
-            serialize_dataset_with(fresh.as_ref(), format, None, &options)
+            serialize_dataset_with(reused.as_ref(), format, None, &options)
                 .unwrap()
                 .bytes,
             output.bytes

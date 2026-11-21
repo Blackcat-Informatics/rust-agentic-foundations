@@ -57,6 +57,42 @@ const BINDING_KEYS: [&str; 3] = ["code", "tests", "examples"];
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Profile;
 
+/// An immutable document that satisfied the RAF profile at its recorded path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProfiledDocument {
+    document: Document,
+    path: String,
+}
+
+impl ProfiledDocument {
+    /// The exact document that was validated.
+    #[must_use]
+    pub fn document(&self) -> &Document {
+        &self.document
+    }
+
+    /// The repository-relative path used during validation.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+}
+
+/// A refused owned validation and the original document for diagnostics.
+#[derive(Debug)]
+pub struct ProfileRejection {
+    document: Document,
+    violations: Vec<Violation>,
+}
+
+impl ProfileRejection {
+    /// Recover the original document and every violation in validation order.
+    #[must_use]
+    pub fn into_parts(self) -> (Document, Vec<Violation>) {
+        (self.document, self.violations)
+    }
+}
+
 /// A lowercase kebab-case slug.
 fn is_kebab(slug: &str) -> bool {
     crate::body::is_kebab(slug)
@@ -210,6 +246,32 @@ struct Collected {
 }
 
 impl Profile {
+    /// Check one owned document, keeping its validated form and typed value.
+    ///
+    /// This applies the same profile as [`Self::validate`].
+    ///
+    /// # Errors
+    /// Returns the original document and every profile violation.
+    pub fn validate_owned(
+        &self,
+        document: Document,
+        path: &str,
+    ) -> Result<(ProfiledDocument, RafDocument), Box<ProfileRejection>> {
+        match self.validate(&document, path) {
+            Ok(typed) => Ok((
+                ProfiledDocument {
+                    document,
+                    path: path.into(),
+                },
+                typed,
+            )),
+            Err(violations) => Err(Box::new(ProfileRejection {
+                document,
+                violations,
+            })),
+        }
+    }
+
     /// Check one document against the profile.
     ///
     /// `path` is the repository-relative path of the document, with `/`

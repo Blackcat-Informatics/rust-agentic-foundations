@@ -67,7 +67,7 @@ inputs:
     digest: d923ec7e0eb27f6a33e86d9baaaaf47685bbf470f9c605371db7cec641ab2172
   - kind: symbol
     name: raf_workplan::Loaded
-    digest: 262eb0ded89a0709f5ac4461782a180eb52465ce308d539fd8f04d6324bee6d6
+    digest: 1d0d023cb2b1442f6f5161f604c9c87080afe23fc0abb369c56295261ff7593a
   - kind: symbol
     name: raf_workplan::OpenChange
     digest: 8af4dcb1b4d44404f379b8bec2daca1814b4743f680486131f3c6d67821afd4a
@@ -127,7 +127,7 @@ inputs:
     digest: 116bcb10c96cebf7344e2a3ca0746921d0265d7a9e4fd01bfbfc96697e1ad64c
   - kind: symbol
     name: raf_workplan::authoring
-    digest: 44f93002bde4a12b64bcc1a807c3aa407967045c2c02676743fdca0a606ca8a5
+    digest: 9bbcd50a51ee205227d6dc5ee06455f2daf5c5516672492aa989ffb857c3feab
   - kind: symbol
     name: raf_workplan::authoring::Error
     digest: 7c03cebff9c2da2f34831a985850478f783a0baae71f5665d8507a2e926dc220

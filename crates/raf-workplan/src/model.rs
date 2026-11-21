@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 use raf_okf::{
     Architecture, AssessmentRecord, Body, Capability, Change, CoverageRecord, DebtRecord, DocType,
-    EvidenceRecord, Index, ReviewRecord,
+    EvidenceRecord, Index, ProfiledDocument, ReviewRecord,
 };
 use raf_source::Workspace;
 
@@ -27,25 +27,26 @@ use crate::strict;
 /// frontmatter, and its body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Loaded<T> {
-    path: String,
+    profiled: ProfiledDocument,
     value: T,
-    body: Body,
     /// The text before the body: both frontmatter fences and the frontmatter,
     /// byte for byte, so a rewritten body can be joined to it unchanged.
     head: String,
 }
 
 impl<T> Loaded<T> {
-    /// A loaded document. `text` is the whole file and `body` is read from it,
-    /// so the body starts where its span says.
-    pub(crate) fn new(path: String, value: T, body: Body, text: &str) -> Self {
-        let head = text[..body.span().bytes.start].to_string();
+    /// A loaded document and the original file text used to read it.
+    pub(crate) fn new(profiled: ProfiledDocument, value: T, text: &str) -> Self {
+        let head = text[..profiled.document().body().span().bytes.start].to_string();
         Self {
-            path,
+            profiled,
             value,
-            body,
             head,
         }
+    }
+
+    pub(crate) fn profiled(&self) -> &ProfiledDocument {
+        &self.profiled
     }
 
     /// The file text up to the body.
@@ -56,13 +57,13 @@ impl<T> Loaded<T> {
     /// The whole text of the file as it was read: the frontmatter and the
     /// body, byte for byte.
     pub(crate) fn text(&self) -> String {
-        format!("{}{}", self.head, self.body.text())
+        format!("{}{}", self.head, self.body().text())
     }
 
     /// The repository-relative path of the file, with `/` separators.
     #[must_use]
     pub fn path(&self) -> &str {
-        &self.path
+        self.profiled.path()
     }
 
     /// The typed frontmatter.
@@ -74,7 +75,7 @@ impl<T> Loaded<T> {
     /// The body.
     #[must_use]
     pub fn body(&self) -> &Body {
-        &self.body
+        self.profiled.document().body()
     }
 }
 

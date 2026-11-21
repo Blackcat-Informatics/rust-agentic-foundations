@@ -11,7 +11,9 @@ use std::{error::Error, fmt, sync::Arc};
 
 use purrdf_core::{RdfDataset, TermId};
 
-use crate::{ConstructError, Document, ParseError, Profile, RafDocument, Violation};
+use crate::{
+    ConstructError, Document, ParseError, Profile, ProfiledDocument, RafDocument, Violation,
+};
 
 /// Stable asserted identities: document type name in lowercase, then encoded id.
 pub const DOCUMENT_IRI_BASE: &str = "https://blackcatinformatics.ca/raf/okf/document/";
@@ -164,16 +166,34 @@ impl Document {
     }
 }
 
-fn validate(document: &Document, path: &str) -> Result<RafDocument, DatasetError> {
-    if crate::is_capability_index(path) {
-        return Err(DatasetError::NavigationIndex);
+impl ProfiledDocument {
+    /// Project the validated document into native RDF 1.2 storage.
+    ///
+    /// # Errors
+    /// Refuses navigation Index, fixed resource bounds and native storage failures.
+    pub fn to_dataset(&self) -> Result<Arc<RdfDataset>, DatasetError> {
+        let document = self.document();
+        write::admit(document)?;
+        require_document_path(self.path())?;
+        write::document(document)
     }
+}
+
+fn validate(document: &Document, path: &str) -> Result<RafDocument, DatasetError> {
+    require_document_path(path)?;
     Profile
         .validate(document, path)
         .map_err(|violations| DatasetError::Profile {
             path: path.into(),
             violations,
         })
+}
+
+fn require_document_path(path: &str) -> Result<(), DatasetError> {
+    if crate::is_capability_index(path) {
+        return Err(DatasetError::NavigationIndex);
+    }
+    Ok(())
 }
 
 fn identity(document: &Document) -> Result<String, DatasetError> {

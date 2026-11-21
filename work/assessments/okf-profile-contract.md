@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
 inputs:
   - kind: section
     name: cap:okf-profile#contract
-    digest: a4f55907c8f656c6037e860d8a85047f0dc7724978dd9f43e53b79674fa51eea
+    digest: 1143dfe8623edae85179a47bc5d2b8beb0d7da9d504c6debf41d3a8659eb063e
   - kind: symbol
     name: raf_okf::Actor
     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
@@ -171,6 +171,21 @@ inputs:
     name: raf_okf::Outcome
     digest: f0984a2c3de28ccefbaf3318f2d64aace9ef3f0e0d9c81eb06d4a9d0e3744770
   - kind: symbol
+    name: raf_okf::Profile::validate_owned
+    digest: 5d1f7767fa6cb631e7fec84f6f4f8cf2350b05ae72e499defbc87fbdf3c3cb05
+  - kind: symbol
+    name: raf_okf::ProfileRejection::into_parts
+    digest: 83e8d744d5cb5517f9ee9e3d8ee62f021f71a5604935f6a49f745e94d9196738
+  - kind: symbol
+    name: raf_okf::ProfiledDocument
+    digest: ccce960d7add985cde04344af014b8eae285dd46a18f9ccd54261655773040a3
+  - kind: symbol
+    name: raf_okf::ProfiledDocument::path
+    digest: 35588bc00c1ebd91015245c964f228ef7d499470f836b637b21bd2afc2a9c8e0
+  - kind: symbol
+    name: raf_okf::ProfiledDocument::to_dataset
+    digest: b50cbfbeb142addab3f38ad44c30081218276de9500b201b82de2347b4e8d8de
+  - kind: symbol
     name: raf_okf::RafDocument
     digest: b023d923d32d3fd25eaf4f89393ac3ef5224a73f453c0b838e2557d9657d6d9d
   - kind: symbol
@@ -187,7 +202,7 @@ inputs:
     digest: a95d6a117b904aa4780c69a620325c5f2f63513dbf7628641dfb19d13ba9ddd6
   - kind: symbol
     name: raf_okf::dataset
-    digest: 06d10f112fb6d8fb822fd1beb3e58d58cfe1967f7e414430d169e3540527b654
+    digest: 8a8effc3392c57dc07e6cca7a90269ff250d9e9a2158d862c490008580e3a66f
   - kind: symbol
     name: raf_okf::dataset_node_prefix
     digest: f8af0ef8b56ba966d5d8be25e64e0adbf58b0a229b3046a1c00c5dac6e342fb6

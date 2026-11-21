@@ -24,6 +24,13 @@ bindings:
     - raf_okf::profile::id_slug
     - raf_okf::DocType::document_iri
     - raf_okf::Document::to_dataset
+    - raf_okf::Profile::validate_owned
+    - raf_okf::ProfiledDocument
+    - raf_okf::ProfiledDocument::document
+    - raf_okf::ProfiledDocument::path
+    - raf_okf::ProfiledDocument::to_dataset
+    - raf_okf::ProfileRejection
+    - raf_okf::ProfileRejection::into_parts
     - raf_okf::Document::from_dataset
     - raf_okf::Document::dataset_iri
     - raf_okf::Document::from_dataset_subjects
@@ -944,8 +951,13 @@ Index IRI and accounts for all other rows across the shared graph.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input,rust_agentic_foundations::test_crate::docs_contract::repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers -->
 
 `Document::to_dataset(path)` validates one of the eight RAF types and returns a
-native PurRDF dataset. `Document::from_dataset(dataset, path)` recovers its model
-through the existing constructors, Markdown writer, parser and profile validator.
+native PurRDF dataset. `Profile::validate_owned` returns the typed profile value
+and a `ProfiledDocument` holding the immutable parsed document and its validated
+path. On refusal, `ProfileRejection::into_parts` returns the original document
+and its violations. `ProfiledDocument::to_dataset` reuses that validation and
+applies the same native writer bounds. `Document::from_dataset(dataset, path)`
+recovers its model through the existing constructors, Markdown writer, parser
+and profile validator.
 
 The decoder reads the rendered frontmatter and verifies that the closing fence
 places the body at its constructed byte and line. The reconstructed frontmatter

@@ -285,6 +285,27 @@ inputs:
     name: raf_okf::Profile
     digest: b2433fdc8e6fd7e054d0ff220f3b5461ea279449e4186e419085e8ac1ef16e7f
   - kind: symbol
+    name: raf_okf::Profile::validate_owned
+    digest: 5d1f7767fa6cb631e7fec84f6f4f8cf2350b05ae72e499defbc87fbdf3c3cb05
+  - kind: symbol
+    name: raf_okf::ProfileRejection
+    digest: e5c1c7bc31f6c50d79f1f8b53bd5d5c6cb70505e3a7eb01daea5c277a0803c4e
+  - kind: symbol
+    name: raf_okf::ProfileRejection::into_parts
+    digest: 83e8d744d5cb5517f9ee9e3d8ee62f021f71a5604935f6a49f745e94d9196738
+  - kind: symbol
+    name: raf_okf::ProfiledDocument
+    digest: ccce960d7add985cde04344af014b8eae285dd46a18f9ccd54261655773040a3
+  - kind: symbol
+    name: raf_okf::ProfiledDocument::document
+    digest: b662e94088ef3283ccbc5722a9251d2596a0552c28e82401aeb9822d7817296a
+  - kind: symbol
+    name: raf_okf::ProfiledDocument::path
+    digest: 35588bc00c1ebd91015245c964f228ef7d499470f836b637b21bd2afc2a9c8e0
+  - kind: symbol
+    name: raf_okf::ProfiledDocument::to_dataset
+    digest: b50cbfbeb142addab3f38ad44c30081218276de9500b201b82de2347b4e8d8de
+  - kind: symbol
     name: raf_okf::ProposedBlock
     digest: '0b4043cc78149bc9aa3dfc27a300ed11c052045a262550ed525ba0f9ac8b101d'
   - kind: symbol
@@ -346,7 +367,7 @@ inputs:
     digest: 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
   - kind: symbol
     name: raf_okf::dataset
-    digest: 06d10f112fb6d8fb822fd1beb3e58d58cfe1967f7e414430d169e3540527b654
+    digest: 8a8effc3392c57dc07e6cca7a90269ff250d9e9a2158d862c490008580e3a66f
   - kind: symbol
     name: raf_okf::dataset_node_prefix
     digest: f8af0ef8b56ba966d5d8be25e64e0adbf58b0a229b3046a1c00c5dac6e342fb6
