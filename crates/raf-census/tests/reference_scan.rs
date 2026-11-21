@@ -3,7 +3,11 @@
 
 //! Reference packages supply evidence without entering first-party structural debt.
 
-use raf_census::{ExternalReference, Gate, Index, MatchClass, Query, QueryReport, ReferenceRoot};
+#[path = "support/structural.rs"]
+mod structural;
+use structural::fixture_gate;
+
+use raf_census::{ExternalReference, Index, MatchClass, Query, QueryReport, ReferenceRoot};
 use raf_fixtures::files;
 use raf_fixtures::git_repo;
 use raf_rdf::{Builder, Format, Graph, TermValue, Triple, vocab};
@@ -19,7 +23,7 @@ fn path_references_preserve_all_witnesses_with_one_physical_consumer_count() {
         "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }\npub fn neighbor(value:u32)->u32 { let doubled=value*3; doubled+11 }",
         "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } pub fn second(input:u32)->u32 { let result=input*2; result+11 } }",
     );
-    let report = Gate::workspace(".").check_tree(&tree).unwrap();
+    let report = fixture_gate(".").check_tree(&tree).unwrap();
     assert_eq!(report.census().units().len(), 2);
     assert_eq!(report.census().groups(), []);
     assert!(report.debt().groups().is_empty());
@@ -98,13 +102,13 @@ fn witness_limits_require_complete_evidence(tree: &raf_source::MemoryTree, expec
             "witness-state limit",
         ),
     ] {
-        let error = Gate::workspace(".")
+        let error = fixture_gate(".")
             .matching_limits(limits)
             .check_tree(tree)
             .unwrap_err();
         assert!(error.to_string().contains(cause), "{error}");
     }
-    let complete = Gate::workspace(".")
+    let complete = fixture_gate(".")
         .matching_limits(MatchLimits {
             states: 2,
             ..MatchLimits::default()
@@ -140,7 +144,7 @@ fn unitless_references_keep_a_complete_index(tree: &raf_source::MemoryTree) {
             policy.finish().unwrap().to_text(Format::Turtle).unwrap(),
         )
         .unwrap();
-    let report = Gate::workspace(".").check_tree(&unitless).unwrap();
+    let report = fixture_gate(".").check_tree(&unitless).unwrap();
     let index = report.census().index(report.jobs()).unwrap();
     assert_eq!(index.units.len(), 2);
     assert_eq!(index.jobs[0].home, "app::copy");
@@ -156,7 +160,7 @@ fn direct_parent_path_keeps_the_same_reference_evidence(
 ) {
     let mut direct = tree.clone();
     direct.replace(&RelPath::new("app/Cargo.toml").unwrap(), "[package]\nname='app'\nversion.workspace=true\nedition='2024'\n[dependencies]\nrenamed={package='helper',path='../helper',version='1'}\n".into()).unwrap();
-    let report = Gate::workspace(".").check_tree(&direct).unwrap();
+    let report = fixture_gate(".").check_tree(&direct).unwrap();
     assert_eq!(report.census().index(report.jobs()).unwrap(), *expected);
 }
 
@@ -183,7 +187,7 @@ fn reference_names_must_belong_to_the_owning_graph(tree: &raf_source::MemoryTree
             altered.finish().unwrap().to_text(Format::Turtle).unwrap(),
         )
         .unwrap();
-    let error = Gate::workspace(".").check_tree(&missing).unwrap_err();
+    let error = fixture_gate(".").check_tree(&missing).unwrap_err();
     assert!(
         error
             .to_string()
@@ -226,7 +230,7 @@ fn hardlinked_path_packages_keep_their_own_directory(root: &std::path::Path) {
         "pub mod api {pub fn first(value:u32)->u32{value+99}}\n",
     )
     .unwrap();
-    let error = Gate::workspace(root).check().unwrap_err();
+    let error = fixture_gate(root).check().unwrap_err();
     assert!(
         error.to_string().contains("selects a different manifest"),
         "{error}"
@@ -239,7 +243,7 @@ fn reference_shim_matches_keep_every_witness_without_duplicate_copy_counts() {
         "pub fn shim(value:u32)->u32 { std::convert::identity(value) }",
         "pub mod api { pub fn first(value:u32)->u32 { std::convert::identity(value) } pub fn second(input:u32)->u32 { std::convert::identity(input) } }",
     );
-    let report = Gate::workspace(".").check_tree(&tree).unwrap();
+    let report = fixture_gate(".").check_tree(&tree).unwrap();
     assert_eq!(report.jobs()[0].copies, 1);
     assert_eq!(report.census().groups(), []);
     assert!(report.debt().groups().is_empty());
@@ -284,16 +288,16 @@ fn explicit_path_roots_require_the_actual_owning_manifest_locator() {
         .unwrap();
     }
     let declared = ReferenceRoot::new("helper", root, RelPath::new("helper/Cargo.toml").unwrap());
-    let report = Gate::workspace(root)
+    let report = fixture_gate(root)
         .reference_roots([declared.clone()])
         .check()
         .unwrap();
-    let plain = Gate::workspace(root).check().unwrap();
+    let plain = fixture_gate(root).check().unwrap();
     assert_eq!(
         report.census().index(report.jobs()).unwrap(),
         plain.census().index(plain.jobs()).unwrap()
     );
-    let opaque = Gate::workspace(".")
+    let opaque = fixture_gate(".")
         .reference_roots([declared])
         .check_tree(&tree)
         .unwrap_err();
@@ -306,7 +310,7 @@ fn explicit_path_roots_require_the_actual_owning_manifest_locator() {
     .unwrap();
     let mismatched =
         ReferenceRoot::new("helper", other.path(), RelPath::new("Cargo.toml").unwrap());
-    let error = Gate::workspace(root)
+    let error = fixture_gate(root)
         .reference_roots([mismatched])
         .check()
         .unwrap_err();
@@ -557,7 +561,7 @@ fn workspace_fixture(
 
 /// The packages whose source the reference scan read, as sorted `(name, version)`.
 fn scanned_versions(fixture: &purrdf_testkit::TempDir) -> Vec<(String, String)> {
-    let report = Gate::workspace(fixture.path().join("ws")).check().unwrap();
+    let report = fixture_gate(fixture.path().join("ws")).check().unwrap();
     let index = report.census().index(report.jobs()).unwrap();
     let mut packages: Vec<_> = index
         .reference_sources
@@ -605,7 +609,7 @@ fn family_selector_scans_every_matching_dependency_but_no_member() {
         );
     }
     assert_eq!(scanned, ["acme-a", "acme-a-extra", "acme-b", "acme-c"]);
-    let report = Gate::workspace(fixture.path().join("ws")).check().unwrap();
+    let report = fixture_gate(fixture.path().join("ws")).check().unwrap();
     assert!(
         report
             .census()
@@ -646,7 +650,7 @@ fn family_selector_matching_nothing_refuses_naming_the_selector() {
         ("zq-*-x", &["acme-a"][..], MALFORMED),
     ] {
         let fixture = family_fixture(&[selector], vendors, "");
-        let error = Gate::workspace(fixture.path().join("ws"))
+        let error = fixture_gate(fixture.path().join("ws"))
             .check()
             .unwrap_err()
             .to_string();
@@ -665,10 +669,10 @@ fn exact_and_family_selectors_scan_a_package_once() {
     let family = family_fixture(&["acme-*"], &["acme-a", "acme-b"], copy);
     let both = family_fixture(&["acme-*", "acme-b"], &["acme-a", "acme-b"], copy);
     assert_eq!(scanned(&both), ["acme-a", "acme-b"]);
-    let report = Gate::workspace(both.path().join("ws")).check().unwrap();
+    let report = fixture_gate(both.path().join("ws")).check().unwrap();
     let index = report.census().index(report.jobs()).unwrap();
     assert_eq!(index.reference_witnesses.len(), 1);
-    let alone = Gate::workspace(family.path().join("ws")).check().unwrap();
+    let alone = fixture_gate(family.path().join("ws")).check().unwrap();
     assert_eq!(report.findings(), alone.findings());
 }
 
@@ -683,7 +687,7 @@ fn unhomed_reference_copy_is_a_hard_finding() {
         &vendors,
         "pub fn copy(input:u32)->u32 { let result=input*2; result+7 }",
     );
-    let report = Gate::workspace(banned.path().join("ws")).check().unwrap();
+    let report = fixture_gate(banned.path().join("ws")).check().unwrap();
     assert!(!report.is_clean());
     assert_eq!(report.findings().len(), 1, "{:?}", report.findings());
     let finding = &report.findings()[0];
@@ -694,7 +698,7 @@ fn unhomed_reference_copy_is_a_hard_finding() {
     assert!(report.debt().groups().is_empty());
     assert!(report.debt().job_copies().is_empty());
     // Debt writing refuses the finding and records nothing.
-    let refused = Gate::workspace(banned.path().join("ws"))
+    let refused = fixture_gate(banned.path().join("ws"))
         .write_debt()
         .unwrap_err();
     assert!(
@@ -714,12 +718,12 @@ fn unhomed_reference_copy_is_a_hard_finding() {
         "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
     );
     assert!(
-        Gate::workspace(neighbor.path().join("ws"))
+        fixture_gate(neighbor.path().join("ws"))
             .check()
             .unwrap()
             .is_clean()
     );
-    Gate::workspace(neighbor.path().join("ws"))
+    fixture_gate(neighbor.path().join("ws"))
         .write_debt()
         .unwrap();
 }
@@ -736,14 +740,14 @@ fn an_existing_debt_record_does_not_hold_a_reference_copy() {
         "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }",
     );
     let root = fixture.path().join("ws");
-    Gate::workspace(&root).write_debt().unwrap();
+    fixture_gate(&root).write_debt().unwrap();
     let record = std::fs::read(root.join(raf_census::DEBT_FILE)).unwrap();
     std::fs::write(
         root.join("app/src/lib.rs"),
         "pub fn copy(input:u32)->u32 { let result=input*2; result+7 }",
     )
     .unwrap();
-    let report = Gate::workspace(&root).check().unwrap();
+    let report = fixture_gate(&root).check().unwrap();
     assert!(!report.is_clean());
     assert!(
         report
@@ -753,7 +757,7 @@ fn an_existing_debt_record_does_not_hold_a_reference_copy() {
         "{:?}",
         report.findings()
     );
-    Gate::workspace(&root).write_debt().unwrap_err();
+    fixture_gate(&root).write_debt().unwrap_err();
     assert_eq!(
         std::fs::read(root.join(raf_census::DEBT_FILE)).unwrap(),
         record
@@ -774,7 +778,7 @@ fn unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours() {
             unhomed_ledger(&["helper"]),
         )
         .unwrap();
-        Gate::workspace(".").check_tree(&tree).unwrap()
+        fixture_gate(".").check_tree(&tree).unwrap()
     };
     let body = banned("pub fn copy(input:u32)->u32 { let result=input*2; result+11 }");
     let shim = banned("pub fn shim(input:u32)->u32 { std::convert::identity(input) }");
@@ -875,7 +879,7 @@ fn locked_git_reference_copy_is_a_hard_finding() {
             &[],
         )];
         let sources = [LockedPackageRoots::new(LockedTree::Git(&git), &kit)];
-        Gate::workspace(".")
+        fixture_gate(".")
             .check_locked(&tree, &catalog, &local, &sources)
             .unwrap()
     };
@@ -925,7 +929,7 @@ fn family_selector_refuses_a_name_with_two_reachable_versions() {
         &["acme-core@1.0.0", "acme-core@2.0.0"],
         "",
     );
-    let error = Gate::workspace(ambiguous.path().join("ws"))
+    let error = fixture_gate(ambiguous.path().join("ws"))
         .check()
         .unwrap_err()
         .to_string();
@@ -950,7 +954,7 @@ fn large_constants_shared_with_a_reference_cross_the_boundary_by_value() {
         "pub fn mix(seed:u64)->u64 { seed ^ 0x1_0000u32 as u64 ^ 0xffff ^ 0xABCD_1234_5678 }\npub fn other()->u64 { 0x1_0000 }",
         "pub mod api { pub fn hash()->u64 { 65_536 ^ 65535 ^ 0xabcd12345678 } pub fn salt()->u64 { 0xdead_beef_u64 } pub fn pepper()->u64 { 3735928559 } }",
     );
-    let report = Gate::workspace(".").check_tree(&tree).unwrap();
+    let report = fixture_gate(".").check_tree(&tree).unwrap();
     let index = report.census().index(report.jobs()).unwrap();
     let rows: Vec<_> = index
         .reference_constants
@@ -1025,7 +1029,7 @@ fn first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_r
         ),
         ("helpers-ledger.ttl", ledger.as_str()),
     ]);
-    let report = Gate::workspace(".").check_tree(&tree).unwrap();
+    let report = fixture_gate(".").check_tree(&tree).unwrap();
     let baseline = report.census().baseline();
     let shared: Vec<_> = baseline
         .shared_constants
@@ -1221,7 +1225,7 @@ fn upstream_repository(dir: &std::path::Path) -> (String, String) {
 }
 
 fn external_report(ws: &std::path::Path, reference: ExternalReference) -> raf_census::GateReport {
-    Gate::workspace(ws)
+    fixture_gate(ws)
         .external_references([reference])
         .check()
         .unwrap()
@@ -1240,7 +1244,7 @@ fn pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference()
         &["upstream"],
         EXTERNAL_CONSUMER,
     );
-    let expected = Gate::workspace(locked.path().join("ws"))
+    let expected = fixture_gate(locked.path().join("ws"))
         .check()
         .unwrap()
         .findings()
@@ -1345,14 +1349,14 @@ fn pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit() {
             "the value must be a commit ID string",
         ),
     ] {
-        let error = Gate::workspace(&ws)
+        let error = fixture_gate(&ws)
             .external_references([reference])
             .check()
             .unwrap_err()
             .to_string();
         assert!(error.contains(expected), "{expected:?} in {error}");
     }
-    let twice = Gate::workspace(&ws)
+    let twice = fixture_gate(&ws)
         .external_references([
             ExternalReference::commit(&repository, &first),
             ExternalReference::commit(&repository, &first),
@@ -1361,7 +1365,7 @@ fn pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit() {
         .unwrap_err()
         .to_string();
     assert!(twice.contains("is declared twice"), "{twice}");
-    let opaque = Gate::workspace(".")
+    let opaque = fixture_gate(".")
         .external_references([ExternalReference::commit("../upstream", &first)])
         .check_tree(&reference::fixture("", "pub fn provided() {}"))
         .unwrap_err()
@@ -1462,7 +1466,7 @@ fn unpinned_directory_finds_the_same_copies_and_labels_every_receipt() {
             ("unpinned-tree", "path", "", "0.0.0")
         );
     }
-    let refused = Gate::workspace(&ws)
+    let refused = fixture_gate(&ws)
         .external_references([ExternalReference::unpinned(&plain)])
         .write_debt()
         .unwrap_err()
@@ -1471,7 +1475,7 @@ fn unpinned_directory_finds_the_same_copies_and_labels_every_receipt() {
         refused.contains("an unpinned reference comparison cannot record debt"),
         "{refused}"
     );
-    let findings = Gate::workspace(&ws)
+    let findings = fixture_gate(&ws)
         .external_references([ExternalReference::commit(&repository, &first)])
         .write_debt()
         .unwrap_err();
@@ -1523,7 +1527,7 @@ fn a_constant_held_only_by_two_reference_packages_has_no_row() {
         &vendor("acme-b"),
         &[("src/lib.rs", "pub fn b()->u64 { 3735928559 }")],
     );
-    let report = Gate::workspace(fixture.path().join("ws")).check().unwrap();
+    let report = fixture_gate(fixture.path().join("ws")).check().unwrap();
     assert_eq!(
         report
             .census()
@@ -1554,7 +1558,7 @@ fn external_references_report_cross_boundary_constants_like_a_lock_selected_one(
         &locked.path().join("vendor/upstream-1.0.0"),
         &[("src/lib.rs", LIBRARY)],
     );
-    let expected = constant_rows(&Gate::workspace(locked.path().join("ws")).check().unwrap());
+    let expected = constant_rows(&fixture_gate(locked.path().join("ws")).check().unwrap());
     assert_eq!(
         expected,
         [(
@@ -1656,7 +1660,7 @@ fn registry_check(
     cache: &purrdf_testkit::TempDir,
 ) -> Result<raf_census::GateReport, raf_census::Error> {
     let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()));
-    Gate::workspace(".").check_locked_registry(tree, &registry)
+    fixture_gate(".").check_locked_registry(tree, &registry)
 }
 
 /// A copied body of a registry dependency, sealed from the lock file's checksum
@@ -1892,7 +1896,7 @@ fn a_transitive_row_of_the_same_name_is_not_sealed() {
     let check = |cache: &purrdf_testkit::TempDir| {
         let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
             .seal("acme-core");
-        Gate::workspace(".").check_locked_registry(&tree, &registry)
+        fixture_gate(".").check_locked_registry(&tree, &registry)
     };
     let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
@@ -1943,7 +1947,7 @@ fn the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded() {
         .set_len((8 << 20) + 1)
         .unwrap();
     let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()));
-    let refused = Gate::workspace(root.path())
+    let refused = fixture_gate(root.path())
         .check_registry(&registry)
         .unwrap_err()
         .to_string();
@@ -1981,11 +1985,11 @@ fn a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_
     raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
     let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
         .seal("acme-core");
-    let agreeing = Gate::workspace(".")
+    let agreeing = fixture_gate(".")
         .check_locked_registry(&tree("1"), &registry)
         .unwrap();
     assert!(agreeing.is_clean(), "{:?}", agreeing.findings());
-    let message = Gate::workspace(".")
+    let message = fixture_gate(".")
         .check_locked_registry(&tree("2"), &registry)
         .unwrap_err()
         .to_string();
@@ -2013,7 +2017,7 @@ fn a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_
     let later = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(skipped.path()))
         .seal("acme-core");
     assert!(
-        Gate::workspace(".")
+        fixture_gate(".")
             .check_locked_registry(&tree("1"), &later)
             .unwrap()
             .is_clean()
@@ -2022,7 +2026,7 @@ fn a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_
     oversize(only.path());
     let alone = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(only.path()))
         .seal("acme-core");
-    let message = Gate::workspace(".")
+    let message = fixture_gate(".")
         .check_locked_registry(&tree("1"), &alone)
         .unwrap_err()
         .to_string();
@@ -2060,7 +2064,7 @@ fn an_unnamed_declaration_is_bound_to_the_default_registry_only() {
     raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
     let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
         .seal("acme-core");
-    let report = Gate::workspace(".")
+    let report = fixture_gate(".")
         .check_locked_registry(&tree, &registry)
         .unwrap();
     assert!(report.is_clean(), "{:?}", report.findings());
@@ -2094,7 +2098,7 @@ fn an_unnamed_declaration_with_only_a_custom_registry_row_is_refused() {
         raf_fixtures::registry::place(cache.path(), "index-0", "acme-core", "1.0.0", &archive);
         let registry = raf_census::LockedRegistry::new(raf_census::ArchiveCache::at(cache.path()))
             .seal("acme-core");
-        Gate::workspace(".").check_locked_registry(&tree, &registry)
+        fixture_gate(".").check_locked_registry(&tree, &registry)
     };
     assert!(check(CRATES_IO).unwrap().is_clean());
     let message = check("registry+https://custom.example/index")
@@ -2134,12 +2138,12 @@ fn seal_alone_is_not_a_reference_beside_seal_reference() {
     ]);
     let cache_at = || raf_census::ArchiveCache::at(cache.path());
     let sealed = raf_census::LockedRegistry::new(cache_at()).seal("acme-core");
-    let report = Gate::workspace(".")
+    let report = fixture_gate(".")
         .check_locked_registry(&plain, &sealed)
         .unwrap();
     assert!(report.is_clean(), "{:?}", report.findings());
     let referenced = raf_census::LockedRegistry::new(cache_at()).seal_reference("acme-core");
-    let report = Gate::workspace(".")
+    let report = fixture_gate(".")
         .check_locked_registry(&plain, &referenced)
         .unwrap();
     assert_eq!(report.findings().len(), 1, "{:?}", report.findings());
@@ -2175,10 +2179,7 @@ fn an_outside_path_reference_is_refused_in_memory_beside_the_disk_tree_that_read
         )
     })
     .collect();
-    let message = Gate::workspace(".")
-        .check_tree(&tree)
-        .unwrap_err()
-        .to_string();
+    let message = fixture_gate(".").check_tree(&tree).unwrap_err().to_string();
     assert!(
         message.contains("path dependency leaves the supplied Tree"),
         "{message}"
@@ -2294,7 +2295,7 @@ fn an_outside_path_reference_is_refused_by_the_registry_route_on_disk_beside_a_c
             ("kit/src/lib.rs", PROVIDED),
         ],
     );
-    let message = Gate::workspace(scratch.path().join("ws"))
+    let message = fixture_gate(scratch.path().join("ws"))
         .check_registry(&registry)
         .unwrap_err()
         .to_string();
@@ -2326,7 +2327,7 @@ fn an_outside_path_reference_is_refused_by_the_registry_route_on_disk_beside_a_c
             ("helpers-ledger.ttl", ledger.as_str()),
         ],
     );
-    let clean = Gate::workspace(neighbour.path())
+    let clean = fixture_gate(neighbour.path())
         .check_registry(&registry)
         .unwrap();
     assert!(clean.is_clean(), "{:?}", clean.findings());
@@ -2353,7 +2354,7 @@ fn enum_catch_alls_prove_variants_from_a_selected_dependency() {
     let original =
         Graph::from_text(&tree.read(&ledger, 1_048_576).unwrap(), Format::Turtle).unwrap();
     tree.replace(&ledger, unhomed_ledger(&["helper"])).unwrap();
-    let gate = Gate::workspace(".").require_rules(["enum-catch-all"]);
+    let gate = fixture_gate(".").require_rules(["enum-catch-all"]);
     let report = gate.check_tree(&tree).unwrap();
     assert_eq!(report.findings().len(), 1, "{:?}", report.findings());
     assert!(report.findings()[0].contains("app/src/lib.rs:4:"));
@@ -2417,7 +2418,7 @@ fn enum_catch_alls_prove_variants_from_a_selected_dependency() {
         policy.finish().unwrap().to_text(Format::Turtle).unwrap(),
     )
     .unwrap();
-    let gate = Gate::workspace(".");
+    let gate = fixture_gate(".");
     let accepted = gate.check_tree(&tree).unwrap();
     assert!(accepted.is_clean(), "{:?}", accepted.findings());
 

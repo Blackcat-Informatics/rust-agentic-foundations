@@ -7,6 +7,7 @@ mod cli;
 mod command;
 mod embedded;
 mod error;
+mod lints;
 
 use raf_census::Gate;
 use std::{ffi::OsString, io::Write, process::ExitCode};

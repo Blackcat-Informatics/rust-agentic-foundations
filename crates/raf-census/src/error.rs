@@ -57,6 +57,14 @@ pub enum Error {
     },
     /// Foreign TOML was refused by the supplied native parser during import.
     ImportToml(purrdf_toml::TomlError),
+    /// A Cargo manifest's lint settings could not be parsed.
+    LintManifest {
+        /// Workspace-relative manifest path.
+        file: String,
+        /// Original TOML syntax or resource failure.
+        source: purrdf_toml::TomlError,
+    },
+
     /// A foreign baseline was refused by the native JSON grammar and limits.
     ImportJson(purrdf_lex::json::Error),
     /// A foreign baseline was refused by the native strict record decoder.
@@ -248,6 +256,9 @@ impl fmt::Display for Error {
             Self::ImportPredicate { predicate, source } => {
                 write!(f, "foreign adapter predicate IRI {predicate:?}: {source}")
             }
+            Self::LintManifest { file, source } => {
+                write!(f, "{file}: invalid Cargo lint policy: {source}")
+            }
             Self::ImportToml(error) => write!(f, "invalid foreign TOML ledger: {error}"),
             Self::ImportJson(error) => write!(f, "invalid foreign JSON baseline: {error}"),
             Self::ImportRecord(error) => write!(f, "invalid foreign baseline record: {error}"),
@@ -320,7 +331,7 @@ impl StdError for Error {
             Self::Load(error) => Some(error),
             Self::CollectionSpawn(error) => Some(error),
             Self::Report(error) => Some(error),
-            Self::ImportToml(error) => Some(error),
+            Self::LintManifest { source, .. } | Self::ImportToml(source) => Some(source),
             Self::ImportPredicate { source, .. } => Some(source),
             Self::ImportJson(error) => Some(error),
             Self::ImportRecord(error) => Some(error),

@@ -4,8 +4,8 @@
 //! Pattern scope and the counted-site ratchet of patterns and rules.
 
 use super::{
-    Builder, DebtRecord, FileCtx, Format, Gate, Ledger, MemoryTree, Rule, RuleFixtures, RuleHit,
-    Term, Triple, declared_pattern, job, lexical_pattern_graph, put, vocab,
+    Builder, DebtRecord, FileCtx, Format, Ledger, MemoryTree, Rule, RuleFixtures, RuleHit, Term,
+    Triple, declared_pattern, fixture_gate, job, lexical_pattern_graph, put, vocab,
 };
 
 pub(super) fn ratcheted_declaration() -> Builder {
@@ -149,7 +149,7 @@ fn scoped_tree(site: &str, graph: Builder) -> MemoryTree {
 
 fn scoped_copies(site: &str, scope: &[(&str, &str)], shipping_only: bool) -> usize {
     let tree = scoped_tree(site, scoped_pattern(scope, shipping_only));
-    Gate::workspace(".").check_tree(&tree).unwrap().jobs()[0].copies
+    fixture_gate(".").check_tree(&tree).unwrap().jobs()[0].copies
 }
 
 const RATCHET_ONE: &str = "pub fn one(){std::mem::drop(1);let _=\"alpha\";}\npub fn two(){std::mem::drop(2);let _=\"beta\";}\n";
@@ -211,7 +211,7 @@ fn ratchet_tree_over(
 #[test]
 fn ratcheted_patterns_record_counted_sites_and_hold_both_directions() {
     let check = |modules: &[(&str, &str)], record: Option<&str>| {
-        Gate::workspace(".")
+        fixture_gate(".")
             .check_tree(&ratchet_tree(modules, RATCHET_HOME, record, true))
             .unwrap()
     };
@@ -327,7 +327,7 @@ fn ratcheted_hit_does_not_hide_a_forbidden_constant(modules: &[(&str, &str)], re
             "forbiddenConstant",
             Term::typed_literal("7", vocab::INTEGER),
         );
-        Gate::workspace(".")
+        fixture_gate(".")
             .check_tree(&ratchet_tree_over(
                 graph,
                 modules,
@@ -354,7 +354,7 @@ fn ratcheted_hit_does_not_hide_a_forbidden_constant(modules: &[(&str, &str)], re
 fn burned_down_ratchet_stays_a_guard(record: &str) {
     let burned = [("a", "pub fn one(){}\n"), ("b", "pub fn three(){}\n")];
     let check_burned = |record: &str| {
-        Gate::workspace(".")
+        fixture_gate(".")
             .check_tree(&ratchet_tree(
                 &burned,
                 "pub fn home(){}",
@@ -384,7 +384,7 @@ fn burned_down_ratchet_stays_a_guard(record: &str) {
             .iter()
             .all(|finding| !finding.contains("matches no source item")),
     );
-    let regrown = Gate::workspace(".")
+    let regrown = fixture_gate(".")
         .check_tree(&ratchet_tree(
             &[("a", RATCHET_ONE)],
             "pub fn home(){}",
@@ -405,7 +405,7 @@ fn burned_down_ratchet_stays_a_guard(record: &str) {
 
 /// The same hits under a pattern that is not ratcheted stay findings.
 fn forbidden_neighbour_keeps_hard_failure_and_records_no_site(modules: &[(&str, &str)]) {
-    let forbidden = Gate::workspace(".")
+    let forbidden = fixture_gate(".")
         .check_tree(&ratchet_tree(modules, RATCHET_HOME, None, false))
         .unwrap();
     assert!(forbidden.debt().sites().is_empty() && forbidden.debt().ratcheted().is_empty());
@@ -571,7 +571,7 @@ fn shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation() {
     for (tail, copies) in [("blocked!();\n", 1), ("#[cfg(test)]\nblocked!();\n", 0)] {
         let mut graph = lexical_pattern_graph("macro", "blocked");
         put(&mut graph, "#pattern", "shippingOnly", Term::boolean(true));
-        let report = Gate::workspace(".")
+        let report = fixture_gate(".")
             .check_tree(&macro_scope_tree(tail, &[], graph))
             .unwrap();
         assert_eq!(
@@ -601,7 +601,7 @@ fn a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched() {
             Term::simple_literal(kind),
         );
         let tail = "pub mod shared;\npub fn blocked(){}\n";
-        let report = Gate::workspace(".")
+        let report = fixture_gate(".")
             .check_tree(&macro_scope_tree(tail, &shared, graph))
             .unwrap();
         assert_eq!(
@@ -744,7 +744,7 @@ fn rule_report(
         );
     }
     let modules: Vec<_> = modules.iter().map(|(n, b)| (*n, b.as_str())).collect();
-    Gate::workspace(".")
+    fixture_gate(".")
         .rules(vec![Box::new(FlagRule) as Box<dyn Rule>])
         .check_tree(&rule_tree(graph, &modules, record))
         .unwrap()
@@ -973,7 +973,7 @@ fn a_required_rule_cannot_also_be_ratcheted() {
         let modules: Vec<_> = modules.iter().map(|(n, b)| (*n, b.as_str())).collect();
         ratchet_tree_over(graph, &modules, RATCHET_HOME, None)
     };
-    let gate = || Gate::workspace(".").rules(vec![Box::new(FlagRule) as Box<dyn Rule>]);
+    let gate = || fixture_gate(".").rules(vec![Box::new(FlagRule) as Box<dyn Rule>]);
     assert!(gate().check_tree(&build()).is_ok());
     let error = gate()
         .require_rules(["flag-rule"])

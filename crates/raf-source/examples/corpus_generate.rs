@@ -20,7 +20,7 @@
 #[path = "../tests/support/mod.rs"]
 mod support;
 
-#[allow(
+#[expect(
     dead_code,
     reason = "the shared oracle implementation also supplies selectable integration assertions"
 )]

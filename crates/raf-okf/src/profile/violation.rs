@@ -370,7 +370,7 @@ pub enum Rule {
 }
 
 impl fmt::Display for Rule {
-    #[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
+    #[expect(clippy::too_many_lines, reason = "one arm per rule of the profile")]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Markdown { source } => write!(
@@ -1102,7 +1102,7 @@ mod tag_tests {
 
     /// A rule of each tag. The match names every tag, so a tag added to
     /// `RuleTag` stops this from compiling until it has a sample.
-    #[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
+    #[expect(clippy::too_many_lines, reason = "one arm per rule of the profile")]
     fn sample(tag: RuleTag) -> Rule {
         match tag {
             RuleTag::HeaderShape => Rule::HeaderShape {

@@ -190,7 +190,7 @@ mod hidden { #[macro_export] macro_rules! deep { () => {} } }\n";
 
 type KindCase = (&'static str, Namespace, SymbolKind, usize, Vis);
 
-#[allow(clippy::too_many_lines, reason = "the function is one table of cases")]
+#[expect(clippy::too_many_lines, reason = "the function is one table of cases")]
 fn kind_cases() -> Vec<KindCase> {
     vec![
         ("demo::f", Namespace::Value, SymbolKind::Fn, 1, Vis::Public),

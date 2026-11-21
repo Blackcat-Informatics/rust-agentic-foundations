@@ -198,7 +198,9 @@ fn workspace(home: &str, consumer: &str, ledger: String) -> MemoryTree {
 /// A Gate with no registered or required rules, holding only the caller's
 /// matching grant; [`Gate::check_tree`] never reads its directory.
 fn gate(limits: MatchLimits) -> Gate {
-    Gate::workspace(".").matching_limits(limits)
+    Gate::workspace(".")
+        .without_production_lints()
+        .matching_limits(limits)
 }
 
 fn check(gate: &Gate, tree: &MemoryTree) -> Result<GateReport, String> {

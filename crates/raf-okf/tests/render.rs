@@ -258,7 +258,7 @@ fn shape_refusal(rows: &[purrdf_core::RdfQuad], path: &str, expected: &str) {
     );
 }
 
-#[allow(
+#[expect(
     clippy::too_many_lines,
     reason = "The closed carrier refusal table shares one independently validated model and valid neighbor."
 )]

@@ -806,7 +806,7 @@ fn check_items(
     let mut keys = keys.iter();
     for item in list.items() {
         let ItemValue::Map(map) = item.value() else {
-            check.key("items", shape.clone());
+            check.key("items", shape);
             return None;
         };
         let keys = keys
