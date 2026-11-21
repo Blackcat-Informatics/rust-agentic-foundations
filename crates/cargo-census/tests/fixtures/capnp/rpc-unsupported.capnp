@@ -11,7 +11,11 @@ interface Parent {}
 
 interface Inherited @0xf8e70893fb8da3a6 extends(Parent) {}
 
-interface Generic @0xa6615df804a45ef7 (T) {}
+struct Outer(T) {
+  interface Generic @0xa6615df804a45ef7 {}
+}
+
+interface GenericDerived @0xeec6000000000001 (T) extends(Parent) {}
 
 interface GenericMethod @0xba6c33c22a5d3e73 {
   read @0 [T] () -> (value :T);

@@ -28,7 +28,11 @@
      (name = "MissingEnclosingBrand", id = 17204595001485426713),
      (name = "ForeignEnclosingBrand", id = 17204595001485426714),
      (name = "RedundantEnclosingBrand", id = 17204595001485426715),
-     (name = "MalformedEnclosingBrand", id = 17204595001485426716)]),
+     (name = "MalformedEnclosingBrand", id = 17204595001485426716),
+     (name = "CompetingMethodOwner", id = 17204595001485426719),
+     (name = "MissingInlineOwner", id = 17204595001485426720),
+     (name = "InvalidOwnerParameter", id = 17204595001485426722),
+     (name = "IncompleteOwnerBinding", id = 17204595001485426723)]),
   (id = 17204595001485426689, scopeId = 17204595001485426688,
    interface = (methods = [
      (name = "read", paramStructType = 17204595001485426690, resultStructType = 17204595001485426690)])),
@@ -87,6 +91,7 @@
   (id = 17204595001485426711, scopeId = 17204595001485426688,
    isGeneric = true, parameters = [(name = "T")], nestedNodes = [
      (name = "Inner", id = 17204595001485426712),
+     (name = "CompetingMethodOwner", id = 17204595001485426719),
      (name = "FalseGenericEnclosing", id = 17204595001485426717)], struct = ()),
   (id = 17204595001485426712, scopeId = 17204595001485426711,
    isGeneric = true, parameters = [(name = "U")], struct = ()),
@@ -117,4 +122,23 @@
   (id = 17204595001485426717, scopeId = 17204595001485426711, nestedNodes = [
      (name = "Payload", id = 17204595001485426718)], struct = ()),
   (id = 17204595001485426718, scopeId = 17204595001485426717,
-   isGeneric = true, parameters = [(name = "U")], struct = ())])
+   isGeneric = true, parameters = [(name = "U")], struct = ()),
+  (id = 17204595001485426719, scopeId = 17204595001485426688,
+   isGeneric = true, parameters = [(name = "T")], interface = ()),
+  (id = 17204595001485426720, scopeId = 17204595001485426688,
+   isGeneric = true, parameters = [(name = "T")], interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426721, resultStructType = 17204595001485426702)])),
+  (id = 17204595001485426721, isGeneric = true, struct = ()),
+  (id = 17204595001485426722, scopeId = 17204595001485426688,
+   isGeneric = true, parameters = [(name = "T")], interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426712, resultStructType = 17204595001485426702,
+      paramBrand = (scopes = [
+        (scopeId = 17204595001485426712, bind = [(type = (anyPointer = (
+          parameter = (scopeId = 17204595001485426722, parameterIndex = 1))))]),
+        (scopeId = 17204595001485426711, bind = [(type = (data = void))])]))])),
+  (id = 17204595001485426723, scopeId = 17204595001485426688,
+   isGeneric = true, parameters = [(name = "T")], interface = (methods = [
+     (name = "read", paramStructType = 17204595001485426712, resultStructType = 17204595001485426702,
+      paramBrand = (scopes = [
+        (scopeId = 17204595001485426712, bind = [(type = (anyPointer = (
+          parameter = (scopeId = 17204595001485426723, parameterIndex = 0))))])]))]))])

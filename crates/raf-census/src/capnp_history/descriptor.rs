@@ -92,6 +92,7 @@ pub(super) enum Node {
 
 #[derive(Debug)]
 pub(super) struct Interface {
+    pub(super) parameters: u32,
     pub(super) superclasses: BTreeSet<TypeId>,
     pub(super) methods: Vec<Method>,
 }
@@ -461,6 +462,7 @@ impl<'a> Nodes<'a> {
                     needed,
                     annotations,
                     scopes,
+                    None,
                 )?))
             }
             node::Enum(data) => Ok(Node::Enum(enumerants(id, data)?)),
@@ -503,6 +505,7 @@ impl<'a> Nodes<'a> {
         needed: &mut BTreeSet<TypeId>,
         annotations: Annotations,
         scopes: &mut DeclarationScopes,
+        inline_type_scope: Option<TypeId>,
     ) -> Result<Struct, Error> {
         let mut collector = Fields {
             nodes: self,
@@ -514,6 +517,7 @@ impl<'a> Nodes<'a> {
             used_groups: BTreeSet::new(),
             ordinals: BTreeSet::new(),
             sizes: (reader.get_data_word_count(), reader.get_pointer_count()),
+            inline_type_scope,
         };
         collector.group(id, reader, Rc::from([]), (None, None), false)?;
         collector.validate_peers(id)?;
@@ -595,6 +599,7 @@ struct Fields<'a, 'b> {
     used_groups: BTreeSet<TypeId>,
     ordinals: BTreeSet<u16>,
     sizes: (u16, u16),
+    inline_type_scope: Option<TypeId>,
 }
 
 impl<'a> Fields<'a, '_> {
@@ -640,7 +645,7 @@ impl<'a> Fields<'a, '_> {
             shape::read_brand(
                 annotation.get_brand()?,
                 self.nodes,
-                (owner, marker),
+                (self.inline_type_scope.unwrap_or(owner), marker),
                 &mut BTreeSet::new(),
             )?;
         }
@@ -848,7 +853,8 @@ impl<'a> Fields<'a, '_> {
                 "missing type or default at {owner}.{name} @{ordinal}"
             )));
         }
-        let ty = Type::read(slot.get_type()?, self.nodes, owner, self.needed)?;
+        let type_scope = self.inline_type_scope.unwrap_or(owner);
+        let ty = Type::read(slot.get_type()?, self.nodes, type_scope, self.needed)?;
         let default = shape::default(&ty, slot.get_default_value()?, self.nodes)?;
         let offset = slot.get_offset();
         let storage = ty.storage();

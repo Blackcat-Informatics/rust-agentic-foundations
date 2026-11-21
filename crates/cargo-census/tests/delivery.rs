@@ -816,12 +816,14 @@ fn capnp_history_checks_inline_rpc_methods() {
     }
 }
 
-/// Shared named endpoints use ordinary struct evolution and produce one layout
-/// verdict per retained ID. A role protects its endpoint form, ID and brand.
+/// The interface owns its parameter count and its methods' endpoint types.
+/// Shared named endpoint layouts are compared once by declaration ID.
 #[test]
 fn capnp_history_compares_named_rpc_endpoints() {
     const READER: &str = "0xeec2000000000005";
     const INPUT: &str = "0xeec2000000000002";
+    const GENERIC_READER: &str = "0xeec200000000000b";
+    const ARITY_READER: &str = "0xeec200000000000d";
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
     git_repo::init(root);
@@ -838,26 +840,38 @@ fn capnp_history_compares_named_rpc_endpoints() {
             &["--required-annotation", "0xeec2000000000010"],
         )
     };
-    for selected in [&[READER][..], &[READER, INPUT]] {
+    let ordinary_findings = [
+        "0xeec2000000000005.first.parameters: type changed",
+        "0xeec2000000000005.second.results: type changed",
+        "0xeec2000000000005.fourth.parameters: type changed",
+        "0xeec2000000000005.scoped.parameters: type changed",
+        "0xeec2000000000002.count: default changed",
+        "0xeec2000000000002.token: pointer field became required",
+        "0xeec2000000000007.value: member renamed to renamed",
+    ];
+    let generic_findings = [
+        "0xeec200000000000d: type parameter count changed",
+        "0xeec200000000000b.fetch.parameters.value: type changed",
+        "0xeec200000000000b.fetch.results: type changed",
+        "0xeec2000000000007.value: member renamed to renamed",
+        "0xeec200000000000c.value: member renamed to label",
+    ];
+    for (selected, expected) in [
+        (&[READER][..], &ordinary_findings[..]),
+        (&[READER, INPUT][..], &ordinary_findings[..]),
+        (&[GENERIC_READER, ARITY_READER][..], &generic_findings[..]),
+    ] {
         let clean = history(&compatible, selected);
         assert!(clean.status.success(), "{clean:?}");
         assert!(clean.stdout.is_empty(), "{clean:?}");
+        assert!(clean.stderr.is_empty(), "{clean:?}");
 
         let broken = history(&changed, selected);
         assert_eq!(broken.status.code(), Some(1), "{broken:?}");
         assert!(broken.stderr.is_empty(), "{broken:?}");
         let findings = String::from_utf8(broken.stdout).unwrap();
-        let expected = [
-            "0xeec2000000000005.first.parameters: type changed",
-            "0xeec2000000000005.second.results: type changed",
-            "0xeec2000000000005.fourth.parameters: type changed",
-            "0xeec2000000000005.scoped.parameters: type changed",
-            "0xeec2000000000002.count: default changed",
-            "0xeec2000000000002.token: pointer field became required",
-            "0xeec2000000000007.value: member renamed to renamed",
-        ];
         assert_eq!(findings.lines().count(), expected.len(), "{findings}");
-        for finding in expected {
+        for &finding in expected {
             assert!(findings.contains(finding), "{findings}");
         }
     }
@@ -907,6 +921,16 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
             "requires a complete concrete endpoint brand",
         ),
         ("0xeec300000000001c", "consistent generic flags"),
+        (
+            "0xeec300000000001f",
+            "requires a unique reciprocal declaration chain",
+        ),
+        (
+            "0xeec3000000000020",
+            "must inherit exactly the generic method owner's scope",
+        ),
+        ("0xeec3000000000022", "invalid parameter 1"),
+        ("0xeec3000000000023", "requires a complete endpoint brand"),
     ] {
         let result = capnp_history(root, &invalid, &invalid, &[selected], &[]);
         assert_eq!(result.status.code(), Some(1), "{result:?}");
@@ -986,7 +1010,7 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
 }
 
 /// Detached endpoints belong to exactly one method and role across the request.
-/// Explicit interface roots require a supported nongeneric signature.
+/// Generic interface owners with ordinary methods must be declared at file scope.
 #[test]
 fn capnp_history_refuses_unsupported_rpc_endpoints() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -1035,7 +1059,13 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
             &unsupported,
             &unsupported,
             "0xa6615df804a45ef7",
-            "must be nongeneric",
+            "must declare its own parameters at file scope",
+        ),
+        (
+            &unsupported,
+            &unsupported,
+            "0xeec6000000000001",
+            "requires a reciprocal nongeneric declaration chain",
         ),
         (
             &unsupported,

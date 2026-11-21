@@ -126,7 +126,10 @@ compared by their canonical pointer bytes. The caller verifies
 acceptance by application readers.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts -->
 
-The strict history check accepts explicitly selected nongeneric interfaces.
+The strict history check accepts explicitly selected nongeneric interfaces
+and generic interfaces that declare their own type parameters at file scope.
+A generic interface requires a unique reciprocal declaration. The comparison
+reports a change in its own type-parameter count on the interface ID.
 A method can use named structs or inline lists for its parameters and results.
 Census reports removed, renamed or moved methods and changes to an endpoint
 ID, its named or inline form, or its canonical type arguments. It compares
@@ -135,8 +138,8 @@ endpoints is allowed.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints -->
 
 Census follows the direct superclass IDs of each selected interface and its
-bases. Each inheritance edge must target a named nongeneric interface and
-have an empty brand. The declaration chain must have reciprocal ownership
+bases. Both interfaces on an inheritance edge must be named and nongeneric.
+The edge must have an empty brand. The declaration chain must have reciprocal ownership
 and unique names through a file node. Missing or wrong-kind targets, duplicate
 bases, broken ownership and cycles refuse.
 
@@ -149,27 +152,31 @@ ordinal and endpoint layout. A diamond projects each defining interface once.
 
 A named endpoint must be a declared nongroup struct with reciprocal lexical
 ownership. A generic endpoint requires an explicit brand with complete
-concrete pointer bindings for every parameter-bearing scope in its
-declaration chain. An endpoint with no parameters of its own can bind
-only the parameters of enclosing declarations. Nested type arguments
-must also be fully bound. An unconstrained `AnyPointer` counts as an
-unbound argument.
+pointer bindings for every parameter-bearing scope in its declaration chain.
+An endpoint can bind the parameters of enclosing declarations alone.
+Nested type arguments must also be fully bound. An unconstrained
+`AnyPointer` counts as an unbound argument.
 The branded endpoint and its method interface each require a unique
-reciprocal declaration chain. The method interface and its enclosing
-declarations must be nongeneric. The endpoint's generic flags must agree
-with its own and enclosing parameter declarations.
+reciprocal declaration chain. A nongeneric method owner requires concrete
+arguments. A file-scoped generic owner also permits bindings to its own
+parameter positions and inheritance of its scope by a nested named endpoint.
+The endpoint's generic flags must agree with its own and enclosing parameter
+declarations.
 Several methods and roles can share one endpoint declaration with different
 brands. Census compares its layout once by type ID using ordinary struct
 evolution, including implicit defaults for optional additions.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
 
 A compiler-generated inline list belongs to one method ordinal and endpoint
-role. It must be a detached nongeneric struct with no lexical declaration
-claim. Its fields use explicit ordinals in order from zero and the same layout
-checks as ordinary data, including referenced types. Census checks each
+role. It must be a detached struct without its own type parameters or a
+lexical declaration claim. A generic owner requires the inline list to
+inherit its scope. Census reads the inline field types in that scope and
+retains the detached struct ID for layout. The list for a nongeneric owner
+requires an empty brand. Fields use explicit ordinals in order from zero and
+the same layout checks as ordinary data, including referenced types. Census checks each
 retained inline input's explicit-default marker and requires an explicit
 default for each appended inline input. It also compares the layout when a
-renamed method retains its ordinal. Generic methods, direct selection of a
+renamed method retains its ordinal. Method type parameters, direct selection of a
 detached endpoint and wrappers shared across method roles refuse.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
 
@@ -743,8 +750,16 @@ Incomplete, foreign and redundant scope bindings refuse, as do ambiguous
 lexical ownership and inconsistent generic flags.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
 
+The file-scoped generic interface fixtures accept an appended method and
+compare owner arity, an inherited inline slot and a bound named role.
+They admit both named roles inheriting the same owner scope and report
+one layout finding per changed named field. Competing ownership, missing
+brands and out-of-range owner parameter positions refuse.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints -->
+
 A persisted interface pointer keeps its data verdict across changes in
-RPC inheritance and method layouts.
+RPC inheritance and method layouts, including a stable branded pointer
+to a generic owner.
 <!-- raf:tested-by cargo_census::test_crate::capnp_capture::persistence::capnp_persistence_ignores_rpc_endpoint_layouts -->
 
 <!-- raf:generated:verification-matrix -->
