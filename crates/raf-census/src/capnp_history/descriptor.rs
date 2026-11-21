@@ -93,6 +93,7 @@ pub(super) enum Node {
 #[derive(Debug)]
 pub(super) struct Interface {
     pub(super) parameters: u32,
+    pub(super) enclosing_parameters: BTreeMap<TypeId, u32>,
     pub(super) superclasses: BTreeSet<TypeId>,
     pub(super) methods: Vec<Method>,
 }
@@ -467,11 +468,6 @@ impl<'a> Nodes<'a> {
             }
             node::Enum(data) => Ok(Node::Enum(enumerants(id, data)?)),
             node::Interface(data) => {
-                if !self.is_declared(id, scopes)? {
-                    return Err(layout(format!(
-                        "RPC interface {id} must be declared in the schema"
-                    )));
-                }
                 let interface = self.rpc_projection(rpc)?.interface(
                     self,
                     node,
