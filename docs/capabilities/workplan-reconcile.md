@@ -10,6 +10,8 @@ bindings:
   code:
     - raf_workplan::Workplan::new_change
     - raf_workplan::Workplan::impact
+    - raf_workplan::lifecycle::source_impact
+    - raf_workplan::lifecycle::Lifecycle::source_impact
     - raf_workplan::Workplan::reconcile
     - raf_workplan::lifecycle::Lifecycle::reconcile
     - raf_workplan::obligation
@@ -42,6 +44,7 @@ bindings:
     - raf_workplan::lifecycle
     - raf_workplan::git
   tests:
+    - cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners
     - raf_workplan::obligation::tests::only_the_three_history_dependent_kinds_need_more_than_local_documents
     - raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract
     - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
@@ -198,13 +201,16 @@ Turn a change's documented effect into a concrete list of owed document and sour
 
 ## Contract
 
+**Source impact.** The source impact query compares indexed definitions and public export paths against a selected local Git commit. Public paths include exports hidden from rustdoc. A binding on a type or its method traces edits to trait implementations. A definition's own source digest excludes separately indexed nested definitions. A changed symbol reaches a capability through its declared binding. Section selection for code bindings follows the prose assessment naming rules. Tests and examples reach the sections they substantiate. Each affected section identifies its current authored guarantees, supporting tests, examples and recorded assessments. The trace labels a full or multi-segment name, a weak final-segment name, the conservative selection of all code bindings, section binding and explicit tested-by evidence. Removed paths use historical declarations. A changed path also retains historical bindings that the checkout withdrew, with the side identified for each binding. An unowned public item has its own result.
+<!-- raf:tested-by cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners -->
+
 **Static contract.** `change new` exclusively creates one owned change record
 for the listed capabilities. Each listed capability's Contract is affected by
 default. Opening moves listed delivered and designed capabilities to
 implementing and preserves their authored content. The result reports the prior
 state and the applied action. Opening validates slugs, sections and paired SPDX
 fields, and stages original capability bytes before publication. A cleanup
-refusal after publication states that the record opened. `impact` reports
+refusal after publication states that the record opened. `change impact` reports
 listed capabilities, affected sections, bindings, dependants and linking
 sections without writing.
 <!-- raf:tested-by raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean,raf_workplan::test_crate::lifecycle::the_default_affects_is_the_contract_of_each_listed_capability,raf_workplan::test_crate::lifecycle::reopening_delivered_or_designed_capabilities_publishes_implementing -->
@@ -272,6 +278,7 @@ Named obligation fixtures cover every current kind. Native merge-base fixtures c
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::new::the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::a_list_with_obligations_is_printed_one_line_each_and_exits_one` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::an_empty_list_prints_nothing_and_exits_zero` | test | [Verification](#verification) |

@@ -1106,7 +1106,7 @@ fn capnp_history_compares_rpc_inheritance() {
     );
 }
 
-/// Every reached base requires a unique, unbranded interface declaration in an
+/// Nongeneric bases require empty brands and reciprocal declarations in an
 /// acyclic inheritance graph. Unrelated malformed edges stay out of scope.
 #[test]
 fn capnp_history_refuses_invalid_rpc_inheritance() {
@@ -1122,7 +1122,7 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
     assert!(valid.status.success(), "{valid:?}");
     assert!(valid.stdout.is_empty(), "{valid:?}");
     assert!(valid.stderr.is_empty(), "{valid:?}");
-    let ownership = "requires a reciprocal nongeneric declaration chain";
+    let ownership = "requires a unique reciprocal declaration chain with consistent generic flags";
     for (selected, expected) in [
         ("0xeec5000000000003", "repeats direct superclass"),
         ("0xeec5000000000004", "missing schema node"),
@@ -1142,8 +1142,80 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
     }
 }
 
+/// An instantiation set admits reordering and additions. A lost brand belongs
+/// to its declaring interface, and an inherited layout belongs to its base.
+#[test]
+fn capnp_history_compares_branded_rpc_inheritance() {
+    const DIAMOND: &str = "0xeec490000000000c";
+    const BASE_FINDING: &str =
+        "Cap'n Proto history for 0xeec4900000000008.query.parameters.seed: default changed\n";
+    let selected = [
+        "0xeec4900000000004",
+        "0xeec4900000000006",
+        "0xeec4900000000007",
+        "0xeec4900000000009",
+        DIAMOND,
+    ];
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-branded-inheritance-base.bin"),
+    );
+    let compatible = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-branded-inheritance-compatible.bin"),
+    );
+    let changed = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-branded-inheritance-changed.bin"),
+    );
+    let clean = capnp_history(root, &base, &compatible, &selected, &[]);
+    assert!(
+        clean.status.success() && clean.stdout.is_empty() && clean.stderr.is_empty(),
+        "{clean:?}"
+    );
+
+    let verdict = capnp_history(root, &base, &changed, &selected, &[]);
+    assert_eq!(verdict.status.code(), Some(1), "{verdict:?}");
+    assert!(verdict.stderr.is_empty(), "{verdict:?}");
+    assert_eq!(
+        String::from_utf8(verdict.stdout).unwrap(),
+        [
+            "Cap'n Proto history for 0xeec4900000000004: direct superclass 0xeec4900000000003 brand changed\n",
+            BASE_FINDING,
+            "Cap'n Proto history for 0xeec4900000000009: direct superclass 0xeec4900000000008 brand changed\n",
+        ]
+        .concat()
+    );
+    let diamond = capnp_history(root, &base, &changed, &[DIAMOND], &[]);
+    assert_eq!(diamond.status.code(), Some(1), "{diamond:?}");
+    assert!(diamond.stderr.is_empty(), "{diamond:?}");
+    assert_eq!(diamond.stdout, BASE_FINDING.as_bytes());
+}
+
+/// A complete lexical brand checks each scope and position. Explicitly binding
+/// every position to itself and inheriting the scope denote the same edge.
+#[test]
+fn capnp_history_refuses_invalid_branded_rpc_inheritance() {
+    assert_capnp_rpc_refusals(
+        include_bytes!("fixtures/capnp/rpc-branded-inheritance-invalid.bin"),
+        &[
+            ("0xeec4a00000000003", "with the same brand"),
+            ("0xeec4a00000000004", "requires a complete brand"),
+            (
+                "0xeec4a00000000005",
+                "implicit method parameter requires an RPC method brand",
+            ),
+            ("0xeec4a00000000006", "invalid or repeated brand scope"),
+            ("0xeec4a00000000007", "invalid parameter 1"),
+            ("0xeec4a00000000008", "requires a complete brand"),
+        ],
+    );
+}
+
 /// Detached endpoints belong to exactly one method and role across the request.
-/// Generic inheritance remains outside the supported profile.
 #[test]
 fn capnp_history_refuses_unsupported_rpc_endpoints() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -1158,16 +1230,20 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
     );
     let field_order =
         commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-field-order.bin"));
-    let concrete = capnp_history(
+    let supported = capnp_history(
         root,
         &unsupported,
         &unsupported,
-        &["0xadb4bfe48ad45105", "0xba6c33c22a5d3e73"],
+        &[
+            "0xadb4bfe48ad45105",
+            "0xba6c33c22a5d3e73",
+            "0xeec6000000000001",
+        ],
         &[],
     );
-    assert!(concrete.status.success(), "{concrete:?}");
-    assert!(concrete.stdout.is_empty(), "{concrete:?}");
-    assert!(concrete.stderr.is_empty(), "{concrete:?}");
+    assert!(supported.status.success(), "{supported:?}");
+    assert!(supported.stdout.is_empty(), "{supported:?}");
+    assert!(supported.stderr.is_empty(), "{supported:?}");
     for (before, after, selected, expected) in [
         (&base, &shared, RPC_READER, "exactly one owning method role"),
         (
@@ -1187,12 +1263,6 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
             &base,
             "0xd766b858756a10ab",
             "must be selected through its owning method",
-        ),
-        (
-            &unsupported,
-            &unsupported,
-            "0xeec6000000000001",
-            "requires a reciprocal nongeneric declaration chain",
         ),
     ] {
         let refused = capnp_history(root, before, after, &[selected], &[]);

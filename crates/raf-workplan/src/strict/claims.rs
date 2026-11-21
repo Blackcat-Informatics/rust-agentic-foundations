@@ -33,6 +33,7 @@ pub struct ClaimCoverage {
     section: CapabilitySection,
     claim: String,
     line: usize,
+    end_line: usize,
     tests: Vec<String>,
 }
 
@@ -68,6 +69,10 @@ impl ClaimCoverage {
     #[must_use]
     pub fn line(&self) -> usize {
         self.line
+    }
+
+    pub(crate) fn lines(&self) -> Range<usize> {
+        self.line..self.end_line
     }
 
     /// The paths the tested-by markers of the claim name, in document order,
@@ -170,10 +175,15 @@ impl Workplan<'_> {
     /// ```
     #[must_use]
     pub fn claims_report(&self) -> ClaimsReport {
+        self.claims_in_states(|state| state == State::Delivered)
+    }
+
+    /// Current authored claims of the selected states. Proposed blocks are omitted.
+    pub(crate) fn claims_in_states(&self, selected: impl Fn(State) -> bool) -> ClaimsReport {
         let mut claims: Vec<ClaimCoverage> = self
             .capabilities()
             .iter()
-            .filter(|loaded| loaded.value().state == State::Delivered)
+            .filter(|loaded| selected(loaded.value().state))
             .flat_map(|loaded| {
                 let id = &loaded.value().header.id;
                 units(loaded.body())
@@ -184,6 +194,7 @@ impl Workplan<'_> {
                         section: unit.section,
                         claim: unit.key,
                         line: unit.line,
+                        end_line: unit.lines.end,
                         tests: unit.tests,
                     })
             })

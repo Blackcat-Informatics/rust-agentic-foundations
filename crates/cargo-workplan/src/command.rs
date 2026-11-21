@@ -83,6 +83,7 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
                 Ok(Report::document(opened.workplan().authoring_dataset()?))
             }
         }
+        Command::Impact { base } => change::source_impact(&root()?, base),
         Command::Change(Change::New(new_args)) => change::new(&root()?, new_args),
         Command::Change(Change::Impact(slug)) => change::impact(&root()?, &slug.slug),
         Command::Change(Change::Reconcile(slug)) => change::reconcile(&root()?, &slug.slug),
@@ -119,6 +120,7 @@ fn command_name(command: &Command) -> &'static str {
         Command::Docs(Docs::Artifacts(_)) => "docs artifacts",
         Command::Docs(Docs::Build(DocsBuild::Rustdoc(_))) => "docs build rustdoc",
         Command::Check => "check",
+        Command::Impact { .. } => "impact",
         Command::Status => "status",
         Command::Diagram(_) => "diagram",
         Command::Docs(Docs::Mdbook(_)) => "docs mdbook",
