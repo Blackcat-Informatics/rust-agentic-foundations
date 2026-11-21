@@ -1,0 +1,24 @@
+ghprsq source head backlink metadata
+
+parent_hashes: 6ea3a88540f4cbfd8bd36fb6883fc321cebf5809
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash-head-backlink
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 388
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/388
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 6e8a0a0afaf62fff0b4daea83b8bf03e69177525
+GhpRsq-Head-Ref: paudley/385-okf-validate-closed-change-item-keys
+GhpRsq-Head-OID: 6ea3a88540f4cbfd8bd36fb6883fc321cebf5809
+GhpRsq-Result-Tree: 4d40518ca54a5709708fd768208d683595716813
+GhpRsq-Result-Commit: f1895d9562e1ef811cde2fd61f3b172ddc2bb3eb
+GhpRsq-Parent-Hashes: 6ea3a88540f4cbfd8bd36fb6883fc321cebf5809
+GhpRsq-Squash-Notes-SHA256: a8701f0602d2689039c529e298336aa952fddcd76440a7b7a33cfd8fd03eaa7a
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Tree: f1fc1740a3d38141757aa9b0c78126d3564d3e11
+GhpRsq-Stage-Commit: 3756fa24dbfe7b89fba2481c0eed58befd185799
+GhpRsq-Stage-Tag: refs/tags/ghprsq/artifacts/3756fa24dbfe7b89fba2481c0eed58befd185799
+GhpRsq-Stage-Ref: refs/ghprsq/pr/388/stage
+GhpRsq-Stage-Files: 21
+GhpRsq-Stage-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/tree/3756fa24dbfe7b89fba2481c0eed58befd185799
