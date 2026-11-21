@@ -25,8 +25,6 @@ const KEY: &str = "urn:raf:okf:key:";
 const FOCUS: &str = "urn:raf:okf:header:";
 const SHAPE: &str = "urn:raf:okf:header-shape:";
 const BINDINGS_SHAPE: &str = "Capability-bindings";
-const ITEM_SHAPE: &str = "Change-item";
-const ITEM_MEMBER: &str = "urn:raf:okf:change-item-member";
 const RDF_TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 const XSD_BOOLEAN: &str = "http://www.w3.org/2001/XMLSchema#boolean";
 const XSD_INTEGER: &str = "http://www.w3.org/2001/XMLSchema#integer";
@@ -102,14 +100,74 @@ impl From<RdfDiagnostic> for HeaderShapeError {
     }
 }
 
+#[derive(Default)]
 pub(super) struct KeyVerdicts<'a> {
     pub(super) bindings_exact: bool,
-    pub(super) items: Vec<ItemKeys<'a>>,
+    pub(super) items: Vec<RowKeys<'a>>,
+    pub(super) debt_findings: Vec<RowKeys<'a>>,
+    pub(super) debt_lines: Vec<RowKeys<'a>>,
 }
 
-pub(super) struct ItemKeys<'a> {
-    pub(super) claim: Option<&'a Entry>,
+pub(super) struct RowKeys<'a> {
     pub(super) unknown: Vec<&'a str>,
+    pub(super) missing: Vec<&'static str>,
+}
+
+#[derive(Clone, Copy)]
+enum RowShape {
+    ChangeItem,
+    DebtFinding,
+    DebtLine,
+}
+
+struct RowSpec {
+    list: &'static str,
+    name: &'static str,
+    member: &'static str,
+    keys: &'static [(&'static str, bool)],
+}
+
+impl RowShape {
+    const fn spec(self) -> RowSpec {
+        match self {
+            Self::ChangeItem => RowSpec {
+                list: "items",
+                name: "Change-item",
+                member: "urn:raf:okf:change-item-member",
+                keys: &[("claim", true), ("outcome", false), ("reason", false)],
+            },
+            Self::DebtFinding => RowSpec {
+                list: "findings",
+                name: "Debt-finding",
+                member: "urn:raf:okf:debt-finding-member",
+                keys: &[("kind", true), ("subject", true)],
+            },
+            Self::DebtLine => RowSpec {
+                list: "lines",
+                name: "Debt-line",
+                member: "urn:raf:okf:debt-line-member",
+                keys: &[("item", true), ("orphans", true)],
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct RowGroup<'a> {
+    shape: RowShape,
+    list: &'a List,
+}
+
+impl<'a> RowGroup<'a> {
+    fn maps(self) -> impl Iterator<Item = &'a Map> {
+        self.list
+            .items()
+            .iter()
+            .map_while(|item| match item.value() {
+                ItemValue::Map(map) => Some(map),
+                ItemValue::Scalar(_) => None,
+            })
+    }
 }
 
 /// Reports top-level findings and returns the nested key verdicts in author order.
@@ -126,12 +184,13 @@ pub(super) fn check<'a>(
         None
     };
     let binding_focus = bindings.map(|_| format!("{FOCUS}{BINDINGS_SHAPE}"));
+    let groups = row_groups(map, doc_type);
     let (data, focuses) = header_graph(
         [
             Some((focus.as_str(), map)),
             binding_focus.as_deref().zip(bindings),
         ],
-        item_maps(map, doc_type),
+        &groups,
     )?;
     let binding = if let Some(schema) = SCHEMA.get() {
         schema.bind_shared_dataset(data)?
@@ -143,7 +202,7 @@ pub(super) fn check<'a>(
         binding
     };
     let report = binding.validate_focus_nodes(&focuses)?;
-    report_keys(&report, &focuses, map, doc_type, check)
+    report_keys(&report, &focuses, map, doc_type, &groups, check)
 }
 
 fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
@@ -162,12 +221,19 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
         ("targetNode", &format!("{FOCUS}{BINDINGS_SHAPE}")),
         BINDING_KEYS.into_iter().map(|key| (key, true)),
     )?;
-    add_shape(
-        &mut graph,
-        ITEM_SHAPE,
-        ("targetObjectsOf", ITEM_MEMBER),
-        [("claim", true), ("outcome", false), ("reason", false)].into_iter(),
-    )?;
+    for shape in [
+        RowShape::ChangeItem,
+        RowShape::DebtFinding,
+        RowShape::DebtLine,
+    ] {
+        let spec = shape.spec();
+        add_shape(
+            &mut graph,
+            spec.name,
+            ("targetObjectsOf", spec.member),
+            spec.keys.iter().copied(),
+        )?;
+    }
     let shapes = shapes::from_dataset(&graph.freeze()?)?;
     Ok(PreparedShapes::new(Arc::new(shapes)))
 }
@@ -204,30 +270,41 @@ fn add_shape(
     Ok(())
 }
 
-fn item_maps(map: &Map, doc_type: DocType) -> impl Iterator<Item = &Map> + Clone {
-    let list = if doc_type == DocType::Change {
-        map.get("items").and_then(|entry| entry.value().as_list())
-    } else {
-        None
+fn row_groups(map: &Map, doc_type: DocType) -> Vec<RowGroup<'_>> {
+    let shapes: &[RowShape] = match doc_type {
+        DocType::Change => &[RowShape::ChangeItem],
+        DocType::Debt => &[RowShape::DebtFinding, RowShape::DebtLine],
+        _ => &[],
     };
-    list.into_iter()
-        .flat_map(List::items)
-        .map_while(|item| match item.value() {
-            ItemValue::Map(map) => Some(map),
-            ItemValue::Scalar(_) => None,
+    shapes
+        .iter()
+        .filter_map(|&shape| {
+            let list = map.get(shape.spec().list)?.value().as_list()?;
+            // A debt list's shape is checked before any of its row keys.
+            if doc_type == DocType::Debt
+                && list
+                    .items()
+                    .iter()
+                    .any(|item| matches!(item.value(), ItemValue::Scalar(_)))
+            {
+                return None;
+            }
+            Some(RowGroup { shape, list })
         })
+        .collect()
 }
 
 fn header_graph<'a>(
     maps: [Option<(&str, &'a Map)>; 2],
-    items: impl Iterator<Item = &'a Map> + Clone,
+    groups: &[RowGroup<'a>],
 ) -> Result<(Arc<RdfDataset>, Vec<Term>), HeaderShapeError> {
     // Both document constructors include at least the key, colon, and newline
     // in the authoring byte limit. Each admitted key gives one default-graph
     // triple. The separate report profile would require a report root.
-    let item_count = items.clone().count();
-    // Each item also supplies the dash and space of its list marker.
-    let mut available = item_count
+    let rows = groups.iter().copied().flat_map(RowGroup::maps);
+    let row_count = rows.count();
+    // Each row also supplies the dash and space of its list marker.
+    let mut available = row_count
         .checked_mul(2)
         .and_then(|markers| crate::MAX_TEXT_BYTES.checked_sub(markers))
         .ok_or(HeaderShapeError::KeyBytes)?;
@@ -235,7 +312,7 @@ fn header_graph<'a>(
     for entry in maps
         .clone()
         .map(|(_, map)| map)
-        .chain(items.clone())
+        .chain(groups.iter().copied().flat_map(RowGroup::maps))
         .flat_map(Map::entries)
     {
         available = available
@@ -245,7 +322,7 @@ fn header_graph<'a>(
     }
     let mut graph = RdfDatasetBuilder::new();
     let present = graph.intern_iri("urn:raf:okf:key-present")?;
-    let mut focuses = Vec::with_capacity(maps.clone().count() + item_count);
+    let mut focuses = Vec::with_capacity(maps.clone().count() + row_count);
     let mut project = |graph: &mut RdfDatasetBuilder, name: &str, map: &Map| {
         let focus = graph.intern_iri(name)?;
         focuses.push(NamedNode::from(name).into_term());
@@ -258,12 +335,16 @@ fn header_graph<'a>(
     for (focus, map) in maps {
         project(&mut graph, focus, map)?;
     }
-    if item_count != 0 {
-        let anchor = graph.intern_iri("urn:raf:okf:change-items")?;
-        let member = graph.intern_iri(ITEM_MEMBER)?;
-        for (index, map) in items.enumerate() {
-            let focus = project(&mut graph, &format!("{FOCUS}{ITEM_SHAPE}:{index}"), map)?;
-            graph.push_quad(anchor, member, focus, None)?;
+    if row_count != 0 {
+        let anchor = graph.intern_iri("urn:raf:okf:header-rows")?;
+        for &group in groups {
+            let spec = group.shape.spec();
+            let member = graph.intern_iri(spec.member)?;
+            for (index, map) in group.maps().enumerate() {
+                let name = format!("{FOCUS}{}:{index}", spec.name);
+                let focus = project(&mut graph, &name, map)?;
+                graph.push_quad(anchor, member, focus, None)?;
+            }
         }
     }
     Ok((graph.freeze()?, focuses))
@@ -276,11 +357,33 @@ fn focus_iri(term: &Term) -> Result<&str, HeaderShapeError> {
     }
 }
 
+fn missing_row_keys<'a>(
+    missing: &mut OrderedTable<(&'a str, &'a str), ()>,
+    focus: &'a str,
+    row: &Map,
+    keys: &[(&'static str, bool)],
+) -> Result<Vec<&'static str>, HeaderShapeError> {
+    let mut result = Vec::new();
+    for &(key, required) in keys {
+        if required {
+            let absent = missing.remove(&(focus, key)).is_some();
+            if absent != row.get(key).is_none() {
+                return Err(HeaderShapeError::UnexpectedReport);
+            }
+            if absent {
+                result.push(key);
+            }
+        }
+    }
+    Ok(result)
+}
+
 fn report_keys<'a>(
     report: &ValidationReport,
     focuses: &[Term],
     map: &'a Map,
     doc_type: DocType,
+    groups: &[RowGroup<'a>],
     check: &mut Check<'_>,
 ) -> Result<KeyVerdicts<'a>, HeaderShapeError> {
     if report.conforms != report.results.is_empty() || !report.diagnostics.is_empty() {
@@ -294,7 +397,7 @@ fn report_keys<'a>(
         .split_first()
         .ok_or(HeaderShapeError::UnexpectedReport)?;
     let header = focus_iri(header)?;
-    let (bindings, item_focuses) = if doc_type == DocType::Capability {
+    let (bindings, row_focuses) = if doc_type == DocType::Capability {
         (nested.first().map(focus_iri).transpose()?, &[][..])
     } else {
         (None, nested)
@@ -344,26 +447,35 @@ fn report_keys<'a>(
             );
         }
     }
-    let mut items = Vec::with_capacity(item_focuses.len());
-    for (map, focus) in item_maps(map, doc_type).zip(item_focuses) {
-        let focus = focus_iri(focus)?;
-        let claim = map.get("claim");
-        if missing.remove(&(focus, "claim")).is_some() != claim.is_none() {
-            return Err(HeaderShapeError::UnexpectedReport);
+    let mut verdicts = KeyVerdicts {
+        bindings_exact,
+        ..KeyVerdicts::default()
+    };
+    let mut focuses = row_focuses.iter();
+    for &group in groups {
+        let spec = group.shape.spec();
+        let rows = match group.shape {
+            RowShape::ChangeItem => &mut verdicts.items,
+            RowShape::DebtFinding => &mut verdicts.debt_findings,
+            RowShape::DebtLine => &mut verdicts.debt_lines,
+        };
+        for map in group.maps() {
+            let focus = focus_iri(focuses.next().ok_or(HeaderShapeError::UnexpectedReport)?)?;
+            let missing_keys = missing_row_keys(&mut missing, focus, map, spec.keys)?;
+            let unknown = map
+                .entries()
+                .iter()
+                .map(Entry::key)
+                .filter(|key| unknown.remove(&(focus, *key)).is_some())
+                .collect();
+            rows.push(RowKeys {
+                unknown,
+                missing: missing_keys,
+            });
         }
-        let unknown = map
-            .entries()
-            .iter()
-            .map(Entry::key)
-            .filter(|key| unknown.remove(&(focus, *key)).is_some())
-            .collect();
-        items.push(ItemKeys { claim, unknown });
     }
-    if !unknown.is_empty() || !missing.is_empty() {
+    if focuses.next().is_some() || !unknown.is_empty() || !missing.is_empty() {
         return Err(HeaderShapeError::UnexpectedReport);
     }
-    Ok(KeyVerdicts {
-        bindings_exact,
-        items,
-    })
+    Ok(verdicts)
 }
