@@ -148,11 +148,16 @@ ordinal and endpoint layout. A diamond projects each defining interface once.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance -->
 
 A named endpoint must be a declared nongroup struct with reciprocal lexical
-ownership. A generic endpoint requires an explicit brand that fully binds its
-type parameters to concrete pointer types. Nested type arguments must also be
-fully bound. An unconstrained `AnyPointer` counts as an unbound argument.
-For a generic endpoint, the interface and the endpoint's enclosing
-declarations must have unique reciprocal ownership and be nongeneric.
+ownership. A generic endpoint requires an explicit brand with complete
+concrete pointer bindings for every parameter-bearing scope in its
+declaration chain. An endpoint with no parameters of its own can bind
+only the parameters of enclosing declarations. Nested type arguments
+must also be fully bound. An unconstrained `AnyPointer` counts as an
+unbound argument.
+The branded endpoint and its method interface each require a unique
+reciprocal declaration chain. The method interface and its enclosing
+declarations must be nongeneric. The endpoint's generic flags must agree
+with its own and enclosing parameter declarations.
 Several methods and roles can share one endpoint declaration with different
 brands. Census compares its layout once by type ID using ordinary struct
 evolution, including implicit defaults for optional additions.
@@ -731,9 +736,11 @@ claims and excessive nominal nesting refuse without a partial report.
 
 The named RPC fixtures check an optional field with an implicit default,
 one finding per changed field in a shared layout, and a change of endpoint
-form at the same node ID. A nested change from Text to Data reports a
-type finding only on the changed method role. Incomplete brands and
-ambiguous lexical ownership refuse.
+form at the same node ID. A change from Text to Data in a nested type
+argument or an enclosing lexical argument reports a type finding on the
+affected method role. An endpoint with only enclosing bindings passes.
+Incomplete, foreign and redundant scope bindings refuse, as do ambiguous
+lexical ownership and inconsistent generic flags.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints -->
 
 A persisted interface pointer keeps its data verdict across changes in
