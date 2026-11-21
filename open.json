@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "issue": 380,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "anon-read",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical",
+  "branch": "paudley/380-census-initialize-a-minimal-canonical",
+  "slug": "census-initialize-a-minimal-canonical",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical",
+  "stage_tracked": true,
+  "base": "refs/remotes/origin/main",
+  "base_oid": "b784a526bab523c493062bca78862d95be06322f",
+  "reused": true,
+  "adr_repo": false,
+  "created": [
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/issue.md"
+  ],
+  "warnings": [
+    "re-attached worktree has uncommitted changes: /home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical"
+  ],
+  "timestamp": "2026-11-21T00:14:23-0600",
+  "seed_error": ""
+}

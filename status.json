@@ -1,0 +1,196 @@
+{
+  "issue": 380,
+  "pr_number": 387,
+  "branch": "paudley/380-census-initialize-a-minimal-canonical",
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical",
+  "observed_at": "2026-11-21T09:09:21.912278+00:00",
+  "completed": [
+    "pr",
+    "checks",
+    "reviews"
+  ],
+  "blocked": [],
+  "unavailable": [],
+  "next_actions": [],
+  "artifacts": {
+    "ci_failures": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/ci-failures.md",
+    "reviews": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/pr-comments.md",
+    "status": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/status.json",
+    "checks": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/pr-checks.txt",
+    "review_evidence": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/review-evidence.json"
+  },
+  "limits": [
+    "Mechanical evidence only; artifact presence does not establish a passing review or acceptance verdict."
+  ],
+  "pr": {
+    "baseRefName": "main",
+    "baseRefOid": "e094582e63c3477c46974d686c8566c2ad484a4b",
+    "headRefName": "paudley/380-census-initialize-a-minimal-canonical",
+    "headRefOid": "5ae482989207d8932f8fd10ba640d1e89c657445",
+    "isDraft": false,
+    "mergeCommit": null,
+    "mergedAt": null,
+    "number": 387,
+    "state": "OPEN",
+    "title": "feat(census): initialize a canonical structural ledger",
+    "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/387"
+  },
+  "checks": {
+    "state": "pass",
+    "checks": [
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136797566300",
+        "name": "test",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794948722",
+        "name": "fuzz",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437825",
+        "name": "test (rust-agentic-foundations 1/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437783",
+        "name": "test (raf-workplan 1/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437720",
+        "name": "test (raf-workplan 3/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437700",
+        "name": "test (raf-rdf)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437705",
+        "name": "test (raf-fixtures)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437752",
+        "name": "test (rust-agentic-foundations 2/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437679",
+        "name": "test (raf-source 1/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437564",
+        "name": "fmt",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437659",
+        "name": "test (cargo-census)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437657",
+        "name": "test (raf-census)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437690",
+        "name": "test (cargo-workplan)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437543",
+        "name": "clippy",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437651",
+        "name": "test (raf-source 2/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437511",
+        "name": "test-release",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437726",
+        "name": "test (raf-workplan 2/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437645",
+        "name": "test (raf-okf)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437536",
+        "name": "fuzz_checks",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437520",
+        "name": "doc",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794437558",
+        "name": "msrv",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://coderabbit.ai?utm_source=cr_app&utm_medium=github",
+        "name": "CodeRabbit",
+        "state": "NEUTRAL"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794362605",
+        "name": "packages",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794362366",
+        "name": "reuse",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44887010601/job/136794362617",
+        "name": "deny",
+        "state": "SUCCESS"
+      }
+    ]
+  },
+  "reviews": {
+    "head": "5ae482989207d8932f8fd10ba640d1e89c657445",
+    "coverage": {
+      "comments": "complete",
+      "reviews": "complete",
+      "inline_comments": "complete",
+      "threads": "complete"
+    },
+    "items": 1,
+    "change_token": "2de1496e20df81612b300ba36fcca10ec7d6837863f2cd9f27731a306ab807c5"
+  },
+  "local": {
+    "head": "5ae482989207d8932f8fd10ba640d1e89c657445",
+    "branch": "paudley/380-census-initialize-a-minimal-canonical",
+    "dirty_paths": []
+  },
+  "ci_logs": {
+    "pr": 387,
+    "jobs": [],
+    "ok": true,
+    "summary": "# PR #387 failed CI logs\n\nNo failed checks in this snapshot.\n"
+  },
+  "review_debt": [],
+  "unresolved_threads": [],
+  "validation": {
+    "results": [],
+    "limits": "Scopes are caller-selected. Unchanged scope is reusable evidence, not a gate waiver; environment capture is not exhaustive."
+  }
+}

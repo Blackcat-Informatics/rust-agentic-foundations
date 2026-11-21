@@ -1,0 +1,203 @@
+{
+  "issue": 380,
+  "pr_number": 387,
+  "branch": "paudley/380-census-initialize-a-minimal-canonical",
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical",
+  "observed_at": "2026-11-21T07:51:11.233539+00:00",
+  "completed": [
+    "pr",
+    "checks",
+    "reviews"
+  ],
+  "blocked": [
+    {
+      "code": "ci_pending",
+      "message": "CI state is pending"
+    }
+  ],
+  "unavailable": [],
+  "next_actions": [
+    "Wait for CI changes"
+  ],
+  "artifacts": {
+    "ci_failures": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/ci-failures.md",
+    "reviews": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/pr-comments.md",
+    "status": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/status.json",
+    "checks": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/pr-checks.txt",
+    "review_evidence": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/review-evidence.json"
+  },
+  "limits": [
+    "Mechanical evidence only; artifact presence does not establish a passing review or acceptance verdict."
+  ],
+  "pr": {
+    "baseRefName": "main",
+    "baseRefOid": "6d062afa50f3d147f5794bee694132e3c713e947",
+    "headRefName": "paudley/380-census-initialize-a-minimal-canonical",
+    "headRefOid": "1ae67a1f40e9fdf8cdd9fd93176200d57afe24fc",
+    "isDraft": false,
+    "mergeCommit": null,
+    "mergedAt": null,
+    "number": 387,
+    "state": "OPEN",
+    "title": "feat(census): initialize a canonical structural ledger",
+    "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/387"
+  },
+  "checks": {
+    "state": "pending",
+    "checks": [
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136779456972",
+        "name": "test",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136778390037",
+        "name": "fuzz",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722504",
+        "name": "test (raf-workplan 2/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722324",
+        "name": "test (raf-okf)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722355",
+        "name": "test (raf-workplan 1/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722326",
+        "name": "test (raf-census)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722354",
+        "name": "test (cargo-workplan)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722323",
+        "name": "test (cargo-census)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722350",
+        "name": "test (rust-agentic-foundations 2/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722329",
+        "name": "test (raf-workplan 3/3)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722258",
+        "name": "test (raf-source 2/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722267",
+        "name": "test (raf-fixtures)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722122",
+        "name": "test-release",
+        "state": "IN_PROGRESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722074",
+        "name": "fmt",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722149",
+        "name": "msrv",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722285",
+        "name": "test (raf-source 1/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722280",
+        "name": "test (rust-agentic-foundations 1/2)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722297",
+        "name": "test (raf-rdf)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722089",
+        "name": "doc",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722169",
+        "name": "fuzz_checks",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777722143",
+        "name": "clippy",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://coderabbit.ai?utm_source=cr_app&utm_medium=github",
+        "name": "CodeRabbit",
+        "state": "NEUTRAL"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777655614",
+        "name": "reuse",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777655797",
+        "name": "deny",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/44881525949/job/136777655760",
+        "name": "packages",
+        "state": "SUCCESS"
+      }
+    ]
+  },
+  "reviews": {
+    "head": "1ae67a1f40e9fdf8cdd9fd93176200d57afe24fc",
+    "coverage": {
+      "comments": "complete",
+      "reviews": "complete",
+      "inline_comments": "complete",
+      "threads": "complete"
+    },
+    "items": 1,
+    "change_token": "4354b80679b238cfc9f74ea78d4606b288a1b094976e3dc7ca35ac0ac98d3641"
+  },
+  "local": {
+    "head": "1ae67a1f40e9fdf8cdd9fd93176200d57afe24fc",
+    "branch": "paudley/380-census-initialize-a-minimal-canonical",
+    "dirty_paths": []
+  },
+  "ci_logs": {
+    "pr": 387,
+    "jobs": [],
+    "ok": true,
+    "summary": "# PR #387 failed CI logs\n\nNo failed checks in this snapshot.\n"
+  },
+  "review_debt": [],
+  "unresolved_threads": [],
+  "validation": {
+    "results": [],
+    "limits": "Scopes are caller-selected. Unchanged scope is reusable evidence, not a gate waiver; environment capture is not exhaustive."
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical",
+  "branch": "paudley/380-census-initialize-a-minimal-canonical",
+  "base_ref": "refs/remotes/origin/main",
+  "head": "1ae67a1f40e9fdf8cdd9fd93176200d57afe24fc",
+  "attempt": "/home/paudley/Active/rust-agentic-foundations/.worktrees/380-census-initialize-a-minimal-canonical/.stage/census-initialize-a-minimal-canonical/sync/20261121T081740-336cb5d2733e4cb89baf322b217ca168",
+  "conflicts": [
+    "work/assessments/census-cli-contract.md"
+  ],
+  "status": "completed",
+  "base": "e094582e63c3477c46974d686c8566c2ad484a4b",
+  "merge_bases": [
+    "b784a526bab523c493062bca78862d95be06322f"
+  ],
+  "merge_index": "9a754c8426a4c11ae6afc4baf68794b52aaee8404dca704e93b9c972322d8289",
+  "reused_paths": [],
+  "rerere_output": "Recorded preimage for 'work/assessments/census-cli-contract.md'\n",
+  "candidate_tree": "3efb55b01ed7f0ac12692544c4c41c54232901b6",
+  "candidate_patch": "candidate-0f34859571f846009cab328060c8a2aa.patch",
+  "stdout_log": "commit-0f34859571f846009cab328060c8a2aa.stdout.log",
+  "stderr_log": "commit-0f34859571f846009cab328060c8a2aa.stderr.log",
+  "validation_records": [],
+  "commit_duration_seconds": 972.1994862440042,
+  "commit": "5ae482989207d8932f8fd10ba640d1e89c657445",
+  "tree": "3efb55b01ed7f0ac12692544c4c41c54232901b6",
+  "exit_code": 0
+}

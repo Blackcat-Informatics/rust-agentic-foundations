@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "head": "5ae482989207d8932f8fd10ba640d1e89c657445",
+  "items": [
+    {
+      "id": "github:comment:IC_kwDOVFffUs8AAAABpMZ-4w",
+      "kind": "comment",
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/387#issuecomment-7059439331",
+      "author": "coderabbitai",
+      "updated_at": "2026-11-21T08:53:58Z",
+      "state": null,
+      "commit": null,
+      "body_sha256": "8c45abeddb1790e0dac97c891c46e2cd1352cf0044943a725d8df9226c81e3b9",
+      "body_bytes": 5055,
+      "body_archived": false
+    }
+  ],
+  "coverage": {
+    "comments": "complete",
+    "reviews": "complete",
+    "inline_comments": "complete",
+    "threads": "complete"
+  },
+  "bodies": "kept on the forge; each item carries body_sha256 of the original"
+}

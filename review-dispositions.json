@@ -1,0 +1,16 @@
+{
+  "github:comment:IC_kwDOVFffUs8AAAABpMZ-4w": {
+    "resolution": "acknowledged",
+    "reason": "Updated service quota notice. The synchronized tree received independent source review against both parents.",
+    "commit": null,
+    "reply_url": null,
+    "revision": {
+      "updated_at": "2026-11-21T08:53:58Z",
+      "state": null,
+      "commit": null,
+      "path": null,
+      "line": null,
+      "body_sha256": "8c45abeddb1790e0dac97c891c46e2cd1352cf0044943a725d8df9226c81e3b9"
+    }
+  }
+}

@@ -1,0 +1,3932 @@
+diff --git WORKPLAN-HOWTO.md WORKPLAN-HOWTO.md
+index 4c28ec60..46d67cb6 100644
+--- WORKPLAN-HOWTO.md
++++ WORKPLAN-HOWTO.md
+@@ -7,11 +7,13 @@ Workplan answers two questions about a documented guarantee. Does its named impl
+ 
+ ## Install the command
+ 
+-On native Linux with Rust 1.98.1 or newer, install the CLI from a pinned RAF revision. Keep the same revision for developer machines, CI and any RAF dev-dependency.
++On native Linux with Rust 1.98.1 or newer, resolve RAF's published main revision once. Save the full commit identifier for developer machines, CI and the dev-dependency. When reading this guide at a specific revision, set `RAF_REV` to that commit instead.
+ 
+ ```sh
+-cargo install --locked --git https://github.com/Blackcat-Informatics/rust-agentic-foundations.git \
+-  --rev 05138a5ea278377d745fca9809cae116ae37a667 cargo-workplan
++RAF_URL=https://github.com/Blackcat-Informatics/rust-agentic-foundations.git
++RAF_REF=$(git ls-remote --exit-code "$RAF_URL" refs/heads/main) || exit 1
++RAF_REV=${RAF_REF%%[[:space:]]*}
++cargo install --locked --git "$RAF_URL" --rev "$RAF_REV" cargo-workplan
+ ```
+ 
+ Make sure Cargo's install directory (normally `$HOME/.cargo/bin`) is on `PATH`. Run the commands below from your workspace root. From another directory, pass the root itself, for example `cargo workplan --root /path/to/workspace check`.
+@@ -137,9 +139,8 @@ Use your project's copyright and documentation licence. Sync creates `docs/capab
+ 
+ For a package at the workspace root, add the library to its `Cargo.toml` and use this integration test. In a virtual workspace, put the dev-dependency in a member package and pass the directory containing the workspace's `docs/capabilities` to `Gate::workspace`.
+ 
+-```toml
+-[dev-dependencies]
+-raf-workplan = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "05138a5ea278377d745fca9809cae116ae37a667" }
++```sh
++cargo add --dev raf-workplan --git "$RAF_URL" --rev "$RAF_REV"
+ ```
+ 
+ ```rust
+@@ -161,6 +162,14 @@ Commit the refreshed documents and updated lockfile for a reproducible `cargo te
+ 
+ ## Change a delivered contract
+ 
++To find documentation affected by a source edit, compare the checkout against a local commit before opening a change.
++
++```sh
++cargo workplan impact --base HEAD
++```
++
++Use `HEAD` for uncommitted work, a full commit identifier for a fixed comparison, or a full reference such as `refs/remotes/origin/main`. Follow each changed symbol through its printed binding to the capability sections, guarantees and evidence to review. Read `named` as a full path or multi-segment suffix and `weak-name` as a short name shared by potentially different items. The `all-code-bindings` label identifies a section or guarantee whose prose names no code binding strongly. Each binding identifies whether it came from the checkout or the base. A changed public item without a current code owner identifies a gap in the capability bindings.
++
+ With the initial documents committed, open a change against the capability and name each affected section. Reconciliation reads the merge base with the symbolic default branch `refs/remotes/origin/HEAD`. Use a clone that has that reference and the necessary commit history.
+ 
+ ```sh
+diff --git crates/cargo-census/tests/delivery.rs crates/cargo-census/tests/delivery.rs
+index f8d67134..3b12c3ec 100644
+--- crates/cargo-census/tests/delivery.rs
++++ crates/cargo-census/tests/delivery.rs
+@@ -1200,7 +1200,7 @@ fn capnp_history_compares_rpc_inheritance() {
+     );
+ }
+ 
+-/// Every reached base requires a unique, unbranded interface declaration in an
++/// Nongeneric bases require empty brands and reciprocal declarations in an
+ /// acyclic inheritance graph. Unrelated malformed edges stay out of scope.
+ #[test]
+ fn capnp_history_refuses_invalid_rpc_inheritance() {
+@@ -1216,7 +1216,7 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
+     assert!(valid.status.success(), "{valid:?}");
+     assert!(valid.stdout.is_empty(), "{valid:?}");
+     assert!(valid.stderr.is_empty(), "{valid:?}");
+-    let ownership = "requires a reciprocal nongeneric declaration chain";
++    let ownership = "requires a unique reciprocal declaration chain with consistent generic flags";
+     for (selected, expected) in [
+         ("0xeec5000000000003", "repeats direct superclass"),
+         ("0xeec5000000000004", "missing schema node"),
+@@ -1236,8 +1236,80 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
+     }
+ }
+ 
++/// An instantiation set admits reordering and additions. A lost brand belongs
++/// to its declaring interface, and an inherited layout belongs to its base.
++#[test]
++fn capnp_history_compares_branded_rpc_inheritance() {
++    const DIAMOND: &str = "0xeec490000000000c";
++    const BASE_FINDING: &str =
++        "Cap'n Proto history for 0xeec4900000000008.query.parameters.seed: default changed\n";
++    let selected = [
++        "0xeec4900000000004",
++        "0xeec4900000000006",
++        "0xeec4900000000007",
++        "0xeec4900000000009",
++        DIAMOND,
++    ];
++    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
++    let root = scratch.path();
++    git_repo::init(root);
++    let base = commit_capnp_descriptor(
++        root,
++        include_bytes!("fixtures/capnp/rpc-branded-inheritance-base.bin"),
++    );
++    let compatible = commit_capnp_descriptor(
++        root,
++        include_bytes!("fixtures/capnp/rpc-branded-inheritance-compatible.bin"),
++    );
++    let changed = commit_capnp_descriptor(
++        root,
++        include_bytes!("fixtures/capnp/rpc-branded-inheritance-changed.bin"),
++    );
++    let clean = capnp_history(root, &base, &compatible, &selected, &[]);
++    assert!(
++        clean.status.success() && clean.stdout.is_empty() && clean.stderr.is_empty(),
++        "{clean:?}"
++    );
++
++    let verdict = capnp_history(root, &base, &changed, &selected, &[]);
++    assert_eq!(verdict.status.code(), Some(1), "{verdict:?}");
++    assert!(verdict.stderr.is_empty(), "{verdict:?}");
++    assert_eq!(
++        String::from_utf8(verdict.stdout).unwrap(),
++        [
++            "Cap'n Proto history for 0xeec4900000000004: direct superclass 0xeec4900000000003 brand changed\n",
++            BASE_FINDING,
++            "Cap'n Proto history for 0xeec4900000000009: direct superclass 0xeec4900000000008 brand changed\n",
++        ]
++        .concat()
++    );
++    let diamond = capnp_history(root, &base, &changed, &[DIAMOND], &[]);
++    assert_eq!(diamond.status.code(), Some(1), "{diamond:?}");
++    assert!(diamond.stderr.is_empty(), "{diamond:?}");
++    assert_eq!(diamond.stdout, BASE_FINDING.as_bytes());
++}
++
++/// A complete lexical brand checks each scope and position. Explicitly binding
++/// every position to itself and inheriting the scope denote the same edge.
++#[test]
++fn capnp_history_refuses_invalid_branded_rpc_inheritance() {
++    assert_capnp_rpc_refusals(
++        include_bytes!("fixtures/capnp/rpc-branded-inheritance-invalid.bin"),
++        &[
++            ("0xeec4a00000000003", "with the same brand"),
++            ("0xeec4a00000000004", "requires a complete brand"),
++            (
++                "0xeec4a00000000005",
++                "implicit method parameter requires an RPC method brand",
++            ),
++            ("0xeec4a00000000006", "invalid or repeated brand scope"),
++            ("0xeec4a00000000007", "invalid parameter 1"),
++            ("0xeec4a00000000008", "requires a complete brand"),
++        ],
++    );
++}
++
+ /// Detached endpoints belong to exactly one method and role across the request.
+-/// Generic inheritance remains outside the supported profile.
+ #[test]
+ fn capnp_history_refuses_unsupported_rpc_endpoints() {
+     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+@@ -1252,16 +1324,20 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
+     );
+     let field_order =
+         commit_capnp_descriptor(root, include_bytes!("fixtures/capnp/rpc-field-order.bin"));
+-    let concrete = capnp_history(
++    let supported = capnp_history(
+         root,
+         &unsupported,
+         &unsupported,
+-        &["0xadb4bfe48ad45105", "0xba6c33c22a5d3e73"],
++        &[
++            "0xadb4bfe48ad45105",
++            "0xba6c33c22a5d3e73",
++            "0xeec6000000000001",
++        ],
+         &[],
+     );
+-    assert!(concrete.status.success(), "{concrete:?}");
+-    assert!(concrete.stdout.is_empty(), "{concrete:?}");
+-    assert!(concrete.stderr.is_empty(), "{concrete:?}");
++    assert!(supported.status.success(), "{supported:?}");
++    assert!(supported.stdout.is_empty(), "{supported:?}");
++    assert!(supported.stderr.is_empty(), "{supported:?}");
+     for (before, after, selected, expected) in [
+         (&base, &shared, RPC_READER, "exactly one owning method role"),
+         (
+@@ -1282,12 +1358,6 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
+             "0xd766b858756a10ab",
+             "must be selected through its owning method",
+         ),
+-        (
+-            &unsupported,
+-            &unsupported,
+-            "0xeec6000000000001",
+-            "requires a reciprocal nongeneric declaration chain",
+-        ),
+     ] {
+         let refused = capnp_history(root, before, after, &[selected], &[]);
+         assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-base.bin crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-base.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..6eadc51b387b819e6e10d2e226b35f8b4357259c
+GIT binary patch
+literal 6224
+zc-pmCTWFj`6rTUGmt0C|X-QLDw3^VQxND6TYoKb=gpyjZ7y4lF!e%q+E^ap4y+rn*
+zVvB+bihU4F#Y??VELe;Xq)#Fk#l92;OJ95_ULFM>d@Ok8|Ihh5|NQgsj=9V-d;U59
+zobNw#=A1JZ#u)2z7#5dpg8x%V#;hL3c6uCmhPvFv*pHTYPIx`Xp(f$ym3O}XJHyP%
+zR`}L-z!?O3$)LZ5`1b(`)P%O$?<=S`pq_<Jhd}6EpegD7d2F9o__l;^h451$9c~J{
+zz(W({r+~fzw6Bfc;{8UT`(9sK__p!NUk}On-g6kAN(<y{JBs%f@E_NFXY-Y7?;l^h
+z{evm~7l6~P!T&A>-$8rakI%No{sKP@e;n#>(CGrue-%6b1MP!ApK*P@pc~P@Oy;))
+znBPF1bbb3j=Z5iRTzOs+hVy$B{+@urec<~3v*@;;-$m3viFm`Pe<H>{f56{kfPWF>
+z-h}6?ivCO37F5JtCgJ0!4D2KD#{l~r)D0ka5*RxYVf+lX1r_5OMEs|29k{&x+-q+S
+zc{o-_|Je$1m#wHh1l~&;I}NhE*DgK#$wxy94vWD*12|t>%($ct?ei+w=69$iz#juf
+zOR-Ng;rr(@@|V#*U55VoCt&BG!&1Wc&z}^08F#0|?>5AL0A3cM_9uP)hm&FaL2L^u
+z`)!YDe8J04q3%!m{(nNjKZ@<63VyF4{%7#=7S!3K@1JKC{4>}VRJKp8TF6e-@|9^m
+zoh?<0yjE)DD+QjN%GY_Wkgry%en0YGS}!Jnj7a%v0>~jL-%vXtwMV3Q+b?2D@~?eB
+zc1iy5D9U$B?Ol?+_aGkG=Rw3fQqGquKqo5mygXOsG|mHal|qd-g7)zuFV6ry$SW}B
+z0vm(z3jQ%(<@pAmrhbR{OvB@sP8G$&cqu<SSD7}j+bF3b#fgPEKM}MIa6&_IQI6IP
+zfjBD0GuNyYINBe-B<%Bav%zad^BjC9=VRq&c%x7pIFhgBXX_rWgXqz$0(lYYy-MD2
+zpwAZ1M=bUtZ~5z~BCW1>n`83OiuFIn>&<eberE^Pc^o5c#xb8SH@RjU&bo~w>_4vL
+zKTO*H&^~38qJJ++4k4Yu81#&T`ago>v=zT%nthz5**~sEUbZ5QkNj7}`(%U98rn?_
+z@ld>}aU=K8=`Z_3pT<u!$am$u82Eza$+atSa=jho4D3LuE%cqFWPgz-$3b!)(wuB>
+z5x-AjoSJ?oM?f)oF0I%-E%%V@xnA?2#%WTKH<e3h<W}gXwB)q)Q>)GQM7}>!Y1W0+
+z4ZbIqw%q9^ueB(d2YD?%4-PANWB~258|TMTw5N6!?LlP-<sR;kKhuW!v(9~AOLd5o
+z)XL*Wve%u(!%!|ZPt!So_UmzZ`Yxnd9D}C^+Uaie17XK>n|y52Zw>RVx@FSFe_Dxu
+zYVVdLbb8C0_N^jst`>j8>hm&fCAIOM)~rkGX%CZm#Vv2!Jhj$(uYsLui{92ByA{29
+zl=fave>*r|(D{nW&vK5@oX6DrHM&0w?jum1)-$^Qin|}8`yVO`Xy>@HAkBl2r~4iG
+zeM(x_=zc~mv|iHvN^qV;c{<P0{RoxQ_>ShE?gyxF)Q`@4biSA0r=;^AozH{&D11-z
+zM(67w-%9gi`BwI*E4AbIWp;;LV*hX4_Hs_(N5UTB{<a_W--bO+&*@BxtLyN07=7qH
+zc>dUm?w>9K?{mR-!@7$8Us};~%@xbPKXR1*{Q$hfj^Yb`){f%r0p6(1BKw>c@LtyN
+zuLJK_sJET)ceg-$n-kqX^aC&BM8|ax@CG#f#eMm(6CKw{;61PD{{rv|8hmjtzM$!U
+Y0eBy3@P7f`4TnYY(M`v{>s9m8e>&~SbN~PV
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-base.capnp crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-base.capnp
+new file mode 100644
+index 00000000..1b866208
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-base.capnp
+@@ -0,0 +1,29 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xeec4900000000000;
++
++interface Plain @0xeec4900000000001 {}
++
++struct Envelope @0xeec4900000000002 (Outer) {
++  interface Source @0xeec4900000000003 (Item) {
++    fetch @0 (key :Outer) -> (value :Item);
++  }
++}
++
++interface Concrete @0xeec4900000000004 extends(Envelope(Text).Source(Data)) {}
++
++struct Shelf @0xeec4900000000005 (Key) {
++  interface Derived @0xeec4900000000006 (Item) extends(Envelope(Key).Source(Item), Plain) {}
++}
++
++interface Generic @0xeec4900000000007 (Unused) extends(Plain) {}
++
++interface Base @0xeec4900000000008 (Item) {
++  query @0 (value :Item, seed :UInt16 = 0) -> ();
++}
++
++interface Repeated @0xeec4900000000009 extends(Base(Text), Base(Data)) {}
++interface Left @0xeec490000000000a extends(Base(Text)) {}
++interface Right @0xeec490000000000b extends(Base(Data)) {}
++interface Diamond @0xeec490000000000c extends(Left, Right) {}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-changed.bin crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-changed.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..56c4d669c9ee3c214df77676182bf4a4271a18ca
+GIT binary patch
+literal 6312
+zc-p;KO=w+36rTI@ewsu}N~KM)*p$>Jsqa}sqcu=}+Jq9d7+PE?3f{gqNggIQ$@_^!
+zP;9ZF3&k!3Ly<PcQY^Hn5Tpwc#UIE<x~Oy^LaDVocP?BMJag|kw{z#teVH_k^O$$;
+zoSE~@nKNh3{4mDYMu%Z?Sv&lXWf|*iWo&1_Va$Sja~)&9SmHYqv>b$-g<p_9{_*c^
+z%q%?sef0s(4xr}^+FOYKFpx-1D68$hg!~)iW6<a*2z>%HC)J<C@=1knOZZj{KNr*C
+zny?FeG(i3>pdSF;)I@JlzaHqm_ZR2CtH1l#<1&8m9ml6M2Xb5NB%aXwX-z*HE-jrp
+z^40C1P4O=R&UOv{Pbv5g+T&6Dwl($__<8u_kgr3duYvxn*!dqQ9|ZcE8}bERkN#yc
+zzZJmz2J#^{w7=)Z@nu|jUNVOBdl~+ofx#`fq5mwp&F6O!_0J;SBdC8S#Xf(+-&25p
+z4&=_l_qU4vm$59USa+S75I<*NAA!Fgu#ZD-2f3<PUzs?5Czb^j<LW{DL)Q;n*mC^D
+zN4o+XYgzy40J$Hmq&)=Qn;JXqV0)L&zk2rcE(M3B;2#5=C5suSyrF&G1KZqyJOlWz
+z0ON#WAJMPy&nw8kg7#Tw=$|(Mdk-}DJ`?)qRRv$h-6`=~4DtJ+(udri4fP++#_@-+
+zEU4_at%mqhQ27O9FB|%QL&2ZH@{EGtW{7_QDsMslFdO>kf`b1UmIamVQ=Kjqj#fRt
+z%*%y}KhCR_y62a8p)~IKW4v4}dDH$hwChIyrTt<UNS_q1hJZXL#TzPTq;j9M-kud}
+zO7gFLKzb#AcoOAXq;juh?|#H1`#gqtBNJZ57xU!L@`<TwPUAc<<(I0w9+i)b^NCTQ
+z2e}VpF0uVyEvP%pr@2?>Woq{VAFT)c%GkL07_4}cQ-0aZZUdwZtrH7lekLlL;oKRG
+zi*mGY2*d#~o~cH)g!R;uu+NK)I<K0}bJR~Uge#8ndTG3C#H)IfH9Elv{ay705vBVe
+zZ&%`n18p`2zGAUA_*}TJD$?q{w;?4St!5mDd95)~uNjY{ugN%Oy@>|bjKf*WaY%mT
+zN`Azoa}b?Z+7<oVP_i585U$0*GN}I(I8IyfFQz%qS(<a?YUE`r()h@a#kwD^^GS2N
+z#aFw$?$q@ox6tV?`@<%UpKe9IE62yk7py?8S-M*}Gdoa}yVFlrvcHIzgCIEz;ZC-<
+zSijHXI$c3OMZ(g>yS!reyxc;v=UUB!x=yo-ys2D9BX{?HO1n?GpIS}&6LJ3~zflt=
+zH|tOAa>bbjug+0W&o2`Pdz3iRg?8DE^J6KqP2~dGgHkuj?O7&%<_+U#jfakwTV|c)
+zn6--aBiT#dJXR#nVir>4Hr)^C9G@1qA4FQfF$YSa-5x@}5O&QsiO(kO?rj{7pQd#2
+zAg{y&D({vgbb8C0He2^?2JauM!N0!=wn_hHcBE5idYs5>_OrFLo8kQ9srmoY``+xE
+zbjnZn+ZIKyR;9c*(BF>kCv-oH?yGX_(%k3N_c?lhi{3|2p7ud{KTCUGqW2?8^JwR^
+zG%wAAkf-+{xjrZDhxERqCfaA|eTLH8C{Oo6dS8j|!&pc2PwxwqIO<3DMS35Q>vPim
+zk?!}DUdDQwH@crkaao!lE3|SzU8$UYp0k&UIrfTio69+o9|?Pi_umfGe>1i;z2`G&
+zUEPAe5%i%?;roo0Ja;Vs?;K>ujq57fU$m0<p-WcyeyO(a0N_qLi7)sCJBiZ|yaAgf
+z&PQ{=dq>0n6?j)6-*)2tinsaAPV(H*0lck{ZAH&*!0Xbq7w_#okX@yHFYt;QoY#R@
+n*5Gj9RW$8S0q?Y?{TbkW?j-Gb4S2shED@*v0NxEJ8L$2WuwCSJ
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-changed.capnp crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-changed.capnp
+new file mode 100644
+index 00000000..a980b77e
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-changed.capnp
+@@ -0,0 +1,29 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xeec4900000000000;
++
++interface Plain @0xeec4900000000001 {}
++
++struct Envelope @0xeec4900000000002 (Outer) {
++  interface Source @0xeec4900000000003 (Item) {
++    fetch @0 (key :Outer) -> (value :Item);
++  }
++}
++
++interface Concrete @0xeec4900000000004 extends(Envelope(Data).Source(Data)) {}
++
++struct Shelf @0xeec4900000000005 (Key) {
++  interface Derived @0xeec4900000000006 (Item) extends(Envelope(Key).Source(Item), Plain) {}
++}
++
++interface Generic @0xeec4900000000007 (Unused) extends(Plain) {}
++
++interface Base @0xeec4900000000008 (Item) {
++  query @0 (value :Item, seed :UInt16 = 1) -> ();
++}
++
++interface Repeated @0xeec4900000000009 extends(Base(Text), Base(List(Text))) {}
++interface Left @0xeec490000000000a extends(Base(Text)) {}
++interface Right @0xeec490000000000b extends(Base(Data)) {}
++interface Diamond @0xeec490000000000c extends(Left, Right) {}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-compatible.bin crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-compatible.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..9e3730725cf42a921d9151d030114d6cb604beb7
+GIT binary patch
+literal 6544
+zc-qZbU1(fI6rQ_x|4dSAOC?qe{-v}D>}nQcek9to38mFyX%Q^=a=V!{i~E=Ti9}Jf
+zSg<~b3I&6RKOg~rN-LzIFTNP1fg(OA>RYvn5mZEc@S)(Dd(XMf&YinE%ckOl*>lgi
+zbH15#=FFM76UG=DvKf{r+XBDG<BTnKGq%%}FlIrW=wj@1OFYNimQzsU@aL8nKmF}?
+zW>&6;z77D+0MKQF_7>s~0P%+jyxQ(8)UTnQghr2p(h|^w^!_yRrxkfb!nYdm6Afed
+zM)(CD7D4}Ipf3UKZ8C20ezWk~b1O@q)SmunOvZPg8}X?;1A3WA5Kq{1pQfL!XVzXl
+za_-7!ruZv>Gp@nE7=mx3KQj0n(fD8BC*g-fU57?%Kx5HHKU=`>1DZp*pqnwiOy)NS
+zm>)tt8uk1?uizJu7gU~?nBn|>1V6jMxN}i2epaK+=XVvyA4j}9aQv|l|6GQjdjWq1
+z^gf2?i^}*fATOv`cSA7`KVje>fxic^Pe8pD^qvR7Sga9$7<oa3T@#3Z@Y3FQZai`F
+zg|v%fwTzz>=zV7e{V@sh$25N0!A94XA9?Hbw1UGz@RtDRdy5&Dq@jPF1>gJt^%US&
+zK=7L4AJMOf&vlfqqkpb3jL#nddp9)rHs;0W9}51j$O}3m$-4~kCq-U^dMb|Nk1OLx
+zUQju1yAAQ5u)W-{68GZ&f`Y$_{HlWAV~BqqUj7O7QrwHrzZLwykQa2PB(IdSsbdwV
+zIKyXBx#AqJ<Z4ba%Tw7>q3qOh$MQU#b;`vuwcmwtO#8-uAQ>rdO#?X~<sIT<5}%RQ
+z-K1DsQk+cy8I<B;4E4Jteo*rJFyfJ)h7j*i-pLh#P8Sz=zEtKk{=KDQw!&*Ze`Jp5
+zXMyhHMX)`~_Bd7d-C<tlPL0n{y9fAe&6Vel&xwbroKq+jXN>(fP6LwifQ@^-;Eiz<
+zgQBQU`-ngu7j~8El`O}3z#fI49<0}RrHy&_`%8O>=~-UO&h;O1Do&w_{oB|}FxxP;
+z3F>W1KCz+AHaBK0_9$QU_E|++-3PaZ<fjhpILxc{e64C`N2ZA#3r@byHFnrn*^b6M
+zY@r=7Uq<I6I>&5L?C3$wT}Y>KZMyD3J4Vpnh!ST^bI!9g=gUs?Wp9#w6we|L?62`c
+zTmDlMfU+Ld^(42@*&)YAuO@E$P#%@@rXL%YtJkcA>GibGGxi52K<Xzh&4b9JQ=qv3
+zX;AjNSkL$4x^1tYG{FV@o>csvlv_ytyjt_1uG_exZ>ks5=yepYv@x}aSF1_CVn2AO
+zSg#7d8}}<V!t{KdR~G+G_I}<A&yxd6e(6U)-HG#MDOM1lLjTC;454>di~O22%&%4M
+zMO~uBx=D1po+Q8dn@hX;P4YQ?PtdtPET7+mG=(;~BSOF3jPW7-nrxD{P1<dEepU}&
+zO1$?VPvf}`TM$30@MQ@>XOC<_CwaP4{A-(Fo8<dW``@trgbvCfc`B*dSN|8|ri1-|
+zH116sHE#M430W_+uXZWp>sI(t*N%w)9Yx=hRKApRqvrcly-%e3LjPV2^=V(G`@XRI
+zFuL#ZzrWGnVP#3051~)@S@QdYv_I2*lv-%tr~4!-Poh43x6*wOm3e$eaX|MWR5*^0
+zzH8||Lw=u-zH{k5g33{RPxD6i3I4ty&5z}I*`-m54?kZ<TI7~U+qlj3Y(I{KKg4}?
+zAC8~)t#<Dvn6%D%p}U7MmR<qD8&>c<_$J8S7V>E0m__^dt>Aat8IXM-<VySP;!ZFU
+z#24~ZB#1K{@$QG!^V%ZFp3=y_0NGbiuh@<KZUg=XJ9z%t4zfNwIL=!@)~{*5!}k7H
+z5LMa_f-G$Z{gVON-5Q(`klmwcp9fi4(|#Ugbxr$akiDyE{~pNBYV5iUvY%}h$Zx-Z
+K>~}ku=l%h>xePD>
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-compatible.capnp crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-compatible.capnp
+new file mode 100644
+index 00000000..9122ad7d
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-compatible.capnp
+@@ -0,0 +1,29 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++@0xeec4900000000000;
++
++interface Plain @0xeec4900000000001 {}
++
++struct Envelope @0xeec4900000000002 (Outer) {
++  interface Source @0xeec4900000000003 (Item) {
++    fetch @0 (key :Outer) -> (value :Item);
++  }
++}
++
++interface Concrete @0xeec4900000000004 extends(Envelope(Text).Source(Data)) {}
++
++struct Shelf @0xeec4900000000005 (Key) {
++  interface Derived @0xeec4900000000006 (Item) extends(Envelope(Key).Source(Item), Plain) {}
++}
++
++interface Generic @0xeec4900000000007 (Unused) extends(Plain) {}
++
++interface Base @0xeec4900000000008 (Item) {
++  query @0 (value :Item, seed :UInt16 = 0) -> ();
++}
++
++interface Repeated @0xeec4900000000009 extends(Base(Data), Base(List(Text)), Base(Text)) {}
++interface Left @0xeec490000000000a extends(Base(Text)) {}
++interface Right @0xeec490000000000b extends(Base(Data)) {}
++interface Diamond @0xeec490000000000c extends(Left, Right) {}
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-invalid.bin crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-invalid.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..ea1bc3a00f4fd6569a14bc7e4f294e1d2e81a7d1
+GIT binary patch
+literal 2424
+zc-muNU|`T=WPkz|23{bU&dh)lr~ok=5Q4#iBkveU1QUUFg%hEU5y^bG^U&;L#G-F2
+zP|zHYxmSVm{6Lxs$vkE>`|z1h2yBF!&rD_WLE)y3#AiV>pWOI>0Zw3mh$Hb?scgO|
+zn)z&0Hs2G?e0C~_e<zyx98`AyLNxP5!0uy&yIT=R86m~HERf1ViYE}i3n^R`q4FF^
+z{3alFD@x2w1=7Bm#l@L<>Hei9sYT%M%Pq*sOwKF`$S=+;$;{7#xx+2LC^a)ZFE}~B
+z0Hlo}G%qQ?G%p3Nj0fsYSbh=&Qd&sqA5@+MA;kwT)E!QV#bEPXN<sD}mZZYsF|RB!
+zClg^l3pAz}q5g+C7+u^mFAprvf#x0#s5%(m21%beR6P@tJj~x9cZwsW8}ziof*e0k
+zzzpQ^5K*p?VlPZw7Aj7zy}0xVq2&d1ds)!JlL0CG<e~D|{J}^i_hPe`7U2gA2PP83
+sj}m|Q12GQ{e@No+hbB~<jmqhApyP>=<n+o&a(X2v-SDEN8)}6c08b34Bme*a
+
+literal 0
+Hc-jL100001
+
+diff --git crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-invalid.txt crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-invalid.txt
+new file mode 100644
+index 00000000..4be2edac
+--- /dev/null
++++ crates/cargo-census/tests/fixtures/capnp/rpc-branded-inheritance-invalid.txt
+@@ -0,0 +1,30 @@
++# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++(nodes = [
++  (id = 17205052398322581504, file = void, nestedNodes = [
++    (name = "Frame", id = 17205052398322581505),
++    (name = "MissingOuter", id = 17205052398322581508),
++    (name = "ImplicitPosition", id = 17205052398322581509),
++    (name = "ForeignScope", id = 17205052398322581510),
++    (name = "UnboundPosition", id = 17205052398322581512)]),
++  (id = 17205052398322581505, scopeId = 17205052398322581504, isGeneric = true, parameters = [(name = "Outer")],
++   nestedNodes = [
++     (name = "Base", id = 17205052398322581506),
++     (name = "Duplicate", id = 17205052398322581507),
++     (name = "InvalidPosition", id = 17205052398322581511)], struct = ()),
++  (id = 17205052398322581506, scopeId = 17205052398322581505, isGeneric = true, parameters = [(name = "Inner")],
++   interface = ()),
++  (id = 17205052398322581507, scopeId = 17205052398322581505, isGeneric = true, interface = (superclasses = [
++    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (text = void))]), (scopeId = 17205052398322581505, inherit = void)])),
++    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (text = void))]), (scopeId = 17205052398322581505, bind = [(type = (anyPointer = (parameter = (scopeId = 17205052398322581505, parameterIndex = 0))))])]))])),
++  (id = 17205052398322581508, scopeId = 17205052398322581504, interface = (superclasses = [
++    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (text = void))])]))])),
++  (id = 17205052398322581509, scopeId = 17205052398322581504, interface = (superclasses = [
++    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (anyPointer = (implicitMethodParameter = (parameterIndex = 0))))]), (scopeId = 17205052398322581505, bind = [(type = (text = void))])]))])),
++  (id = 17205052398322581510, scopeId = 17205052398322581504, interface = (superclasses = [
++    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (text = void))]), (scopeId = 17205052398322581505, bind = [(type = (text = void))]), (scopeId = 17205052398322581510, inherit = void)]))])),
++  (id = 17205052398322581511, scopeId = 17205052398322581505, isGeneric = true, interface = (superclasses = [
++    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(type = (anyPointer = (parameter = (scopeId = 17205052398322581505, parameterIndex = 1))))]), (scopeId = 17205052398322581505, inherit = void)]))])),
++  (id = 17205052398322581512, scopeId = 17205052398322581504, interface = (superclasses = [
++    (id = 17205052398322581506, brand = (scopes = [(scopeId = 17205052398322581506, bind = [(unbound = void)]), (scopeId = 17205052398322581505, bind = [(type = (text = void))])]))]))])
+diff --git crates/cargo-workplan/src/change.rs crates/cargo-workplan/src/change.rs
+index 19590fcb..5b183c6d 100644
+--- crates/cargo-workplan/src/change.rs
++++ crates/cargo-workplan/src/change.rs
+@@ -61,6 +61,16 @@ pub(crate) fn impact(root: &Path, slug: &str) -> Result<Report, Failure> {
+     Ok(Report::of([impact_record(&impact)]))
+ }
+ 
++/// Compare source without opening a change record.
++pub(crate) fn source_impact(root: &Path, base: &str) -> Result<Report, Failure> {
++    let impact = open(root)?.source_impact(base)?;
++    let text = impact.to_string();
++    Ok(Report::of([Record::outcome(
++        CommandResult::SourceImpact(impact),
++        text,
++    )]))
++}
++
+ /// The record of an impact.
+ fn impact_record(impact: &Impact) -> Record {
+     Record::outcome(CommandResult::Impact(impact.clone()), impact.to_string())
+diff --git crates/cargo-workplan/src/cli.rs crates/cargo-workplan/src/cli.rs
+index bd3b1c53..c58c68bc 100644
+--- crates/cargo-workplan/src/cli.rs
++++ crates/cargo-workplan/src/cli.rs
+@@ -69,6 +69,12 @@ pub(crate) enum Command {
+     /// Print the roadmap: capabilities by state, with the gaps of the
+     /// implementing ones and the open changes.
+     Status,
++    /// Trace changed source items to documented guarantees and supporting evidence.
++    Impact {
++        /// Compare the checkout against HEAD, a full Git reference or a full commit id.
++        #[arg(long, value_name = "REV", value_parser = word)]
++        base: String,
++    },
+     /// Generate one named semantic diagram bundle and print an artifact.
+     Diagram(DiagramArgs),
+     /// Generated documentation and native authoring document export.
+diff --git crates/cargo-workplan/src/command.rs crates/cargo-workplan/src/command.rs
+index 6ada2b8f..c02a2d58 100644
+--- crates/cargo-workplan/src/command.rs
++++ crates/cargo-workplan/src/command.rs
+@@ -83,6 +83,7 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
+                 Ok(Report::document(opened.workplan().authoring_dataset()?))
+             }
+         }
++        Command::Impact { base } => change::source_impact(&root()?, base),
+         Command::Change(Change::New(new_args)) => change::new(&root()?, new_args),
+         Command::Change(Change::Impact(slug)) => change::impact(&root()?, &slug.slug),
+         Command::Change(Change::Reconcile(slug)) => change::reconcile(&root()?, &slug.slug),
+@@ -119,6 +120,7 @@ fn command_name(command: &Command) -> &'static str {
+         Command::Docs(Docs::Artifacts(_)) => "docs artifacts",
+         Command::Docs(Docs::Build(DocsBuild::Rustdoc(_))) => "docs build rustdoc",
+         Command::Check => "check",
++        Command::Impact { .. } => "impact",
+         Command::Status => "status",
+         Command::Diagram(_) => "diagram",
+         Command::Docs(Docs::Mdbook(_)) => "docs mdbook",
+diff --git crates/cargo-workplan/src/result.rs crates/cargo-workplan/src/result.rs
+index 6a99f829..d25a062e 100644
+--- crates/cargo-workplan/src/result.rs
++++ crates/cargo-workplan/src/result.rs
+@@ -43,6 +43,7 @@ pub(crate) enum Result {
+     },
+     NewChange(NewChange),
+     Impact(Impact),
++    SourceImpact(raf_workplan::lifecycle::SourceImpact),
+     Obligation(Obligation),
+     Completed {
+         path: String,
+diff --git crates/cargo-workplan/src/result_graph.rs crates/cargo-workplan/src/result_graph.rs
+index 8bff66dc..dfd28e7f 100644
+--- crates/cargo-workplan/src/result_graph.rs
++++ crates/cargo-workplan/src/result_graph.rs
+@@ -170,6 +170,7 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
+         CommandResult::OpenChanges(changes) => open_changes_fields(g, id, changes)?,
+         CommandResult::NewChange(change) => new_change_fields(g, id, change)?,
+         CommandResult::Impact(impact) => impact_fields(g, id, impact)?,
++        CommandResult::SourceImpact(impact) => source_impact_fields(g, id, impact)?,
+         CommandResult::Obligation(obligation) => {
+             class(g, id, "Obligation")?;
+             obligation_fields(g, id, obligation)?;
+@@ -205,9 +206,7 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
+             package,
+             kind,
+         } => review::unreviewed_fields(g, id, items, package.as_deref(), *kind)?,
+-        CommandResult::ReviewRecorded(recorded) => {
+-            review::recorded_fields(g, id, recorded)?;
+-        }
++        CommandResult::ReviewRecorded(recorded) => review::recorded_fields(g, id, recorded)?,
+         CommandResult::History(history) => history_fields(g, id, history)?,
+         CommandResult::Claims(report) => claims_fields(g, id, report)?,
+         CommandResult::Lines(report) => lines_fields(g, id, report)?,
+@@ -642,6 +641,53 @@ fn impact_fields(
+     Ok(())
+ }
+ 
++fn source_impact_fields(
++    g: &mut Builder,
++    id: &str,
++    impact: &raf_workplan::lifecycle::SourceImpact,
++) -> Answer<()> {
++    class(g, id, "SourceImpact")?;
++    text(g, id, "base", &impact.base)?;
++    for (i, symbol) in impact.symbols.iter().enumerate() {
++        let node = child(g, id, "symbol", "ChangedSymbol", i)?;
++        text(g, &node, "path", &symbol.path)?;
++        text(g, &node, "change", symbol.change.name())?;
++        boolean(g, &node, "public", symbol.public)?;
++        boolean(g, &node, "unowned", symbol.is_unowned())?;
++        for (j, owner) in symbol.owners.iter().enumerate() {
++            let binding = child(g, &node, "binding", "ImpactBinding", j)?;
++            boolean(g, &binding, "atBase", owner.at_base)?;
++            text(g, &binding, "capability", &owner.capability)?;
++            text(g, &binding, "list", owner.kind.key())?;
++            text(g, &binding, "path", &owner.path)?;
++            for (k, section) in owner.sections.iter().enumerate() {
++                let section_node = child(g, &binding, "section", "SectionImpact", k)?;
++                text(g, &section_node, "subject", &section.section.to_string())?;
++                text(g, &section_node, "reason", section.reason.name())?;
++                for (ordinal, guarantee) in section.guarantees.iter().enumerate() {
++                    let claim =
++                        child(g, &section_node, "guarantee", "GuaranteeReference", ordinal)?;
++                    text(g, &claim, "id", &guarantee.key)?;
++                    text(g, &claim, "reason", guarantee.reason.name())?;
++                }
++                for (key, name, field, values) in [
++                    ("test", "TestReference", "path", &section.tests),
++                    ("example", "ExampleReference", "path", &section.examples),
++                    (
++                        "assessment",
++                        "AssessmentReference",
++                        "id",
++                        &section.assessments,
++                    ),
++                ] {
++                    strings(g, &section_node, key, name, field, values)?;
++                }
++            }
++        }
++    }
++    Ok(())
++}
++
+ fn refusal_fields(
+     g: &mut Builder,
+     id: &str,
+diff --git crates/cargo-workplan/tests/impact.rs crates/cargo-workplan/tests/impact.rs
+index e710b1bc..c8c5418a 100644
+--- crates/cargo-workplan/tests/impact.rs
++++ crates/cargo-workplan/tests/impact.rs
+@@ -211,3 +211,134 @@ fn impact_finds_the_root_from_below_and_by_root() {
+     let rooted = repo.rooted(&["change", "impact", "grow"]).expect(0);
+     assert_eq!(rooted.stdout, direct.stdout);
+ }
++
++/// A committed capability with a shared source file, a test, an example and an assessment.
++fn source_impact_fixture() -> (Repo, String) {
++    let repo = Repo::bare("source-impact");
++    let cap = support::capability(
++        "reader",
++        "delivered",
++        [
++            "[demo::real, demo::other]",
++            "[demo::test_crate::it::case]",
++            "[demo::real]",
++        ],
++        "[]",
++        &[(
++            "Contract",
++            "The guarantee covers `demo::real`.\n<!-- raf:tested-by demo::real -->\n",
++        )],
++    );
++    repo.put("docs/capabilities/reader.md", &cap);
++    let source = format!(
++        "{}pub fn other() {{}}\n#[doc(hidden)]\npub fn orphan() {{}}\n\
++         pub struct C; trait LocalOnly {{ fn hidden(&self); }}\n\
++         impl LocalOnly for C {{ fn hidden(&self) {{}} }}\n",
++        repo.read("src/lib.rs")
++    );
++    repo.put("src/lib.rs", &source);
++    repo.run(&[
++        "assess",
++        "cap:reader#contract",
++        "--verdict",
++        "accepted",
++        "--by",
++        "human",
++    ])
++    .expect(0);
++    repo.checkout();
++    (repo, source)
++}
++
++/// An impact trace starts at the edited definition, even when several
++/// documented and undocumented definitions share its file and Git revision.
++#[test]
++fn source_impact_traces_bound_guarantees_and_marks_public_items_without_owners() {
++    let (repo, source) = source_impact_fixture();
++    repo.edit("src/lib.rs", "other() {}", "other() { let _x = 1; }");
++    let neighbour = repo.run(&["impact", "--base", "HEAD"]).expect(0);
++    assert!(
++        neighbour.stdout.contains("changed demo::other"),
++        "{neighbour:#?}"
++    );
++    assert!(
++        !neighbour.stdout.contains("cap:reader#contract"),
++        "{neighbour:#?}"
++    );
++
++    repo.put(
++        "src/lib.rs",
++        &source
++            .replace("real() {}", "real() { let _y = 2; }")
++            .replace("orphan() {}", "orphan() { let _z = 3; }")
++            .replace("hidden(&self) {}", "hidden(&self) { let _w = 4; }"),
++    );
++    let before = repo.snapshot();
++    let run = repo
++        .both(&["impact", "--base", "refs/heads/main"])
++        .expect(0);
++    for expected in [
++        "changed demo::real\n  public item with a documented owner",
++        "cap:reader via code demo::real",
++        "cap:reader#contract",
++        "guarantee cap:reader#contract/result (named)",
++        "guarantee cap:reader#contract/result (tested-by)",
++        "cap:reader#purpose (all-code-bindings)",
++        "test demo::test_crate::it::case",
++        "example demo::real",
++        "assessment assessment:reader-contract",
++        "changed demo::orphan\n  public item without a documented owner",
++    ] {
++        assert!(
++            run.stdout.contains(expected),
++            "missing {expected}: {run:#?}"
++        );
++    }
++    assert!(!run.stdout.contains("test demo::real\n"), "{run:#?}");
++    assert!(!run.stdout.contains("demo::C::hidden"), "{run:#?}");
++    let rdf = Rdf::of(
++        &repo
++            .run(&["--format", "turtle", "impact", "--base", "HEAD"])
++            .expect(0),
++    );
++    let symbols = rdf.rows("SourceImpact")[0].children("symbol");
++    let real = symbols
++        .iter()
++        .find(|s| s.required("path") == "demo::real")
++        .expect("changed bound item");
++    assert!(real.children("binding").iter().any(|b| {
++        b.required("list") == "code"
++            && b.required("path") == "demo::real"
++            && b.children("section").iter().any(|s| {
++                s.required("subject") == "cap:reader#contract"
++                    && !s.children("assessment").is_empty()
++            })
++    }));
++    let missing = repo
++        .run(&["impact", "--base", "refs/heads/absent"])
++        .expect(2);
++    assert_eq!(missing.stdout, "");
++    assert_eq!(repo.snapshot(), before);
++
++    repo.edit(
++        "docs/capabilities/reader.md",
++        "[demo::real, demo::other]",
++        "[demo::other]",
++    );
++    let withdrawn = repo.run(&["impact", "--base", "HEAD"]).expect(0);
++    assert!(
++        withdrawn
++            .stdout
++            .contains("changed demo::real\n  public item without a documented owner")
++    );
++    assert!(
++        withdrawn
++            .stdout
++            .contains("cap:reader via code demo::real (base)")
++    );
++    assert!(
++        withdrawn
++            .stdout
++            .contains("cap:reader via examples demo::real (checkout)")
++    );
++}
+diff --git crates/cargo-workplan/tests/registry.rs crates/cargo-workplan/tests/registry.rs
+index 760c6df4..4eec15ef 100644
+--- crates/cargo-workplan/tests/registry.rs
++++ crates/cargo-workplan/tests/registry.rs
+@@ -506,7 +506,15 @@ fn assessments(repo: &Repo, found: &mut BTreeSet<String>) {
+             .expect(0),
+         found,
+     );
++    repo.checkout();
+     repo.edit("src/lib.rs", "pub fn real()", "pub fn moved()");
++    let impact = repo
++        .run(&["--format", "turtle", "impact", "--base", "HEAD"])
++        .expect(0);
++    terms(
++        &Graph::from_text(&impact.stdout, Format::Turtle).unwrap(),
++        found,
++    );
+     observe(
+         "assessment-unresolved",
+         repo.run(&["--format", "turtle", "assess", "--list"])
+diff --git crates/raf-census/src/capnp_history/compare.rs crates/raf-census/src/capnp_history/compare.rs
+index 143facfb..c0ee3a79 100644
+--- crates/raf-census/src/capnp_history/compare.rs
++++ crates/raf-census/src/capnp_history/compare.rs
+@@ -86,6 +86,11 @@ pub enum ChangeKind {
+         /// ID of the former direct superclass.
+         superclass: TypeId,
+     },
++    /// A retained superclass no longer has one of its previous brands.
++    ChangedSuperclassBrand {
++        /// ID of the retained direct superclass.
++        superclass: TypeId,
++    },
+     /// The count of a type's own parameters changed.
+     ChangedParameters,
+     /// The arity of a lexical parameter scope available to an RPC interface changed.
+@@ -152,6 +157,9 @@ impl fmt::Display for ChangeKind {
+             Self::RemovedSuperclass { superclass } => {
+                 return write!(f, "direct superclass {superclass} removed");
+             }
++            Self::ChangedSuperclassBrand { superclass } => {
++                return write!(f, "direct superclass {superclass} brand changed");
++            }
+             Self::ChangedParameters => "type parameter count changed",
+             Self::ChangedEnclosingParameters { scope } => {
+                 return write!(f, "enclosing scope {scope} type parameter count changed");
+@@ -467,8 +475,14 @@ fn interface(
+             emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
+         }
+     }
+-    for &superclass in before.superclasses.difference(&after.superclasses) {
+-        emit(None, ChangeKind::RemovedSuperclass { superclass })?;
++    for (&superclass, previous) in &before.superclasses {
++        match after.superclasses.get(&superclass) {
++            None => emit(None, ChangeKind::RemovedSuperclass { superclass })?,
++            Some(current) if !previous.is_subset(current) => {
++                emit(None, ChangeKind::ChangedSuperclassBrand { superclass })?;
++            }
++            Some(_) => {}
++        }
+     }
+     ordinals(
+         &before.methods,
+diff --git crates/raf-census/src/capnp_history/descriptor.rs crates/raf-census/src/capnp_history/descriptor.rs
+index 63c478fd..e68921f5 100644
+--- crates/raf-census/src/capnp_history/descriptor.rs
++++ crates/raf-census/src/capnp_history/descriptor.rs
+@@ -24,7 +24,7 @@ use super::{
+     DescriptorError as Error, TypeId,
+     capture::Capture,
+     occupancy::{Occupancy, POINTER_BASE},
+-    shape::{self, DefaultValue, Type, TypeScope},
++    shape::{self, Brand, DefaultValue, Type, TypeScope},
+ };
+ 
+ pub(super) const MAX_BYTES: u64 = 2 * 1024 * 1024;
+@@ -34,7 +34,7 @@ const MAX_NAME_BYTES: usize = 256;
+ 
+ pub(super) type GroupPath = Rc<[Rc<str>]>;
+ 
+-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(super) enum Kind {
+     Struct,
+     Enum,
+@@ -90,11 +90,13 @@ pub(super) enum Node {
+     Interface(Interface),
+ }
+ 
++pub(super) type Superclasses = BTreeMap<TypeId, BTreeSet<Brand>>;
++
+ #[derive(Debug)]
+ pub(super) struct Interface {
+     pub(super) parameters: u32,
+     pub(super) enclosing_parameters: BTreeMap<TypeId, u32>,
+-    pub(super) superclasses: BTreeSet<TypeId>,
++    pub(super) superclasses: Superclasses,
+     pub(super) methods: Vec<Method>,
+ }
+ 
+diff --git crates/raf-census/src/capnp_history/descriptor/rpc.rs crates/raf-census/src/capnp_history/descriptor/rpc.rs
+index 209e3fdb..46fa0b58 100644
+--- crates/raf-census/src/capnp_history/descriptor/rpc.rs
++++ crates/raf-census/src/capnp_history/descriptor/rpc.rs
+@@ -11,10 +11,10 @@ use capnp::{
+ };
+ 
+ use super::{
+-    Annotations, DeclarationScopes, Endpoint, Error, Interface, Kind, Method, Node, Nodes, TypeId,
+-    layout, member_name,
++    Annotations, DeclarationScopes, Endpoint, Error, Interface, Kind, Method, Node, Nodes,
++    Superclasses, TypeId, layout, member_name,
+ };
+-use crate::capnp_history::shape::{self, Arguments, Pointer, Type, TypeScope};
++use crate::capnp_history::shape::{self, Arguments, Brand, Pointer, Type, TypeScope};
+ 
+ // A present entry with no owner records an invalid or competing declaration.
+ type Owners = BTreeMap<TypeId, Option<TypeId>>;
+@@ -115,8 +115,9 @@ impl Projection {
+                 "generic RPC interface {id} requires a unique reciprocal declaration chain with consistent generic flags"
+             )));
+         }
+-        let superclasses = self.superclasses(nodes, id, data, scopes)?;
+-        needed.extend(superclasses.iter().copied());
++        let superclasses =
++            self.superclasses(nodes, (id, &parameter_scopes), data, needed, scopes)?;
++        needed.extend(superclasses.keys().copied());
+         let methods = self.methods(
+             nodes,
+             (id, &parameter_scopes),
+@@ -137,29 +138,45 @@ impl Projection {
+     fn superclasses(
+         &mut self,
+         nodes: &Nodes<'_>,
+-        derived: TypeId,
++        (derived, parameter_scopes): (TypeId, &BTreeMap<TypeId, u32>),
+         interface: node::interface::Reader<'_>,
++        needed: &mut BTreeSet<TypeId>,
+         scopes: &mut DeclarationScopes,
+-    ) -> Result<BTreeSet<TypeId>, Error> {
+-        let mut bases = BTreeSet::new();
+-        for superclass in interface.get_superclasses()? {
++    ) -> Result<Superclasses, Error> {
++        let list = interface.get_superclasses()?;
++        let mut bases = Superclasses::new();
++        if list.is_empty() {
++            return Ok(bases);
++        }
++        self.require_inheritance_declaration(nodes, derived, scopes)?;
++        for superclass in list {
+             let id = TypeId(superclass.get_id());
+-            if !bases.insert(id) {
+-                return Err(layout(format!(
+-                    "RPC interface {derived} repeats direct superclass {id}"
+-                )));
+-            }
+-            if !superclass.get_brand()?.get_scopes()?.is_empty() {
++            nodes.require_kind(id, Kind::Interface)?;
++            self.require_inheritance_declaration(nodes, id, scopes)?;
++            let reader = superclass.get_brand()?;
++            let count = reader.get_scopes()?.len();
++            let brand = if nodes.node(id)?.get_is_generic() {
++                let brand =
++                    shape::read_brand(reader, nodes, (TypeScope::Lexical(derived), id), needed)?;
++                if u32::try_from(brand.len()) != Ok(count)
++                    || !complete_brand(nodes, id, &brand, parameter_scopes)?
++                {
++                    return Err(layout(format!(
++                        "RPC interface {derived} superclass {id} requires a complete brand"
++                    )));
++                }
++                brand
++            } else if count == 0 {
++                Brand::new()
++            } else {
+                 return Err(layout(format!(
+                     "RPC interface {derived} superclass {id} must have an empty brand"
+                 )));
+-            }
+-            nodes.require_kind(id, Kind::Interface)?;
+-        }
+-        if !bases.is_empty() {
+-            self.require_inheritance_declaration(nodes, derived, scopes)?;
+-            for &id in &bases {
+-                self.require_inheritance_declaration(nodes, id, scopes)?;
++            };
++            if !bases.entry(id).or_default().insert(brand) {
++                return Err(layout(format!(
++                    "RPC interface {derived} repeats direct superclass {id} with the same brand"
++                )));
+             }
+         }
+         Ok(bases)
+@@ -171,9 +188,9 @@ impl Projection {
+         id: TypeId,
+         scopes: &mut DeclarationScopes,
+     ) -> Result<(), Error> {
+-        if !self.reciprocal_declaration(nodes, id, ScopePolicy::Nongeneric, scopes)? {
++        if !self.reciprocal_declaration(nodes, id, ScopePolicy::LexicalGenerics, scopes)? {
+             return Err(layout(format!(
+-                "RPC inheritance interface {id} requires a reciprocal nongeneric declaration chain"
++                "RPC inheritance interface {id} requires a unique reciprocal declaration chain with consistent generic flags"
+             )));
+         }
+         Ok(())
+@@ -492,7 +509,7 @@ fn nongeneric(reader: node::Reader<'_>) -> Result<bool, Error> {
+ fn complete_brand(
+     nodes: &Nodes<'_>,
+     mut id: TypeId,
+-    brand: &BTreeMap<TypeId, Arguments>,
++    brand: &Brand,
+     parameter_scopes: &BTreeMap<TypeId, u32>,
+ ) -> Result<bool, Error> {
+     for _ in 0..=super::MAX_DEPTH {
+@@ -580,7 +597,7 @@ fn check_cycles(nodes: &BTreeMap<TypeId, Node>) -> Result<(), Error> {
+             continue;
+         }
+         visits.insert(root, Visit::Active);
+-        stack.push((root, interface.superclasses.iter()));
++        stack.push((root, interface.superclasses.keys()));
+         while let Some((id, bases)) = stack.last_mut() {
+             let Some(&base) = bases.next() else {
+                 visits.insert(*id, Visit::Complete);
+@@ -597,7 +614,7 @@ fn check_cycles(nodes: &BTreeMap<TypeId, Node>) -> Result<(), Error> {
+                         return Err(layout(format!("missing projected RPC superclass {base}")));
+                     };
+                     entry.insert(Visit::Active);
+-                    stack.push((base, interface.superclasses.iter()));
++                    stack.push((base, interface.superclasses.keys()));
+                 }
+             }
+         }
+diff --git crates/raf-census/src/capnp_history/shape.rs crates/raf-census/src/capnp_history/shape.rs
+index 15ab8220..1251f0b4 100644
+--- crates/raf-census/src/capnp_history/shape.rs
++++ crates/raf-census/src/capnp_history/shape.rs
+@@ -18,7 +18,7 @@ use super::{
+     descriptor::{Kind, Nodes, layout},
+ };
+ 
+-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(super) enum Atom {
+     Void,
+     Bool,
+@@ -36,7 +36,7 @@ pub(super) enum Atom {
+     Data,
+ }
+ 
+-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(super) enum Pointer {
+     Any,
+     Struct,
+@@ -70,15 +70,17 @@ impl TypeScope {
+     }
+ }
+ 
+-#[derive(Debug, PartialEq, Eq)]
++pub(super) type Brand = BTreeMap<TypeId, Arguments>;
++
++#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(super) enum Type {
+     Atom(Atom),
+     List(Box<Self>),
+-    Named(Kind, TypeId, BTreeMap<TypeId, Arguments>),
++    Named(Kind, TypeId, Brand),
+     Pointer(Pointer),
+ }
+ 
+-#[derive(Debug, PartialEq, Eq)]
++#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(super) enum Arguments {
+     Inherited(u32),
+     Bound(Vec<Type>),
+@@ -247,7 +249,7 @@ pub(super) fn read_brand(
+     nodes: &Nodes<'_>,
+     (context, target): (TypeScope, TypeId),
+     dependencies: &mut BTreeSet<TypeId>,
+-) -> Result<BTreeMap<TypeId, Arguments>, Error> {
++) -> Result<Brand, Error> {
+     let mut brand = BTreeMap::new();
+     for scope in reader.get_scopes()? {
+         let id = TypeId(scope.get_scope_id());
+diff --git crates/raf-okf/src/profile/header.rs crates/raf-okf/src/profile/header.rs
+index e81eed54..7c4aabc3 100644
+--- crates/raf-okf/src/profile/header.rs
++++ crates/raf-okf/src/profile/header.rs
+@@ -1,7 +1,7 @@
+ // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+ // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+ 
+-//! Native SHACL over top-level key presence, independent of the authoring codec.
++//! Native SHACL over authored key presence, independent of the authoring codec.
+ 
+ use std::{
+     fmt,
+@@ -18,11 +18,12 @@ use purrdf_shapes::{
+     term::{NamedNode, Term},
+ };
+ 
+-use super::{Check, DocType, Map, Rule};
++use super::{BINDING_KEYS, Check, DocType, Map, Rule};
+ 
+ const KEY: &str = "urn:raf:okf:key:";
+ const FOCUS: &str = "urn:raf:okf:header:";
+ const SHAPE: &str = "urn:raf:okf:header-shape:";
++const BINDINGS_SHAPE: &str = "Capability-bindings";
+ const RDF_TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+ const XSD_BOOLEAN: &str = "http://www.w3.org/2001/XMLSchema#boolean";
+ const XSD_INTEGER: &str = "http://www.w3.org/2001/XMLSchema#integer";
+@@ -34,7 +35,7 @@ const MIN_COUNT: &str = "http://www.w3.org/ns/shacl#MinCountConstraintComponent"
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ #[non_exhaustive]
+ pub enum HeaderShapeError {
+-    /// The authored key bytes and their line separators exceed the document bound.
++    /// The projected key bytes and their line separators exceed the document bound.
+     KeyBytes,
+     /// Native RDF graph storage refused schema or header construction.
+     Storage(StorageError),
+@@ -51,7 +52,7 @@ impl fmt::Display for HeaderShapeError {
+         match self {
+             Self::KeyBytes => write!(
+                 f,
+-                "top-level keys exceed the {} byte authoring bound",
++                "authored header keys exceed the {} byte authoring bound",
+                 crate::MAX_TEXT_BYTES
+             ),
+             Self::Storage(source) => write!(
+@@ -98,14 +99,24 @@ impl From<RdfDiagnostic> for HeaderShapeError {
+     }
+ }
+ 
++/// Reports top-level key findings and returns the binding map's key-set verdict.
+ pub(super) fn check(
+     check: &mut Check<'_>,
+     map: &Map,
+     doc_type: DocType,
+-) -> Result<(), HeaderShapeError> {
++) -> Result<bool, HeaderShapeError> {
+     static SCHEMA: OnceLock<PreparedShapes> = OnceLock::new();
+     let focus = format!("{FOCUS}{}", doc_type.name());
+-    let data = header_graph(&focus, map)?;
++    let bindings = if doc_type == DocType::Capability {
++        map.get("bindings").and_then(|entry| entry.value().as_map())
++    } else {
++        None
++    };
++    let binding_focus = bindings.map(|_| format!("{FOCUS}{BINDINGS_SHAPE}"));
++    let data = header_graph([
++        Some((focus.as_str(), map)),
++        binding_focus.as_deref().zip(bindings),
++    ])?;
+     let binding = if let Some(schema) = SCHEMA.get() {
+         schema.bind_shared_dataset(data)?
+     } else {
+@@ -116,12 +127,40 @@ pub(super) fn check(
+         binding
+     };
+     let focus = NamedNode::from(focus.as_str()).into_term();
+-    let report = binding.validate_focus_nodes(std::slice::from_ref(&focus))?;
+-    report_keys(&report, &focus, map, doc_type, check)
++    let both;
++    let focuses = if let Some(name) = binding_focus {
++        both = [focus, NamedNode::from(name.as_str()).into_term()];
++        both.as_slice()
++    } else {
++        std::slice::from_ref(&focus)
++    };
++    let report = binding.validate_focus_nodes(focuses)?;
++    report_keys(&report, focuses, map, doc_type, check)
+ }
+ 
+ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
+     let mut graph = RdfDatasetBuilder::new();
++    for doc_type in DocType::ALL {
++        add_shape(
++            &mut graph,
++            doc_type.name(),
++            doc_type.keys().iter().map(|spec| (spec.key, spec.required)),
++        )?;
++    }
++    add_shape(
++        &mut graph,
++        BINDINGS_SHAPE,
++        BINDING_KEYS.into_iter().map(|key| (key, true)),
++    )?;
++    let shapes = shapes::from_dataset(&graph.freeze()?)?;
++    Ok(PreparedShapes::new(Arc::new(shapes)))
++}
++
++fn add_shape(
++    graph: &mut RdfDatasetBuilder,
++    name: &str,
++    keys: impl Iterator<Item = (&'static str, bool)>,
++) -> Result<(), HeaderShapeError> {
+     let rdf_type = graph.intern_iri(RDF_TYPE)?;
+     let node_shape = graph.intern_iri(&format!("{SH}NodeShape"))?;
+     let target = graph.intern_iri(&format!("{SH}targetNode"))?;
+@@ -131,56 +170,53 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
+     let min_count = graph.intern_iri(&format!("{SH}minCount"))?;
+     let yes = graph.intern_literal(RdfLiteral::typed("true", XSD_BOOLEAN))?;
+     let one = graph.intern_literal(RdfLiteral::typed("1", XSD_INTEGER))?;
+-    for doc_type in DocType::ALL {
+-        let name = doc_type.name();
+-        let shape = graph.intern_iri(&format!("{SHAPE}{name}"))?;
+-        let focus = graph.intern_iri(&format!("{FOCUS}{name}"))?;
+-        graph.push_quad(shape, rdf_type, node_shape, None)?;
+-        graph.push_quad(shape, target, focus, None)?;
+-        graph.push_quad(shape, closed, yes, None)?;
+-        for spec in doc_type.keys() {
+-            let key = spec.key;
+-            let field = graph.intern_iri(&format!("{SHAPE}{name}:{key}"))?;
+-            let predicate = graph.intern_iri(&format!("{KEY}{key}"))?;
+-            graph.push_quad(shape, property, field, None)?;
+-            graph.push_quad(field, path, predicate, None)?;
+-            if spec.required {
+-                graph.push_quad(field, min_count, one, None)?;
+-            }
++    let shape = graph.intern_iri(&format!("{SHAPE}{name}"))?;
++    let focus = graph.intern_iri(&format!("{FOCUS}{name}"))?;
++    graph.push_quad(shape, rdf_type, node_shape, None)?;
++    graph.push_quad(shape, target, focus, None)?;
++    graph.push_quad(shape, closed, yes, None)?;
++    for (key, required) in keys {
++        let field = graph.intern_iri(&format!("{SHAPE}{name}:{key}"))?;
++        let predicate = graph.intern_iri(&format!("{KEY}{key}"))?;
++        graph.push_quad(shape, property, field, None)?;
++        graph.push_quad(field, path, predicate, None)?;
++        if required {
++            graph.push_quad(field, min_count, one, None)?;
+         }
+     }
+-    let shapes = shapes::from_dataset(&graph.freeze()?)?;
+-    Ok(PreparedShapes::new(Arc::new(shapes)))
++    Ok(())
+ }
+ 
+-fn header_graph(focus: &str, map: &Map) -> Result<Arc<RdfDataset>, HeaderShapeError> {
++fn header_graph(maps: [Option<(&str, &Map)>; 2]) -> Result<Arc<RdfDataset>, HeaderShapeError> {
+     // Both document constructors include at least the key, colon, and newline
+     // in the authoring byte limit. Each admitted key gives one default-graph
+     // triple. The separate report profile would require a report root.
+     let mut available = crate::MAX_TEXT_BYTES;
+-    for entry in map.entries() {
++    for entry in maps.iter().flatten().flat_map(|(_, map)| map.entries()) {
+         available = available
+             .checked_sub(2)
+             .and_then(|remaining| remaining.checked_sub(entry.key().len()))
+             .ok_or(HeaderShapeError::KeyBytes)?;
+     }
+     let mut graph = RdfDatasetBuilder::new();
+-    let focus = graph.intern_iri(focus)?;
+     let present = graph.intern_iri("urn:raf:okf:key-present")?;
+-    for entry in map.entries() {
+-        let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
+-        graph.push_quad(focus, predicate, present, None)?;
++    for (focus, map) in maps.into_iter().flatten() {
++        let focus = graph.intern_iri(focus)?;
++        for entry in map.entries() {
++            let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
++            graph.push_quad(focus, predicate, present, None)?;
++        }
+     }
+     Ok(graph.freeze()?)
+ }
+ 
+ fn report_keys(
+     report: &ValidationReport,
+-    focus: &Term,
++    focuses: &[Term],
+     map: &Map,
+     doc_type: DocType,
+     check: &mut Check<'_>,
+-) -> Result<(), HeaderShapeError> {
++) -> Result<bool, HeaderShapeError> {
+     if report.conforms != report.results.is_empty() || !report.diagnostics.is_empty() {
+         return Err(HeaderShapeError::UnexpectedReport);
+     }
+@@ -188,6 +224,10 @@ fn report_keys(
+     let mut memory = Memory::new(&mut resident);
+     let mut unknown = OrderedTable::default();
+     let mut missing = OrderedTable::default();
++    let (focus, nested) = focuses
++        .split_first()
++        .ok_or(HeaderShapeError::UnexpectedReport)?;
++    let mut bindings_exact = true;
+     for result in &report.results {
+         let Some(Term::NamedNode(path)) = &result.result_path else {
+             return Err(HeaderShapeError::UnexpectedReport);
+@@ -201,6 +241,10 @@ fn report_keys(
+             MIN_COUNT => &mut missing,
+             _ => return Err(HeaderShapeError::UnexpectedReport),
+         };
++        if nested.first() == Some(&result.focus_node) {
++            bindings_exact = false;
++            continue;
++        }
+         if &result.focus_node != focus || keys.insert(key, (), &mut memory)?.is_some() {
+             return Err(HeaderShapeError::UnexpectedReport);
+         }
+@@ -230,5 +274,5 @@ fn report_keys(
+     if !unknown.is_empty() || !missing.is_empty() {
+         return Err(HeaderShapeError::UnexpectedReport);
+     }
+-    Ok(())
++    Ok(bindings_exact)
+ }
+diff --git crates/raf-okf/src/profile/mod.rs crates/raf-okf/src/profile/mod.rs
+index 98a7ca40..076ef8d4 100644
+--- crates/raf-okf/src/profile/mod.rs
++++ crates/raf-okf/src/profile/mod.rs
+@@ -258,12 +258,15 @@ impl Profile {
+             check.key("type", Rule::WrongDirectory { declared: doc_type });
+         }
+         let prior_findings = check.out.len();
+-        if let Err(source) = header::check(&mut check, map, doc_type) {
+-            check.out.truncate(prior_findings);
+-            check.add(Location::Document, Rule::HeaderShape { source });
+-            return Err(check.out);
+-        }
+-        let collected = check_values(&mut check, map, doc_type, file_stem(path));
++        let bindings_exact = match header::check(&mut check, map, doc_type) {
++            Ok(exact) => exact,
++            Err(source) => {
++                check.out.truncate(prior_findings);
++                check.add(Location::Document, Rule::HeaderShape { source });
++                return Err(check.out);
++            }
++        };
++        let collected = check_values(&mut check, map, doc_type, file_stem(path), bindings_exact);
+         check_frontmatter_placeholders(&mut check, map);
+         let body = document.body();
+         body_rules::check_sections(doc_type, body, path, &mut check.out);
+@@ -278,7 +281,13 @@ impl Profile {
+     }
+ }
+ 
+-fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str) -> Collected {
++fn check_values(
++    check: &mut Check<'_>,
++    map: &Map,
++    doc_type: DocType,
++    stem: &str,
++    bindings_exact: bool,
++) -> Collected {
+     let mut found = Collected::default();
+     for spec in doc_type.keys() {
+         let Some(entry) = map.get(spec.key) else {
+@@ -307,7 +316,7 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
+                 found.review_required = Slot::from_check(review::check_required(check, entry));
+             }
+             ValueKind::Bindings => {
+-                found.bindings = check_bindings(check, entry, found.state);
++                found.bindings = check_bindings(check, entry, found.state, bindings_exact);
+             }
+             ValueKind::CapabilityIds => {
+                 let ids = check_capability_ids(check, entry, key == "changes");
+@@ -589,7 +598,12 @@ fn check_state(check: &mut Check<'_>, entry: &Entry) -> Option<State> {
+     state
+ }
+ 
+-fn check_bindings(check: &mut Check<'_>, entry: &Entry, state: Option<State>) -> Option<Bindings> {
++fn check_bindings(
++    check: &mut Check<'_>,
++    entry: &Entry,
++    state: Option<State>,
++    exact: bool,
++) -> Option<Bindings> {
+     let Some(map) = entry.value().as_map() else {
+         check.key(
+             "bindings",
+@@ -599,8 +613,6 @@ fn check_bindings(check: &mut Check<'_>, entry: &Entry, state: Option<State>) ->
+         );
+         return None;
+     };
+-    let exact = map.entries().len() == BINDING_KEYS.len()
+-        && BINDING_KEYS.iter().all(|key| map.get(key).is_some());
+     if !exact {
+         check.key("bindings", Rule::BindingsKeys);
+     }
+diff --git crates/raf-okf/src/profile/violation.rs crates/raf-okf/src/profile/violation.rs
+index 58412323..67979a19 100644
+--- crates/raf-okf/src/profile/violation.rs
++++ crates/raf-okf/src/profile/violation.rs
+@@ -362,7 +362,7 @@ pub enum Rule {
+         /// Original refusal with positions in the decoded scalar.
+         source: purrdf_markdown::SyntaxError,
+     },
+-    /// Native top-level shape validation could not establish a verdict.
++    /// Native frontmatter key validation could not establish a verdict.
+     HeaderShape {
+         /// Original refusal from header graph construction or validation.
+         source: HeaderShapeError,
+@@ -377,7 +377,7 @@ impl fmt::Display for Rule {
+                 f,
+                 "native Markdown reader refused the decoded scalar: {source}"
+             ),
+-            Self::HeaderShape { source } => write!(f, "cannot check top-level keys ({source})"),
++            Self::HeaderShape { source } => write!(f, "cannot check frontmatter keys ({source})"),
+             Self::MissingKey { key } => write!(f, "missing required key `{key}`"),
+             Self::UnknownKey { key } => write!(f, "unknown key `{key}`"),
+             Self::ResourceKey { doc_type } => {
+diff --git crates/raf-okf/tests/profile.rs crates/raf-okf/tests/profile.rs
+index aaceb96a..484bd5ae 100644
+--- crates/raf-okf/tests/profile.rs
++++ crates/raf-okf/tests/profile.rs
+@@ -1003,18 +1003,14 @@ fn a_state_is_one_of_the_four() {
+ 
+ #[test]
+ fn bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list() {
++    // Missing and extra binding keys yield one violation at the map.
+     let renamed = mutate(&alpha(), "  examples: []\n", "  docs: []\n");
+-    assert_hit(
+-        &violations(&renamed, ALPHA_PATH),
+-        &key("bindings"),
+-        &Rule::BindingsKeys,
+-    );
+-    let extra = mutate(&alpha(), "  examples: []\n", "  examples: []\n  docs: []\n");
+-    assert_hit(
+-        &violations(&extra, ALPHA_PATH),
+-        &key("bindings"),
+-        &Rule::BindingsKeys,
+-    );
++    let missing = mutate(&alpha(), "  examples: []\n", "");
++    for text in [&renamed, &missing] {
++        let found = violations(text, ALPHA_PATH);
++        assert_eq!(found.len(), 1, "{found:#?}");
++        assert_hit(&found, &key("bindings"), &Rule::BindingsKeys);
++    }
+     let scalar = mutate(
+         &alpha(),
+         "bindings:\n  code: []\n  tests: []\n  examples: []\n",
+diff --git crates/raf-workplan/src/coverage.rs crates/raf-workplan/src/coverage.rs
+index 142edb08..0dcec853 100644
+--- crates/raf-workplan/src/coverage.rs
++++ crates/raf-workplan/src/coverage.rs
+@@ -852,7 +852,7 @@ pub(crate) fn covering_path<'g>(
+ /// The path below which the bound item `id` covers every item, as
+ /// [`Bound::of`] keeps it: its own path, unless it is a crate root, which
+ /// covers nothing below it.
+-fn below_bound(source: &Workspace, id: ItemId) -> Option<&str> {
++pub(crate) fn below_bound(source: &Workspace, id: ItemId) -> Option<&str> {
+     let item = source.item(id)?;
+     let root = source
+         .target(item.target)
+diff --git crates/raf-workplan/src/gate.rs crates/raf-workplan/src/gate.rs
+index 04be7baf..c97005ef 100644
+--- crates/raf-workplan/src/gate.rs
++++ crates/raf-workplan/src/gate.rs
+@@ -263,6 +263,10 @@ impl Gate {
+         self
+     }
+ 
++    pub(crate) fn roots(&self) -> Vec<&str> {
++        self.roots.iter().map(String::as_str).collect()
++    }
++
+     /// Judge links against exactly these tracked paths, instead of the ones
+     /// native Git index lists or the files of a repository-free directory.
+     #[must_use]
+@@ -292,7 +296,7 @@ impl Gate {
+             source,
+         })?;
+         self.require_capabilities(&tree)?;
+-        let roots: Vec<&str> = self.roots.iter().map(String::as_str).collect();
++        let roots = self.roots();
+         let workspace = Workspace::load(&tree, &roots).map_err(|source| GateError::Source {
+             dir: self.dir.clone(),
+             roots: self.roots.clone(),
+diff --git crates/raf-workplan/src/git.rs crates/raf-workplan/src/git.rs
+index 3fa89c9d..28ca9a5c 100644
+--- crates/raf-workplan/src/git.rs
++++ crates/raf-workplan/src/git.rs
+@@ -266,6 +266,14 @@ pub fn head(repository: &Repository) -> Result<ResolvedCommit, GitError> {
+     admitted(&repository.resolve_commit("HEAD")?)
+ }
+ 
++/// Resolve a native revision selector for a source comparison.
++pub(crate) fn resolve_revision(
++    repository: &Repository,
++    selector: &str,
++) -> Result<ResolvedCommit, GitError> {
++    admitted(&repository.resolve_commit(selector)?)
++}
++
+ /// Resolve one full reference to an existing commit.
+ ///
+ /// # Errors
+diff --git crates/raf-workplan/src/lifecycle.rs crates/raf-workplan/src/lifecycle.rs
+index d63597e4..d528ca86 100644
+--- crates/raf-workplan/src/lifecycle.rs
++++ crates/raf-workplan/src/lifecycle.rs
+@@ -20,6 +20,7 @@ mod completion;
+ mod create;
+ mod impact;
+ mod session;
++mod source_impact;
+ mod state;
+ mod touched;
+ pub(crate) use touched::BaseTree;
+@@ -32,6 +33,9 @@ pub use create::{
+ };
+ pub use impact::{Dependant, Impact, LinkingSection};
+ pub use session::{Lifecycle, LifecycleError, Side};
++pub use source_impact::{
++    BindingImpact, GuaranteeImpact, ImpactReason, SectionImpact, SourceImpact, SymbolImpact,
++};
+ pub use untouched::{SectionDigest, section_digest};
+ pub use verification::{VerifyReport, verify};
+ 
+diff --git crates/raf-workplan/src/lifecycle/session.rs crates/raf-workplan/src/lifecycle/session.rs
+index 677783a8..aef6ab8b 100644
+--- crates/raf-workplan/src/lifecycle/session.rs
++++ crates/raf-workplan/src/lifecycle/session.rs
+@@ -25,6 +25,8 @@ use super::{Impact, changed, touched, untouched};
+ pub enum Side {
+     /// The version at the merge base.
+     MergeBase,
++    /// The version at the explicitly selected revision.
++    Revision,
+     /// The version in the working tree.
+     WorkingTree,
+ }
+@@ -34,6 +36,7 @@ impl fmt::Display for Side {
+         f.write_str(match self {
+             Self::MergeBase => "at the merge base",
+             Self::WorkingTree => "in the working tree",
++            Self::Revision => "at the selected revision",
+         })
+     }
+ }
+diff --git crates/raf-workplan/src/lifecycle/source_impact.rs crates/raf-workplan/src/lifecycle/source_impact.rs
+new file mode 100644
+index 00000000..d0723668
+--- /dev/null
++++ crates/raf-workplan/src/lifecycle/source_impact.rs
+@@ -0,0 +1,534 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! Changed definitions and their paths through the authored document graph.
++
++use std::collections::{BTreeMap, BTreeSet};
++use std::fmt;
++
++use raf_okf::CapabilitySection;
++use raf_source::{Item, ItemId, TargetKind, Workspace};
++
++use super::{BaseTree, Lifecycle, LifecycleError, Side};
++use crate::Workplan;
++use crate::assessment::{Naming, symbol_inputs};
++use crate::digest::Digest;
++use crate::git;
++use crate::graph::{Binding, BindingKind, SectionId, code_span_paths, prose_of};
++use crate::review::ReviewChangeKind;
++use crate::strict::ClaimsReport;
++
++/// The selected commit and its differences from the working tree.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct SourceImpact {
++    /// The full object id used for historical reads.
++    pub base: String,
++    /// Changed bound or public items, sorted by source path.
++    pub symbols: Vec<SymbolImpact>,
++}
++
++/// A source difference and the bindings that explain its documented effects.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct SymbolImpact {
++    /// A definition or public re-export path.
++    pub path: String,
++    /// The difference from the selected base.
++    pub change: ReviewChangeKind,
++    /// Whether the path is part of the public surface on the reported side.
++    pub public: bool,
++    /// Binding paths in their capability and role order.
++    pub owners: Vec<BindingImpact>,
++}
++
++impl SymbolImpact {
++    /// Whether this public path lacks a code binding on its reported side.
++    #[must_use]
++    pub fn is_unowned(&self) -> bool {
++        self.public
++            && !self.owners.iter().any(|binding| {
++                binding.kind == BindingKind::Code
++                    && binding.at_base == (self.change == ReviewChangeKind::Removed)
++            })
++    }
++}
++
++/// The authored binding through which an item reaches a capability.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct BindingImpact {
++    /// True for a binding read from the selected commit rather than the checkout.
++    pub at_base: bool,
++    /// Capability that declares this binding.
++    pub capability: String,
++    /// The binding list in the capability header.
++    pub kind: BindingKind,
++    /// The path written in that list.
++    pub path: String,
++    /// Sections supported by this binding and the evidence attached to each.
++    pub sections: Vec<SectionImpact>,
++}
++
++/// Guarantees and evidence to inspect in a section reached through a binding.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct SectionImpact {
++    /// The affected capability section.
++    pub section: SectionId,
++    /// How the binding selects this section.
++    pub reason: ImpactReason,
++    /// Authored claim keys with the evidence for each association.
++    pub guarantees: Vec<GuaranteeImpact>,
++    /// Test paths named by its markers or its test bindings.
++    pub tests: Vec<String>,
++    /// Example paths that substantiate the section.
++    pub examples: Vec<String>,
++    /// Stored assessment identifiers with this section as subject.
++    pub assessments: Vec<String>,
++}
++
++/// An authored claim and the reason its binding selects it.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct GuaranteeImpact {
++    /// The stable claim key within its capability and section.
++    pub key: String,
++    /// The association between the binding and the claim.
++    pub reason: ImpactReason,
++}
++
++/// Evidence for associating a source binding with a section or guarantee.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum ImpactReason {
++    /// The prose names the full binding or a multi-segment suffix.
++    Named,
++    /// The prose names the final segment alone.
++    WeakName,
++    /// With no strong name the assessment includes all capability code bindings.
++    AllBindings,
++    /// The graph associates this declared test or example with the section.
++    SectionBinding,
++    /// A claim marker explicitly names this test.
++    TestedBy,
++}
++
++impl ImpactReason {
++    /// Stable text and RDF spelling of the association.
++    #[must_use]
++    pub fn name(self) -> &'static str {
++        match self {
++            Self::Named => "named",
++            Self::WeakName => "weak-name",
++            Self::AllBindings => "all-code-bindings",
++            Self::SectionBinding => "section-binding",
++            Self::TestedBy => "tested-by",
++        }
++    }
++}
++
++impl From<Naming> for ImpactReason {
++    fn from(naming: Naming) -> Self {
++        match naming {
++            Naming::Strong => Self::Named,
++            Naming::Weak => Self::WeakName,
++            Naming::Unnamed => Self::AllBindings,
++        }
++    }
++}
++
++impl fmt::Display for SourceImpact {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        writeln!(f, "base {}", self.base)?;
++        for symbol in &self.symbols {
++            writeln!(f, "{} {}", symbol.change.name(), symbol.path)?;
++            if symbol.is_unowned() {
++                writeln!(f, "  public item without a documented owner")?;
++            } else if symbol.public {
++                writeln!(f, "  public item with a documented owner")?;
++            } else {
++                writeln!(f, "  private item")?;
++            }
++            for owner in &symbol.owners {
++                writeln!(
++                    f,
++                    "  {} via {} {} ({})",
++                    owner.capability,
++                    owner.kind.key(),
++                    owner.path,
++                    if owner.at_base { "base" } else { "checkout" }
++                )?;
++                for section in &owner.sections {
++                    writeln!(f, "    {} ({})", section.section, section.reason.name())?;
++                    for guarantee in &section.guarantees {
++                        writeln!(
++                            f,
++                            "      guarantee {} ({})",
++                            guarantee.key,
++                            guarantee.reason.name()
++                        )?;
++                    }
++                    for (kind, names) in [
++                        ("test", &section.tests),
++                        ("example", &section.examples),
++                        ("assessment", &section.assessments),
++                    ] {
++                        for name in names {
++                            writeln!(f, "      {kind} {name}")?;
++                        }
++                    }
++                }
++            }
++        }
++        Ok(())
++    }
++}
++
++impl Lifecycle {
++    /// Compare the working tree with HEAD, a full reference or a full commit id.
++    /// Removed items use the bindings and declarations at the selected commit.
++    /// Changed items also retain bindings withdrawn from the working tree.
++    ///
++    /// # Errors
++    /// Refuses unavailable Git data, unreadable source, invalid capability
++    /// documents and public surfaces that exceed the source index's bounds.
++    pub fn source_impact(&self, base: &str) -> Result<SourceImpact, LifecycleError> {
++        let base = git::resolve_revision(&self.repository, base)?;
++        let listing = git::tree_at(&self.repository, &base, &self.prefix)?;
++        let tree = BaseTree::at_revision(&self.repository, &base, &self.prefix, listing);
++        let source = Workspace::load(&tree, &self.gate.roots())
++            .map_err(|error| tree.take_failure().unwrap_or(LifecycleError::Index(error)))?;
++        let then = Workplan::load(&tree, &source);
++        if let Some(error) = tree.take_failure() {
++            return Err(error);
++        }
++        let now = self.opened.workplan();
++        let old = Snapshot::read(&then, Side::Revision)?;
++        let new = Snapshot::read(&now, Side::WorkingTree)?;
++        Ok(SourceImpact {
++            base: base.to_string(),
++            symbols: new.compare(&old)?,
++        })
++    }
++}
++
++/// All written definitions let a documentation-only edit add or remove a
++/// binding without inventing a source change. Only bound and public paths
++/// enter the comparison.
++#[derive(Default)]
++struct Entry {
++    definitions: BTreeSet<String>,
++    external: BTreeSet<String>,
++    public: bool,
++    owners: BTreeSet<usize>,
++}
++
++impl Entry {
++    fn selected(&self) -> bool {
++        self.public || !self.owners.is_empty()
++    }
++}
++
++struct Snapshot<'p, 's> {
++    plan: &'p Workplan<'s>,
++    side: Side,
++    paths: BTreeMap<String, Entry>,
++}
++
++impl<'p, 's> Snapshot<'p, 's> {
++    fn read(plan: &'p Workplan<'s>, side: Side) -> Result<Self, LifecycleError> {
++        if let Some(finding) = &plan.authoring_fault {
++            return Err(LifecycleError::Document {
++                path: finding.file.clone(),
++                side,
++                reason: finding.to_string(),
++            });
++        }
++        let capabilities: Vec<_> = plan
++            .unloaded()
++            .into_iter()
++            .filter(|id| id.starts_with("cap:"))
++            .collect();
++        if !capabilities.is_empty() {
++            return Err(LifecycleError::Unloaded {
++                capabilities,
++                findings: plan.findings().to_vec(),
++            });
++        }
++        let source = plan.source();
++        let owners = owners_by_item(plan, side)?;
++        let mut paths = BTreeMap::<String, Entry>::new();
++        let mut add = |path: &str, item: &Item, public: bool| {
++            let entry = paths.entry(path.to_owned()).or_default();
++            entry.definitions.insert(item.path.to_string());
++            entry.public |= public;
++            if let Some(indices) = owners.get(&item.id) {
++                entry.owners.extend(indices);
++            }
++        };
++        for item in source.items() {
++            add(&item.path, item, false);
++        }
++        let mut options = raf_source::ExportOptions::default();
++        options.include_hidden = true;
++        let mut external = Vec::new();
++        for id in source.target_ids() {
++            let Some(target) = source.target(id) else {
++                continue;
++            };
++            if !matches!(target.kind, TargetKind::Lib | TargetKind::Bin) {
++                continue;
++            }
++            let exports = super::touched::exports_at(source, id, side, &options)?;
++            for export in exports.items {
++                if let Some(item) = source.item(export.item) {
++                    add(&export.path, item, true);
++                }
++            }
++            for export in exports.reexports {
++                if let Some(item) = export.item.and_then(|id| source.item(id)) {
++                    add(&export.path, item, true);
++                }
++                external.push((export.path, export.written));
++            }
++        }
++        for (path, written) in external {
++            let entry = paths.entry(path).or_default();
++            entry.public = true;
++            entry.external.insert(written);
++        }
++        Ok(Self { plan, side, paths })
++    }
++
++    fn digests(&self, paths: &BTreeSet<&String>) -> Result<BTreeMap<&str, Digest>, LifecycleError> {
++        let mut digests = BTreeMap::new();
++        for definition in paths
++            .iter()
++            .filter_map(|path| self.paths.get(*path))
++            .flat_map(|e| &e.definitions)
++        {
++            if let std::collections::btree_map::Entry::Vacant(slot) =
++                digests.entry(definition.as_str())
++            {
++                let digest =
++                    Digest::review_symbol(self.plan.source(), definition).map_err(|error| {
++                        LifecycleError::Document {
++                            path: definition.clone(),
++                            side: self.side,
++                            reason: error.to_string(),
++                        }
++                    })?;
++                slot.insert(digest);
++            }
++        }
++        Ok(digests)
++    }
++
++    fn compare(&self, old: &Snapshot<'_, '_>) -> Result<Vec<SymbolImpact>, LifecycleError> {
++        let paths: BTreeSet<_> = self
++            .paths
++            .iter()
++            .chain(&old.paths)
++            .filter(|(_, entry)| entry.selected())
++            .map(|(path, _)| path)
++            .collect();
++        let before = old.digests(&paths)?;
++        let after = self.digests(&paths)?;
++        let old_claims = old.plan.claims_in_states(|_| true);
++        let new_claims = self.plan.claims_in_states(|_| true);
++        let mut result = Vec::new();
++        for path in paths {
++            let (entry, plan, claims, change) = match (old.paths.get(path), self.paths.get(path)) {
++                (Some(a), Some(b))
++                    if a.public == b.public
++                        && a.external == b.external
++                        && a.definitions == b.definitions
++                        && b.definitions
++                            .iter()
++                            .all(|p| before[p.as_str()] == after[p.as_str()]) =>
++                {
++                    continue;
++                }
++                (Some(a), None) => (a, old.plan, &old_claims, ReviewChangeKind::Removed),
++                (None, Some(b)) => (b, self.plan, &new_claims, ReviewChangeKind::Added),
++                (Some(a), Some(b)) if a.public && !b.public && b.owners.is_empty() => {
++                    (a, old.plan, &old_claims, ReviewChangeKind::Removed)
++                }
++                (Some(_), Some(b)) => (b, self.plan, &new_claims, ReviewChangeKind::Changed),
++                (None, None) => unreachable!("INVARIANT: path came from either snapshot"),
++            };
++            let bindings = plan.graph().bindings();
++            let at_base = change == ReviewChangeKind::Removed;
++            let mut owners: Vec<_> = entry
++                .owners
++                .iter()
++                .map(|&i| binding_impact(plan, &bindings[i], claims, at_base))
++                .collect();
++            if change == ReviewChangeKind::Changed
++                && let Some(previous) = old.paths.get(path)
++            {
++                for &i in &previous.owners {
++                    let old_binding = &old.plan.graph().bindings()[i];
++                    if !owners.iter().any(|owner| {
++                        owner.capability == old_binding.capability()
++                            && owner.path == old_binding.path()
++                            && owner.kind == old_binding.kind()
++                    }) {
++                        owners.push(binding_impact(old.plan, old_binding, &old_claims, true));
++                    }
++                }
++            }
++            result.push(SymbolImpact {
++                path: path.clone(),
++                change,
++                public: entry.public,
++                owners,
++            });
++        }
++        Ok(result)
++    }
++}
++
++/// Resolve each binding once. Code ownership extends below a bound item
++/// except at a crate root, as in the public coverage report.
++fn owners_by_item(
++    plan: &Workplan<'_>,
++    side: Side,
++) -> Result<BTreeMap<ItemId, BTreeSet<usize>>, LifecycleError> {
++    let source = plan.source();
++    let mut owners = BTreeMap::<ItemId, BTreeSet<usize>>::new();
++    for (index, binding) in plan.graph().bindings().iter().enumerate() {
++        if let Err(
++            error @ (raf_source::ResolveError::Budget { .. }
++            | raf_source::ResolveError::Storage { .. }),
++        ) = binding.resolution()
++        {
++            return Err(LifecycleError::Document {
++                path: binding.path().to_owned(),
++                side,
++                reason: error.to_string(),
++            });
++        }
++        for &id in binding.items() {
++            let Some(item) = source.item(id) else {
++                continue;
++            };
++            let mut record = |item: &Item| {
++                for id in std::iter::once(&item.id).chain(source.same_source(item)) {
++                    owners.entry(*id).or_default().insert(index);
++                }
++            };
++            record(item);
++            if binding.kind() == BindingKind::Code
++                && crate::coverage::below_bound(source, id).is_some()
++            {
++                for descendant in source.items_under(&item.path) {
++                    record(descendant);
++                }
++            }
++        }
++    }
++    Ok(owners)
++}
++
++fn binding_impact(
++    plan: &Workplan<'_>,
++    binding: &Binding,
++    claims: &ClaimsReport,
++    at_base: bool,
++) -> BindingImpact {
++    let graph = plan.graph();
++    let id = binding.capability();
++    let cap = plan
++        .capabilities()
++        .iter()
++        .find(|c| c.value().header.id == id)
++        .expect("INVARIANT: bindings originate in loaded capability documents");
++    let mut sections = Vec::new();
++    for section in CapabilitySection::ALL {
++        let Some(authored) = cap
++            .body()
++            .sections()
++            .iter()
++            .find(|s| s.slug() == section.slug())
++        else {
++            continue;
++        };
++        let prose = prose_of(cap.body(), authored).unwrap_or_default();
++        let cites = |text: &str| {
++            let named = code_span_paths(text);
++            let paths = cap.value().bindings.code.iter().map(String::as_str);
++            symbol_inputs(&named, paths)
++                .into_iter()
++                .find_map(|(p, naming)| (p == binding.path()).then(|| ImpactReason::from(naming)))
++        };
++        let reason = match binding.kind() {
++            BindingKind::Code => cites(&prose),
++            _ => binding
++                .sections()
++                .contains(&section)
++                .then_some(ImpactReason::SectionBinding),
++        };
++        let Some(reason) = reason else { continue };
++        let subject = SectionId::new(id, section);
++        let mut tests = Vec::new();
++        let mut examples = Vec::new();
++        let mut guarantees = Vec::new();
++        for claim in claims
++            .claims()
++            .iter()
++            .filter(|c| c.capability() == id && c.section() == section)
++        {
++            let claim_reason = match binding.kind() {
++                BindingKind::Code => {
++                    let lines = claim.lines();
++                    let text = prose
++                        .lines()
++                        .skip(lines.start.saturating_sub(authored.content().lines.start))
++                        .take(lines.len())
++                        .collect::<Vec<_>>()
++                        .join("\n");
++                    cites(&text)
++                }
++                BindingKind::Test | BindingKind::Example
++                    if claim.tests().iter().any(|p| p == binding.path()) =>
++                {
++                    Some(ImpactReason::TestedBy)
++                }
++                BindingKind::Test => None,
++                BindingKind::Example => Some(ImpactReason::SectionBinding),
++            };
++            let Some(claim_reason) = claim_reason else {
++                continue;
++            };
++            guarantees.push(GuaranteeImpact {
++                key: claim.key(),
++                reason: claim_reason,
++            });
++        }
++        for bound in graph
++            .bindings_of(id)
++            .filter(|b| b.sections().contains(&section))
++        {
++            match bound.kind() {
++                BindingKind::Test => tests.push(bound.path().to_owned()),
++                BindingKind::Example => examples.push(bound.path().to_owned()),
++                BindingKind::Code => {}
++            }
++        }
++        sections.push(SectionImpact {
++            reason,
++            assessments: graph
++                .assessments_of(&subject)
++                .into_iter()
++                .map(str::to_owned)
++                .collect(),
++            section: subject,
++            tests,
++            examples,
++            guarantees,
++        });
++    }
++    BindingImpact {
++        at_base,
++        capability: id.to_owned(),
++        kind: binding.kind(),
++        path: binding.path().to_owned(),
++        sections,
++    }
++}
+diff --git crates/raf-workplan/src/lifecycle/touched.rs crates/raf-workplan/src/lifecycle/touched.rs
+index c9f15e6b..ac92eadb 100644
+--- crates/raf-workplan/src/lifecycle/touched.rs
++++ crates/raf-workplan/src/lifecycle/touched.rs
+@@ -252,14 +252,7 @@ impl<'w> Surface<'w> {
+             {
+                 continue;
+             }
+-            let exports = source
+-                .exported_items(id)
+-                .map_err(|error| LifecycleError::Surface {
+-                    package: target.package.clone(),
+-                    target: target.crate_path.clone(),
+-                    side,
+-                    reason: error.to_string(),
+-                })?;
++            let exports = exports_at(source, id, side, &raf_source::ExportOptions::default())?;
+             let mut types = BTreeSet::new();
+             for export in &exports.items {
+                 let Some(item) = source.item(export.item) else {
+@@ -339,6 +332,26 @@ impl<'w> Surface<'w> {
+     }
+ }
+ 
++/// Enumerate the public surface with the same typed refusal for both historical queries.
++pub(super) fn exports_at(
++    source: &Workspace,
++    id: raf_source::TargetId,
++    side: Side,
++    options: &raf_source::ExportOptions,
++) -> Result<raf_source::Exports, LifecycleError> {
++    let target = source
++        .target(id)
++        .expect("INVARIANT: target id belongs to this source workspace");
++    source
++        .exported_items_with(id, options)
++        .map_err(|error| LifecycleError::Surface {
++            package: target.package.clone(),
++            target: target.crate_path.clone(),
++            side,
++            reason: error.to_string(),
++        })
++}
++
+ /// The touched units of `now` against `then`, the surface of `then_source`
+ /// at the merge base, sorted by file, line and path.
+ fn compare(
+diff --git crates/raf-workplan/src/report.rs crates/raf-workplan/src/report.rs
+index cd29f15b..ebd4490a 100644
+--- crates/raf-workplan/src/report.rs
++++ crates/raf-workplan/src/report.rs
+@@ -64,12 +64,14 @@ pub const COMMAND_TERMS: &[&str] = &[
+     "Assessment",
+     "AssessmentContext",
+     "AssessmentRecorded",
++    "AssessmentReference",
+     "BindingGap",
+     "BindingResolution",
+     "Capability",
+     "CapabilityReference",
+     "Ceiling",
+     "ChangeReference",
++    "ChangedSymbol",
+     "ClaimCoverage",
+     "ClaimCoverageReport",
+     "ClaimReference",
+@@ -86,13 +88,16 @@ pub const COMMAND_TERMS: &[&str] = &[
+     "DocumentationArtifact",
+     "DocumentationBuilt",
+     "EvidenceSupport",
++    "ExampleReference",
+     "ExceptedLines",
+     "FileReference",
++    "GuaranteeReference",
+     "Guidance",
+     "History",
+     "HistoryEntry",
+     "HistorySource",
+     "Impact",
++    "ImpactBinding",
+     "Input",
+     "LineRange",
+     "LinesError",
+@@ -113,9 +118,11 @@ pub const COMMAND_TERMS: &[&str] = &[
+     "ReviewRecorded",
+     "ReviewStatus",
+     "Rewritten",
++    "SectionImpact",
+     "SectionLink",
+     "SectionReference",
+     "Selector",
++    "SourceImpact",
+     "State",
+     "StaticVerification",
+     "TestReference",
+@@ -124,6 +131,9 @@ pub const COMMAND_TERMS: &[&str] = &[
+     "UnreviewedSelection",
+     "advice",
+     "affects",
++    "assessment",
++    "base",
++    "atBase",
+     "binding",
+     "by",
+     "capability",
+@@ -151,6 +161,7 @@ pub const COMMAND_TERMS: &[&str] = &[
+     "entry",
+     "error",
+     "evidence",
++    "example",
+     "excepted",
+     "exception",
+     "failures",
+@@ -159,6 +170,7 @@ pub const COMMAND_TERMS: &[&str] = &[
+     "first",
+     "from",
+     "gap",
++    "guarantee",
+     "guidance",
+     "id",
+     "identifier",
+@@ -182,6 +194,7 @@ pub const COMMAND_TERMS: &[&str] = &[
+     "percent",
+     "percentHundredths",
+     "provenance",
++    "public",
+     "range",
+     "record",
+     "recordPath",
+@@ -210,6 +223,7 @@ pub const COMMAND_TERMS: &[&str] = &[
+     "title",
+     "total",
+     "unit",
++    "unowned",
+     "unresolved",
+     "valid",
+     "value",
+diff --git crates/raf-workplan/src/strict/claims.rs crates/raf-workplan/src/strict/claims.rs
+index 001348f1..1b3e0e61 100644
+--- crates/raf-workplan/src/strict/claims.rs
++++ crates/raf-workplan/src/strict/claims.rs
+@@ -33,6 +33,7 @@ pub struct ClaimCoverage {
+     section: CapabilitySection,
+     claim: String,
+     line: usize,
++    end_line: usize,
+     tests: Vec<String>,
+ }
+ 
+@@ -70,6 +71,10 @@ impl ClaimCoverage {
+         self.line
+     }
+ 
++    pub(crate) fn lines(&self) -> Range<usize> {
++        self.line..self.end_line
++    }
++
+     /// The paths the tested-by markers of the claim name, in document order,
+     /// each once; empty for a claim that no marker covers.
+     #[must_use]
+@@ -170,10 +175,15 @@ impl Workplan<'_> {
+     /// ```
+     #[must_use]
+     pub fn claims_report(&self) -> ClaimsReport {
++        self.claims_in_states(|state| state == State::Delivered)
++    }
++
++    /// Current authored claims of the selected states. Proposed blocks are omitted.
++    pub(crate) fn claims_in_states(&self, selected: impl Fn(State) -> bool) -> ClaimsReport {
+         let mut claims: Vec<ClaimCoverage> = self
+             .capabilities()
+             .iter()
+-            .filter(|loaded| loaded.value().state == State::Delivered)
++            .filter(|loaded| selected(loaded.value().state))
+             .flat_map(|loaded| {
+                 let id = &loaded.value().header.id;
+                 units(loaded.body())
+@@ -184,6 +194,7 @@ impl Workplan<'_> {
+                         section: unit.section,
+                         claim: unit.key,
+                         line: unit.line,
++                        end_line: unit.lines.end,
+                         tests: unit.tests,
+                     })
+             })
+diff --git docs/architecture/okf-profile.md docs/architecture/okf-profile.md
+index 8aee745e..3dcb5f16 100644
+--- docs/architecture/okf-profile.md
++++ docs/architecture/okf-profile.md
+@@ -117,8 +117,9 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
+ 
+ - The RAF types are closed sets. A document carries every required key listed for
+   its type and no key outside the list. Prepared native SHACL Core shapes derive
+-  top-level closure and required key presence from these type tables. The shared
+-  header keys `tags` and `timestamp`
++  top-level closure and required key presence from these type tables. A second
++  focus in the bounded header graph checks closure and required keys for a
++  capability's binding map. The shared header keys `tags` and `timestamp`
+   belong to every type; a Review requires its timestamp. Evidence and Coverage have
+   optional keys of their own.
+ - `id` is RAF's identity key. The closed key sets do not include the OKF base key
+diff --git docs/capabilities/census-cli.md docs/capabilities/census-cli.md
+index 7cbc9124..54c802e5 100644
+--- docs/capabilities/census-cli.md
++++ docs/capabilities/census-cli.md
+@@ -74,6 +74,8 @@ bindings:
+     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints
+     - cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance
+     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance
++    - cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance
++    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance
+     - cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints
+     - cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors
+     - cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs
+@@ -156,18 +158,23 @@ when the changed position is unused. A method brand can carry an implicit
+ position only within the method's declared range.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters -->
+ 
+-Census follows the direct superclass IDs of each selected interface and its
+-bases. Both interfaces on an inheritance edge must be named and nongeneric.
+-The edge must have an empty brand. The declaration chain must have reciprocal ownership
+-and unique names through a file node. Missing or wrong-kind targets, duplicate
+-bases, broken ownership and cycles refuse.
++Census follows the direct superclasses of each selected interface and its
++bases. Both ends of an inheritance edge require reciprocal declaration
++ownership, unique names and consistent generic flags through a file node.
++A nongeneric superclass takes an empty brand. A generic superclass binds
++every parameter of its declaration and enclosing scopes. Bindings can
++reference positions in the derived interface's proved lexical scopes.
++A missing or wrong-kind target, incomplete brand, repeated canonical edge,
++or cycle refuses.
+ 
+-Census compares the direct superclass set independently of descriptor list
+-order. Adding a valid base is compatible. Removing a direct base reports a
+-strict finding on the interface that declared it, even if a transitive route
+-still reaches that base. The defining interface ID owns each inherited method,
+-ordinal and endpoint layout. A diamond projects each defining interface once.
+-<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance -->
++Census compares the canonical set of brands per direct superclass ID.
++Reordering and valid additions are compatible, including another
++instantiation of a retained superclass. Removing a direct ID or losing
++a brand under a retained ID reports a strict finding on the interface
++that declared the edge, even if a transitive path still reaches that base.
++Each defining interface owns its methods, ordinals and endpoint layouts.
++A diamond projects each defining interface once.
++<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance -->
+ 
+ A named endpoint must be a declared nongroup struct with reciprocal lexical
+ ownership. A generic endpoint requires an explicit brand with complete
+@@ -690,6 +697,13 @@ when a transitive route still reaches the formerly direct base. Controlled reque
+ valid inheritance graph with malformed edges, ownership failures and a cycle.
+ <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance -->
+ 
++Branded inheritance fixtures bind concrete and lexical types to a nested
++superclass and accept distinct instantiations of one direct base. They
++report a lost instantiation on the derived interface, and a mixed-brand
++diamond reports one changed default on the defining method. An explicit
++self-binding and an inherited scope normalize to the same brand.
++<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance -->
++
+ Migration fixtures compare strict and admitted verdicts for the same
+ committed declarations. They distinguish base inputs from current and
+ checkout copies and verify outputs from the signed evidence revision.
+@@ -834,6 +848,7 @@ to a generic owner with changed implicit method parameters.
+ | `cargo_census::test_crate::delivery::capnp_history_checks_committed_compiler_layouts` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_checks_committed_file_identities` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods` | test | [Contract](#contract), [Usage](#usage) |
++| `cargo_census::test_crate::delivery::capnp_history_compares_branded_rpc_inheritance` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_declared_pointer_pairs` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_file_declaration_identities` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters` | test | [Contract](#contract) |
+@@ -842,6 +857,7 @@ to a generic owner with changed implicit method parameters.
+ | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
++| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_branded_rpc_inheritance` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_declaration_ownership` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters` | test | [Contract](#contract) |
+ | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
+diff --git docs/capabilities/okf-profile.md docs/capabilities/okf-profile.md
+index 323687ac..b66d0abc 100644
+--- docs/capabilities/okf-profile.md
++++ docs/capabilities/okf-profile.md
+@@ -631,7 +631,7 @@ that states one is `okf-bad-input-kind`. An older reader refuses a record that s
+ the row for the same reason.
+ 
+ ### Positioned validation results
+-<!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations -->
++<!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations,raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list,raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item -->
+ 
+ `Profile::validate` checks a parsed document and its path against the
+ closed key set of its `type` and returns a typed result: the typed document
+@@ -644,9 +644,11 @@ names the file, the rule and, for a frontmatter rule, the key; a body rule names
+ section or the line instead. The rules are:
+ 
+ - the key table for the declared type supplies a prepared SHACL Core shape.
+-  The bounded native header graph carries one focus and one predicate per
+-  authored key. The closed shape refuses unknown keys, and required fields
+-  use `sh:minCount 1`. The profile reports unknown keys in author order
++  The bounded native header graph carries a focus for the header and a
++  separate focus when a capability's `bindings` value is a map. Each
++  authored key supplies a predicate at its focus. The closed shapes
++  refuse unknown keys, and required fields use `sh:minCount 1`.
++  The profile reports unknown top-level keys in author order
+   and missing keys in schema order. A separate diagnostic names the
+   forbidden base key `resource`. A native refusal yields a document-level
+   `Rule::HeaderShape` finding with its typed cause;
+@@ -656,8 +658,10 @@ section or the line instead. The rules are:
+ - the `id` carries the prefix of its type and a kebab-case slug equal to the file name
+   without `.md`; `title` and `description` are non-empty strings;
+ - `state` is an enumeration, and `bindings` is a map with exactly `code`, `tests` and
+-  `examples`, each a list. A `designed` or `considered` capability binds nothing, and a
+-  `delivered` one binds at least one `code` and one `tests` entry;
++  `examples`, each a list. The binding shape yields one `Rule::BindingsKeys`
++  finding at `bindings` when any key is missing or extra. A `designed` or
++  `considered` capability binds nothing, and a `delivered` one binds at least
++  one `code` and one `tests` entry;
+ - `depends` and `changes` hold capability ids (`changes` at least one), `affects`
+   entries are parsed into a capability id and one of the seven sections, and name a
+   capability listed in `changes`; `contract_effect` is `none` or `changes`; `items`
+@@ -1449,7 +1453,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
+ | `raf_okf::test_crate::profile::a_document_must_sit_directly_in_the_directory_of_its_type` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_okf::test_crate::profile::a_missing_type_key_is_the_only_violation` | test | [Verification](#verification) |
+-| `raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item` | test | [Constraints](#constraints) |
++| `raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_okf::test_crate::profile::a_placeholder_token_in_a_code_span_of_a_frontmatter_value_is_spared` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::a_proposed_block_is_valid_only_inside_a_section_of_a_capability` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::a_section_is_empty_when_only_comments_and_generated_blocks_remain` | test | [Verification](#verification) |
+@@ -1466,7 +1470,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
+ | `raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_okf::test_crate::profile::an_unknown_type_is_one_violation_at_the_type_key` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests` | test | [Verification](#verification) |
+-| `raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list` | test | [Verification](#verification) |
++| `raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list` | test | [Contract](#contract) |
+ | `raf_okf::test_crate::profile::changes_is_a_non_empty_list_of_cap_ids` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::contract_effect_is_none_or_changes` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist` | test | [Verification](#verification) |
+diff --git docs/capabilities/rdf-report-profile.md docs/capabilities/rdf-report-profile.md
+index 1ec27204..5e783443 100644
+--- docs/capabilities/rdf-report-profile.md
++++ docs/capabilities/rdf-report-profile.md
+@@ -398,6 +398,13 @@ or a string containing another machine serialization.
+ | `SectionReference` | `subject` string |
+ | `Guidance` | `capability`, `state`, `advice` strings |
+ | `Impact` | `change` string; `capability` ordered `CapabilityReference` nodes; `section` ordered `SectionReference` nodes; `binding` ordered `BindingResolution` nodes; `dependant` ordered `Dependant` nodes; `link` ordered `SectionLink` nodes |
++| `SourceImpact` | `base` commit id and ordered `symbol` children of type `ChangedSymbol` |
++| `ChangedSymbol` | `path` and `change` strings, `public` and `unowned` booleans, ordered `binding` children of type `ImpactBinding` |
++| `ImpactBinding` | `capability`, `list` and `path` strings, `atBase` boolean indicating historical declarations, ordered `section` children of type `SectionImpact` |
++| `SectionImpact` | `subject` and `reason` strings, ordered `guarantee`, `test`, `example` and `assessment` children of types `GuaranteeReference`, `TestReference`, `ExampleReference` and `AssessmentReference` |
++| `GuaranteeReference` | `id` and `reason` strings identifying the claim and how its binding selects it |
++| `ExampleReference` | `path` string identifying the example binding |
++| `AssessmentReference` | `id` string identifying the stored assessment |
+ | `BindingResolution` | `capability`, `list`, `path` strings, `resolves` boolean; optional `reason` string |
+ | `Dependant` | `capability`, `dependsOn` strings |
+ | `SectionLink` | `from`, `target` strings |
+diff --git docs/capabilities/workplan-cli.md docs/capabilities/workplan-cli.md
+index 2be20218..530b150b 100644
+--- docs/capabilities/workplan-cli.md
++++ docs/capabilities/workplan-cli.md
+@@ -41,6 +41,7 @@ bindings:
+     - cargo_workplan::bin_crate::cargo_workplan::change::complete
+     - cargo_workplan::bin_crate::cargo_workplan::change::completion_records
+   tests:
++    - cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners
+     - cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority
+     - cargo_workplan::test_crate::complete::prospective_refusal_retains_the_record_and_every_input_byte
+     - cargo_workplan::test_crate::process::a_missing_git_binary_does_not_prevent_native_reads
+@@ -239,6 +240,9 @@ Expose the library's static contract and explicit data operations through consis
+ 
+ ## Contract
+ 
++**Source impact.** `cargo workplan impact --base HEAD` compares the selected commit with the checkout. Each changed public or bound path lists its capability, the binding that explains the association, and the affected sections with their guarantees, tests, examples and recorded assessments. An unowned public item is a review result. An unavailable revision is an error. Text and RDF carry the same relationships. The command performs read-only inspection and works before a change record exists.
++<!-- raf:tested-by cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners -->
++
+ `docs build standalone --repository-links` publishes existing authored source
+ and capability navigation relative to its actual versioned output directory.
+ The library receives the exact opened workspace and retains its existing
+@@ -314,7 +318,7 @@ Run from the workspace or select it with `--root`.
+ 
+ The documented data path is illustrated by `raf_workplan::example_crate::docs_sync`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
+ 
+-The commands are `check`, `status`, `diagram`, `docs sync|preview|export|mdbook|fragment|artifacts|build`, `change new|impact|reconcile|complete`, `verify`, `history`, `evidence claims|for`, `assess`, `review`, `coverage code|tests|claims|lines` and `debt --write`. Global options select the root, output format and quiet mode. Help lists command-specific closed arguments.
++The commands are `check`, `impact --base REV`, `status`, `diagram`, `docs sync|preview|export|mdbook|fragment|artifacts|build`, `change new|impact|reconcile|complete`, `verify`, `history`, `evidence claims|for`, `assess`, `review`, `coverage code|tests|claims|lines` and `debt --write`. Global options select the root, output format and quiet mode. Help lists command-specific closed arguments.
+ 
+ Use `docs fragment --package PACKAGE --metadata META --target-directory OUTPUT --view OWNER#NAME --module MODULE --capability CAPABILITY`. The target directory must already exist and match the imported metadata. The source index uses the same bounded static default load as `diagram`; metadata features do not select effective compiler configuration. Save stdout through a caller-owned operation when an include file is wanted.
+ 
+@@ -510,6 +514,7 @@ CLI fixtures compare static verification with the library, exercise prospective
+ | `cargo_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing` | test | [Verification](#verification) |
+ | `cargo_workplan::test_crate::impact::quiet_prints_nothing_and_the_exit_stays_zero` | test | [Verification](#verification) |
+ | `cargo_workplan::test_crate::impact::rdf_preserves_impact_bindings_dependencies_links_and_list_order` | test | [Verification](#verification) |
++| `cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners` | test | [Contract](#contract) |
+ | `cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary` | test | [Verification](#verification) |
+ | `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Verification](#verification) |
+ | `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
+diff --git docs/capabilities/workplan-reconcile.md docs/capabilities/workplan-reconcile.md
+index 6bbd2be1..9e3e1677 100644
+--- docs/capabilities/workplan-reconcile.md
++++ docs/capabilities/workplan-reconcile.md
+@@ -10,6 +10,8 @@ bindings:
+   code:
+     - raf_workplan::Workplan::new_change
+     - raf_workplan::Workplan::impact
++    - raf_workplan::lifecycle::source_impact
++    - raf_workplan::lifecycle::Lifecycle::source_impact
+     - raf_workplan::Workplan::reconcile
+     - raf_workplan::lifecycle::Lifecycle::reconcile
+     - raf_workplan::obligation
+@@ -42,6 +44,7 @@ bindings:
+     - raf_workplan::lifecycle
+     - raf_workplan::git
+   tests:
++    - cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners
+     - raf_workplan::obligation::tests::only_the_three_history_dependent_kinds_need_more_than_local_documents
+     - raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract
+     - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
+@@ -198,13 +201,16 @@ Turn a change's documented effect into a concrete list of owed document and sour
+ 
+ ## Contract
+ 
++**Source impact.** The source impact query compares indexed definitions and public export paths against a selected local Git commit. Public paths include exports hidden from rustdoc. A binding on a type or its method traces edits to trait implementations. A definition's own source digest excludes separately indexed nested definitions. A changed symbol reaches a capability through its declared binding. Section selection for code bindings follows the prose assessment naming rules. Tests and examples reach the sections they substantiate. Each affected section identifies its current authored guarantees, supporting tests, examples and recorded assessments. The trace labels a full or multi-segment name, a weak final-segment name, the conservative selection of all code bindings, section binding and explicit tested-by evidence. Removed paths use historical declarations. A changed path also retains historical bindings that the checkout withdrew, with the side identified for each binding. An unowned public item has its own result.
++<!-- raf:tested-by cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners -->
++
+ **Static contract.** `change new` exclusively creates one owned change record
+ for the listed capabilities. Each listed capability's Contract is affected by
+ default. Opening moves listed delivered and designed capabilities to
+ implementing and preserves their authored content. The result reports the prior
+ state and the applied action. Opening validates slugs, sections and paired SPDX
+ fields, and stages original capability bytes before publication. A cleanup
+-refusal after publication states that the record opened. `impact` reports
++refusal after publication states that the record opened. `change impact` reports
+ listed capabilities, affected sections, bindings, dependants and linking
+ sections without writing.
+ <!-- raf:tested-by raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean,raf_workplan::test_crate::lifecycle::the_default_affects_is_the_contract_of_each_listed_capability,raf_workplan::test_crate::lifecycle::reopening_delivered_or_designed_capabilities_publishes_implementing -->
+@@ -272,6 +278,7 @@ Named obligation fixtures cover every current kind. Native merge-base fixtures c
+ <!-- raf:generated:verification-matrix -->
+ | Item | Kind | Section |
+ | --- | --- | --- |
++| `cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners` | test | [Contract](#contract) |
+ | `cargo_workplan::test_crate::new::the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not` | test | [Verification](#verification) |
+ | `cargo_workplan::test_crate::reconcile::a_list_with_obligations_is_printed_one_line_each_and_exits_one` | test | [Verification](#verification) |
+ | `cargo_workplan::test_crate::reconcile::an_empty_list_prints_nothing_and_exits_zero` | test | [Verification](#verification) |
+diff --git docs/census-selection.md docs/census-selection.md
+index 755e6fa5..d9ccff29 100644
+--- docs/census-selection.md
++++ docs/census-selection.md
+@@ -153,7 +153,82 @@ checksums identify the cached source versions. Source edits change the counts;
+ these tables describe this input corpus, not an invariant of arbitrary revisions.
+ 
+ The corpus is convenience-selected Rust source, heavily weighted toward parsing
+-libraries and tests. Only synthetic pairs carry equality labels. Pair counts
++libraries and tests. In the threshold experiment, only synthetic pairs carry
++equality labels. Pair counts
+ measure review volume and sensitivity, not real-source precision or recall. The
+ inspected examples explain the selected tradeoffs; they do not establish a
+ universal optimum. Counting does not measure execution cost or latency.
++
++## Review of returned groups in two consumer repositories
++
++At the source revisions below, seven of twelve reviewed groups repeat the same
++operation on the same kind of data. Four capture intentional similarities. One
++needs a decision about ownership before it can be called a duplicate helper.
++The unit counted here is a group, even when it has several members.
++
++| Source revision | Scanned units | Body groups | Shim groups | Groups reviewed |
++| --- | ---: | ---: | ---: | ---: |
++| Katamari `7e10cac6747a6e7b6470401573702af8a24dd61c` | 19,389 | 46 | 45 | 6 |
++| PurRDF `51c3c1534a80f58e7c99746575b0a70e63bed113` | 78,821 | 367 | 132 | 6 |
++
++To reproduce the reports, build `cargo-census` from RAF revision
++`194030497cc1696eb58e23d2caad73a5f3c7e48c` and run the following against
++clean source trees of the named revisions. Run the binary from the RAF build.
++The command reads the consumer as data.
++
++```sh
++cargo-census --workspace "$katamari_root" baseline --format ntriples > katamari.nt
++cargo-census --workspace "$purrdf_root" baseline --format ntriples > purrdf.nt
++```
++
++The SHA-256 digests of the resulting reports are
++`b2a4e676cddc0ac7a345633a9293482cb2eea38b2059739043fde07f43b4db37` and
++`6973b6216a54fa934eee3c75b49f1fdde5e39de98761c3fc38ef3517d769a95d`,
++respectively. Each records normal form 1, report form 5 and a body floor of 20.
++Within each repository and group kind, sort by fingerprint and take the first
++three. Read every member at its reported path and line, including its signature,
++inputs and surrounding tests. The prefixes below identify those groups in the
++reports. Shared constants are outside this sample.
++
++| Source | Kind and fingerprint prefix | Judgment | Evidence from members |
++| --- | --- | --- | --- |
++| Katamari | body `133e47f6` | Intentional similarity | Two partition tests use the same assertions. One supplies the intervals in order and the other reverses them to exercise sorting. |
++| Katamari | body `165e689f` | Genuine duplication | `label_commit` and `commit_label` open the same transaction, stage the same label record and commit it with the same failure handling. |
++| Katamari | body `204cfb6f` | Inconclusive | Both `objects` helpers filter on a predicate. The image metadata test returns owned strings, while the projection test borrows typed RDF terms. Sharing the traversal would require deciding which ownership contract callers need. |
++| Katamari | shim `03519e6f` | Intentional similarity | `SoftPinDevice::new` and `PluggableDevice::new` set the same initial presence flag and device, but construct distinct test doubles for PIN and machine custody. |
++| Katamari | shim `0609fbec` | Intentional similarity | `listed` extracts staged byte paths. `everything` extracts graph node names. Both collect cloned map keys into a set, an idiom with distinct domain meanings here. |
++| Katamari | shim `08e0dbdc` | Genuine duplication | The two `said` helpers render the same `ProviderError` and apply the same failure assertion. |
++| PurRDF | body `006b49f2` | Genuine duplication | `envelope` and `encode_envelope` encode the same three COSE parts with the same CBOR tag. |
++| PurRDF | body `00d1c923` | Intentional similarity | The shape tests distinguish two spellings of one expression kind from two different expression kinds. They expect the same ambiguity diagnostic. |
++| PurRDF | body `01b72d7c` | Genuine duplication | Both `bnode` helpers construct the same blank-node term and initialize every optional field identically. |
++| PurRDF | shim `03eb112b` | Genuine duplication | The JSON record and retrieval tests parse fixture text into the same value with the same failure message. |
++| PurRDF | shim `0ceb5d91` | Genuine duplication | All four `exact` helpers resolve the same exact-arithmetic environment and assert the same precondition. |
++| PurRDF | shim `0f46eb95` | Genuine duplication | All five geometry helpers construct an XY coordinate, converting both integer components to the same rational type. |
++
++### Known copies selected from source
++
++A separate search started from Rust files under `crates/*/src`, excluding test
++files and test directories. It matched functions with the same name and a
++single-line signature, looking for identical nonempty body lines after trimming
++whitespace through a same-indent closing brace within 35 lines. From those cross-crate matches, manual inspection selected two substantive
++examples and a short accessor in each repository. The six pairs were fixed before looking up their locations in the
++group membership rows. A hit requires **both** source locations in one group.
++Paths below are relative to the consumer's `crates/` directory.
++
++| Source | Function | First location | Second location | Result |
++| --- | --- | --- | --- | --- |
++| Katamari | `check_generation` | `katamari-index-fjall/src/lib.rs:1474` | `katamari-index-redb/src/lib.rs:780` | Body `5d505095`. Both views reject a snapshot from a revoked deletion generation. |
++| Katamari | `repository_root` | `katamari-cas/src/bin/katamari-chunk-fixtures.rs:61` | `katamari-domain/src/bin/katamari-act-fixtures.rs:218` | Shim `f3061e84`. Both fixture generators canonicalize the same relative manifest path. |
++| Katamari | `authority_epoch` | `katamari-canonical/src/lib.rs:326` | `katamari-domain/src/commit.rs:188` | Miss. Both read the epoch field directly. |
++| PurRDF | `find` | `datalog/src/plan.rs:1061` | `rdf-core/src/canonical_labelling/reference.rs:800` | Body `3ef5802d`. Both halve the path to the union-find representative. |
++| PurRDF | `eat_kw` | `shex/src/parser.rs:225` | `sparql-algebra/src/parser.rs:1323` | Body `c84e19cd`. Both advance the parser by one token only on a keyword match. |
++| PurRDF | `limit` | `cli/src/fingerprint.rs:26` | `lex/src/allocation.rs:112` | Miss. Both decode a stored little-endian ceiling as `u128`. |
++
++Four of the six source pairs occur together in returned groups. The controls
++favor short, same-name, text-identical functions in different crates. They do
++not measure recall for renamed copies, embedded blocks or macro expansions.
++All twelve fingerprint-selected groups happen to contain test support or tests.
++The equal quota per group kind also gives shims more weight than their share of
++the PurRDF report. Neither count estimates repository-wide precision or recall.
++The original consumer baseline files are unavailable, so historical parity and
++foreign-ledger migration remain unmeasured by this sample.
+diff --git work/assessments/census-cli-constraints.md work/assessments/census-cli-constraints.md
+index ce16d915..78cbd898 100644
+--- work/assessments/census-cli-constraints.md
++++ work/assessments/census-cli-constraints.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
++    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-contract.md work/assessments/census-cli-contract.md
+index 4f514f3d..480ea4d1 100644
+--- work/assessments/census-cli-contract.md
++++ work/assessments/census-cli-contract.md
+@@ -7,7 +7,7 @@ subject: cap:census-cli#contract
+ inputs:
+   - kind: section
+     name: cap:census-cli#contract
+-    digest: 8857762a762ad0fe97ad69052416a22bd119541cf37a880cc5009fb423bed580
++    digest: 93e75a59e2834dbad4d7e7dbd65342663810668a34e639f98a5abb9d6d86d64d
+   - kind: symbol
+     name: cargo_census::run
+     digest: b32049f8a2619291edf0a2a43585c53654afca013fc0074ed2898c73a9c661fd
+diff --git work/assessments/census-cli-examples.md work/assessments/census-cli-examples.md
+index 80040af7..f2923617 100644
+--- work/assessments/census-cli-examples.md
++++ work/assessments/census-cli-examples.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
++    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-explanation.md work/assessments/census-cli-explanation.md
+index fb9f6c94..b4850935 100644
+--- work/assessments/census-cli-explanation.md
++++ work/assessments/census-cli-explanation.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
++    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-purpose.md work/assessments/census-cli-purpose.md
+index 7e61a396..f00fb6b4 100644
+--- work/assessments/census-cli-purpose.md
++++ work/assessments/census-cli-purpose.md
+@@ -61,7 +61,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
++    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/census-cli-verification.md work/assessments/census-cli-verification.md
+index 0f500249..4c8bad7c 100644
+--- work/assessments/census-cli-verification.md
++++ work/assessments/census-cli-verification.md
+@@ -7,7 +7,7 @@ subject: cap:census-cli#verification
+ inputs:
+   - kind: section
+     name: cap:census-cli#verification
+-    digest: b1a82ff9104f256b9e074477773fe4f2b9eecedcc77f18bbe6cce6b09f7ae6d8
++    digest: fbdc9a1a913d939d928733f43a6bb07d4b170fdf5088245eac01da4335eaf176
+   - kind: symbol
+     name: cargo_census::bin_crate::cargo_census::main
+     digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
+@@ -61,7 +61,7 @@ inputs:
+     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
+   - kind: symbol
+     name: raf_census::capnp_history
+-    digest: efc8ea6ec339dbc63f4b7112be45d8aa62594d72b917bdb46dece7e80281a988
++    digest: 63459f9bcf40f3baa2a66c5b89b7ee5252846d7cca8c54753ba3aa7af04fc9cb
+   - kind: symbol
+     name: raf_census::capnp_history::persistence::admission::check
+     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
+diff --git work/assessments/okf-profile-constraints.md work/assessments/okf-profile-constraints.md
+index c1e9b245..49bddf42 100644
+--- work/assessments/okf-profile-constraints.md
++++ work/assessments/okf-profile-constraints.md
+@@ -193,7 +193,7 @@ inputs:
+     digest: fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
+   - kind: symbol
+     name: raf_okf::HeaderShapeError
+-    digest: 4a49ada02bb2cf654f37f232f0d615ab5257184f8d5bfe9ce59ee6972394ecb4
++    digest: cf9b5e0ef7943fc808f762346a5421f47898ea4fa21746d1cdb8770b099661b2
+   - kind: symbol
+     name: raf_okf::Heading
+     digest: 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
+@@ -298,7 +298,7 @@ inputs:
+     digest: a4cd7152d67abbc58275e413c07a2a150ffee773a947672ea7a88bad688fe9e9
+   - kind: symbol
+     name: raf_okf::Rule
+-    digest: 766221dd28a7d54a8709a30fe252f28cdb80de71e948b1a2f35e872e646022d3
++    digest: 4f44d152f0af44e3f3c00fed6eb92f15334b6c2bcc511b75bea5915b8ea83dac
+   - kind: symbol
+     name: raf_okf::RuleTag
+     digest: 451cea50b086b19593a106a0fa1525873d3140a9ff729b7f648431e739b17a41
+@@ -370,7 +370,7 @@ inputs:
+     digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
+   - kind: symbol
+     name: raf_okf::profile::check_values
+-    digest: de512a126c664ec212968ec10052ca801870ee6dc40eaa722817ebf35d1499b9
++    digest: c329a862fcf152673d789f5200d4a9aded458eaefedb1215359cd53e2a797bc2
+   - kind: symbol
+     name: raf_okf::profile::diagrams
+     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e
+diff --git work/assessments/okf-profile-contract.md work/assessments/okf-profile-contract.md
+index 910019fe..77a22079 100644
+--- work/assessments/okf-profile-contract.md
++++ work/assessments/okf-profile-contract.md
+@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
+ inputs:
+   - kind: section
+     name: cap:okf-profile#contract
+-    digest: 1fc243c3f88b1b58a296032068bad5262f0fe3d1e0fe76b749b74da2e0be5d05
++    digest: 5c028a78fc7e74c11d188f293fe8725ab78c34f43d9c260a85e3bc9a046d7208
+   - kind: symbol
+     name: raf_okf::Actor
+     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
+diff --git work/assessments/okf-profile-explanation.md work/assessments/okf-profile-explanation.md
+index 537d472c..89f07643 100644
+--- work/assessments/okf-profile-explanation.md
++++ work/assessments/okf-profile-explanation.md
+@@ -193,7 +193,7 @@ inputs:
+     digest: fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
+   - kind: symbol
+     name: raf_okf::HeaderShapeError
+-    digest: 4a49ada02bb2cf654f37f232f0d615ab5257184f8d5bfe9ce59ee6972394ecb4
++    digest: cf9b5e0ef7943fc808f762346a5421f47898ea4fa21746d1cdb8770b099661b2
+   - kind: symbol
+     name: raf_okf::Heading
+     digest: 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
+@@ -298,7 +298,7 @@ inputs:
+     digest: a4cd7152d67abbc58275e413c07a2a150ffee773a947672ea7a88bad688fe9e9
+   - kind: symbol
+     name: raf_okf::Rule
+-    digest: 766221dd28a7d54a8709a30fe252f28cdb80de71e948b1a2f35e872e646022d3
++    digest: 4f44d152f0af44e3f3c00fed6eb92f15334b6c2bcc511b75bea5915b8ea83dac
+   - kind: symbol
+     name: raf_okf::RuleTag
+     digest: 451cea50b086b19593a106a0fa1525873d3140a9ff729b7f648431e739b17a41
+@@ -370,7 +370,7 @@ inputs:
+     digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
+   - kind: symbol
+     name: raf_okf::profile::check_values
+-    digest: de512a126c664ec212968ec10052ca801870ee6dc40eaa722817ebf35d1499b9
++    digest: c329a862fcf152673d789f5200d4a9aded458eaefedb1215359cd53e2a797bc2
+   - kind: symbol
+     name: raf_okf::profile::diagrams
+     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e
+diff --git work/assessments/okf-profile-purpose.md work/assessments/okf-profile-purpose.md
+index 6294e7e2..d876d14c 100644
+--- work/assessments/okf-profile-purpose.md
++++ work/assessments/okf-profile-purpose.md
+@@ -193,7 +193,7 @@ inputs:
+     digest: fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
+   - kind: symbol
+     name: raf_okf::HeaderShapeError
+-    digest: 4a49ada02bb2cf654f37f232f0d615ab5257184f8d5bfe9ce59ee6972394ecb4
++    digest: cf9b5e0ef7943fc808f762346a5421f47898ea4fa21746d1cdb8770b099661b2
+   - kind: symbol
+     name: raf_okf::Heading
+     digest: 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
+@@ -298,7 +298,7 @@ inputs:
+     digest: a4cd7152d67abbc58275e413c07a2a150ffee773a947672ea7a88bad688fe9e9
+   - kind: symbol
+     name: raf_okf::Rule
+-    digest: 766221dd28a7d54a8709a30fe252f28cdb80de71e948b1a2f35e872e646022d3
++    digest: 4f44d152f0af44e3f3c00fed6eb92f15334b6c2bcc511b75bea5915b8ea83dac
+   - kind: symbol
+     name: raf_okf::RuleTag
+     digest: 451cea50b086b19593a106a0fa1525873d3140a9ff729b7f648431e739b17a41
+@@ -370,7 +370,7 @@ inputs:
+     digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
+   - kind: symbol
+     name: raf_okf::profile::check_values
+-    digest: de512a126c664ec212968ec10052ca801870ee6dc40eaa722817ebf35d1499b9
++    digest: c329a862fcf152673d789f5200d4a9aded458eaefedb1215359cd53e2a797bc2
+   - kind: symbol
+     name: raf_okf::profile::diagrams
+     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e
+diff --git work/assessments/rdf-report-profile-constraints.md work/assessments/rdf-report-profile-constraints.md
+index a47003f7..1e364b23 100644
+--- work/assessments/rdf-report-profile-constraints.md
++++ work/assessments/rdf-report-profile-constraints.md
+@@ -10,10 +10,10 @@ inputs:
+     digest: 6a93fd2114a85f1fd565d277ddd18ec95316c189c8fe44540704c771d6560c03
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result
+-    digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
++    digest: 56c7eec3381e9d6ca0a90156f88e90ffae2f2a8b448ada2d5bdf222a4ab100a1
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_census::Baseline::to_ntriples
+     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
+@@ -106,7 +106,7 @@ inputs:
+     digest: 5f901d1f4b7c89215e0220800bb3f97dbae3b10f040201289a5f356462e08fe7
+   - kind: symbol
+     name: raf_workplan::report
+-    digest: 64974fbb2ad89048871716738854ab862b79160d4390d9ec45beb1bcfcdabb27
++    digest: cbd569a94bdf933dcdecadcc9cbd6edb948995904f4d9b684c87f436850de83f
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/rdf-report-profile-contract.md work/assessments/rdf-report-profile-contract.md
+index 7e9edbc9..ecb063df 100644
+--- work/assessments/rdf-report-profile-contract.md
++++ work/assessments/rdf-report-profile-contract.md
+@@ -7,10 +7,10 @@ subject: cap:rdf-report-profile#contract
+ inputs:
+   - kind: section
+     name: cap:rdf-report-profile#contract
+-    digest: 887893d2286a70b217ef93296f688acd97be1bc4c04120761a19ad85194e5f3f
++    digest: ff5d82ffd3e25ada4c6fbf818ed528e6162856c965720bcc3b4f2cc245771169
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result
+-    digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
++    digest: 56c7eec3381e9d6ca0a90156f88e90ffae2f2a8b448ada2d5bdf222a4ab100a1
+   - kind: symbol
+     name: raf_rdf::Builder
+     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
+@@ -28,7 +28,7 @@ inputs:
+     digest: 8a1c21bf5d2b16ed72893ae09283a01ddb0af1e798bb379084b5736d49e0b9ae
+   - kind: symbol
+     name: raf_workplan::report
+-    digest: 64974fbb2ad89048871716738854ab862b79160d4390d9ec45beb1bcfcdabb27
++    digest: cbd569a94bdf933dcdecadcc9cbd6edb948995904f4d9b684c87f436850de83f
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/rdf-report-profile-examples.md work/assessments/rdf-report-profile-examples.md
+index 433ff62f..56e9e37d 100644
+--- work/assessments/rdf-report-profile-examples.md
++++ work/assessments/rdf-report-profile-examples.md
+@@ -10,10 +10,10 @@ inputs:
+     digest: d6ac5f220f38f9391a24f4a636c14fce5f42d4a683be325b46115c4e9ca4c86a
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result
+-    digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
++    digest: 56c7eec3381e9d6ca0a90156f88e90ffae2f2a8b448ada2d5bdf222a4ab100a1
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_census::Baseline::to_ntriples
+     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
+@@ -106,7 +106,7 @@ inputs:
+     digest: 5f901d1f4b7c89215e0220800bb3f97dbae3b10f040201289a5f356462e08fe7
+   - kind: symbol
+     name: raf_workplan::report
+-    digest: 64974fbb2ad89048871716738854ab862b79160d4390d9ec45beb1bcfcdabb27
++    digest: cbd569a94bdf933dcdecadcc9cbd6edb948995904f4d9b684c87f436850de83f
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/rdf-report-profile-explanation.md work/assessments/rdf-report-profile-explanation.md
+index 77cd3ef4..4bbea6ba 100644
+--- work/assessments/rdf-report-profile-explanation.md
++++ work/assessments/rdf-report-profile-explanation.md
+@@ -10,10 +10,10 @@ inputs:
+     digest: 23228a26bff86af9f44840c149fb4e03461c969be7725185140e4cd967b8320f
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result
+-    digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
++    digest: 56c7eec3381e9d6ca0a90156f88e90ffae2f2a8b448ada2d5bdf222a4ab100a1
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_census::Baseline::to_ntriples
+     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
+@@ -106,7 +106,7 @@ inputs:
+     digest: 5f901d1f4b7c89215e0220800bb3f97dbae3b10f040201289a5f356462e08fe7
+   - kind: symbol
+     name: raf_workplan::report
+-    digest: 64974fbb2ad89048871716738854ab862b79160d4390d9ec45beb1bcfcdabb27
++    digest: cbd569a94bdf933dcdecadcc9cbd6edb948995904f4d9b684c87f436850de83f
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/rdf-report-profile-purpose.md work/assessments/rdf-report-profile-purpose.md
+index 50c456ad..7fefa78a 100644
+--- work/assessments/rdf-report-profile-purpose.md
++++ work/assessments/rdf-report-profile-purpose.md
+@@ -10,10 +10,10 @@ inputs:
+     digest: aede25f72bb681f342151a7ff60de593a7837a7474c0f3c0800d219764a6c5d9
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result
+-    digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
++    digest: 56c7eec3381e9d6ca0a90156f88e90ffae2f2a8b448ada2d5bdf222a4ab100a1
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_census::Baseline::to_ntriples
+     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
+@@ -106,7 +106,7 @@ inputs:
+     digest: 5f901d1f4b7c89215e0220800bb3f97dbae3b10f040201289a5f356462e08fe7
+   - kind: symbol
+     name: raf_workplan::report
+-    digest: 64974fbb2ad89048871716738854ab862b79160d4390d9ec45beb1bcfcdabb27
++    digest: cbd569a94bdf933dcdecadcc9cbd6edb948995904f4d9b684c87f436850de83f
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/rdf-report-profile-usage.md work/assessments/rdf-report-profile-usage.md
+index d5e54b85..f7439834 100644
+--- work/assessments/rdf-report-profile-usage.md
++++ work/assessments/rdf-report-profile-usage.md
+@@ -25,7 +25,7 @@ inputs:
+     digest: 8a1c21bf5d2b16ed72893ae09283a01ddb0af1e798bb379084b5736d49e0b9ae
+   - kind: symbol
+     name: raf_workplan::report
+-    digest: 64974fbb2ad89048871716738854ab862b79160d4390d9ec45beb1bcfcdabb27
++    digest: cbd569a94bdf933dcdecadcc9cbd6edb948995904f4d9b684c87f436850de83f
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/rdf-report-profile-verification.md work/assessments/rdf-report-profile-verification.md
+index 87489cb9..84cb4f84 100644
+--- work/assessments/rdf-report-profile-verification.md
++++ work/assessments/rdf-report-profile-verification.md
+@@ -10,10 +10,10 @@ inputs:
+     digest: b0ecf34b63df677242717344a85138f00ed67f19b7532bfa300e625769c5f37a
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result
+-    digest: bb62f3828d2bb0c7c48c06cd88bc53b81bf0167b2396b71025376cc6a7b04dbc
++    digest: 56c7eec3381e9d6ca0a90156f88e90ffae2f2a8b448ada2d5bdf222a4ab100a1
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_census::Baseline::to_ntriples
+     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
+@@ -106,7 +106,7 @@ inputs:
+     digest: 5f901d1f4b7c89215e0220800bb3f97dbae3b10f040201289a5f356462e08fe7
+   - kind: symbol
+     name: raf_workplan::report
+-    digest: 64974fbb2ad89048871716738854ab862b79160d4390d9ec45beb1bcfcdabb27
++    digest: cbd569a94bdf933dcdecadcc9cbd6edb948995904f4d9b684c87f436850de83f
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-cli-constraints.md work/assessments/workplan-cli-constraints.md
+index 1f2197c7..36cd65cf 100644
+--- work/assessments/workplan-cli-constraints.md
++++ work/assessments/workplan-cli-constraints.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change
+-    digest: 4a7905793b85ec29ff133d5e21c6de6f9babfd0ae726e471148e5beed634c459
++    digest: 1f18954a1c54639d7ace9efa95d783a2d68e19996b03ddbfddf1d5c343ca0b54
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change::complete
+     digest: 9a8b35c8e6703273bb0ea040af33b83c32095d43e7ed04ee374cb4be561a988e
+@@ -22,7 +22,7 @@ inputs:
+     digest: d644af3f479aa82b30a5e32dbc519c4162aaf01eab86404b8b2bf554a9d3b4d4
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli
+-    digest: 2375db1019a8c2c91dde8d643451f23dad4286a93bb4d5b28130035ffcc3c671
++    digest: 3a4493da3da68d69d5d053760c317b9e1aaad2c84d4d3e6792b48e68da7a40bb
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
+     digest: 3dd1ebff24e34829916e12cb1dbd1fdcc87aee247237951ea1b4596727a9504c
+@@ -40,7 +40,7 @@ inputs:
+     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command
+-    digest: 169abf20ece6033760bf0d7ec538424e82d42282cc5fde9a6a014547a008eec6
++    digest: 86bd3dce40f77fbd50c270b75e2cf61004d1ca871fa3f8d0805a0189a4600643
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::LABEL
+     digest: f300cdd6db95e4d02367bf5fa3bc061b321fa069f7383182c4e024f0b850a538
+@@ -55,7 +55,7 @@ inputs:
+     digest: 650912fb23c2f72ff8638769f457f55e64216c9e6fdb458dd8a4afff7ddcb010
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::run
+-    digest: 6e39ae0b14dd5de4ef3d435d7e6f160d345596ae5580ea2a30336df6c44157a2
++    digest: 738532315811db2b989ce537e543cd188e5263d727cfc2f1448162ca57681614
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::standalone
+     digest: aa63afc7b836c3a36c098c2d68b6f462c695bc59f385625ca7b3b237cd0615ae
+@@ -94,7 +94,7 @@ inputs:
+     digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_workplan::escape
+     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25
+diff --git work/assessments/workplan-cli-contract.md work/assessments/workplan-cli-contract.md
+index acdcae59..226d5821 100644
+--- work/assessments/workplan-cli-contract.md
++++ work/assessments/workplan-cli-contract.md
+@@ -7,13 +7,13 @@ subject: cap:workplan-cli#contract
+ inputs:
+   - kind: section
+     name: cap:workplan-cli#contract
+-    digest: 6ae9fada56d79a2f442bb3ce835f8f107b13a5b9d9a632d17fd223c960ce8b56
++    digest: 301d28d296099745c213e8675eb5ab1eb00040a25a44826f9954121173646eeb
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
+     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change
+-    digest: 4a7905793b85ec29ff133d5e21c6de6f9babfd0ae726e471148e5beed634c459
++    digest: 1f18954a1c54639d7ace9efa95d783a2d68e19996b03ddbfddf1d5c343ca0b54
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change::complete
+     digest: 9a8b35c8e6703273bb0ea040af33b83c32095d43e7ed04ee374cb4be561a988e
+@@ -22,7 +22,7 @@ inputs:
+     digest: d644af3f479aa82b30a5e32dbc519c4162aaf01eab86404b8b2bf554a9d3b4d4
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli
+-    digest: 2375db1019a8c2c91dde8d643451f23dad4286a93bb4d5b28130035ffcc3c671
++    digest: 3a4493da3da68d69d5d053760c317b9e1aaad2c84d4d3e6792b48e68da7a40bb
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
+     digest: 3dd1ebff24e34829916e12cb1dbd1fdcc87aee247237951ea1b4596727a9504c
+@@ -40,7 +40,7 @@ inputs:
+     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command
+-    digest: 169abf20ece6033760bf0d7ec538424e82d42282cc5fde9a6a014547a008eec6
++    digest: 86bd3dce40f77fbd50c270b75e2cf61004d1ca871fa3f8d0805a0189a4600643
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::LABEL
+     digest: f300cdd6db95e4d02367bf5fa3bc061b321fa069f7383182c4e024f0b850a538
+@@ -55,7 +55,7 @@ inputs:
+     digest: 650912fb23c2f72ff8638769f457f55e64216c9e6fdb458dd8a4afff7ddcb010
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::run
+-    digest: 6e39ae0b14dd5de4ef3d435d7e6f160d345596ae5580ea2a30336df6c44157a2
++    digest: 738532315811db2b989ce537e543cd188e5263d727cfc2f1448162ca57681614
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::standalone
+     digest: aa63afc7b836c3a36c098c2d68b6f462c695bc59f385625ca7b3b237cd0615ae
+@@ -94,7 +94,7 @@ inputs:
+     digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_workplan::escape
+     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25
+diff --git work/assessments/workplan-cli-examples.md work/assessments/workplan-cli-examples.md
+index 4d2dde9f..7ab1555a 100644
+--- work/assessments/workplan-cli-examples.md
++++ work/assessments/workplan-cli-examples.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change
+-    digest: 4a7905793b85ec29ff133d5e21c6de6f9babfd0ae726e471148e5beed634c459
++    digest: 1f18954a1c54639d7ace9efa95d783a2d68e19996b03ddbfddf1d5c343ca0b54
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change::complete
+     digest: 9a8b35c8e6703273bb0ea040af33b83c32095d43e7ed04ee374cb4be561a988e
+@@ -22,7 +22,7 @@ inputs:
+     digest: d644af3f479aa82b30a5e32dbc519c4162aaf01eab86404b8b2bf554a9d3b4d4
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli
+-    digest: 2375db1019a8c2c91dde8d643451f23dad4286a93bb4d5b28130035ffcc3c671
++    digest: 3a4493da3da68d69d5d053760c317b9e1aaad2c84d4d3e6792b48e68da7a40bb
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
+     digest: 3dd1ebff24e34829916e12cb1dbd1fdcc87aee247237951ea1b4596727a9504c
+@@ -40,7 +40,7 @@ inputs:
+     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command
+-    digest: 169abf20ece6033760bf0d7ec538424e82d42282cc5fde9a6a014547a008eec6
++    digest: 86bd3dce40f77fbd50c270b75e2cf61004d1ca871fa3f8d0805a0189a4600643
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::LABEL
+     digest: f300cdd6db95e4d02367bf5fa3bc061b321fa069f7383182c4e024f0b850a538
+@@ -55,7 +55,7 @@ inputs:
+     digest: 650912fb23c2f72ff8638769f457f55e64216c9e6fdb458dd8a4afff7ddcb010
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::run
+-    digest: 6e39ae0b14dd5de4ef3d435d7e6f160d345596ae5580ea2a30336df6c44157a2
++    digest: 738532315811db2b989ce537e543cd188e5263d727cfc2f1448162ca57681614
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::standalone
+     digest: aa63afc7b836c3a36c098c2d68b6f462c695bc59f385625ca7b3b237cd0615ae
+@@ -94,7 +94,7 @@ inputs:
+     digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_workplan::escape
+     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25
+diff --git work/assessments/workplan-cli-explanation.md work/assessments/workplan-cli-explanation.md
+index b3b150e3..ecf782c6 100644
+--- work/assessments/workplan-cli-explanation.md
++++ work/assessments/workplan-cli-explanation.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change
+-    digest: 4a7905793b85ec29ff133d5e21c6de6f9babfd0ae726e471148e5beed634c459
++    digest: 1f18954a1c54639d7ace9efa95d783a2d68e19996b03ddbfddf1d5c343ca0b54
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change::complete
+     digest: 9a8b35c8e6703273bb0ea040af33b83c32095d43e7ed04ee374cb4be561a988e
+@@ -22,7 +22,7 @@ inputs:
+     digest: d644af3f479aa82b30a5e32dbc519c4162aaf01eab86404b8b2bf554a9d3b4d4
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli
+-    digest: 2375db1019a8c2c91dde8d643451f23dad4286a93bb4d5b28130035ffcc3c671
++    digest: 3a4493da3da68d69d5d053760c317b9e1aaad2c84d4d3e6792b48e68da7a40bb
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
+     digest: 3dd1ebff24e34829916e12cb1dbd1fdcc87aee247237951ea1b4596727a9504c
+@@ -40,7 +40,7 @@ inputs:
+     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command
+-    digest: 169abf20ece6033760bf0d7ec538424e82d42282cc5fde9a6a014547a008eec6
++    digest: 86bd3dce40f77fbd50c270b75e2cf61004d1ca871fa3f8d0805a0189a4600643
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::LABEL
+     digest: f300cdd6db95e4d02367bf5fa3bc061b321fa069f7383182c4e024f0b850a538
+@@ -55,7 +55,7 @@ inputs:
+     digest: 650912fb23c2f72ff8638769f457f55e64216c9e6fdb458dd8a4afff7ddcb010
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::run
+-    digest: 6e39ae0b14dd5de4ef3d435d7e6f160d345596ae5580ea2a30336df6c44157a2
++    digest: 738532315811db2b989ce537e543cd188e5263d727cfc2f1448162ca57681614
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::standalone
+     digest: aa63afc7b836c3a36c098c2d68b6f462c695bc59f385625ca7b3b237cd0615ae
+@@ -94,7 +94,7 @@ inputs:
+     digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_workplan::escape
+     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25
+diff --git work/assessments/workplan-cli-purpose.md work/assessments/workplan-cli-purpose.md
+index 555fb244..1396e3eb 100644
+--- work/assessments/workplan-cli-purpose.md
++++ work/assessments/workplan-cli-purpose.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change
+-    digest: 4a7905793b85ec29ff133d5e21c6de6f9babfd0ae726e471148e5beed634c459
++    digest: 1f18954a1c54639d7ace9efa95d783a2d68e19996b03ddbfddf1d5c343ca0b54
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change::complete
+     digest: 9a8b35c8e6703273bb0ea040af33b83c32095d43e7ed04ee374cb4be561a988e
+@@ -22,7 +22,7 @@ inputs:
+     digest: d644af3f479aa82b30a5e32dbc519c4162aaf01eab86404b8b2bf554a9d3b4d4
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli
+-    digest: 2375db1019a8c2c91dde8d643451f23dad4286a93bb4d5b28130035ffcc3c671
++    digest: 3a4493da3da68d69d5d053760c317b9e1aaad2c84d4d3e6792b48e68da7a40bb
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
+     digest: 3dd1ebff24e34829916e12cb1dbd1fdcc87aee247237951ea1b4596727a9504c
+@@ -40,7 +40,7 @@ inputs:
+     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command
+-    digest: 169abf20ece6033760bf0d7ec538424e82d42282cc5fde9a6a014547a008eec6
++    digest: 86bd3dce40f77fbd50c270b75e2cf61004d1ca871fa3f8d0805a0189a4600643
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::LABEL
+     digest: f300cdd6db95e4d02367bf5fa3bc061b321fa069f7383182c4e024f0b850a538
+@@ -55,7 +55,7 @@ inputs:
+     digest: 650912fb23c2f72ff8638769f457f55e64216c9e6fdb458dd8a4afff7ddcb010
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::run
+-    digest: 6e39ae0b14dd5de4ef3d435d7e6f160d345596ae5580ea2a30336df6c44157a2
++    digest: 738532315811db2b989ce537e543cd188e5263d727cfc2f1448162ca57681614
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::standalone
+     digest: aa63afc7b836c3a36c098c2d68b6f462c695bc59f385625ca7b3b237cd0615ae
+@@ -94,7 +94,7 @@ inputs:
+     digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_workplan::escape
+     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25
+diff --git work/assessments/workplan-cli-usage.md work/assessments/workplan-cli-usage.md
+index d8ae72a5..342cf41a 100644
+--- work/assessments/workplan-cli-usage.md
++++ work/assessments/workplan-cli-usage.md
+@@ -7,13 +7,13 @@ subject: cap:workplan-cli#usage
+ inputs:
+   - kind: section
+     name: cap:workplan-cli#usage
+-    digest: 6a97f3f635d0db441d7152ee6d4eaa7db3d99e08461f0b441ba3b9200609acd9
++    digest: 71f06c0ab8c15c72a010c0baf929ca67a38811f45675e49aa48a865a4ca86a71
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
+     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change
+-    digest: 4a7905793b85ec29ff133d5e21c6de6f9babfd0ae726e471148e5beed634c459
++    digest: 1f18954a1c54639d7ace9efa95d783a2d68e19996b03ddbfddf1d5c343ca0b54
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change::complete
+     digest: 9a8b35c8e6703273bb0ea040af33b83c32095d43e7ed04ee374cb4be561a988e
+@@ -22,7 +22,7 @@ inputs:
+     digest: d644af3f479aa82b30a5e32dbc519c4162aaf01eab86404b8b2bf554a9d3b4d4
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli
+-    digest: 2375db1019a8c2c91dde8d643451f23dad4286a93bb4d5b28130035ffcc3c671
++    digest: 3a4493da3da68d69d5d053760c317b9e1aaad2c84d4d3e6792b48e68da7a40bb
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
+     digest: 3dd1ebff24e34829916e12cb1dbd1fdcc87aee247237951ea1b4596727a9504c
+@@ -40,7 +40,7 @@ inputs:
+     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command
+-    digest: 169abf20ece6033760bf0d7ec538424e82d42282cc5fde9a6a014547a008eec6
++    digest: 86bd3dce40f77fbd50c270b75e2cf61004d1ca871fa3f8d0805a0189a4600643
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::LABEL
+     digest: f300cdd6db95e4d02367bf5fa3bc061b321fa069f7383182c4e024f0b850a538
+@@ -55,7 +55,7 @@ inputs:
+     digest: 650912fb23c2f72ff8638769f457f55e64216c9e6fdb458dd8a4afff7ddcb010
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::run
+-    digest: 6e39ae0b14dd5de4ef3d435d7e6f160d345596ae5580ea2a30336df6c44157a2
++    digest: 738532315811db2b989ce537e543cd188e5263d727cfc2f1448162ca57681614
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::standalone
+     digest: aa63afc7b836c3a36c098c2d68b6f462c695bc59f385625ca7b3b237cd0615ae
+@@ -94,7 +94,7 @@ inputs:
+     digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_workplan::escape
+     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25
+diff --git work/assessments/workplan-cli-verification.md work/assessments/workplan-cli-verification.md
+index 491500b1..316fb89f 100644
+--- work/assessments/workplan-cli-verification.md
++++ work/assessments/workplan-cli-verification.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change
+-    digest: 4a7905793b85ec29ff133d5e21c6de6f9babfd0ae726e471148e5beed634c459
++    digest: 1f18954a1c54639d7ace9efa95d783a2d68e19996b03ddbfddf1d5c343ca0b54
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::change::complete
+     digest: 9a8b35c8e6703273bb0ea040af33b83c32095d43e7ed04ee374cb4be561a988e
+@@ -22,7 +22,7 @@ inputs:
+     digest: d644af3f479aa82b30a5e32dbc519c4162aaf01eab86404b8b2bf554a9d3b4d4
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli
+-    digest: 2375db1019a8c2c91dde8d643451f23dad4286a93bb4d5b28130035ffcc3c671
++    digest: 3a4493da3da68d69d5d053760c317b9e1aaad2c84d4d3e6792b48e68da7a40bb
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
+     digest: 3dd1ebff24e34829916e12cb1dbd1fdcc87aee247237951ea1b4596727a9504c
+@@ -40,7 +40,7 @@ inputs:
+     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command
+-    digest: 169abf20ece6033760bf0d7ec538424e82d42282cc5fde9a6a014547a008eec6
++    digest: 86bd3dce40f77fbd50c270b75e2cf61004d1ca871fa3f8d0805a0189a4600643
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::LABEL
+     digest: f300cdd6db95e4d02367bf5fa3bc061b321fa069f7383182c4e024f0b850a538
+@@ -55,7 +55,7 @@ inputs:
+     digest: 650912fb23c2f72ff8638769f457f55e64216c9e6fdb458dd8a4afff7ddcb010
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::run
+-    digest: 6e39ae0b14dd5de4ef3d435d7e6f160d345596ae5580ea2a30336df6c44157a2
++    digest: 738532315811db2b989ce537e543cd188e5263d727cfc2f1448162ca57681614
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::command::standalone
+     digest: aa63afc7b836c3a36c098c2d68b6f462c695bc59f385625ca7b3b237cd0615ae
+@@ -94,7 +94,7 @@ inputs:
+     digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d
+   - kind: symbol
+     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+-    digest: 12dc5df31ab5313dd2ac7b18fcdb8c8070f134742aa6e22d4041d79fe82c2b1f
++    digest: 1b1050a8f968486172ef0584c6ca4a15cff09d30cead93c6af46e567c1472863
+   - kind: symbol
+     name: raf_workplan::escape
+     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25
+diff --git work/assessments/workplan-complete-gate-constraints.md work/assessments/workplan-complete-gate-constraints.md
+index 1b063b25..737bc2cb 100644
+--- work/assessments/workplan-complete-gate-constraints.md
++++ work/assessments/workplan-complete-gate-constraints.md
+@@ -10,7 +10,7 @@ inputs:
+     digest: c96f7ae35889f11802abbf5d663fff43a2eaff248cfad1fe9e9902f756c77077
+   - kind: symbol
+     name: raf_workplan::Gate::open
+-    digest: 79264e4a592d77f98a84a7ee97aff6694919575c2ba2f33d0a2d2a73c76803f0
++    digest: 24c51713a75053a629d2a60ee9f392e1bc91d4c05eef5b16eff6474f47a1bf74
+   - kind: symbol
+     name: raf_workplan::Gate::tracked_list
+     digest: 5227aab9da4cc93e1849155bbf1760fc6914a1ba43a677690f14270cbe20ebc8
+diff --git work/assessments/workplan-complete-gate-contract.md work/assessments/workplan-complete-gate-contract.md
+index ec5132a1..f69e723f 100644
+--- work/assessments/workplan-complete-gate-contract.md
++++ work/assessments/workplan-complete-gate-contract.md
+@@ -10,7 +10,7 @@ inputs:
+     digest: 8ce33f0e96432ba53b5613f2676102e30eee9a7448fba373056b2a09d0d209c9
+   - kind: symbol
+     name: raf_workplan::Gate::open
+-    digest: 79264e4a592d77f98a84a7ee97aff6694919575c2ba2f33d0a2d2a73c76803f0
++    digest: 24c51713a75053a629d2a60ee9f392e1bc91d4c05eef5b16eff6474f47a1bf74
+   - kind: symbol
+     name: raf_workplan::Gate::tracked_list
+     digest: 5227aab9da4cc93e1849155bbf1760fc6914a1ba43a677690f14270cbe20ebc8
+diff --git work/assessments/workplan-complete-gate-examples.md work/assessments/workplan-complete-gate-examples.md
+index ffea7f37..910daf8c 100644
+--- work/assessments/workplan-complete-gate-examples.md
++++ work/assessments/workplan-complete-gate-examples.md
+@@ -10,7 +10,7 @@ inputs:
+     digest: f5bb0188f1766eedd58d01acbf1b7a632ce90818b1f9cdaf779a9e40cc2f7e0d
+   - kind: symbol
+     name: raf_workplan::Gate::open
+-    digest: 79264e4a592d77f98a84a7ee97aff6694919575c2ba2f33d0a2d2a73c76803f0
++    digest: 24c51713a75053a629d2a60ee9f392e1bc91d4c05eef5b16eff6474f47a1bf74
+   - kind: symbol
+     name: raf_workplan::Gate::tracked_list
+     digest: 5227aab9da4cc93e1849155bbf1760fc6914a1ba43a677690f14270cbe20ebc8
+diff --git work/assessments/workplan-complete-gate-explanation.md work/assessments/workplan-complete-gate-explanation.md
+index 5c021d0c..f399fd6c 100644
+--- work/assessments/workplan-complete-gate-explanation.md
++++ work/assessments/workplan-complete-gate-explanation.md
+@@ -10,7 +10,7 @@ inputs:
+     digest: d2604d56fd4f3891fd70431e778ee08f70f9b46df63b7c0e730609f2c202432a
+   - kind: symbol
+     name: raf_workplan::Gate::open
+-    digest: 79264e4a592d77f98a84a7ee97aff6694919575c2ba2f33d0a2d2a73c76803f0
++    digest: 24c51713a75053a629d2a60ee9f392e1bc91d4c05eef5b16eff6474f47a1bf74
+   - kind: symbol
+     name: raf_workplan::Gate::tracked_list
+     digest: 5227aab9da4cc93e1849155bbf1760fc6914a1ba43a677690f14270cbe20ebc8
+diff --git work/assessments/workplan-complete-gate-purpose.md work/assessments/workplan-complete-gate-purpose.md
+index 57892ea1..d2854d40 100644
+--- work/assessments/workplan-complete-gate-purpose.md
++++ work/assessments/workplan-complete-gate-purpose.md
+@@ -10,7 +10,7 @@ inputs:
+     digest: 646f8efeffd4385fef8b4e161390334acf37573f7af59e5fb2fe264d6df5d86d
+   - kind: symbol
+     name: raf_workplan::Gate::open
+-    digest: 79264e4a592d77f98a84a7ee97aff6694919575c2ba2f33d0a2d2a73c76803f0
++    digest: 24c51713a75053a629d2a60ee9f392e1bc91d4c05eef5b16eff6474f47a1bf74
+   - kind: symbol
+     name: raf_workplan::Gate::tracked_list
+     digest: 5227aab9da4cc93e1849155bbf1760fc6914a1ba43a677690f14270cbe20ebc8
+diff --git work/assessments/workplan-complete-gate-usage.md work/assessments/workplan-complete-gate-usage.md
+index b413045e..3f8e9c78 100644
+--- work/assessments/workplan-complete-gate-usage.md
++++ work/assessments/workplan-complete-gate-usage.md
+@@ -10,7 +10,7 @@ inputs:
+     digest: 0846b43eb261693360e85fe61c451098fb80dea04a17375bec1903457dd0a233
+   - kind: symbol
+     name: raf_workplan::Gate::open
+-    digest: 79264e4a592d77f98a84a7ee97aff6694919575c2ba2f33d0a2d2a73c76803f0
++    digest: 24c51713a75053a629d2a60ee9f392e1bc91d4c05eef5b16eff6474f47a1bf74
+   - kind: symbol
+     name: raf_workplan::Gate::tracked_list
+     digest: 5227aab9da4cc93e1849155bbf1760fc6914a1ba43a677690f14270cbe20ebc8
+diff --git work/assessments/workplan-complete-gate-verification.md work/assessments/workplan-complete-gate-verification.md
+index e15bc450..db6fac5f 100644
+--- work/assessments/workplan-complete-gate-verification.md
++++ work/assessments/workplan-complete-gate-verification.md
+@@ -10,7 +10,7 @@ inputs:
+     digest: 1465f21bb9eacdfe2d96b61099ec2d5b6bf9b66402356b8fc24a660a8d006641
+   - kind: symbol
+     name: raf_workplan::Gate::open
+-    digest: 79264e4a592d77f98a84a7ee97aff6694919575c2ba2f33d0a2d2a73c76803f0
++    digest: 24c51713a75053a629d2a60ee9f392e1bc91d4c05eef5b16eff6474f47a1bf74
+   - kind: symbol
+     name: raf_workplan::Gate::tracked_list
+     digest: 5227aab9da4cc93e1849155bbf1760fc6914a1ba43a677690f14270cbe20ebc8
+diff --git work/assessments/workplan-entity-history-constraints.md work/assessments/workplan-entity-history-constraints.md
+index 2af9628b..5e4af855 100644
+--- work/assessments/workplan-entity-history-constraints.md
++++ work/assessments/workplan-entity-history-constraints.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: 7b8b43d5973ca72d2d97b06dc9fa47fa1ae90f6ea8bb2928194c6f0ecf64ef85
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::AuthorDate
+     digest: 8d0b9afa76c2157e5eb5d80ed11f9c823d0d54899168a84423a545dd36b16f81
+diff --git work/assessments/workplan-entity-history-contract.md work/assessments/workplan-entity-history-contract.md
+index 9e79c060..490af217 100644
+--- work/assessments/workplan-entity-history-contract.md
++++ work/assessments/workplan-entity-history-contract.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: 7b8b43d5973ca72d2d97b06dc9fa47fa1ae90f6ea8bb2928194c6f0ecf64ef85
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::AuthorDate
+     digest: 8d0b9afa76c2157e5eb5d80ed11f9c823d0d54899168a84423a545dd36b16f81
+diff --git work/assessments/workplan-entity-history-explanation.md work/assessments/workplan-entity-history-explanation.md
+index 49ec9977..280b1ec9 100644
+--- work/assessments/workplan-entity-history-explanation.md
++++ work/assessments/workplan-entity-history-explanation.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: 7b8b43d5973ca72d2d97b06dc9fa47fa1ae90f6ea8bb2928194c6f0ecf64ef85
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::AuthorDate
+     digest: 8d0b9afa76c2157e5eb5d80ed11f9c823d0d54899168a84423a545dd36b16f81
+diff --git work/assessments/workplan-entity-history-purpose.md work/assessments/workplan-entity-history-purpose.md
+index 81418060..9bf77ee7 100644
+--- work/assessments/workplan-entity-history-purpose.md
++++ work/assessments/workplan-entity-history-purpose.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: 7b8b43d5973ca72d2d97b06dc9fa47fa1ae90f6ea8bb2928194c6f0ecf64ef85
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::AuthorDate
+     digest: 8d0b9afa76c2157e5eb5d80ed11f9c823d0d54899168a84423a545dd36b16f81
+diff --git work/assessments/workplan-entity-history-verification.md work/assessments/workplan-entity-history-verification.md
+index 4a3615c8..2b4610d3 100644
+--- work/assessments/workplan-entity-history-verification.md
++++ work/assessments/workplan-entity-history-verification.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: 7b8b43d5973ca72d2d97b06dc9fa47fa1ae90f6ea8bb2928194c6f0ecf64ef85
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::AuthorDate
+     digest: 8d0b9afa76c2157e5eb5d80ed11f9c823d0d54899168a84423a545dd36b16f81
+diff --git work/assessments/workplan-reconcile-constraints.md work/assessments/workplan-reconcile-constraints.md
+index a8dc9322..1165e75f 100644
+--- work/assessments/workplan-reconcile-constraints.md
++++ work/assessments/workplan-reconcile-constraints.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: dc8a8600263b5f9a10aa7cffc3ecbec81a2916b0a29dd22a1b1d161380c1b20f
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::MergeBase
+     digest: 951ddc94dd150031a671ed2e86ff2c9d0d2b40bf1587af888f53bd09f2ed1dc2
+@@ -43,7 +43,7 @@ inputs:
+     digest: 8faccb5690df217dc2a093f3142b723662621569d56e1274a4c47b3a84d15f52
+   - kind: symbol
+     name: raf_workplan::lifecycle
+-    digest: 70d90598ad4c0f54d4fa29709aa1bd9aa0810e261acef4a7356bef2d2debe06b
++    digest: 2f999a1a221fc8c108b088eeebeb94963b31a207aeca6ba2d8e48f6d8d1a317e
+   - kind: symbol
+     name: raf_workplan::lifecycle::Impact
+     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
+@@ -53,6 +53,9 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::reconcile
+     digest: 6fa2fd1a30b0e36763f3c3ef091f2b758f1b09b169408df5a1d263f5f1ca9c48
++  - kind: symbol
++    name: raf_workplan::lifecycle::Lifecycle::source_impact
++    digest: ba00cfd2efbfb00925aaee19764e34c1c6cfe0580971cc719a378ab3befbcc59
+   - kind: symbol
+     name: raf_workplan::lifecycle::NewChange
+     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
+@@ -68,9 +71,12 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::section_digest
+     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
++  - kind: symbol
++    name: raf_workplan::lifecycle::source_impact
++    digest: d6e3c7ec232abf98166b2b953166c950b72c60a7414a9bf1bd87a57773f50498
+   - kind: symbol
+     name: raf_workplan::lifecycle::touched
+-    digest: 49f2842d828cda3ab00b2e9c3e80bb5ef81b45a0e399405d478af1f43cb351ec
++    digest: 65184e6531feaf3ab87ec6bfedb4bd56c1408692bebb6f66006b028eaa60f700
+   - kind: symbol
+     name: raf_workplan::lifecycle::untouched
+     digest: c4bcfb2c0638b52dcd66423977bf61207f5fae27cb5ccc2a1acddc416858af40
+diff --git work/assessments/workplan-reconcile-contract.md work/assessments/workplan-reconcile-contract.md
+index 6891cbc9..f955bf28 100644
+--- work/assessments/workplan-reconcile-contract.md
++++ work/assessments/workplan-reconcile-contract.md
+@@ -7,7 +7,7 @@ subject: cap:workplan-reconcile#contract
+ inputs:
+   - kind: section
+     name: cap:workplan-reconcile#contract
+-    digest: 2459f2c037c84388469e223f3241e4e3d9baa8237d29c176a0e66bd6ef72074c
++    digest: 9ebd26947bba58e80d83e232369a79b5d0dfd44ef9795d2fb13d47558e895426
+   - kind: symbol
+     name: raf_workplan::Workplan::impact
+     digest: 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a
+@@ -19,7 +19,7 @@ inputs:
+     digest: dc8a8600263b5f9a10aa7cffc3ecbec81a2916b0a29dd22a1b1d161380c1b20f
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::MergeBase
+     digest: 951ddc94dd150031a671ed2e86ff2c9d0d2b40bf1587af888f53bd09f2ed1dc2
+@@ -43,7 +43,7 @@ inputs:
+     digest: 8faccb5690df217dc2a093f3142b723662621569d56e1274a4c47b3a84d15f52
+   - kind: symbol
+     name: raf_workplan::lifecycle
+-    digest: 70d90598ad4c0f54d4fa29709aa1bd9aa0810e261acef4a7356bef2d2debe06b
++    digest: 2f999a1a221fc8c108b088eeebeb94963b31a207aeca6ba2d8e48f6d8d1a317e
+   - kind: symbol
+     name: raf_workplan::lifecycle::Impact
+     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
+@@ -53,6 +53,9 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::reconcile
+     digest: 6fa2fd1a30b0e36763f3c3ef091f2b758f1b09b169408df5a1d263f5f1ca9c48
++  - kind: symbol
++    name: raf_workplan::lifecycle::Lifecycle::source_impact
++    digest: ba00cfd2efbfb00925aaee19764e34c1c6cfe0580971cc719a378ab3befbcc59
+   - kind: symbol
+     name: raf_workplan::lifecycle::NewChange
+     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
+@@ -68,9 +71,12 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::section_digest
+     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
++  - kind: symbol
++    name: raf_workplan::lifecycle::source_impact
++    digest: d6e3c7ec232abf98166b2b953166c950b72c60a7414a9bf1bd87a57773f50498
+   - kind: symbol
+     name: raf_workplan::lifecycle::touched
+-    digest: 49f2842d828cda3ab00b2e9c3e80bb5ef81b45a0e399405d478af1f43cb351ec
++    digest: 65184e6531feaf3ab87ec6bfedb4bd56c1408692bebb6f66006b028eaa60f700
+   - kind: symbol
+     name: raf_workplan::lifecycle::untouched
+     digest: c4bcfb2c0638b52dcd66423977bf61207f5fae27cb5ccc2a1acddc416858af40
+diff --git work/assessments/workplan-reconcile-examples.md work/assessments/workplan-reconcile-examples.md
+index ab984982..f7e17994 100644
+--- work/assessments/workplan-reconcile-examples.md
++++ work/assessments/workplan-reconcile-examples.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: dc8a8600263b5f9a10aa7cffc3ecbec81a2916b0a29dd22a1b1d161380c1b20f
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::MergeBase
+     digest: 951ddc94dd150031a671ed2e86ff2c9d0d2b40bf1587af888f53bd09f2ed1dc2
+@@ -43,7 +43,7 @@ inputs:
+     digest: 8faccb5690df217dc2a093f3142b723662621569d56e1274a4c47b3a84d15f52
+   - kind: symbol
+     name: raf_workplan::lifecycle
+-    digest: 70d90598ad4c0f54d4fa29709aa1bd9aa0810e261acef4a7356bef2d2debe06b
++    digest: 2f999a1a221fc8c108b088eeebeb94963b31a207aeca6ba2d8e48f6d8d1a317e
+   - kind: symbol
+     name: raf_workplan::lifecycle::Impact
+     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
+@@ -53,6 +53,9 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::reconcile
+     digest: 6fa2fd1a30b0e36763f3c3ef091f2b758f1b09b169408df5a1d263f5f1ca9c48
++  - kind: symbol
++    name: raf_workplan::lifecycle::Lifecycle::source_impact
++    digest: ba00cfd2efbfb00925aaee19764e34c1c6cfe0580971cc719a378ab3befbcc59
+   - kind: symbol
+     name: raf_workplan::lifecycle::NewChange
+     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
+@@ -68,9 +71,12 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::section_digest
+     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
++  - kind: symbol
++    name: raf_workplan::lifecycle::source_impact
++    digest: d6e3c7ec232abf98166b2b953166c950b72c60a7414a9bf1bd87a57773f50498
+   - kind: symbol
+     name: raf_workplan::lifecycle::touched
+-    digest: 49f2842d828cda3ab00b2e9c3e80bb5ef81b45a0e399405d478af1f43cb351ec
++    digest: 65184e6531feaf3ab87ec6bfedb4bd56c1408692bebb6f66006b028eaa60f700
+   - kind: symbol
+     name: raf_workplan::lifecycle::untouched
+     digest: c4bcfb2c0638b52dcd66423977bf61207f5fae27cb5ccc2a1acddc416858af40
+diff --git work/assessments/workplan-reconcile-explanation.md work/assessments/workplan-reconcile-explanation.md
+index 237f33e9..f1ec0e98 100644
+--- work/assessments/workplan-reconcile-explanation.md
++++ work/assessments/workplan-reconcile-explanation.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: dc8a8600263b5f9a10aa7cffc3ecbec81a2916b0a29dd22a1b1d161380c1b20f
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::MergeBase
+     digest: 951ddc94dd150031a671ed2e86ff2c9d0d2b40bf1587af888f53bd09f2ed1dc2
+@@ -43,7 +43,7 @@ inputs:
+     digest: 8faccb5690df217dc2a093f3142b723662621569d56e1274a4c47b3a84d15f52
+   - kind: symbol
+     name: raf_workplan::lifecycle
+-    digest: 70d90598ad4c0f54d4fa29709aa1bd9aa0810e261acef4a7356bef2d2debe06b
++    digest: 2f999a1a221fc8c108b088eeebeb94963b31a207aeca6ba2d8e48f6d8d1a317e
+   - kind: symbol
+     name: raf_workplan::lifecycle::Impact
+     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
+@@ -53,6 +53,9 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::reconcile
+     digest: 6fa2fd1a30b0e36763f3c3ef091f2b758f1b09b169408df5a1d263f5f1ca9c48
++  - kind: symbol
++    name: raf_workplan::lifecycle::Lifecycle::source_impact
++    digest: ba00cfd2efbfb00925aaee19764e34c1c6cfe0580971cc719a378ab3befbcc59
+   - kind: symbol
+     name: raf_workplan::lifecycle::NewChange
+     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
+@@ -68,9 +71,12 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::section_digest
+     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
++  - kind: symbol
++    name: raf_workplan::lifecycle::source_impact
++    digest: d6e3c7ec232abf98166b2b953166c950b72c60a7414a9bf1bd87a57773f50498
+   - kind: symbol
+     name: raf_workplan::lifecycle::touched
+-    digest: 49f2842d828cda3ab00b2e9c3e80bb5ef81b45a0e399405d478af1f43cb351ec
++    digest: 65184e6531feaf3ab87ec6bfedb4bd56c1408692bebb6f66006b028eaa60f700
+   - kind: symbol
+     name: raf_workplan::lifecycle::untouched
+     digest: c4bcfb2c0638b52dcd66423977bf61207f5fae27cb5ccc2a1acddc416858af40
+diff --git work/assessments/workplan-reconcile-purpose.md work/assessments/workplan-reconcile-purpose.md
+index c14c0355..3525574f 100644
+--- work/assessments/workplan-reconcile-purpose.md
++++ work/assessments/workplan-reconcile-purpose.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: dc8a8600263b5f9a10aa7cffc3ecbec81a2916b0a29dd22a1b1d161380c1b20f
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::MergeBase
+     digest: 951ddc94dd150031a671ed2e86ff2c9d0d2b40bf1587af888f53bd09f2ed1dc2
+@@ -43,7 +43,7 @@ inputs:
+     digest: 8faccb5690df217dc2a093f3142b723662621569d56e1274a4c47b3a84d15f52
+   - kind: symbol
+     name: raf_workplan::lifecycle
+-    digest: 70d90598ad4c0f54d4fa29709aa1bd9aa0810e261acef4a7356bef2d2debe06b
++    digest: 2f999a1a221fc8c108b088eeebeb94963b31a207aeca6ba2d8e48f6d8d1a317e
+   - kind: symbol
+     name: raf_workplan::lifecycle::Impact
+     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
+@@ -53,6 +53,9 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::reconcile
+     digest: 6fa2fd1a30b0e36763f3c3ef091f2b758f1b09b169408df5a1d263f5f1ca9c48
++  - kind: symbol
++    name: raf_workplan::lifecycle::Lifecycle::source_impact
++    digest: ba00cfd2efbfb00925aaee19764e34c1c6cfe0580971cc719a378ab3befbcc59
+   - kind: symbol
+     name: raf_workplan::lifecycle::NewChange
+     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
+@@ -68,9 +71,12 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::section_digest
+     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
++  - kind: symbol
++    name: raf_workplan::lifecycle::source_impact
++    digest: d6e3c7ec232abf98166b2b953166c950b72c60a7414a9bf1bd87a57773f50498
+   - kind: symbol
+     name: raf_workplan::lifecycle::touched
+-    digest: 49f2842d828cda3ab00b2e9c3e80bb5ef81b45a0e399405d478af1f43cb351ec
++    digest: 65184e6531feaf3ab87ec6bfedb4bd56c1408692bebb6f66006b028eaa60f700
+   - kind: symbol
+     name: raf_workplan::lifecycle::untouched
+     digest: c4bcfb2c0638b52dcd66423977bf61207f5fae27cb5ccc2a1acddc416858af40
+diff --git work/assessments/workplan-reconcile-verification.md work/assessments/workplan-reconcile-verification.md
+index f11385ae..3cfe430e 100644
+--- work/assessments/workplan-reconcile-verification.md
++++ work/assessments/workplan-reconcile-verification.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: dc8a8600263b5f9a10aa7cffc3ecbec81a2916b0a29dd22a1b1d161380c1b20f
+   - kind: symbol
+     name: raf_workplan::git
+-    digest: e5307f846a142ed700a2454e9310d5413faf0f6847fcc8bb6b53ca9654884cec
++    digest: b38359ed81357281d4af517bc1e095144c4af0135460a5cc316ac35392660968
+   - kind: symbol
+     name: raf_workplan::git::MergeBase
+     digest: 951ddc94dd150031a671ed2e86ff2c9d0d2b40bf1587af888f53bd09f2ed1dc2
+@@ -43,7 +43,7 @@ inputs:
+     digest: 8faccb5690df217dc2a093f3142b723662621569d56e1274a4c47b3a84d15f52
+   - kind: symbol
+     name: raf_workplan::lifecycle
+-    digest: 70d90598ad4c0f54d4fa29709aa1bd9aa0810e261acef4a7356bef2d2debe06b
++    digest: 2f999a1a221fc8c108b088eeebeb94963b31a207aeca6ba2d8e48f6d8d1a317e
+   - kind: symbol
+     name: raf_workplan::lifecycle::Impact
+     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
+@@ -53,6 +53,9 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::reconcile
+     digest: 6fa2fd1a30b0e36763f3c3ef091f2b758f1b09b169408df5a1d263f5f1ca9c48
++  - kind: symbol
++    name: raf_workplan::lifecycle::Lifecycle::source_impact
++    digest: ba00cfd2efbfb00925aaee19764e34c1c6cfe0580971cc719a378ab3befbcc59
+   - kind: symbol
+     name: raf_workplan::lifecycle::NewChange
+     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
+@@ -68,9 +71,12 @@ inputs:
+   - kind: symbol
+     name: raf_workplan::lifecycle::section_digest
+     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
++  - kind: symbol
++    name: raf_workplan::lifecycle::source_impact
++    digest: d6e3c7ec232abf98166b2b953166c950b72c60a7414a9bf1bd87a57773f50498
+   - kind: symbol
+     name: raf_workplan::lifecycle::touched
+-    digest: 49f2842d828cda3ab00b2e9c3e80bb5ef81b45a0e399405d478af1f43cb351ec
++    digest: 65184e6531feaf3ab87ec6bfedb4bd56c1408692bebb6f66006b028eaa60f700
+   - kind: symbol
+     name: raf_workplan::lifecycle::untouched
+     digest: c4bcfb2c0638b52dcd66423977bf61207f5fae27cb5ccc2a1acddc416858af40
+diff --git work/assessments/workplan-strict-constraints.md work/assessments/workplan-strict-constraints.md
+index 44079d72..0b42a2f1 100644
+--- work/assessments/workplan-strict-constraints.md
++++ work/assessments/workplan-strict-constraints.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: 9fe679ebe6f9bfe3ab1204504eb5fd0c0d4bc063fbccd9eb62d3248f380d6505
+   - kind: symbol
+     name: raf_workplan::Workplan::claims_report
+-    digest: 1cf75fed88e5c6e4f728af38228c50525eb499546b604192a5a015612d5f3bf7
++    digest: 6dd07880f540f1d0594dde71e3c2b136865d611ba8950e4f39f3c1a4951ebd87
+   - kind: symbol
+     name: raf_workplan::Workplan::lines_report
+     digest: e6891ab8fd71493431d08968cc8de0ee40e3877a9d128475f9d16f1d5e47133d
+@@ -49,7 +49,7 @@ inputs:
+     digest: 416954816d9cb9a7c43ef56a547ca154bee150f9272acc13f4f0955db6a3ed87
+   - kind: symbol
+     name: raf_workplan::strict
+-    digest: 3d739af577831517c2dcb756be1c4cabf001009cf247166cb04fb4315745fe1b
++    digest: 99db4f85fe071068bb29e6925a44f980a3b79d3cba7045f4ad90daaf27459722
+   - kind: symbol
+     name: raf_workplan::work
+     digest: a12641f798ca2966e2032b3fa7a3b7871f038d89d808d5e89658b2b25e79b472
+diff --git work/assessments/workplan-strict-contract.md work/assessments/workplan-strict-contract.md
+index 91452943..c90e04db 100644
+--- work/assessments/workplan-strict-contract.md
++++ work/assessments/workplan-strict-contract.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: 9fe679ebe6f9bfe3ab1204504eb5fd0c0d4bc063fbccd9eb62d3248f380d6505
+   - kind: symbol
+     name: raf_workplan::Workplan::claims_report
+-    digest: 1cf75fed88e5c6e4f728af38228c50525eb499546b604192a5a015612d5f3bf7
++    digest: 6dd07880f540f1d0594dde71e3c2b136865d611ba8950e4f39f3c1a4951ebd87
+   - kind: symbol
+     name: raf_workplan::Workplan::lines_report
+     digest: e6891ab8fd71493431d08968cc8de0ee40e3877a9d128475f9d16f1d5e47133d
+@@ -46,7 +46,7 @@ inputs:
+     digest: 416954816d9cb9a7c43ef56a547ca154bee150f9272acc13f4f0955db6a3ed87
+   - kind: symbol
+     name: raf_workplan::strict
+-    digest: 3d739af577831517c2dcb756be1c4cabf001009cf247166cb04fb4315745fe1b
++    digest: 99db4f85fe071068bb29e6925a44f980a3b79d3cba7045f4ad90daaf27459722
+   - kind: symbol
+     name: raf_workplan::work
+     digest: a12641f798ca2966e2032b3fa7a3b7871f038d89d808d5e89658b2b25e79b472
+diff --git work/assessments/workplan-strict-examples.md work/assessments/workplan-strict-examples.md
+index c824634f..2444dbea 100644
+--- work/assessments/workplan-strict-examples.md
++++ work/assessments/workplan-strict-examples.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: 9fe679ebe6f9bfe3ab1204504eb5fd0c0d4bc063fbccd9eb62d3248f380d6505
+   - kind: symbol
+     name: raf_workplan::Workplan::claims_report
+-    digest: 1cf75fed88e5c6e4f728af38228c50525eb499546b604192a5a015612d5f3bf7
++    digest: 6dd07880f540f1d0594dde71e3c2b136865d611ba8950e4f39f3c1a4951ebd87
+   - kind: symbol
+     name: raf_workplan::Workplan::lines_report
+     digest: e6891ab8fd71493431d08968cc8de0ee40e3877a9d128475f9d16f1d5e47133d
+@@ -49,7 +49,7 @@ inputs:
+     digest: 416954816d9cb9a7c43ef56a547ca154bee150f9272acc13f4f0955db6a3ed87
+   - kind: symbol
+     name: raf_workplan::strict
+-    digest: 3d739af577831517c2dcb756be1c4cabf001009cf247166cb04fb4315745fe1b
++    digest: 99db4f85fe071068bb29e6925a44f980a3b79d3cba7045f4ad90daaf27459722
+   - kind: symbol
+     name: raf_workplan::work
+     digest: a12641f798ca2966e2032b3fa7a3b7871f038d89d808d5e89658b2b25e79b472
+diff --git work/assessments/workplan-strict-explanation.md work/assessments/workplan-strict-explanation.md
+index 5f6c8e85..c01d6621 100644
+--- work/assessments/workplan-strict-explanation.md
++++ work/assessments/workplan-strict-explanation.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: 9fe679ebe6f9bfe3ab1204504eb5fd0c0d4bc063fbccd9eb62d3248f380d6505
+   - kind: symbol
+     name: raf_workplan::Workplan::claims_report
+-    digest: 1cf75fed88e5c6e4f728af38228c50525eb499546b604192a5a015612d5f3bf7
++    digest: 6dd07880f540f1d0594dde71e3c2b136865d611ba8950e4f39f3c1a4951ebd87
+   - kind: symbol
+     name: raf_workplan::Workplan::lines_report
+     digest: e6891ab8fd71493431d08968cc8de0ee40e3877a9d128475f9d16f1d5e47133d
+@@ -49,7 +49,7 @@ inputs:
+     digest: 416954816d9cb9a7c43ef56a547ca154bee150f9272acc13f4f0955db6a3ed87
+   - kind: symbol
+     name: raf_workplan::strict
+-    digest: 3d739af577831517c2dcb756be1c4cabf001009cf247166cb04fb4315745fe1b
++    digest: 99db4f85fe071068bb29e6925a44f980a3b79d3cba7045f4ad90daaf27459722
+   - kind: symbol
+     name: raf_workplan::work
+     digest: a12641f798ca2966e2032b3fa7a3b7871f038d89d808d5e89658b2b25e79b472
+diff --git work/assessments/workplan-strict-purpose.md work/assessments/workplan-strict-purpose.md
+index ecf4e65b..8e28bc81 100644
+--- work/assessments/workplan-strict-purpose.md
++++ work/assessments/workplan-strict-purpose.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: 9fe679ebe6f9bfe3ab1204504eb5fd0c0d4bc063fbccd9eb62d3248f380d6505
+   - kind: symbol
+     name: raf_workplan::Workplan::claims_report
+-    digest: 1cf75fed88e5c6e4f728af38228c50525eb499546b604192a5a015612d5f3bf7
++    digest: 6dd07880f540f1d0594dde71e3c2b136865d611ba8950e4f39f3c1a4951ebd87
+   - kind: symbol
+     name: raf_workplan::Workplan::lines_report
+     digest: e6891ab8fd71493431d08968cc8de0ee40e3877a9d128475f9d16f1d5e47133d
+@@ -49,7 +49,7 @@ inputs:
+     digest: 416954816d9cb9a7c43ef56a547ca154bee150f9272acc13f4f0955db6a3ed87
+   - kind: symbol
+     name: raf_workplan::strict
+-    digest: 3d739af577831517c2dcb756be1c4cabf001009cf247166cb04fb4315745fe1b
++    digest: 99db4f85fe071068bb29e6925a44f980a3b79d3cba7045f4ad90daaf27459722
+   - kind: symbol
+     name: raf_workplan::work
+     digest: a12641f798ca2966e2032b3fa7a3b7871f038d89d808d5e89658b2b25e79b472
+diff --git work/assessments/workplan-strict-verification.md work/assessments/workplan-strict-verification.md
+index e1ad20a1..afa797b2 100644
+--- work/assessments/workplan-strict-verification.md
++++ work/assessments/workplan-strict-verification.md
+@@ -19,7 +19,7 @@ inputs:
+     digest: 9fe679ebe6f9bfe3ab1204504eb5fd0c0d4bc063fbccd9eb62d3248f380d6505
+   - kind: symbol
+     name: raf_workplan::Workplan::claims_report
+-    digest: 1cf75fed88e5c6e4f728af38228c50525eb499546b604192a5a015612d5f3bf7
++    digest: 6dd07880f540f1d0594dde71e3c2b136865d611ba8950e4f39f3c1a4951ebd87
+   - kind: symbol
+     name: raf_workplan::Workplan::lines_report
+     digest: e6891ab8fd71493431d08968cc8de0ee40e3877a9d128475f9d16f1d5e47133d
+@@ -49,7 +49,7 @@ inputs:
+     digest: 416954816d9cb9a7c43ef56a547ca154bee150f9272acc13f4f0955db6a3ed87
+   - kind: symbol
+     name: raf_workplan::strict
+-    digest: 3d739af577831517c2dcb756be1c4cabf001009cf247166cb04fb4315745fe1b
++    digest: 99db4f85fe071068bb29e6925a44f980a3b79d3cba7045f4ad90daaf27459722
+   - kind: symbol
+     name: raf_workplan::work
+     digest: a12641f798ca2966e2032b3fa7a3b7871f038d89d808d5e89658b2b25e79b472
+diff --git work/assessments/workplan-two-way-coverage-constraints.md work/assessments/workplan-two-way-coverage-constraints.md
+index 4bc083f7..e8a04c3f 100644
+--- work/assessments/workplan-two-way-coverage-constraints.md
++++ work/assessments/workplan-two-way-coverage-constraints.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: 4d60fdb427f7ee6098a2582cbfe937a1ad9221cff90906bc1d78203e9631ff3d
++    digest: 827e4b8f32f0a257a9d078fa97ef9550ebf01d92c419d7f502b6ddfb13745e6c
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-contract.md work/assessments/workplan-two-way-coverage-contract.md
+index a36b8e80..366bafb4 100644
+--- work/assessments/workplan-two-way-coverage-contract.md
++++ work/assessments/workplan-two-way-coverage-contract.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: 4d60fdb427f7ee6098a2582cbfe937a1ad9221cff90906bc1d78203e9631ff3d
++    digest: 827e4b8f32f0a257a9d078fa97ef9550ebf01d92c419d7f502b6ddfb13745e6c
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-examples.md work/assessments/workplan-two-way-coverage-examples.md
+index 6800828b..dd12505a 100644
+--- work/assessments/workplan-two-way-coverage-examples.md
++++ work/assessments/workplan-two-way-coverage-examples.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: 4d60fdb427f7ee6098a2582cbfe937a1ad9221cff90906bc1d78203e9631ff3d
++    digest: 827e4b8f32f0a257a9d078fa97ef9550ebf01d92c419d7f502b6ddfb13745e6c
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-explanation.md work/assessments/workplan-two-way-coverage-explanation.md
+index bbf097e6..6184f83d 100644
+--- work/assessments/workplan-two-way-coverage-explanation.md
++++ work/assessments/workplan-two-way-coverage-explanation.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: 4d60fdb427f7ee6098a2582cbfe937a1ad9221cff90906bc1d78203e9631ff3d
++    digest: 827e4b8f32f0a257a9d078fa97ef9550ebf01d92c419d7f502b6ddfb13745e6c
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-purpose.md work/assessments/workplan-two-way-coverage-purpose.md
+index ad70b33e..cc27db73 100644
+--- work/assessments/workplan-two-way-coverage-purpose.md
++++ work/assessments/workplan-two-way-coverage-purpose.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: 4d60fdb427f7ee6098a2582cbfe937a1ad9221cff90906bc1d78203e9631ff3d
++    digest: 827e4b8f32f0a257a9d078fa97ef9550ebf01d92c419d7f502b6ddfb13745e6c
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-usage.md work/assessments/workplan-two-way-coverage-usage.md
+index da6def05..8ce4dbf8 100644
+--- work/assessments/workplan-two-way-coverage-usage.md
++++ work/assessments/workplan-two-way-coverage-usage.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: 4d60fdb427f7ee6098a2582cbfe937a1ad9221cff90906bc1d78203e9631ff3d
++    digest: 827e4b8f32f0a257a9d078fa97ef9550ebf01d92c419d7f502b6ddfb13745e6c
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-verification.md work/assessments/workplan-two-way-coverage-verification.md
+index def77ea2..fae33e4f 100644
+--- work/assessments/workplan-two-way-coverage-verification.md
++++ work/assessments/workplan-two-way-coverage-verification.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: 4d60fdb427f7ee6098a2582cbfe937a1ad9221cff90906bc1d78203e9631ff3d
++    digest: 827e4b8f32f0a257a9d078fa97ef9550ebf01d92c419d7f502b6ddfb13745e6c
+ verdict: accepted
+ by: agent
+ ---
