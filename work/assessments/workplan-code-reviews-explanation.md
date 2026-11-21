@@ -16,7 +16,7 @@ inputs:
     digest: f173db2a7fd1ca8adf94b93fccdfc21a7f2e3ab6677ec121e7f9bcc74507e08e
   - kind: symbol
     name: raf_okf::profile::review
-    digest: b77f8c42c8319e51dfa44a556990ce421e3e3e726331d21bacf372710a076549
+    digest: 4a62a563a1ecbb878c8c03772b72589bce745d6417adc1abd6cc997263f1af8d
   - kind: symbol
     name: raf_workplan::digest::Digest::review_item
     digest: a4e74334f794403d154e9aef2495a2d4dd68e9699eb1dd7fa7ec58559be39398

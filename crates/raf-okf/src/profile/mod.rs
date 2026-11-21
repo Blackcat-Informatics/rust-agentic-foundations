@@ -379,7 +379,7 @@ fn check_values(
             ValueKind::ReviewScope => found.review_scope = review::check_scope(check, entry),
             ValueKind::ReviewKind => found.review_kind = review::check_kind(check, entry),
             ValueKind::ReviewFindings => {
-                found.review_findings = review::check_findings(check, entry);
+                found.review_findings = review::check_findings(check, entry, &keys.review_findings);
             }
             ValueKind::ReviewReference => {
                 found.review_reference = Slot::from_check(check_text(check, entry));

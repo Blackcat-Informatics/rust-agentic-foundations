@@ -547,7 +547,7 @@ pub(super) fn check_exclusions(
     valid.then_some(exclusions)
 }
 
-fn keyed_rows<'e>(
+pub(super) fn keyed_rows<'e>(
     check: &mut Check<'_>,
     entry: &'e Entry,
     expected: &'static str,
@@ -575,7 +575,7 @@ fn report_row_keys(check: &mut Check<'_>, list: &'static str, keys: &RowKeys<'_>
     for &key in &keys.missing {
         check.key(list, Rule::RowMissingKey { list, key });
     }
-    keys.unknown.is_empty() && keys.missing.is_empty()
+    keys.is_exact()
 }
 
 /// The rows of `findings` of a debt record: each exactly a `kind` and a

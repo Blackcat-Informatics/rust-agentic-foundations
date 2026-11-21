@@ -365,13 +365,37 @@ pub(super) fn check_required(check: &mut Check<'_>, entry: &Entry) -> Option<Vec
     }
 }
 
+pub(super) enum FindingStatus {
+    Open,
+    Fixed,
+    Accepted,
+    FalsePositive,
+}
+
+impl FindingStatus {
+    pub(super) fn in_row(row: &Map) -> Option<Self> {
+        match row.get("status").and_then(scalar_text)? {
+            "open" => Some(Self::Open),
+            "fixed" => Some(Self::Fixed),
+            "accepted" => Some(Self::Accepted),
+            "false-positive" => Some(Self::FalsePositive),
+            _ => None,
+        }
+    }
+}
+
 /// Keep findings as closed data; no location or disposition is executable.
-pub(super) fn check_findings(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ReviewFinding>> {
-    let rows = records::rows(check, entry, "a list of structured review findings")?;
+pub(super) fn check_findings(
+    check: &mut Check<'_>,
+    entry: &Entry,
+    keys: &[super::header::RowKeys<'_>],
+) -> Option<Vec<ReviewFinding>> {
+    let rows = records::keyed_rows(check, entry, "a list of structured review findings", keys)?;
     let mut found = Vec::new();
     let mut valid = true;
-    for row in rows {
-        if let Some(finding) = finding(row) {
+    for (row, keys) in rows.into_iter().zip(keys) {
+        let decoded = if keys.is_exact() { finding(row) } else { None };
+        if let Some(finding) = decoded {
             found.push(finding);
         } else {
             check.key("findings", Rule::WrongShape { expected: "closed finding rows with id, severity, location and status; locations use item:path or file:path#Lfirst-Llast with positive ordered lines; fixed requires revision, accepted and false-positive require reason" });
@@ -399,41 +423,21 @@ fn finding(row: &Map) -> Option<ReviewFinding> {
     let id = field("id").filter(|id| is_kebab(id))?.to_string();
     let severity = ReviewSeverity::from_name(field("severity")?)?;
     let location = location(field("location")?)?;
-    let status = field("status")?;
-    let (extra, disposition) = match status {
-        "open" => (None, ReviewDisposition::Open),
-        "fixed" => (
-            Some("revision"),
-            ReviewDisposition::Fixed(
-                field("revision")
-                    .filter(|revision| records::is_commit_id(revision))?
-                    .to_string(),
-            ),
-        ),
-        "accepted" => (
-            Some("reason"),
-            ReviewDisposition::Accepted(
-                field("reason")
-                    .filter(|reason| !reason.trim().is_empty())?
-                    .to_string(),
-            ),
-        ),
-        "false-positive" => (
-            Some("reason"),
-            ReviewDisposition::FalsePositive(
-                field("reason")
-                    .filter(|reason| !reason.trim().is_empty())?
-                    .to_string(),
-            ),
-        ),
-        _ => return None,
+    let reason = || {
+        field("reason")
+            .filter(|reason| !reason.trim().is_empty())
+            .map(str::to_owned)
     };
-    if row.entries().iter().any(|entry| {
-        !["id", "severity", "location", "status"].contains(&entry.key())
-            && Some(entry.key()) != extra
-    }) {
-        return None;
-    }
+    let disposition = match FindingStatus::in_row(row)? {
+        FindingStatus::Open => ReviewDisposition::Open,
+        FindingStatus::Fixed => ReviewDisposition::Fixed(
+            field("revision")
+                .filter(|revision| records::is_commit_id(revision))?
+                .to_string(),
+        ),
+        FindingStatus::Accepted => ReviewDisposition::Accepted(reason()?),
+        FindingStatus::FalsePositive => ReviewDisposition::FalsePositive(reason()?),
+    };
     Some(ReviewFinding {
         id,
         severity,
