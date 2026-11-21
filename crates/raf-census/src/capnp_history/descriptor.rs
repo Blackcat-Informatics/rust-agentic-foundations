@@ -51,7 +51,8 @@ pub(super) struct Schema {
     pub(super) named_endpoint_parameters: BTreeMap<TypeId, BTreeMap<TypeId, u32>>,
 }
 
-use applications::FieldApplications;
+use applications::ApplicationCarrier;
+pub(super) use applications::Applications;
 use declarations::AnnotationTargets;
 pub use declarations::{AnnotationTarget, DeclarationKind};
 
@@ -89,8 +90,14 @@ impl DeclarationBody {
 #[derive(Debug)]
 pub(super) enum Node {
     Struct(Struct),
-    Enum(Vec<String>),
+    Enum(Vec<Enumerant>),
     Interface(Interface),
+}
+
+#[derive(Debug)]
+pub(super) struct Enumerant {
+    pub(super) name: String,
+    pub(super) applications: Applications,
 }
 
 pub(super) type Superclasses = BTreeMap<TypeId, BTreeSet<Brand>>;
@@ -157,7 +164,7 @@ pub(super) struct Slot {
     pub(super) default: DefaultValue,
     pub(super) explicit_default: bool,
     pub(super) required: bool,
-    pub(super) applications: FieldApplications,
+    pub(super) applications: Applications,
 }
 
 pub(super) struct Nodes<'a> {
@@ -498,7 +505,7 @@ impl<'a> Nodes<'a> {
                     LayoutScope::Data,
                 )?))
             }
-            node::Enum(data) => Ok(Node::Enum(enumerants(id, data)?)),
+            node::Enum(data) => Ok(Node::Enum(self.enumerants(id, data, scopes)?)),
             node::Interface(data) => {
                 let interface = self.rpc_projection(rpc)?.interface(
                     self,
@@ -582,23 +589,41 @@ impl<'a> Nodes<'a> {
             pairs: collector.pairs,
         })
     }
-}
 
-fn enumerants(id: TypeId, data: node::enum_::Reader<'_>) -> Result<Vec<String>, Error> {
-    let values = data.get_enumerants()?;
-    if values.len() > u32::from(u16::MAX) + 1 {
-        return Err(layout(format!("enum {id} exceeds the ordinal range")));
-    }
-    let mut names = Vec::new();
-    let mut unique = BTreeSet::new();
-    for value in values {
-        let name = member_name(value.get_name()?)?;
-        if !unique.insert(name) {
-            return Err(layout(format!("enum {id} repeats enumerant {name}")));
+    fn enumerants(
+        &self,
+        id: TypeId,
+        data: node::enum_::Reader<'_>,
+        scopes: &mut DeclarationScopes,
+    ) -> Result<Vec<Enumerant>, Error> {
+        let values = data.get_enumerants()?;
+        if values.len() > u32::from(u16::MAX) + 1 {
+            return Err(layout(format!("enum {id} exceeds the ordinal range")));
         }
-        names.push(name.to_owned());
+        let mut enumerants = Vec::new();
+        let mut unique = BTreeSet::new();
+        for value in values {
+            let name = member_name(value.get_name()?)?;
+            if !unique.insert(name) {
+                return Err(layout(format!("enum {id} repeats enumerant {name}")));
+            }
+            let applications = if self.strict_history {
+                self.applications(
+                    (id, name),
+                    ApplicationCarrier::Enumerant,
+                    value.get_annotations()?,
+                    scopes,
+                )?
+            } else {
+                Applications::new()
+            };
+            enumerants.push(Enumerant {
+                name: name.to_owned(),
+                applications,
+            });
+        }
+        Ok(enumerants)
     }
-    Ok(names)
 }
 
 fn member_name(name: capnp::text::Reader<'_>) -> Result<&str, Error> {
@@ -815,15 +840,14 @@ impl<'a> Fields<'a, '_> {
                 let applications = if self.nodes.strict_history
                     && matches!(self.layout_scope, LayoutScope::Data)
                 {
-                    self.nodes.field_applications(
-                        owner,
-                        name,
-                        field,
-                        self.annotations,
+                    self.nodes.applications(
+                        (owner, name),
+                        ApplicationCarrier::DataField(self.annotations),
+                        field.get_annotations()?,
                         self.scopes,
                     )?
                 } else {
-                    FieldApplications::new()
+                    Applications::new()
                 };
                 if let Some(span) = self.slot(
                     (owner, path),
@@ -898,7 +922,7 @@ impl<'a> Fields<'a, '_> {
         slot: field::slot::Reader<'_>,
         discriminant: Option<u16>,
         required: bool,
-        applications: FieldApplications,
+        applications: Applications,
     ) -> Result<Option<Range<u32>>, Error> {
         if !slot.has_type() || !slot.has_default_value() {
             return Err(layout(format!(

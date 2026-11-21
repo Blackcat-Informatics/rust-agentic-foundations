@@ -1590,8 +1590,35 @@ fn assert_field_annotation_changes(verdict: Output, owner: &str, findings: &[(&s
     assert_eq!(String::from_utf8(verdict.stdout).unwrap(), expected);
 }
 
-fn invalid_field_annotation_request(mut descriptor: &[u8], wrong_target: bool) -> Vec<u8> {
-    use capnp::schema_capnp::{code_generator_request, node};
+fn invalid_field_annotation_request(descriptor: &[u8], wrong_target: bool) -> Vec<u8> {
+    use capnp::schema_capnp::node;
+
+    let id = if wrong_target {
+        0xefc1_3293_0000_0051
+    } else {
+        0xefc1_3293_0000_0055
+    };
+    edit_descriptor_node(descriptor, id, |entry| match entry.which().unwrap() {
+        node::Annotation(mut declaration) => declaration.set_targets_field(false),
+        node::Struct(record) => record
+            .get_fields()
+            .unwrap()
+            .get(1)
+            .get_annotations()
+            .unwrap()
+            .get(0)
+            .init_value()
+            .set_bool(true),
+        _ => panic!("fixture annotation or record node"),
+    })
+}
+
+fn edit_descriptor_node(
+    mut descriptor: &[u8],
+    id: u64,
+    edit: impl FnOnce(capnp::schema_capnp::node::Builder<'_>),
+) -> Vec<u8> {
+    use capnp::schema_capnp::code_generator_request;
 
     let descriptor =
         capnp::serialize::read_message(&mut descriptor, capnp::message::ReaderOptions::new())
@@ -1602,28 +1629,113 @@ fn invalid_field_annotation_request(mut descriptor: &[u8], wrong_target: bool) -
     compiler_request(|mut request| {
         request.set_nodes(original.get_nodes().unwrap()).unwrap();
         let mut nodes = request.get_nodes().unwrap();
-        let id = if wrong_target {
-            0xefc1_3293_0000_0051
-        } else {
-            0xefc1_3293_0000_0055
-        };
         let position = (0..nodes.len())
             .find(|&index| nodes.reborrow().get(index).get_id() == id)
             .unwrap();
-        match nodes.get(position).which().unwrap() {
-            node::Annotation(mut declaration) => declaration.set_targets_field(false),
-            node::Struct(record) => record
-                .get_fields()
-                .unwrap()
-                .get(1)
-                .get_annotations()
-                .unwrap()
-                .get(0)
-                .init_value()
-                .set_bool(true),
-            _ => panic!("fixture annotation or record node"),
-        }
+        edit(nodes.get(position));
     })
+}
+
+/// Compare each annotation's ordered applications within one retained enumerant.
+#[test]
+fn capnp_history_compares_enumerant_annotations() {
+    use capnp::schema_capnp::node;
+
+    const SHADE: &str = "0xfa42ee5500000075";
+    const SHADE_ID: u64 = 0xfa42_ee55_0000_0075;
+    const LABEL_ID: u64 = 0xfa42_ee55_0000_0071;
+    let descriptor = include_bytes!("fixtures/capnp/enumerant-annotations-base.bin");
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, descriptor);
+    let compare = |other: &[u8]| {
+        let current = commit_capnp_descriptor(root, other);
+        capnp_history(root, &base, &current, &[SHADE], &[])
+    };
+    let clean = compare(include_bytes!(
+        "fixtures/capnp/enumerant-annotations-compatible.bin"
+    ));
+    assert!(clean.status.success(), "{clean:?}");
+    assert!(
+        clean.stdout.is_empty() && clean.stderr.is_empty(),
+        "{clean:?}"
+    );
+
+    let changed = compare(include_bytes!(
+        "fixtures/capnp/enumerant-annotations-changed.bin"
+    ));
+    assert_eq!(changed.status.code(), Some(1), "{changed:?}");
+    assert!(changed.stderr.is_empty(), "{changed:?}");
+    assert_eq!(
+        String::from_utf8(changed.stdout).unwrap(),
+        concat!(
+            "Cap'n Proto history for 0xfa42ee5500000075.red: enumerant applications of annotation 0xfa42ee5500000071 changed\n",
+            "Cap'n Proto history for 0xfa42ee5500000075.blue: enumerant applications of annotation 0xfa42ee5500000073 changed\n",
+            "Cap'n Proto history for 0xfa42ee5500000075.green: enumerant applications of annotation 0xfa42ee5500000076 changed\n",
+        ),
+    );
+
+    let target = edit_descriptor_node(descriptor, LABEL_ID, |entry| {
+        let node::Annotation(mut annotation) = entry.which().unwrap() else {
+            panic!("expected label annotation");
+        };
+        annotation.set_targets_enum(true);
+        annotation.set_targets_enumerant(false);
+    });
+    assert_census_refused(
+        compare(&target),
+        "annotation 0xfa42ee5500000071 at 0xfa42ee5500000075.red must be declared for enumerants",
+    );
+
+    let edit_red = |rename| {
+        edit_descriptor_node(descriptor, SHADE_ID, |entry| {
+            let node::Enum(shades) = entry.which().unwrap() else {
+                panic!("expected Shade enum");
+            };
+            let mut red = shades.get_enumerants().unwrap().get(0);
+            if rename {
+                red.set_name("crimson");
+            }
+            let mut value = red.get_annotations().unwrap().get(0).init_value();
+            if rename {
+                value.set_text("different");
+            } else {
+                value.set_bool(true);
+            }
+        })
+    };
+    assert_census_refused(
+        compare(&edit_red(false)),
+        "annotation 0xfa42ee5500000071 at 0xfa42ee5500000075.red: slot type and default value do not agree",
+    );
+    let wrong_list = edit_descriptor_node(descriptor, SHADE_ID, |entry| {
+        let node::Enum(shades) = entry.which().unwrap() else {
+            panic!("expected Shade enum");
+        };
+        shades
+            .get_enumerants()
+            .unwrap()
+            .get(1)
+            .get_annotations()
+            .unwrap()
+            .get(0)
+            .init_value()
+            .init_list()
+            .initn_as::<capnp::primitive_list::Builder<'_, u32>>(1)
+            .set(0, 7);
+    });
+    assert_census_refused(
+        compare(&wrong_list),
+        "annotation 0xfa42ee5500000073 at 0xfa42ee5500000075.blue:",
+    );
+    let renamed = compare(&edit_red(true));
+    assert_eq!(renamed.status.code(), Some(1), "{renamed:?}");
+    assert!(renamed.stderr.is_empty(), "{renamed:?}");
+    assert_eq!(
+        String::from_utf8(renamed.stdout).unwrap(),
+        "Cap'n Proto history for 0xfa42ee5500000075.red: member renamed to crimson\n",
+    );
 }
 
 /// Required pointer presence is compared through the shipped command on

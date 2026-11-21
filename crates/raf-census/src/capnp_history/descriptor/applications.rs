@@ -1,47 +1,83 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Annotation applications in strict history for data fields.
+//! Annotation applications in strict Cap'n Proto history.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use capnp::schema_capnp::{field, node};
+use capnp::{
+    schema_capnp::{annotation, node},
+    struct_list,
+};
 
-use super::{Annotations, DeclarationScopes, Error, Nodes, TypeId, layout};
+use super::{AnnotationTarget, Annotations, DeclarationScopes, Error, Nodes, TypeId, layout};
 use crate::capnp_history::shape::{self, Arguments, Brand, DefaultValue, Pointer, Type, TypeScope};
 
-pub(in crate::capnp_history) type FieldApplications = BTreeMap<TypeId, Vec<FieldApplication>>;
+pub(in crate::capnp_history) type Applications = BTreeMap<TypeId, Vec<Application>>;
+
+#[derive(Clone, Copy)]
+pub(super) enum ApplicationCarrier {
+    DataField(Annotations),
+    Enumerant,
+}
 
 #[derive(Debug, PartialEq, Eq)]
-pub(in crate::capnp_history) struct FieldApplication {
+pub(in crate::capnp_history) struct Application {
     brand: Brand,
     value: DefaultValue,
 }
 
 impl Nodes<'_> {
-    pub(super) fn field_applications(
+    pub(super) fn applications(
         &self,
-        owner: TypeId,
-        name: &str,
-        field: field::Reader<'_>,
-        presence: Annotations,
+        (owner, name): (TypeId, &str),
+        carrier: ApplicationCarrier,
+        source: struct_list::Reader<'_, annotation::Owned>,
         scopes: &mut DeclarationScopes,
-    ) -> Result<FieldApplications, Error> {
-        let mut applications = FieldApplications::new();
-        for application in field.get_annotations()? {
+    ) -> Result<Applications, Error> {
+        let (target, target_name, presence) = match carrier {
+            ApplicationCarrier::DataField(presence) => {
+                (AnnotationTarget::Field, "data fields", presence)
+            }
+            ApplicationCarrier::Enumerant => (
+                AnnotationTarget::Enumerant,
+                "enumerants",
+                Annotations::default(),
+            ),
+        };
+        let mut applications = Applications::new();
+        for application in source {
             let id = TypeId(application.get_id());
             if presence.required == Some(id) || presence.paired_presence == Some(id) {
                 continue;
             }
-            let node = self.node(id)?;
-            let node::Annotation(declaration) = node.which()? else {
+            let at_application = |error| match error {
+                Error::Layout(message) => {
+                    layout(format!("annotation {id} at {owner}.{name}: {message}"))
+                }
+                source if matches!(carrier, ApplicationCarrier::Enumerant) => {
+                    Error::EnumerantApplication {
+                        owner,
+                        member: name.to_owned(),
+                        annotation: id,
+                        source: Box::new(source),
+                    }
+                }
+                error => error,
+            };
+            let node = self.node(id).map_err(at_application)?;
+            let node::Annotation(declaration) =
+                node.which().map_err(Error::from).map_err(at_application)?
+            else {
                 return Err(layout(format!(
                     "application {id} at {owner}.{name} refers to a non-annotation node"
                 )));
             };
-            if !declaration.get_targets_field() || !self.is_declared(id, scopes)? {
+            if !target.enabled(declaration)
+                || !self.is_declared(id, scopes).map_err(at_application)?
+            {
                 return Err(layout(format!(
-                    "annotation {id} at {owner}.{name} must be declared for data fields"
+                    "annotation {id} at {owner}.{name} must be declared for {target_name}"
                 )));
             }
             if !application.has_value() {
@@ -56,31 +92,35 @@ impl Nodes<'_> {
             }
             let mut dependencies = BTreeSet::new();
             let declared = Type::read(
-                declaration.get_type()?,
+                declaration
+                    .get_type()
+                    .map_err(Error::from)
+                    .map_err(at_application)?,
                 self,
                 TypeScope::Lexical(id),
                 &mut dependencies,
-            )?;
+            )
+            .map_err(at_application)?;
             let brand = shape::read_brand(
-                application.get_brand()?,
+                application
+                    .get_brand()
+                    .map_err(Error::from)
+                    .map_err(at_application)?,
                 self,
                 (TypeScope::Lexical(owner), id),
                 &mut dependencies,
-            )?;
+            )
+            .map_err(at_application)?;
             let ty = applied_value_type(declared, &brand);
-            let value =
-                shape::default(&ty, application.get_value()?, self).map_err(
-                    |error| match error {
-                        Error::Layout(message) => {
-                            layout(format!("annotation {id} at {owner}.{name}: {message}"))
-                        }
-                        error => error,
-                    },
-                )?;
+            let value = application
+                .get_value()
+                .map_err(Error::from)
+                .map_err(at_application)?;
+            let value = shape::default(&ty, value, self).map_err(at_application)?;
             applications
                 .entry(id)
                 .or_default()
-                .push(FieldApplication { brand, value });
+                .push(Application { brand, value });
         }
         Ok(applications)
     }

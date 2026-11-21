@@ -133,6 +133,17 @@ pub enum DescriptorError {
     Tag(capnp::NotInSchema),
     /// The selected closure contains inconsistent or unsupported information.
     Layout(String),
+    /// Reading an annotation application on an enumerant failed.
+    EnumerantApplication {
+        /// ID of the owning enum.
+        owner: TypeId,
+        /// Name of the enumerant.
+        member: String,
+        /// ID of the annotation declaration.
+        annotation: TypeId,
+        /// Native descriptor refusal.
+        source: Box<Self>,
+    },
     /// A descriptor does not agree with its signed compiler capture.
     Capture(CaptureError),
 }
@@ -161,6 +172,12 @@ impl fmt::Display for DescriptorError {
             Self::Wire(source) => source.fmt(f),
             Self::Tag(source) => source.fmt(f),
             Self::Layout(message) => f.write_str(message),
+            Self::EnumerantApplication {
+                owner,
+                member,
+                annotation,
+                source,
+            } => write!(f, "annotation {annotation} at {owner}.{member}: {source}"),
             Self::Capture(source) => source.fmt(f),
         }
     }
@@ -172,6 +189,7 @@ impl std::error::Error for DescriptorError {
             Self::Wire(source) => Some(source),
             Self::Tag(source) => Some(source),
             Self::Layout(_) => None,
+            Self::EnumerantApplication { source, .. } => Some(source.as_ref()),
             Self::Capture(source) => Some(source),
         }
     }
