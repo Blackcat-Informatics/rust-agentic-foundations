@@ -397,7 +397,7 @@ inputs:
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
     name: raf_census::report
-    digest: 45b512eff0aba2adbaf3e1bcb42a0731837ab70b9ed9f254654ea7fb3fe9504f
+    digest: 5b7316b76d8a4171240b4d28a4b2c7a7dc4712681e56d146f0efb50d2f49a5a5
   - kind: symbol
     name: raf_census::report::vocab
     digest: d743c43cee3a5cad6c68ea1a366bf90e60c391c75bcb50fb6f800aa929d028a5

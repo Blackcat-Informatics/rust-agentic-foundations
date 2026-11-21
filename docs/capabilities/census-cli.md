@@ -13,6 +13,7 @@ bindings:
     - cargo_census::cli
     - cargo_census::command
     - cargo_census::error
+    - raf_census::Gate::init_ledger
     - raf_census::Gate::validate_tree_registrations
     - raf_census::registered
     - raf_census::RegisteredCheck
@@ -32,6 +33,8 @@ bindings:
     - raf_census::capnp_history::persistence::migration::check
     - raf_census::capnp_history::reader_evidence::verify
   tests:
+    - cargo_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records
+    - cargo_census::test_crate::delivery::init_refuses_source_and_git_administration_destinations
     - cargo_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs
     - cargo_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set
     - cargo_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request
@@ -117,6 +120,9 @@ depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-migration, cap:
 Expose native duplication and ledger data without building or executing repository programs. Library Gate evaluation, native reports and explicit debt publication preserve useful structural checks while leaving consumer test and example bodies inert.
 
 ## Contract
+
+`init` and `Gate::init_ledger` create `helpers-ledger.ttl` in the discovered workspace root. The canonical Turtle ledger selects the whole workspace under the current normal and report forms with default options and no jobs. Publication requires native Linux directory locking and resolves the workspace sources before writing. A missing source input, a destination inside Git administration, an occupied ledger or temporary path, or a competing lock causes a refusal. Existing policy and debt are preserved. Structural duplicates remain findings until resolved or explicitly adopted.
+<!-- raf:tested-by cargo_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records,cargo_census::test_crate::delivery::init_refuses_source_and_git_administration_destinations -->
 
 **Cap'n Proto history.** `capnp-history` compares unpacked compiler
 descriptors read from explicit base and current Git commits. The caller
@@ -385,6 +391,9 @@ The cases, in the order they run:
 <!-- raf:tested-by raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text,raf_census::selftest::tests::a_detector_that_stops_firing_or_starts_over_firing_fails_its_side,raf_census::selftest::tests::a_normal_form_that_merges_or_splits_wrongly_fails_its_case,raf_census::selftest::tests::the_documented_detector_list_and_case_count_equal_the_registry -->
 
 ## Usage
+
+Run `cargo census init` once from the new workspace or a member directory, then run `cargo census check`. Inspect the ledger with `cargo census dump-ledger --format turtle`. Use `cargo census debt --write` to adopt existing duplication explicitly.
+<!-- raf:tested-by cargo_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records -->
 
 Run `cargo census capnp-history --base BASE --current CURRENT` with
 `--base-descriptor PATH --current-descriptor PATH`. Select at least one
@@ -861,6 +870,8 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target` | test | [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records` | test | [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records` | test | [Contract](#contract), [Usage](#usage) |
+| `cargo_census::test_crate::delivery::init_refuses_source_and_git_administration_destinations` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Verification](#verification) |
 | `cargo_census::test_crate::delivery::module_paths_in_package_are_required_by_the_flag_beside_a_clean_run_without_it` | test | [Contract](#contract) |
