@@ -24,11 +24,24 @@ struct Generic @0xeec2000000000007 (T) {
   value @0 :T;
 }
 
+struct Envelope @0xeec2000000000008 (T) {
+  struct Body @0xeec2000000000009 (U) {
+    first @0 :T;
+    second @1 :U;
+  }
+
+  struct Stamp @0xeec200000000000a {
+    value @0 :T;
+  }
+}
+
 interface Reader @0xeec2000000000005 {
   first @0 Payload.Input -> Response;
   second @1 Payload.Input -> (value :UInt64);
   third @2 (source :Text) -> Response;
   fourth @3 Generic(Generic(Text)) -> Generic(Data);
+  scoped @4 Envelope(Text).Body(Data) -> Envelope(Data).Body(Text);
+  enclosingOnly @5 Envelope(Text).Stamp -> ();
 }
 
 struct Stored @0xeec2000000000006 {

@@ -851,6 +851,7 @@ fn capnp_history_compares_named_rpc_endpoints() {
             "0xeec2000000000005.first.parameters: type changed",
             "0xeec2000000000005.second.results: type changed",
             "0xeec2000000000005.fourth.parameters: type changed",
+            "0xeec2000000000005.scoped.parameters: type changed",
             "0xeec2000000000002.count: default changed",
             "0xeec2000000000002.token: pointer field became required",
             "0xeec2000000000007.value: member renamed to renamed",
@@ -896,6 +897,16 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
             "0xeec3000000000016",
             "requires a complete concrete endpoint brand",
         ),
+        (
+            "0xeec3000000000019",
+            "requires a complete concrete endpoint brand",
+        ),
+        ("0xeec300000000001a", "invalid or repeated brand scope"),
+        (
+            "0xeec300000000001b",
+            "requires a complete concrete endpoint brand",
+        ),
+        ("0xeec300000000001c", "consistent generic flags"),
     ] {
         let result = capnp_history(root, &invalid, &invalid, &[selected], &[]);
         assert_eq!(result.status.code(), Some(1), "{result:?}");

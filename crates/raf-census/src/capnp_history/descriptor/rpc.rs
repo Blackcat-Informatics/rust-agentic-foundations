@@ -16,12 +16,18 @@ use crate::capnp_history::shape::{self, Arguments, Pointer, Type};
 // A present entry with no owner records an invalid or competing declaration.
 type Owners = BTreeMap<TypeId, Option<TypeId>>;
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ScopePolicy {
+    Nongeneric,
+    BrandedEndpoint,
+}
+
 pub(super) struct Projection {
     inline_owners: BTreeMap<TypeId, u8>,
     declared_inline: Option<BTreeSet<TypeId>>,
     named: BTreeSet<TypeId>,
     owners: Option<Owners>,
-    proved_declarations: BTreeSet<TypeId>,
+    proved_declarations: BTreeSet<(TypeId, ScopePolicy)>,
 }
 
 impl Projection {
@@ -126,7 +132,7 @@ impl Projection {
         id: TypeId,
         scopes: &mut DeclarationScopes,
     ) -> Result<(), Error> {
-        if !self.reciprocal_declaration(nodes, id, false, scopes)? {
+        if !self.reciprocal_declaration(nodes, id, ScopePolicy::Nongeneric, scopes)? {
             return Err(layout(format!(
                 "RPC inheritance interface {id} requires a reciprocal nongeneric declaration chain"
             )));
@@ -138,16 +144,17 @@ impl Projection {
         &mut self,
         nodes: &Nodes<'_>,
         id: TypeId,
-        generic_endpoint: bool,
+        policy: ScopePolicy,
         scopes: &mut DeclarationScopes,
     ) -> Result<bool, Error> {
-        if self.proved_declarations.contains(&id) {
+        if self.proved_declarations.contains(&(id, policy)) {
             return Ok(true);
         }
         let owners = match self.owners {
             Some(ref owners) => owners,
             None => self.owners.insert(lexical_owners(nodes)?),
         };
+        let mut expected_parent_generic = None;
         if !nodes.declaration_chain(id, scopes, |reader| {
             let parent = TypeId(reader.get_scope_id());
             let owner = owners.get(&TypeId(reader.get_id()));
@@ -156,12 +163,24 @@ impl Projection {
             } else {
                 owner == Some(&Some(parent))
             };
-            Ok(reciprocal
-                && ((generic_endpoint && TypeId(reader.get_id()) == id) || nongeneric(reader)?))
+            if !reciprocal {
+                return Ok(false);
+            }
+            if policy == ScopePolicy::Nongeneric || parent.0 == 0 {
+                return Ok(
+                    nongeneric(reader)? && expected_parent_generic.is_none_or(|expected| !expected)
+                );
+            }
+            let generic = reader.get_is_generic();
+            let declares_parameters = !reader.get_parameters()?.is_empty();
+            let agrees = expected_parent_generic.is_none_or(|expected| expected == generic);
+            // An inner declaration without its own parameters inherits its parent's flag.
+            expected_parent_generic = (!declares_parameters).then_some(generic);
+            Ok(agrees && (!declares_parameters || generic))
         })? {
             return Ok(false);
         }
-        self.proved_declarations.insert(id);
+        self.proved_declarations.insert((id, policy));
         Ok(true)
     }
 
@@ -268,24 +287,28 @@ impl Projection {
         error: impl Fn(&str) -> Error,
     ) -> Result<Type, Error> {
         let id = TypeId(endpoint.get_id());
-        if !endpoint.get_is_generic() || endpoint.get_parameters()?.is_empty() {
+        if !endpoint.get_is_generic() {
             return Err(error(
                 "must have an empty brand for a nongeneric declaration",
             ));
         }
-        if !self.reciprocal_declaration(nodes, interface, false, scopes)?
-            || !self.reciprocal_declaration(nodes, id, true, scopes)?
-        {
+        if !self.reciprocal_declaration(nodes, interface, ScopePolicy::Nongeneric, scopes)? {
             return Err(error(
-                "requires unique reciprocal declarations in nongeneric enclosing scopes",
+                "requires unique reciprocal declarations in the nongeneric method owner's scopes",
             ));
         }
-        let declared = brand.get_scopes()?;
-        if declared.len() != 1 || declared.get(0).get_scope_id() != id.0 {
-            return Err(error("requires one explicit brand scope for the endpoint"));
+        if !self.reciprocal_declaration(nodes, id, ScopePolicy::BrandedEndpoint, scopes)? {
+            return Err(error(
+                "requires unique reciprocal declarations and consistent generic flags in the endpoint's scopes",
+            ));
         }
+        let scope_count = brand.get_scopes()?.len();
         let brand = shape::read_brand(brand, nodes, (interface, id), needed)?;
-        if !concrete_brand(nodes, id, &brand)? {
+        // Canonicalization drops empty scopes, which method brands cannot carry.
+        if brand.is_empty()
+            || u32::try_from(brand.len()) != Ok(scope_count)
+            || !concrete_brand(nodes, id, &brand)?
+        {
             return Err(error("requires a complete concrete endpoint brand"));
         }
         Ok(Type::Named(Kind::Struct, id, brand))

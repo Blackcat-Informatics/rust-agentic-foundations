@@ -301,7 +301,7 @@ impl<'a> Nodes<'a> {
         &self,
         id: TypeId,
         scopes: &mut DeclarationScopes,
-        admit: impl Fn(node::Reader<'_>) -> Result<bool, Error>,
+        mut admit: impl FnMut(node::Reader<'_>) -> Result<bool, Error>,
     ) -> Result<bool, Error> {
         // Compiler-generated RPC parameter and result structs have no declaration.
         let mut child = self.node(id)?;
