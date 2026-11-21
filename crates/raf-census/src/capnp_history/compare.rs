@@ -86,6 +86,11 @@ pub enum ChangeKind {
         /// ID of the former direct superclass.
         superclass: TypeId,
     },
+    /// A retained superclass no longer has one of its previous brands.
+    ChangedSuperclassBrand {
+        /// ID of the retained direct superclass.
+        superclass: TypeId,
+    },
     /// The count of a type's own parameters changed.
     ChangedParameters,
     /// The arity of a lexical parameter scope available to an RPC interface changed.
@@ -151,6 +156,9 @@ impl fmt::Display for ChangeKind {
             Self::ChangedKind => "schema kind changed",
             Self::RemovedSuperclass { superclass } => {
                 return write!(f, "direct superclass {superclass} removed");
+            }
+            Self::ChangedSuperclassBrand { superclass } => {
+                return write!(f, "direct superclass {superclass} brand changed");
             }
             Self::ChangedParameters => "type parameter count changed",
             Self::ChangedEnclosingParameters { scope } => {
@@ -467,8 +475,14 @@ fn interface(
             emit(None, ChangeKind::ChangedEnclosingParameters { scope })?;
         }
     }
-    for &superclass in before.superclasses.difference(&after.superclasses) {
-        emit(None, ChangeKind::RemovedSuperclass { superclass })?;
+    for (&superclass, previous) in &before.superclasses {
+        match after.superclasses.get(&superclass) {
+            None => emit(None, ChangeKind::RemovedSuperclass { superclass })?,
+            Some(current) if !previous.is_subset(current) => {
+                emit(None, ChangeKind::ChangedSuperclassBrand { superclass })?;
+            }
+            Some(_) => {}
+        }
     }
     ordinals(
         &before.methods,
