@@ -79,6 +79,8 @@ bindings:
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners
     - cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters
+    - cargo_census::test_crate::delivery::capnp_history_compares_rpc_annotation_applications
+    - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_annotation_applications
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints
     - cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance
     - cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance
@@ -263,6 +265,17 @@ default for each appended inline input. It also compares the layout when a
 renamed method retains its ordinal. Direct selection of a detached endpoint
 and wrappers shared across method roles refuse.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_checks_inline_rpc_methods,cargo_census::test_crate::delivery::capnp_history_refuses_unsupported_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints,cargo_census::test_crate::delivery::capnp_history_compares_implicit_rpc_parameters,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_implicit_rpc_parameters -->
+
+Strict history compares ordered applications per annotation ID on retained RPC
+methods and inline parameter and result slots under the existing ordinal and
+layout rules. An application requires the exact method or parameter target and
+a value consistent with its applied type. Brands use the interface's lexical
+scopes. Implicit method parameters and detached wrapper scopes are available
+only to the endpoint type rules. Findings identify the interface and method,
+and include the endpoint role and slot for inline applications. Native
+descriptor refusals retain their cause and location. Fields of a named endpoint
+use the ordinary data-field annotation rules.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_annotation_applications,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_annotation_applications -->
 
 Persistence declarations bind declared data structs and enums. An
 interface-typed pointer records its nominal identity as part of the data shape.
@@ -856,6 +869,12 @@ method carries a valid annotation on an inline input. An invalid declaration tar
 or a value inconsistent with its applied brand refuses the descriptor.
 <!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_data_field_annotations -->
 
+The RPC annotation fixtures report reordered method applications, a changed
+inline input value and a changed inline result brand. Appending an optional
+field to a named endpoint passes. Wrong target flags, implicit type positions
+and malformed wire values produce a refusal at the relevant RPC member.
+<!-- raf:tested-by cargo_census::test_crate::delivery::capnp_history_compares_rpc_annotation_applications,cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_annotation_applications -->
+
 The named RPC fixtures check an optional field with an implicit default,
 one finding per changed field in a shared layout, and a change of endpoint
 form at the same node ID. A change from Text to Data in a nested type
@@ -943,6 +962,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::capnp_history_compares_nested_generic_rpc_owners` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_nominal_declaration_annotations` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_required_pointer_fields_in_committed_descriptors` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_compares_rpc_annotation_applications` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_rpc_inheritance` | test | [Contract](#contract), [Usage](#usage) |
 | `cargo_census::test_crate::delivery::capnp_history_compares_unbound_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_inconsistent_file_identities` | test | [Contract](#contract) |
@@ -953,6 +973,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_named_rpc_endpoints` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nested_generic_rpc_owners` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_nominal_declaration_annotations` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_annotation_applications` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_invalid_rpc_inheritance` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_annotation_types` | test | [Contract](#contract) |
 | `cargo_census::test_crate::delivery::capnp_history_refuses_malformed_constant_types` | test | [Contract](#contract) |

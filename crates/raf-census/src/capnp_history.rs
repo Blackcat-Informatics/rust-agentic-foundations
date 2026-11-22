@@ -162,6 +162,17 @@ pub enum DescriptorError {
         /// Native descriptor refusal.
         source: Box<Self>,
     },
+    /// Reading annotations on an RPC method or inline endpoint slot failed.
+    RpcApplication {
+        /// ID of the owning interface.
+        owner: TypeId,
+        /// Method name or method, endpoint and slot path.
+        member: String,
+        /// ID of the annotation when the strict application reader identified it.
+        annotation: Option<TypeId>,
+        /// Native descriptor refusal.
+        source: Box<Self>,
+    },
     /// A descriptor does not agree with its signed compiler capture.
     Capture(CaptureError),
 }
@@ -195,7 +206,19 @@ impl fmt::Display for DescriptorError {
                 member,
                 annotation,
                 source,
+            }
+            | Self::RpcApplication {
+                owner,
+                member,
+                annotation: Some(annotation),
+                source,
             } => write!(f, "annotation {annotation} at {owner}.{member}: {source}"),
+            Self::RpcApplication {
+                owner,
+                member,
+                annotation: None,
+                source,
+            } => write!(f, "annotations at {owner}.{member}: {source}"),
             Self::NominalApplication {
                 owner,
                 annotation: Some(annotation),
@@ -229,7 +252,8 @@ impl std::error::Error for DescriptorError {
             Self::Layout(_) => None,
             Self::EnumerantApplication { source, .. }
             | Self::NominalApplication { source, .. }
-            | Self::NodeApplication { source, .. } => Some(source.as_ref()),
+            | Self::NodeApplication { source, .. }
+            | Self::RpcApplication { source, .. } => Some(source.as_ref()),
             Self::Capture(source) => Some(source),
         }
     }

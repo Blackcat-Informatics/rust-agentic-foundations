@@ -12,7 +12,7 @@ use capnp::{
 
 use super::{
     Annotations, DeclarationScopes, Endpoint, Error, Interface, Kind, LayoutScope, Method, Node,
-    Nodes, Superclasses, TypeId, layout, member_name,
+    Nodes, RpcMember, Superclasses, TypeId, layout, member_name,
 };
 use crate::capnp_history::shape::{self, Arguments, Brand, Pointer, Type, TypeScope};
 
@@ -280,7 +280,7 @@ impl Projection {
                 implicit_arity: implicit.len(),
             };
             let mut endpoint =
-                |target, brand: brand::Reader<'_>, role| -> Result<Endpoint, Error> {
+                |target, brand: brand::Reader<'_>, role: &'static str| -> Result<Endpoint, Error> {
                     let reader = nodes.node(target)?;
                     let error = |reason: &str| {
                         layout(format!("{} {role} node {target} {reason}", location()))
@@ -310,14 +310,18 @@ impl Projection {
                             needed,
                             annotations,
                             scopes,
-                            LayoutScope::Inline(
-                                (!owner.parameter_scopes.is_empty() || owner.implicit_arity != 0)
+                            LayoutScope::Inline {
+                                interface: id,
+                                method: name,
+                                role,
+                                scope: (!owner.parameter_scopes.is_empty()
+                                    || owner.implicit_arity != 0)
                                     .then_some(TypeScope::Inline {
                                         owner: owner.id,
                                         wrapper: target,
                                         arity: owner.implicit_arity,
                                     }),
-                            ),
+                            },
                         )?;
                         return Ok(Endpoint::Inline {
                             id: target,
@@ -337,9 +341,16 @@ impl Projection {
                 method.get_result_brand()?,
                 "results",
             )?;
+            let applications = nodes.rpc_applications(
+                id,
+                RpcMember::Method(name),
+                || method.get_annotations(),
+                scopes,
+            )?;
             methods.push(Method {
                 name: name.to_owned(),
                 implicit_arity: owner.implicit_arity,
+                applications,
                 params,
                 results,
             });

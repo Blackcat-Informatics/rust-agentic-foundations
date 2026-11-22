@@ -52,8 +52,8 @@ pub(super) struct Schema {
     pub(super) named_endpoint_parameters: BTreeMap<TypeId, BTreeMap<TypeId, u32>>,
 }
 
-use applications::ApplicationCarrier;
 pub(super) use applications::Applications;
+use applications::{ApplicationCarrier, RpcMember};
 use declarations::AnnotationTargets;
 pub use declarations::{AnnotationTarget, DeclarationKind};
 
@@ -127,6 +127,7 @@ pub(super) struct Interface {
 pub(super) struct Method {
     pub(super) name: String,
     pub(super) implicit_arity: u32,
+    pub(super) applications: Applications,
     pub(super) params: Endpoint,
     pub(super) results: Endpoint,
 }
@@ -146,16 +147,38 @@ pub(super) struct Struct {
 }
 
 #[derive(Clone, Copy)]
-enum LayoutScope {
+enum LayoutScope<'a> {
     Data,
-    Inline(Option<TypeScope>),
+    Inline {
+        interface: TypeId,
+        method: &'a str,
+        role: &'static str,
+        scope: Option<TypeScope>,
+    },
 }
 
-impl LayoutScope {
+impl<'a> LayoutScope<'a> {
     fn type_scope(self, owner: TypeId) -> TypeScope {
         match self {
-            Self::Inline(Some(scope)) => scope,
-            Self::Data | Self::Inline(None) => TypeScope::Lexical(owner),
+            Self::Inline {
+                scope: Some(scope), ..
+            } => scope,
+            Self::Data | Self::Inline { scope: None, .. } => TypeScope::Lexical(owner),
+        }
+    }
+
+    fn rpc_slot<'slot>(self, name: &'slot str) -> Option<(TypeId, RpcMember<'slot>)>
+    where
+        'a: 'slot,
+    {
+        match self {
+            Self::Data => None,
+            Self::Inline {
+                interface,
+                method,
+                role,
+                ..
+            } => Some((interface, RpcMember::Parameter { method, role, name })),
         }
     }
 }
@@ -555,7 +578,7 @@ impl<'a> Nodes<'a> {
         needed: &mut BTreeSet<TypeId>,
         annotations: Annotations,
         scopes: &mut DeclarationScopes,
-        layout_scope: LayoutScope,
+        layout_scope: LayoutScope<'a>,
     ) -> Result<Struct, Error> {
         let mut collector = Fields {
             nodes: self,
@@ -669,7 +692,7 @@ struct Fields<'a, 'b> {
     used_groups: BTreeSet<TypeId>,
     ordinals: BTreeSet<u16>,
     sizes: (u16, u16),
-    layout_scope: LayoutScope,
+    layout_scope: LayoutScope<'a>,
 }
 
 impl<'a> Fields<'a, '_> {
@@ -837,7 +860,17 @@ impl<'a> Fields<'a, '_> {
         };
         let exclusive = discriminant.is_some();
         let conditional = inherited_activation || exclusive;
-        let (required, peer) = self.field_annotations((owner, name), field)?;
+        let (required, peer) = self
+            .field_annotations((owner, name), field)
+            .map_err(|source| match self.layout_scope.rpc_slot(name) {
+                Some((interface, member))
+                    if self.nodes.strict_history
+                        && matches!(source, Error::Wire(_) | Error::Tag(_)) =>
+                {
+                    member.error(interface, None, source)
+                }
+                _ => source,
+            })?;
         match field.which()? {
             field::Slot(slot) => {
                 if required && conditional {
@@ -852,21 +885,7 @@ impl<'a> Fields<'a, '_> {
                     self.pairs.insert((ordinal, peer));
                 }
                 self.record_ordinal(owner, name, ordinal)?;
-                let applications = if self.nodes.strict_history
-                    && matches!(self.layout_scope, LayoutScope::Data)
-                {
-                    self.nodes.applications(
-                        owner,
-                        ApplicationCarrier::DataField {
-                            name,
-                            presence: self.annotations,
-                        },
-                        field.get_annotations()?,
-                        self.scopes,
-                    )?
-                } else {
-                    Applications::new()
-                };
+                let applications = self.slot_applications(owner, name, field)?;
                 if let Some(span) = self.slot(
                     (owner, path),
                     (name, ordinal),
@@ -922,6 +941,32 @@ impl<'a> Fields<'a, '_> {
             }
         }
         Ok(())
+    }
+
+    fn slot_applications(
+        &mut self,
+        owner: TypeId,
+        name: &str,
+        field: field::Reader<'_>,
+    ) -> Result<Applications, Error> {
+        match self.layout_scope.rpc_slot(name) {
+            None if self.nodes.strict_history => self.nodes.applications(
+                owner,
+                ApplicationCarrier::DataField {
+                    name,
+                    presence: self.annotations,
+                },
+                field.get_annotations()?,
+                self.scopes,
+            ),
+            Some((interface, member)) => self.nodes.rpc_applications(
+                interface,
+                member,
+                || field.get_annotations(),
+                self.scopes,
+            ),
+            None => Ok(Applications::new()),
+        }
     }
 
     fn record_ordinal(&mut self, owner: TypeId, name: &str, ordinal: u16) -> Result<(), Error> {

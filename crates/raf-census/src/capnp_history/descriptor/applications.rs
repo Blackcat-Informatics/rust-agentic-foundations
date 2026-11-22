@@ -26,6 +26,35 @@ pub(super) enum ApplicationCarrier<'a> {
     },
     Enumerant(&'a str),
     Node(ApplicationNodeKind),
+    Rpc(RpcMember<'a>),
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum RpcMember<'a> {
+    Method(&'a str),
+    Parameter {
+        method: &'a str,
+        role: &'static str,
+        name: &'a str,
+    },
+}
+
+impl RpcMember<'_> {
+    fn path(self) -> String {
+        match self {
+            Self::Method(name) => name.to_owned(),
+            Self::Parameter { method, role, name } => format!("{method}.{role}.{name}"),
+        }
+    }
+
+    pub(super) fn error(self, owner: TypeId, annotation: Option<TypeId>, source: Error) -> Error {
+        Error::RpcApplication {
+            owner,
+            member: self.path(),
+            annotation,
+            source: Box::new(source),
+        }
+    }
 }
 
 impl ApplicationNodeKind {
@@ -80,6 +109,8 @@ impl ApplicationCarrier<'_> {
             }
             Self::Enumerant(_) => (AnnotationTarget::Enumerant, "enumerants"),
             Self::Node(kind) => kind.policy(),
+            Self::Rpc(RpcMember::Method(_)) => (AnnotationTarget::Method, "RPC methods"),
+            Self::Rpc(RpcMember::Parameter { .. }) => (AnnotationTarget::Param, "RPC parameters"),
         };
         (target, name, Annotations::default())
     }
@@ -88,6 +119,7 @@ impl ApplicationCarrier<'_> {
         match self {
             Self::DataField { name, .. } | Self::Enumerant(name) => format!("{owner}.{name}"),
             Self::Node(_) => owner.to_string(),
+            Self::Rpc(member) => format!("{owner}.{}", member.path()),
         }
     }
 
@@ -107,6 +139,7 @@ impl ApplicationCarrier<'_> {
                 source: Box::new(source),
             },
             Self::Node(kind) => kind.application_error(owner, Some(annotation), source),
+            Self::Rpc(member) => member.error(owner, Some(annotation), source),
         }
     }
 }
@@ -282,6 +315,22 @@ impl Nodes<'_> {
                 .push(Application { brand, value });
         }
         Ok(applications)
+    }
+
+    pub(super) fn rpc_applications<'wire>(
+        &self,
+        interface: TypeId,
+        member: RpcMember<'_>,
+        source: impl FnOnce() -> Result<struct_list::Reader<'wire, annotation::Owned>, capnp::Error>,
+        scopes: &mut DeclarationScopes,
+    ) -> Result<Applications, Error> {
+        // Both method and inline slot applications use the interface's
+        // lexical scope. Only endpoint types can name implicit parameters.
+        if !self.strict_history {
+            return Ok(Applications::new());
+        }
+        let source = source().map_err(|error| member.error(interface, None, error.into()))?;
+        self.applications(interface, ApplicationCarrier::Rpc(member), source, scopes)
     }
 }
 
