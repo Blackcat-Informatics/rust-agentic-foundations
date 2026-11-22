@@ -1899,7 +1899,7 @@ fn cycles(caps: &[&Loaded<Capability>], depends: &[DependsEdge]) -> Vec<Finding>
 
 /// The strongly connected components of a graph (Tarjan, without recursion),
 /// each as a list of node numbers, ordered by their smallest node.
-fn strongly_connected(adjacent: &[Vec<usize>]) -> Vec<Vec<usize>> {
+pub(crate) fn strongly_connected(adjacent: &[Vec<usize>]) -> Vec<Vec<usize>> {
     let mut groups = purrdf_core::graph::tarjan_scc(adjacent);
     for group in &mut groups {
         group.sort_unstable();

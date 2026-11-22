@@ -172,7 +172,7 @@ combined identity and body text to 1 MiB before copying or native construction.
 | --- | --- | --- |
 | Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `review_required`, optional `review_strict`, optional `measured_evidence_required`, optional `diagrams`, optional `model` |
 | Change | `work/changes` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `changes`, `affects`, `contract_effect`, `items` |
-| Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, optional `diagrams`, optional `model` |
+| Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, optional `diagrams`, optional `model`, optional `supersedes` |
 | Evidence | `work/evidence` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by`, `for`, optional `command`, optional `revision`, optional `values`, optional `limits`, optional `units`, optional `conditions` |
 | Assessment | `work/assessments` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by` |
 | Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, `scope`, `exclusions`, optional `ceilings`, optional `exceptions` |
@@ -181,6 +181,11 @@ combined identity and body text to 1 MiB before copying or native construction.
 
 Every key is required except those the table marks optional. The writer emits the
 keys of a type in the order of this table.
+
+An Architecture `supersedes` map names local decision sections by kebab-case
+anchor. Each value is a non-empty list of distinct `arch:<slug>#<section>`
+references, with a kebab-case document slug and section anchor. Workplan
+resolves the declared section endpoints and checks for cycles.
 
 The record types carry no `title` and no `description`: a record states a
 result, not prose. Evidence and an assessment share the trace keys `subject`,

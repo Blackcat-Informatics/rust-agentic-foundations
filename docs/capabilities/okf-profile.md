@@ -9,6 +9,7 @@ state: delivered
 bindings:
   code:
     - raf_okf::profile::build
+    - raf_okf::profile::decision
     - raf_okf::profile::schema
     - raf_okf::profile::check_values
     - raf_okf::profile::diagrams
@@ -165,6 +166,7 @@ bindings:
     - raf_okf::test_crate::profile::review_finding_lists_refuse_wrong_shapes_and_count_only_valid_ids
     - raf_okf::test_crate::profile::an_unknown_key_is_reported_at_that_key
     - raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type
+    - raf_okf::test_crate::profile::a_decision_relation_round_trips_the_native_authoring_carrier
     - raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item
     - raf_okf::test_crate::profile::the_key_resource_has_its_own_rule_on_every_type
     - raf_okf::test_crate::profile::an_unknown_type_is_one_violation_at_the_type_key
@@ -463,6 +465,13 @@ independent identities and records.
 
 The profile has eight types. `Review` is an empty-body record with a required RFC 3339 timestamp, full reviewed revision, source scope, kind, verdict, reviewer category, derived inputs and findings. Its optional findings reference names a readable repository file or an opaque HTTP(S) URL. Finding rows retain severity, source location and open, fixed, accepted or false-positive disposition. Capability headers optionally declare distinct closed `review_required` kinds and optionally state `review_strict: true`, which makes a required review count only when its verdict is clean. They optionally state `measured_evidence_required: true`, and an evidence record optionally states `units` and `conditions` for its values. The architecture profile states the complete closed key and value sets.
 <!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
+
+An Architecture document can state `supersedes`, a map from a local
+decision section anchor to a non-empty list of distinct
+`arch:<slug>#<section>` references. The typed document orders the source
+anchors canonically and retains target list order through the native RDF
+authoring carrier. A repeated target produces `okf-duplicate-entry`.
+<!-- raf:tested-by raf_okf::test_crate::profile::a_decision_relation_round_trips_the_native_authoring_carrier,raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type -->
 
 Prepared native SHACL closes Review finding keys according to the authored
 status. Each row has a focus. A fixed row requires `revision`, and an accepted
@@ -1519,6 +1528,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::placeholder_lines::reports_each_token_in_prose_with_its_line` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_capability_holds_the_seven_sections_in_order` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_change_needs_a_non_empty_summary` | test | [Verification](#verification) |
+| `raf_okf::test_crate::profile::a_decision_relation_round_trips_the_native_authoring_carrier` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::a_delivered_capability_with_code_and_tests_is_typed_with_its_bindings` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_document_must_sit_directly_in_the_directory_of_its_type` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations` | test | [Contract](#contract), [Constraints](#constraints) |
