@@ -1817,7 +1817,7 @@ fn capnp_history_compares_nominal_declaration_annotations() {
 #[test]
 fn capnp_history_refuses_invalid_nominal_declaration_annotations() {
     use capnp::schema_capnp::node;
-    use raf_census::capnp_history::{self as history, DescriptorError, HistoryOptions, Snapshot};
+    use raf_census::capnp_history::{self as history, DescriptorError};
 
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -1858,26 +1858,12 @@ fn capnp_history_refuses_invalid_nominal_declaration_annotations() {
         capnp_history(root, &base, &current, &[], &["--file-id", NOMINAL_FILE]),
         "annotation 0xfa42ee5500000086 at 0xfa42ee5500000085:",
     );
-    let descriptor = raf_source::RelPath::new("schema.bin").unwrap();
-    let error = history::check(
+    let error = descriptor_history_error(
         root,
-        Snapshot {
-            commit: &base,
-            descriptor: &descriptor,
-        },
-        Snapshot {
-            commit: &current,
-            descriptor: &descriptor,
-        },
-        HistoryOptions {
-            roots: &[],
-            file_ids: &[NOMINAL_FILE.parse().unwrap()],
-            required_annotation: None,
-            paired_presence_annotation: None,
-            capture: None,
-        },
-    )
-    .unwrap_err();
+        &base,
+        &current,
+        (&[], &[NOMINAL_FILE.parse().unwrap()]),
+    );
     let service = "0xfa42ee5500000085".parse().unwrap();
     let labels = "0xfa42ee5500000086".parse().unwrap();
     assert!(
@@ -2065,29 +2051,10 @@ fn capnp_history_refuses_invalid_file_and_scalar_annotation_applications() {
 }
 
 fn assert_file_application_wire_cause(root: &Path, base: &str, current: &str) {
-    use raf_census::capnp_history::{self as history, DescriptorError, HistoryOptions, Snapshot};
+    use raf_census::capnp_history::{self as history, DescriptorError};
 
-    let descriptor = raf_source::RelPath::new("schema.bin").unwrap();
     let file_id = APPLICATION_FILE.parse().unwrap();
-    let error = history::check(
-        root,
-        Snapshot {
-            commit: base,
-            descriptor: &descriptor,
-        },
-        Snapshot {
-            commit: current,
-            descriptor: &descriptor,
-        },
-        HistoryOptions {
-            roots: &[],
-            file_ids: &[file_id],
-            required_annotation: None,
-            paired_presence_annotation: None,
-            capture: None,
-        },
-    )
-    .unwrap_err();
+    let error = descriptor_history_error(root, base, current, (&[], &[file_id]));
     let file_items = "0xfa42ee5500000098".parse().unwrap();
     assert!(
         matches!(
@@ -2101,6 +2068,201 @@ fn assert_file_application_wire_cause(root: &Path, base: &str, current: &str) {
                 ..
             } if *owner == file_id
                 && *annotation == file_items
+                && matches!(source.as_ref(), DescriptorError::Wire(_))
+        ),
+        "{error}",
+    );
+}
+
+fn descriptor_history_error(
+    root: &Path,
+    base: &str,
+    current: &str,
+    (roots, file_ids): (
+        &[raf_census::capnp_history::TypeId],
+        &[raf_census::capnp_history::TypeId],
+    ),
+) -> raf_census::capnp_history::Error {
+    use raf_census::capnp_history::{self as history, HistoryOptions, Snapshot};
+
+    let descriptor = raf_source::RelPath::new("schema.bin").unwrap();
+    let snapshot = |commit| Snapshot {
+        commit,
+        descriptor: &descriptor,
+    };
+    history::check(
+        root,
+        snapshot(base),
+        snapshot(current),
+        HistoryOptions {
+            roots,
+            file_ids,
+            required_annotation: None,
+            paired_presence_annotation: None,
+            capture: None,
+        },
+    )
+    .unwrap_err()
+}
+
+const RPC_ANNOTATIONS: &[u8] = include_bytes!("fixtures/capnp/rpc-annotations-base.bin");
+const ANNOTATED_RPC: &str = "0xf69153ee49b07307";
+const RPC_ROUTE_ID: u64 = 0xf691_53ee_49b0_7301;
+const RPC_LABEL_ID: u64 = 0xf691_53ee_49b0_7302;
+const RPC_INPUT_ID: u64 = 0xe17e_2600_d6c5_1c65;
+
+/// Retained methods and inline slots compare their own ordered applications.
+#[test]
+fn capnp_history_compares_rpc_annotation_applications() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, RPC_ANNOTATIONS);
+    let compatible = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-annotations-compatible.bin"),
+    );
+    let unchanged = capnp_history(root, &base, &compatible, &[ANNOTATED_RPC], &[]);
+    assert!(unchanged.status.success(), "{unchanged:?}");
+    assert!(unchanged.stdout.is_empty() && unchanged.stderr.is_empty());
+
+    let changed = commit_capnp_descriptor(
+        root,
+        include_bytes!("fixtures/capnp/rpc-annotations-changed.bin"),
+    );
+    let result = capnp_history(root, &base, &changed, &[ANNOTATED_RPC], &[]);
+    assert_eq!(result.status.code(), Some(1), "{result:?}");
+    assert!(result.stderr.is_empty(), "{result:?}");
+    assert_eq!(
+        String::from_utf8(result.stdout).unwrap(),
+        concat!(
+            "Cap'n Proto history for 0xf69153ee49b07307.send: method applications of annotation 0xf69153ee49b07301 changed\n",
+            "Cap'n Proto history for 0xf69153ee49b07307.send.parameters.message: RPC parameter applications of annotation 0xf69153ee49b07302 changed\n",
+            "Cap'n Proto history for 0xf69153ee49b07307.send.results.reply: RPC parameter applications of annotation 0xf69153ee49b07305 changed\n",
+        ),
+    );
+}
+
+/// RPC applications enforce exact targets and lexical scope, retaining native causes.
+#[test]
+fn capnp_history_refuses_invalid_rpc_annotation_applications() {
+    use capnp::schema_capnp::{brand, node};
+
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    git_repo::init(root);
+    let base = commit_capnp_descriptor(root, RPC_ANNOTATIONS);
+    for (id, method, diagnostic) in [
+        (
+            RPC_ROUTE_ID,
+            false,
+            "annotation 0xf69153ee49b07301 at 0xf69153ee49b07307.send must be declared for RPC methods",
+        ),
+        (
+            RPC_LABEL_ID,
+            true,
+            "annotation 0xf69153ee49b07302 at 0xf69153ee49b07307.send.parameters.message must be declared for RPC parameters",
+        ),
+    ] {
+        let wrong_target = edit_descriptor_node(RPC_ANNOTATIONS, id, |label| {
+            let node::Annotation(mut declaration) = label.which().unwrap() else {
+                panic!("expected RPC annotation declaration");
+            };
+            declaration.set_targets_param(!method);
+            declaration.set_targets_method(method);
+        });
+        let current = commit_capnp_descriptor(root, &wrong_target);
+        assert_census_refused(
+            capnp_history(root, &base, &current, &[ANNOTATED_RPC], &[]),
+            diagnostic,
+        );
+    }
+
+    let implicit_scope = edit_descriptor_node(RPC_ANNOTATIONS, RPC_INPUT_ID, |wrapper| {
+        let node::Struct(input) = wrapper.which().unwrap() else {
+            panic!("expected inline input structure");
+        };
+        let brand::scope::Bind(bindings) = input
+            .get_fields()
+            .unwrap()
+            .get(0)
+            .get_annotations()
+            .unwrap()
+            .get(1)
+            .get_brand()
+            .unwrap()
+            .get_scopes()
+            .unwrap()
+            .get(0)
+            .which()
+            .unwrap()
+        else {
+            panic!("expected input annotation brand binding");
+        };
+        bindings
+            .unwrap()
+            .get(0)
+            .init_type()
+            .init_any_pointer()
+            .init_implicit_method_parameter()
+            .set_parameter_index(0);
+    });
+    let current = commit_capnp_descriptor(root, &implicit_scope);
+    assert_census_refused(
+        capnp_history(root, &base, &current, &[ANNOTATED_RPC], &[]),
+        "annotation 0xf69153ee49b07305 at 0xf69153ee49b07307.send.parameters.message: implicit method parameter requires an RPC method brand",
+    );
+
+    let wrong_presence_value = edit_descriptor_node(RPC_ANNOTATIONS, RPC_LABEL_ID, |label| {
+        let node::Annotation(mut declaration) = label.which().unwrap() else {
+            panic!("expected RPC annotation declaration");
+        };
+        declaration.set_targets_field(true);
+        declaration.init_type().set_void(());
+    });
+    let current = commit_capnp_descriptor(root, &wrong_presence_value);
+    assert_census_refused(
+        capnp_history(
+            root,
+            &current,
+            &current,
+            &[ANNOTATED_RPC],
+            &["--required-annotation", "0xf69153ee49b07302"],
+        ),
+        "annotation 0xf69153ee49b07302 at 0xf69153ee49b07307.send.parameters.message: expected one Void application",
+    );
+    assert_rpc_application_wire_cause(root, &base);
+}
+
+fn assert_rpc_application_wire_cause(root: &Path, base: &str) {
+    use raf_census::capnp_history::{self as history, DescriptorError};
+
+    // Damage the terminator of the fixture's unique inline input annotation.
+    let text = b"input\0";
+    let mut malformed = RPC_ANNOTATIONS.to_vec();
+    let offset = malformed
+        .windows(text.len())
+        .position(|bytes| bytes == text)
+        .unwrap();
+    malformed[offset + text.len() - 1] = b'!';
+    let current = commit_capnp_descriptor(root, &malformed);
+    let interface = ANNOTATED_RPC.parse().unwrap();
+    let label = "0xf69153ee49b07302".parse().unwrap();
+    let error = descriptor_history_error(root, base, &current, (&[interface], &[]));
+    assert!(
+        matches!(
+            &error,
+            history::Error::Descriptor {
+                source: DescriptorError::RpcApplication {
+                    owner,
+                    member,
+                    annotation: Some(annotation),
+                    source,
+                },
+                ..
+            } if *owner == interface
+                && member == "send.parameters.message"
+                && *annotation == label
                 && matches!(source.as_ref(), DescriptorError::Wire(_))
         ),
         "{error}",
@@ -2202,7 +2364,7 @@ fn capnp_history_compares_required_pointer_fields_in_committed_descriptors() {
             &mixed,
             "0x96ac3c3492efd765",
             MARKER,
-            "must belong to a declared struct",
+            "annotation 0xe91447cf636b013a at 0x96ac3c3492efd765.set.parameters.label: required fields must belong to a declared struct",
         ),
     ] {
         let refused = history(before, after, selected, Some(marker));

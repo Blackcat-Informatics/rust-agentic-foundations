@@ -20,5 +20,5 @@ struct Record @0xefc1329300000055 {
 }
 
 interface Service @0xefc1329300000057 {
-  read @0 (source :Text $parameter("new")) -> Record;
+  read @0 (source :Text $parameter("old")) -> Record;
 }

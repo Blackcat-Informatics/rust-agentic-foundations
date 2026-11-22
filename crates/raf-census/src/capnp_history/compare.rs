@@ -124,6 +124,16 @@ pub enum ChangeKind {
         /// ID of the annotation declaration.
         annotation: TypeId,
     },
+    /// A retained RPC method's applications of an annotation changed.
+    ChangedMethodAnnotation {
+        /// ID of the annotation declaration.
+        annotation: TypeId,
+    },
+    /// A retained inline RPC parameter or result's applications changed.
+    ChangedRpcParameterAnnotation {
+        /// ID of the annotation declaration.
+        annotation: TypeId,
+    },
     /// A retained enumerant's applications of an annotation changed.
     ChangedEnumerantAnnotation {
         /// ID of the annotation declaration.
@@ -200,6 +210,15 @@ impl fmt::Display for ChangeKind {
             Self::ChangedDefault => "default changed",
             Self::ChangedFieldAnnotation { annotation } => {
                 return write!(f, "field applications of annotation {annotation} changed");
+            }
+            Self::ChangedMethodAnnotation { annotation } => {
+                return write!(f, "method applications of annotation {annotation} changed");
+            }
+            Self::ChangedRpcParameterAnnotation { annotation } => {
+                return write!(
+                    f,
+                    "RPC parameter applications of annotation {annotation} changed"
+                );
             }
             Self::ChangedEnumerantAnnotation { annotation } => {
                 return write!(
@@ -307,7 +326,7 @@ pub(super) fn changes(base: &Schema, current: &Schema) -> Result<Vec<Change>, Er
                 ) {
                     enclosing_parameters(previous, current, &mut emit)?;
                 }
-                structure(before, after, false, &mut emit)
+                structure(before, after, SlotKind::Field, &mut emit)
             }
             (Node::Enum(before), Node::Enum(after)) => ordinals(
                 before,
@@ -389,10 +408,17 @@ fn member_name(group: &[std::rc::Rc<str>], name: &str) -> String {
     format!("{}.{name}", group.join("."))
 }
 
+#[derive(Clone, Copy)]
+enum SlotKind {
+    Field,
+    Parameter,
+    Result,
+}
+
 fn structure(
     before: &Struct,
     after: &Struct,
-    input_defaults: bool,
+    slots: SlotKind,
     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
 ) -> Result<(), Error> {
     for (path, group) in &before.groups {
@@ -462,12 +488,19 @@ fn structure(
             emit(name(), ChangeKind::ChangedDiscriminant)?;
         }
         if slot.default != current.default
-            || (input_defaults && slot.explicit_default != current.explicit_default)
+            || (matches!(slots, SlotKind::Parameter)
+                && slot.explicit_default != current.explicit_default)
         {
             emit(name(), ChangeKind::ChangedDefault)?;
         }
         compare_applications(&slot.applications, &current.applications, |annotation| {
-            emit(name(), ChangeKind::ChangedFieldAnnotation { annotation })
+            let kind = match slots {
+                SlotKind::Field => ChangeKind::ChangedFieldAnnotation { annotation },
+                SlotKind::Parameter | SlotKind::Result => {
+                    ChangeKind::ChangedRpcParameterAnnotation { annotation }
+                }
+            };
+            emit(name(), kind)
         })?;
     }
     for (&ordinal, slot) in &after.slots {
@@ -619,9 +652,15 @@ fn method(
     if old.implicit_arity != new.implicit_arity {
         emit(Some(old.name.clone()), ChangeKind::ChangedMethodParameters)?;
     }
-    for (before, after, role, input) in [
-        (&old.params, &new.params, "parameters", true),
-        (&old.results, &new.results, "results", false),
+    compare_applications(&old.applications, &new.applications, |annotation| {
+        emit(
+            Some(old.name.clone()),
+            ChangeKind::ChangedMethodAnnotation { annotation },
+        )
+    })?;
+    for (before, after, role, slots) in [
+        (&old.params, &new.params, "parameters", SlotKind::Parameter),
+        (&old.results, &new.results, "results", SlotKind::Result),
     ] {
         let mut emit = |member: Option<String>, kind| {
             let name = &old.name;
@@ -646,7 +685,7 @@ fn method(
                 if old_id != new_id {
                     emit(None, ChangeKind::ChangedType)?;
                 }
-                inline_endpoint(previous, current, input, &mut emit)?;
+                inline_endpoint(previous, current, slots, &mut emit)?;
             }
             _ => emit(None, ChangeKind::ChangedType)?,
         }
@@ -657,11 +696,11 @@ fn method(
 fn inline_endpoint(
     before: &Struct,
     after: &Struct,
-    input: bool,
+    slots: SlotKind,
     emit: &mut impl FnMut(Option<String>, ChangeKind) -> Result<(), Error>,
 ) -> Result<(), Error> {
-    structure(before, after, input, emit)?;
-    if input {
+    structure(before, after, slots, emit)?;
+    if matches!(slots, SlotKind::Parameter) {
         // Inline lists have only consecutive slots, so every ordinal
         // at or beyond the old length is an appended parameter.
         for slot in after.slots.values().skip(before.slots.len()) {
