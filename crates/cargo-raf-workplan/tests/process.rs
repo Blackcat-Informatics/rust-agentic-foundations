@@ -482,14 +482,14 @@ fn cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back
     }
     assert!(repo.root().join("work/changes/fresh.md").is_file());
 
-    // Cargo gave the binary the word `workplan` first, then the arguments.
+    // Cargo gave the binary the word `raf-workplan` first, then the arguments.
     let calls = fs::read_to_string(&record).expect("a record");
     assert!(
-        calls.starts_with("arg=workplan\narg=check\nend\n"),
+        calls.starts_with("arg=raf-workplan\narg=check\nend\n"),
         "{calls}"
     );
     assert!(
-        calls.contains("arg=workplan\narg=change\narg=reconcile\narg=grow\nend\n"),
+        calls.contains("arg=raf-workplan\narg=change\narg=reconcile\narg=grow\nend\n"),
         "{calls}"
     );
 }
