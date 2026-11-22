@@ -10,7 +10,7 @@ use crate::frontmatter::value::{Entry, ItemValue, Map, Scalar};
 use crate::profile::header::RowKeys;
 use crate::profile::schema::DocType;
 use crate::profile::typed::{
-    Actor, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass, CeilingLimit, DebtFinding,
+    AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass, CeilingLimit, DebtFinding,
     DebtLine, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget, Exclusion,
     ExclusionItem, Input, InputKind, Measure, Number, SectionRef, Unit,
 };
@@ -284,46 +284,19 @@ pub(super) fn check_inputs(
     valid.then_some(inputs)
 }
 
-pub(super) fn check_verdict(
-    check: &mut Check<'_>,
-    entry: &Entry,
-    doc_type: DocType,
-) -> Option<Verdict> {
-    let text = scalar_of(check, entry)?;
-    let verdict = match (doc_type, text) {
-        (DocType::Evidence, "pass") => Some(Verdict::Evidence(EvidenceVerdict::Pass)),
-        (DocType::Evidence, "fail") => Some(Verdict::Evidence(EvidenceVerdict::Fail)),
-        (DocType::Assessment, "accepted") => Some(Verdict::Assessment(AssessmentVerdict::Accepted)),
-        (DocType::Assessment, "rejected") => Some(Verdict::Assessment(AssessmentVerdict::Rejected)),
-        (DocType::Review, text) => {
-            super::review::ReviewVerdict::from_name(text).map(Verdict::Review)
-        }
+pub(super) fn read_verdict(doc_type: DocType, text: &str) -> Option<Verdict> {
+    match doc_type {
+        DocType::Evidence => EvidenceVerdict::ALL
+            .into_iter()
+            .find(|verdict| verdict.name() == text)
+            .map(Verdict::Evidence),
+        DocType::Assessment => AssessmentVerdict::ALL
+            .into_iter()
+            .find(|verdict| verdict.name() == text)
+            .map(Verdict::Assessment),
+        DocType::Review => super::review::ReviewVerdict::from_name(text).map(Verdict::Review),
         _ => None,
-    };
-    if verdict.is_none() {
-        check.key(
-            "verdict",
-            Rule::BadVerdict {
-                doc_type,
-                found: text.to_string(),
-            },
-        );
     }
-    verdict
-}
-
-pub(super) fn check_actor(check: &mut Check<'_>, entry: &Entry) -> Option<Actor> {
-    let text = scalar_of(check, entry)?;
-    let actor = Actor::from_name(text);
-    if actor.is_none() {
-        check.key(
-            "by",
-            Rule::BadActor {
-                found: text.to_string(),
-            },
-        );
-    }
-    actor
 }
 
 pub(super) fn check_command(check: &mut Check<'_>, entry: &Entry) -> Option<String> {

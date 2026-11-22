@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 
 use raf_okf::{
     CapabilitySection, ContractEffect, DocType, Document, LinkForm, Location, Outcome, Profile,
-    RafDocument, Rule, State, TimestampError, Violation,
+    RafDocument, ReviewKind, Rule, State, TimestampError, Violation,
 };
 
 const SECTIONS: [&str; 7] = [
@@ -208,29 +208,33 @@ fn capability_flags_read_true_or_false_and_refuse_other_shapes() {
         for (value, expected) in [
             ("true", Some(true)),
             ("false", Some(false)),
+            ("\"true\"", Some(true)),
+            ("TRUE", None),
             ("yes", None),
             ("[true]", None),
         ] {
             let text = alpha().replace("depends:", &format!("{flag}: {value}\ndepends:"));
-            match expected {
-                Some(expected) => {
-                    let RafDocument::Capability(cap) = clean(&text, ALPHA_PATH) else {
-                        panic!("a capability")
-                    };
-                    let read = if flag == "review_strict" {
-                        cap.review_strict
-                    } else {
-                        cap.measured_evidence_required
-                    };
-                    assert_eq!(read, expected, "{flag}: {value}");
-                }
-                None => assert!(
-                    violations(&text, ALPHA_PATH)
-                        .iter()
-                        .any(|v| v.at() == &key(flag)),
-                    "{flag}: {value}"
-                ),
-            }
+            let Some(expected) = expected else {
+                let found = violations(&text, ALPHA_PATH);
+                assert_eq!(found.len(), 1, "{found:#?}");
+                assert_hit(
+                    &found,
+                    &key(flag),
+                    &Rule::WrongShape {
+                        expected: "true or false",
+                    },
+                );
+                continue;
+            };
+            let RafDocument::Capability(cap) = clean(&text, ALPHA_PATH) else {
+                panic!("a capability")
+            };
+            let read = if flag == "review_strict" {
+                cap.review_strict
+            } else {
+                cap.measured_evidence_required
+            };
+            assert_eq!(read, expected, "{flag}: {value}");
         }
     }
 }
@@ -238,6 +242,7 @@ fn capability_flags_read_true_or_false_and_refuse_other_shapes() {
 #[test]
 fn valid_documents_of_each_type_validate_to_typed_values() {
     review_location_neighbors();
+    review_kind_neighbors();
     let RafDocument::Capability(cap) = clean(&alpha(), ALPHA_PATH) else {
         panic!("a capability");
     };
@@ -262,7 +267,7 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
         ("[]", Some(Vec::new())),
         (
             "[security, correctness, design, performance, documentation]",
-            Some(raf_okf::ReviewKind::ALL.to_vec()),
+            Some(ReviewKind::ALL.to_vec()),
         ),
         ("[security, security]", None),
         ("[unknown]", None),
@@ -315,6 +320,27 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
     };
     assert_eq!(page.header.description, "How it fits.");
     architecture_model_neighbors();
+}
+
+fn review_kind_neighbors() {
+    // The scalar Review field admits decoded spellings, including quoted ones.
+    let quoted = mutate(REVIEW, "kind: design", "kind: \"design\"");
+    let RafDocument::Review(review) = clean(&quoted, REVIEW_PATH) else {
+        panic!("a review");
+    };
+    assert_eq!(review.kind, ReviewKind::Design);
+    for kind in ["Design", "[design]"] {
+        let text = mutate(REVIEW, "kind: design", &format!("kind: {kind}"));
+        let found = violations(&text, REVIEW_PATH);
+        assert_eq!(found.len(), 1, "{found:#?}");
+        assert_hit(
+            &found,
+            &key("kind"),
+            &Rule::WrongShape {
+                expected: "security, correctness, design, performance or documentation",
+            },
+        );
+    }
 }
 
 fn architecture_model_neighbors() {
@@ -701,22 +727,24 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
     assert_eq!(foreign_seen, 21 + 25 + 27 + 20 + 27 + 29 + 29 + 23);
 }
 
-/// Closed and minimum-count findings retain authored and schema order.
+/// Key findings precede value findings, which retain schema order.
 #[test]
 fn mixed_header_violations_keep_their_key_and_diagnostic_order() {
-    clean(ARCHITECTURE, OVERVIEW_PATH);
+    let baseline = alpha();
+    clean(&baseline, ALPHA_PATH);
     let text = mutate(
-        ARCHITECTURE,
-        "title: Overview\ndescription: How it fits.\n",
-        "zeta: 1\nresource: forbidden\naardvark: 2\n",
+        &baseline,
+        "title: \"Title of alpha\"\ndescription: A description of alpha.\nstate: designed\n",
+        "zeta: 1\nresource: forbidden\naardvark: 2\nstate: done\n\
+         measured_evidence_required: TRUE\nreview_strict: TRUE\n",
     );
-    let found = violations(&text, OVERVIEW_PATH);
+    let found = violations(&text, ALPHA_PATH);
     let expected = [
         ("zeta", Rule::UnknownKey { key: "zeta".into() }),
         (
             "resource",
             Rule::ResourceKey {
-                doc_type: DocType::Architecture,
+                doc_type: DocType::Capability,
             },
         ),
         (
@@ -737,10 +765,28 @@ fn mixed_header_violations_keep_their_key_and_diagnostic_order() {
                 key: "description".into(),
             },
         ),
+        (
+            "state",
+            Rule::BadState {
+                found: "done".into(),
+            },
+        ),
+        (
+            "review_strict",
+            Rule::WrongShape {
+                expected: "true or false",
+            },
+        ),
+        (
+            "measured_evidence_required",
+            Rule::WrongShape {
+                expected: "true or false",
+            },
+        ),
     ];
     assert_eq!(found.len(), expected.len());
     for (violation, (name, rule)) in found.iter().zip(expected) {
-        assert_eq!(violation.file(), OVERVIEW_PATH);
+        assert_eq!(violation.file(), ALPHA_PATH);
         assert_eq!(violation.at(), &key(name));
         assert_eq!(violation.rule(), &rule);
     }
@@ -1094,6 +1140,11 @@ fn a_state_is_one_of_the_four() {
             ALPHA_PATH,
         );
     }
+    let quoted = mutate(&alpha(), "state: designed", "state: \"designed\"");
+    let RafDocument::Capability(capability) = clean(&quoted, ALPHA_PATH) else {
+        panic!("a capability");
+    };
+    assert_eq!(capability.state, State::Designed);
 }
 
 #[test]
@@ -1335,7 +1386,11 @@ fn contract_effect_is_none_or_changes() {
         );
     }
     let RafDocument::Change(change) = clean(
-        &mutate(CHANGE, "contract_effect: changes", "contract_effect: none"),
+        &mutate(
+            CHANGE,
+            "contract_effect: changes",
+            "contract_effect: \"none\"",
+        ),
         CHANGE_PATH,
     ) else {
         panic!("a change");

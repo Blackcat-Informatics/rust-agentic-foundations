@@ -86,12 +86,7 @@ impl ReviewVerdict {
     /// Read one closed profile spelling.
     #[must_use]
     pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "clean" => Some(Self::Clean),
-            "findings" => Some(Self::Findings),
-            "blocked" => Some(Self::Blocked),
-            _ => None,
-        }
+        Self::ALL.into_iter().find(|verdict| verdict.name() == name)
     }
 }
 
@@ -322,19 +317,6 @@ impl ReviewScope {
         }
         Some(ReviewScope::Items(paths))
     }
-}
-
-pub(super) fn check_kind(check: &mut Check<'_>, entry: &Entry) -> Option<ReviewKind> {
-    let kind = scalar_text(entry).and_then(ReviewKind::from_name);
-    if kind.is_none() {
-        check.key(
-            "kind",
-            Rule::WrongShape {
-                expected: "security, correctness, design, performance or documentation",
-            },
-        );
-    }
-    kind
 }
 
 /// Capability policy accepts only distinct members of the same closed kind set.

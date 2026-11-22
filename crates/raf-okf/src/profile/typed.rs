@@ -172,6 +172,21 @@ pub enum ContractEffect {
     Changes,
 }
 
+impl ContractEffect {
+    pub(super) const ALL: [Self; 2] = [Self::None, Self::Changes];
+
+    pub(super) fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|effect| effect.name() == name)
+    }
+
+    pub(super) const fn name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Changes => "changes",
+        }
+    }
+}
+
 /// The keys every document type shares.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
