@@ -154,7 +154,9 @@ make check      # every gate: fmt, clippy, test, test-release, doc, deny, reuse,
 make docs-sync  # rewrite the generated documentation blocks; the repair for a stale-block finding
 ```
 
-- **The required gates are the hooks and CI.** The pre-commit hook runs fmt,
+- **The required gates are the hooks, local merge qualification and CI.**
+  The merge tool runs `make merge-gate` from the declaration on the base commit.
+  That target takes the shared build lock. The pre-commit hook runs fmt,
   reuse and production Clippy on a checkout of the staged index, then the `repo_gates`, `docs_contract`
   and `self_census` test binaries over that checkout. The binaries
   are compiled from the working tree; only the files they judge come from the index.

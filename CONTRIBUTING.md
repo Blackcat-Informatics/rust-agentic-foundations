@@ -80,6 +80,13 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
   that checkout. The binaries are compiled from the working tree, not the index.
   A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
   hook. [Staged gate measurements](docs/staged-gate-cost.md)
+- **Local merge qualification.** `make merge-gate` runs `make check`,
+  which includes `make test`, under the shared build lock. Set an absolute
+  `CARGO_TARGET_DIR` outside the repository if `target` resolves inside it.
+  The [gate declaration](.ghprsq.toml) takes effect from the base commit.
+  The merge tool checks the signed candidate before publication and records
+  the exit status. It can reuse a recorded pass for the same tree and
+  command. Hosted checks are also required.
 - **Production lint coverage.** `make clippy-production` checks the locked
   workspace libraries and binaries. A private helper whose only caller is a
   test can fail this check. The staged hook uses the same command on staged

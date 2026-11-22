@@ -40,7 +40,7 @@ FUZZ_MAX_LEN ?= 400000
 # The memory limits of every run, in MiB: the resident set, and one allocation.
 FUZZ_RSS_LIMIT_MB ?= 2048
 FUZZ_MALLOC_LIMIT_MB ?= 512
-.PHONY: help fmt clippy clippy-production test test-release doc deny reuse msrv fuzz fuzz-check fuzz-run licenses issue-refs docs-sync check hooks
+.PHONY: help fmt clippy clippy-production test test-release doc deny reuse msrv fuzz fuzz-check fuzz-run licenses issue-refs docs-sync check merge-gate hooks
 
 help: ## List the targets.
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-12s %s\n", $$1, $$2}'
@@ -127,6 +127,15 @@ check: ## Run every gate, stopping at the first failure.
 	$(MAKE) fuzz
 	$(MAKE) licenses
 	$(MAKE) issue-refs
+
+merge-gate: ## Qualify the exact merge candidate, including the workspace tests.
+	+@common=$$(git rev-parse --path-format=absolute --git-common-dir) && \
+	  target=$$(realpath -m -- "$${CARGO_TARGET_DIR:-$(CURDIR)/target}") && \
+	  case "$$target" in \
+	    "$${common%/*}"|"$${common%/*}/"*) \
+	      echo 'make merge-gate: set CARGO_TARGET_DIR to an absolute directory outside the repository' >&2; exit 1;; \
+	  esac && \
+	  env -u RAF_GATE_ROOT CARGO_TARGET_DIR="$$target" flock /tmp/raf-build.lock $(MAKE) check ROOT='$(CURDIR)'
 
 hooks: ## Use .githooks for this clone (local config only).
 	git config core.hooksPath .githooks
