@@ -191,11 +191,24 @@ and through `cargo raf-census` and `cargo raf-workplan`. Compile a fresh consume
 against the packaged libraries on the declared stable Rust floor. Qualify the
 static documentation from the package contents.
 
-After maintainer approval, publish `raf-okf`, `raf-rdf` and `raf-source`, then
-`raf-census` and `raf-workplan`, and finally `cargo-raf-census` and
-`cargo-raf-workplan`. Wait for each dependency to appear in the registry before
-uploading a dependant. Verify fresh registry installs and the static docs.rs
-builds before publishing the signed version tag and release notes.
+Configure a GitHub trusted publisher for each public crate with owner
+`Blackcat-Informatics`, repository `rust-agentic-foundations`, workflow
+`publish.yml` and environment `release`. Restrict the GitHub `release`
+environment to the `main` branch. A new crate needs an initial upload with a
+crates.io API token before its trusted publisher can be configured.
+
+After maintainer approval, dispatch **Publish to crates.io** from `main` with
+the full release commit SHA, the workspace version and `workspace` as the
+package. The workflow checks that the selected commit passed push CI and Cargo
+publishes the public packages in dependency order. If publication stops
+partway, check each exact version in the registry. For versions already
+published, confirm the archive's `.cargo_vcs_info.json` identifies the release
+commit. Dispatch each missing package from that commit. Publish `raf-okf`,
+`raf-rdf` and `raf-source` before `raf-census` and `raf-workplan`, then publish
+`cargo-raf-census` and `cargo-raf-workplan`. Keep `main` at the release commit
+until the registry has all seven packages. Verify fresh registry installs and
+the static docs.rs builds before publishing the signed version tag and release
+notes.
 
 ## Before you open a pull request
 
