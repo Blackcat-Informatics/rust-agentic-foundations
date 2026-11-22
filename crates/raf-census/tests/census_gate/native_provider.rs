@@ -98,7 +98,7 @@ pub(super) fn actual_registry_hasher() {
         native.source().unwrap().repository(),
         INDEX.strip_prefix("registry+").unwrap()
     );
-    assert!(native.version().starts_with("4."), "{}", native.version());
+    assert!(native.version().starts_with("5."), "{}", native.version());
     let demo = catalog
         .packages()
         .find(|row| row.name() == "demo")
@@ -113,7 +113,7 @@ pub(super) fn actual_registry_hasher() {
         .err()
         .expect("changed archive bytes must fail authentication");
     assert!(invalid.to_string().contains("checksum"), "{invalid}");
-    let manifest = "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n[dependencies]\npurrdf-hash={version='=4'}\n";
+    let manifest = "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n[dependencies]\npurrdf-hash={version='=5'}\n";
     let ledger = ledger();
     let tree = MemoryTree::from([
         ("Cargo.toml", manifest),

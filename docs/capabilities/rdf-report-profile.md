@@ -44,6 +44,7 @@ bindings:
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph
   tests:
+    - raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes
     - raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage
     - cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
@@ -172,7 +173,7 @@ the XML Schema namespace. Domain registries enumerate the terms they permit.
 Engine-owned Census report terms occupy the shared versioned namespace.
 The inventories cover baseline, index, selected queries, debt, native Ledger
 policy and registered response outcomes. Ordinary Census report readers require
-report form 5. Report form 5 admits the optional grouping-scope properties as
+report form 6. It admits the optional grouping-scope properties as
 additions omitted at their default, under the version-bump rule of the
 [normal-form decision](../architecture/normal-form.md#version-bump-rule); a reader that lacks a
 property refuses a record stating it, by name. Each reader refuses a property
@@ -256,13 +257,17 @@ debt protocol IRIs, status values and outcome shapes are defined by the
 [Census command contract](./census-cli.md).
 
 ### Snapshot identity
-<!-- raf:tested-by raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_rdf::test_crate::profile::pinned_registry_expansions_remain_distinct_from_native_canonical_bytes -->
+<!-- raf:tested-by raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_rdf::test_crate::profile::pinned_registry_expansions_remain_distinct_from_native_canonical_bytes,raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes -->
 
 One fixed normalized spelling supplies identity: UTF-8 `VERSION "1.2"` followed
 by LF, then one complete-predicate Turtle triple per line in the graph's derived
 term order, each ending ` .` and LF. Owned nodes use `<>` or `<#fragment>`.
 Terms use PurRDF's native canonical term output and `TermValue` ordering. Subject
 and predicate keys use exact string ordering; object values use native `Ord`.
+The current spelling escapes U+FFFE and U+FFFF in literals.
+`Graph::from_purrdf4_text` verifies the original spelling and snapshot for
+explicit historical conversion. Rendering the returned graph uses the current
+spelling.
 The snapshot BASE is `https://blackcatinformatics.ca/.well-known/genid/raf-report/`
 followed by the full lowercase BLAKE3 digest of those normalized bytes. No BASE
 line participates in the preimage. This is an unkeyed integrity check, not an
@@ -733,6 +738,7 @@ retains its separate semantic and normal-form golden checks.
 | `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes` | test | [Contract](#contract) |
 | `raf_rdf::example_crate::report` | example target | [Usage](#usage) |
 | `raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_rdf::read::tests::ownership_normalization_checks_the_selected_root_boundary` | test | [Contract](#contract) |

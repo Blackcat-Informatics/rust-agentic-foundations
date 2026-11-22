@@ -291,7 +291,7 @@ reference module with a recorded allowance. The index, `job`, `count` and
 ### Closed native evidence
 <!-- raf:tested-by raf_census::test_crate::reference_scan::path_references_preserve_all_witnesses_with_one_physical_consumer_count,raf_census::test_crate::reference_scan::large_constants_shared_with_a_reference_cross_the_boundary_by_value,raf_census::test_crate::reference_scan::first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_rows,raf_census::test_crate::reference_scan::an_index_without_a_reference_has_no_reference_constant_rows,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,raf_census::test_crate::reference_scan::a_constant_held_only_by_two_reference_packages_has_no_row,raf_census::test_crate::reference_scan::external_references_report_cross_boundary_constants_like_a_lock_selected_one -->
 
-Report form 5 carries source receipts, qualified reference units and full
+Report form 6 carries source receipts, qualified reference units and full
 cross-boundary fingerprint witnesses. It also carries each
 cross-boundary shared constant: an integer constant strictly above `0xffff` that
 at least one first-party unit and at least one reference unit both hold, compared
@@ -304,7 +304,7 @@ endpoint and source closure. Reference units cannot receive a COPY role or enter
 a first-party structural group. Migrating form 4 preserves its ordinary
 first-party rows without inventing historical source observations. Normal form 1
 fingerprints remain unchanged.
-Form 5 receipts also admit the `unpinned-tree` observation, only with the `path`
+Form 6 receipts also admit the `unpinned-tree` observation, only with the `path`
 source kind and no checksum; every existing receipt keeps its bytes and
 identity.
 
@@ -318,13 +318,13 @@ Name a dependency and its job home in the native ledger:
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/4a9ae8720de8c714365401e1d1b156942dcbdb3667864cc9cf861b136250bf85>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/126d795d09a30f7de7fb01f7c21e16eddffecbe3d8a5fc4d2250f86ec37fd43a>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
 <> <https://blackcatinformatics.ca/raf/report/1#job> <#job> .
 <> <https://blackcatinformatics.ca/raf/report/1#minTokens> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#reference> "acme-core" .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#root> "." .
 <#job> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LedgerJob> .
 <#job> <https://blackcatinformatics.ca/raf/report/1#enforced> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
@@ -380,12 +380,12 @@ Cargo registry cache, which `cargo fetch --locked` stores. The ledger is:
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/c2a0bc34be784fa53634f5c84b584363b3bfb96c2cb04cfcae82bc8a5e76a2c4>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/01aec1c77a74d3b55c12f8efde37d9dcc37b52ff1ab6523ad72cbd958359cdf8>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
 <> <https://blackcatinformatics.ca/raf/report/1#minTokens> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#reference> "hex" .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#root> "." .
 ```
 

@@ -4,7 +4,7 @@
 //! The closed RDF 1.2 vocabulary of census reports.
 
 /// Layout version of the vocabulary, shape and canonical spelling.
-pub const REPORT_FORM: u32 = 5;
+pub const REPORT_FORM: u32 = 6;
 /// Census class and property namespace.
 pub const CENSUS: &str = raf_rdf::vocab::REPORT;
 /// Named hexadecimal table namespace.

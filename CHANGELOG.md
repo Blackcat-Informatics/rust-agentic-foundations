@@ -8,6 +8,10 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+- RAF uses PurRDF 5. Census report form 6 adopts its literal spelling.
+  `cargo raf-census migrate --report-form` converts forms 3 through 5 after
+  verifying the original bytes and snapshot digest.
+
 - **Breaking, 0.8.0:** The RAF command packages and executables are `cargo-raf-census` and
   `cargo-raf-workplan`. Invoke them as `cargo raf-census` and
   `cargo raf-workplan`. Both ship with the RAF libraries at version 0.8.0.

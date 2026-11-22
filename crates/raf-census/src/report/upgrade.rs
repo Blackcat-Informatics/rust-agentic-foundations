@@ -76,7 +76,7 @@ impl ReportKind {
     }
 }
 
-/// Convert a canonical form-3 or form-4 carrier to the current layout.
+/// Convert a canonical form-3, form-4 or form-5 carrier to the current layout.
 ///
 /// Every assertion other than `reportForm` survives. Canonical owned snapshot
 /// IRIs rebase; external IRIs, normal forms, fingerprints and pin literals do not
@@ -98,7 +98,7 @@ pub fn upgrade_report_form(
 
 fn upgrade(kind: ReportKind, text: &str, format: Format) -> Result<String, Error> {
     kind.check_size(text)?;
-    let graph = Graph::from_text(text, format).map_err(E::Ground)?;
+    let graph = Graph::from_purrdf4_text(text, format).map_err(E::Ground)?;
     let root = graph
         .get("")
         .ok_or_else(|| E::Missing("report root".into()))?;
@@ -112,13 +112,14 @@ fn upgrade(kind: ReportKind, text: &str, format: Format) -> Result<String, Error
     }
     let declared = u32::try_from(shape::count(&root, "reportForm")?)
         .map_err(|_| E::Value("reportForm: u32 overflow".into()))?;
-    if !matches!(declared, 3 | 4) {
+    if !matches!(declared, 3..=5) {
         return Err(E::Value(format!(
-            "layout conversion requires report form 3 or 4, found {declared}"
+            "layout conversion requires report form 3, 4 or 5, found {declared}"
         ))
         .into());
     }
-    if kind == ReportKind::Index
+    if declared < 5
+        && kind == ReportKind::Index
         && graph.nodes().any(|(_, node)| {
             matches!(
                 shape::class(&node),

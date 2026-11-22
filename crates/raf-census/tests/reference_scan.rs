@@ -326,7 +326,7 @@ fn explicit_path_roots_require_the_actual_owning_manifest_locator() {
 fn reject_unrelated_report_evidence(index: &Index) {
     let valid = index.to_ntriples().unwrap();
     let original = Graph::from_text(&valid, Format::NTriples).unwrap();
-    reject_historical_reference_provenance(&original);
+    migrate_historical_reference_provenance(&original);
     let reference_unit = original
         .nodes()
         .find(|(_, node)| {
@@ -407,7 +407,7 @@ fn reject_unrelated_report_evidence(index: &Index) {
     );
 }
 
-fn reject_historical_reference_provenance(current: &Graph) {
+fn migrate_historical_reference_provenance(current: &Graph) {
     let header = current
         .assertions()
         .find(|triple| {
@@ -415,7 +415,7 @@ fn reject_historical_reference_provenance(current: &Graph) {
                 && triple.predicate == TermValue::iri(format!("{}reportForm", vocab::REPORT))
         })
         .unwrap();
-    for form in [3, 4] {
+    for form in [3, 4, 5] {
         let mut older = Builder::from_graph(current);
         assert!(older.remove(header.clone()).unwrap());
         older
@@ -427,21 +427,25 @@ fn reject_historical_reference_provenance(current: &Graph) {
         let older = older.finish().unwrap();
         for format in [Format::Turtle, Format::NTriples] {
             let text = older.to_text(format).unwrap();
-            let error = raf_census::upgrade_report_form(
+            let converted = raf_census::upgrade_report_form(
                 raf_census::ReportKind::Index,
                 raf_census::MigrationInput {
                     path: "historical-reference-provenance",
                     text: &text,
                 },
                 format,
-            )
-            .unwrap_err();
-            assert!(
-                error
-                    .to_string()
-                    .contains("older report forms cannot carry reference"),
-                "{form} {format:?}: {error}"
             );
+            if form == 5 {
+                assert_eq!(converted.unwrap(), current.to_text(format).unwrap());
+            } else {
+                let error = converted.unwrap_err();
+                assert!(
+                    error
+                        .to_string()
+                        .contains("older report forms cannot carry reference"),
+                    "{form} {format:?}: {error}"
+                );
+            }
         }
     }
 }

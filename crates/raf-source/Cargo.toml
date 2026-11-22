@@ -23,7 +23,6 @@ purrdf-core.workspace = true
 purrdf-lex.workspace = true
 purrdf-hash.workspace = true
 purrdf-iri.workspace = true
-purrdf-xsd.workspace = true
 syn = { workspace = true, features = ["full", "parsing", "printing", "visit", "visit-mut"] }
 quote.workspace = true
 purrdf-toml.workspace = true
@@ -33,6 +32,7 @@ unicode-ident.workspace = true
 [dev-dependencies]
 raf-fixtures = { path = "../raf-fixtures" }
 purrdf-testkit.workspace = true
+purrdf-xsd.workspace = true
 purrdf-alloc-probe.workspace = true
 
 # Only constants are taken from libc.

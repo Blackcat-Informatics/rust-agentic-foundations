@@ -25,6 +25,7 @@ bindings:
     - cargo_raf_census::cli
     - cargo_raf_census::command
   tests:
+    - raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
     - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
     - raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields
@@ -63,8 +64,8 @@ needs a human decision rather than silently dropping policy during adoption.
 ### Explicit native layout conversion
 <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,cargo_raf_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy -->
 
-upgrade_report_form converts a canonical native form-3 or form-4 Baseline, Index,
-Ledger or DebtRecord to form 5. The caller supplies ReportKind, MigrationInput
+upgrade_report_form converts a canonical native Baseline, Index, Ledger or
+DebtRecord from forms 3 through 5 to form 6. The caller supplies ReportKind, MigrationInput
 and the explicit native carrier. Its per-kind input bound applies before native
 parsing, and the same bound applies to output. The original Graph is edited
 through the native Builder: remove the exact old header, insert the current
@@ -77,12 +78,17 @@ job copies. Canonical snapshot identity changes, so owned subject/reference
 IRIs rebase; external IRIs and literal audit pins remain unchanged. Historical
 normalForm and fingerprint values remain unchanged. Structural validation admits
 historical ledgers without treating them as currently executable policy.
-Ordinary readers remain strictly form 5. Older carriers cannot claim reference
-source observations or witnesses; conversion never invents historical provenance.
+Ordinary readers require form 6. Forms 3 and 4 cannot claim reference source
+observations or witnesses. Conversion preserves reference rows in form 5.
 Other source versions, wrong kinds,
 query roots, unknown fields, contradictions and size failures refuse without
 partial output. Converted historical ledger/index carriers remain usable by
 the existing fingerprint-migration operation.
+
+The historical snapshot and exact bytes are checked with the PurRDF 4 term
+spelling. Form 6 uses the PurRDF 5 spelling of U+FFFE and U+FFFF in literals,
+including inside triple terms. The converter preserves the literal values.
+<!-- raf:tested-by raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes -->
 
 ### Consumer-owned foreign values
 <!-- raf:tested-by raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension -->
@@ -243,7 +249,7 @@ correction apply under `shared_constants`, with the corresponding pointer.
 <!-- raf:tested-by raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success -->
 
 The layout conversion cases carry canonical Baseline, Index, Ledger and
-DebtRecord data through form 3 or 4 to 5 in both syntaxes. Complete assertion equality
+DebtRecord data from forms 3 and 4 to form 6 in both syntaxes. Complete assertion equality
 retains quoted matches, nested owned evidence, opaque source pins, pattern and
 provider declarations, counted physical members and exact job copies. Reference
 and provider execution requirements still refuse when the converted policy is
@@ -278,7 +284,7 @@ containing an unprojectable timestamp retains all of its sibling proof values.
 
 ## Constraints
 
-- Explicit layout conversion accepts stored form 3 or 4 carriers of the named
+- Explicit layout conversion accepts stored forms 3 through 5 of the named
   kind and applies that kind's byte ceiling to both input and output. Historical
   normal forms remain data; conversion does not execute policy or renew pins.
   <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,cargo_raf_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy -->
@@ -358,6 +364,7 @@ validator and CLI, including input and zero-debt preservation.
 | `raf_census::test_crate::migration_legacy::unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::migration_legacy::variants_and_counted_distinct_rows_keep_their_declared_contract` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes` | test | [Contract](#contract) |
 <!-- raf:generated:end -->
 <!-- raf:generated:relationships -->
 | Relation | Capability |

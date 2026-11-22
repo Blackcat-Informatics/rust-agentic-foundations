@@ -137,7 +137,7 @@ controlled RAF fixtures as data.
   parser resource bounds were measured on those implementations. A consumer must
   align its requirements with these pins; conflicting requirements fail during Cargo
   resolution. Changing a pin requires inspecting the replacement and re-measuring.
-- PurRDF crates come from crates.io with the requirement `=4`.
+- PurRDF crates come from crates.io with the requirement `=5`.
 - **Path containment** in `raf-source` verifies every handle against the workspace
   root before and after use, and reads contents only through a verified handle. Only
   the Linux strategy is validated. The other platform adapters stay in the source

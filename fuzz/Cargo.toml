@@ -28,7 +28,7 @@ raf-census = { path = "../crates/raf-census", version = "0.8.0" }
 raf-fixtures = { path = "../crates/raf-fixtures" }
 # Match the root workspace's audited native parser implementation.
 proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
-purrdf-rdf = { version = "=4" }
+purrdf-rdf = { version = "=5" }
 
 [[bin]]
 name = "parse-source"

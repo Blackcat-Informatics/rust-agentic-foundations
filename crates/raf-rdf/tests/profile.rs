@@ -646,6 +646,21 @@ fn exact_bytes_include_cr_final_lf_and_multibyte_diagnostic_neighbors() {
                 .unwrap(),
             text
         );
+
+        // The report identity covers PurRDF's canonical spelling of literals.
+        let noncharacters =
+            build([triple("", Term::simple_literal("a\u{fffe}\u{ffff}b"))]).unwrap();
+        let escaped = noncharacters.to_text(format).unwrap();
+        assert!(escaped.contains(r#""a\uFFFE\uFFFFb""#), "{escaped:?}");
+        assert_eq!(
+            Graph::from_text(&escaped, format)
+                .unwrap()
+                .snapshot()
+                .unwrap(),
+            noncharacters.snapshot().unwrap()
+        );
+        let raw = escaped.replace(r"\uFFFE\uFFFF", "\u{fffe}\u{ffff}");
+        assert!(Graph::from_text(&raw, format).is_err(), "{raw:?}");
     }
 }
 
