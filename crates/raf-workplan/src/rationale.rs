@@ -96,6 +96,8 @@ use crate::graph::LinkEnd;
 use crate::work::{Work, add};
 use crate::{Finding, Workplan};
 
+mod supersession;
+
 /// The heading of a decision.
 const DECISION: &str = "Decision";
 
@@ -122,6 +124,7 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
             &mut findings,
         );
     }
+    supersession::check(plan, &mut findings);
     findings.sort_by(|a, b| (&a.file, a.line()).cmp(&(&b.file, b.line())));
     findings
 }

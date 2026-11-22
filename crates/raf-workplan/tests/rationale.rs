@@ -13,7 +13,7 @@ use std::path::Path;
 use raf_okf::Location;
 use raf_source::MemoryTree;
 use raf_workplan::{Finding, Gate, LinkEnd, Workplan};
-use support::cases::{unlinked, with_explanation_text, with_page_text};
+use support::cases::{named_section_supersession, unlinked, with_explanation_text, with_page_text};
 use support::fixtures::{BETA, CHANGE, GAMMA, OVERVIEW, OVERVIEW_LINK, mutate, valid};
 use support::{Repo, assert_clean, check, demo_workspace, line_of};
 
@@ -49,6 +49,12 @@ fn only(findings: &[Finding], kind: &str, file: &str, at: &Location) -> Finding 
 
 const DECISION: &str = "## Decision\n\nThe pages are flat.\n";
 const CONDITIONS: &str = "## Conditions to revisit\n\n- A page needs a subdirectory.\n";
+
+#[test]
+fn a_partial_section_chain_can_cross_the_same_pages_in_both_directions() {
+    // Opposing page-level references do not make the independent sections cyclic.
+    assert_clean(&check(&named_section_supersession()));
+}
 
 #[test]
 fn a_decision_page_linked_from_a_capability_with_its_conditions_passes() {

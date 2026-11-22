@@ -10,6 +10,8 @@ bindings:
   code:
     - raf_workplan::rationale
   tests:
+    - raf_workplan::test_crate::rationale::a_partial_section_chain_can_cross_the_same_pages_in_both_directions
+    - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
     - raf_workplan::test_crate::rationale::a_capability_link_to_a_missing_page_or_heading_fails_the_link_check
     - raf_workplan::test_crate::rationale::a_decision_page_linked_from_a_capability_with_its_conditions_passes
     - raf_workplan::test_crate::rationale::a_decision_page_without_conditions_to_revisit_is_reported_by_name
@@ -66,6 +68,22 @@ least one list item follows it, inside the Explanation and before the next
 `### Decision`.
 <!-- raf:tested-by raf_workplan::test_crate::rationale::an_explanation_decision_without_conditions_is_reported_and_with_them_passes,raf_workplan::test_crate::rationale::a_decision_page_without_conditions_to_revisit_is_reported_by_name,raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes -->
 
+A decision section is an authored third-level heading beneath `## Decision`.
+Its anchor identifies it within its Architecture page. An optional
+`supersedes` map associates each replacing section with the sections it
+supersedes in other Architecture decisions.
+
+```yaml
+supersedes:
+  layout: ['arch:earlier#node-order']
+```
+
+Workplan checks both endpoints against the loaded decision headings.
+Replacements between different sections of the same pair of pages can
+run in opposite directions. A chain can replace one named section of a
+decision while its other sections remain independent.
+<!-- raf:tested-by raf_workplan::test_crate::rationale::a_partial_section_chain_can_cross_the_same_pages_in_both_directions,raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
+
 **Headings and lists.** The headings are ATX headings: up to three spaces, one to six
 `#` marks, then a space or a tab and the text. A setext heading, text underlined with
 `=` or `-`, is not a heading of these rules, so a decision or a conditions heading
@@ -94,6 +112,9 @@ says or decides whether it has been met. A person judges that, with the
 | --- | --- |
 | `architecture-page-unlinked` | No capability, change or other architecture page links to an architecture page. A link from the page to itself does not count. No page is reported while a capability, change or architecture document is present and fails to load, because that document may hold the link and its own findings already say what is wrong. |
 | `decision-conditions-missing` | A decision page has no `## Conditions to revisit` heading (reported at its `## Decision`), or an architecture page has a `## Conditions to revisit` heading with no item (reported at that heading). |
+| `supersession-source` | The local anchor fails to identify one authored decision heading. The finding points to the map entry. |
+| `supersession-target` | A reference names a missing decision, an unavailable or ambiguous decision section, or the declaring page. The finding points to the target item. |
+| `supersession-cycle` | A group of named sections supersedes one another. The finding names the group at one of its map entries. |
 | `explanation-conditions-missing` | A `### Decision` in an Explanation has no `### Conditions to revisit` after it, before the next decision and inside the Explanation (reported at the decision), or such a subheading has no item (reported at that subheading). |
 
 A link counts when it is written anywhere in the body of the document, before its
@@ -217,11 +238,13 @@ history in their working context.
 | `raf_workplan::rationale::tests::a_list_item_is_a_marker_a_space_and_text_with_a_letter_or_a_digit` | test | [Verification](#verification) |
 | `raf_workplan::rationale::tests::empty_conditions_headings_are_each_judged_against_their_own_lines` | test | [Verification](#verification) |
 | `raf_workplan::rationale::tests::the_decisions_of_an_explanation_are_each_judged_against_their_own_lines` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::rationale::a_capability_link_to_a_missing_page_or_heading_fails_the_link_check` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::rationale::a_decision_page_linked_from_a_capability_with_its_conditions_passes` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::rationale::a_decision_page_without_conditions_to_revisit_is_reported_by_name` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::rationale::a_hundred_thousand_headings_and_an_unterminated_fence_are_judged` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::rationale::a_link_from_a_capability_a_change_or_another_page_links_the_page` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::rationale::a_partial_section_chain_can_cross_the_same_pages_in_both_directions` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::rationale::an_explanation_decision_without_conditions_is_reported_and_with_them_passes` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::rationale::an_unlinked_page_is_reported_by_name_and_a_link_to_itself_does_not_count` | test | [Contract](#contract) |

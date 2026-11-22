@@ -7,6 +7,7 @@
 mod body_rules;
 #[cfg(test)]
 mod cost_tests;
+mod decision;
 mod diagrams;
 mod header;
 mod model;
@@ -25,6 +26,7 @@ use crate::frontmatter::value::{Entry, ItemValue, Map, Scalar, Value};
 use crate::work::{Work, add};
 
 pub(crate) use body_rules::placeholders;
+pub use decision::{DecisionSectionRef, DecisionSupersession};
 pub use diagrams::{DiagramDeclaration, DiagramGrouping, DiagramKind, DiagramKindError};
 pub use header::HeaderShapeError;
 pub use model::{
@@ -212,6 +214,7 @@ struct Collected {
     review_required: Slot<Vec<ReviewKind>>,
     diagrams: Slot<Vec<DiagramDeclaration>>,
     model: Slot<ArchitectureModel>,
+    supersedes: Slot<Vec<DecisionSupersession>>,
     changes: Option<Vec<String>>,
     /// The valid capability ids of `changes`, even when another entry is not.
     change_ids: Vec<String>,
@@ -359,6 +362,9 @@ fn check_values(
         let key = spec.key;
         match spec.value {
             ValueKind::Model => found.model = Slot::from_check(model::check(check, entry)),
+            ValueKind::Supersedes => {
+                found.supersedes = Slot::from_check(decision::check(check, entry));
+            }
             ValueKind::Diagrams => found.diagrams = Slot::from_check(diagrams::check(check, entry)),
             ValueKind::Id => found.id = check_id(check, entry, doc_type, stem),
             ValueKind::Text => {
@@ -380,25 +386,7 @@ fn check_values(
             ValueKind::Bindings => {
                 found.bindings = check_bindings(check, entry, found.state, keys.bindings_exact);
             }
-            ValueKind::CapabilityIds => {
-                let ids = check_capability_ids(check, entry, key == "changes");
-                match key {
-                    "changes" => {
-                        if let Some(texts) = strings(entry.value()) {
-                            found.change_ids = texts
-                                .into_iter()
-                                .filter(|id| is_capability_id(id))
-                                .map(str::to_string)
-                                .collect();
-                        }
-                        found.changes = ids;
-                    }
-                    "for" => {
-                        found.covers = ids.filter(|ids| records::check_covers(check, ids));
-                    }
-                    _ => found.depends = ids,
-                }
-            }
+            ValueKind::CapabilityIds => collect_capability_ids(check, entry, &mut found),
             ValueKind::Affects => {
                 found.affects = check_affects(check, entry, &found.change_ids);
             }
@@ -452,6 +440,25 @@ fn check_values(
     }
     check_record_consistency(check, map, doc_type, &mut found);
     found
+}
+
+fn collect_capability_ids(check: &mut Check<'_>, entry: &Entry, found: &mut Collected) {
+    let key = entry.key();
+    let ids = check_capability_ids(check, entry, key == "changes");
+    match key {
+        "changes" => {
+            if let Some(texts) = strings(entry.value()) {
+                found.change_ids = texts
+                    .into_iter()
+                    .filter(|id| is_capability_id(id))
+                    .map(str::to_string)
+                    .collect();
+            }
+            found.changes = ids;
+        }
+        "for" => found.covers = ids.filter(|ids| records::check_covers(check, ids)),
+        _ => found.depends = ids,
+    }
 }
 
 /// Check one of the keys of measured evidence: `values`, `limits`, `units`,
@@ -1015,6 +1022,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         items,
         diagrams,
         model,
+        supersedes,
         ..
     } = found;
     let (id, slug) = id?;
@@ -1057,6 +1065,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             header,
             diagrams,
             model,
+            supersedes: supersedes.settle().ok()?.unwrap_or_default(),
         })),
         // A record was built above.
         DocType::Evidence

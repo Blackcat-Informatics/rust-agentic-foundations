@@ -14,7 +14,7 @@ use raf_workplan::Finding;
 use support::cases::all_cases;
 
 /// The kinds that name a rule of this crate.
-const OWN_KINDS: [&str; 69] = [
+const OWN_KINDS: [&str; 72] = [
     "diagram-invalid",
     "model-invalid",
     "diagram-stale",
@@ -50,6 +50,9 @@ const OWN_KINDS: [&str; 69] = [
     "coverage-lines-over-ceiling",
     "architecture-page-unlinked",
     "decision-conditions-missing",
+    "supersession-source",
+    "supersession-target",
+    "supersession-cycle",
     "explanation-conditions-missing",
     "depends-cycle",
     "proposed-missing-change",

@@ -242,6 +242,8 @@ pub struct Architecture {
     pub diagrams: Vec<super::DiagramDeclaration>,
     /// Authored source-bound architecture; interactions remain declared.
     pub model: super::ArchitectureModel,
+    /// Explicit replacements of other Architecture decision sections, ordered by local anchor.
+    pub supersedes: Vec<super::DecisionSupersession>,
 }
 
 /// The keys every record shares: a record has no `title` and no

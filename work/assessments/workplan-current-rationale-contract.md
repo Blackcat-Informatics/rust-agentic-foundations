@@ -7,10 +7,10 @@ subject: cap:workplan-current-rationale#contract
 inputs:
   - kind: section
     name: cap:workplan-current-rationale#contract
-    digest: 683dc8f1f9c83c51d1ec1fa72b5c6bab02beb37a4c1768d594923b712c89fd8a
+    digest: 01fc49f35b86fef97ab393881dca63024e05deeb01e748282bad4ec0b3afa70b
   - kind: symbol
     name: raf_workplan::rationale
-    digest: f6bafef4cf9f29beb35be14720061fef3510c4c90a8bf0e985406abf85ed08aa
+    digest: 4c1daf5155eb85efd3355bfa51e25947834a05939f0ce673024f494547883b6a
 verdict: accepted
 by: agent
 ---
