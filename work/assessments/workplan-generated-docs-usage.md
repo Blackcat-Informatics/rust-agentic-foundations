@@ -7,7 +7,7 @@ subject: cap:workplan-generated-docs#usage
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#usage
-    digest: fe90072a5b140dbd8813e6aae0b8de2640151e5cfba6554426307cf2aac132b4
+    digest: c18a631070c79c1ebabbd126c0dc2b637601f58c31995212aae798872f223d81
   - kind: symbol
     name: raf_workplan::Opened::preview_generated
     digest: 28d93a5c0d1674cd19549805da4e6c55db6b508fdd4ae8f5ee6be5182cd2177c

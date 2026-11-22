@@ -34,7 +34,7 @@ body:
         - label: raf-okf
         - label: raf-source
         - label: raf-census
-        - label: cargo-census
+        - label: cargo-raf-census
         - label: raf-workplan
-        - label: cargo-workplan
+        - label: cargo-raf-workplan
         - label: docs/workspace

@@ -38,7 +38,7 @@ bindings:
     - raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package
     - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
     - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
-    - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
+    - cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
     - raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_classifies_physical_sites_before_jobs
     - raf_census::test_crate::census_gate::numeric_bounds::numeric_size_arguments_require_agreement_at_shared_physical_sites
     - raf_census::test_crate::census_gate::numeric_bounds::numeric_inventory_refuses_a_signature_beyond_the_state_grant
@@ -466,7 +466,7 @@ The native ledger is read by `Gate::workspace(directory).check()` or by
 Select built-in requirements directly with `Gate::require_rules` and install
 custom rules through `Gate::rules`. The native CLI evaluates its built-in Gate
 without starting repository targets; package/example selectors are refused.
-<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 
 For a preferred-provider job, evaluate the configured locked Gate described in
@@ -539,7 +539,7 @@ A direct `Gate::workspace(root).require_rules(["serde-json"])` check applies the
 required built-in without a repository target. The native CLI likewise reads
 its own Gate and refuses package/example selectors instead of compiling that
 repository's source to obtain detector implementations.
-<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 ## Constraints
 
@@ -669,7 +669,7 @@ required findings with neighbouring clean source.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
+| `cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
 | `raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::example_crate::providers` | example target | [Usage](#usage) |
 | `raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |

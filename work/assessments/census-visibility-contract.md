@@ -7,10 +7,10 @@ subject: cap:census-visibility#contract
 inputs:
   - kind: section
     name: cap:census-visibility#contract
-    digest: ee541b623e7a6b69c20b266ce464a7fb66ba3b72911322b76fc97a398b7245ef
+    digest: a8f9847c2f754631a992d0a4779de763eef7e64442a7b7eaf7dfd2fe1b4b380d
   - kind: symbol
-    name: cargo_census::command::visibility
-    digest: df5706602679ee9ad61e8e6d367f13e17205348448562126702283b237406459
+    name: cargo_raf_census::command::visibility
+    digest: c22b828770bc1bd5f7a7ff8c0948a7f79f3dec1e62e76792075ba0af1a656623
   - kind: symbol
     name: raf_census::VisibilityError
     digest: 5d8132dde3b1d357b87122175833d2d664e24332c8fec6567d49732a0b8ca6d9

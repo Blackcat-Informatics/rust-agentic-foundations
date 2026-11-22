@@ -8,222 +8,222 @@ description: Static repository commands and explicit owned data publication with
 state: delivered
 bindings:
   code:
-    - cargo_workplan::bin_crate::cargo_workplan::main
-    - cargo_workplan::bin_crate::cargo_workplan::cli
-    - cargo_workplan::bin_crate::cargo_workplan::command
-    - cargo_workplan::bin_crate::cargo_workplan::change
-    - cargo_workplan::bin_crate::cargo_workplan::docs
-    - cargo_workplan::bin_crate::cargo_workplan::docs::fragment
-    - cargo_workplan::bin_crate::cargo_workplan::cli::FragmentArgs
-    - cargo_workplan::bin_crate::cargo_workplan::render
-    - cargo_workplan::bin_crate::cargo_workplan::result_graph
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::main
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::command
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::change
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::docs
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::docs::fragment
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::FragmentArgs
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::render
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph
     - raf_workplan::root
-    - cargo_workplan::bin_crate::cargo_workplan::mdbook
-    - cargo_workplan::bin_crate::cargo_workplan::command::standalone
-    - cargo_workplan::bin_crate::cargo_workplan::command::diagram
-    - cargo_workplan::bin_crate::cargo_workplan::cli::parse
-    - cargo_workplan::bin_crate::cargo_workplan::cli::Args
-    - cargo_workplan::bin_crate::cargo_workplan::command::run
-    - cargo_workplan::bin_crate::cargo_workplan::command::check_format
-    - cargo_workplan::bin_crate::cargo_workplan::command::export
-    - cargo_workplan::bin_crate::cargo_workplan::cli::Docs
-    - cargo_workplan::bin_crate::cargo_workplan::cli::ExportArgs
-    - cargo_workplan::bin_crate::cargo_workplan::exit::Exit
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::mdbook
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::command::standalone
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::command::diagram
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::parse
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::Args
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::command::run
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::command::check_format
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::command::export
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::Docs
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::ExportArgs
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::exit::Exit
     - raf_workplan::root::discover
-    - cargo_workplan::bin_crate::cargo_workplan::history::history
-    - cargo_workplan::bin_crate::cargo_workplan::evidence::claims
-    - cargo_workplan::bin_crate::cargo_workplan::evidence::support
-    - cargo_workplan::bin_crate::cargo_workplan::assess::assess
-    - cargo_workplan::bin_crate::cargo_workplan::coverage::coverage
-    - cargo_workplan::bin_crate::cargo_workplan::render::Report
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::history::history
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::evidence::claims
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::evidence::support
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::assess::assess
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::coverage::coverage
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::render::Report
     - raf_workplan::escape
-    - cargo_workplan::bin_crate::cargo_workplan::command::LABEL
-    - cargo_workplan::bin_crate::cargo_workplan::change::complete
-    - cargo_workplan::bin_crate::cargo_workplan::change::completion_records
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::command::LABEL
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::change::complete
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::change::completion_records
   tests:
-    - cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners
-    - cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority
-    - cargo_workplan::test_crate::complete::prospective_refusal_retains_the_record_and_every_input_byte
-    - cargo_workplan::test_crate::process::a_missing_git_binary_does_not_prevent_native_reads
-    - cargo_workplan::test_crate::reconcile::bound_example_bodies_are_inert_and_reconciliation_writes_nothing
-    - cargo_workplan::test_crate::trusted_docs::documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver
-    - cargo_workplan::bin_crate::cargo_workplan::trusted_docs::configuration::tests::compiler_flags_wrappers_and_includes_cannot_change_the_closed_doc_operation
-    - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
-    - cargo_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent
-    - cargo_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check
-    - cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views
-    - cargo_workplan::test_crate::process::a_usage_error_starts_no_process
-    - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
-    - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
-    - cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms
+    - cargo_raf_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners
+    - cargo_raf_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority
+    - cargo_raf_workplan::test_crate::complete::prospective_refusal_retains_the_record_and_every_input_byte
+    - cargo_raf_workplan::test_crate::process::a_missing_git_binary_does_not_prevent_native_reads
+    - cargo_raf_workplan::test_crate::reconcile::bound_example_bodies_are_inert_and_reconciliation_writes_nothing
+    - cargo_raf_workplan::test_crate::trusted_docs::documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::trusted_docs::configuration::tests::compiler_flags_wrappers_and_includes_cannot_change_the_closed_doc_operation
+    - cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
+    - cargo_raf_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent
+    - cargo_raf_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check
+    - cargo_raf_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views
+    - cargo_raf_workplan::test_crate::process::a_usage_error_starts_no_process
+    - cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
+    - cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
+    - cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms
     - raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources
     - raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots
     - raf_source::test_crate::root::transitive_path_dependencies_are_members
     - raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership
     - raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard
     - raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit
-    - cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes
-    - cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph
-    - cargo_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats
-    - cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph
-    - cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes
-    - cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites
-    - cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph
+    - cargo_raf_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats
+    - cargo_raf_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph
+    - cargo_raf_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes
+    - cargo_raf_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites
+    - cargo_raf_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading
     - raf_workplan::test_crate::root::tree_directory_aliases_fail_instead_of_selecting_lexical_ancestors
     - raf_workplan::test_crate::root::a_dangling_manifest_is_a_finding_instead_of_an_ancestor_fallback
     - raf_workplan::test_crate::root::memory_tree_membership_discovery_needs_no_disk_adapter
     - raf_workplan::test_crate::root::a_directory_outside_any_workspace_is_an_actionable_error
     - raf_workplan::test_crate::root::a_nonexistent_directory_is_refused
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_sync_text_options_parse
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::formats_are_closed_and_review_accepts_json
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given
-    - cargo_workplan::bin_crate::cargo_workplan::exit::tests::the_three_exits_have_the_documented_codes
-    - cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing
-    - cargo_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding
-    - cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order
-    - cargo_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message
-    - cargo_workplan::test_crate::check::usage_errors_exit_two_with_a_message_on_standard_error
-    - cargo_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change
-    - cargo_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not
-    - cargo_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes
-    - cargo_workplan::test_crate::sync::a_missing_index_with_the_text_is_created_with_that_header
-    - cargo_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten
-    - cargo_workplan::test_crate::new::new_prints_and_writes_the_record_and_capability_transition_in_both_shapes
-    - cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal
-    - cargo_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing
-    - cargo_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples
-    - cargo_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable
-    - cargo_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset
-    - cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace
-    - cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts
-    - cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back
-    - cargo_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it
-    - cargo_workplan::test_crate::root::every_command_finds_the_root_from_a_subdirectory
-    - cargo_workplan::test_crate::check::a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error
-    - cargo_workplan::test_crate::check::a_finding_is_gone_once_it_is_fixed
-    - cargo_workplan::test_crate::check::a_manifest_that_does_not_parse_exits_two
-    - cargo_workplan::test_crate::check::a_root_that_does_not_exist_exits_two
-    - cargo_workplan::test_crate::check::a_source_file_that_cannot_be_read_exits_two
-    - cargo_workplan::test_crate::check::a_stale_generated_block_is_a_finding_and_a_sync_clears_it
-    - cargo_workplan::test_crate::check::help_and_version_exit_zero_on_standard_output
-    - cargo_workplan::test_crate::check::quiet_keeps_the_findings_and_the_exit_code
-    - cargo_workplan::test_crate::check::quiet_on_a_clean_repository_prints_nothing_and_exits_zero
-    - cargo_workplan::test_crate::impact::a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted
-    - cargo_workplan::test_crate::impact::a_record_that_does_not_load_is_exit_two_with_its_findings
-    - cargo_workplan::test_crate::impact::a_slug_with_no_record_is_exit_two_and_names_the_open_changes
-    - cargo_workplan::test_crate::impact::impact_finds_the_root_from_below_and_by_root
-    - cargo_workplan::test_crate::impact::rdf_preserves_impact_bindings_dependencies_links_and_list_order
-    - cargo_workplan::test_crate::impact::quiet_prints_nothing_and_the_exit_stays_zero
-    - cargo_workplan::test_crate::new::a_capability_given_twice_is_listed_once
-    - cargo_workplan::test_crate::new::a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read
-    - cargo_workplan::test_crate::new::a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is
-    - cargo_workplan::test_crate::new::affects_is_repeatable_and_the_record_holds_the_entries_given_in_order
-    - cargo_workplan::test_crate::new::every_refusal_of_the_library_is_exit_two_with_the_tree_untouched
-    - cargo_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance
-    - cargo_workplan::test_crate::new::new_works_from_a_subdirectory_and_by_root
-    - cargo_workplan::test_crate::new::quiet_writes_the_record_and_prints_nothing
-    - cargo_workplan::test_crate::new::spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing
-    - cargo_workplan::test_crate::new::the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale
-    - cargo_workplan::test_crate::new::the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository
-    - cargo_workplan::test_crate::new::a_delivered_state_with_an_open_proposal_is_refused
-    - cargo_workplan::test_crate::preview::a_capability_the_change_lists_that_has_no_document_is_exit_two
-    - cargo_workplan::test_crate::preview::a_change_record_that_did_not_load_is_exit_two_and_says_so
-    - cargo_workplan::test_crate::preview::a_slug_that_is_not_a_slug_is_a_usage_error
-    - cargo_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding
-    - cargo_workplan::test_crate::preview::the_output_is_the_text_the_library_previews_under_a_header_for_each_document
-    - cargo_workplan::test_crate::preview::the_preview_is_the_same_by_root_from_another_directory
-    - cargo_workplan::test_crate::process::discovery_succeeds_when_cargo_cannot_be_started
-    - cargo_workplan::test_crate::process::a_slug_that_is_not_a_slug_is_refused_before_any_process_starts
-    - cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts
-    - cargo_workplan::test_crate::process::a_usage_error_of_the_change_commands_starts_no_process
-    - cargo_workplan::test_crate::process::root_starts_no_cargo_at_all
-    - cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input
-    - cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two
-    - cargo_workplan::test_crate::reconcile::rdf_preserves_each_obligation_and_optional_location_in_library_order
-    - cargo_workplan::test_crate::reconcile::quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding
-    - cargo_workplan::test_crate::root::a_directory_outside_any_workspace_is_exit_two_and_names_the_command
-    - cargo_workplan::test_crate::root::a_relative_root_is_taken_from_the_current_directory
-    - cargo_workplan::test_crate::root::root_overrides_the_discovery_and_the_current_directory_is_not_read
-    - cargo_workplan::test_crate::root::sync_from_a_subdirectory_writes_at_the_root_and_nowhere_else
-    - cargo_workplan::test_crate::status::a_directory_that_is_not_a_repository_is_exit_two
-    - cargo_workplan::test_crate::status::a_state_with_no_capability_is_a_row_with_a_count_of_zero
-    - cargo_workplan::test_crate::status::an_implementing_capability_with_every_binding_resolved_has_no_gap_beyond_its_empty_lists
-    - cargo_workplan::test_crate::status::quiet_leaves_standard_output_empty_because_the_roadmap_has_no_finding
-    - cargo_workplan::test_crate::status::the_roadmap_is_the_same_by_root_from_another_directory
-    - cargo_workplan::test_crate::sync::a_document_that_does_not_load_is_exit_two_and_nothing_is_written
-    - cargo_workplan::test_crate::sync::a_missing_index_without_the_text_is_exit_two_naming_the_field_and_writes_nothing
-    - cargo_workplan::test_crate::sync::a_refused_file_is_exit_two_and_nothing_is_written
-    - cargo_workplan::test_crate::sync::a_second_sync_writes_nothing_and_prints_nothing
-    - cargo_workplan::test_crate::sync::a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_created
-    - cargo_workplan::test_crate::sync::each_field_that_is_not_given_is_named
-    - cargo_workplan::test_crate::sync::quiet_hides_the_files_rewritten_and_keeps_the_exit_code
-    - cargo_workplan::test_crate::sync::the_index_is_created_by_root_from_another_directory
-    - cargo_workplan::test_crate::sync::the_text_is_not_read_when_the_index_exists
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::each_command_parses_in_both_shapes
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_options_default_and_parse_in_both_shapes
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_sync_text_options_parse
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::formats_are_closed_and_review_accepts_json
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::exit::tests::the_three_exits_have_the_documented_codes
+    - cargo_raf_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing
+    - cargo_raf_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding
+    - cargo_raf_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order
+    - cargo_raf_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message
+    - cargo_raf_workplan::test_crate::check::usage_errors_exit_two_with_a_message_on_standard_error
+    - cargo_raf_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change
+    - cargo_raf_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not
+    - cargo_raf_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes
+    - cargo_raf_workplan::test_crate::sync::a_missing_index_with_the_text_is_created_with_that_header
+    - cargo_raf_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten
+    - cargo_raf_workplan::test_crate::new::new_prints_and_writes_the_record_and_capability_transition_in_both_shapes
+    - cargo_raf_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal
+    - cargo_raf_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing
+    - cargo_raf_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples
+    - cargo_raf_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable
+    - cargo_raf_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset
+    - cargo_raf_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace
+    - cargo_raf_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts
+    - cargo_raf_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back
+    - cargo_raf_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it
+    - cargo_raf_workplan::test_crate::root::every_command_finds_the_root_from_a_subdirectory
+    - cargo_raf_workplan::test_crate::check::a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error
+    - cargo_raf_workplan::test_crate::check::a_finding_is_gone_once_it_is_fixed
+    - cargo_raf_workplan::test_crate::check::a_manifest_that_does_not_parse_exits_two
+    - cargo_raf_workplan::test_crate::check::a_root_that_does_not_exist_exits_two
+    - cargo_raf_workplan::test_crate::check::a_source_file_that_cannot_be_read_exits_two
+    - cargo_raf_workplan::test_crate::check::a_stale_generated_block_is_a_finding_and_a_sync_clears_it
+    - cargo_raf_workplan::test_crate::check::help_and_version_exit_zero_on_standard_output
+    - cargo_raf_workplan::test_crate::check::quiet_keeps_the_findings_and_the_exit_code
+    - cargo_raf_workplan::test_crate::check::quiet_on_a_clean_repository_prints_nothing_and_exits_zero
+    - cargo_raf_workplan::test_crate::impact::a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted
+    - cargo_raf_workplan::test_crate::impact::a_record_that_does_not_load_is_exit_two_with_its_findings
+    - cargo_raf_workplan::test_crate::impact::a_slug_with_no_record_is_exit_two_and_names_the_open_changes
+    - cargo_raf_workplan::test_crate::impact::impact_finds_the_root_from_below_and_by_root
+    - cargo_raf_workplan::test_crate::impact::rdf_preserves_impact_bindings_dependencies_links_and_list_order
+    - cargo_raf_workplan::test_crate::impact::quiet_prints_nothing_and_the_exit_stays_zero
+    - cargo_raf_workplan::test_crate::new::a_capability_given_twice_is_listed_once
+    - cargo_raf_workplan::test_crate::new::a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read
+    - cargo_raf_workplan::test_crate::new::a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is
+    - cargo_raf_workplan::test_crate::new::affects_is_repeatable_and_the_record_holds_the_entries_given_in_order
+    - cargo_raf_workplan::test_crate::new::every_refusal_of_the_library_is_exit_two_with_the_tree_untouched
+    - cargo_raf_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance
+    - cargo_raf_workplan::test_crate::new::new_works_from_a_subdirectory_and_by_root
+    - cargo_raf_workplan::test_crate::new::quiet_writes_the_record_and_prints_nothing
+    - cargo_raf_workplan::test_crate::new::spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing
+    - cargo_raf_workplan::test_crate::new::the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale
+    - cargo_raf_workplan::test_crate::new::the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository
+    - cargo_raf_workplan::test_crate::new::a_delivered_state_with_an_open_proposal_is_refused
+    - cargo_raf_workplan::test_crate::preview::a_capability_the_change_lists_that_has_no_document_is_exit_two
+    - cargo_raf_workplan::test_crate::preview::a_change_record_that_did_not_load_is_exit_two_and_says_so
+    - cargo_raf_workplan::test_crate::preview::a_slug_that_is_not_a_slug_is_a_usage_error
+    - cargo_raf_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding
+    - cargo_raf_workplan::test_crate::preview::the_output_is_the_text_the_library_previews_under_a_header_for_each_document
+    - cargo_raf_workplan::test_crate::preview::the_preview_is_the_same_by_root_from_another_directory
+    - cargo_raf_workplan::test_crate::process::discovery_succeeds_when_cargo_cannot_be_started
+    - cargo_raf_workplan::test_crate::process::a_slug_that_is_not_a_slug_is_refused_before_any_process_starts
+    - cargo_raf_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts
+    - cargo_raf_workplan::test_crate::process::a_usage_error_of_the_change_commands_starts_no_process
+    - cargo_raf_workplan::test_crate::process::root_starts_no_cargo_at_all
+    - cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input
+    - cargo_raf_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two
+    - cargo_raf_workplan::test_crate::reconcile::rdf_preserves_each_obligation_and_optional_location_in_library_order
+    - cargo_raf_workplan::test_crate::reconcile::quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding
+    - cargo_raf_workplan::test_crate::root::a_directory_outside_any_workspace_is_exit_two_and_names_the_command
+    - cargo_raf_workplan::test_crate::root::a_relative_root_is_taken_from_the_current_directory
+    - cargo_raf_workplan::test_crate::root::root_overrides_the_discovery_and_the_current_directory_is_not_read
+    - cargo_raf_workplan::test_crate::root::sync_from_a_subdirectory_writes_at_the_root_and_nowhere_else
+    - cargo_raf_workplan::test_crate::status::a_directory_that_is_not_a_repository_is_exit_two
+    - cargo_raf_workplan::test_crate::status::a_state_with_no_capability_is_a_row_with_a_count_of_zero
+    - cargo_raf_workplan::test_crate::status::an_implementing_capability_with_every_binding_resolved_has_no_gap_beyond_its_empty_lists
+    - cargo_raf_workplan::test_crate::status::quiet_leaves_standard_output_empty_because_the_roadmap_has_no_finding
+    - cargo_raf_workplan::test_crate::status::the_roadmap_is_the_same_by_root_from_another_directory
+    - cargo_raf_workplan::test_crate::sync::a_document_that_does_not_load_is_exit_two_and_nothing_is_written
+    - cargo_raf_workplan::test_crate::sync::a_missing_index_without_the_text_is_exit_two_naming_the_field_and_writes_nothing
+    - cargo_raf_workplan::test_crate::sync::a_refused_file_is_exit_two_and_nothing_is_written
+    - cargo_raf_workplan::test_crate::sync::a_second_sync_writes_nothing_and_prints_nothing
+    - cargo_raf_workplan::test_crate::sync::a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_created
+    - cargo_raf_workplan::test_crate::sync::each_field_that_is_not_given_is_named
+    - cargo_raf_workplan::test_crate::sync::quiet_hides_the_files_rewritten_and_keeps_the_exit_code
+    - cargo_raf_workplan::test_crate::sync::the_index_is_created_by_root_from_another_directory
+    - cargo_raf_workplan::test_crate::sync::the_text_is_not_read_when_the_index_exists
     - raf_workplan::test_crate::root::the_root_is_found_from_the_root_a_member_and_a_subdirectory
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_must_be_a_slug
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::help_and_version_exit_zero_in_both_shapes
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_may_follow_the_command
-    - cargo_workplan::bin_crate::cargo_workplan::exit::tests::a_library_error_becomes_its_display_text
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_claims_takes_an_optional_capability
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day
-    - cargo_workplan::test_crate::assess::a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing
-    - cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero
-    - cargo_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing
-    - cargo_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves
-    - cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero
-    - cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there
-    - cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one
-    - cargo_workplan::test_crate::coverage::this_repository_has_no_code_or_test_gaps_in_its_scoped_packages
-    - cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
-    - cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike
-    - cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
-    - cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero
-    - cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same
-    - cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why
-    - cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary
-    - cargo_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes
-    - cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero
-    - cargo_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::a_slug_must_be_a_slug
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::help_and_version_exit_zero_in_both_shapes
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_options_may_follow_the_command
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::exit::tests::a_library_error_becomes_its_display_text
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::coverage_claims_takes_an_optional_capability
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::evidence_claims_and_for_take_one_id_each
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day
+    - cargo_raf_workplan::test_crate::assess::a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing
+    - cargo_raf_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero
+    - cargo_raf_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing
+    - cargo_raf_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves
+    - cargo_raf_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero
+    - cargo_raf_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there
+    - cargo_raf_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one
+    - cargo_raf_workplan::test_crate::coverage::this_repository_has_no_code_or_test_gaps_in_its_scoped_packages
+    - cargo_raf_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
+    - cargo_raf_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike
+    - cargo_raf_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
+    - cargo_raf_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero
+    - cargo_raf_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same
+    - cargo_raf_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why
+    - cargo_raf_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary
+    - cargo_raf_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes
+    - cargo_raf_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero
+    - cargo_raf_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf
     - raf_workplan::escape::tests::each_control_and_bidirectional_formatting_character_is_escaped
     - raf_workplan::escape::tests::lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control
-    - cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding
-    - cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers
-    - cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings
-    - cargo_workplan::test_crate::history::quiet_prints_nothing_because_a_history_is_not_a_finding
-    - cargo_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused
-    - cargo_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only
-    - cargo_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command
-    - cargo_workplan::test_crate::check::the_default_check_accepts_the_complete_fixture
-    - cargo_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag
-    - cargo_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure
-    - cargo_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal
-    - cargo_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf
-    - cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes
-    - cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same
-    - cargo_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order
-    - cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written
-    - cargo_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record
-    - cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one
-    - cargo_workplan::test_crate::debt::the_default_policy_can_record_a_current_structural_finding
-    - cargo_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item
-    - cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered
-    - cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all
-    - cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes
-    - cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink
-    - cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output
+    - cargo_raf_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding
+    - cargo_raf_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers
+    - cargo_raf_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings
+    - cargo_raf_workplan::test_crate::history::quiet_prints_nothing_because_a_history_is_not_a_finding
+    - cargo_raf_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused
+    - cargo_raf_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only
+    - cargo_raf_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command
+    - cargo_raf_workplan::test_crate::check::the_default_check_accepts_the_complete_fixture
+    - cargo_raf_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag
+    - cargo_raf_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure
+    - cargo_raf_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal
+    - cargo_raf_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf
+    - cargo_raf_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes
+    - cargo_raf_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same
+    - cargo_raf_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order
+    - cargo_raf_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written
+    - cargo_raf_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record
+    - cargo_raf_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one
+    - cargo_raf_workplan::test_crate::debt::the_default_policy_can_record_a_current_structural_finding
+    - cargo_raf_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item
+    - cargo_raf_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered
+    - cargo_raf_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all
+    - cargo_raf_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink
+    - cargo_raf_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output
   examples:
     - raf_workplan::example_crate::docs_sync
     - raf_workplan::Workplan::sync
@@ -240,15 +240,15 @@ Expose the library's static contract and explicit data operations through consis
 
 ## Contract
 
-**Source impact.** `cargo workplan impact --base HEAD` compares the selected commit with the checkout. Each changed public or bound path lists its capability, the binding that explains the association, and the affected sections with their guarantees, tests, examples and recorded assessments. An unowned public item is a review result. An unavailable revision is an error. Text and RDF carry the same relationships. The command performs read-only inspection and works before a change record exists.
-<!-- raf:tested-by cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners -->
+**Source impact.** `cargo raf-workplan impact --base HEAD` compares the selected commit with the checkout. Each changed public or bound path lists its capability, the binding that explains the association, and the affected sections with their guarantees, tests, examples and recorded assessments. An unowned public item is a review result. An unavailable revision is an error. Text and RDF carry the same relationships. The command performs read-only inspection and works before a change record exists.
+<!-- raf:tested-by cargo_raf_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners -->
 
 `docs build standalone --repository-links` publishes existing authored source
 and capability navigation relative to its actual versioned output directory.
 The library receives the exact opened workspace and retains its existing
 contained output-directory binding before contextual generation. Without the
 flag, output bytes and placement restrictions remain unchanged.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
 
 `docs export PATH --iri ABSOLUTE_IRI` exports the canonical navigation Index
 through its separate native carrier. The option is required for that path and
@@ -256,7 +256,7 @@ refused for ordinary Documents. Contained reads and the actual native RDF
 renderer preserve exact Index bytes and caller identity. Quiet mode and
 non-RDF formats refuse before loading inputs. Failed validation emits no machine
 output, and diagnostics name the inspected path. Export changes no input.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites,cargo_raf_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 `docs export --repository` renders the closed Workplan authoring dataset.
 It includes each admitted profile document and its declared relationships,
@@ -266,41 +266,41 @@ Select the repository with `--repository` or give one document path.
 Selected-file navigation export takes its explicit IRI with the path.
 An incomplete profile load or a present invalid Index exits with a
 diagnostic and emits no RDF.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input,cargo_workplan::test_crate::process::a_usage_error_starts_no_process -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input,cargo_raf_workplan::test_crate::process::a_usage_error_starts_no_process -->
 
 Repository export carries each authored evidence `for` entry in list
 order. The target IRI identifies the declared capability, including
 when its document is absent.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 Repository export includes the declared input relationships from Evidence,
 Assessment and Review Documents. It preserves the recorded digests for stale
 or unavailable inputs.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 Repository export carries each authored capability claim as a reified
 RDF 1.2 triple term. Each occurrence includes its source location and
 all declared evidence IRIs, including unavailable targets. The quote
 remains unasserted.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 `docs fragment` returns complete raw Markdown for one imported Cargo library, an explicit public receiving module, capability and existing named diagram. Every code binding of that capability is required. The native static fragment API checks source and imported library identities and refuses private, hidden, unresolved or ambiguous references before emitting output. Diagnostics use stderr. Quiet mode and non-text formats refuse before input loading.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
-**Static contract.** `cargo workplan COMMAND` and `cargo-workplan COMMAND` use the same parser. Root discovery reads manifests through the native source model. Ordinary checks, history, coverage, review and evidence queries launch no process. Verification reports declared bindings and static findings; completion checks a prospective document overlay and publishes owned documentation only.
-<!-- raf:tested-by cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution,cargo_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check -->
+**Static contract.** `cargo raf-workplan COMMAND` and `cargo-raf-workplan COMMAND` use the same parser. Root discovery reads manifests through the native source model. Ordinary checks, history, coverage, review and evidence queries launch no process. Verification reports declared bindings and static findings; completion checks a prospective document overlay and publishes owned documentation only.
+<!-- raf:tested-by cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution,cargo_raf_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check -->
 
 `change new` opens the record and publishes the implementing state for each
 listed delivered or designed capability. Its text and machine reports give the
 prior state and the action applied. `change complete` validates and publishes
 the delivered state for each implementing capability whose last record it removes.
-<!-- raf:tested-by cargo_workplan::test_crate::new::new_prints_and_writes_the_record_and_capability_transition_in_both_shapes,cargo_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance,cargo_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::new::new_prints_and_writes_the_record_and_capability_transition_in_both_shapes,cargo_raf_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance,cargo_raf_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check -->
 
 Only `docs build rustdoc --trust-docs` admits tool execution, with explicit package, toolchain and output selection. The flag is required on each invocation before root discovery. It accepts arbitrary build-time code effects without enabling test, example, doctest or arbitrary-command operations. Existing artifact inspection is separate and never builds or publishes.
-<!-- raf:tested-by cargo_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent -->
 
 Exit zero denotes a successful static outcome or explicit data operation; exit one denotes findings; exit two denotes inability to answer or invalid usage. Quiet mode hides outcomes and retains findings. Text is escaped for terminal display; RDF carriers retain typed values. Saved command strings remain inert metadata.
-<!-- raf:tested-by cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views,cargo_workplan::test_crate::process::a_usage_error_starts_no_process -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views,cargo_raf_workplan::test_crate::process::a_usage_error_starts_no_process -->
 
 ## Usage
 
@@ -308,13 +308,13 @@ Add `--repository-links` to standalone publication only when its existing output
 directory lies beneath the canonical workspace. Serve that workspace tree
 unchanged; a non-root URL prefix is supported.
 
-Use `cargo workplan --format turtle docs export docs/capabilities/index.md
+Use `cargo raf-workplan --format turtle docs export docs/capabilities/index.md
 --iri https://example.org/navigation`. Ordinary Document export omits `--iri`.
 
-Use `cargo workplan --format ntriples docs export --repository` to export
+Use `cargo raf-workplan --format ntriples docs export --repository` to export
 the authoring graph. Select `--format turtle` for its Turtle carrier.
 Run from the workspace or select it with `--root`.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 The documented data path is illustrated by `raf_workplan::example_crate::docs_sync`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
@@ -324,19 +324,19 @@ Use `docs fragment --package PACKAGE --metadata META --target-directory OUTPUT -
 
 ## Examples
 
-`cargo workplan docs build standalone --view cap:api#workspace --output-dir
+`cargo raf-workplan docs build standalone --view cap:api#workspace --output-dir
 published/site --repository-links` keeps existing source and capability links
 usable from the generated overview and detail pages.
 
-`cargo-workplan --format ntriples docs export docs/capabilities/index.md --iri
+`cargo-raf-workplan --format ntriples docs export docs/capabilities/index.md --iri
 https://example.org/navigation` emits the same navigation carrier as the Cargo
 subcommand form. Save stdout using a caller-owned destination when needed.
 
-`cargo workplan docs fragment --package demo --metadata metadata.json --target-directory artifacts --view cap:api#dependencies --module demo::nested --capability cap:api` emits a static include for a documented public module. A public alias retains its exported spelling in ordinary intra-doc references. Changing another required binding to a private or missing item refuses the complete fragment.
+`cargo raf-workplan docs fragment --package demo --metadata metadata.json --target-directory artifacts --view cap:api#dependencies --module demo::nested --capability cap:api` emits a static include for a documented public module. A public alias retains its exported spelling in ordinary intra-doc references. Changing another required binding to a private or missing item refuses the complete fragment.
 
-`cargo workplan verify shape` prints declared bindings and static findings for the repository. It never prints a consumer test execution verdict. `cargo workplan docs artifacts` reads imported metadata and messages. A missing documentation trust flag refuses even if the requested workspace is absent.
+`cargo raf-workplan verify shape` prints declared bindings and static findings for the repository. It never prints a consumer test execution verdict. `cargo raf-workplan docs artifacts` reads imported metadata and messages. A missing documentation trust flag refuses even if the requested workspace is absent.
 
-For a missing code binding, `cargo workplan --format turtle check` emits this
+For a missing code binding, `cargo raf-workplan --format turtle check` emits this
 complete RDF 1.2 report while preserving the finding's location and repair text:
 
 ```turtle
@@ -361,18 +361,18 @@ Repository navigation refuses missing, outside or changed required bindings
 before publishing owned payloads. It preserves cumulative host files and native
 immutable-publication ownership checks. It supplies no server, host assembly,
 remote source URL, raw-file line anchor or atomic directory transaction.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
 
 Navigation export inherits the Index codec's exact identity, closed shape and
 combined IRI/body text bound. It never retries a refused Document as an Index.
 The eight Document carriers retain their existing identities and output path.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
 
 Fragment generation reads data and starts no tool, build or trusted documentation operation. Its static source index and imported metadata establish neither compiler success, effective configuration, resolved Rustdoc links, package membership nor assembled-host behavior. Raw fragment Markdown is a dedicated output carrier, separate from escaped terminal reports and RDF projections.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
 - RAF never edits inspected source or manifests. Document sync, change completion, authored metadata records, debt and owned documentation publication are explicit writes. The documentation trust exception permits build-time code to have arbitrary side effects; it is not a containment guarantee.
-<!-- raf:tested-by cargo_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent -->
 
 ## Explanation
 
@@ -386,13 +386,13 @@ Both actual invocation forms exercise repository navigation at two depths with
 escaped paths, repeat publication, retained host files and invalid locations.
 The public API returns the same directory, and existing default publication
 and changed-owned-byte refusals remain covered.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
 
 Both actual invocation forms export the generated navigation Index through
 native Turtle and N-Triples, preserve decorated bytes and inputs, and refuse
 missing, malformed and reserved identities, invalid bodies and Document IRI
 options. Existing fixtures retain all eight Document round trips and refusals.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
 
 The CLI fragment fixture exercises crate and nested-module output, public aliases and complete bindings, imported source mismatch, private, hidden, missing and ambiguous references, input preservation, missing compiler tools and early output-carrier refusals in both invocation forms.
 
@@ -400,202 +400,202 @@ The repository export fixture exercises both invocation forms, both RDF
 carriers, explicit root selection, conflicting selections and incomplete
 profile input. The process-admission fixture checks repository export with
 the consumer tools replaced by recording stubs.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input,cargo_workplan::test_crate::process::root_starts_no_cargo_at_all -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input,cargo_raf_workplan::test_crate::process::root_starts_no_cargo_at_all -->
 
 The repository fixture recovers the exact loaded Index bytes in both
 carriers. Hand-written Index text and a directory at the reserved path
 each produce a path diagnostic with empty stdout.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 In both RDF carriers the fixture checks the original Evidence Document
 and the separate target statements at their authored positions, with
 an absent target before an available one.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 The fixture also checks authored input positions and exact name and digest
 assertions for all three input-bearing document types, including an absent
 artifact. Both RDF carriers recover the original Documents.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 The repository export fixture also queries the claim reifier and its
 declared support in both formats. Its claim names an unavailable
 evidence target beside a loaded Evidence Document.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input -->
 
 CLI fixtures compare static verification with the library, exercise prospective completion and refusal, reject missing trust before discovery, and keep stored commands inert.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_must_be_a_slug` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_claims_takes_an_optional_capability` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::formats_are_closed_and_review_accepts_json` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::help_and_version_exit_zero_in_both_shapes` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_may_follow_the_command` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_sync_text_options_parse` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::exit::tests::a_library_error_becomes_its_display_text` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::exit::tests::the_three_exits_have_the_documented_codes` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::trusted_docs::configuration::tests::compiler_flags_wrappers_and_includes_cannot_change_the_closed_doc_operation` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_finding_is_gone_once_it_is_fixed` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_manifest_that_does_not_parse_exits_two` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_root_that_does_not_exist_exits_two` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_source_file_that_cannot_be_read_exits_two` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_stale_generated_block_is_a_finding_and_a_sync_clears_it` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::help_and_version_exit_zero_on_standard_output` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::quiet_keeps_the_findings_and_the_exit_code` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::quiet_on_a_clean_repository_prints_nothing_and_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::the_default_check_accepts_the_complete_fixture` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::usage_errors_exit_two_with_a_message_on_standard_error` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::complete::prospective_refusal_retains_the_record_and_every_input_byte` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::coverage::this_repository_has_no_code_or_test_gaps_in_its_scoped_packages` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::the_default_policy_can_record_a_current_structural_finding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::quiet_prints_nothing_because_a_history_is_not_a_finding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::a_record_that_does_not_load_is_exit_two_with_its_findings` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::a_slug_with_no_record_is_exit_two_and_names_the_open_changes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::impact_finds_the_root_from_below_and_by_root` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::quiet_prints_nothing_and_the_exit_stays_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::rdf_preserves_impact_bindings_dependencies_links_and_list_order` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::a_capability_given_twice_is_listed_once` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::a_delivered_state_with_an_open_proposal_is_refused` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::affects_is_repeatable_and_the_record_holds_the_entries_given_in_order` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::every_refusal_of_the_library_is_exit_two_with_the_tree_untouched` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::new_prints_and_writes_the_record_and_capability_transition_in_both_shapes` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::new::new_works_from_a_subdirectory_and_by_root` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::quiet_writes_the_record_and_prints_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::new::spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::a_capability_the_change_lists_that_has_no_document_is_exit_two` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::a_change_record_that_did_not_load_is_exit_two_and_says_so` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::a_slug_that_is_not_a_slug_is_a_usage_error` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::the_output_is_the_text_the_library_previews_under_a_header_for_each_document` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::the_preview_is_the_same_by_root_from_another_directory` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_missing_git_binary_does_not_prevent_native_reads` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_slug_that_is_not_a_slug_is_refused_before_any_process_starts` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_usage_error_of_the_change_commands_starts_no_process` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_usage_error_starts_no_process` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::discovery_succeeds_when_cargo_cannot_be_started` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::root_starts_no_cargo_at_all` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input` | test | [Contract](#contract), [Usage](#usage) |
-| `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::bound_example_bodies_are_inert_and_reconciliation_writes_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::rdf_preserves_each_obligation_and_optional_location_in_library_order` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::root::a_directory_outside_any_workspace_is_exit_two_and_names_the_command` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::root::a_relative_root_is_taken_from_the_current_directory` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::root::every_command_finds_the_root_from_a_subdirectory` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::root::root_overrides_the_discovery_and_the_current_directory_is_not_read` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::root::sync_from_a_subdirectory_writes_at_the_root_and_nowhere_else` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::status::a_directory_that_is_not_a_repository_is_exit_two` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::status::a_state_with_no_capability_is_a_row_with_a_count_of_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::status::an_implementing_capability_with_every_binding_resolved_has_no_gap_beyond_its_empty_lists` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::status::quiet_leaves_standard_output_empty_because_the_roadmap_has_no_finding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::status::the_roadmap_is_the_same_by_root_from_another_directory` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::a_document_that_does_not_load_is_exit_two_and_nothing_is_written` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::a_missing_index_with_the_text_is_created_with_that_header` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::a_missing_index_without_the_text_is_exit_two_naming_the_field_and_writes_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::a_refused_file_is_exit_two_and_nothing_is_written` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::a_second_sync_writes_nothing_and_prints_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_created` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::each_field_that_is_not_given_is_named` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::quiet_hides_the_files_rewritten_and_keeps_the_exit_code` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::the_index_is_created_by_root_from_another_directory` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::the_text_is_not_read_when_the_index_exists` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::trusted_docs::documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::a_slug_must_be_a_slug` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::coverage_claims_takes_an_optional_capability` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::each_command_parses_in_both_shapes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::evidence_claims_and_for_take_one_id_each` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::formats_are_closed_and_review_accepts_json` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::help_and_version_exit_zero_in_both_shapes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_options_default_and_parse_in_both_shapes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_options_may_follow_the_command` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::tests::the_sync_text_options_parse` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::exit::tests::a_library_error_becomes_its_display_text` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::exit::tests::the_three_exits_have_the_documented_codes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph` | test | [Verification](#verification) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::trusted_docs::configuration::tests::compiler_flags_wrappers_and_includes_cannot_change_the_closed_doc_operation` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::assess::a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::a_finding_is_gone_once_it_is_fixed` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::a_manifest_that_does_not_parse_exits_two` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::a_root_that_does_not_exist_exits_two` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::a_source_file_that_cannot_be_read_exits_two` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::a_stale_generated_block_is_a_finding_and_a_sync_clears_it` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::help_and_version_exit_zero_on_standard_output` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::quiet_keeps_the_findings_and_the_exit_code` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::quiet_on_a_clean_repository_prints_nothing_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::the_default_check_accepts_the_complete_fixture` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::check::usage_errors_exit_two_with_a_message_on_standard_error` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::complete::prospective_refusal_retains_the_record_and_every_input_byte` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::coverage::this_repository_has_no_code_or_test_gaps_in_its_scoped_packages` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::the_default_policy_can_record_a_current_structural_finding` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::history::quiet_prints_nothing_because_a_history_is_not_a_finding` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::impact::a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::impact::a_record_that_does_not_load_is_exit_two_with_its_findings` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::impact::a_slug_with_no_record_is_exit_two_and_names_the_open_changes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::impact::impact_finds_the_root_from_below_and_by_root` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::impact::quiet_prints_nothing_and_the_exit_stays_zero` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::impact::rdf_preserves_impact_bindings_dependencies_links_and_list_order` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::impact::source_impact_traces_bound_guarantees_and_marks_public_items_without_owners` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::a_capability_given_twice_is_listed_once` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::a_delivered_state_with_an_open_proposal_is_refused` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::affects_is_repeatable_and_the_record_holds_the_entries_given_in_order` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::every_refusal_of_the_library_is_exit_two_with_the_tree_untouched` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::new_prints_and_writes_the_record_and_capability_transition_in_both_shapes` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::new::new_works_from_a_subdirectory_and_by_root` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::quiet_writes_the_record_and_prints_nothing` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::new::spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::new::the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::preview::a_capability_the_change_lists_that_has_no_document_is_exit_two` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::preview::a_change_record_that_did_not_load_is_exit_two_and_says_so` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::preview::a_slug_that_is_not_a_slug_is_a_usage_error` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::preview::the_output_is_the_text_the_library_previews_under_a_header_for_each_document` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::preview::the_preview_is_the_same_by_root_from_another_directory` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::a_missing_git_binary_does_not_prevent_native_reads` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::a_slug_that_is_not_a_slug_is_refused_before_any_process_starts` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::a_usage_error_of_the_change_commands_starts_no_process` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::a_usage_error_starts_no_process` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::discovery_succeeds_when_cargo_cannot_be_started` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::process::root_starts_no_cargo_at_all` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::rdf::repository_export_round_trips_declared_documents_and_refuses_bad_input` | test | [Contract](#contract), [Usage](#usage) |
+| `cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::reconcile::bound_example_bodies_are_inert_and_reconciliation_writes_nothing` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::reconcile::quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::reconcile::rdf_preserves_each_obligation_and_optional_location_in_library_order` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::root::a_directory_outside_any_workspace_is_exit_two_and_names_the_command` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::root::a_relative_root_is_taken_from_the_current_directory` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::root::every_command_finds_the_root_from_a_subdirectory` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::root::root_overrides_the_discovery_and_the_current_directory_is_not_read` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::root::sync_from_a_subdirectory_writes_at_the_root_and_nowhere_else` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::status::a_directory_that_is_not_a_repository_is_exit_two` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::status::a_state_with_no_capability_is_a_row_with_a_count_of_zero` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::status::an_implementing_capability_with_every_binding_resolved_has_no_gap_beyond_its_empty_lists` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::status::quiet_leaves_standard_output_empty_because_the_roadmap_has_no_finding` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::status::the_roadmap_is_the_same_by_root_from_another_directory` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::a_document_that_does_not_load_is_exit_two_and_nothing_is_written` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::a_missing_index_with_the_text_is_created_with_that_header` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::a_missing_index_without_the_text_is_exit_two_naming_the_field_and_writes_nothing` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::a_refused_file_is_exit_two_and_nothing_is_written` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::a_second_sync_writes_nothing_and_prints_nothing` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_created` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::each_field_that_is_not_given_is_named` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::quiet_hides_the_files_rewritten_and_keeps_the_exit_code` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::the_index_is_created_by_root_from_another_directory` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::sync::the_text_is_not_read_when_the_index_exists` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::trusted_docs::documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
 | `raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership` | test | [Verification](#verification) |
 | `raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard` | test | [Verification](#verification) |
 | `raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit` | test | [Verification](#verification) |

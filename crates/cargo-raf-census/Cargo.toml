@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "cargo-raf-census"
+description = "Repository-owned Census checks, ledger migration and exact debt recording."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[package.metadata.docs.rs]
+default-target = "x86_64-unknown-linux-gnu"
+targets = []
+
+[dependencies]
+clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }
+raf-census = { path = "../raf-census", version = "0.8.0" }
+raf-rdf = { path = "../raf-rdf", version = "0.8.0" }
+raf-source = { path = "../raf-source", version = "0.8.0" }
+
+[dev-dependencies]
+capnp.workspace = true
+raf-fixtures = { path = "../raf-fixtures" }
+purrdf-core.workspace = true
+purrdf-ed25519.workspace = true
+purrdf-hash.workspace = true
+purrdf-lex.workspace = true
+purrdf-testkit.workspace = true
+syn = { workspace = true, features = ["full", "parsing"] }
+
+
+[lints]
+workspace = true

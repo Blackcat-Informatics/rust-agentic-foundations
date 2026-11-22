@@ -4,50 +4,51 @@
 type: Capability
 id: cap:repository-contract
 title: "Repository contract"
-description: "The tracked document inventory, repository policy gates and accepted assessment check of the unpublished root package."
+description: "The tracked document inventory, repository policy gates and accepted assessment checks in the private RAF gate packages."
 state: delivered
 bindings:
   code:
     - rust_agentic_foundations
+    - rust_agentic_foundations::gate_files
     - rust_agentic_foundations::gate_root
   tests:
     - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority
     - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths
     - rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies
     - rust_agentic_foundations::test_crate::repo_gates::runtime::a_fixture_dependency_is_refused_outside_dev_dependencies_beside_the_accepted_forms
-    - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
+    - cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
     - rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget
     - rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory
     - rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back
     - raf_workplan::test_crate::history::a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor
-    - rust_agentic_foundations::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported
-    - rust_agentic_foundations::test_crate::docs_contract::a_delivered_capability_holds_a_verification_matrix
-    - rust_agentic_foundations::test_crate::docs_contract::a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused
-    - rust_agentic_foundations::test_crate::docs_contract::an_open_capability_may_be_listed_by_a_record_named_after_another
-    - rust_agentic_foundations::test_crate::docs_contract::doctest_comparison_fixtures
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_accepts_a_matching_tree
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_refuses_a_record_id_of_no_record_type
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_architecture_and_index_documents
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_or_unlisted_record
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_state_change
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_an_id_change
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_an_index_the_table_does_not_list
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_table_has_the_documented_shape
-    - rust_agentic_foundations::test_crate::docs_contract::refuses_a_file_swapped_in_after_inspection
-    - rust_agentic_foundations::test_crate::docs_contract::refuses_non_regular_files_instead_of_reading_them
-    - rust_agentic_foundations::test_crate::docs_contract::rejects_a_tracked_symlink_that_nothing_links_to
-    - rust_agentic_foundations::test_crate::docs_contract::rejects_a_typed_document_outside_the_document_directories
-    - rust_agentic_foundations::test_crate::docs_contract::rejects_non_markdown_file_in_a_document_directory
-    - rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile
-    - rust_agentic_foundations::test_crate::docs_contract::the_checker_accepts_a_valid_checkout
-    - rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks
-    - rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_markdown_outside_the_document_directories
-    - rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_the_documents_through_the_model
-    - rust_agentic_foundations::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests
+    - raf_docs_contract::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported
+    - raf_docs_contract::test_crate::docs_contract::a_delivered_capability_holds_a_verification_matrix
+    - raf_docs_contract::test_crate::docs_contract::a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused
+    - raf_docs_contract::test_crate::docs_contract::an_open_capability_may_be_listed_by_a_record_named_after_another
+    - raf_docs_contract::test_crate::docs_contract::doctest_comparison_fixtures
+    - raf_docs_contract::test_crate::docs_contract::inventory_accepts_a_matching_tree
+    - raf_docs_contract::test_crate::docs_contract::inventory_refuses_a_record_id_of_no_record_type
+    - raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice
+    - raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities
+    - raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list
+    - raf_docs_contract::test_crate::docs_contract::inventory_rejects_missing_architecture_and_index_documents
+    - raf_docs_contract::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents
+    - raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_missing_or_unlisted_record
+    - raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_state_change
+    - raf_docs_contract::test_crate::docs_contract::inventory_rejects_an_id_change
+    - raf_docs_contract::test_crate::docs_contract::inventory_rejects_an_index_the_table_does_not_list
+    - raf_docs_contract::test_crate::docs_contract::inventory_table_has_the_documented_shape
+    - raf_docs_contract::test_crate::docs_contract::refuses_a_file_swapped_in_after_inspection
+    - raf_docs_contract::test_crate::docs_contract::refuses_non_regular_files_instead_of_reading_them
+    - raf_docs_contract::test_crate::docs_contract::rejects_a_tracked_symlink_that_nothing_links_to
+    - raf_docs_contract::test_crate::docs_contract::rejects_a_typed_document_outside_the_document_directories
+    - raf_docs_contract::test_crate::docs_contract::rejects_non_markdown_file_in_a_document_directory
+    - raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile
+    - raf_docs_contract::test_crate::docs_contract::the_checker_accepts_a_valid_checkout
+    - raf_docs_contract::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks
+    - raf_docs_contract::test_crate::docs_contract::the_checker_judges_markdown_outside_the_document_directories
+    - raf_docs_contract::test_crate::docs_contract::the_checker_judges_the_documents_through_the_model
+    - raf_docs_contract::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests
     - rust_agentic_foundations::test_crate::repo_gates::citation_accepts_matching_versions
     - rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_manifest_bump_without_a_matching_citation
     - rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_missing_version
@@ -124,7 +125,7 @@ bindings:
     - rust_agentic_foundations::test_crate::repo_gates::python::python_extensions_are_refused_even_for_empty_or_binary_files
     - rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension
     - rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed
-    - rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed
+    - raf_docs_contract::test_crate::docs_contract::repository_workplan_is_clean_and_assessed
     - rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused
     - rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate
     - rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation
@@ -138,10 +139,9 @@ depends: [cap:workplan-document-model, cap:workplan-strict, cap:source-index, ca
 
 ## Purpose
 
-The unpublished root package checks the repository's own documented system and
-shared engineering rules. Its tests connect tracked files, capability inventory,
-bindings, licence fingerprints, dependency restrictions and accepted prose
-assessments to the same complete workplan policy that the libraries provide.
+The private root package checks repository policy and runs Self-Census. The
+private `raf-docs-contract` package checks tracked documents, capability inventory,
+bindings and accepted prose assessments with the production Workplan policy.
 
 ## Contract
 
@@ -160,14 +160,16 @@ Missing, dynamic, zero and excessive values refuse the native
 YAML policy gate. The package matrix comes from Cargo's complete workspace
 inventory. Source, fixture, capability-document, change-record and build inputs
 select every package. Other text changes select the root package's repository
-gates. Compiler, release, MSRV and harness lint checks apply to source and
-asset changes. File licensing and dependency policy run for every change, with
+gates and the document contract. The document contract has its own nine-minute
+job and builds without the Census dependency graph. Compiler, release, MSRV and
+harness lint checks apply to source and asset changes. File licensing and
+dependency policy run for every change, with
 both the root and independent fuzz dependency graphs checked. Aggregate test
 and harness-policy results require their applicable jobs to succeed.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget -->
 
 **Binding validation.** The production Workplan gate opens the selected repository and indexes its Rust source once. The tracked-document check resolves bindings against that same index while judging its own Markdown, diagram assets, tracked paths and symlink policy. The production check uses the disk tree and the gate's link context. Each check reports its own findings. RAF verifies declarations and static findings without executing consumer tests, examples or doctests. Completion uses a prospective document overlay and owned data writes. Maintainer-controlled RAF checks use explicitly controlled fixtures and never grant inspected source execution authority.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed,cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_workplan_is_clean_and_assessed,cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
 **Self-Census.** The root package runs the production Census gate over the same
 selected read root, through `Gate::check_locked`. The canonical `helpers-ledger.ttl`
 declares both the first-party workspace and `fuzz` roots, with the standard token
@@ -212,13 +214,15 @@ the package manifest directory. Both roots receive the same ordinary gate rules.
 every architecture page, open change, record and generated catalogue. Missing,
 extra, repeated or differently identified documents are refusals, including an
 open change listing capabilities other than its inventory entry.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::inventory_accepts_a_matching_tree,rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_state_change,rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities,rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list -->
+The shared `gate_files` module supplies paths from the Git index and reads
+tracked documents from the gate's selected checkout snapshot.
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::inventory_accepts_a_matching_tree,raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_state_change,raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities,raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list -->
 
 **Document contract.** Tracked documents are read through the profile, source
 bindings and workplan model. Links use the tracked path and symlink oracle.
 Generated blocks must match their renderer, delivered capabilities hold their
 verification matrix, and documented Rust examples match their bound doctests.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile,rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks,rust_agentic_foundations::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported,rust_agentic_foundations::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile,raf_docs_contract::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks,raf_docs_contract::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported,raf_docs_contract::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests -->
 
 **Licence and version integrity.** Pinned licence text must retain its digest,
 and the citation version must equal the workspace version. Altered text, missing
@@ -249,7 +253,7 @@ exempt. New crates are covered without another path inventory.
 finding, any stale assessment or any verdict other than accepted. It requires at
 least one loaded capability, so an empty or unreadable documentation set cannot
 masquerade as a clean repository.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_workplan_is_clean_and_assessed -->
 
 **Python refusal.** Tracked paths refuse `.py`, `.pyw`, `.pyi`, `.pyc`, `.pyo`,
 `.pyz` and `.pyzw` extensions case-insensitively, including empty and binary
@@ -288,7 +292,7 @@ property, spelling it as an expression, or giving sixteen refuses and names the
 job. Adding a workspace member automatically adds it to the source-change test
 matrix. A documented example shared by several capabilities has one successful
 execution for its package, while every binding still receives native planning.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget,rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget,raf_docs_contract::test_crate::docs_contract::repository_workplan_is_clean_and_assessed -->
 
 A clean self-Census accepts the currently adopted groups. Adding another
 normal-form-equivalent implementation creates growth and makes the same gate
@@ -319,7 +323,7 @@ dynamic, zero or excessive value refuses the repository gate.
 - These gates judge tracked repository policy, not arbitrary documents outside
   the tracked-file oracle. Non-regular files and symlinks are refused before
   their bytes can stand for ordinary tracked text.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::refuses_non_regular_files_instead_of_reading_them,rust_agentic_foundations::test_crate::docs_contract::rejects_a_tracked_symlink_that_nothing_links_to -->
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::refuses_non_regular_files_instead_of_reading_them,raf_docs_contract::test_crate::docs_contract::rejects_a_tracked_symlink_that_nothing_links_to -->
 - Text scanning treats a NUL byte as binary and decodes other bytes for the
   repository reference rules. A non-UTF-8 text file therefore cannot hide a
   forbidden reference merely by using a different character encoding.
@@ -363,7 +367,7 @@ both declared root families. A controlled valid fixture passes, while a second
 equivalent function creates duplicate growth through the same production gate
 and debt rules. Neither fixture writes debt. The missing-document inventory
 case preserves distinct capability and change-record refusals.
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused,rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused,raf_docs_contract::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents -->
 
 The bound tests contain accepted neighbors and precise refusals for inventory,
 file kinds, profile loading, links, generated blocks, licences, versions,
@@ -374,39 +378,39 @@ no separate interpretation of the documents or source index.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::a_delivered_capability_holds_a_verification_matrix` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::an_open_capability_may_be_listed_by_a_record_named_after_another` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::doctest_comparison_fixtures` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_accepts_a_matching_tree` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_refuses_a_record_id_of_no_record_type` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_missing_or_unlisted_record` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_rejects_a_state_change` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_rejects_an_id_change` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_rejects_an_index_the_table_does_not_list` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_rejects_missing_architecture_and_index_documents` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::inventory_table_has_the_documented_shape` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::refuses_a_file_swapped_in_after_inspection` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::refuses_non_regular_files_instead_of_reading_them` | test | [Constraints](#constraints) |
+| `raf_docs_contract::test_crate::docs_contract::rejects_a_tracked_symlink_that_nothing_links_to` | test | [Constraints](#constraints) |
+| `raf_docs_contract::test_crate::docs_contract::rejects_a_typed_document_outside_the_document_directories` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::rejects_non_markdown_file_in_a_document_directory` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_docs_contract::test_crate::docs_contract::the_checker_accepts_a_valid_checkout` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::the_checker_judges_markdown_outside_the_document_directories` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::the_checker_judges_the_documents_through_the_model` | test | [Verification](#verification) |
+| `raf_docs_contract::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::history::a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor` | test | [Verification](#verification) |
 | `rust_agentic_foundations::example_crate::repository_gate` | example target | [Usage](#usage) |
-| `rust_agentic_foundations::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::a_delivered_capability_holds_a_verification_matrix` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::an_open_capability_may_be_listed_by_a_record_named_after_another` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::doctest_comparison_fixtures` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_accepts_a_matching_tree` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_refuses_a_record_id_of_no_record_type` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_or_unlisted_record` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_state_change` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_an_id_change` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_an_index_the_table_does_not_list` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_architecture_and_index_documents` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_table_has_the_documented_shape` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::refuses_a_file_swapped_in_after_inspection` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::refuses_non_regular_files_instead_of_reading_them` | test | [Constraints](#constraints) |
-| `rust_agentic_foundations::test_crate::docs_contract::rejects_a_tracked_symlink_that_nothing_links_to` | test | [Constraints](#constraints) |
-| `rust_agentic_foundations::test_crate::docs_contract::rejects_a_typed_document_outside_the_document_directories` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::rejects_non_markdown_file_in_a_document_directory` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
-| `rust_agentic_foundations::test_crate::docs_contract::the_checker_accepts_a_valid_checkout` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_markdown_outside_the_document_directories` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_the_documents_through_the_model` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_accepts_matching_versions` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_manifest_bump_without_a_matching_citation` | test | [Contract](#contract) |

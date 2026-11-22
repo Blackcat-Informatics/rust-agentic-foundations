@@ -7,10 +7,10 @@ subject: cap:census-visibility#constraints
 inputs:
   - kind: section
     name: cap:census-visibility#constraints
-    digest: f370617a268cabd54e42ac29ea6c070a5dac6161e44aa2ecc9ef53ac353093fa
+    digest: 90e85726249788fefa1ca3e06b3be8f33b704c2f814ac5c2bba9270da0a03d47
   - kind: symbol
-    name: cargo_census::command::visibility
-    digest: df5706602679ee9ad61e8e6d367f13e17205348448562126702283b237406459
+    name: cargo_raf_census::command::visibility
+    digest: c22b828770bc1bd5f7a7ff8c0948a7f79f3dec1e62e76792075ba0af1a656623
   - kind: symbol
     name: raf_census::VisibilityError
     digest: 5d8132dde3b1d357b87122175833d2d664e24332c8fec6567d49732a0b8ca6d9

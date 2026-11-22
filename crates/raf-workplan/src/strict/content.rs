@@ -58,7 +58,7 @@ fn judge(plan: &Workplan<'_>, loaded: &Loaded<Capability>, out: &mut Vec<Owed>) 
                 path,
                 section(CapabilitySection::Verification),
                 "the Verification section holds no verification-matrix generated block",
-                "add `<!-- raf:generated:verification-matrix -->` and `<!-- raf:generated:end -->` to the Verification section and run `cargo workplan docs sync`",
+                "add `<!-- raf:generated:verification-matrix -->` and `<!-- raf:generated:end -->` to the Verification section and run `cargo raf-workplan docs sync`",
             ),
             section_subject(CapabilitySection::Verification),
         ));

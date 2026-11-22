@@ -7,7 +7,7 @@ subject: cap:workplan-evidence-claims#usage
 inputs:
   - kind: section
     name: cap:workplan-evidence-claims#usage
-    digest: 92cef4cbfea4743f241fb8899bd3d47eeb3b41c13c33fc3fd9ef72cf68932274
+    digest: b0f4b5491443c4581341f0ba3d9a1ebe271f45edbe935f7f6ae74d63f17526c6
   - kind: symbol
     name: raf_workplan::Workplan::evidence_claims
     digest: f93f4c330a28ce119ae3cc238bc40304db25c5c21135aa423df2644c02133f9a

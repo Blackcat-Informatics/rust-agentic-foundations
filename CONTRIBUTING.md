@@ -5,8 +5,8 @@
 
 Thanks for your interest in RAF (Rust Agentic Foundations). This repository holds
 the libraries and cargo subcommands that Blackcat projects use as dev-dependencies:
-`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `cargo-census`, `raf-workplan` and
-`cargo-workplan`, together with the capability documents that specify them. Issues
+`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `cargo-raf-census`, `raf-workplan` and
+`cargo-raf-workplan`, together with the capability documents that specify them. Issues
 and pull requests are welcome.
 
 ## Ways to contribute
@@ -25,19 +25,18 @@ and pull requests are welcome.
   valid. A normal form version is fixed by the content of its first merge to the
   default branch. After that, any change that can move a fingerprint is a new
   version with a migration path: a `normal_form` bump, updated golden tests, and
-  `cargo census migrate`.
+  `cargo raf-census migrate`.
 - **Strict schemas and hard failures.** Every ledger, manifest and document schema
   is closed: unknown keys are errors, not warnings. A stale, malformed or ambiguous
   input fails with a message that says how to fix it. Do not add silent fallbacks,
   best-effort parsing or skip-on-missing-tool behavior.
-- **Dogfood gates.** RAF is the first user of its own tools. The root package's
-  test suite carries the repository's own gates: a document-contract test that
-  runs the `raf-workplan` checks over the capability, change and architecture
-  documents, and the repository gates (licence digests, issue-reference scan,
-  version agreement), all in Rust. The self-Census gate checks the workspace and
-  fuzz roots against the canonical ledger and exact adopted debt. A change that makes a gate fail on RAF itself does not merge, and
-  gates are never relaxed to get a change through. `make docs-sync` rewrites the
-  generated documentation blocks that the workplan checks find stale.
+- **Dogfood gates.** The private `raf-docs-contract` package runs Workplan over
+  the capability, change and architecture documents. The private root package
+  checks repository rules such as licence digests, issue references and version
+  agreement. Its self-Census gate checks the workspace and fuzz roots against the
+  canonical ledger and exact adopted debt. A change that makes a gate fail on
+  RAF itself does not merge. `make docs-sync` rewrites stale generated documentation
+  blocks.
 - **The workplan completion gate.** A change is complete only when the capability
   documents state the delivered contract: no proposed block remains, every item has an
   outcome (`implemented`, `dropped`, or `moved` to another tracked change), the
@@ -107,7 +106,7 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
   `test-release` job has fifteen minutes; the workflow gate refuses any job
   budget above fifteen minutes. Source, fixture,
   capability-document and build changes select every workspace package; unrelated
-  text changes retain root repository gates. Compiler and harness lint jobs apply
+  text changes retain the root repository gates and the document contract. Compiler and harness lint jobs apply
   to source and asset changes. Licensing and both dependency-policy graphs are
   checked on every run. The native YAML gate rejects an absent or excessive job
   budget, including expression-based values whose bound cannot be established.
@@ -144,7 +143,7 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
   `SystemTime`, `UNIX_EPOCH`, `sleep`, the `*_timeout` waits, and each of these
   with a `_` suffix such as `sleep_ms` or `wait_timeout_while`; `raf-source` also
   refuses `Duration` and `elapsed`). The documentation watchdog reads
-  the clock in `crates/cargo-workplan/src/trusted_docs/clock.rs`. The gate
+  the clock in `crates/cargo-raf-workplan/src/trusted_docs/clock.rs`. The gate
   source is exempt so it can name the forbidden calls. Drive time-dependent
   test cases with a scripted clock.
 
@@ -174,6 +173,29 @@ exactly what the MSRV build proves.
 `git-cliff` turns them into the release notes via [`cliff.toml`](./cliff.toml), so
 their wording becomes the changelog. Releases are tagged `v<semver>` (for example
 `v0.1.0`), matching the `tag_pattern` of `v[0-9]*` in `cliff.toml`.
+
+### Registry packages
+
+Use a clean release checkout with a current lockfile. Package the five RAF
+libraries and both command packages. Check that the archives include their
+runtime assets and that their normalized manifests resolve sibling libraries
+from crates.io at the release version.
+
+```sh
+cargo publish --dry-run --locked --workspace \
+  --exclude rust-agentic-foundations --exclude raf-docs-contract --exclude raf-fixtures
+```
+
+On the supported native Linux target, exercise both packaged executables directly
+and through `cargo raf-census` and `cargo raf-workplan`. Compile a fresh consumer
+against the packaged libraries on the declared stable Rust floor. Qualify the
+static documentation from the package contents.
+
+After maintainer approval, publish `raf-okf`, `raf-rdf` and `raf-source`, then
+`raf-census` and `raf-workplan`, and finally `cargo-raf-census` and
+`cargo-raf-workplan`. Wait for each dependency to appear in the registry before
+uploading a dependant. Verify fresh registry installs and the static docs.rs
+builds before publishing the signed version tag and release notes.
 
 ## Before you open a pull request
 

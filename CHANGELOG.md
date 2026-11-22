@@ -8,6 +8,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+- **Breaking, 0.8.0:** The RAF command packages and executables are `cargo-raf-census` and
+  `cargo-raf-workplan`. Invoke them as `cargo raf-census` and
+  `cargo raf-workplan`. Both ship with the RAF libraries at version 0.8.0.
+- The document-contract tests run in the private `raf-docs-contract` package,
+  with a separate hosted test job and no Census dependencies.
+
 - **Breaking, 0.2.0:** RAF analysis libraries launch no processes. Native
   read-only Git replaces subprocesses; verification and completion judge static
   source and document contracts. Consumer tests, examples, doctests and arbitrary
@@ -71,7 +77,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   gaps of every package outside `scope` that a binding reaches. Breaking:
   policy selectors and floors are removed. Coverage records reject the former
   `strictness` key, and the command line rejects the former `--strict` flag.
-- **`cargo-workplan`:** every command uses typed domain results for canonical
+- **`cargo-raf-workplan`:** every command uses typed domain results for canonical
   Turtle 1.2 and N-Triples 1.2 output. JSON output is removed and its former flag
   is refused. Diagnostic write and flush failures propagate as output errors.
 - **`raf-okf`:** the tested-by marker `<!-- raf:tested-by <path>[,<path>...] -->`
@@ -99,7 +105,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   (`strict::ClaimsReport`), rendered as a human table or a typed RDF graph.
   Breaking: `EdgeKind` and `Edge` gain a variant, and
   `EdgeKind::ALL` has eleven entries.
-- **`cargo-workplan`:** `coverage claims [--capability cap:<slug>]` prints the claims
+- **`cargo-raf-workplan`:** `coverage claims [--capability cap:<slug>]` prints the claims
   report as a table or typed RDF, and exits 1 when a claim of
   a delivered capability names no test, 0 when every claim names one, and 2 when
   `--capability` names no loaded capability.
@@ -185,7 +191,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `coverage-lines-over-ceiling` at `ceilings`; an exception
   that names nothing of the source index is `coverage-exception-unmatched` and a
   ceiling of no package is `scope-crate-missing`. `Finding::KINDS` gains the two kinds.
-- **`cargo-workplan`:** `coverage lines [--crate <package>]`, also spelled
+- **`cargo-raf-workplan`:** `coverage lines [--crate <package>]`, also spelled
   `coverage --reverse`, prints `Workplan::lines_report` as its three tables or as
   typed RDF, and exits 1 when it prints an orphan line or could not
   count the lines, 0 otherwise and 2 when `--crate` names no package. Ceilings
@@ -214,7 +220,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   the form of its kind or an item that is no path is `debt-entry-invalid`.
   `LinesReport` rows show the debt in `CrateLines::debt`. `Finding::KINDS` gains the
   three kinds. Breaking: `record::Record` gains a variant.
-- **`cargo-workplan`:** `debt --write [--copyright <text> --licence <id>]` writes
+- **`cargo-raf-workplan`:** `debt --write [--copyright <text> --licence <id>]` writes
   `work/debt/default.md` through `Gate::write_debt` and prints a `debt-written`
   record; it exits 0 when it writes, 1 when it prints the findings that stop it, and
   2 when the repository is not judged strict.
@@ -248,7 +254,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   large constants shared across packages, matches `Job`s as home, variant or copy,
   and renders the baseline and index reports as canonical RDF 1.2 Turtle with a closed-shape reader; the `baseline`
   example prints them. `check_normal_form` refuses any version but 1, naming
-  `cargo census migrate`. The architecture page of the normal form is its normative
+  `cargo raf-census migrate`. The architecture page of the normal form is its normative
   definition.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
@@ -515,7 +521,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   exclusion of nothing and one `coverage-record-missing` for a repository with
   capability documents and no record (`scope: []` enforces nothing). A `scope`
   entry written as a crate name is named as the package it means. The
-  repository's own record enforces `raf-workplan` and `cargo-workplan` with no
+  repository's own record enforces `raf-workplan` and `cargo-raf-workplan` with no
   exclusion: their capabilities bind every public item and every test of them,
   unit tests included.
 - **`raf-workplan` digests of modules:** `Digest::symbol` of a module below a
@@ -593,7 +599,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `TrustedArgv::text` writes it and the evidence record stores it, each word a
   shell would split or expand in single quotes, so `sh -c 'yes >&2'` and
   `sh -c yes '>&2'` no longer read the same. `SECURITY.md` states the limits of
-  the trusted command: an interrupt of `cargo-workplan` does not reach it, a
+  the trusted command: an interrupt of `cargo-raf-workplan` does not reach it, a
   descendant that leaves its process group escapes the kill, a relative program
   resolves against the workspace root, a hand-written record may hold more than
   1024 values, the write checks judge paths and not handles, and the time the
@@ -604,7 +610,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   and coverage tables apply to their cells. The text output of `evidence claims`
   and `assess --context` goes through it, so a document cannot clear the screen,
   set the title of a terminal or reorder a line; the JSON forms are unchanged.
-- **`cargo-workplan` record commands:** `history <id> [--since <YYYY-MM-DD>]`
+- **`cargo-raf-workplan` record commands:** `history <id> [--since <YYYY-MM-DD>]`
   prints the table or the JSON of `Workplan::history` (exit 0, or 2 for an id no
   document has, a shallow clone or a Git older than 2.30). `evidence record --id
   <slug> --for cap:<slug>... --by human|agent [--limit name=number]... [--revision
@@ -955,12 +961,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   tree's only changes the rewrite and the removal), and scripted runners for the order
   of the processes, hostile bindings, the repository changing during the run and the
   order of the writes.
-- **`cargo-workplan`:** the cargo subcommand of the workplan, a new workspace member
-  (package and binary `cargo-workplan`) with two dependencies of its own, `clap`
+- **`cargo-raf-workplan`:** the cargo subcommand of the workplan, a new workspace member
+  (package and binary `cargo-raf-workplan`) with two dependencies of its own, `clap`
   (derive; the colour feature is off) and `serde_json`, both under the licences
-  `deny.toml` allows with no exception and no skip. It runs as `cargo workplan
-  <command>` (cargo passes the argument vector `cargo-workplan workplan <command>`) and
-  as `cargo-workplan <command>`; both forms take the same arguments and give the
+  `deny.toml` allows with no exception and no skip. It runs as `cargo raf-workplan
+  <command>` (cargo passes the argument vector `cargo-raf-workplan raf-workplan <command>`) and
+  as `cargo-raf-workplan <command>`; both forms take the same arguments and give the
   same result. The commands are `check` (the findings of `Gate::try_check`, one line
   each in the library's order), `status` (the roadmap of `Workplan::status`: a row for
   each state in the order delivered, implementing, designed, considered, with the gaps
@@ -999,7 +1005,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   is refused, a missing `git`, and a `build.rustc` program that discovery does not run.
   The macOS and Windows CI jobs run these tests too. The change lifecycle commands
   and `verify` are described in the next entry.
-- **`cargo-workplan` change commands:** `change new <slug> --capability cap:<name>
+- **`cargo-raf-workplan` change commands:** `change new <slug> --capability cap:<name>
   [--capability ...] [--affects cap:<name>#<section> ...] [--copyright <text> --licence
   <id>]`, `change impact <slug>`, `change reconcile <slug>`, `change complete <slug>`
   and `verify [<slug>]`, each a call into `raf-workplan` (`Workplan::new_change`,
@@ -1027,8 +1033,8 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   fault of, its number in the Contract and whether another line repeats it), `completed`
   and `binding` objects, documented in the crate documentation and pinned by tests. The
   tests run the built binary against a fixture repository for each command with exit 0,
-  1 and 2, in both shapes of the argument vector and through a real `cargo workplan`
-  dispatch to a `cargo-workplan` found on `PATH`, with `-q`, the JSON objects, the tree
+  1 and 2, in both shapes of the argument vector and through a real `cargo raf-workplan`
+  dispatch to a `cargo-raf-workplan` found on `PATH`, with `-q`, the JSON objects, the tree
   byte-identical after `change impact` and `change reconcile`, a slug that starts with
   `-` for every command that takes one, a stub `git` of version 2.29 (only `git
   --version` runs), the printed template placed in a capability of each of the four
@@ -1057,7 +1063,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   relationship tables and the catalogue generated by `make docs-sync`.
 - **Workplan change lifecycle capabilities delivered:** the reconcile step, the
   completion gate and the command line are `delivered`, bound to the `raf-workplan`
-  and `cargo-workplan` code, tests and documentation tests that realise them, with
+  and `cargo-raf-workplan` code, tests and documentation tests that realise them, with
   their verification matrices and relationship tables. Their documents state the
   built contract: the options of `change new`, the `git` commands of `reconcile` with
   `git rev-parse --show-prefix`, the order of `complete` (static conditions, the bound
@@ -1074,7 +1080,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   The module documentation of `bound` states that the proof is not a defence against
   the code it runs: output shaped like a result from a bound test, which is trusted
   workspace code, is read as the run reports it.
-- **`make docs-sync`** runs `cargo-workplan docs sync` with the SPDX text of a new
+- **`make docs-sync`** runs `cargo-raf-workplan docs sync` with the SPDX text of a new
   capability index, in place of the `docs_sync` example of `raf-workplan`; the
   example stays.
 - **`raf-okf` rule and error tags:** `Rule::ALL` and `ErrorKind::ALL` list the
@@ -1167,7 +1173,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   sits in; a body that mixes CRLF and LF is refused. Table cell text is escaped
   by one fixed rule. The `docs_sync` example and `make docs-sync` run a sync,
   with `--check` for a read-only comparison.
-- **Document contract:** `tests/docs_contract.rs` runs in `cargo test` and
+- **Document contract:** `crates/raf-docs-contract/tests/docs_contract.rs` runs in `cargo test` and
   enforces the OKF profile on every capability, change and architecture
   document: closed key sets, values, the seven sections, markers, links,
   bindings by state, and the exact capability inventory. It shares its pattern

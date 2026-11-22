@@ -403,7 +403,7 @@ packages belongs to the host reference-scan layer; this core never invokes it.
 
 `raf_census::NORMAL_FORM` is 1. `raf_census::check_normal_form(declared)`
 accepts 1 and refuses every other version with `Error::Version`, whose message
-names the declared version, the implemented version and `cargo census migrate`.
+names the declared version, the implemented version and `cargo raf-census migrate`.
 Reading a version out of a ledger file is the ledger's.
 
 ### Load options
@@ -589,7 +589,7 @@ and `Census::index` build the two reports. `Census::index` refuses duplicate job
 ids; its jobs sort by id. `to_turtle` and `to_ntriples` write a report; `from_turtle`
 and `from_ntriples` read its canonical bytes, preserving its normal-form version
 for the caller to judge. `check_normal_form` is the gate a ledger
-reader applies to the version it finds. `cargo census` ([census-cli](./census-cli.md))
+reader applies to the version it finds. `cargo raf-census` ([census-cli](./census-cli.md))
 and the rule API ([census-rule-api](./census-rule-api.md)) are the designed
 consumers of this library.
 
@@ -1018,7 +1018,7 @@ and escapes controls beside a plain diagnostic neighbor.
 - A fixture with a `0x`-spelled and a decimal-spelled constant yields one constant
   value.
 - `check_normal_form` is tested with 0 and 2 (refused, the message naming both
-  versions and `cargo census migrate`) and with 1 (accepted). `CensusOptions` is
+  versions and `cargo raf-census migrate`) and with 1 (accepted). `CensusOptions` is
   tested with `min_tokens` 0 (refused) and 1 (accepted), with the defaults, and with
   a file above and a file at `max_file_bytes`.
 - Grouping-scope tests over one two-package workspace show that the complete

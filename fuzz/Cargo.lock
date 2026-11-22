@@ -1751,7 +1751,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "raf-census"
-version = "0.2.0"
+version = "0.8.0"
 dependencies = [
  "capnp",
  "proc-macro2",
@@ -1771,7 +1771,7 @@ dependencies = [
 
 [[package]]
 name = "raf-fixtures"
-version = "0.2.0"
+version = "0.8.0"
 dependencies = [
  "purrdf-core",
  "purrdf-deflate",
@@ -1785,7 +1785,7 @@ dependencies = [
 
 [[package]]
 name = "raf-okf"
-version = "0.2.0"
+version = "0.8.0"
 dependencies = [
  "purrdf-core",
  "purrdf-hash",
@@ -1797,7 +1797,7 @@ dependencies = [
 
 [[package]]
 name = "raf-rdf"
-version = "0.2.0"
+version = "0.8.0"
 dependencies = [
  "purrdf-core",
  "purrdf-deflate",
@@ -1810,7 +1810,7 @@ dependencies = [
 
 [[package]]
 name = "raf-source"
-version = "0.2.0"
+version = "0.8.0"
 dependencies = [
  "gix",
  "libc",
@@ -1845,7 +1845,7 @@ dependencies = [
 
 [[package]]
 name = "raf-workplan"
-version = "0.2.0"
+version = "0.8.0"
 dependencies = [
  "imara-diff",
  "proc-macro2",

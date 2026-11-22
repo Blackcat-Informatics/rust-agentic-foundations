@@ -26,9 +26,9 @@ if [[ $parent == "$root" || $parent == "$root/"* ]]; then
 fi
 census() {
     if [[ -n $producer_manifest ]]; then
-        cargo run --quiet --locked --manifest-path "$producer_manifest" -p cargo-census --bin cargo-census -- --workspace "$root" "$@"
+        cargo run --quiet --locked --manifest-path "$producer_manifest" -p cargo-raf-census --bin cargo-raf-census -- --workspace "$root" "$@"
     else
-        cargo-census --workspace "$root" "$@"
+        cargo-raf-census --workspace "$root" "$@"
     fi
 }
 before=$(census lint-inputs)

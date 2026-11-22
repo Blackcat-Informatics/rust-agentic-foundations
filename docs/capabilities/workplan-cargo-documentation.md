@@ -10,13 +10,13 @@ bindings:
   code:
     - raf_workplan::diagram::cargo
     - raf_workplan::diagram::cargo::CargoDocOptions
-    - cargo_workplan::bin_crate::cargo_workplan::trusted_docs::build
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::trusted_docs::build
   tests:
-    - cargo_workplan::test_crate::trusted_docs::trusted_rustdoc_publishes_the_named_view_beside_selected_library_entries
-    - cargo_workplan::test_crate::trusted_docs::documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver
-    - cargo_workplan::bin_crate::cargo_workplan::trusted_docs::configuration::tests::compiler_flags_wrappers_and_includes_cannot_change_the_closed_doc_operation
+    - cargo_raf_workplan::test_crate::trusted_docs::trusted_rustdoc_publishes_the_named_view_beside_selected_library_entries
+    - cargo_raf_workplan::test_crate::trusted_docs::documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::trusted_docs::configuration::tests::compiler_flags_wrappers_and_includes_cannot_change_the_closed_doc_operation
     - raf_workplan::diagram::cargo::artifact::tests::imported_metadata_and_messages_are_bounded_data_with_explicit_roots
-    - cargo_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent
+    - cargo_raf_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent
     - raf_workplan::diagram::cargo::artifact::tests::reported_html_requires_exact_selected_receipts_and_contained_files
   examples:
     - raf_workplan::example_crate::cargo_documentation
@@ -33,18 +33,18 @@ Keep useful package selection and documentation artifacts while requiring explic
 <!-- raf:tested-by raf_workplan::diagram::cargo::artifact::tests::imported_metadata_and_messages_are_bounded_data_with_explicit_roots -->
 
 Only the private CLI operation `docs build rustdoc` launches tools. Each invocation requires `--trust-docs`, explicit toolchain and output directories and package selection. Missing trust refuses before root discovery, process launch or output creation. Compilation uses fixed Cargo, Rust compiler and Rustdoc binaries with frozen, offline, library-only documentation arguments. Tests, examples and doctests are never selected.
-<!-- raf:tested-by cargo_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent -->
 
 With `--view`, Workplan resolves the named native diagram under its existing bounds before launching tools. The Cargo-reported HTML entries must be regular files in library directories that share one documentation output directory below the retained target. Workplan rechecks each page's physical identity and SHA-256 digest before publishing the companion in that shared directory under `raf-workplan/<digest>/`. The overview links to the actual entries with relative URLs. Publication reports success after the publisher verifies the complete owned bundle.
-<!-- raf:tested-by cargo_workplan::test_crate::trusted_docs::trusted_rustdoc_publishes_the_named_view_beside_selected_library_entries -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::trusted_docs::trusted_rustdoc_publishes_the_named_view_beside_selected_library_entries -->
 
 ## Usage
 
 The documented data path is illustrated by `raf_workplan::example_crate::cargo_documentation`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
-Use `cargo workplan docs artifacts --metadata META --messages MESSAGES --target-directory OUTPUT --package PACKAGE` to inspect existing data. No build or publication occurs.
+Use `cargo raf-workplan docs artifacts --metadata META --messages MESSAGES --target-directory OUTPUT --package PACKAGE` to inspect existing data. No build or publication occurs.
 
-Use `cargo workplan docs build rustdoc --trust-docs --toolchain-directory TOOLS --target-directory OUTPUT --package PACKAGE` only when the repository and dependencies are trusted. Tool and output paths must be absolute; output must not overlap source, toolchain or Git administration.
+Use `cargo raf-workplan docs build rustdoc --trust-docs --toolchain-directory TOOLS --target-directory OUTPUT --package PACKAGE` only when the repository and dependencies are trusted. Tool and output paths must be absolute; output must not overlap source, toolchain or Git administration.
 
 Add `--view 'cap:example#dependencies'` to publish the declared view beside the selected library docs. Open the reported companion entry or serve the shared documentation directory at the desired URL prefix. Retrying with identical bundle bytes and links reuses the same immutable directory.
 
@@ -57,7 +57,7 @@ A request without `--trust-docs` refuses even when the named workspace does not 
 ## Constraints
 
 - Trust accepts arbitrary build-script and procedural-macro effects. The operation is not a sandbox, has no descendant teardown guarantee and does not guarantee build-time code leaves source or external systems unchanged. Compiler overrides, wrappers, flag injection and configuration includes refuse. Stream and carrier bounds are 16 MiB; version query streams admit 64 KiB.
-<!-- raf:tested-by cargo_workplan::test_crate::trusted_docs::documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::trusted_docs::documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver -->
 
 ## Explanation
 
@@ -72,10 +72,10 @@ The trusted Rustdoc fixture checks relative links to two reported filenames, unr
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::bin_crate::cargo_workplan::trusted_docs::configuration::tests::compiler_flags_wrappers_and_includes_cannot_change_the_closed_doc_operation` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::trusted_docs::documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver` | test | [Constraints](#constraints) |
-| `cargo_workplan::test_crate::trusted_docs::trusted_rustdoc_publishes_the_named_view_beside_selected_library_entries` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent` | test | [Contract](#contract) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::trusted_docs::configuration::tests::compiler_flags_wrappers_and_includes_cannot_change_the_closed_doc_operation` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::trusted_docs::documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver` | test | [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::trusted_docs::trusted_rustdoc_publishes_the_named_view_beside_selected_library_entries` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent` | test | [Contract](#contract) |
 | `raf_workplan::diagram::cargo::artifact::tests::imported_metadata_and_messages_are_bounded_data_with_explicit_roots` | test | [Contract](#contract) |
 | `raf_workplan::diagram::cargo::artifact::tests::reported_html_requires_exact_selected_receipts_and_contained_files` | test | [Verification](#verification) |
 | `raf_workplan::example_crate::cargo_documentation` | example target | [Usage](#usage) |

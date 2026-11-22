@@ -7,7 +7,7 @@ subject: cap:workplan-reconcile#contract
 inputs:
   - kind: section
     name: cap:workplan-reconcile#contract
-    digest: 9ebd26947bba58e80d83e232369a79b5d0dfd44ef9795d2fb13d47558e895426
+    digest: 8ac87056566a010517b43e94fc5ff881a139eac3b6ff188ea570983eee070a6a
   - kind: symbol
     name: raf_workplan::Workplan::impact
     digest: 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a

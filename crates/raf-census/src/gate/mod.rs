@@ -776,13 +776,13 @@ fn check_debt(tree: &impl Tree, mut report: GateReport) -> Result<GateReport, Er
         let direction = if change.is_growth() {
             "growth cannot be recorded"
         } else if matches!(change, crate::DebtChange::Site { present: 0, .. }) {
-            "stale site: run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to lower the record"
+            "stale site: run cargo raf-census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to lower the record"
         } else if matches!(change, crate::DebtChange::Adopt { .. }) {
-            "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to adopt the newly ratcheted rule into the record"
+            "run cargo raf-census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to adopt the newly ratcheted rule into the record"
         } else if matches!(change, crate::DebtChange::Scope { .. }) {
-            "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to record the present grouping scope"
+            "run cargo raf-census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to record the present grouping scope"
         } else {
-            "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to lower the record"
+            "run cargo raf-census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to lower the record"
         };
         report.findings.push(format!(
             "{DEBT_FILE}: {change:?}; {direction}{}",

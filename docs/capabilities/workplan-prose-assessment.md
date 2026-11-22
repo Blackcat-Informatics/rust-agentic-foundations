@@ -194,14 +194,14 @@ and reload it after a write to inspect current inputs. The ordinary
 
 The runnable API example `raf_workplan::assessment::record_slug` derives the stable record name used for a prose assessment.
 
-- `cargo workplan assess cap:workplan-reconcile#explanation --context` prints the
+- `cargo raf-workplan assess cap:workplan-reconcile#explanation --context` prints the
   section, the bound symbols, the evidence and the inputs with their digests for
   the assessor.
-- `cargo workplan assess cap:workplan-reconcile#explanation --verdict accepted --by agent`
+- `cargo raf-workplan assess cap:workplan-reconcile#explanation --verdict accepted --by agent`
   records the assessment, replacing the one the section had, if any; given
   together, `--copyright <text>` and `--licence <id>` open the record with its
   two SPDX lines.
-- `cargo workplan assess --list` shows each assessment, whether it is current,
+- `cargo raf-workplan assess --list` shows each assessment, whether it is current,
   and the inputs that moved.
 
 The library gives the same through `Workplan::assess_context`,
