@@ -48,7 +48,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b488c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
         with:
           toolchain: nightly
       - name: Check release commit, version and CI
