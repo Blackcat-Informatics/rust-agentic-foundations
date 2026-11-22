@@ -259,7 +259,16 @@ impl Graph {
     /// # Errors
     /// Refuses syntax, profile, digest or canonical-byte violations.
     pub fn from_text(text: &str, format: Format) -> Result<Self, Error> {
-        read::parse(text, format)
+        read::parse(text, format, write::Spelling::Current)
+    }
+
+    /// Read a historical report for conversion, checking its `PurRDF` 4 term
+    /// spelling and original snapshot digest. Rendering uses the current spelling.
+    ///
+    /// # Errors
+    /// Refuses syntax, profile, digest or historical canonical-byte violations.
+    pub fn from_purrdf4_text(text: &str, format: Format) -> Result<Self, Error> {
+        read::parse(text, format, write::Spelling::PurRdf4)
     }
 
     /// The format-independent content-addressed snapshot IRI.

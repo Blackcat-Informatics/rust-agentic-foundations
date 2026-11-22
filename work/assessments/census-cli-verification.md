@@ -13,7 +13,7 @@ inputs:
     digest: 9ad00c1e9220634d4a2b8f4bb1f4d6ac8a000b2a47e0bba5f0d8078638a1fc2e
   - kind: symbol
     name: cargo_raf_census::cli
-    digest: 86499355bc97e326484d8b3a0ab3db6757a7a441741d89ce5aa2a526002c39a7
+    digest: 926e36ecae3b090d9ee9c087235415236204b44d5cb03413538f96ac241eda60
   - kind: symbol
     name: cargo_raf_census::command
     digest: fbbdb75af56f5bdce2c0744f0bb381b29d5b0c5eaa6f634f2735f6708a129317

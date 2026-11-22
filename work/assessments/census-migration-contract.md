@@ -7,13 +7,13 @@ subject: cap:census-migration#contract
 inputs:
   - kind: section
     name: cap:census-migration#contract
-    digest: 11c8045fbe452051357b94ea90d6f494bb8aadf36eb798ca89e6f573967fb380
+    digest: 9e5cd4cc4cd196c3e1e4485f99169647be2a3393062669594ca28cab19105472
   - kind: symbol
     name: cargo_raf_census::bin_crate::cargo_raf_census::main
     digest: 9ad00c1e9220634d4a2b8f4bb1f4d6ac8a000b2a47e0bba5f0d8078638a1fc2e
   - kind: symbol
     name: cargo_raf_census::cli
-    digest: 86499355bc97e326484d8b3a0ab3db6757a7a441741d89ce5aa2a526002c39a7
+    digest: 926e36ecae3b090d9ee9c087235415236204b44d5cb03413538f96ac241eda60
   - kind: symbol
     name: cargo_raf_census::command
     digest: fbbdb75af56f5bdce2c0744f0bb381b29d5b0c5eaa6f634f2735f6708a129317
@@ -55,7 +55,7 @@ inputs:
     digest: 364e55fe5ffc777b3f1a2d303e09169559b2d39c819c54b4381f9abe45ff23bd
   - kind: symbol
     name: raf_census::upgrade_report_form
-    digest: 3ec315b0c44c38540782e011dc65d1851b70962db5f5fb36cb0f62eb5127e04e
+    digest: b186dc8e88fff21b6d0c4a2b81208215910914949ff30fbd6c177242196a2445
 verdict: accepted
 by: agent
 ---

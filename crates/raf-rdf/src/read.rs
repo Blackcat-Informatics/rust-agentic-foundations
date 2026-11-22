@@ -39,7 +39,7 @@ fn root_base(dataset: &RdfDataset) -> Result<String, Error> {
         .ok_or_else(|| Error::Value("absolute snapshot root is absent".into()))
 }
 
-pub(crate) fn parse(text: &str, format: Format) -> Result<Graph, Error> {
+pub(crate) fn parse(text: &str, format: Format, spelling: write::Spelling) -> Result<Graph, Error> {
     let media = match format {
         Format::Turtle => "text/turtle",
         Format::NTriples => "application/n-triples",
@@ -82,7 +82,7 @@ pub(crate) fn parse(text: &str, format: Format) -> Result<Graph, Error> {
         owner: base.clone(),
     };
     graph.validate()?;
-    let (computed, canonical) = write::render(&graph, format)?;
+    let (computed, canonical) = write::render_spelling(&graph, format, spelling)?;
     if computed != base {
         return Err(Error::Digest {
             declared: base,

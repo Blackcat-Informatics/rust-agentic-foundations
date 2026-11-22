@@ -7,7 +7,7 @@ subject: cap:census-normal-form#examples
 inputs:
   - kind: section
     name: cap:census-normal-form#examples
-    digest: 5771107c93a43e61fa6a3e5e3fe1cd86060f43695a71444e3f9183d60dc6d9ac
+    digest: 99a5ab221a9c20dddeb0d3e6e6921f2965b4bb15368b45a80f709fe93367679c
   - kind: symbol
     name: raf_census::Baseline
     digest: 97ef16f0b7baf2b24d9a0a572de39f6e2e5c6328dfd47e6eba6e489b61147861
@@ -304,7 +304,7 @@ inputs:
     digest: 436d7975f5fa081d44b48b3c3f0e9b5e7c3e3ef4cbf7afc0e148233cb0a6d90f
   - kind: symbol
     name: raf_census::REPORT_FORM
-    digest: 91ac1b7a017ca5d1fc2b33acd2efce8a6185d959c73e98b5f12e45bbff36ff44
+    digest: 3d4550bf18f22ee0b333da7bf06f6bfaf229e85052bf0f823dad96600811d87f
   - kind: symbol
     name: raf_census::ReportError
     digest: 9e6e66ada383ce07b63053b323b60169039e0e0090b03e074c346fa361e7d3d0
@@ -397,10 +397,10 @@ inputs:
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
     name: raf_census::report
-    digest: 77ec20a3480b5d4476f5401e05c443034ddfe0959ea6f63b8c8b7d689c9d9c9d
+    digest: a2dc7e428e827b11cf6f2bb399f1b4b99f6ed1d1bd26eee7e665ed7f8a9a7f0a
   - kind: symbol
     name: raf_census::report::vocab
-    digest: d743c43cee3a5cad6c68ea1a366bf90e60c391c75bcb50fb6f800aa929d028a5
+    digest: '0b352bf4e2cc3e9c2c7394e4bba2aa8567d484ec73cfd39410ea3d1c2b03322e'
   - kind: symbol
     name: raf_source_fuzz::bin_crate::census_normalize::exercise
     digest: 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941

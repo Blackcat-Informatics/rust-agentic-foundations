@@ -46,22 +46,22 @@ rustix = { version = "1.1.5", default-features = false, features = ["fs", "std"]
 gix = { version = "=0.90.0", default-features = false, features = ["revision", "index", "sha1", "sha256"] }
 imara-diff = { version = "=0.2.0", default-features = false }
 capnp = { version = "=0.28.1", features = ["unaligned"] }
-purrdf-markdown = { version = "=4" }
-purrdf-toml = { version = "=4" }
-purrdf-alloc-probe = { version = "=4" }
-purrdf-ed25519 = { version = "=4" }
-purrdf-hash = { version = "=4" }
-purrdf-lex = { version = "=4" }
-purrdf-jsonschema = { version = "=4" }
-purrdf-xsd = { version = "=4" }
-purrdf-rdf = { version = "=4" }
-purrdf-shapes = { version = "=4" }
-purrdf-core = { version = "=4" }
-purrdf-iri = { version = "=4" }
-purrdf-deflate = { version = "=4" }
-purrdf-gts = { version = "=4" }
-purrdf-text = { version = "=4" }
-purrdf-testkit = { version = "=4" }
+purrdf-markdown = { version = "=5" }
+purrdf-toml = { version = "=5" }
+purrdf-alloc-probe = { version = "=5" }
+purrdf-ed25519 = { version = "=5" }
+purrdf-hash = { version = "=5" }
+purrdf-lex = { version = "=5" }
+purrdf-jsonschema = { version = "=5" }
+purrdf-xsd = { version = "=5" }
+purrdf-rdf = { version = "=5" }
+purrdf-shapes = { version = "=5" }
+purrdf-core = { version = "=5" }
+purrdf-iri = { version = "=5" }
+purrdf-deflate = { version = "=5" }
+purrdf-gts = { version = "=5" }
+purrdf-text = { version = "=5" }
+purrdf-testkit = { version = "=5" }
 
 [workspace.package]
 version = "0.8.0"

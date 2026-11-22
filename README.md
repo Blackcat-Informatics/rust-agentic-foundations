@@ -18,7 +18,7 @@ RAF provides two tools for Rust repositories. **Workplan** checks that the code,
 | Workplan | Bind a guarantee to its implementation and test, generate the catalogue, run the gate in CI, and reconcile a change. [Workplan how-to](WORKPLAN-HOWTO.md) |
 | Census | Inspect a baseline, install a canonical ledger, adopt existing duplication, and catch a new copy. [Census how-to](CENSUS-HOWTO.md) |
 
-The guides pin the CLI and dev-dependency to the same Git revision. The consumer build needs Rust 1.98.1 or newer. RAF uses PurRDF 4 and exact parser requirements for `syn`, `proc-macro2` and `quote`. Check those requirements when adding RAF to an existing dependency graph. [Workspace manifest](Cargo.toml)
+The guides pin the CLI and dev-dependency to the same Git revision. The consumer build needs Rust 1.98.1 or newer. RAF uses PurRDF 5 and exact parser requirements for `syn`, `proc-macro2` and `quote`. Check those requirements when adding RAF to an existing dependency graph. [Workspace manifest](Cargo.toml)
 
 ## Crates
 

@@ -712,7 +712,7 @@ fn duplicate_job_ids_are_refused() {
 #[test]
 fn a_report_of_another_report_form_is_refused_naming_both() {
     let (baseline, _) = halves();
-    for version in [1, 2, 3, 4, raf_census::REPORT_FORM + 1] {
+    for version in [1, 2, 3, 4, 5, raf_census::REPORT_FORM + 1] {
         let text = rewrite(&baseline, |mut t| {
             if t.predicate == property("reportForm") {
                 t.object = TermValue::integer(version);
@@ -728,6 +728,66 @@ fn a_report_of_another_report_form_is_refused_naming_both() {
                 matches!(result, Err(Error::Report(ReportError::Form { declared, implemented })) if declared == version && implemented == raf_census::REPORT_FORM)
             );
         }
+    }
+}
+
+#[test]
+fn report_form_five_conversion_checks_original_digest_and_literal_bytes() {
+    use raf_census::{MigrationInput, ReportKind, upgrade_report_form};
+
+    for (format, original) in [
+        (
+            Format::Turtle,
+            include_str!("fixtures/reports/form-five-purrdf-4.ttl"),
+        ),
+        (
+            Format::NTriples,
+            include_str!("fixtures/reports/form-five-purrdf-4.nt"),
+        ),
+    ] {
+        let convert = |text: &str| {
+            upgrade_report_form(
+                ReportKind::Ledger,
+                MigrationInput {
+                    path: "ledger",
+                    text,
+                },
+                format,
+            )
+        };
+        // These bytes and their snapshot were emitted by the PurRDF 4 writer.
+        assert!(matches!(
+            Graph::from_text(original, format),
+            Err(raf_rdf::Error::Digest { .. })
+        ));
+        let before = Graph::from_purrdf4_text(original, format).unwrap();
+        let converted = convert(original).unwrap();
+        let after = Graph::from_text(&converted, format).unwrap();
+        read_ledger(&converted, format).unwrap();
+        let header = property("reportForm");
+        let retained = |graph: &Graph| {
+            graph
+                .assertions()
+                .filter(|triple| triple.predicate != header)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(retained(&before), retained(&after));
+        assert!(converted.contains(r"a\uFFFE\uFFFFb"));
+        assert!(converted.contains(r"quoted \uFFFE and \\uFFFF"));
+
+        let alternate = original.replace("\u{fffe}", r"\uFFFE");
+        assert!(matches!(
+            Graph::from_purrdf4_text(&alternate, format),
+            Err(raf_rdf::Error::NotCanonical { .. })
+        ));
+        assert!(convert(&alternate).is_err());
+
+        let changed = original.replace("quoted ", "changed ");
+        assert!(matches!(
+            Graph::from_purrdf4_text(&changed, format),
+            Err(raf_rdf::Error::Digest { .. })
+        ));
+        assert!(convert(&changed).is_err());
     }
 }
 #[test]

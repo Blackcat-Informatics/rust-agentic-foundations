@@ -541,7 +541,7 @@ formats. Each unit's identity includes
 symbol, file, line and start byte. Job matches have named, typed RDF 1.2 reifiers
 carrying Home, Variant or Copy. Constants are decimal xsd:integer values.
 Readers return the declared normal form without gating it, while enforcing
-reportForm 5 and matching fingerprint namespaces. Unknown terms, missing,
+reportForm 6 and matching fingerprint namespaces. Unknown terms, missing,
 repeated and mistyped properties, dangling references, orphan units and node
 names that disagree with properties are errors. Alternate spellings and an
 incorrect BASE digest are errors. Writers validate the same closed shape.
@@ -564,7 +564,7 @@ the recorded module is their enclosing source module, not an invented member pat
 For foreign import failures, inspect the input path and the native TOML cause
 through the error's source chain. A refused import produces no successful report.
 
-Canonical Census reports use report form 5. Regenerate baseline and index reports
+Canonical Census reports use report form 6. Regenerate baseline and index reports
 from source when replacing an earlier report layout; their normal-form-1
 fingerprints remain stable. Ordinary readers refuse older report layouts.
 
@@ -665,11 +665,11 @@ baseline report:
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/0a230ef0ddf3210910c1ce214a2b257ab7376a81a7b6fe757e0ca868d993ad93>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/4eef31a55298f2b388d61d49803d14822d8992516601fe1469a639c0553c6375>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Baseline> .
 <> <https://blackcatinformatics.ca/raf/report/1#minTokens> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#unitCount> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyGroup> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
@@ -714,10 +714,10 @@ fingerprints, each group with its members, and the job with its classified match
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/1d4a9287b6b0b6904447e2aff627c6cc6d79f5a2e73447ffe346633756aff68d>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/ef098c7258a8af9e8c21286790a880bcc5e37e15b7b21bc76f50e86c01e4d2c3>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Index> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyGroup> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::alpha@src/lib.rs:1:0> .
@@ -812,7 +812,7 @@ the report then begin with the directory's name, as they do for `crates`.
 
 ## Constraints
 
-- Ordinary report readers require form 5. Selected query results have closed
+- Ordinary report readers require form 6. Selected query results have closed
   roots and admit only their selected units, matches and jobs; they are not
   complete Index carriers. Explicit layout conversion is separate from reading.
   <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
