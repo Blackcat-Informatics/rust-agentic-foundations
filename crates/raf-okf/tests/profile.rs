@@ -214,30 +214,27 @@ fn capability_flags_read_true_or_false_and_refuse_other_shapes() {
             ("[true]", None),
         ] {
             let text = alpha().replace("depends:", &format!("{flag}: {value}\ndepends:"));
-            match expected {
-                Some(expected) => {
-                    let RafDocument::Capability(cap) = clean(&text, ALPHA_PATH) else {
-                        panic!("a capability")
-                    };
-                    let read = if flag == "review_strict" {
-                        cap.review_strict
-                    } else {
-                        cap.measured_evidence_required
-                    };
-                    assert_eq!(read, expected, "{flag}: {value}");
-                }
-                None => {
-                    let found = violations(&text, ALPHA_PATH);
-                    assert_eq!(found.len(), 1, "{found:#?}");
-                    assert_hit(
-                        &found,
-                        &key(flag),
-                        &Rule::WrongShape {
-                            expected: "true or false",
-                        },
-                    );
-                }
-            }
+            let Some(expected) = expected else {
+                let found = violations(&text, ALPHA_PATH);
+                assert_eq!(found.len(), 1, "{found:#?}");
+                assert_hit(
+                    &found,
+                    &key(flag),
+                    &Rule::WrongShape {
+                        expected: "true or false",
+                    },
+                );
+                continue;
+            };
+            let RafDocument::Capability(cap) = clean(&text, ALPHA_PATH) else {
+                panic!("a capability")
+            };
+            let read = if flag == "review_strict" {
+                cap.review_strict
+            } else {
+                cap.measured_evidence_required
+            };
+            assert_eq!(read, expected, "{flag}: {value}");
         }
     }
 }
