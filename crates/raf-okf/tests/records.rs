@@ -17,6 +17,8 @@ const EVIDENCE_PATH: &str = "work/evidence/memory-bound.md";
 const ASSESSMENT_PATH: &str = "work/assessments/reconcile-explanation.md";
 const COVERAGE_PATH: &str = "work/coverage/default.md";
 const DEBT_PATH: &str = "work/debt/default.md";
+const REVIEW_PATH: &str = "work/reviews/ledger-design.md";
+const REVIEW: &str = include_str!("fixtures/review.md");
 
 fn evidence() -> String {
     format!(
@@ -223,6 +225,13 @@ fn a_verdict_is_one_of_the_verdicts_of_its_type() {
             "verdict: accepted",
             "maybe",
         ),
+        (
+            REVIEW.to_string(),
+            REVIEW_PATH,
+            DocType::Review,
+            "verdict: findings",
+            "pass",
+        ),
     ] {
         let broken = mutate(&text, from, &format!("verdict: {found}"));
         let rule = Rule::BadVerdict {
@@ -232,6 +241,19 @@ fn a_verdict_is_one_of_the_verdicts_of_its_type() {
         assert_only(&broken, path, &key("verdict"), &rule);
         clean(&text, path);
     }
+    let wrong_shape = mutate(REVIEW, "verdict: findings", "verdict: [findings]");
+    assert_only(
+        &wrong_shape,
+        REVIEW_PATH,
+        &key("verdict"),
+        &Rule::WrongShape {
+            expected: "a scalar",
+        },
+    );
+    clean(
+        &mutate(REVIEW, "verdict: findings", "verdict: \"findings\""),
+        REVIEW_PATH,
+    );
 }
 
 #[test]
@@ -239,6 +261,7 @@ fn by_is_human_or_agent_and_never_a_name() {
     for (text, path, accepted) in [
         (assessment(), ASSESSMENT_PATH, "human"),
         (evidence(), EVIDENCE_PATH, "agent"),
+        (REVIEW.to_string(), REVIEW_PATH, "human"),
     ] {
         for found in ["Ada Lovelace", "Human", "bot", "someone@example.invalid"] {
             let broken = mutate(&text, &format!("by: {accepted}"), &format!("by: {found}"));
@@ -249,7 +272,17 @@ fn by_is_human_or_agent_and_never_a_name() {
             let message = rule.to_string();
             assert!(message.contains("never the name of a person"), "{message}");
         }
-        for actor in ["human", "agent"] {
+        let from = format!("by: {accepted}");
+        let wrong_shape = mutate(&text, &from, &format!("by: [{accepted}]"));
+        assert_only(
+            &wrong_shape,
+            path,
+            &key("by"),
+            &Rule::WrongShape {
+                expected: "a scalar",
+            },
+        );
+        for actor in ["human", "agent", "\"human\""] {
             clean(
                 &mutate(&text, &format!("by: {accepted}"), &format!("by: {actor}")),
                 path,

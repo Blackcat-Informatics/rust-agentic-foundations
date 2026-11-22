@@ -122,6 +122,11 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
   capability's binding map. The shared header keys `tags` and `timestamp`
   belong to every type; a Review requires its timestamp. Evidence and Coverage have
   optional keys of their own.
+- The prepared header shapes use `sh:in` to admit the decoded scalar text
+  of Capability state and flags, Change contract effect, record actors
+  and type-specific verdicts, and scalar Review kind. The typed
+  vocabularies supply each list. The header graph is transient, and
+  field findings are emitted in schema order after key findings.
 - `id` is RAF's identity key. The closed key sets do not include the OKF base key
   `resource`, so a document that carries it is rejected. This profile does not use
   an authored IRI identity. The native library carrier derives an asserted stable

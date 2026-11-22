@@ -13,7 +13,7 @@ literal: literal: "Authored document".
 literal: literal: "Load typed document".
 [source binding] raf_okf::Profile: IRI resource: c7a158a447a09eec26a59a0bd2fa2ac50ee6bbf42537883e4d84a879c8b93ae3.
 Original RDF text: https://blackcatinformatics.ca/raf/workplan/1#source/c7a158a447a09eec26a59a0bd2fa2ac50ee6bbf42537883e4d84a879c8b93ae3
-resolved identity at crates/raf-okf/src/profile/mod.rs:60; no execution claim
+resolved identity at crates/raf-okf/src/profile/mod.rs:61; no execution claim
 literal: literal: "Markdown with YAML frontmatter".
 literal: literal: "OKF Markdown".
 literal: literal: "component".
@@ -56,7 +56,7 @@ literal: literal: "raf_okf::RafDocument".
 literal: literal: "boundary".
 [source binding] raf_okf::RafDocument: IRI resource: 4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a.
 Original RDF text: https://blackcatinformatics.ca/raf/workplan/1#source/4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a
-resolved identity at crates/raf-okf/src/profile/typed.rs:1050; no execution claim
+resolved identity at crates/raf-okf/src/profile/typed.rs:1065; no execution claim
 literal: literal: "b023d923d32d3fd25eaf4f89393ac3ef5224a73f453c0b838e2557d9657d6d9d".
 literal: literal: "Profile reader".
 literal: literal: "1".

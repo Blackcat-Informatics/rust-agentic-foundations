@@ -674,6 +674,14 @@ the row for the same reason.
 ### Positioned validation results
 <!-- raf:tested-by raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations,raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list,raf_okf::test_crate::profile::a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item,raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome -->
 
+Prepared native SHACL validates finite scalar headers with `sh:in` lists
+derived from the typed vocabularies. The bounded header graph projects
+decoded scalar text for Capability state and flags, Change contract
+effect, Evidence, Assessment and Review actors and type-specific verdicts,
+and Review kind. Unknown spellings and non-scalar values produce the
+corresponding field findings. Absent capability flags default to false.
+<!-- raf:tested-by raf_okf::test_crate::profile::a_state_is_one_of_the_four,raf_okf::test_crate::profile::contract_effect_is_none_or_changes,raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values,raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type,raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name -->
+
 `Profile::validate` checks a parsed document and its path against the
 closed key set of its `type` and returns a typed result: the typed document
 (`RafDocument`, with `State`, `Bindings`, `Affects` entries, `ChangeItem` entries and
@@ -1274,8 +1282,9 @@ would produce noise in the diff, and a clean check could not be told from a stal
 ## Verification
 
 The mixed-header fixture checks authored order for unknown keys, the separate
-`resource` diagnosis and schema order for missing keys. Each finding names
-the file and key. The accepted neighbour uses the same declared type.
+`resource` diagnosis and schema order for missing keys. Finite scalar findings
+follow the key findings in schema order. Each finding names the file and key.
+The accepted neighbour uses the same declared type.
 <!-- raf:tested-by raf_okf::test_crate::profile::mixed_header_violations_keep_their_key_and_diagnostic_order -->
 
 Native Turtle and N-Triples round trips preserve the actual generated Index
@@ -1529,7 +1538,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::profile::a_proposed_block_is_valid_only_inside_a_section_of_a_capability` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_section_is_empty_when_only_comments_and_generated_blocks_remain` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_split_link_is_reported_at_its_line_and_a_one_line_link_is_not` | test | [Verification](#verification) |
-| `raf_okf::test_crate::profile::a_state_is_one_of_the_four` | test | [Verification](#verification) |
+| `raf_okf::test_crate::profile::a_state_is_one_of_the_four` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::a_title_and_a_description_are_non_empty_strings` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_violation_displays_the_file_the_place_and_the_rule` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_changes` | test | [Verification](#verification) |
@@ -1543,7 +1552,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::changes_is_a_non_empty_list_of_cap_ids` | test | [Verification](#verification) |
-| `raf_okf::test_crate::profile::contract_effect_is_none_or_changes` | test | [Verification](#verification) |
+| `raf_okf::test_crate::profile::contract_effect_is_none_or_changes` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::every_required_key_of_every_type_is_reported_when_missing` | test | [Contract](#contract) |
 | `raf_okf::test_crate::profile::future_tense_prose_is_not_a_violation` | test | [Constraints](#constraints) |
@@ -1589,7 +1598,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::records::a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_visibly` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::a_valid_evidence_record_validates_to_its_typed_value` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float` | test | [Verification](#verification) |
-| `raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::an_assessment_holds_the_section_row_of_its_subject` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::an_exception_names_one_item_prefix_file_or_directory_and_its_reason` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule` | test | [Contract](#contract) |
@@ -1598,7 +1607,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::records::an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::artifact_inputs_accept_repository_relative_paths_and_refuse_escapes` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::both_lists_of_a_debt_record_are_required` | test | [Contract](#contract) |
-| `raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::coverage_is_one_record_at_its_one_path` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::coverage_policy_key_findings_repeat_in_authored_row_order` | test | [Contract](#contract) |
 | `raf_okf::test_crate::records::debt_is_one_record_at_its_one_path` | test | [Verification](#verification) |
