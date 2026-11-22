@@ -1,43 +1,49 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Native SHACL over authored key presence, independent of the authoring codec.
+//! Native SHACL over authored keys and closed scalar values.
 
 use std::{
     fmt,
     sync::{Arc, OnceLock},
 };
 
-use purrdf_core::{RdfDataset, RdfDatasetBuilder, RdfDiagnostic, RdfLiteral};
+use purrdf_core::{
+    RdfDataset, RdfDatasetBuilder, RdfDiagnostic, RdfLiteral,
+    collections::{ListVocab, try_build_rdf_list},
+};
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident, StorageError};
 use purrdf_shapes::{
     ShapesError,
     engine::PreparedShapes,
-    report::ValidationReport,
+    report::{ValidationReport, ValidationResult},
     shapes,
     term::{NamedNode, Term},
 };
 
-use super::review::FindingStatus;
 use super::{BINDING_KEYS, Check, DocType, Entry, ItemValue, Map, Rule};
+use super::{finite::Vocabulary, review::FindingStatus, scalar_text};
 use crate::frontmatter::value::List;
 
 const KEY: &str = "urn:raf:okf:key:";
+const PRESENT: &str = "urn:raf:okf:key-present";
 const FOCUS: &str = "urn:raf:okf:header:";
 const SHAPE: &str = "urn:raf:okf:header-shape:";
 const BINDINGS_SHAPE: &str = "Capability-bindings";
-const RDF_TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+const RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 const XSD_BOOLEAN: &str = "http://www.w3.org/2001/XMLSchema#boolean";
 const XSD_INTEGER: &str = "http://www.w3.org/2001/XMLSchema#integer";
+const XSD_STRING: &str = "http://www.w3.org/2001/XMLSchema#string";
 const SH: &str = "http://www.w3.org/ns/shacl#";
 const CLOSED: &str = "http://www.w3.org/ns/shacl#ClosedConstraintComponent";
 const MIN_COUNT: &str = "http://www.w3.org/ns/shacl#MinCountConstraintComponent";
+const IN: &str = "http://www.w3.org/ns/shacl#InConstraintComponent";
 
 /// A failure to obtain a complete native verdict for a document's header.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum HeaderShapeError {
-    /// The projected key and list marker bytes exceed the document bound.
+    /// The projected header bytes exceed the document bound.
     KeyBytes,
     /// Native RDF graph storage refused schema or header construction.
     Storage(StorageError),
@@ -102,7 +108,8 @@ impl From<RdfDiagnostic> for HeaderShapeError {
 }
 
 #[derive(Default)]
-pub(super) struct KeyVerdicts<'a> {
+pub(super) struct HeaderVerdicts<'a> {
+    rejected: Vec<(&'static str, Rule)>,
     pub(super) bindings_exact: bool,
     pub(super) items: Vec<RowKeys<'a>>,
     pub(super) debt_findings: Vec<RowKeys<'a>>,
@@ -112,6 +119,13 @@ pub(super) struct KeyVerdicts<'a> {
     pub(super) ceilings: Vec<RowKeys<'a>>,
     pub(super) exceptions: Vec<RowKeys<'a>>,
     pub(super) review_findings: Vec<RowKeys<'a>>,
+}
+
+impl HeaderVerdicts<'_> {
+    pub(super) fn take_rejection(&mut self, key: &str) -> Option<Rule> {
+        let index = self.rejected.iter().position(|(field, _)| *field == key)?;
+        Some(self.rejected.swap_remove(index).1)
+    }
 }
 
 pub(super) struct RowKeys<'a> {
@@ -267,12 +281,12 @@ impl<'a> RowGroup<'a> {
     }
 }
 
-/// Reports top-level findings and returns the nested key verdicts in author order.
+/// Reports top-level key findings and returns scalar and nested key verdicts.
 pub(super) fn check<'a>(
     check: &mut Check<'_>,
     map: &'a Map,
     doc_type: DocType,
-) -> Result<KeyVerdicts<'a>, HeaderShapeError> {
+) -> Result<HeaderVerdicts<'a>, HeaderShapeError> {
     static SCHEMA: OnceLock<PreparedShapes> = OnceLock::new();
     let focus = format!("{FOCUS}{}", doc_type.name());
     let bindings = if doc_type == DocType::Capability {
@@ -283,11 +297,10 @@ pub(super) fn check<'a>(
     let binding_focus = bindings.map(|_| format!("{FOCUS}{BINDINGS_SHAPE}"));
     let groups = row_groups(map, doc_type);
     let (data, focuses) = header_graph(
-        [
-            Some((focus.as_str(), map)),
-            binding_focus.as_deref().zip(bindings),
-        ],
+        (focus.as_str(), map),
+        binding_focus.as_deref().zip(bindings),
         &groups,
+        doc_type,
     )?;
     let binding = if let Some(schema) = SCHEMA.get() {
         schema.bind_shared_dataset(data)?
@@ -311,6 +324,7 @@ fn prepare() -> Result<PreparedShapes, HeaderShapeError> {
             ("targetNode", &format!("{FOCUS}{}", doc_type.name())),
             doc_type.keys().iter().map(|spec| (spec.key, spec.required)),
         )?;
+        add_value_constraints(&mut graph, doc_type)?;
     }
     add_shape(
         &mut graph,
@@ -348,7 +362,7 @@ fn add_shape(
     (target, focus): (&str, &str),
     keys: impl Iterator<Item = (&'static str, bool)>,
 ) -> Result<(), HeaderShapeError> {
-    let rdf_type = graph.intern_iri(RDF_TYPE)?;
+    let rdf_type = graph.intern_iri(&format!("{RDF}type"))?;
     let node_shape = graph.intern_iri(&format!("{SH}NodeShape"))?;
     let target = graph.intern_iri(&format!("{SH}{target}"))?;
     let closed = graph.intern_iri(&format!("{SH}closed"))?;
@@ -370,6 +384,44 @@ fn add_shape(
         if required {
             graph.push_quad(field, min_count, one, None)?;
         }
+    }
+    Ok(())
+}
+
+fn finite_fields(doc_type: DocType) -> impl Iterator<Item = (&'static str, Vocabulary)> {
+    doc_type.keys().iter().filter_map(|spec| {
+        Vocabulary::for_kind(spec.value).map(|vocabulary| (spec.key, vocabulary))
+    })
+}
+
+fn add_value_constraints(
+    graph: &mut RdfDatasetBuilder,
+    doc_type: DocType,
+) -> Result<(), HeaderShapeError> {
+    let predicate = graph.intern_iri(&format!("{SH}in"))?;
+    let list = ListVocab {
+        first: graph.intern_iri(&format!("{RDF}first"))?,
+        rest: graph.intern_iri(&format!("{RDF}rest"))?,
+        nil: graph.intern_iri(&format!("{RDF}nil"))?,
+    };
+    for (key, vocabulary) in finite_fields(doc_type) {
+        let name = format!("{SHAPE}{}:{key}", doc_type.name());
+        let field = graph.intern_iri(&name)?;
+        let members = vocabulary
+            .names(doc_type)?
+            .into_iter()
+            .map(|text| graph.intern_literal(RdfLiteral::simple(text)))
+            .collect::<Result<Vec<_>, _>>()?;
+        let cells = (0..members.len())
+            .map(|index| graph.intern_iri(&format!("{name}:in:{index}")))
+            .collect::<Result<Vec<_>, _>>()?;
+        let head = try_build_rdf_list(
+            members,
+            &list,
+            |index| Ok(cells[index]),
+            |subject, predicate, object| graph.push_quad(subject, predicate, object, None),
+        )?;
+        graph.push_quad(field, predicate, head, None)?;
     }
     Ok(())
 }
@@ -403,8 +455,10 @@ fn row_groups(map: &Map, doc_type: DocType) -> Vec<RowGroup<'_>> {
 }
 
 fn header_graph<'a>(
-    maps: [Option<(&str, &'a Map)>; 2],
+    header: (&str, &'a Map),
+    bindings: Option<(&str, &'a Map)>,
     groups: &[RowGroup<'a>],
+    doc_type: DocType,
 ) -> Result<(Arc<RdfDataset>, Vec<Term>), HeaderShapeError> {
     // Both document constructors include at least the key, colon, and newline
     // in the authoring byte limit. Each admitted key gives one default-graph
@@ -416,7 +470,7 @@ fn header_graph<'a>(
         .checked_mul(2)
         .and_then(|markers| crate::MAX_TEXT_BYTES.checked_sub(markers))
         .ok_or(HeaderShapeError::KeyBytes)?;
-    let maps = maps.into_iter().flatten();
+    let maps = std::iter::once(header).chain(bindings);
     for entry in maps
         .clone()
         .map(|(_, map)| map)
@@ -428,20 +482,36 @@ fn header_graph<'a>(
             .and_then(|remaining| remaining.checked_sub(entry.key().len()))
             .ok_or(HeaderShapeError::KeyBytes)?;
     }
+    let scalars = finite_fields(doc_type)
+        .filter_map(|(key, _)| Some((key, scalar_text(header.1.get(key)?)?)))
+        .collect::<Vec<_>>();
+    for (_, text) in &scalars {
+        available = available
+            .checked_sub(text.len())
+            .ok_or(HeaderShapeError::KeyBytes)?;
+    }
     let mut graph = RdfDatasetBuilder::new();
-    let present = graph.intern_iri("urn:raf:okf:key-present")?;
+    let present = graph.intern_iri(PRESENT)?;
     let mut focuses = Vec::with_capacity(maps.clone().count() + row_count);
-    let mut project = |graph: &mut RdfDatasetBuilder, name: &str, map: &Map| {
-        let focus = graph.intern_iri(name)?;
-        focuses.push(NamedNode::from(name).into_term());
-        for entry in map.entries() {
-            let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
-            graph.push_quad(focus, predicate, present, None)?;
-        }
-        Ok::<_, HeaderShapeError>(focus)
-    };
-    for (focus, map) in maps {
-        project(&mut graph, focus, map)?;
+    let mut project =
+        |graph: &mut RdfDatasetBuilder, (name, map): (&str, &Map), values: &[(&str, &str)]| {
+            let focus = graph.intern_iri(name)?;
+            focuses.push(NamedNode::from(name).into_term());
+            for entry in map.entries() {
+                let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
+                let object =
+                    if let Some((_, text)) = values.iter().find(|(key, _)| *key == entry.key()) {
+                        graph.intern_literal(RdfLiteral::simple(*text))?
+                    } else {
+                        present
+                    };
+                graph.push_quad(focus, predicate, object, None)?;
+            }
+            Ok::<_, HeaderShapeError>(focus)
+        };
+    project(&mut graph, header, &scalars)?;
+    if let Some(bindings) = bindings {
+        project(&mut graph, bindings, &[])?;
     }
     if row_count != 0 {
         let anchor = graph.intern_iri("urn:raf:okf:header-rows")?;
@@ -455,7 +525,7 @@ fn header_graph<'a>(
                     member
                 };
                 let name = format!("{FOCUS}{}:{index}", spec.name);
-                let focus = project(&mut graph, &name, map)?;
+                let focus = project(&mut graph, (&name, map), &[])?;
                 graph.push_quad(anchor, row_member, focus, None)?;
             }
         }
@@ -491,6 +561,60 @@ fn missing_row_keys<'a>(
     Ok(result)
 }
 
+fn value_rejection(
+    result: &ValidationResult,
+    map: &Map,
+    doc_type: DocType,
+    key: &str,
+) -> Result<(&'static str, Rule), HeaderShapeError> {
+    let (key, vocabulary) = finite_fields(doc_type)
+        .find(|(field, _)| *field == key)
+        .ok_or(HeaderShapeError::UnexpectedReport)?;
+    let entry = map.get(key).ok_or(HeaderShapeError::UnexpectedReport)?;
+    if focus_iri(&result.source_shape)? != format!("{SHAPE}{}:{key}", doc_type.name()) {
+        return Err(HeaderShapeError::UnexpectedReport);
+    }
+    match (scalar_text(entry), &result.value) {
+        (Some(text), Some(Term::Literal(value)))
+            if value.datatype_str() == XSD_STRING && value.value() == text => {}
+        (None, Some(Term::NamedNode(value))) if value.as_str() == PRESENT => {}
+        _ => return Err(HeaderShapeError::UnexpectedReport),
+    }
+    Ok((key, vocabulary.rejection(entry, doc_type)))
+}
+
+fn report_top_keys<'a>(
+    map: &'a Map,
+    doc_type: DocType,
+    focus: &'a str,
+    unknown: &mut OrderedTable<(&'a str, &'a str), ()>,
+    missing: &mut OrderedTable<(&'a str, &'a str), ()>,
+    check: &mut Check<'_>,
+) {
+    // Report unknown keys in author order, then missing keys in schema order.
+    for entry in map.entries() {
+        let key = entry.key();
+        if unknown.remove(&(focus, key)).is_some() {
+            let rule = if key == "resource" {
+                Rule::ResourceKey { doc_type }
+            } else {
+                Rule::UnknownKey { key: key.into() }
+            };
+            check.key(key, rule);
+        }
+    }
+    for spec in doc_type.keys() {
+        if spec.required && missing.remove(&(focus, spec.key)).is_some() {
+            check.key(
+                spec.key,
+                Rule::MissingKey {
+                    key: spec.key.into(),
+                },
+            );
+        }
+    }
+}
+
 fn report_keys<'a>(
     report: &ValidationReport,
     focuses: &[Term],
@@ -498,7 +622,7 @@ fn report_keys<'a>(
     doc_type: DocType,
     groups: &[RowGroup<'a>],
     check: &mut Check<'_>,
-) -> Result<KeyVerdicts<'a>, HeaderShapeError> {
+) -> Result<HeaderVerdicts<'a>, HeaderShapeError> {
     if report.conforms != report.results.is_empty() || !report.diagnostics.is_empty() {
         return Err(HeaderShapeError::UnexpectedReport);
     }
@@ -515,7 +639,10 @@ fn report_keys<'a>(
     } else {
         (None, nested)
     };
-    let mut bindings_exact = true;
+    let mut verdicts = HeaderVerdicts {
+        bindings_exact: true,
+        ..HeaderVerdicts::default()
+    };
     for result in &report.results {
         let Some(Term::NamedNode(path)) = &result.result_path else {
             return Err(HeaderShapeError::UnexpectedReport);
@@ -524,46 +651,29 @@ fn report_keys<'a>(
             .as_str()
             .strip_prefix(KEY)
             .ok_or(HeaderShapeError::UnexpectedReport)?;
+        let focus = focus_iri(&result.focus_node)?;
         let keys = match result.source_constraint_component.as_str() {
             CLOSED => &mut unknown,
             MIN_COUNT => &mut missing,
+            IN if focus == header => {
+                let rejection = value_rejection(result, map, doc_type, key)?;
+                if verdicts.rejected.iter().any(|(field, _)| *field == key) {
+                    return Err(HeaderShapeError::UnexpectedReport);
+                }
+                verdicts.rejected.push(rejection);
+                continue;
+            }
             _ => return Err(HeaderShapeError::UnexpectedReport),
         };
-        let focus = focus_iri(&result.focus_node)?;
         if bindings == Some(focus) {
-            bindings_exact = false;
+            verdicts.bindings_exact = false;
             continue;
         }
         if keys.insert((focus, key), (), &mut memory)?.is_some() {
             return Err(HeaderShapeError::UnexpectedReport);
         }
     }
-    // Report unknown keys in author order, then missing keys in schema order.
-    for entry in map.entries() {
-        let key = entry.key();
-        if unknown.remove(&(header, key)).is_some() {
-            let rule = if key == "resource" {
-                Rule::ResourceKey { doc_type }
-            } else {
-                Rule::UnknownKey { key: key.into() }
-            };
-            check.key(key, rule);
-        }
-    }
-    for spec in doc_type.keys() {
-        if spec.required && missing.remove(&(header, spec.key)).is_some() {
-            check.key(
-                spec.key,
-                Rule::MissingKey {
-                    key: spec.key.into(),
-                },
-            );
-        }
-    }
-    let mut verdicts = KeyVerdicts {
-        bindings_exact,
-        ..KeyVerdicts::default()
-    };
+    report_top_keys(map, doc_type, header, &mut unknown, &mut missing, check);
     let mut focuses = row_focuses.iter();
     for &group in groups {
         let rows = match group.shape {

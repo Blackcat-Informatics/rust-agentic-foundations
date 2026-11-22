@@ -8,6 +8,7 @@ mod body_rules;
 #[cfg(test)]
 mod cost_tests;
 mod diagrams;
+mod finite;
 mod header;
 mod model;
 mod records;
@@ -320,15 +321,16 @@ impl Profile {
             check.key("type", Rule::WrongDirectory { declared: doc_type });
         }
         let prior_findings = check.out.len();
-        let keys = match header::check(&mut check, map, doc_type) {
-            Ok(keys) => keys,
+        let collected = match header::check(&mut check, map, doc_type).and_then(|mut verdicts| {
+            check_values(&mut check, map, doc_type, file_stem(path), &mut verdicts)
+        }) {
+            Ok(collected) => collected,
             Err(source) => {
                 check.out.truncate(prior_findings);
                 check.add(Location::Document, Rule::HeaderShape { source });
                 return Err(check.out);
             }
         };
-        let collected = check_values(&mut check, map, doc_type, file_stem(path), &keys);
         check_frontmatter_placeholders(&mut check, map);
         let body = document.body();
         body_rules::check_sections(doc_type, body, path, &mut check.out);
@@ -348,8 +350,8 @@ fn check_values(
     map: &Map,
     doc_type: DocType,
     stem: &str,
-    keys: &header::KeyVerdicts<'_>,
-) -> Collected {
+    keys: &mut header::HeaderVerdicts<'_>,
+) -> Result<Collected, HeaderShapeError> {
     let mut found = Collected::default();
     for spec in doc_type.keys() {
         let Some(entry) = map.get(spec.key) else {
@@ -357,6 +359,13 @@ fn check_values(
             continue;
         };
         let key = spec.key;
+        if let Some(rule) = keys.take_rejection(key) {
+            check.key(key, rule);
+            if spec.value == ValueKind::Flag {
+                *flag_slot(&mut found, key)? = Slot::Invalid;
+            }
+            continue;
+        }
         match spec.value {
             ValueKind::Model => found.model = Slot::from_check(model::check(check, entry)),
             ValueKind::Diagrams => found.diagrams = Slot::from_check(diagrams::check(check, entry)),
@@ -373,51 +382,42 @@ fn check_values(
             ValueKind::Timestamp => {
                 found.timestamp = Slot::from_check(check_timestamp(check, entry));
             }
-            ValueKind::State => found.state = check_state(check, entry),
+            ValueKind::State => found.state = Some(finite::decode(entry, State::from_name)?),
             ValueKind::ReviewKinds => {
                 found.review_required = Slot::from_check(review::check_required(check, entry));
             }
             ValueKind::Bindings => {
                 found.bindings = check_bindings(check, entry, found.state, keys.bindings_exact);
             }
-            ValueKind::CapabilityIds => {
-                let ids = check_capability_ids(check, entry, key == "changes");
-                match key {
-                    "changes" => {
-                        if let Some(texts) = strings(entry.value()) {
-                            found.change_ids = texts
-                                .into_iter()
-                                .filter(|id| is_capability_id(id))
-                                .map(str::to_string)
-                                .collect();
-                        }
-                        found.changes = ids;
-                    }
-                    "for" => {
-                        found.covers = ids.filter(|ids| records::check_covers(check, ids));
-                    }
-                    _ => found.depends = ids,
-                }
-            }
+            ValueKind::CapabilityIds => collect_capability_ids(check, entry, &mut found),
             ValueKind::Affects => {
                 found.affects = check_affects(check, entry, &found.change_ids);
             }
-            ValueKind::ContractEffect => found.effect = check_effect(check, entry),
+            ValueKind::ContractEffect => {
+                found.effect = Some(finite::decode(entry, ContractEffect::from_name)?);
+            }
             ValueKind::Items => found.items = check_items(check, entry, &keys.items),
             ValueKind::Subject => found.subject = records::check_subject(check, entry, doc_type),
             ValueKind::Inputs => {
                 found.inputs = records::check_inputs(check, entry, doc_type, &keys.inputs);
             }
-            ValueKind::Verdict => found.verdict = records::check_verdict(check, entry, doc_type),
-            ValueKind::Actor => found.by = records::check_actor(check, entry),
+            ValueKind::Verdict => {
+                found.verdict = Some(finite::decode(entry, |text| {
+                    records::read_verdict(doc_type, text)
+                })?);
+            }
+            ValueKind::Actor => found.by = Some(finite::decode(entry, Actor::from_name)?),
             ValueKind::Command => {
                 found.command = Slot::from_check(records::check_command(check, entry));
             }
             ValueKind::Revision => {
                 found.revision = Slot::from_check(records::check_revision(check, entry));
             }
-            ValueKind::Measures | ValueKind::Units | ValueKind::Conditions | ValueKind::Flag => {
+            ValueKind::Measures | ValueKind::Units | ValueKind::Conditions => {
                 check_measured(check, entry, &mut found);
+            }
+            ValueKind::Flag => {
+                *flag_slot(&mut found, key)? = Slot::Valid(finite::decode(entry, finite::flag)?);
             }
             ValueKind::Scope => found.scope = records::check_scope(check, entry),
             ValueKind::Exclusions => {
@@ -439,7 +439,9 @@ fn check_values(
                 found.debt_lines = records::check_debt_lines(check, entry, &keys.debt_lines);
             }
             ValueKind::ReviewScope => found.review_scope = review::check_scope(check, entry),
-            ValueKind::ReviewKind => found.review_kind = review::check_kind(check, entry),
+            ValueKind::ReviewKind => {
+                found.review_kind = Some(finite::decode(entry, ReviewKind::from_name)?);
+            }
             ValueKind::ReviewFindings => {
                 found.review_findings = review::check_findings(check, entry, &keys.review_findings);
             }
@@ -451,21 +453,46 @@ fn check_values(
         }
     }
     check_record_consistency(check, map, doc_type, &mut found);
-    found
+    Ok(found)
 }
 
-/// Check one of the keys of measured evidence: `values`, `limits`, `units`,
-/// `conditions`, `measured_evidence_required` or `review_strict`.
+fn flag_slot<'a>(
+    found: &'a mut Collected,
+    key: &str,
+) -> Result<&'a mut Slot<bool>, HeaderShapeError> {
+    match key {
+        "review_strict" => Ok(&mut found.review_strict),
+        "measured_evidence_required" => Ok(&mut found.measured_evidence_required),
+        _ => Err(HeaderShapeError::UnexpectedReport),
+    }
+}
+
+fn collect_capability_ids(check: &mut Check<'_>, entry: &Entry, found: &mut Collected) {
+    let key = entry.key();
+    let ids = check_capability_ids(check, entry, key == "changes");
+    match key {
+        "changes" => {
+            if let Some(texts) = strings(entry.value()) {
+                found.change_ids = texts
+                    .into_iter()
+                    .filter(|id| is_capability_id(id))
+                    .map(str::to_string)
+                    .collect();
+            }
+            found.changes = ids;
+        }
+        "for" => found.covers = ids.filter(|ids| records::check_covers(check, ids)),
+        _ => found.depends = ids,
+    }
+}
+
+/// Check one of the keys of measured evidence: `values`, `limits`, `units` or `conditions`.
 fn check_measured(check: &mut Check<'_>, entry: &Entry, found: &mut Collected) {
     match entry.key() {
         "values" => found.values = Slot::from_check(records::check_measures(check, entry)),
         "limits" => found.limits = Slot::from_check(records::check_measures(check, entry)),
         "units" => found.units = Slot::from_check(records::check_units(check, entry)),
-        "conditions" => found.conditions = Slot::from_check(check_text(check, entry)),
-        "review_strict" => found.review_strict = Slot::from_check(check_flag(check, entry)),
-        _ => {
-            found.measured_evidence_required = Slot::from_check(check_flag(check, entry));
-        }
+        _ => found.conditions = Slot::from_check(check_text(check, entry)),
     }
 }
 
@@ -560,23 +587,6 @@ fn check_id(
     Some((id.to_string(), slug.to_string()))
 }
 
-/// A flag: the text `true` or `false`.
-fn check_flag(check: &mut Check<'_>, entry: &Entry) -> Option<bool> {
-    match scalar_text(entry) {
-        Some("true") => Some(true),
-        Some("false") => Some(false),
-        _ => {
-            check.key(
-                entry.key(),
-                Rule::WrongShape {
-                    expected: "true or false",
-                },
-            );
-            None
-        }
-    }
-}
-
 fn check_text(check: &mut Check<'_>, entry: &Entry) -> Option<String> {
     match scalar_text(entry) {
         Some(text) if !text.trim().is_empty() => Some(text.to_string()),
@@ -633,28 +643,6 @@ fn check_timestamp(check: &mut Check<'_>, entry: &Entry) -> Option<String> {
             None
         }
     }
-}
-
-fn check_state(check: &mut Check<'_>, entry: &Entry) -> Option<State> {
-    let Some(text) = scalar_text(entry) else {
-        check.key(
-            "state",
-            Rule::WrongShape {
-                expected: "a scalar",
-            },
-        );
-        return None;
-    };
-    let state = State::from_name(text);
-    if state.is_none() {
-        check.key(
-            "state",
-            Rule::BadState {
-                found: text.to_string(),
-            },
-        );
-    }
-    state
 }
 
 fn check_bindings(
@@ -828,24 +816,6 @@ fn check_affects(check: &mut Check<'_>, entry: &Entry, changes: &[String]) -> Op
         }
     }
     valid.then_some(parsed)
-}
-
-fn check_effect(check: &mut Check<'_>, entry: &Entry) -> Option<ContractEffect> {
-    let effect = match scalar_text(entry) {
-        Some("none") => Some(ContractEffect::None),
-        Some("changes") => Some(ContractEffect::Changes),
-        _ => None,
-    };
-    if effect.is_none() {
-        let found = scalar_text(entry).map_or("<not a scalar>", |text| text);
-        check.key(
-            "contract_effect",
-            Rule::BadContractEffect {
-                found: found.to_string(),
-            },
-        );
-    }
-    effect
 }
 
 fn check_items(
