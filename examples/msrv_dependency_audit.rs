@@ -8,7 +8,8 @@ use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::{self, BufRead as _, Write as _};
-use std::process::{Command, ExitCode};
+use std::path::Path;
+use std::process::{Command, ExitCode, ExitStatus};
 
 use purrdf_core::ContentDigest;
 use purrdf_lex::json::{self, Value};
@@ -33,6 +34,15 @@ struct Package {
 fn main() -> Result<ExitCode, Box<dyn Error>> {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
     match arguments.as_slice() {
+        [command, root, launcher @ ..] if command == "--check" => {
+            let script = Path::new(env!("CARGO_MANIFEST_DIR")).join(".githooks/check-msrv");
+            let status = Command::new(script)
+                .arg(root)
+                .arg(std::env::current_exe()?)
+                .args(launcher)
+                .status()?;
+            Ok(exit_code(status))
+        }
         [command, metadata] if command == "--report" => {
             report(metadata)?;
             Ok(ExitCode::SUCCESS)
@@ -43,7 +53,7 @@ fn main() -> Result<ExitCode, Box<dyn Error>> {
             Ok(ExitCode::SUCCESS)
         }
         [command, rest @ ..] => compile(command, rest),
-        [] => Err("supply --report, --identity or a compiler invocation".into()),
+        [] => Err("supply --check, --report, --identity or a compiler invocation".into()),
     }
 }
 
@@ -86,12 +96,16 @@ fn compile(command: &OsStr, arguments: &[OsString]) -> Result<ExitCode, Box<dyn 
         )?;
     }
     let status = Command::new(command).args(arguments).status()?;
-    Ok(ExitCode::from(
+    Ok(exit_code(status))
+}
+
+fn exit_code(status: ExitStatus) -> ExitCode {
+    ExitCode::from(
         status
             .code()
             .and_then(|code| u8::try_from(code).ok())
             .unwrap_or(1),
-    ))
+    )
 }
 
 fn report(metadata: &OsStr) -> Result<(), Box<dyn Error>> {

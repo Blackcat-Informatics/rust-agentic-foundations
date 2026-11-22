@@ -4,7 +4,8 @@
 
 set -euo pipefail
 root=$1
-shift
+audit=$2
+shift 2
 RUSTC=$("$@" bash -c 'command -v rustc')
 version=$("$@" "$RUSTC" --version)
 case "$version" in
@@ -15,10 +16,10 @@ case "$version" in
         ;;
 esac
 export RUSTC
-target=$(realpath -m -- "${CARGO_TARGET_DIR:-$PWD/target}")
-audit="$target/debug/examples/msrv_dependency_audit"
+audit_dir=$(dirname -- "$audit")
+target=$(realpath -m -- "${CARGO_TARGET_DIR:-$audit_dir/../..}")
 identity=$("$audit" --identity)
-wrapper="$target/msrv-compiler-$identity"
+wrapper="$audit_dir/msrv-compiler-$identity"
 if [[ ! -f $wrapper ]]; then
     ln -- "$audit" "$wrapper" || [[ -f $wrapper ]]
 fi
