@@ -81,10 +81,8 @@ reuse: ## REUSE compliance lint (needs uvx or reuse).
 msrv: ## cargo check on the MSRV toolchain (1.98.1).
 	@command -v $(firstword $(MSRV_RUN)) >/dev/null 2>&1 || { \
 	  echo "make msrv: required tool '$(firstword $(MSRV_RUN))' not found; install rust-validate, or run with MSRV_RUN= and RUSTUP_TOOLCHAIN=1.98.1" >&2; exit 1; }
-	@v=$$($(MSRV_RUN) rustc --version); case "$$v" in "rustc 1.98.1 "*) ;; *) \
-	  echo "make msrv: expected rustc 1.98.1, got '$$v'; set MSRV_RUN to a command that runs the 1.98.1 toolchain" >&2; exit 1;; esac
-	$(MSRV_RUN) cargo check --workspace --all-targets --locked
-	$(MSRV_RUN) cargo check --manifest-path '$(ROOT)/fuzz/Cargo.toml' --target-dir target --all-targets --locked
+	cargo build --locked --example msrv_dependency_audit -p rust-agentic-foundations
+	.githooks/check-msrv '$(ROOT)' $(MSRV_RUN)
 
 fuzz: ## Fuzz harness: fmt, clippy, deny, then a bounded run (needs cargo-fuzz).
 	cargo fmt --check --manifest-path '$(ROOT)/fuzz/Cargo.toml'

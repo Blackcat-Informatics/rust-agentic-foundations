@@ -120,6 +120,10 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
 - **MSRV.** `make msrv` runs `cargo check --workspace --all-targets --locked` (and the
   same on the fuzz manifest) on Rust 1.98.1 through `rust-validate`. Install `rust-validate`, or point `MSRV_RUN`
   at a command that runs the 1.98.1 toolchain.
+  The checks deny compiler warnings. Cargo resolves dependencies for the
+  package and supplies them to individual targets. The dependency audit
+  collects the compiler's findings across those targets and fails if every
+  target that receives a dependency leaves it unused.
 - **Fuzz harness.** `make fuzz` checks `fuzz/` (its own cargo-fuzz workspace) with
   fmt, clippy and an offline `cargo deny`, then runs each of its targets
   (`parse-source`, `parse-document`, `load-workspace`, `census-normalize` and `census-report-read`) over its committed corpus,

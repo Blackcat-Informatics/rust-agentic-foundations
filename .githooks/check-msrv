@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+set -euo pipefail
+root=$1
+shift
+RUSTC=$("$@" bash -c 'command -v rustc')
+version=$("$@" "$RUSTC" --version)
+case "$version" in
+    "rustc 1.98.1 "*) ;;
+    *)
+        echo "make msrv: expected rustc 1.98.1, got '$version'; set MSRV_RUN to a command that runs the 1.98.1 toolchain" >&2
+        exit 1
+        ;;
+esac
+export RUSTC
+target=$(realpath -m -- "${CARGO_TARGET_DIR:-$PWD/target}")
+audit="$target/debug/examples/msrv_dependency_audit"
+identity=$("$audit" --identity)
+wrapper="$target/msrv-compiler-$identity"
+if [[ ! -f $wrapper ]]; then
+    ln -- "$audit" "$wrapper" || [[ -f $wrapper ]]
+fi
+if [[ -L $wrapper || $("$wrapper" --identity) != "$identity" ]]; then
+    echo 'make msrv: the cached compiler audit executable has the wrong identity' >&2
+    exit 1
+fi
+export CARGO_TARGET_DIR="$target"
+export RUSTC_WORKSPACE_WRAPPER="$wrapper"
+# Cargo exposes dependencies per target. Preserve these diagnostics for package
+# aggregation and keep every other warning fatal.
+export CARGO_ENCODED_RUSTFLAGS=$'-D\x1fwarnings\x1f--force-warn=unused_crate_dependencies'
+
+mkdir -p "$root/.stage"
+metadata=$(mktemp "$root/.stage/msrv-members.XXXXXXXX")
+trap 'rm -- "$metadata"' EXIT
+for manifest in "$root/Cargo.toml" "$root/fuzz/Cargo.toml"; do
+    "$@" cargo metadata --manifest-path "$manifest" --no-deps --locked --format-version=1 > "$metadata"
+    "$@" cargo check --manifest-path "$manifest" --workspace --all-targets --locked --message-format=json |
+        "$wrapper" --report "$metadata"
+done
