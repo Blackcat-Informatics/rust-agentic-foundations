@@ -33,7 +33,7 @@ a shim is the complete 32-byte BLAKE3 hash of the form's token sequence under
 one fixed byte encoding. A version is fixed by the content of its first merge to the
 default branch: after that, any change that can alter a fingerprint is a new
 version, and a ledger written under another version is refused until
-`cargo census migrate` rewrites it.
+`cargo raf-census migrate` rewrites it.
 
 ## Token source
 
@@ -519,15 +519,15 @@ and numeric guards leave the earlier report bytes intact when absent.
 
 ## Version-bump rule
 
-The current Census report form is 5. The explicit native layout conversion
-accepts forms 3 and 4 for Baseline, Index, Ledger and DebtRecord. Conversion edits
-and returns the original graph, validates the selected current shape and
-preserves every normalized assertion except reportForm. Owned snapshot IRIs
-rebase; external IRIs, literal pins and historical normalForm values do not
-change. Opaque Ledger extension assertions remain intact. Historical Index
-carriers cannot contain reference observations, witnesses or constants; conversion never
-invents them. Ordinary readers require form 5. Layout conversion never authorizes
-policy execution or debt growth.
+The current Census report form is 6. PurRDF 5 writes U+FFFE and U+FFFF in
+literals as Unicode escapes. Explicit native layout conversion accepts forms
+3 through 5 for Baseline, Index, Ledger and DebtRecord. It checks the original
+bytes and snapshot digest with the PurRDF 4 term spelling, then updates the
+report form and validates the current shape. Owned snapshot IRIs rebase.
+External IRIs, literal pins, historical normalForm values and opaque Ledger
+extension assertions retain their values. Reference observations, witnesses
+and constants are admitted from form 5 onward. Ordinary readers require form 6.
+Layout conversion leaves policy execution and debt growth unauthorized.
 
 A change to report vocabulary, shape or canonical layout bumps `census:reportForm`,
 not `normal_form`, under one rule. An additive optional property that is omitted
@@ -585,7 +585,7 @@ without a fixture.
 The report reader returns its declared `census:normalForm` without gating it; callers
 apply `check_normal_form`, so migration can read another normal form. Its body and
 shim namespaces must agree with that version. `census:reportForm` gates the layout
-and must equal the implemented `REPORT_FORM` (5). Within one report form the
+and must equal the implemented `REPORT_FORM` (6). Within one report form the
 vocabulary can grow only by additive optional properties omitted at their
 default, as the version-bump rule states; a reader without such a property
 refuses a record that states it, by name.
@@ -593,7 +593,7 @@ refuses a record that states it, by name.
 A ledger names the version it was written for with `normal_form`. If the value differs
 from the version the census implements, the census fails hard before reading any job.
 The message states the ledger's version and the census's version and tells the user to
-run `cargo census migrate`, which maps the old fingerprints to the new ones. The
+run `cargo raf-census migrate`, which maps the old fingerprints to the new ones. The
 census never reads a ledger under a different version, and never guesses at a mapping;
 `migrate` is the one reader of an older-version ledger, and it rewrites the ledger at
 the implemented version.

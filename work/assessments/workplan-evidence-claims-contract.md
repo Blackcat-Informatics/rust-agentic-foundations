@@ -7,7 +7,7 @@ subject: cap:workplan-evidence-claims#contract
 inputs:
   - kind: section
     name: cap:workplan-evidence-claims#contract
-    digest: 88f1316e8b11aeb5eb0338a114acc1d75c5132e1bef7be840ced045fec0fc68c
+    digest: 41f083c8c762c572b857b5b5e33d20ce7ea21b34052a39ac72547f9ad3b3c0e3
   - kind: symbol
     name: raf_workplan::Workplan::diagram
     digest: 5118cfd1cfdf16443470d6d5f971b081f89a47e6a5c53c4e8f9bcbb77989e5af

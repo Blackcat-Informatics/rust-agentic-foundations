@@ -18,7 +18,7 @@
 | [census-visibility](./census-visibility.md) | Inventory public declarations, root-reachable definitions and written cross-package uses. |  |
 | [okf-profile](./okf-profile.md) | The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically. |  |
 | [rdf-report-profile](./rdf-report-profile.md) | The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections. |  |
-| [repository-contract](./repository-contract.md) | The tracked document inventory, repository policy gates and accepted assessment check of the unpublished root package. |  |
+| [repository-contract](./repository-contract.md) | The tracked document inventory, repository policy gates and accepted assessment checks in the private RAF gate packages. |  |
 | [source-configured-target](./source-configured-target.md) | Index one selected package target under declared configuration without admitting other targets or provider authority. |  |
 | [source-index](./source-index.md) | The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #\[path\], and a symbol and use-alias index. |  |
 | [source-reference-namespace](./source-reference-namespace.md) | One source index across exact first-party and reference contexts without configured provider authority. |  |

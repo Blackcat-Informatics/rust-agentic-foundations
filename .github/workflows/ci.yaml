@@ -68,29 +68,34 @@ jobs:
                ($packages | length) != (.workspace_members | length)
             then error("incomplete workspace package matrix")
             else {include: [$packages[] |
-              select($code or .name == "rust-agentic-foundations") |
+              select($code or .name == "rust-agentic-foundations" or .name == "raf-docs-contract") |
               . as $package |
               {package: .name, label: .name, args: [], docs: false,
                examples: any(.targets[]; (.kind | index("example")) != null),
                build_examples: false} as $base |
-              if .name == "raf-workplan" or .name == "rust-agentic-foundations" or
-                 .name == "raf-source" then
+              if .name == "raf-docs-contract" then
+                if [.targets[] | select(.test) | selector] == [["--test", "docs_contract"]]
+                then $base + {args: ["--test", "docs_contract"]}
+                else error("raf-docs-contract must own the single document-contract test target")
+                end
+              elif .name == "rust-agentic-foundations" then
+                $base + {
+                  args: [.targets[] | select(.test) | selector | .[]],
+                  docs: any(.targets[]; .doctest),
+                  build_examples: $base.examples
+                }
+              elif .name == "raf-workplan" or .name == "raf-source" then
                 (if .name == "raf-workplan" then 3 else 2 end) as $parts |
                 if any(.targets[]; (.test | type) != "boolean" or
                        (.doctest | type) != "boolean")
                 then error("missing Cargo test or doctest decision") else . end |
                 [.targets[] | select(.test) | selector] as $tests |
                 if ($tests | length) < $parts then error("insufficient package test targets for splitting")
-                elif .name == "rust-agentic-foundations" and
-                     ([$tests[] | select(. == ["--test", "docs_contract"])] | length) != 1
-                then error("root package must declare one document-contract test target")
                 else range(0; $parts) as $part |
                   $base + {
                     label: (.name + " " + (($part + 1) | tostring) + "/" + ($parts | tostring)),
                     args: [$tests | to_entries[] |
-                      select(if $package.name == "rust-agentic-foundations"
-                        then (.value == ["--test", "docs_contract"]) == ($part == 0)
-                        else .key % $parts == $part end) | .value[]],
+                      select(.key % $parts == $part) | .value[]],
                     docs: ($part == 1 and any($package.targets[]; .doctest)),
                     examples: ($part == 1 and $base.examples),
                     build_examples: ($part == 1 and $base.examples)
@@ -185,20 +190,20 @@ jobs:
           mapfile -d '' -t args < "$RUNNER_TEMP/test-args"
           # Trusted documentation fixtures use Cargo's test target directory.
           # The documentation target must sit outside the Git worktree.
-          if [[ "$RAF_CI_PACKAGE" == cargo-workplan ]]; then
-            export CARGO_TARGET_DIR="$RUNNER_TEMP/cargo-workplan-target"
+          if [[ "$RAF_CI_PACKAGE" == cargo-raf-workplan ]]; then
+            export CARGO_TARGET_DIR="$RUNNER_TEMP/cargo-raf-workplan-target"
           fi
-          # Keep the full round trip within the job budget. Optimize its
-          # runtime libraries and compile the test harness at level zero.
-          if [[ "$RAF_CI_PACKAGE" == rust-agentic-foundations && "${args[*]}" == '--test docs_contract' ]]; then
+          # Optimize the source-index and document paths while keeping the
+          # cold build of the remaining dependencies at level zero.
+          if [[ "$RAF_CI_PACKAGE" == raf-docs-contract ]]; then
             export CARGO_PROFILE_TEST_DEBUG=0
             args+=(
-              --config 'profile.test.opt-level=1'
-              --config 'profile.test.package.rust-agentic-foundations.opt-level=0'
-              # Cargo builds these Census-only dependencies for the root test package.
-              --config 'profile.test.package.raf-census.opt-level=0'
-              --config 'profile.test.package.capnp.opt-level=0'
-              --config 'profile.test.package.purrdf-jsonschema.opt-level=0'
+              --config 'profile.test.package.raf-source.opt-level=1'
+              --config 'profile.test.package.raf-workplan.opt-level=1'
+              --config 'profile.test.package."syn:3.0.8".opt-level=1'
+              --config 'profile.test.package.purrdf-lex.opt-level=1'
+              --config 'profile.test.package.purrdf-markdown.opt-level=1'
+              --config 'profile.test.package.purrdf-toml.opt-level=1'
             )
           fi
           cargo test --locked --package "$RAF_CI_PACKAGE" "${args[@]}"

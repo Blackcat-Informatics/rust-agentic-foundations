@@ -7,22 +7,22 @@ subject: cap:census-cli#verification
 inputs:
   - kind: section
     name: cap:census-cli#verification
-    digest: cabb5db4cde2a74eedc5f0192f7e0f0fcf8b7cd6ee625a0437b531fb5b9701de
+    digest: d8c1b2d6f053d20d822f8186605e214cbfa9c6bb4a5cbaa767108246fa3b7d3c
   - kind: symbol
-    name: cargo_census::bin_crate::cargo_census::main
-    digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
+    name: cargo_raf_census::bin_crate::cargo_raf_census::main
+    digest: 9ad00c1e9220634d4a2b8f4bb1f4d6ac8a000b2a47e0bba5f0d8078638a1fc2e
   - kind: symbol
-    name: cargo_census::cli
-    digest: 7eb9dde0a704fdfd8ea0244b1dcd8bda22ae4d08f85b7ec400f17482f63932d0
+    name: cargo_raf_census::cli
+    digest: 926e36ecae3b090d9ee9c087235415236204b44d5cb03413538f96ac241eda60
   - kind: symbol
-    name: cargo_census::command
-    digest: bb781bb9590428dbcbca4c7cfc09449e21e1686a6caef3a16f19006b171e62d1
+    name: cargo_raf_census::command
+    digest: fbbdb75af56f5bdce2c0744f0bb381b29d5b0c5eaa6f634f2735f6708a129317
   - kind: symbol
-    name: cargo_census::error
-    digest: d368c2653a7adfc685940b91a52e1ca7e946b508577849e120a7628a9dfa0f96
+    name: cargo_raf_census::error
+    digest: fa7aa7a709101811082caa31353d45fe8668d69c81f88590bd2b887dff2c23ee
   - kind: symbol
-    name: cargo_census::run
-    digest: b32049f8a2619291edf0a2a43585c53654afca013fc0074ed2898c73a9c661fd
+    name: cargo_raf_census::run
+    digest: c7d2efc6878b1a58110bb94c7e02096ad41456836de022aca460d7c974321b3e
   - kind: symbol
     name: raf_census::CHECK_PROTOCOL_VERSION
     digest: f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f
@@ -61,7 +61,7 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: 3019874ff92ed6ef3d886bd220127de2beabedf9d09c6c49efaf9d00abd7b237
+    digest: 75b647a72a2c7fe98caeb333de13046d9a7430d7e8a928a5632c1a7ce57aeb74
   - kind: symbol
     name: raf_census::capnp_history::persistence::admission::check
     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6

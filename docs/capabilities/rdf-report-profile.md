@@ -41,12 +41,13 @@ bindings:
     - raf_census::Ledger::graph
     - raf_census::RegisteredCheck::to_ntriples
     - raf_census::RegisteredDebtWrite::to_ntriples
-    - cargo_workplan::bin_crate::cargo_workplan::result
-    - cargo_workplan::bin_crate::cargo_workplan::result_graph
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph
   tests:
+    - raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes
     - raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage
-    - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
-    - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
+    - cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
+    - cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths
     - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
@@ -60,8 +61,8 @@ bindings:
     - raf_rdf::test_crate::profile::caller_supplied_large_literals_are_validated_without_a_profile_byte_budget
     - raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot
 
-    - cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms
-    - cargo_workplan::bin_crate::cargo_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows
+    - cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows
     - rust_agentic_foundations::test_crate::repo_gates::dependencies::rdf_first_party_manifests_have_no_json_result_dependency
     - rust_agentic_foundations::test_crate::repo_gates::dependencies::rdf_dependency_refusal_covers_aliases_targets_workspace_and_every_dependency_class
     - rust_agentic_foundations::test_crate::repo_gates::dependencies::rdf_dependency_scan_refuses_malformed_manifests_instead_of_skipping_them
@@ -85,7 +86,7 @@ bindings:
     - raf_workplan::coverage::report_projection_tests::emitted_application_iris_belong_to_the_documented_registry
     - raf_workplan::coverage::report_projection_tests::surface_failure_projection_preserves_optional_paths_and_direction
     - raf_workplan::coverage::report_projection_tests::registry_collection_visits_quoted_atoms_and_both_datatype_positions
-    - cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes
+    - cargo_raf_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes
   examples:
     - raf_rdf::example_crate::report
 
@@ -104,7 +105,7 @@ invariants. A ground graph is not proof that a census or workplan result is vali
 ## Contract
 
 Review list and show export the semantic review dataset in the shared Workplan claims vocabulary, preserving document identities, source inputs, findings and reified verdicts. Status, changed-since, unreviewed and coverage use the command report vocabulary. Review JSON is native RDF 1.2 JSON-LD serialization of the same complete dataset statement layer; it retains triple terms and refuses any dropped statement representation.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Verification reports describe the static repository check and its declared source
 bindings. `StaticVerification` records whether that check has findings, the
@@ -115,7 +116,7 @@ receipt. Documentation imports identify the selected package, admitted artifact
 path, exact SHA-256 digest and provenance string through `DocumentationArtifact`.
 Imported metadata and messages remain supplied data; their successful status does
 not authenticate a compiler execution.
-<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 ### Native storage and membership
 <!-- raf:tested-by raf_rdf::test_crate::profile::duplicate_native_membership_and_real_subject_queries_have_valid_neighbors,raf_rdf::test_crate::profile::parsed_statement_duplicates_and_repeated_source_bytes_refuse_with_valid_neighbors,raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement -->
@@ -160,7 +161,7 @@ integer and boolean text. Census retains the upper half of the u128 range with
 native typed literals because the computed integer constructor accepts i128.
 
 ### Vocabulary ownership
-<!-- raf:tested-by raf_workplan::coverage::report_projection_tests::emitted_application_iris_belong_to_the_documented_registry,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by raf_workplan::coverage::report_projection_tests::emitted_application_iris_belong_to_the_documented_registry,cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 The application vocabulary is `https://blackcatinformatics.ca/raf/report/1#`.
 Standard structural terms are `rdf:type` and `rdf:reifies`; literal primitives use
@@ -172,7 +173,7 @@ the XML Schema namespace. Domain registries enumerate the terms they permit.
 Engine-owned Census report terms occupy the shared versioned namespace.
 The inventories cover baseline, index, selected queries, debt, native Ledger
 policy and registered response outcomes. Ordinary Census report readers require
-report form 5. Report form 5 admits the optional grouping-scope properties as
+report form 6. It admits the optional grouping-scope properties as
 additions omitted at their default, under the version-bump rule of the
 [normal-form decision](../architecture/normal-form.md#version-bump-rule); a reader that lacks a
 property refuses a record stating it, by name. Each reader refuses a property
@@ -256,13 +257,17 @@ debt protocol IRIs, status values and outcome shapes are defined by the
 [Census command contract](./census-cli.md).
 
 ### Snapshot identity
-<!-- raf:tested-by raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_rdf::test_crate::profile::pinned_registry_expansions_remain_distinct_from_native_canonical_bytes -->
+<!-- raf:tested-by raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_rdf::test_crate::profile::pinned_registry_expansions_remain_distinct_from_native_canonical_bytes,raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes -->
 
 One fixed normalized spelling supplies identity: UTF-8 `VERSION "1.2"` followed
 by LF, then one complete-predicate Turtle triple per line in the graph's derived
 term order, each ending ` .` and LF. Owned nodes use `<>` or `<#fragment>`.
 Terms use PurRDF's native canonical term output and `TermValue` ordering. Subject
 and predicate keys use exact string ordering; object values use native `Ord`.
+The current spelling escapes U+FFFE and U+FFFF in literals.
+`Graph::from_purrdf4_text` verifies the original spelling and snapshot for
+explicit historical conversion. Rendering the returned graph uses the current
+spelling.
 The snapshot BASE is `https://blackcatinformatics.ca/.well-known/genid/raf-report/`
 followed by the full lowercase BLAKE3 digest of those normalized bytes. No BASE
 line participates in the preimage. This is an unkeyed integrity check, not an
@@ -320,7 +325,7 @@ Human tables and command exit policy remain stated by their respective
 capabilities; this profile owns their shared carrier and vocabulary.
 
 ### Static verification and documentation provenance
-<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 A declared binding retains its capability, binding kind and source path. The
 `valid` boolean states whether the static check has findings; it does not state
@@ -331,7 +336,7 @@ trusted CLI compilation. Both routes retain exact admitted artifact bytes and
 paths; the report does not attest to a build script's behavior.
 
 ### Shared finding append
-<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 Composite command results use the same finding projection through `finding_into`
 on the shared `Builder`;
@@ -367,7 +372,7 @@ in [the normal-form architecture](../architecture/normal-form.md#reports).
 | `SourceLocation` | `rdf:reifies` triple term; `file` string and `line` integer |
 
 ### Typed command registry
-<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms,cargo_workplan::bin_crate::cargo_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms,cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows -->
 
 The command extension registry is `COMMAND_TERMS`, disjoint from `TERMS` above.
 The following table uses shared properties from the first registry where their
@@ -465,21 +470,21 @@ are domain text, not extensible ad-hoc application IRIs.
 
 ## Usage
 
-Use `cargo workplan --format json review show review:raf-rdf-design` for JSON-LD, or choose `turtle` or `nt` for the corresponding native carrier. The native RDF parser can recover each carrier into the same statement meaning.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+Use `cargo raf-workplan --format json review show review:raf-rdf-design` for JSON-LD, or choose `turtle` or `nt` for the corresponding native carrier. The native RDF parser can recover each carrier into the same statement meaning.
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Select `--format turtle` or `--format ntriples` for `docs build standalone` to
 retain the selected view and published locations in a `DocumentationBuilt` row.
 The directory and explorer entry are actual admitted filesystem paths, carried
 as strings rather than reconstructed public URLs.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 Use `verify` to inspect ordered declared bindings and static findings. Read
 `DocumentationArtifact` provenance before interpreting supplied Cargo carriers;
 `docs artifacts` reads existing files, while `docs build rustdoc --trust-docs`
 explicitly authorizes selected-library documentation compilation and the
 arbitrary side effects of build scripts and procedural macros.
-<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 
 Use the Census query report API to select a job, exact copy count or physical
@@ -532,25 +537,25 @@ the canonical report fixture retains the established bytes and identities.
 <!-- raf:tested-by raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage,raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip -->
 
 The consuming review fixture parses all three machine carriers and compares their full statement sets. Both accepted review identity spellings yield the same semantic selection. After source edits, typed report rows preserve the exact changed, added and removed paths.
-<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Publishing `cap:api#workspace` into an existing site directory returns one
 `DocumentationBuilt` result. Its `view` is `cap:api#workspace`; `directory` names
 the owned version directory, and `entry` names its `workspace.html` explorer.
 Both RDF carriers retain those values and the ordinary Report identity.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 A clean static `verify` result represents `demo::test_crate::it::case` as a
 `DeclaredBinding` with capability `cap:demo`, kind `tests` and that exact path.
 The containing `StaticVerification` has `valid` set to true when the repository
 has no static findings. The row contains no invocation or test-pass count.
-<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 Importing an existing `doc/demo/index.html` for package `demo` returns a
 `DocumentationArtifact` with its admitted path and exact SHA-256. Its provenance
 is `imported artifact data; compiler execution is not verified`. The import
 leaves source and artifact files unchanged and never executes the build script.
-<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 
 JobQuery exposes every classified physical match of one configured job.
@@ -594,7 +599,7 @@ Census's baseline and index expose `to_turtle`, `from_turtle`, `to_ntriples` and
 - Reified source observations preserve their exact reported assertions. Static
   verification and imported artifact rows carry no runtime execution evidence.
   Stored command text remains authored data.
-  <!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+  <!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 - Physical native statement and term-ID order is not canonical report order.
   Canonical output selects exact normalized subject/predicate keys and native
@@ -653,7 +658,7 @@ bytes, identities and physical statement meaning.
 
 The command completion cases retain the removed record path and static refusal
 conditions in both native RDF carriers.
-<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 The existing Census scalar-report case emits JobQuery, CountQuery and
 FingerprintQuery in both canonical formats. Exact inventory comparison includes
@@ -698,7 +703,7 @@ and artifact files remain unchanged, including a build script whose body must ne
 Artifact paths are instantiated as native terms. Dated History templates retain
 every row, source and removal field while commit identities come from the
 fixture's actual signed Git history.
-<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 The existing Census report and registered-response cases compare actual native
 emissions with both documented inventories using native ordered tables and term
@@ -721,11 +726,11 @@ retains its separate semantic and normal-form golden checks.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::bin_crate::cargo_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
-| `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Usage](#usage), [Examples](#examples) |
-| `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Usage](#usage), [Examples](#examples) |
+| `cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
@@ -733,6 +738,7 @@ retains its separate semantic and normal-form golden checks.
 | `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes` | test | [Contract](#contract) |
 | `raf_rdf::example_crate::report` | example target | [Usage](#usage) |
 | `raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_rdf::read::tests::ownership_normalization_checks_the_selected_root_boundary` | test | [Contract](#contract) |

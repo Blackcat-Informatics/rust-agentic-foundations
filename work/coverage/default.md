@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: CC-BY-4.0
 type: Coverage
 id: coverage:default
-scope: [cargo-census, cargo-workplan, raf-census, raf-okf, raf-rdf, raf-source, raf-source-fuzz, raf-workplan, rust-agentic-foundations]
+scope: [cargo-raf-census, cargo-raf-workplan, raf-census, raf-docs-contract, raf-okf, raf-rdf, raf-source, raf-source-fuzz, raf-workplan, rust-agentic-foundations]
 exclusions:
   - item: "raf_fixtures::assessed"
     reason: "Shared test support of several packages; it states no capability, and each helper is exercised by the tests that use it."

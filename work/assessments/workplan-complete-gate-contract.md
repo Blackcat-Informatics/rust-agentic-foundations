@@ -7,7 +7,7 @@ subject: cap:workplan-complete-gate#contract
 inputs:
   - kind: section
     name: cap:workplan-complete-gate#contract
-    digest: 8ce33f0e96432ba53b5613f2676102e30eee9a7448fba373056b2a09d0d209c9
+    digest: 61a24899db960252e4ce4eb1ba9d41521af0d8384defe6614e98b40a043bac31
   - kind: symbol
     name: raf_workplan::Gate::open
     digest: 24c51713a75053a629d2a60ee9f392e1bc91d4c05eef5b16eff6474f47a1bf74

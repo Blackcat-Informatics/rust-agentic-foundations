@@ -282,7 +282,7 @@ local names; the native writer supplies its content-addressed BASE:
 
 ~~~turtle
 @prefix raf: <https://blackcatinformatics.ca/raf/report/1#> .
-<> a raf:Ledger ; raf:normalForm 1 ; raf:reportForm 5 ;
+<> a raf:Ledger ; raf:normalForm 1 ; raf:reportForm 6 ;
    raf:job <#release> ; raf:pattern <#direct-drop> .
 <#release> a raf:LedgerJob ; raf:jobId "release" ;
    raf:summary "Release values through the approved wrapper" ;

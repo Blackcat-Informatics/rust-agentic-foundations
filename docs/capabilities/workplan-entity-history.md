@@ -42,7 +42,7 @@ bindings:
     - raf_workplan::test_crate::history::a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling
     - raf_workplan::test_crate::history::a_span_beyond_the_committed_file_names_the_binding_until_committed
     - raf_workplan::test_crate::history::oversized_native_commits_refuse_and_the_exact_object_bound_is_read
-    - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
+    - cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - raf_workplan::test_crate::history::a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_one_is_not
     - raf_workplan::test_crate::history::a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_is
     - raf_workplan::test_crate::history::a_root_commit_that_changed_the_identifier_has_no_parent
@@ -53,8 +53,8 @@ bindings:
     - raf_workplan::test_crate::history::since_selects_by_the_author_date_and_not_by_the_committer_date
     - raf_workplan::test_crate::history::the_table_preserves_typed_entries_sources_and_removed_bindings_in_order
     - raf_workplan::history::render::tests::a_table_cell_cannot_break_the_table_or_reach_the_terminal
-    - cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers
-    - cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings
+    - cargo_raf_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers
+    - cargo_raf_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings
   examples:
     - raf_workplan::Workplan::history
 depends: [cap:workplan-document-model, cap:source-index]
@@ -84,7 +84,7 @@ escaped diagnostics beside accepted neighboring values.
 
 ## Usage
 
-Use `cargo workplan history cap:NAME` for a capability or another supported typed document ID. An optional `--since YYYY-MM-DD` selects entries by author date at or after midnight UTC. Library callers use `raf_workplan::Workplan::history` with an explicit native `git::Repository`; the operation writes nothing.
+Use `cargo raf-workplan history cap:NAME` for a capability or another supported typed document ID. An optional `--since YYYY-MM-DD` selects entries by author date at or after midnight UTC. Library callers use `raf_workplan::Workplan::history` with an explicit native `git::Repository`; the operation writes nothing.
 
 ## Examples
 
@@ -106,9 +106,9 @@ The named native fixtures cover rename and merge history, nested workspaces, sou
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Verification](#verification) |
 | `raf_workplan::Workplan::history` | doctest | [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::git::log::tests::author_dates_keep_strict_zone_and_day_semantics` | test | [Verification](#verification) |
 | `raf_workplan::git::log::tests::selected_lines_follow_shifts_and_own_edits_without_unrelated_history` | test | [Verification](#verification) |

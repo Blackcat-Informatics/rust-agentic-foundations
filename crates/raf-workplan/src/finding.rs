@@ -339,7 +339,7 @@ impl Finding {
     ///   ratchet of the debt record `work/debt/default.md`. A recorded finding
     ///   that is no longer raised, or a recorded count of orphan lines that is
     ///   now lower or no longer over its ceiling, is `debt-resolved` until
-    ///   `cargo workplan debt --write` lowers the record; a recorded finding whose kind is no debt or
+    ///   `cargo raf-workplan debt --write` lowers the record; a recorded finding whose kind is no debt or
     ///   whose subject is not of the form of its kind, and a recorded item
     ///   that is no item path or holds no line, is `debt-entry-invalid`. See
     ///   [`crate::debt`].

@@ -14,9 +14,9 @@ bindings:
     - raf_source::Workspace::library_prelude_dependencies
     - raf_source::CodeResolver::indexed_imports
     - raf_source::visit_grouped_import
-    - cargo_census::command::visibility
+    - cargo_raf_census::command::visibility
   tests:
-    - cargo_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers
+    - cargo_raf_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers
     - raf_census::gate::patterns::paths::tests::repeated_glob_paths_reuse_work_without_merging_distinct_source_reaches
     - raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches
   examples:
@@ -40,13 +40,13 @@ Attribute a path through a re-export to the defining library, including uses
 from test targets. Count each written path once per definition and consuming
 package. Count the union of path spellings once per library.
 The written paths omit generic arguments and raw-identifier prefixes.
-<!-- raf:tested-by cargo_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers -->
 
 **Dependency tiers.** Tier zero contains libraries with no normal dependency
 on a workspace library. Each other library has tier one above the highest tier
 of its normal workspace library dependencies. A cycle in those edges refuses
 the report.
-<!-- raf:tested-by cargo_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers -->
 
 **Report fields.** The canonical ground RDF root has class
 `WorkspaceVisibility`, integer `reportForm`, and one `library` link per library.
@@ -62,11 +62,11 @@ Libraries are numbered by tier and then by load-local package order.
 Use `usedExportedCount` and `exportedCount` as the numerator and denominator
 of export coverage. Count an exported definition once even when multiple root
 paths reach it. The export count includes doc-hidden definitions.
-<!-- raf:tested-by cargo_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers -->
 
 ## Usage
 
-Run `cargo census visibility` at a Cargo workspace or select it with
+Run `cargo raf-census visibility` at a Cargo workspace or select it with
 `--workspace DIRECTORY`. The command writes canonical N-Triples to stdout by
 default. Use `--format turtle` for canonical Turtle and `--out PATH` for a report
 destination inside the workspace. Regenerate and compare the bytes to check
@@ -88,7 +88,7 @@ unused by other packages.
   Normal library edges include structural target alternatives. Dev and build
   edges do not set library tiers. The public declaration inventory uses written
   `pub` declarations in member library targets outside test code.
-  <!-- raf:tested-by cargo_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers -->
+  <!-- raf:tested-by cargo_raf_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers -->
 - Written path evidence covers indexed imports, lexical aliases, calls,
   constructors, patterns, types and macros named in source. It covers type or
   module prefixes that resolve in their written namespace, including prefixes
@@ -112,7 +112,7 @@ unused by other packages.
   unsupported type-alias projections require evidence outside this report.
   An unused declaration has no resolved written use in the selected source
   index. The report builds and executes no workspace targets.
-  <!-- raf:tested-by cargo_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers,raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches -->
+  <!-- raf:tested-by cargo_raf_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers,raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches -->
 
 ## Explanation
 
@@ -151,7 +151,7 @@ introduces a binding in one reach refuses.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::gate::patterns::paths::tests::repeated_glob_paths_reuse_work_without_merging_distinct_source_reaches` | test | [Explanation](#explanation) |
 | `raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches` | test | [Constraints](#constraints) |
 | `raf_census::visibility` | doctest | [Usage](#usage) |

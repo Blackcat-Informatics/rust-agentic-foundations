@@ -4,7 +4,7 @@
 # RAF Security Policy
 
 RAF (Rust Agentic Foundations: the `raf-okf`, `raf-source`, `raf-census` and
-`raf-workplan` libraries and the `cargo-census` and `cargo-workplan` binaries)
+`raf-workplan` libraries and the `cargo-raf-census` and `cargo-raf-workplan` binaries)
 is maintained by Blackcat Informatics® Inc. We take security reports seriously
 and ask that vulnerabilities be reported privately so they can be investigated
 and fixed responsibly.
@@ -206,7 +206,7 @@ Each capability states its own input bounds, static guarantees and explicit writ
 The most relevant security surface for this project is **reading untrusted
 files**. The following surfaces apply; `raf-okf`, `raf-source` and `raf-workplan`
 implement the parsing and path-traversal surfaces. Only the private trusted
-documentation operation in `cargo-workplan` launches tools:
+documentation operation in `cargo-raf-workplan` launches tools:
 
 - **Rust source parsing** — `syn` parsing of untrusted `.rs` files; resource
   exhaustion from pathological nesting, very large files, or deeply recursive

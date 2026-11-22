@@ -28,8 +28,8 @@ bindings:
     - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
     - raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability
     - raf_workplan::test_crate::complete::forged_sync_reports_cannot_overwrite_source_or_manifests
-    - cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
-    - cargo_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion
+    - cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution
+    - cargo_raf_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion
     - raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal
     - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock
     - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_a_planted_clock_reading_with_file_and_line
@@ -59,7 +59,7 @@ Complete a documented change only when its static contract and prospective repos
 <!-- raf:tested-by raf_workplan::test_crate::complete::prospective_completion_refuses_missing_bindings_or_an_undone_item,raf_workplan::test_crate::complete::completion_retains_implementing_while_a_second_record_owns_the_capability,raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched -->
 
 Verification reports declared bindings and canonical static findings. It executes no tests, examples, doctests, compilers or arbitrary commands. Stored verdicts cannot substitute for these checks or become observed test success. A panicking consumer body is data and does not prevent structurally valid completion.
-<!-- raf:tested-by cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution,cargo_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution,cargo_raf_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion -->
 
 Before publishing, completion reopens the static inputs and compares source, tracked paths, loaded documentation, binding selection and document replacements. It publishes state edits and regenerated blocks, then removes the change record. Publication is confined to owned documentation.
 <!-- raf:tested-by raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched,raf_workplan::test_crate::complete::forged_sync_reports_cannot_overwrite_source_or_manifests -->
@@ -81,7 +81,7 @@ names the cleanup error.
 
 The documented data path is illustrated by `raf_workplan::Gate`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
-Run `cargo workplan verify` to inspect the complete static repository contract. An optional change slug selects the displayed bindings. Run `cargo workplan change complete SLUG` to evaluate prospective completion and publish its owned document edits.
+Run `cargo raf-workplan verify` to inspect the complete static repository contract. An optional change slug selects the displayed bindings. Run `cargo raf-workplan change complete SLUG` to evaluate prospective completion and publish its owned document edits.
 
 ## Examples
 
@@ -99,7 +99,7 @@ A consumer test containing a panic remains a declared test binding. Static verif
 ## Constraints
 
 - Completion provides static assurance about the declared contract. Opening and completion serialize their publications on the repository directory. Document replacements retain admitted filesystem identities. Checks and renames remain separate operations, and concurrent external edits can cause publication to refuse.
-<!-- raf:tested-by cargo_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion -->
 
 ## Explanation
 
@@ -117,8 +117,8 @@ Controlled RAF fixtures exercise prospective refusal, record removal, generated 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::complete::failing_consumer_bodies_do_not_prevent_structurally_valid_completion` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
 | `raf_workplan::Gate` | doctest | [Usage](#usage) |
 | `raf_workplan::lifecycle::tests::verification_returns_static_bindings_without_running_their_bodies` | test | [Verification](#verification) |
 | `raf_workplan::staged::tests::a_replaced_file_reads_as_its_new_text_within_the_bound` | test | [Verification](#verification) |

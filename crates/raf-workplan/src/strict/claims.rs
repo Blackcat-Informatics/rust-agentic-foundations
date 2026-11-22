@@ -127,7 +127,7 @@ impl Workplan<'_> {
     /// Every claim of every loaded `delivered` capability: each clause of its
     /// Contract and each unit of its Constraints, with its key, its first line
     /// and the paths its tested-by markers name, under the complete policy. It
-    /// is the report of `cargo workplan coverage claims`, and it writes
+    /// is the report of `cargo raf-workplan coverage claims`, and it writes
     /// nothing.
     ///
     /// ```rust

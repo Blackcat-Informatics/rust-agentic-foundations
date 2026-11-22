@@ -1,9 +1,9 @@
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a50bd678b87b4a31e64cc3bc3cc55e2e9df153a99a327d5419d8bc3d9b1bebca>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/1701444fcc3f46824ec54aa7512039577ffb886372f132191d88385b324edea8>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
 <> <https://blackcatinformatics.ca/raf/report/1#job> <#digest> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#root> "." .
 <> <https://blackcatinformatics.ca/raf/report/1#root> "fuzz" .
 <#digest> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LedgerJob> .

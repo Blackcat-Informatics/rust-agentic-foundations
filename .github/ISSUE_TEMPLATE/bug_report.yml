@@ -41,9 +41,9 @@ body:
         - raf-okf
         - raf-source
         - raf-census
-        - cargo-census
+        - cargo-raf-census
         - raf-workplan
-        - cargo-workplan
+        - cargo-raf-workplan
         - docs/workspace
         - Multiple / not sure
     validations:

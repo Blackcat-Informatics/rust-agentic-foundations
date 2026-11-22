@@ -541,7 +541,7 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
         DocType::Coverage => vec![
             ("type", "type: Coverage\n"),
             ("id", "id: coverage:default\n"),
-            ("scope", "scope: [raf-workplan, cargo-workplan]\n"),
+            ("scope", "scope: [raf-workplan, cargo-raf-workplan]\n"),
             (
                 "exclusions",
                 "exclusions:\n  - item: raf_workplan::exec::tests::*\n    reason: \"Unit tests that guard internals.\"\n",

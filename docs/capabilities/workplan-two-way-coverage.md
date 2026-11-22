@@ -11,8 +11,8 @@ bindings:
     - raf_workplan::coverage
     - raf_workplan::Workplan::coverage_report
   tests:
-    - cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one
-    - cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero
+    - cargo_raf_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one
+    - cargo_raf_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero
     - raf_okf::test_crate::records::an_exclusion_has_a_reason_with_no_placeholder
     - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
     - raf_workplan::test_crate::lines::an_excluded_item_that_nothing_covers_is_orphan_until_an_exception_names_it
@@ -183,7 +183,7 @@ an edit to a sibling module does not.
 ### Public item report
 <!-- raf:tested-by raf_workplan::test_crate::coverage::the_table_and_rdf_preserve_the_same_entries_and_escape_their_carriers,raf_workplan::test_crate::coverage::the_code_report_lists_every_public_item_and_no_private_or_hidden_one -->
 
-`cargo workplan coverage code` lists, for every package
+`cargo raf-workplan coverage code` lists, for every package
 of the workspace, the public items that no capability binds and no exclusion takes
 out, each with its crate, its path and its file and line, then the items the
 exclusions take out with their reasons, then any surface that cannot be listed.
@@ -191,7 +191,7 @@ exclusions take out with their reasons, then any surface that cannot be listed.
 ### Test report
 <!-- raf:tested-by raf_workplan::test_crate::coverage::a_bound_test_is_covered_and_every_unbound_test_unit_tests_included_is_a_gap,raf_workplan::test_crate::coverage::a_unit_test_module_is_excluded_by_its_prefix_with_the_reason_shown -->
 
-`cargo workplan coverage tests` lists the tests that no
+`cargo raf-workplan coverage tests` lists the tests that no
 capability binds and no exclusion takes out, in the same form.
 
 ### Scope and exclusion matching
@@ -266,11 +266,11 @@ states what is missing.
 
 The runnable API example `raf_workplan::Workplan::coverage_report` obtains the supported item and test directions from a loaded workplan.
 
-- `cargo workplan coverage code` prints the public items without a capability.
-- `cargo workplan coverage tests` prints the tests without a bound guarantee.
-- `cargo workplan coverage code --crate raf-okf` prints the report of one package,
+- `cargo raf-workplan coverage code` prints the public items without a capability.
+- `cargo raf-workplan coverage tests` prints the tests without a bound guarantee.
+- `cargo raf-workplan coverage code --crate raf-okf` prints the report of one package,
   named by its package name or its crate name (`raf_okf`).
-- `cargo workplan check` enforces both directions for the crates of the coverage
+- `cargo raf-workplan check` enforces both directions for the crates of the coverage
   record's `scope`, and a gap there fails the check.
 - `scope: []` in `work/coverage/default.md` adds no explicitly scoped crate;
   packages reached by bindings remain enforced, and the reports name every gap.
@@ -301,11 +301,11 @@ exclusions:
 ## Constraints
 
 - Coverage only reports. It never edits a capability document or a binding.
-<!-- raf:tested-by cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one -->
 - Visibility is read from the source index, not guessed from naming.
 <!-- raf:tested-by raf_workplan::test_crate::coverage::the_code_report_lists_every_public_item_and_no_private_or_hidden_one,raf_workplan::test_crate::coverage::binary_public_items_follow_visibility_rather_than_their_names -->
 - Every exclusion carries a reason, and the reasons are readable in the repository.
-<!-- raf:tested-by raf_okf::test_crate::records::an_exclusion_has_a_reason_with_no_placeholder,raf_workplan::test_crate::coverage::an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file,cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero -->
+<!-- raf:tested-by raf_okf::test_crate::records::an_exclusion_has_a_reason_with_no_placeholder,raf_workplan::test_crate::coverage::an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file,cargo_raf_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero -->
 - A capability in `considered` or `designed` binds nothing, so the checks that need
   bindings apply from `implementing` onward.
 <!-- raf:tested-by raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests -->
@@ -428,8 +428,8 @@ that compilation or execution succeeded.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero` | test | [Constraints](#constraints) |
-| `cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one` | test | [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero` | test | [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one` | test | [Constraints](#constraints) |
 | `raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests` | test | [Constraints](#constraints) |
 | `raf_okf::test_crate::records::an_exclusion_has_a_reason_with_no_placeholder` | test | [Constraints](#constraints) |
 | `raf_workplan::Workplan::coverage_report` | doctest | [Usage](#usage) |

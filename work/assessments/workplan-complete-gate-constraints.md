@@ -7,7 +7,7 @@ subject: cap:workplan-complete-gate#constraints
 inputs:
   - kind: section
     name: cap:workplan-complete-gate#constraints
-    digest: c96f7ae35889f11802abbf5d663fff43a2eaff248cfad1fe9e9902f756c77077
+    digest: b79e0e8f81a83a1b2efe6535806d7668eb08e1da566adbaa5af047a2b4807091
   - kind: symbol
     name: raf_workplan::Gate::open
     digest: 24c51713a75053a629d2a60ee9f392e1bc91d4c05eef5b16eff6474f47a1bf74

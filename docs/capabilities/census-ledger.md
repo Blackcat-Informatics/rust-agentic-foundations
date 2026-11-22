@@ -43,7 +43,7 @@ bindings:
     - raf_census::BoundClassification
     - raf_census::GateReport::numeric_bounds
   tests:
-    - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
+    - cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
 
     - raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope
     - raf_census::gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set
@@ -405,7 +405,7 @@ table in the adapter package remains a finding.
 Those structural entry points refuse preferred-provider rows that need grounded
 configuration. Evaluate those rows through `check_locked` with the supplied
 complete source and target context, or explicitly publish their admissible debt
-through `write_debt_locked`. The shipped `cargo census check` is such a structural
+through `write_debt_locked`. The shipped `cargo raf-census check` is such a structural
 entry point: on a ledger with preferred-provider rows it refuses with that
 requirement and never reports a clean verdict, so a repository that declares
 them judges itself through `check_locked` from its own test or target.
@@ -414,7 +414,7 @@ Install custom owner validation through `Gate::extensions` before calling
 `check` or `check_tree`. A nonempty extension with no accepting validator is an
 error. The shipped CLI cannot provide that repository implementation and names
 the library Gate when policy requires one.
-<!-- raf:tested-by raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
 
 ## Examples
 
@@ -565,7 +565,7 @@ the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise de
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Usage](#usage) |
+| `cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Usage](#usage) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::providers` | example target | [Usage](#usage) |
 | `raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope` | test | [Contract](#contract) |

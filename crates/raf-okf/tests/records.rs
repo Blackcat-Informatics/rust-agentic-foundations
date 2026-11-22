@@ -42,7 +42,7 @@ fn assessment() -> String {
 }
 
 fn coverage() -> String {
-    "---\ntype: Coverage\nid: coverage:default\nscope: [raf-workplan, cargo-workplan]\n\
+    "---\ntype: Coverage\nid: coverage:default\nscope: [raf-workplan, cargo-raf-workplan]\n\
      exclusions:\n  - item: raf_workplan::exec::tests::*\n    reason: \"Unit tests of the process rows.\"\n  \
      - item: raf_workplan::Workplan::empty\n    reason: \"Built by the load only.\"\n---\n"
         .to_string()
@@ -172,7 +172,7 @@ fn a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly() {
         panic!("a coverage record");
     };
     assert_eq!(record.header.id, "coverage:default");
-    assert_eq!(record.scope, ["raf-workplan", "cargo-workplan"]);
+    assert_eq!(record.scope, ["raf-workplan", "cargo-raf-workplan"]);
     assert_eq!(
         record.exclusions[0].item,
         ExclusionItem::Prefix("raf_workplan::exec::tests".to_string())
@@ -631,7 +631,7 @@ fn a_list_that_holds_each_entry_once_refuses_a_repeat() {
     );
     let scope = mutate(
         &coverage(),
-        "[raf-workplan, cargo-workplan]",
+        "[raf-workplan, cargo-raf-workplan]",
         "[raf-workplan, raf-workplan]",
     );
     assert_only(
@@ -876,7 +876,7 @@ fn scope_holds_crate_package_names() {
     for entry in ["raf_okf::Body", "-raf", "1crate", "raf okf"] {
         let broken = mutate(
             &coverage(),
-            "[raf-workplan, cargo-workplan]",
+            "[raf-workplan, cargo-raf-workplan]",
             &format!("[\"{entry}\"]"),
         );
         let rule = Rule::BadCrateName {
@@ -887,7 +887,7 @@ fn scope_holds_crate_package_names() {
     clean(
         &mutate(
             &coverage(),
-            "[raf-workplan, cargo-workplan]",
+            "[raf-workplan, cargo-raf-workplan]",
             "[raf_okf, Raf-2]",
         ),
         COVERAGE_PATH,

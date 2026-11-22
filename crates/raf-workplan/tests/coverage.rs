@@ -1123,9 +1123,10 @@ fn this_repository_enforces_all_packages_with_zero_coverage_debt() {
         .coverage()
         .expect("the repository has a coverage record");
     let packages = [
-        "cargo-census",
-        "cargo-workplan",
+        "cargo-raf-census",
+        "cargo-raf-workplan",
         "raf-census",
+        "raf-docs-contract",
         "raf-okf",
         "raf-rdf",
         "raf-source",

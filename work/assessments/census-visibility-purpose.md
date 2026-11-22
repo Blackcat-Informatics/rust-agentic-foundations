@@ -9,8 +9,8 @@ inputs:
     name: cap:census-visibility#purpose
     digest: 6035ae8c095fa0a2fef551cb4511cff314db49fb115bb3b460d01257e8a20809
   - kind: symbol
-    name: cargo_census::command::visibility
-    digest: df5706602679ee9ad61e8e6d367f13e17205348448562126702283b237406459
+    name: cargo_raf_census::command::visibility
+    digest: c22b828770bc1bd5f7a7ff8c0948a7f79f3dec1e62e76792075ba0af1a656623
   - kind: symbol
     name: raf_census::VisibilityError
     digest: 5d8132dde3b1d357b87122175833d2d664e24332c8fec6567d49732a0b8ca6d9

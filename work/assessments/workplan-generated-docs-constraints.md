@@ -7,7 +7,7 @@ subject: cap:workplan-generated-docs#constraints
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#constraints
-    digest: f391e34eedac42d5d013654e3eb2018da4e53589086df4b3f3ccfebf15900d7b
+    digest: 4ddb8e5fccec442a10fe84aa9b16f459cfe1c15850973552cdda0ebcaab3798b
   - kind: symbol
     name: raf_workplan::Workplan::preview
     digest: 04393e5f8c58e32c5a8f28dc6a0c237cb6a4e186d214f69e50fe03be54555199

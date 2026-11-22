@@ -1,0 +1,500 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! Cargo and direct-executable argument shapes.
+
+use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
+use std::{ffi::OsString, path::PathBuf};
+
+#[derive(Parser)]
+#[command(name = "cargo", bin_name = "cargo", disable_help_subcommand = true)]
+enum Cargo {
+    /// Inspect a repository's structural duplication policy.
+    #[command(name = "raf-census")]
+    Census(Args),
+}
+
+const SUBCOMMAND: &str = "raf-census";
+
+#[derive(ClapArgs)]
+#[command(version, arg_required_else_help = true, disable_help_subcommand = true)]
+pub(crate) struct Args {
+    /// Workspace directory, or the exact Git repository root for Cap'n Proto checks.
+    #[arg(long, default_value = ".", global = true)]
+    pub(crate) workspace: PathBuf,
+    #[command(flatten)]
+    pub(crate) reference: ReferenceArgs,
+    #[command(flatten)]
+    pub(crate) registry: RegistryArgs,
+    #[command(subcommand)]
+    pub(crate) command: Command,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum Command {
+    /// Create the starter ledger at the workspace root without adopting debt.
+    Init,
+    /// Compare committed Cap'n Proto schema descriptors under the strict history policy.
+    CapnpHistory(Box<HistoryArgs>),
+    /// Check strict Cap'n Proto history for committed persisted Rust declarations.
+    CapnpPersistence(Box<PersistenceArgs>),
+    /// Assess reader admission for one committed Cap'n Proto declaration.
+    CapnpReaderAdmission(Box<ReaderAdmissionArgs>),
+    /// Assess migration admission for one committed Cap'n Proto declaration.
+    CapnpMigrationAdmission(Box<MigrationAdmissionArgs>),
+    /// Verify signed reader acceptance for exact committed Cap'n Proto payloads.
+    CapnpReaderEvidence(Box<ReaderEvidenceArgs>),
+    /// Inspect verified embedded source regions without running consumer code.
+    Embedded {
+        #[command(subcommand)]
+        command: EmbeddedCommand,
+    },
+    /// Inspect declared native ledger policy without executing it.
+    DumpLedger {
+        /// Native RDF 1.2 report carrier.
+        #[arg(long, value_enum, default_value = "ntriples")]
+        format: RdfFormat,
+        /// Write the complete ledger here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Discover structural duplication with the default Census options.
+    Baseline {
+        /// Native RDF 1.2 report carrier.
+        #[arg(long, value_enum, default_value = "ntriples")]
+        format: RdfFormat,
+        /// Write the complete report here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Inventory public workspace library declarations and cross-package uses.
+    Visibility {
+        /// Native RDF 1.2 report carrier.
+        #[arg(long, value_enum, default_value = "ntriples")]
+        format: RdfFormat,
+        /// Write the complete report here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Read the complete index through the native repository gate.
+    Index(QueryTarget),
+    /// Inspect every classified physical match of one configured job.
+    Job {
+        /// Exact configured job identity.
+        id: String,
+        #[command(flatten)]
+        target: QueryTarget,
+    },
+    /// Inspect one configured job's exact nonnegative copy count.
+    Count {
+        /// Exact configured job identity.
+        id: String,
+        #[command(flatten)]
+        target: QueryTarget,
+    },
+    /// Inspect every physical occurrence and optional fingerprints of a symbol.
+    Fingerprint {
+        /// Exact indexed symbol; all matching source sites are retained.
+        symbol: String,
+        #[command(flatten)]
+        target: QueryTarget,
+    },
+    /// Evaluate native ledger policy without running any repository program.
+    Check {
+        #[command(flatten)]
+        policy: PolicyArgs,
+        #[command(flatten)]
+        lints: LintArgs,
+    },
+    /// Print the digest of the Cargo inputs for a production-only Clippy run.
+    LintInputs,
+    /// Seal a completed external production Clippy run as canonical Turtle.
+    LintReceipt {
+        /// Digest printed by lint-inputs before the build.
+        #[arg(long)]
+        before: String,
+        /// Exact compiler and Clippy identity supplied by the build.
+        #[arg(long)]
+        compiler: String,
+        /// Exit status collected from the Clippy command.
+        #[arg(long)]
+        status: u8,
+        /// Captured diagnostic output from the same command.
+        #[arg(long)]
+        diagnostics: PathBuf,
+        /// The actual Cargo arguments, starting with clippy.
+        #[arg(last = true, required = true)]
+        arguments: Vec<String>,
+    },
+    /// Emit a migrated RDF ledger to stdout without modifying either input.
+    Migrate(MigrationArgs),
+    /// Prove the installed census still finds seeded copies; needs no workspace and writes nothing.
+    SelfTest,
+    /// Record present debt through `Gate::write_debt`, refusing growth.
+    Debt {
+        /// Publish the exact present record.
+        #[arg(long, required = true)]
+        write: bool,
+        #[command(flatten)]
+        policy: PolicyArgs,
+    },
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct HistoryArgs {
+    #[command(flatten)]
+    pub(crate) schema: SchemaArgs,
+    /// Selected struct, enum or supported RPC interface ID. Repeat for additional types.
+    #[arg(long = "type", required_unless_present = "file_ids")]
+    pub(crate) types: Vec<raf_census::capnp_history::TypeId>,
+    /// Select a requested schema file and its declarations by ID. Repeat for additional files.
+    #[arg(long = "file-id", required_unless_present = "types")]
+    pub(crate) file_ids: Vec<raf_census::capnp_history::TypeId>,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct PersistenceArgs {
+    #[command(flatten)]
+    pub(crate) schema: SchemaArgs,
+    /// Canonical committed policy path shared by both revisions.
+    #[arg(long)]
+    pub(crate) policy: String,
+}
+
+#[derive(ClapArgs)]
+#[command(group(clap::ArgGroup::new("reader_evidence").arg("evidence_commit").requires("reader_sha256")))]
+pub(crate) struct ReaderAdmissionArgs {
+    #[command(flatten)]
+    pub(crate) selection: AdmissionArgs,
+    /// SHA-256 of the expected reader artifact in lowercase hexadecimal.
+    #[arg(long, requires = "evidence_commit")]
+    pub(crate) reader_sha256: Option<String>,
+}
+
+#[derive(ClapArgs)]
+#[command(group(clap::ArgGroup::new("migration_evidence").arg("evidence_commit").requires("migration_sha256")))]
+pub(crate) struct MigrationAdmissionArgs {
+    #[command(flatten)]
+    pub(crate) selection: AdmissionArgs,
+    /// SHA-256 of the expected migration artifact in lowercase hexadecimal.
+    #[arg(long, requires = "evidence_commit")]
+    pub(crate) migration_sha256: Option<String>,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct AdmissionArgs {
+    #[command(flatten)]
+    pub(crate) persistence: PersistenceArgs,
+    /// Stable persistence declaration slug.
+    #[arg(long)]
+    pub(crate) declaration: String,
+    /// Separate committed evidence revision.
+    #[arg(long, requires_all = ["statement", "signature", "key"])]
+    pub(crate) evidence_commit: Option<String>,
+    /// Canonical signed statement path in the evidence commit.
+    #[arg(long, requires = "evidence_commit", value_parser = raf_census::capnp_history::reader_evidence::path)]
+    pub(crate) statement: Option<raf_source::RelPath>,
+    /// Canonical detached signature path in the evidence commit.
+    #[arg(long, requires = "evidence_commit", value_parser = raf_census::capnp_history::reader_evidence::path)]
+    pub(crate) signature: Option<raf_source::RelPath>,
+    /// Caller-selected Ed25519 public key.
+    #[arg(long, requires = "evidence_commit")]
+    pub(crate) key: Option<raf_census::capnp_history::CaptureKey>,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct SchemaArgs {
+    /// Full base commit ID.
+    #[arg(long)]
+    pub(crate) base: String,
+    /// Full current commit ID.
+    #[arg(long)]
+    pub(crate) current: String,
+    /// Repository-relative path to the base compiler descriptor.
+    #[arg(long)]
+    pub(crate) base_descriptor: String,
+    /// Repository-relative path to the current compiler descriptor.
+    #[arg(long)]
+    pub(crate) current_descriptor: String,
+    /// Void field annotation that declares required pointer storage.
+    #[arg(long)]
+    pub(crate) required_annotation: Option<raf_census::capnp_history::TypeId>,
+    /// Field annotation with a `UInt16` peer ordinal declaring paired pointer presence.
+    #[arg(long)]
+    pub(crate) paired_presence_annotation: Option<raf_census::capnp_history::TypeId>,
+    /// Trusted Ed25519 public key as lowercase hexadecimal digits.
+    #[arg(long, requires_all = ["base_capture", "base_capture_signature", "current_capture", "current_capture_signature"])]
+    pub(crate) capture_key: Option<raf_census::capnp_history::CaptureKey>,
+    /// Committed capture statement in the base revision.
+    #[arg(long, requires = "capture_key", value_parser = raf_source::RelPath::new)]
+    pub(crate) base_capture: Option<raf_source::RelPath>,
+    /// Committed detached signature in the base revision.
+    #[arg(long, requires = "capture_key", value_parser = raf_source::RelPath::new)]
+    pub(crate) base_capture_signature: Option<raf_source::RelPath>,
+    /// Committed capture statement in the current revision.
+    #[arg(long, requires = "capture_key", value_parser = raf_source::RelPath::new)]
+    pub(crate) current_capture: Option<raf_source::RelPath>,
+    /// Committed detached signature in the current revision.
+    #[arg(long, requires = "capture_key", value_parser = raf_source::RelPath::new)]
+    pub(crate) current_capture_signature: Option<raf_source::RelPath>,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct ReaderEvidenceArgs {
+    /// Full commit ID holding the original payload bytes.
+    #[arg(long)]
+    pub(crate) base: String,
+    /// Full commit ID of the reader revision.
+    #[arg(long)]
+    pub(crate) current: String,
+    /// Full commit ID holding the statement and signature.
+    #[arg(long)]
+    pub(crate) evidence_commit: String,
+    /// Canonical path of the statement in the evidence commit.
+    #[arg(long, value_parser = raf_census::capnp_history::reader_evidence::path)]
+    pub(crate) statement: raf_source::RelPath,
+    /// Canonical path of the detached signature in the evidence commit.
+    #[arg(long, value_parser = raf_census::capnp_history::reader_evidence::path)]
+    pub(crate) signature: raf_source::RelPath,
+    /// Caller-selected Ed25519 public key in lowercase hexadecimal.
+    #[arg(long)]
+    pub(crate) key: raf_census::capnp_history::CaptureKey,
+    /// Nominal Cap'n Proto schema root type.
+    #[arg(long = "type")]
+    pub(crate) root: raf_census::capnp_history::TypeId,
+    /// Exact identity of the reader entry point.
+    #[arg(long)]
+    pub(crate) reader_entry: String,
+    /// SHA-256 of the expected reader artifact in lowercase hexadecimal.
+    #[arg(long)]
+    pub(crate) reader_sha256: String,
+    /// Canonical base payload path. Repeat to select the exact set.
+    #[arg(long = "payload", required = true, value_parser = raf_census::capnp_history::reader_evidence::path)]
+    pub(crate) payloads: Vec<raf_source::RelPath>,
+}
+
+/// Gate requirements the caller selects for one run; nothing here is persisted
+/// in a ledger, report or debt record.
+#[derive(ClapArgs)]
+pub(crate) struct LintArgs {
+    /// Skip production Clippy evidence and manifest policy on this check.
+    #[arg(long, conflicts_with = "lint_evidence")]
+    pub(crate) no_production_lints: bool,
+    /// Build-owned receipt outside the workspace (or `RAF_CENSUS_LINT_EVIDENCE`).
+    #[arg(long)]
+    pub(crate) lint_evidence: Option<PathBuf>,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct PolicyArgs {
+    /// Require every module `path` attribute to resolve to a file of its own package.
+    #[arg(long)]
+    pub(crate) require_module_paths_in_package: bool,
+}
+
+impl PolicyArgs {
+    pub(crate) fn apply(&self, gate: raf_census::Gate) -> raf_census::Gate {
+        if self.require_module_paths_in_package {
+            gate.require_module_paths_in_package()
+        } else {
+            gate
+        }
+    }
+}
+
+#[derive(Subcommand)]
+pub(crate) enum EmbeddedCommand {
+    /// Explicit initial adoption or shrink-only owned debt publication.
+    Debt {
+        #[command(subcommand)]
+        action: EmbeddedDebtAction,
+    },
+    /// Export candidate evidence and freshly verified source-region pairs.
+    Report {
+        /// Native RDF 1.2 report carrier.
+        #[arg(long, value_enum, default_value = "ntriples")]
+        format: RdfFormat,
+        /// Create a new report here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Compare fresh verified counts against existing embedded debt.
+    Check,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum EmbeddedDebtAction {
+    /// Adopt fresh allowances only when the embedded debt destination is absent.
+    Create,
+    /// Require existing embedded debt and publish only shrinkage, never growth.
+    Shrink,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct QueryTarget {
+    /// Native RDF 1.2 report or query carrier.
+    #[arg(long, value_enum, default_value = "ntriples")]
+    pub(crate) format: RdfFormat,
+    /// Write the complete result here, relative to the caller, instead of stdout.
+    #[arg(long)]
+    pub(crate) out: Option<PathBuf>,
+    /// Maximum serialized bytes in the complete native index.
+    #[arg(
+        long,
+        default_value_t = raf_census::MAX_CHECK_RESPONSE_BYTES,
+        value_parser = clap::builder::RangedU64ValueParser::<usize>::new()
+            .range(1..=raf_census::MAX_INDEX_BYTES as u64)
+    )]
+    pub(crate) max_index_bytes: usize,
+}
+
+#[derive(ClapArgs)]
+pub(crate) struct MigrationArgs {
+    /// Explicit foreign TOML/JSON import, rather than older RDF ledger/index.
+    #[arg(long)]
+    pub(crate) legacy: bool,
+    /// Named older ledger input for fingerprint migration or foreign import.
+    #[arg(long, required_unless_present = "report_form")]
+    pub(crate) ledger: Option<PathBuf>,
+    /// Canonical older RDF index (fingerprint migration only).
+    #[arg(long, required_unless_present_any = ["legacy", "report_form"], conflicts_with = "legacy")]
+    pub(crate) index: Option<PathBuf>,
+    /// Foreign JSON baseline (required with --legacy).
+    #[arg(long, required_if_eq("legacy", "true"), requires = "legacy")]
+    pub(crate) baseline: Option<PathBuf>,
+    /// Convert form 3, 4 or 5 to the current layout, preserving native facts.
+    #[arg(long, value_enum, requires_all = ["input", "format"], conflicts_with_all = ["legacy", "ledger", "index", "baseline"])]
+    pub(crate) report_form: Option<UpgradeKind>,
+    /// Named carrier to convert without source evaluation or input writes.
+    #[arg(long, requires = "report_form")]
+    pub(crate) input: Option<PathBuf>,
+    /// Explicit syntax of both the original and converted carrier.
+    #[arg(long, value_enum, requires = "report_form")]
+    pub(crate) format: Option<RdfFormat>,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub(crate) enum UpgradeKind {
+    Baseline,
+    Index,
+    Ledger,
+    Debt,
+}
+
+impl UpgradeKind {
+    pub(crate) const fn native(self) -> raf_census::ReportKind {
+        match self {
+            Self::Baseline => raf_census::ReportKind::Baseline,
+            Self::Index => raf_census::ReportKind::Index,
+            Self::Ledger => raf_census::ReportKind::Ledger,
+            Self::Debt => raf_census::ReportKind::Debt,
+        }
+    }
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub(crate) enum RdfFormat {
+    Ntriples,
+    Turtle,
+}
+
+impl RdfFormat {
+    pub(crate) const fn native(self) -> raf_rdf::Format {
+        match self {
+            Self::Ntriples => raf_rdf::Format::NTriples,
+            Self::Turtle => raf_rdf::Format::Turtle,
+        }
+    }
+}
+
+pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, clap::Error> {
+    let mut words: Vec<_> = args.into_iter().collect();
+    if words.is_empty() {
+        words.push("cargo-raf-census".into());
+    }
+    if words.get(1).is_none_or(|word| word != SUBCOMMAND) {
+        words.insert(1, SUBCOMMAND.into());
+    }
+    let Cargo::Census(args) = Cargo::try_parse_from(words)?;
+    Ok(args)
+}
+
+/// One caller-declared reference tree, compared beside the ledger's
+/// lock-selected references by the commands that evaluate the Gate.
+#[derive(ClapArgs)]
+pub(crate) struct ReferenceArgs {
+    /// Repository whose committed objects at the pinned commit are the
+    /// reference; a relative location is resolved from the main checkout.
+    #[arg(
+        id = "reference_repo",
+        long = "reference-repo",
+        global = true,
+        value_name = "LOCATION"
+    )]
+    pub(crate) repo: Option<PathBuf>,
+    /// Full 40-character lowercase hexadecimal commit ID to compare against.
+    #[arg(
+        id = "reference_commit",
+        long = "reference-commit",
+        global = true,
+        value_name = "COMMIT"
+    )]
+    pub(crate) commit: Option<String>,
+    /// Workspace-relative TOML file that names the pinned commit.
+    #[arg(
+        id = "reference_pin_file",
+        long = "reference-pin-file",
+        global = true,
+        value_name = "FILE"
+    )]
+    pub(crate) pin_file: Option<String>,
+    /// Dotted key whose string value in the pin file is the commit ID.
+    #[arg(
+        id = "reference_pin_key",
+        long = "reference-pin-key",
+        global = true,
+        value_name = "KEY"
+    )]
+    pub(crate) pin_key: Option<String>,
+    /// Directory whose current files are the reference; every index and query marks its receipts unpinned, and every evaluating command prints an unpinned notice on stderr.
+    #[arg(
+        id = "reference_unpinned",
+        long = "reference-unpinned",
+        global = true,
+        value_name = "DIRECTORY"
+    )]
+    pub(crate) unpinned: Option<PathBuf>,
+}
+
+/// Registry dependencies sealed from the lock file and Cargo's archive cache.
+#[derive(ClapArgs)]
+pub(crate) struct RegistryArgs {
+    /// Directory of Cargo's cached registry archives (`registry/cache`);
+    /// defaults to `$CARGO_HOME/registry/cache`, then `$HOME/.cargo/registry/cache`.
+    #[arg(
+        id = "registry_cache",
+        long = "registry-cache",
+        global = true,
+        value_name = "DIRECTORY"
+    )]
+    pub(crate) cache: Option<PathBuf>,
+    /// Registry package to compare against, sealed from the lock file: an
+    /// exact name or a `prefix-*` family. Repeatable; the ledger's reference
+    /// selectors are sealed as well.
+    #[arg(
+        id = "seal_registry",
+        long = "seal-registry",
+        global = true,
+        value_name = "SELECTOR"
+    )]
+    pub(crate) seal: Vec<String>,
+    /// Complete feature set the workspace enables on a sealed package,
+    /// `PACKAGE=feature,feature` (`PACKAGE=` for none). One flag per package.
+    #[arg(
+        id = "registry_features",
+        long = "registry-features",
+        global = true,
+        value_name = "PACKAGE=FEATURES"
+    )]
+    pub(crate) features: Vec<String>,
+}

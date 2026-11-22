@@ -181,6 +181,21 @@ impl<'a> LayoutScope<'a> {
             } => Some((interface, RpcMember::Parameter { method, role, name })),
         }
     }
+
+    fn annotation_error(
+        self,
+        strict_history: bool,
+        name: &str,
+        annotation: Option<TypeId>,
+        source: Error,
+    ) -> Error {
+        match self.rpc_slot(name) {
+            Some((interface, member)) if strict_history => {
+                member.error(interface, annotation, source)
+            }
+            _ => source,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -604,21 +619,33 @@ impl<'a> Nodes<'a> {
                 "ordinals of struct {id} are not consecutive from zero"
             )));
         }
-        let declared_constraint = if !collector.pairs.is_empty() {
-            Some("paired presence fields")
-        } else if annotations.required.is_some()
-            && collector.slots.values().any(|slot| slot.required)
-        {
-            Some("required fields")
+        let declared_constraint = if let Some(&(source, _)) = collector.pairs.first() {
+            Some((
+                "paired presence fields",
+                &collector.slots[&source].name,
+                annotations.paired_presence,
+            ))
         } else {
-            None
+            annotations.required.and_then(|marker| {
+                collector
+                    .slots
+                    .values()
+                    .find(|slot| slot.required)
+                    .map(|slot| ("required fields", &slot.name, Some(marker)))
+            })
         };
-        if let Some(constraint) = declared_constraint
+        if let Some((constraint, name, annotation)) = declared_constraint
             && !self.is_declared(id, collector.scopes)?
         {
-            return Err(layout(format!(
+            let source = layout(format!(
                 "{constraint} must belong to a declared struct; check node {id} and its enclosing scopes"
-            )));
+            ));
+            return Err(layout_scope.annotation_error(
+                self.strict_history,
+                name,
+                annotation,
+                source,
+            ));
         }
         Ok(Struct {
             parameters: self.parameters(id)?,
@@ -706,28 +733,37 @@ impl<'a> Fields<'a, '_> {
         if self.annotations.required.is_none() && self.annotations.paired_presence.is_none() {
             return Ok((required, peer));
         }
-        for annotation in field.get_annotations()? {
+        let at = |annotation, source| {
+            self.layout_scope
+                .annotation_error(self.nodes.strict_history, name, annotation, source)
+        };
+        for annotation in field
+            .get_annotations()
+            .map_err(|source| at(None, source.into()))?
+        {
             let marker = TypeId(annotation.get_id());
+            let contextualize = |source| at(Some(marker), source);
+            let read_value = || -> Result<_, Error> { Ok(annotation.get_value()?.which()?) };
             if self.annotations.required == Some(marker) {
                 if required
                     || !annotation.has_value()
-                    || !matches!(annotation.get_value()?.which()?, value::Void(()))
+                    || !matches!(read_value().map_err(contextualize)?, value::Void(()))
                 {
-                    return Err(layout(format!(
+                    return Err(contextualize(layout(format!(
                         "expected one Void application of required annotation {marker} at {owner}.{name}"
-                    )));
+                    ))));
                 }
                 required = true;
             } else if self.annotations.paired_presence == Some(marker) {
                 let invalid = || {
-                    layout(format!(
+                    contextualize(layout(format!(
                         "expected one UInt16 application of paired presence annotation {marker} at {owner}.{name}"
-                    ))
+                    )))
                 };
                 if peer.is_some() || !annotation.has_value() {
                     return Err(invalid());
                 }
-                let value::Uint16(ordinal) = annotation.get_value()?.which()? else {
+                let value::Uint16(ordinal) = read_value().map_err(contextualize)? else {
                     return Err(invalid());
                 };
                 peer = Some(ordinal);
@@ -736,14 +772,17 @@ impl<'a> Fields<'a, '_> {
             }
             // Annotation brands do not add persisted data types to the closure.
             shape::read_brand(
-                annotation.get_brand()?,
+                annotation
+                    .get_brand()
+                    .map_err(|source| contextualize(source.into()))?,
                 self.nodes,
                 (
                     TypeScope::Lexical(self.layout_scope.type_scope(owner).owner()),
                     marker,
                 ),
                 &mut BTreeSet::new(),
-            )?;
+            )
+            .map_err(contextualize)?;
         }
         Ok((required, peer))
     }
@@ -758,7 +797,7 @@ impl<'a> Fields<'a, '_> {
                         && matches!(slot.ty.storage(), Some((true, _)))
                 })
             {
-                return Err(invalid_pair(owner, &slot.name, peer));
+                return Err(self.invalid_pair(owner, &slot.name, peer));
             }
         }
         Ok(())
@@ -860,27 +899,17 @@ impl<'a> Fields<'a, '_> {
         };
         let exclusive = discriminant.is_some();
         let conditional = inherited_activation || exclusive;
-        let (required, peer) = self
-            .field_annotations((owner, name), field)
-            .map_err(|source| match self.layout_scope.rpc_slot(name) {
-                Some((interface, member))
-                    if self.nodes.strict_history
-                        && matches!(source, Error::Wire(_) | Error::Tag(_)) =>
-                {
-                    member.error(interface, None, source)
-                }
-                _ => source,
-            })?;
+        let (required, peer) = self.field_annotations((owner, name), field)?;
         match field.which()? {
             field::Slot(slot) => {
                 if required && conditional {
-                    return Err(invalid_required_field(owner, name));
+                    return Err(self.invalid_required_field(owner, name));
                 }
                 let ordinal =
                     ordinal.ok_or_else(|| layout(format!("{owner}.{name} has no ordinal")))?;
                 if let Some(peer) = peer {
                     if !path.is_empty() || conditional || ordinal >= peer {
-                        return Err(invalid_pair(owner, name, peer));
+                        return Err(self.invalid_pair(owner, name, peer));
                     }
                     self.pairs.insert((ordinal, peer));
                 }
@@ -899,10 +928,10 @@ impl<'a> Fields<'a, '_> {
             }
             field::Group(group) => {
                 if let Some(peer) = peer {
-                    return Err(invalid_pair(owner, name, peer));
+                    return Err(self.invalid_pair(owner, name, peer));
                 }
                 if required {
-                    return Err(invalid_required_field(owner, name));
+                    return Err(self.invalid_required_field(owner, name));
                 }
                 let id = TypeId(group.get_type_id());
                 let node = self.nodes.node(id)?;
@@ -998,7 +1027,7 @@ impl<'a> Fields<'a, '_> {
         let offset = slot.get_offset();
         let storage = ty.storage();
         if required && !matches!(storage, Some((true, _))) {
-            return Err(invalid_required_field(owner, name));
+            return Err(self.invalid_required_field(owner, name));
         }
         let limit = match storage {
             None => 1,
@@ -1031,16 +1060,28 @@ impl<'a> Fields<'a, '_> {
             start..start + width
         }))
     }
-}
 
-fn invalid_pair(owner: TypeId, name: &str, peer: u16) -> Error {
-    layout(format!(
-        "paired presence at {owner}.{name} with peer @{peer} must connect two direct unconditional pointer slots in ascending ordinal order"
-    ))
-}
+    fn invalid_pair(&self, owner: TypeId, name: &str, peer: u16) -> Error {
+        let source = layout(format!(
+            "paired presence at {owner}.{name} with peer @{peer} must connect two direct unconditional pointer slots in ascending ordinal order"
+        ));
+        self.layout_scope.annotation_error(
+            self.nodes.strict_history,
+            name,
+            self.annotations.paired_presence,
+            source,
+        )
+    }
 
-fn invalid_required_field(owner: TypeId, name: &str) -> Error {
-    layout(format!(
-        "required annotation at {owner}.{name} must mark an unconditional pointer slot in a declared struct"
-    ))
+    fn invalid_required_field(&self, owner: TypeId, name: &str) -> Error {
+        let source = layout(format!(
+            "required annotation at {owner}.{name} must mark an unconditional pointer slot in a declared struct"
+        ));
+        self.layout_scope.annotation_error(
+            self.nodes.strict_history,
+            name,
+            self.annotations.required,
+            source,
+        )
+    }
 }

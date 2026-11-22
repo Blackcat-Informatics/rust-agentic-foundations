@@ -15,6 +15,12 @@ use std::{cmp::Ordering, fmt};
 
 const VERSION: &str = "VERSION \"1.2\"\n";
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Spelling {
+    Current,
+    PurRdf4,
+}
+
 struct Selection<'a> {
     graph: GraphView<'a>,
     rows: Vec<QuadIds>,
@@ -223,23 +229,40 @@ fn owned_iri<O: Admission + ?Sized>(base: &str, text: &str, output: &mut Output<
 fn object<S: Admission + ?Sized, O: Admission + ?Sized>(
     value: &TermValue,
     base: Option<&str>,
+    spelling: Spelling,
     output: &mut Output<'_, '_, O>,
     scratch: &mut Memory<'_, S>,
 ) -> Result<(), Error> {
-    let result = if let Some(base) = base {
+    let result = if base.is_some() || spelling == Spelling::PurRdf4 {
         value
             .try_write_nested_with_memory(
                 output,
                 ["<<( ", " ", " )>>"],
-                |output, leaf, memory| {
-                    if let TermValue::Iri(iri) = leaf
-                        && term::local(iri)
-                    {
+                |output, leaf, memory| match (leaf, base, spelling) {
+                    (TermValue::Iri(iri), Some(base), _) if term::local(iri) => {
                         owned_iri(base, iri, output);
                         output.status()
-                    } else {
-                        purrdf_core::write_term_value_with_memory(leaf, output, memory)
                     }
+                    (
+                        TermValue::Literal {
+                            lexical_form,
+                            datatype,
+                            language,
+                            direction,
+                        },
+                        _,
+                        Spelling::PurRdf4,
+                    ) => {
+                        purrdf_lex::term_syntax::write_literal_rdfc12_v3(
+                            lexical_form,
+                            datatype,
+                            language.as_deref(),
+                            direction.map(purrdf_core::RdfTextDirection::as_str),
+                            output,
+                        );
+                        output.status()
+                    }
+                    _ => purrdf_core::write_term_value_with_memory(leaf, output, memory),
                 },
                 |output, text, _| {
                     output.push_str(text);
@@ -262,6 +285,7 @@ fn object<S: Admission + ?Sized, O: Admission + ?Sized>(
 fn body<S: Admission + ?Sized, O: Admission + ?Sized>(
     selection: &Selection<'_>,
     base: Option<&str>,
+    spelling: Spelling,
     output: &mut Output<'_, '_, O>,
     scratch: &mut Memory<'_, S>,
 ) -> Result<(), Error> {
@@ -277,7 +301,13 @@ fn body<S: Admission + ?Sized, O: Admission + ?Sized>(
         purrdf_lex::term_syntax::write_iri(iri(selection.graph, row.p)?, output);
         output.push(' ');
         output.status()?;
-        object(key(&selection.keys, row.o, scratch)?, base, output, scratch)?;
+        object(
+            key(&selection.keys, row.o, scratch)?,
+            base,
+            spelling,
+            output,
+            scratch,
+        )?;
         output.push_str(" .\n");
         output.status()?;
     }
@@ -286,13 +316,14 @@ fn body<S: Admission + ?Sized, O: Admission + ?Sized>(
 
 fn normalized<S: Admission + ?Sized, O: Admission + ?Sized>(
     selection: &Selection<'_>,
+    spelling: Spelling,
     scratch: &mut Memory<'_, S>,
     output: &mut Memory<'_, O>,
 ) -> Result<String, Error> {
     let mut destination = Output::new(output);
     destination.push_str(VERSION);
     destination.status()?;
-    body(selection, None, &mut destination, scratch)?;
+    body(selection, None, spelling, &mut destination, scratch)?;
     destination.finish()
 }
 
@@ -316,10 +347,11 @@ fn identity<S: Admission + ?Sized>(
 fn selected<S: Admission + ?Sized, O: Admission + ?Sized>(
     selection: &Selection<'_>,
     format: Format,
+    spelling: Spelling,
     scratch: &mut Memory<'_, S>,
     output: &mut Memory<'_, O>,
 ) -> Result<(String, String), Error> {
-    let mut normalized = normalized(selection, scratch, output)?;
+    let mut normalized = normalized(selection, spelling, scratch, output)?;
     let base = identity(&normalized, scratch)?;
     let canonical = match format {
         Format::Turtle => {
@@ -340,7 +372,7 @@ fn selected<S: Admission + ?Sized, O: Admission + ?Sized>(
         Format::NTriples => {
             output.release_string(normalized)?;
             let mut destination = Output::new(output);
-            body(selection, Some(&base), &mut destination, scratch)?;
+            body(selection, Some(&base), spelling, &mut destination, scratch)?;
             destination.finish()?
         }
     };
@@ -353,10 +385,20 @@ pub(crate) fn render_with_memory<S: Admission + ?Sized, O: Admission + ?Sized>(
     scratch: &mut Memory<'_, S>,
     output: &mut Memory<'_, O>,
 ) -> Result<(String, String), Error> {
+    render_admitted(graph, format, Spelling::Current, scratch, output)
+}
+
+fn render_admitted<S: Admission + ?Sized, O: Admission + ?Sized>(
+    graph: GraphView<'_>,
+    format: Format,
+    spelling: Spelling,
+    scratch: &mut Memory<'_, S>,
+    output: &mut Memory<'_, O>,
+) -> Result<(String, String), Error> {
     scratch.try_scope(|scratch| {
         output.try_scope(|output| {
             let selection = Selection::new(graph, scratch, output)?;
-            let result = selected(&selection, format, scratch, output);
+            let result = selected(&selection, format, spelling, scratch, output);
             match result {
                 Err(error) => {
                     // Destroy failed owners without polling more work or
@@ -399,10 +441,19 @@ pub(crate) fn text_with_view<S: Admission + ?Sized, O: Admission + ?Sized>(
 }
 
 pub(crate) fn render(graph: &Graph, format: Format) -> Result<(String, String), Error> {
+    render_spelling(graph, format, Spelling::Current)
+}
+
+pub(crate) fn render_spelling(
+    graph: &Graph,
+    format: Format,
+    spelling: Spelling,
+) -> Result<(String, String), Error> {
     let (mut working, mut destination) = (Resident, Resident);
-    render_with_memory(
+    render_admitted(
         graph.view(),
         format,
+        spelling,
         &mut Memory::new(&mut working),
         &mut Memory::new(&mut destination),
     )

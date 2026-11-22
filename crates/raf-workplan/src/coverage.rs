@@ -328,7 +328,7 @@ impl SurfaceError {
     }
 
     /// The crate path of the target (`raf_okf`,
-    /// `cargo_workplan::bin_crate::cargo_workplan`).
+    /// `cargo_raf_workplan::bin_crate::cargo_raf_workplan`).
     #[must_use]
     pub fn target(&self) -> &str {
         &self.target

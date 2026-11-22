@@ -7,16 +7,16 @@ subject: cap:census-migration#verification
 inputs:
   - kind: section
     name: cap:census-migration#verification
-    digest: 22a6e6741a99f57b47cff072895372a6f8e48b5214821abe41106b94bdc24e9a
+    digest: e1ecd4b35c9a591d978a584968e1b3d48e2b8233be8a994136632648127664a1
   - kind: symbol
-    name: cargo_census::bin_crate::cargo_census::main
-    digest: 60b8cdc17ed3bdb40d606342905e47d5d908574b087bfdf40b0b36f705f552ad
+    name: cargo_raf_census::bin_crate::cargo_raf_census::main
+    digest: 9ad00c1e9220634d4a2b8f4bb1f4d6ac8a000b2a47e0bba5f0d8078638a1fc2e
   - kind: symbol
-    name: cargo_census::cli
-    digest: 7eb9dde0a704fdfd8ea0244b1dcd8bda22ae4d08f85b7ec400f17482f63932d0
+    name: cargo_raf_census::cli
+    digest: 926e36ecae3b090d9ee9c087235415236204b44d5cb03413538f96ac241eda60
   - kind: symbol
-    name: cargo_census::command
-    digest: bb781bb9590428dbcbca4c7cfc09449e21e1686a6caef3a16f19006b171e62d1
+    name: cargo_raf_census::command
+    digest: fbbdb75af56f5bdce2c0744f0bb381b29d5b0c5eaa6f634f2735f6708a129317
   - kind: symbol
     name: raf_census::ForeignField
     digest: ebd6fd21ce8d57aa961b445fc5759723901623cfa75ea3b47d088a33eb223e79
@@ -55,7 +55,7 @@ inputs:
     digest: 364e55fe5ffc777b3f1a2d303e09169559b2d39c819c54b4381f9abe45ff23bd
   - kind: symbol
     name: raf_census::upgrade_report_form
-    digest: 3ec315b0c44c38540782e011dc65d1851b70962db5f5fb36cb0f62eb5127e04e
+    digest: b186dc8e88fff21b6d0c4a2b81208215910914949ff30fbd6c177242196a2445
 verdict: accepted
 by: agent
 ---

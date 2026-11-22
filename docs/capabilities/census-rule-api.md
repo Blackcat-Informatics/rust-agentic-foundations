@@ -36,7 +36,7 @@ bindings:
     - raf_census::Gate::assert_clean
     - raf_census::Gate::self_test
   tests:
-    - cargo_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy
+    - cargo_raf_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy
     - raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries
     - raf_census::test_crate::census_gate::module_paths_outside_their_package_are_required_findings_beside_contained_ones
 
@@ -53,9 +53,9 @@ bindings:
     - raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
     - raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library
     - raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields
-    - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
-    - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
-    - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
+    - cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
+    - cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
+    - cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
   examples:
     - raf_census::example_crate::registered
     - raf_census::example_crate::debt
@@ -111,7 +111,7 @@ priorities. A higher-priority Clippy subgroup cannot weaken the required
 `all` group. `CargoLintManifest::production_config_override` identifies
 local Cargo settings that can change the compiler invocation. With both
 configuration filenames present, Cargo and Census select `.cargo/config`.
-<!-- raf:tested-by cargo_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy -->
 
 ### Self-test
 
@@ -203,14 +203,14 @@ pub trait Rule: Sync {
   It rewrites `census-debt.ttl` beside the ledger to the present debt (see
   [census-debt-ratchet](./census-debt-ratchet.md)) and refuses, with an `Error` that
   lists them, while any finding that is not debt exists, the same refusal as
-  `cargo census debt --write`. `DebtWrite` reports the path written, the number of
+  `cargo raf-census debt --write`. `DebtWrite` reports the path written, the number of
   groups, the number of jobs with copies and the number of distinct recorded
-  ratcheted site rows, and prints as the summary line that `cargo census debt --write` prints;
+  ratcheted site rows, and prints as the summary line that `cargo raf-census debt --write` prints;
   the line names ratcheted sites only when there are any. Configured provider policy uses
   `write_debt_locked` with complete source associations. The caller supplies
   rules and extensions to that same Gate. The shipped CLI refuses policy
   requiring callbacks it has not installed.
-<!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
+<!-- raf:tested-by raf_census::example_crate::debt,cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
 
 A job may ratchet a registered rule through ratchetedRule (see the
 [ledger](./census-ledger.md)): its hits are then counted sites in the debt
@@ -329,7 +329,7 @@ Use a repository-owned binary or xtask for registered policy: construct
 `check`, `assert_clean` or the explicit debt writer. The shipped CLI never builds
 or runs that repository target. Its native check is available when the admitted
 ledger needs only built-in implementations.
-<!-- raf:tested-by raf_census::example_crate::registered,raf_census::example_crate::debt,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
+<!-- raf:tested-by raf_census::example_crate::registered,raf_census::example_crate::debt,cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
 
 A repository rule supplies its source fixtures:
 
@@ -370,7 +370,7 @@ on the explicit library writer. Ordinary writing refuses provider policy; the
 configured writer adopts, preserves, shrinks and refuses growth or invalid
 policy without replacing prior debt. Native CLI debt uses the ordinary Gate
 writer and refuses policy requiring missing repository registrations.
-<!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
+<!-- raf:tested-by raf_census::example_crate::debt,cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
 
 
 The native hashing example creates `purrdf_hash::blake3::Hasher`, passes the
@@ -406,10 +406,10 @@ cannot be recorded by debt publication.
   repository's own binary or xtask only.
 <!-- raf:tested-by raf_census::example_crate::debt -->
 
-- Native `cargo census check` reads its built-in Gate directly. It does not
+- Native `cargo raf-census check` reads its built-in Gate directly. It does not
   discover, compile or execute repository examples to acquire custom callbacks.
   A caller needing custom rules or extensions installs them on a library Gate.
-<!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields -->
 
 - Rule ids are `&'static str` and follow lowercase kebab case.
 <!-- raf:tested-by raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
@@ -473,10 +473,10 @@ The self-Census exercises the same builder path over the actual snapshot.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Examples](#examples) |
-| `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Constraints](#constraints) |
-| `cargo_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy` | test | [Contract](#contract) |
-| `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Examples](#examples) |
+| `cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Constraints](#constraints) |
+| `cargo_raf_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy` | test | [Contract](#contract) |
+| `cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::registered` | example target | [Usage](#usage), [Examples](#examples) |
 | `raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors` | test | [Contract](#contract) |
@@ -500,4 +500,4 @@ The native CLI case compares actual Index bytes with the library Gate and
 checks that consumer build scripts, tests and examples never run. The rule and
 extension cases exercise explicit callbacks directly, including unknown rules,
 nonempty unclaimed extensions and ambiguous validators.
-<!-- raf:tested-by cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields -->

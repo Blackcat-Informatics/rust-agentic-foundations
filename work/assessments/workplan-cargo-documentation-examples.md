@@ -9,8 +9,8 @@ inputs:
     name: cap:workplan-cargo-documentation#examples
     digest: 0e5cdfe447dee1fed37887ca2441ee78bf3021b74e5ebffab8f43144b982ae33
   - kind: symbol
-    name: cargo_workplan::bin_crate::cargo_workplan::trusted_docs::build
-    digest: 5126dde08dde751b0934b24972d594dc2af5f72c313bf12d519bf51ef44d7e92
+    name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::trusted_docs::build
+    digest: 54fcff086f7ba256f84cdb41f6f25cd62675ec187714b649f11bb8dbc9cec426
   - kind: symbol
     name: raf_workplan::diagram::cargo
     digest: a2d683b0b254ebc6b7cb44f477f4ecfa40370e6250e05e56548c4fe47ae72f3f

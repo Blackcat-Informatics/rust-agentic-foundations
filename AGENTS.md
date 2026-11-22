@@ -65,8 +65,9 @@ states.
 | `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage |
 | `raf-census` | Normal form, fingerprints, grouping, ledger, debt ratchet, migration, detectors, reference scan |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate |
-| `cargo-census`, `cargo-workplan` | Thin command-line wrappers over the two libraries |
+| `cargo-raf-census`, `cargo-raf-workplan` | Thin command-line wrappers over the two libraries |
 | `raf-fixtures` | Unpublished test fixtures shared by several packages, so that no source file belongs to two packages and the locked Census gate can judge each one |
+| `raf-docs-contract` | Unpublished document-contract tests with a dependency graph isolated from Census |
 
 `raf-source` is shared on purpose: the census resolves ledger homes through its
 symbol index, and the workplan resolves code and test bindings through the same
@@ -79,7 +80,7 @@ index.
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile, debt ratchet) |
 | `work/changes/` | In-flight change records |
 | `work/assessments/` | Recorded prose assessments of capability sections |
-| `work/debt/` | The strict debt record, written only by `cargo workplan debt --write` |
+| `work/debt/` | The strict debt record, written only by `cargo raf-workplan debt --write` |
 | `fuzz/` | The fuzz harness, a workspace of its own |
 | `.githooks/`, `.github/` | The commit and merge hooks, the CI workflow and the templates |
 
@@ -136,7 +137,7 @@ controlled RAF fixtures as data.
   parser resource bounds were measured on those implementations. A consumer must
   align its requirements with these pins; conflicting requirements fail during Cargo
   resolution. Changing a pin requires inspecting the replacement and re-measuring.
-- PurRDF crates come from crates.io with the requirement `=4`.
+- PurRDF crates come from crates.io with the requirement `=5`.
 - **Path containment** in `raf-source` verifies every handle against the workspace
   root before and after use, and reads contents only through a verified handle. Only
   the Linux strategy is validated. The other platform adapters stay in the source
@@ -172,7 +173,7 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
   (`cargo install --locked cargo-fuzz@0.13.2`).
 - **What the root gates check.** `tests/repo_gates.rs` checks licence digests,
   tracker references and process wording, version agreement, the clock rule, the
-  Python ban and the first-party manifest policy. `tests/docs_contract.rs` runs the
+  Python ban and the first-party manifest policy. `crates/raf-docs-contract/tests/docs_contract.rs` runs the
   workplan checks over the tracked documents and pins the capability inventory.
   The same binary runs the production Workplan gate and requires every assessment
   to be current and accepted. Both checks share the gate's source index.
@@ -184,7 +185,7 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
   `examples`, and under the root `tests/`, may not name a clock or a wait on one
   (`Instant`, `SystemTime`, `sleep`, the `*_timeout` calls and their suffixed forms;
   `raf-source` also refuses `std::time`, `Duration` and `elapsed`). The one clock
-  reading is `crates/cargo-workplan/src/trusted_docs/clock.rs`, for the documentation
+  reading is `crates/cargo-raf-workplan/src/trusted_docs/clock.rs`, for the documentation
   watchdog. `clippy.toml` disallows the same calls. Measure with instruction counts
   (`perf`) or allocation counts, never with wall-clock runs, benchmarks or sleeps.
 - **No mutation testing.** Never write or run mutants, mutation sweeps or
@@ -260,7 +261,7 @@ tables (a gate fails when they differ).
 - **Normal-form stability.** A normal form version is fixed by the content of its
   first merge to the default branch. After that, any change that can move a census
   fingerprint is a new version with a migration path: a `normal_form` bump, updated
-  golden tests and `cargo census migrate`.
+  golden tests and `cargo raf-census migrate`.
 - **Report-form stability.** An additive optional property that is omitted at its
   default does not bump the report form; a change that alters existing bytes, or
   removes or renames something, does. See
@@ -289,7 +290,7 @@ tables (a gate fails when they differ).
 
 ## 7. The capability-document workflow
 
-RAF plans its own work in the workplan format, and `tests/docs_contract.rs` enforces
+RAF plans its own work in the workplan format, and `crates/raf-docs-contract/tests/docs_contract.rs` enforces
 it in `cargo test` and in the commit hook.
 
 - **Capability documents** live in `docs/capabilities/<slug>.md`, one per
@@ -298,7 +299,7 @@ it in `cargo test` and in the commit hook.
   The body has fixed sections: Purpose, Contract, Usage, Examples, Constraints,
   Explanation, Verification. Outside a proposal the text states the current contract
   only, including what is not delivered.
-- **The inventory** is the `INVENTORY` table in `tests/docs_contract.rs`. Changing a
+- **The inventory** is the `INVENTORY` table in `crates/raf-docs-contract/tests/docs_contract.rs`. Changing a
   state, adding a capability, or opening or completing a change edits that table in
   the same commit.
 - **Bindings.** A claim names its tests with `raf:tested-by`, and the frontmatter
@@ -311,9 +312,9 @@ it in `cargo test` and in the commit hook.
   it will produce.
 - **Assessments** in `work/assessments/` record that a section was read against its
   inputs. One goes stale when its section or a bound symbol changes. Renew it with
-  `cargo workplan assess` only after reading the section against the change, and
+  `cargo raf-workplan assess` only after reading the section against the change, and
   restore the two licence comment lines that the renewal drops.
-- **Completion is a gate.** `cargo workplan change complete` succeeds only when no
+- **Completion is a gate.** `cargo raf-workplan change complete` succeeds only when no
   obligation remains, every item has an outcome, no proposed block is left, the
   generated sections are in sync, and the bindings and affected assessments are
   current. It never runs tests or examples. The record is then deleted; Git keeps

@@ -411,7 +411,7 @@ fn a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_d
     assert_eq!(findings[0].location, Location::Key("findings".to_string()));
     assert!(
         findings[0].message.contains("`cap:demo#examples`")
-            && findings[0].fix.contains("cargo workplan debt --write"),
+            && findings[0].fix.contains("cargo raf-workplan debt --write"),
         "{:#?}",
         findings[0]
     );

@@ -87,7 +87,7 @@ says or decides whether it has been met. A person judges that, with the
 [history command](./workplan-entity-history.md) on the page or the capability.
 <!-- raf:tested-by raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes -->
 
-**Checks.** `cargo workplan check` runs these rules over the loaded documents:
+**Checks.** `cargo raf-workplan check` runs these rules over the loaded documents:
 <!-- raf:tested-by raf_workplan::test_crate::rationale::a_link_from_a_capability_a_change_or_another_page_links_the_page,raf_workplan::test_crate::rationale::no_page_is_reported_unlinked_while_a_document_that_may_link_it_does_not_load,raf_workplan::test_crate::rationale::a_capability_link_to_a_missing_page_or_heading_fails_the_link_check,raf_workplan::test_crate::rationale::the_findings_are_the_same_on_every_run_in_file_and_line_order -->
 
 | Finding | Reported when |
@@ -112,7 +112,7 @@ The runnable API examples in `raf_workplan::rationale` demonstrate the heading a
   decision once in an architecture page and links to it from each Explanation.
 - A reader who wants the path to a decision runs the
   [history command](./workplan-entity-history.md) on the page.
-- `cargo workplan check` reports unlinked pages, decision pages without conditions to
+- `cargo raf-workplan check` reports unlinked pages, decision pages without conditions to
   revisit, and Explanation decisions without them.
 - A capability author who records a decision the capability owns writes it under
   `### Decision` in the Explanation and ends it with `### Conditions to revisit`.
@@ -133,7 +133,7 @@ In a capability Explanation the rationale sentence sits under a `### Decision`
 subheading. The two conditions follow it as the list under a
 `### Conditions to revisit` subheading. A decision page uses the same two headings at
 the second level, `## Decision` and `## Conditions to revisit`. If the conditions
-list is empty, `cargo workplan check` reports the conditions heading.
+list is empty, `cargo raf-workplan check` reports the conditions heading.
 
 ## Constraints
 

@@ -7,7 +7,7 @@ subject: cap:okf-profile#constraints
 inputs:
   - kind: section
     name: cap:okf-profile#constraints
-    digest: 0962ad080fc74799de3fd3ab8d14be5807a29d8248d9b7da3770429b9434337c
+    digest: 6b466d95d7d244c7035e064efcf32f42fd744bd34e1bfdffbabc9c1e46e4e4da
   - kind: symbol
     name: raf_okf::Actor
     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72

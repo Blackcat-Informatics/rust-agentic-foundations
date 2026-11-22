@@ -16,7 +16,7 @@ bindings:
     - raf_census::embedded::error::InspectionError
     - raf_census::embedded::error::InspectionError::cause
     - raf_census::embedded::publication::write_debt
-    - cargo_census::embedded
+    - cargo_raf_census::embedded
     - raf_census::embedded::analysis::Analysis
     - raf_census::embedded::run::Run::syntax_excesses
     - raf_census::embedded::analysis::SyntaxExcess
@@ -81,9 +81,9 @@ bindings:
     - raf_census::embedded::boundaries_tests::const_scopes_keep_generic_items_inner_bindings_and_const_function_returns
     - raf_census::embedded::boundaries_tests::constant_capture_and_control_fences_refuse_beside_valid_lexical_neighbours
     - raf_census::embedded::boundaries_tests::public_collection_refusals_escape_untrusted_paths_and_preserve_their_identity
-    - cargo_census::test_crate::delivery::embedded_report_uses_static_source_and_requires_existing_exact_debt
-    - cargo_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target
-    - cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records
+    - cargo_raf_census::test_crate::delivery::embedded_report_uses_static_source_and_requires_existing_exact_debt
+    - cargo_raf_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target
+    - cargo_raf_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records
     - raf_census::embedded::pairing::tests::an_embedded_helper_survives_unrelated_locals_and_a_conflicting_surrounding_binding_map
     - raf_census::embedded::pairing::tests::repetition_counts_distinct_disjoint_occurrences_while_short_input_and_boilerplate_stay_empty
     - raf_census::embedded::pairing::tests::selected_hash_collisions_remain_candidates_without_coarse_or_binding_proof
@@ -693,14 +693,14 @@ overflow and growth fields; growth borrows the original digest and descriptor
 hashes and copies the exact recorded and present counts. Work already consumed
 by one operation remains spent by the next.
 
-`cargo census embedded report` exports fresh evidence independently of the
+`cargo raf-census embedded report` exports fresh evidence independently of the
 whole-body Census gate. It accepts `--format ntriples|turtle` and an explicit
 `--out` destination using the existing guarded create-only report writer.
-`cargo census embedded check` requires `census-embedded-debt.ttl` in the
+`cargo raf-census embedded check` requires `census-embedded-debt.ttl` in the
 workspace root. It refuses growth and any unpublished shrink. Both commands
 inspect source as data without executing consumer targets.
 
-On native Linux, `cargo census embedded debt create` explicitly adopts fresh
+On native Linux, `cargo raf-census embedded debt create` explicitly adopts fresh
 exact allowances only when the destination is absent. `debt shrink` requires
 an existing regular record, refuses all growth, and publishes only exact
 shrinkage. `raf_census::embedded::write_debt` exposes the same operation with

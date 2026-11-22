@@ -1,0 +1,2802 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! Document-contract test for this repository.
+//!
+//! The document model is `raf-workplan`'s. This test loads the tracked
+//! Markdown of the repository (the git index, read under the gate root) into a
+//! memory tree, judges its links against the tracked paths and the tracked
+//! symlinks, resolves the bindings of the capability documents against the
+//! source index of the whole repository, and requires `Workplan::check` to
+//! report nothing. `raf_workplan::plain::check` judges the tracked Markdown
+//! outside the document directories (README, AGENTS.md, templates). The
+//! production disk gate also checks every recorded assessment. Both test cases
+//! bind their documents against the same source index of the selected snapshot.
+//!
+//! What stays here is this repository's own policy, which no model rule
+//! states:
+//!
+//! * the capability inventory (`INVENTORY`), which pins the documents, their
+//!   states, the open change records with the capabilities each lists, and the
+//!   generated capability index;
+//! * the refusal of tracked symlinks;
+//! * Markdown-only document directories: any other file in the directory of a
+//!   document type would sit unread beside the documents;
+//! * typed pages live in their directories: a page at the top level or below
+//!   `docs/` or `work/` that is outside the document directories may not open
+//!   with a frontmatter block at all, whatever its `type`, because the model
+//!   reads such a page as plain Markdown and would never validate it (a page
+//!   with a document type is told where that type lives);
+//! * the equality of the Usage and Examples blocks of two capability documents
+//!   with the crate documentation tests;
+//! * the helpers that read tracked files safely, and the guards that keep these
+//!   checks from passing on an empty load.
+//!
+//! `violations` runs every rule family over one checkout. The repository test
+//! and the fixture tests of each family go through it, so a family that is left
+//! out of it fails a fixture test.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::error::Error;
+use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+
+use purrdf_rdf::{
+    NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
+    parse_dataset_with, serialize_dataset_with,
+};
+use raf_okf::{AssessmentVerdict, Body, DocType, Document, ErrorKind, FencedBlock, ParseError};
+use raf_source::{MemoryTree, RelPath, Workspace};
+use raf_workplan::{Finding, Gate, GateError, LinkContext, Opened, Workplan, authoring, plain};
+
+use rust_agentic_foundations::gate_files as support;
+use support::{decode_text, gate_root, read_regular, read_tracked, tracked_paths};
+
+/// Tracked text by path, partitioned into Markdown and diagram sidecars.
+type Repo = BTreeMap<PathBuf, String>;
+
+/// The capability inventory.
+///
+/// This table is the capability inventory: the real tree must hold exactly
+/// these capability documents, each with the stated `state`, exactly these
+/// architecture documents, exactly these open change records, each listing
+/// exactly its capabilities, exactly these records and exactly these generated
+/// documents, and every capability whose state is not `delivered` is listed by
+/// one of the change records. Changing a state, adding a capability, opening or
+/// completing a change, or adding a record edits this table in the same commit.
+struct Inventory {
+    /// Capability slug and the state its document declares.
+    capabilities: &'static [(&'static str, &'static str)],
+    /// Open change record slug and the capability slugs its `changes` lists, in
+    /// the order of the record.
+    changes: &'static [(&'static str, &'static [&'static str])],
+    /// Architecture slugs.
+    architecture: &'static [&'static str],
+    /// Records (evidence, assessments and the coverage record), by id: each
+    /// lives at the path its type and slug give.
+    records: &'static [&'static str],
+    /// Generated documents, by path. They have no frontmatter, so only their
+    /// presence is held.
+    generated: &'static [&'static str],
+}
+
+const INVENTORY: Inventory = Inventory {
+    capabilities: &[
+        ("census-cli", "delivered"),
+        ("census-debt-ratchet", "delivered"),
+        ("census-detectors", "delivered"),
+        ("census-embedded-clones", "implementing"),
+        ("census-ledger", "delivered"),
+        ("census-migration", "delivered"),
+        ("census-normal-form", "delivered"),
+        ("census-patterns", "delivered"),
+        ("census-reference-scan", "delivered"),
+        ("census-rule-api", "delivered"),
+        ("census-visibility", "delivered"),
+        ("okf-profile", "delivered"),
+        ("rdf-report-profile", "delivered"),
+        ("repository-contract", "delivered"),
+        ("source-configured-target", "delivered"),
+        ("source-index", "delivered"),
+        ("source-reference-namespace", "delivered"),
+        ("workplan-cargo-documentation", "delivered"),
+        ("workplan-cli", "delivered"),
+        ("workplan-code-reviews", "delivered"),
+        ("workplan-complete-gate", "delivered"),
+        ("workplan-current-rationale", "delivered"),
+        ("workplan-document-model", "delivered"),
+        ("workplan-entity-history", "delivered"),
+        ("workplan-evidence-claims", "delivered"),
+        ("workplan-generated-docs", "delivered"),
+        ("workplan-prose-assessment", "delivered"),
+        ("workplan-reconcile", "delivered"),
+        ("workplan-rustdoc", "designed"),
+        ("workplan-rustdoc-includes", "delivered"),
+        ("workplan-rustdoc-observation", "delivered"),
+        ("workplan-strict", "delivered"),
+        ("workplan-two-way-coverage", "delivered"),
+    ],
+    changes: &[
+        ("embedded-clones-admission", &["census-embedded-clones"]),
+        ("rustdoc-assembly", &["workplan-rustdoc"]),
+    ],
+    architecture: &["debt-ratchet", "normal-form", "okf-profile"],
+    records: &[
+        "assessment:census-cli-constraints",
+        "assessment:census-cli-contract",
+        "assessment:census-cli-examples",
+        "assessment:census-cli-explanation",
+        "assessment:census-cli-purpose",
+        "assessment:census-cli-usage",
+        "assessment:census-cli-verification",
+        "assessment:census-debt-ratchet-constraints",
+        "assessment:census-debt-ratchet-contract",
+        "assessment:census-debt-ratchet-examples",
+        "assessment:census-debt-ratchet-explanation",
+        "assessment:census-debt-ratchet-purpose",
+        "assessment:census-debt-ratchet-usage",
+        "assessment:census-debt-ratchet-verification",
+        "assessment:census-detectors-constraints",
+        "assessment:census-detectors-contract",
+        "assessment:census-detectors-examples",
+        "assessment:census-detectors-explanation",
+        "assessment:census-detectors-purpose",
+        "assessment:census-detectors-usage",
+        "assessment:census-detectors-verification",
+        "assessment:census-embedded-clones-constraints",
+        "assessment:census-embedded-clones-contract",
+        "assessment:census-embedded-clones-examples",
+        "assessment:census-embedded-clones-explanation",
+        "assessment:census-embedded-clones-purpose",
+        "assessment:census-embedded-clones-usage",
+        "assessment:census-embedded-clones-verification",
+        "assessment:census-ledger-constraints",
+        "assessment:census-ledger-contract",
+        "assessment:census-ledger-examples",
+        "assessment:census-ledger-explanation",
+        "assessment:census-ledger-purpose",
+        "assessment:census-ledger-usage",
+        "assessment:census-ledger-verification",
+        "assessment:census-migration-constraints",
+        "assessment:census-migration-contract",
+        "assessment:census-migration-examples",
+        "assessment:census-migration-explanation",
+        "assessment:census-migration-purpose",
+        "assessment:census-migration-usage",
+        "assessment:census-migration-verification",
+        "assessment:census-normal-form-constraints",
+        "assessment:census-normal-form-contract",
+        "assessment:census-normal-form-examples",
+        "assessment:census-normal-form-explanation",
+        "assessment:census-normal-form-purpose",
+        "assessment:census-normal-form-usage",
+        "assessment:census-normal-form-verification",
+        "assessment:census-patterns-constraints",
+        "assessment:census-patterns-contract",
+        "assessment:census-patterns-examples",
+        "assessment:census-patterns-explanation",
+        "assessment:census-patterns-purpose",
+        "assessment:census-patterns-usage",
+        "assessment:census-patterns-verification",
+        "assessment:census-reference-scan-constraints",
+        "assessment:census-reference-scan-contract",
+        "assessment:census-reference-scan-examples",
+        "assessment:census-reference-scan-explanation",
+        "assessment:census-reference-scan-purpose",
+        "assessment:census-reference-scan-usage",
+        "assessment:census-reference-scan-verification",
+        "assessment:census-rule-api-constraints",
+        "assessment:census-rule-api-contract",
+        "assessment:census-rule-api-examples",
+        "assessment:census-rule-api-explanation",
+        "assessment:census-rule-api-purpose",
+        "assessment:census-rule-api-usage",
+        "assessment:census-rule-api-verification",
+        "assessment:census-visibility-constraints",
+        "assessment:census-visibility-contract",
+        "assessment:census-visibility-examples",
+        "assessment:census-visibility-explanation",
+        "assessment:census-visibility-purpose",
+        "assessment:census-visibility-usage",
+        "assessment:census-visibility-verification",
+        "assessment:okf-profile-constraints",
+        "assessment:okf-profile-contract",
+        "assessment:okf-profile-examples",
+        "assessment:okf-profile-explanation",
+        "assessment:okf-profile-purpose",
+        "assessment:okf-profile-usage",
+        "assessment:okf-profile-verification",
+        "assessment:rdf-report-profile-constraints",
+        "assessment:rdf-report-profile-contract",
+        "assessment:rdf-report-profile-examples",
+        "assessment:rdf-report-profile-explanation",
+        "assessment:rdf-report-profile-purpose",
+        "assessment:rdf-report-profile-usage",
+        "assessment:rdf-report-profile-verification",
+        "assessment:repository-contract-constraints",
+        "assessment:repository-contract-contract",
+        "assessment:repository-contract-examples",
+        "assessment:repository-contract-explanation",
+        "assessment:repository-contract-purpose",
+        "assessment:repository-contract-usage",
+        "assessment:repository-contract-verification",
+        "assessment:source-configured-target-constraints",
+        "assessment:source-configured-target-contract",
+        "assessment:source-configured-target-examples",
+        "assessment:source-configured-target-explanation",
+        "assessment:source-configured-target-purpose",
+        "assessment:source-configured-target-usage",
+        "assessment:source-configured-target-verification",
+        "assessment:source-index-constraints",
+        "assessment:source-index-contract",
+        "assessment:source-index-examples",
+        "assessment:source-index-explanation",
+        "assessment:source-index-purpose",
+        "assessment:source-index-usage",
+        "assessment:source-index-verification",
+        "assessment:source-reference-namespace-constraints",
+        "assessment:source-reference-namespace-contract",
+        "assessment:source-reference-namespace-examples",
+        "assessment:source-reference-namespace-explanation",
+        "assessment:source-reference-namespace-purpose",
+        "assessment:source-reference-namespace-usage",
+        "assessment:source-reference-namespace-verification",
+        "assessment:workplan-cargo-documentation-constraints",
+        "assessment:workplan-cargo-documentation-contract",
+        "assessment:workplan-cargo-documentation-examples",
+        "assessment:workplan-cargo-documentation-explanation",
+        "assessment:workplan-cargo-documentation-purpose",
+        "assessment:workplan-cargo-documentation-usage",
+        "assessment:workplan-cargo-documentation-verification",
+        "assessment:workplan-cli-constraints",
+        "assessment:workplan-cli-contract",
+        "assessment:workplan-cli-examples",
+        "assessment:workplan-cli-explanation",
+        "assessment:workplan-cli-purpose",
+        "assessment:workplan-cli-usage",
+        "assessment:workplan-cli-verification",
+        "assessment:workplan-code-reviews-constraints",
+        "assessment:workplan-code-reviews-contract",
+        "assessment:workplan-code-reviews-examples",
+        "assessment:workplan-code-reviews-explanation",
+        "assessment:workplan-code-reviews-purpose",
+        "assessment:workplan-code-reviews-usage",
+        "assessment:workplan-code-reviews-verification",
+        "assessment:workplan-complete-gate-constraints",
+        "assessment:workplan-complete-gate-contract",
+        "assessment:workplan-complete-gate-examples",
+        "assessment:workplan-complete-gate-explanation",
+        "assessment:workplan-complete-gate-purpose",
+        "assessment:workplan-complete-gate-usage",
+        "assessment:workplan-complete-gate-verification",
+        "assessment:workplan-current-rationale-constraints",
+        "assessment:workplan-current-rationale-contract",
+        "assessment:workplan-current-rationale-examples",
+        "assessment:workplan-current-rationale-explanation",
+        "assessment:workplan-current-rationale-purpose",
+        "assessment:workplan-current-rationale-usage",
+        "assessment:workplan-current-rationale-verification",
+        "assessment:workplan-document-model-constraints",
+        "assessment:workplan-document-model-contract",
+        "assessment:workplan-document-model-examples",
+        "assessment:workplan-document-model-explanation",
+        "assessment:workplan-document-model-purpose",
+        "assessment:workplan-document-model-usage",
+        "assessment:workplan-document-model-verification",
+        "assessment:workplan-entity-history-constraints",
+        "assessment:workplan-entity-history-contract",
+        "assessment:workplan-entity-history-examples",
+        "assessment:workplan-entity-history-explanation",
+        "assessment:workplan-entity-history-purpose",
+        "assessment:workplan-entity-history-usage",
+        "assessment:workplan-entity-history-verification",
+        "assessment:workplan-evidence-claims-constraints",
+        "assessment:workplan-evidence-claims-contract",
+        "assessment:workplan-evidence-claims-examples",
+        "assessment:workplan-evidence-claims-explanation",
+        "assessment:workplan-evidence-claims-purpose",
+        "assessment:workplan-evidence-claims-usage",
+        "assessment:workplan-evidence-claims-verification",
+        "assessment:workplan-generated-docs-constraints",
+        "assessment:workplan-generated-docs-contract",
+        "assessment:workplan-generated-docs-examples",
+        "assessment:workplan-generated-docs-explanation",
+        "assessment:workplan-generated-docs-purpose",
+        "assessment:workplan-generated-docs-usage",
+        "assessment:workplan-generated-docs-verification",
+        "assessment:workplan-prose-assessment-constraints",
+        "assessment:workplan-prose-assessment-contract",
+        "assessment:workplan-prose-assessment-examples",
+        "assessment:workplan-prose-assessment-explanation",
+        "assessment:workplan-prose-assessment-purpose",
+        "assessment:workplan-prose-assessment-usage",
+        "assessment:workplan-prose-assessment-verification",
+        "assessment:workplan-reconcile-constraints",
+        "assessment:workplan-reconcile-contract",
+        "assessment:workplan-reconcile-examples",
+        "assessment:workplan-reconcile-explanation",
+        "assessment:workplan-reconcile-purpose",
+        "assessment:workplan-reconcile-usage",
+        "assessment:workplan-reconcile-verification",
+        "assessment:workplan-rustdoc-constraints",
+        "assessment:workplan-rustdoc-contract",
+        "assessment:workplan-rustdoc-explanation",
+        "assessment:workplan-rustdoc-includes-constraints",
+        "assessment:workplan-rustdoc-includes-contract",
+        "assessment:workplan-rustdoc-includes-examples",
+        "assessment:workplan-rustdoc-includes-explanation",
+        "assessment:workplan-rustdoc-includes-purpose",
+        "assessment:workplan-rustdoc-includes-usage",
+        "assessment:workplan-rustdoc-includes-verification",
+        "assessment:workplan-rustdoc-observation-constraints",
+        "assessment:workplan-rustdoc-observation-contract",
+        "assessment:workplan-rustdoc-observation-examples",
+        "assessment:workplan-rustdoc-observation-explanation",
+        "assessment:workplan-rustdoc-observation-purpose",
+        "assessment:workplan-rustdoc-observation-usage",
+        "assessment:workplan-rustdoc-observation-verification",
+        "assessment:workplan-rustdoc-usage",
+        "assessment:workplan-rustdoc-verification",
+        "assessment:workplan-strict-constraints",
+        "assessment:workplan-strict-contract",
+        "assessment:workplan-strict-examples",
+        "assessment:workplan-strict-explanation",
+        "assessment:workplan-strict-purpose",
+        "assessment:workplan-strict-usage",
+        "assessment:workplan-strict-verification",
+        "assessment:workplan-two-way-coverage-constraints",
+        "assessment:workplan-two-way-coverage-contract",
+        "assessment:workplan-two-way-coverage-examples",
+        "assessment:workplan-two-way-coverage-explanation",
+        "assessment:workplan-two-way-coverage-purpose",
+        "assessment:workplan-two-way-coverage-usage",
+        "assessment:workplan-two-way-coverage-verification",
+        "coverage:default",
+        "debt:default",
+        "review:raf-rdf-design",
+    ],
+    generated: &["docs/capabilities/index.md"],
+};
+
+// ---------------------------------------------------------------------------
+// Paths
+// ---------------------------------------------------------------------------
+
+fn violation(path: &Path, message: impl std::fmt::Display) -> String {
+    format!("{}: {message}", path.display())
+}
+
+/// The path as the `/`-separated text `raf-okf` takes.
+///
+/// # Panics
+///
+/// Panics when the path is not UTF-8; the index listing already refuses such
+/// a path.
+fn name(path: &Path) -> &str {
+    match path.to_str() {
+        Some(text) => text,
+        None => panic!("path {} is not UTF-8", path.display()),
+    }
+}
+
+/// The path as a tree path.
+///
+/// # Panics
+///
+/// Panics when the path is not a relative path of the tree.
+fn rel(path: &Path) -> RelPath {
+    match RelPath::new(name(path)) {
+        Ok(rel) => rel,
+        Err(error) => panic!(
+            "tracked path {} is not a tree path: {error}",
+            path.display()
+        ),
+    }
+}
+
+fn is_markdown(path: &Path) -> bool {
+    path.extension().is_some_and(|e| e == "md")
+}
+
+/// The OKF type a document must declare because of where it lives.
+fn expected_type(path: &Path) -> Option<DocType> {
+    DocType::ALL
+        .into_iter()
+        .find(|doc_type| path.parent() == Some(Path::new(doc_type.directory())))
+}
+
+/// Whether the path is in, or below, the directory of a document type.
+fn in_document_directory(path: &Path) -> bool {
+    DocType::ALL
+        .into_iter()
+        .any(|doc_type| path.starts_with(doc_type.directory()))
+}
+
+// ---------------------------------------------------------------------------
+// Inventory
+// ---------------------------------------------------------------------------
+
+type InventoryDocuments<'a> = BTreeMap<&'a Path, Result<Document, ParseError>>;
+
+/// Parse the tracked typed pages independently of both Workplan models.
+fn inventory_documents(repo: &Repo) -> InventoryDocuments<'_> {
+    repo.iter()
+        .filter(|(path, _)| expected_type(path).is_some() && path.as_path() != Path::new(INDEX))
+        .map(|(path, text)| (path.as_path(), Document::parse(text)))
+        .collect()
+}
+
+/// The `id` and `state` of the document at `path`, or why it cannot be read.
+fn identity(
+    documents: &InventoryDocuments<'_>,
+    path: &str,
+) -> Result<(String, Option<String>), String> {
+    let document = documents
+        .get(Path::new(path))
+        .ok_or("the document is missing")?
+        .as_ref()
+        .map_err(|error| match error.kind() {
+            ErrorKind::MissingFence => "the document has no frontmatter".to_string(),
+            _ => format!("unparseable document: {error}"),
+        })?;
+    let scalar = |key: &str| {
+        document
+            .frontmatter()
+            .map()
+            .get(key)
+            .and_then(|entry| entry.value().as_scalar())
+            .map(|scalar| scalar.text().to_string())
+    };
+    let id = scalar("id").ok_or("the document has no `id`")?;
+    Ok((id, scalar("state")))
+}
+
+/// The capability ids that the `changes` key of the change record at `path`
+/// lists, in its order.
+fn listed_capabilities(
+    documents: &InventoryDocuments<'_>,
+    path: &str,
+) -> Result<Vec<String>, String> {
+    let document = documents
+        .get(Path::new(path))
+        .ok_or("the document is missing")?
+        .as_ref()
+        .map_err(|error| format!("unparseable document: {error}"))?;
+    let list = document
+        .frontmatter()
+        .map()
+        .get("changes")
+        .and_then(|entry| entry.value().as_list())
+        .ok_or("the document has no `changes` list")?;
+    list.items()
+        .iter()
+        .map(|item| {
+            item.value()
+                .as_scalar()
+                .map(|scalar| scalar.text().to_string())
+                .ok_or_else(|| "an entry of `changes` is not a scalar".to_string())
+        })
+        .collect()
+}
+
+/// The change records of the inventory against the tree and the capabilities:
+/// each row of the table names each capability once and only capabilities of
+/// the table, each record lists exactly the capabilities the table gives it,
+/// and each capability whose state is not `delivered` is listed by a record of
+/// the table. A missing record is reported by the identity check, and a record
+/// with no `changes` key by the profile (`okf-missing-key`).
+fn change_record_violations(
+    documents: &InventoryDocuments<'_>,
+    inventory: &Inventory,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    for (slug, capabilities) in inventory.changes {
+        let path = format!("work/changes/{slug}.md");
+        let mut seen = BTreeSet::new();
+        for capability in *capabilities {
+            if !seen.insert(*capability) {
+                out.push(violation(
+                    Path::new(&path),
+                    format!(
+                        "inventory lists `cap:{capability}` twice in the `changes` of the record; a record lists each capability once"
+                    ),
+                ));
+            }
+            if !inventory
+                .capabilities
+                .iter()
+                .any(|(known, _)| known == capability)
+            {
+                out.push(violation(
+                    Path::new(&path),
+                    format!(
+                        "inventory lists `cap:{capability}` in the `changes` of the record, and no capability of the inventory has that slug"
+                    ),
+                ));
+            }
+        }
+        if let Ok(found) = listed_capabilities(documents, &path) {
+            let wanted: Vec<String> = capabilities
+                .iter()
+                .map(|cap| format!("cap:{cap}"))
+                .collect();
+            if found != wanted {
+                out.push(violation(
+                    Path::new(&path),
+                    format!(
+                        "inventory expects `changes` [{}], found [{}]",
+                        wanted.join(", "),
+                        found.join(", ")
+                    ),
+                ));
+            }
+        }
+    }
+    for (slug, state) in inventory.capabilities {
+        let listed = inventory
+            .changes
+            .iter()
+            .any(|(_, capabilities)| capabilities.contains(slug));
+        if *state != "delivered" && !listed {
+            out.push(violation(
+                Path::new(&format!("docs/capabilities/{slug}.md")),
+                format!("inventory lists no change record whose `changes` names `cap:{slug}`"),
+            ));
+        }
+    }
+    out
+}
+
+/// Compare the tree with the inventory: every listed document exists with the
+/// stated `id` and `state`, every listed change record lists exactly the
+/// capabilities the table gives it, every open capability is listed by a
+/// change record of the table, every generated document exists, and no
+/// document exists that the inventory does not list.
+fn check_inventory(
+    repo: &Repo,
+    documents: &InventoryDocuments<'_>,
+    inventory: &Inventory,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut listed: BTreeSet<String> = BTreeSet::new();
+    let mut expect = |path: String, id: String, state: Option<&str>| {
+        match identity(documents, &path) {
+            Err(reason) => out.push(violation(Path::new(&path), reason)),
+            Ok((found_id, found_state)) => {
+                if found_id != id {
+                    out.push(violation(
+                        Path::new(&path),
+                        format!("inventory expects id `{id}`, found `{found_id}`"),
+                    ));
+                }
+                if let Some(state) = state
+                    && found_state.as_deref() != Some(state)
+                {
+                    let found = match &found_state {
+                        Some(found) => found.as_str(),
+                        None => "<no state>",
+                    };
+                    out.push(violation(
+                        Path::new(&path),
+                        format!("inventory expects state `{state}`, found `{found}`"),
+                    ));
+                }
+            }
+        }
+        listed.insert(path);
+    };
+    for (slug, state) in inventory.capabilities {
+        expect(
+            format!("docs/capabilities/{slug}.md"),
+            format!("cap:{slug}"),
+            Some(state),
+        );
+    }
+    for (slug, _) in inventory.changes {
+        expect(
+            format!("work/changes/{slug}.md"),
+            format!("change:{slug}"),
+            None,
+        );
+    }
+    for slug in inventory.architecture {
+        expect(
+            format!("docs/architecture/{slug}.md"),
+            format!("arch:{slug}"),
+            None,
+        );
+    }
+    let mut unknown_records = Vec::new();
+    for id in inventory.records {
+        let home = DocType::ALL
+            .into_iter()
+            .filter(|doc_type| doc_type.is_record())
+            .find_map(|doc_type| {
+                id.strip_prefix(doc_type.id_prefix())
+                    .map(|slug| format!("{}/{slug}.md", doc_type.directory()))
+            });
+        match home {
+            Some(path) => expect(path, (*id).to_string(), None),
+            None => {
+                unknown_records.push(format!("inventory: `{id}` is not the id of a record type"));
+            }
+        }
+    }
+    for path in inventory.generated {
+        if !repo.contains_key(Path::new(path)) {
+            out.push(violation(Path::new(path), "the document is missing"));
+        }
+        listed.insert((*path).to_string());
+    }
+    out.extend(change_record_violations(documents, inventory));
+    out.extend(unknown_records);
+    for path in repo.keys() {
+        let known = path.to_str().is_some_and(|p| listed.contains(p));
+        if expected_type(path).is_some() && !known {
+            out.push(violation(
+                path,
+                "the document is not in the inventory table",
+            ));
+        }
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
+// Repository policy over tracked paths
+// ---------------------------------------------------------------------------
+
+/// A tracked symlink is a violation: a link to it is refused by the model, and
+/// the repository keeps none.
+fn symlink_violations(symlinks: &[PathBuf]) -> Vec<String> {
+    symlinks
+        .iter()
+        .map(|path| violation(path, "a tracked symlink is not allowed"))
+        .collect()
+}
+
+/// The document directories hold Markdown only: another file there would sit
+/// unread beside the documents.
+fn layout_violations(paths: &[PathBuf]) -> Vec<String> {
+    paths
+        .iter()
+        .filter(|path| in_document_directory(path) && !is_markdown(path))
+        .map(|path| {
+            violation(
+                path,
+                "only Markdown documents belong in a document directory",
+            )
+        })
+        .collect()
+}
+
+/// Every tracked path whose git mode is a symlink (`120000`), relative and sorted.
+///
+/// # Panics
+///
+/// Panics when `git` cannot run, exits unsuccessfully or lists an entry that
+/// is not `<mode> <object> <stage>\t<path>` in UTF-8.
+fn tracked_symlinks() -> Vec<PathBuf> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(support::checkout_root())
+        .args(["ls-files", "-s", "-z"])
+        .output()
+        .unwrap_or_else(|e| panic!("cannot run `git ls-files -s -z`: {e}"));
+    assert!(
+        output.status.success(),
+        "`git ls-files -s -z` failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let mut paths: Vec<PathBuf> = output
+        .stdout
+        .split(|b| *b == 0)
+        .filter(|entry| !entry.is_empty())
+        .filter_map(|entry| {
+            // Each entry is `<mode> <object> <stage>\t<path>`.
+            let text = match std::str::from_utf8(entry) {
+                Ok(text) => text,
+                Err(e) => panic!("`git ls-files -s -z` entry is not UTF-8: {e}"),
+            };
+            let Some((meta, path)) = text.split_once('\t') else {
+                panic!("`git ls-files -s -z` entry has no tab: {text:?}");
+            };
+            meta.starts_with("120000 ").then(|| PathBuf::from(path))
+        })
+        .collect();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+/// Whether the Markdown file is a page of the repository's own documentation:
+/// at the top level or below `docs/` or `work/`. Other Markdown, such as the
+/// document fixtures of a crate's tests, may declare any type.
+fn is_documentation(path: &Path) -> bool {
+    let mut components = path.components();
+    let first = components.next();
+    let top_level = components.next().is_none();
+    top_level || first.is_some_and(|c| c.as_os_str() == "docs" || c.as_os_str() == "work")
+}
+
+/// Frontmatter belongs to the documents of the document directories.
+/// Documentation outside them is plain Markdown to the model, so a page there
+/// that opens with a frontmatter block, whatever its `type` (or none), would
+/// never be validated: it is refused here instead. A page that declares a
+/// document type is told where that type lives.
+fn outside_violations(markdown: &Repo) -> Vec<String> {
+    markdown
+        .iter()
+        .filter(|(path, _)| is_documentation(path) && !in_document_directory(path))
+        .filter_map(|(path, text)| {
+            let document = Document::parse(text).ok()?;
+            let message = match document.doc_type() {
+                Some(declared) => format!(
+                    "`type`: {} {} document belongs directly in {}",
+                    declared.article(),
+                    declared.name(),
+                    declared.directory()
+                ),
+                None => format!(
+                    "frontmatter belongs only in the documents of {}; this page is outside them",
+                    DocType::ALL.map(DocType::directory).join(", ")
+                ),
+            };
+            Some(violation(path, message))
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
+// The model over the tracked files
+// ---------------------------------------------------------------------------
+
+/// The tracked files of a checkout: every tracked path, the tracked symlinks
+/// among them, and the text of tracked Markdown and native diagram sidecars.
+struct Checkout {
+    paths: Vec<PathBuf>,
+    symlinks: Vec<PathBuf>,
+    markdown: Repo,
+    diagram_assets: Repo,
+}
+
+/// Read the checkout from the git index, with the files read under `root`.
+fn load_checkout(root: &Path) -> Checkout {
+    let symlinks = tracked_symlinks();
+    let paths = tracked_paths();
+    let markdown = paths
+        .iter()
+        .filter(|path| is_markdown(path) && !symlinks.contains(path))
+        .map(|path| {
+            let bytes = read_tracked(root, path);
+            match decode_text(&bytes) {
+                Some(text) => (path.clone(), text.to_string()),
+                None => panic!("{} is not UTF-8 text", path.display()),
+            }
+        })
+        .collect();
+    let diagram_assets = paths
+        .iter()
+        .filter(|path| path.starts_with("docs/diagrams") && !symlinks.contains(path))
+        .filter(|path| {
+            matches!(
+                path.extension().and_then(|extension| extension.to_str()),
+                Some("json" | "svg" | "ttl" | "trig" | "txt")
+            )
+        })
+        .map(|path| {
+            let text = String::from_utf8(read_tracked(root, path)).unwrap_or_else(|error| {
+                panic!("{} is not UTF-8 diagram data: {error}", path.display())
+            });
+            (path.clone(), text)
+        })
+        .collect();
+    Checkout {
+        paths,
+        symlinks,
+        markdown,
+        diagram_assets,
+    }
+}
+
+/// Open the selected repository once for both source-backed document checks.
+fn repository_gate() -> &'static Opened {
+    static OPENED: OnceLock<Result<Opened, GateError>> = OnceLock::new();
+    OPENED
+        .get_or_init(|| Gate::workspace(gate_root()).open())
+        .as_ref()
+        .unwrap_or_else(|error| panic!("workplan gate: {error}"))
+}
+
+/// What the model says about a checkout.
+struct Verdict {
+    /// Every finding of `check` and of `plain::check`.
+    findings: Vec<Finding>,
+    capabilities: usize,
+    changes: usize,
+    architecture: usize,
+    /// The number of bindings of each capability, and how many resolved.
+    bindings: BTreeMap<String, (usize, usize)>,
+}
+
+/// Judge a checkout: `Workplan::check` over the document directories, with
+/// links judged against the tracked paths and symlinks, and `plain::check`
+/// over the tracked Markdown outside them.
+fn with_plan<T>(
+    checkout: &Checkout,
+    source: &Workspace,
+    body: impl FnOnce(&Workplan<'_>, &LinkContext<'_>) -> T,
+) -> T {
+    let tree = MemoryTree::try_from_iter(
+        checkout
+            .markdown
+            .iter()
+            .chain(&checkout.diagram_assets)
+            .map(|(path, text)| (name(path), text.as_str())),
+    )
+    .unwrap_or_else(|error| {
+        panic!("the tracked document and diagram text does not form a tree: {error}");
+    });
+    let context = LinkContext::new(&tree, checkout.paths.iter().map(|path| rel(path)))
+        .with_symlinks(checkout.symlinks.iter().map(|path| rel(path)));
+    let plan = Workplan::load_with(&tree, source, &context);
+    body(&plan, &context)
+}
+
+fn judge(checkout: &Checkout, source: &Workspace) -> Verdict {
+    with_plan(checkout, source, |plan, context| {
+        judge_plan(checkout, plan, context)
+    })
+}
+
+fn judge_plan(checkout: &Checkout, plan: &Workplan<'_>, context: &LinkContext<'_>) -> Verdict {
+    let mut findings = plan.check();
+    for (path, text) in &checkout.markdown {
+        if !in_document_directory(path) {
+            findings.extend(plain::check(name(path), text, context));
+        }
+    }
+    let mut bindings: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+    for binding in plan.graph().bindings() {
+        let entry = bindings
+            .entry(binding.capability().to_string())
+            .or_default();
+        entry.0 += 1;
+        if binding.resolution().is_ok() {
+            entry.1 += 1;
+        }
+    }
+    Verdict {
+        findings,
+        capabilities: plan.capabilities().len(),
+        changes: plan.changes().len(),
+        architecture: plan.architecture().len(),
+        bindings,
+    }
+}
+
+/// Every rule family over a checkout, as one list of violations: the model
+/// (`Workplan::check` and `plain::check`), the refusal of tracked symlinks, the
+/// Markdown-only document directories, the pages with frontmatter outside the
+/// document directories, the inventory table. The production model enforces the verification matrix.
+fn violations(checkout: &Checkout, source: &Workspace, inventory: &Inventory) -> Vec<String> {
+    checkout_violations(
+        checkout,
+        &judge(checkout, source),
+        &inventory_documents(&checkout.markdown),
+        inventory,
+    )
+}
+
+fn checkout_violations(
+    checkout: &Checkout,
+    verdict: &Verdict,
+    documents: &InventoryDocuments<'_>,
+    inventory: &Inventory,
+) -> Vec<String> {
+    let mut out: Vec<String> = verdict.findings.iter().map(ToString::to_string).collect();
+    out.extend(symlink_violations(&checkout.symlinks));
+    out.extend(layout_violations(&checkout.paths));
+    out.extend(outside_violations(&checkout.markdown));
+    out.extend(check_inventory(&checkout.markdown, documents, inventory));
+    out
+}
+
+fn ntriples(dataset: &purrdf_core::RdfDataset) -> Result<Vec<u8>, Box<dyn Error>> {
+    let output = serialize_dataset_with(
+        dataset,
+        NativeRdfFormat::NTriples,
+        None,
+        &SerializeOptions {
+            selection: SerializeGraph::Dataset,
+            statement_layer: StatementLayer::Emit,
+            jsonld_options: None,
+        },
+    )?;
+    assert_eq!(
+        (
+            output.named_graph_rows_dropped,
+            output.statement_rows_dropped,
+            output.directional_literals_dropped
+        ),
+        (0, 0, 0)
+    );
+    Ok(output.bytes)
+}
+
+fn check_authoring_roundtrip(
+    plan: &Workplan<'_>,
+    checkout: &Checkout,
+    expected: &InventoryDocuments<'_>,
+) -> Result<(), Box<dyn Error>> {
+    let bytes = ntriples(plan.authoring_dataset()?.as_ref())?;
+    let restored = parse_dataset_with(
+        &bytes,
+        "application/n-triples",
+        None,
+        &ParseOptions::default(),
+    )?;
+    assert_eq!(
+        ntriples(&restored.dataset)?,
+        bytes,
+        "canonical repository authoring bytes"
+    );
+    let authoring::RepositoryAuthoring {
+        mut documents,
+        index,
+    } = authoring::repository_from_dataset(&restored.dataset)?;
+    let index = index.expect("the tracked navigation Index is in the authoring graph");
+    assert_eq!(index.body().text(), checkout.markdown[Path::new(INDEX)]);
+    for (&path, original) in expected {
+        if path.file_name().is_some_and(|name| name == "index.md") {
+            continue;
+        }
+        let original = original.as_ref().map_err(Clone::clone)?;
+        assert_eq!(
+            documents.remove(&rel(path)).as_ref(),
+            Some(original),
+            "{}",
+            path.display()
+        );
+    }
+    assert!(
+        documents.is_empty(),
+        "untracked authoring paths: {:?}",
+        documents.keys()
+    );
+    Ok(())
+}
+
+fn report(violations: &[impl std::fmt::Display]) -> String {
+    let mut report = String::new();
+    for v in violations {
+        let _ = writeln!(report, "  {v}");
+    }
+    report
+}
+
+// ---------------------------------------------------------------------------
+// The repository
+// ---------------------------------------------------------------------------
+
+#[test]
+fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
+    let root = gate_root();
+    let checkout = load_checkout(&root);
+    assert!(
+        checkout
+            .diagram_assets
+            .contains_key(Path::new("docs/diagrams/manifest.ttl")),
+        "the tracked diagram ownership manifest is admitted"
+    );
+    let source = repository_gate().workspace();
+    let documents = inventory_documents(&checkout.markdown);
+    let verdict = with_plan(&checkout, source, |plan, context| {
+        let verdict = judge_plan(&checkout, plan, context);
+        let found = checkout_violations(&checkout, &verdict, &documents, &INVENTORY);
+        assert!(
+            found.is_empty(),
+            "{} profile violations:\n{}",
+            found.len(),
+            report(&found)
+        );
+        check_repository_bindings(source, &verdict)?;
+        check_authoring_roundtrip(plan, &checkout, &documents)?;
+        Ok::<_, Box<dyn Error>>(verdict)
+    })?;
+    // A load that found nothing would pass the checks above, so require the
+    // documents of every type, and every capability of the inventory.
+    for (kind, count) in [
+        ("Architecture", verdict.architecture),
+        ("Capability", verdict.capabilities),
+        ("Change", verdict.changes),
+    ] {
+        assert!(count >= 1, "no {kind} document found");
+    }
+    assert_eq!(
+        verdict.capabilities,
+        INVENTORY.capabilities.len(),
+        "every capability of the inventory loads into the model"
+    );
+    Ok(())
+}
+
+/// The production disk gate requires a nonempty, clean and assessed document set.
+#[test]
+fn repository_workplan_is_clean_and_assessed() {
+    let opened = repository_gate();
+    let workplan = opened.workplan();
+    assert!(
+        !workplan.capabilities().is_empty(),
+        "the workplan loaded no capability document"
+    );
+    let findings = workplan.check();
+    assert!(
+        findings.is_empty(),
+        "workplan gate: {} finding(s) in {}:\n{}",
+        findings.len(),
+        opened.dir().display(),
+        report(&findings)
+    );
+    let offending: Vec<String> = workplan
+        .list_assessments()
+        .iter()
+        .filter(|state| {
+            !state.currency.is_current() || state.verdict != AssessmentVerdict::Accepted
+        })
+        .map(ToString::to_string)
+        .collect();
+    assert!(
+        offending.is_empty(),
+        "{} assessment(s) are stale or not accepted:\n  {}",
+        offending.len(),
+        offending.join("\n  ")
+    );
+}
+
+fn check_repository_bindings(
+    workspace: &Workspace,
+    verdict: &Verdict,
+) -> Result<(), Box<dyn Error>> {
+    // The roots are the whole repository: every package below it, the fuzz
+    // harness included.
+    let packages: BTreeSet<&str> = workspace
+        .packages()
+        .iter()
+        .map(|package| package.name.as_str())
+        .collect();
+    assert_eq!(
+        packages,
+        BTreeSet::from([
+            "cargo-raf-census",
+            "cargo-raf-workplan",
+            "raf-census",
+            "raf-docs-contract",
+            "raf-fixtures",
+            "raf-okf",
+            "raf-rdf",
+            "raf-source",
+            "raf-source-fuzz",
+            "raf-workplan",
+            "rust-agentic-foundations",
+        ])
+    );
+    // A load that found nothing would pass the check below, so require known
+    // symbols first.
+    for symbol in [
+        "raf_okf::Document",
+        "raf_rdf::Graph",
+        "raf_source::Workspace",
+        "raf_workplan::Workplan",
+    ] {
+        workspace.resolve(symbol)?;
+    }
+    // And require that bindings were judged at all: the delivered
+    // capabilities bind code, and every binding resolved.
+    for slug in ["cap:okf-profile", "cap:source-index"] {
+        let (bound, resolved) = verdict.bindings.get(slug).copied().unwrap_or_default();
+        assert!(bound >= 1, "{slug} binds nothing");
+        assert_eq!(bound, resolved, "{slug} has an unresolved binding");
+    }
+    Ok(())
+}
+
+#[test]
+fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input()
+-> Result<(), Box<dyn Error>> {
+    let mut files = files();
+    let (_, capability) = files.iter_mut().find(|(path, _)| *path == DEMO).unwrap();
+    *capability = capability
+        .replace(
+            "depends: []",
+            "depends: [cap:missing, cap:other, cap:missing]",
+        )
+        .replace(
+            "    - demo::real\n",
+            "    - demo::missing\n    - demo::real\n    - demo::missing\n",
+        );
+    let expected = Document::parse(capability)?;
+    let (_, coverage) = files
+        .iter_mut()
+        .find(|(path, _)| *path == checkouts::COVERAGE)
+        .unwrap();
+    *coverage = coverage.replace(
+        "exclusions: []\n",
+        "exclusions: []\nceilings:\n  - crate: demo\n    lines: 3\n\
+         exceptions:\n  - item: demo::real\n    reason: Demonstrates an authored exception.\n",
+    );
+    let expected_coverage = Document::parse(coverage)?;
+    let records = input_records();
+    let expected_records = records
+        .iter()
+        .map(|(path, text)| Ok((*path, Document::parse(text)?)))
+        .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
+    files.extend(records);
+    let workspace = checkouts::source();
+    let mut tree =
+        MemoryTree::try_from_iter(files.iter().map(|(path, text)| (*path, text.as_str())))?;
+    let plan = Workplan::load(&tree, &workspace);
+    assert!(
+        plan.findings()
+            .iter()
+            .any(|finding| finding.kind == "depends-missing")
+    );
+    let dataset = plan.authoring_dataset()?;
+    let restored = authoring::repository_from_dataset(&dataset)?;
+    assert_eq!(
+        restored.documents.get(&RelPath::new(DEMO)?),
+        Some(&expected)
+    );
+    for (path, document) in &expected_records {
+        assert_eq!(restored.documents.get(&RelPath::new(path)?), Some(document));
+    }
+    assert_eq!(
+        restored.documents.get(&RelPath::new(checkouts::COVERAGE)?),
+        Some(&expected_coverage)
+    );
+    let (_, index_text) = files.iter().find(|(path, _)| *path == INDEX).unwrap();
+    assert_eq!(restored.index.unwrap().body().text(), index_text);
+    let no_index = MemoryTree::try_from_iter(
+        files
+            .iter()
+            .filter(|(path, _)| *path != INDEX)
+            .map(|(path, text)| (*path, text.as_str())),
+    )?;
+    let documents_only = Workplan::load(&no_index, &workspace).authoring_dataset()?;
+    let documents_only = authoring::repository_from_dataset(&documents_only)?;
+    assert!(documents_only.index.is_none());
+    assert_eq!(documents_only.documents, restored.documents);
+    let bytes = ntriples(&dataset)?;
+    assert_eq!(
+        ntriples(plan.authoring_dataset()?.as_ref())?,
+        bytes,
+        "deterministic repository authoring export"
+    );
+    let text = String::from_utf8(bytes)?;
+    let missing = DocType::Capability.document_iri("cap:missing")?;
+    let other = DocType::Capability.document_iri("cap:other")?;
+    let vocab = "https://blackcatinformatics.ca/raf/workplan/authoring/1#";
+    assert_index_refusals(&dataset, vocab)?;
+    assert_evidence_relationships(&dataset, vocab)?;
+    assert_record_input_assertions(&dataset, vocab, &expected_records)?;
+    for (ordinal, target) in [&missing, &other, &missing].into_iter().enumerate() {
+        assert!(text.contains(&format!(
+            "/dependency/{ordinal}> <{vocab}target> <{target}> ."
+        )));
+    }
+    for (ordinal, spelling) in ["demo::missing", "demo::real", "demo::missing"]
+        .into_iter()
+        .enumerate()
+    {
+        assert!(text.contains(&format!(
+            "/binding/code/{ordinal}> <{vocab}spelling> \"{spelling}\" ."
+        )));
+    }
+    assert_dependency_target_refusal(&dataset, vocab)?;
+    let path = RelPath::new(DEMO)?;
+    tree.replace(&path, "---\ntype: Capability\n".to_owned())?;
+    let incomplete = Workplan::load(&tree, &workspace);
+    assert!(matches!(
+        incomplete.authoring_dataset(),
+        Err(authoring::Error::Incomplete(finding)) if finding.file == DEMO
+    ));
+    Ok(())
+}
+
+#[test]
+fn repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers()
+-> Result<(), Box<dyn Error>> {
+    const STATEMENT: &str = "Recorded café text.  \n";
+
+    let mut files = files();
+    let (_, capability) = files.iter_mut().find(|(path, _)| *path == DEMO).unwrap();
+    *capability = capability
+        .replace(
+            "type: Capability\nid: cap:demo\n",
+            "id: cap:demo\n\n# The written order is retained in the source coordinates.\ntype: Capability\n",
+        )
+        .replace(
+            "## Contract\n\n",
+            &format!(
+                "## Contract\n\n{STATEMENT}<!-- raf:claim evidence=ledger-sync-bound,missing-claim -->\n\n{STATEMENT}<!-- raf:claim evidence=ledger-sync-bound -->\n\n"
+            ),
+        );
+    let original = Document::parse(capability)?;
+    assert_ne!(original.render(), *capability);
+    let source_lines: Vec<_> = capability
+        .lines()
+        .enumerate()
+        .filter_map(|(line, text)| text.starts_with("<!-- raf:claim").then_some(line + 1))
+        .collect();
+    assert_eq!(source_lines.len(), 2);
+    files.push((
+        "work/evidence/ledger-sync-bound.md",
+        include_str!("../../raf-okf/tests/fixtures/evidence.md").to_owned(),
+    ));
+    let workspace = checkouts::source();
+    let tree = MemoryTree::try_from_iter(files.iter().map(|(path, text)| (*path, text.as_str())))?;
+    let plan = Workplan::load(&tree, &workspace);
+    let dataset = plan.authoring_dataset()?;
+    let restored = authoring::repository_from_dataset(&dataset)?;
+    let document = &restored.documents[&RelPath::new(DEMO)?];
+    assert_eq!(document, &original);
+    assert_eq!(
+        document
+            .body()
+            .claims()
+            .iter()
+            .map(raf_okf::Claim::line)
+            .collect::<Vec<_>>(),
+        source_lines,
+    );
+    assert!(restored.index.is_some());
+    let selected = plan.evidence_claims_dataset("ledger-sync-bound")?;
+    assert_repository_claim_projection(&dataset, &selected, &source_lines, STATEMENT)?;
+    assert_repository_claim_refusals(&dataset)
+}
+
+fn assert_repository_claim_projection(
+    dataset: &purrdf_core::RdfDataset,
+    selected: &purrdf_core::RdfDataset,
+    source_lines: &[usize],
+    statement: &str,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfAnnotation, RdfLiteral, RdfQuad, RdfTerm};
+    use raf_workplan::evidence::CLAIMS_VOCAB;
+
+    let reifiers: Vec<_> = dataset.owned_reifiers().collect();
+    assert_eq!(reifiers.len(), 2);
+    assert_ne!(reifiers[0].reifier, reifiers[1].reifier);
+    assert_eq!(reifiers[0].statement, reifiers[1].statement);
+    let selected: Vec<_> = selected.owned_reifiers().collect();
+    assert_eq!(selected.len(), reifiers.len());
+    let capability = DocType::Capability.document_iri("cap:demo")?;
+    let local = capability.strip_prefix(raf_okf::DOCUMENT_IRI_BASE).unwrap();
+    let inventory = RdfTerm::iri(format!(
+        "https://blackcatinformatics.ca/raf/workplan/repository/1/document/{local}"
+    ));
+    let supported_by = format!("{CLAIMS_VOCAB}supportedBy");
+    let evidence = RdfTerm::iri(DocType::Evidence.document_iri("evidence:ledger-sync-bound")?);
+    let absent = RdfTerm::iri(DocType::Evidence.document_iri("evidence:missing-claim")?);
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    let annotations: Vec<_> = dataset.owned_annotations().collect();
+    assert!(rows.iter().all(|row| row.subject != absent));
+    for (position, line) in source_lines.iter().enumerate() {
+        let suffix = format!("/{line}");
+        let reifier = reifiers
+            .iter()
+            .find(|row| matches!(&row.reifier, RdfTerm::Iri(iri) if iri.ends_with(&suffix)))
+            .unwrap();
+        assert!(selected.contains(reifier));
+        let quoted = &reifier.statement;
+        assert_eq!(quoted.subject, RdfTerm::iri(&capability));
+        assert_eq!(quoted.predicate, format!("{CLAIMS_VOCAB}claimedStatement"));
+        assert_eq!(
+            quoted.object,
+            RdfTerm::Literal(RdfLiteral::simple(statement))
+        );
+        assert!(!rows.contains(&RdfQuad::new(
+            quoted.subject.clone(),
+            &quoted.predicate,
+            quoted.object.clone()
+        )));
+        assert!(rows.contains(&RdfQuad::new(
+            inventory.clone(),
+            format!("{CLAIMS_VOCAB}occurrence"),
+            reifier.reifier.clone()
+        )));
+        for (property, object) in [
+            ("path", RdfLiteral::simple(DEMO)),
+            (
+                "line",
+                RdfLiteral::typed(line.to_string(), "http://www.w3.org/2001/XMLSchema#integer"),
+            ),
+            ("section", RdfLiteral::simple("contract")),
+        ] {
+            assert!(annotations.contains(&RdfAnnotation::new(
+                reifier.reifier.clone(),
+                format!("{CLAIMS_VOCAB}{property}"),
+                RdfTerm::Literal(object)
+            )));
+        }
+        let support: Vec<_> = annotations
+            .iter()
+            .filter(|row| row.reifier == reifier.reifier && row.predicate == supported_by)
+            .map(|row| &row.object)
+            .collect();
+        assert_eq!(support.len(), if position == 0 { 2 } else { 1 });
+        assert!(support.contains(&&evidence));
+        assert_eq!(support.contains(&&absent), position == 0);
+    }
+    Ok(())
+}
+
+fn assert_repository_claim_refusals(
+    dataset: &purrdf_core::RdfDataset,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfDatasetBuilder, RdfLiteral, RdfQuad, RdfTerm};
+
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    let reifiers: Vec<_> = dataset.owned_reifiers().collect();
+    let mut changed = reifiers.clone();
+    changed[0].statement.object = RdfTerm::Literal(RdfLiteral::simple("other statement"));
+    let mut extra = reifiers.clone();
+    extra.push(extra[0].clone());
+    extra.last_mut().unwrap().reifier = RdfTerm::iri("urn:extra-occurrence");
+    let mut owned = extra.clone();
+    owned.last_mut().unwrap().reifier = reifiers[0].statement.subject.clone();
+    for (layer, omit_annotation, expected) in [
+        (&reifiers[1..], false, "missing or changed reifier"),
+        (&changed, false, "missing or changed reifier"),
+        (&extra, false, "unexpected claim reifiers"),
+        (
+            &owned,
+            false,
+            "RDF statement layers are outside the authoring shape",
+        ),
+        (&reifiers, true, "missing or changed claim annotation"),
+    ] {
+        let mut builder = RdfDatasetBuilder::new();
+        for row in &rows {
+            builder.push_owned_quad(row)?;
+        }
+        for row in layer {
+            builder.push_owned_reifier(row)?;
+        }
+        for row in dataset
+            .owned_annotations()
+            .skip(usize::from(omit_annotation))
+        {
+            builder.push_owned_annotation(&row)?;
+        }
+        let graph = builder.freeze()?;
+        let refusal = authoring::repository_from_dataset(&graph).unwrap_err();
+        assert!(refusal.to_string().contains(expected), "{refusal}");
+    }
+    let mut builder = RdfDatasetBuilder::new();
+    builder.push_dataset(dataset)?;
+    let quoted = &reifiers[0].statement;
+    builder.push_owned_quad(&RdfQuad::new(
+        quoted.subject.clone(),
+        &quoted.predicate,
+        quoted.object.clone(),
+    ))?;
+    let asserted = builder.freeze()?;
+    assert!(
+        matches!(authoring::repository_from_dataset(&asserted), Err(authoring::Error::Document { path, .. }) if path == DEMO)
+    );
+
+    let mut builder = RdfDatasetBuilder::new();
+    builder.push_dataset(dataset)?;
+    let reifier = builder.intern_owned_term(&reifiers[0].reifier)?;
+    let predicate = builder.intern_iri("urn:unexpected-annotation")?;
+    builder.push_annotation(reifier, predicate, reifier)?;
+    let annotated = builder.freeze()?;
+    assert!(
+        matches!(authoring::repository_from_dataset(&annotated), Err(authoring::Error::Shape { reason, .. }) if reason.contains("unexpected claim annotations"))
+    );
+    Ok(())
+}
+
+fn input_records() -> [(&'static str, String); 3] {
+    let evidence = include_str!("../../raf-okf/tests/fixtures/evidence.md")
+        .replace("for: [cap:ledger-sync]", "for: [cap:missing, cap:demo]")
+        .replace(
+            "verdict: pass",
+            "  - kind: artifact\n    name: results/missing trace.log\n    digest: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nverdict: pass",
+        );
+    let assessment = include_str!("../../raf-okf/tests/fixtures/assessment.md").replace(
+        "verdict: rejected",
+        "  - kind: declaration\n    name: cap:demo\n    digest: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nverdict: rejected",
+    );
+    let review = include_str!("../../raf-okf/tests/fixtures/review.md").to_owned();
+    [
+        ("work/evidence/ledger-sync-bound.md", evidence),
+        ("work/assessments/ledger-sync-explanation.md", assessment),
+        ("work/reviews/ledger-design.md", review),
+    ]
+}
+
+fn assert_record_input_assertions(
+    dataset: &purrdf_core::RdfDataset,
+    vocab: &str,
+    records: &[(&str, Document)],
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfLiteral, RdfQuad, RdfTerm};
+    use raf_okf::{Profile, RafDocument};
+
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    for (path, document) in records {
+        let typed = Profile
+            .validate(document, path)
+            .expect("valid record fixture");
+        let inputs = match &typed {
+            RafDocument::Evidence(record) => &record.inputs,
+            RafDocument::Assessment(record) => &record.inputs,
+            RafDocument::Review(record) => &record.inputs,
+            _ => panic!("expected an input-bearing record"),
+        };
+        let owner = document.dataset_iri()?;
+        let local = owner.strip_prefix(raf_okf::DOCUMENT_IRI_BASE).unwrap();
+        let record =
+            format!("https://blackcatinformatics.ca/raf/workplan/repository/1/document/{local}");
+        for (ordinal, input) in inputs.iter().enumerate() {
+            let subject = RdfTerm::iri(format!("{record}/input/{ordinal}"));
+            let membership = RdfQuad::new(
+                RdfTerm::iri(&record),
+                format!("{vocab}input"),
+                subject.clone(),
+            );
+            assert!(rows.contains(&membership), "{path}");
+            for (predicate, object) in [
+                (
+                    "http://www.w3.org/1999/02/22-rdf-syntax-ns#type".to_owned(),
+                    RdfTerm::iri(format!("{vocab}Input")),
+                ),
+                (format!("{vocab}owner"), RdfTerm::iri(&owner)),
+                (
+                    format!("{vocab}ordinal"),
+                    RdfTerm::Literal(RdfLiteral::typed(
+                        ordinal.to_string(),
+                        "http://www.w3.org/2001/XMLSchema#integer",
+                    )),
+                ),
+                (
+                    format!("{vocab}kind"),
+                    RdfTerm::iri(format!("{vocab}{}", input.kind.name())),
+                ),
+                (
+                    format!("{vocab}name"),
+                    RdfTerm::Literal(RdfLiteral::simple(&input.name)),
+                ),
+                (
+                    format!("{vocab}digest"),
+                    RdfTerm::Literal(RdfLiteral::simple(&input.digest)),
+                ),
+            ] {
+                let assertion = RdfQuad::new(subject.clone(), predicate, object);
+                assert!(rows.contains(&assertion), "{assertion:?}");
+            }
+        }
+    }
+    assert_record_input_refusals(rows, vocab)
+}
+
+fn assert_record_input_refusals(
+    rows: Vec<purrdf_core::RdfQuad>,
+    vocab: &str,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfLiteral, RdfTerm};
+
+    // Keep the declared artifact absent and alter only its graph assertions.
+    let name = format!("{vocab}name");
+    let artifact = RdfTerm::Literal(RdfLiteral::simple("results/missing trace.log"));
+    let input = &rows
+        .iter()
+        .find(|row| row.predicate == name && row.object == artifact)
+        .unwrap()
+        .subject;
+    let digest = format!("{vocab}digest");
+    let position = rows
+        .iter()
+        .position(|row| &row.subject == input && row.predicate == digest)
+        .unwrap();
+    let mut different_digest = rows[position].clone();
+    different_digest.object = RdfTerm::Literal(RdfLiteral::simple(
+        "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9",
+    ));
+    let mut changed = rows.clone();
+    changed[position] = different_digest.clone();
+    let mut missing = rows.clone();
+    missing.remove(position);
+    for edited in [&changed, &missing] {
+        assert!(matches!(
+            authoring_refusal(edited)?,
+            authoring::Error::Shape { subject, .. } if RdfTerm::iri(&subject) == *input
+        ));
+    }
+    let mut additional = rows;
+    additional.push(different_digest);
+    assert!(matches!(
+        authoring_refusal(&additional)?,
+        authoring::Error::Shape {
+            reason: "unexpected inventory or declaration assertions; use only the recovered document projections",
+            ..
+        }
+    ));
+    Ok(())
+}
+
+fn assert_dependency_target_refusal(
+    dataset: &purrdf_core::RdfDataset,
+    vocab: &str,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::RdfTerm;
+
+    let mut rows: Vec<_> = dataset.owned_quads().collect();
+    let predicate = format!("{vocab}target");
+    let target = rows
+        .iter_mut()
+        .find(|row| {
+            row.predicate == predicate
+                && matches!(&row.subject, RdfTerm::Iri(iri) if iri.ends_with("/dependency/0"))
+        })
+        .unwrap();
+    target.object = RdfTerm::iri(DocType::Capability.document_iri("cap:wrong")?);
+    assert!(matches!(
+        authoring_refusal(&rows)?,
+        authoring::Error::Shape { subject, .. } if subject.ends_with("/dependency/0")
+    ));
+    Ok(())
+}
+
+fn assert_evidence_relationships(
+    dataset: &purrdf_core::RdfDataset,
+    vocab: &str,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfLiteral, RdfQuad, RdfTerm};
+
+    // The absent target precedes the available target in the authored list.
+    let evidence_iri = DocType::Evidence.document_iri("evidence:ledger-sync-bound")?;
+    let local = evidence_iri
+        .strip_prefix(raf_okf::DOCUMENT_IRI_BASE)
+        .unwrap();
+    let record =
+        format!("https://blackcatinformatics.ca/raf/workplan/repository/1/document/{local}");
+    let owner = RdfTerm::iri(evidence_iri);
+    let predicate = format!("{vocab}target");
+    let occurrence = |ordinal: usize, capability: &str| -> Result<_, Box<dyn Error>> {
+        let row = RdfTerm::iri(format!("{record}/evidence-for/{ordinal}"));
+        Ok([
+            RdfQuad::new(
+                RdfTerm::iri(&record),
+                format!("{vocab}evidenceFor"),
+                row.clone(),
+            ),
+            RdfQuad::new(
+                row.clone(),
+                "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+                RdfTerm::iri(format!("{vocab}EvidenceFor")),
+            ),
+            RdfQuad::new(row.clone(), format!("{vocab}owner"), owner.clone()),
+            RdfQuad::new(
+                row.clone(),
+                format!("{vocab}ordinal"),
+                RdfTerm::Literal(RdfLiteral::typed(
+                    ordinal.to_string(),
+                    "http://www.w3.org/2001/XMLSchema#integer",
+                )),
+            ),
+            RdfQuad::new(
+                row,
+                &predicate,
+                RdfTerm::iri(DocType::Capability.document_iri(capability)?),
+            ),
+        ])
+    };
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    let first = occurrence(0, "cap:missing")?;
+    assert!(first.iter().all(|row| rows.contains(row)));
+    assert!(
+        occurrence(1, "cap:demo")?
+            .iter()
+            .all(|row| rows.contains(row))
+    );
+    assert!(rows.iter().all(|row| row.subject != first[4].object));
+
+    let mut wrong = rows.clone();
+    let target = wrong.iter_mut().find(|row| **row == first[4]).unwrap();
+    target.object = RdfTerm::iri(DocType::Capability.document_iri("cap:wrong")?);
+    assert!(matches!(
+        authoring_refusal(&wrong)?,
+        authoring::Error::Shape { subject, .. } if subject.ends_with("/evidence-for/0")
+    ));
+    let mut missing = rows.clone();
+    missing.retain(|row| !first.contains(row));
+    assert!(matches!(
+        authoring_refusal(&missing)?,
+        authoring::Error::Shape { subject, .. } if subject == record
+    ));
+    let mut extra = rows;
+    extra.extend(occurrence(2, "cap:other")?);
+    assert!(matches!(
+        authoring_refusal(&extra)?,
+        authoring::Error::Shape {
+            reason: "unexpected inventory or declaration assertions; use only the recovered document projections",
+            ..
+        }
+    ));
+    Ok(())
+}
+
+fn assert_index_refusals(
+    dataset: &purrdf_core::RdfDataset,
+    vocab: &str,
+) -> Result<(), Box<dyn Error>> {
+    use purrdf_core::{RdfLiteral, RdfQuad, RdfTerm};
+
+    // Each edited graph keeps the valid documents so Index closure decides the refusal.
+    let frame = "https://blackcatinformatics.ca/raf/workplan/repository/1";
+    let index = RdfTerm::iri(format!("{frame}/index"));
+    let edge = format!("{vocab}index");
+    let membership = RdfQuad::new(RdfTerm::iri(frame), &edge, index.clone());
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    assert!(rows.contains(&membership));
+    let mut orphan_carrier = rows.clone();
+    orphan_carrier.retain(|row| *row != membership);
+    let mut orphan_edge = rows.clone();
+    orphan_edge.retain(|row| row.subject != index);
+    let mut second_edge = rows.clone();
+    second_edge.push(RdfQuad::new(
+        RdfTerm::iri(frame),
+        edge,
+        RdfTerm::iri(format!("{frame}/other")),
+    ));
+    let mut extra_row = rows.clone();
+    extra_row.push(RdfQuad::new(
+        index.clone(),
+        format!("{vocab}other"),
+        RdfTerm::iri(frame),
+    ));
+    let mut invalid_body = rows;
+    let body_row = invalid_body
+        .iter_mut()
+        .find(|row| {
+            row.subject == index && row.predicate == "https://blackcatinformatics.ca/raf/okf/1#body"
+        })
+        .unwrap();
+    body_row.object = RdfTerm::Literal(RdfLiteral::simple("hand-written index"));
+    for (malformed, expected) in [
+        (orphan_carrier, "requires repository membership"),
+        (
+            orphan_edge,
+            "one NavigationIndex type and one body are required",
+        ),
+        (second_edge, "use one repository Index assertion"),
+        (extra_row, "authoring dataset Index"),
+        (invalid_body, "text outside a generated block"),
+    ] {
+        let refusal = authoring_refusal(&malformed)?;
+        let message = refusal.to_string();
+        assert!(
+            message.contains(INDEX) && message.contains(expected),
+            "{message}"
+        );
+    }
+    Ok(())
+}
+
+fn authoring_refusal(rows: &[purrdf_core::RdfQuad]) -> Result<authoring::Error, Box<dyn Error>> {
+    let mut builder = purrdf_core::RdfDatasetBuilder::new();
+    for row in rows {
+        builder.push_owned_quad(row)?;
+    }
+    let graph = builder.freeze()?;
+    Ok(authoring::repository_from_dataset(&graph).unwrap_err())
+}
+
+// ---------------------------------------------------------------------------
+// The checker over small checkouts: every part of the wiring has a negative
+// ---------------------------------------------------------------------------
+
+mod checkouts {
+    use super::{Checkout, Inventory, PathBuf, Repo, Workspace, violations};
+    use raf_source::MemoryTree;
+
+    /// A one-package source workspace for the checkouts to bind to.
+    pub(super) fn source() -> Workspace {
+        let tree = MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            ("src/lib.rs", "pub fn real() {}\n"),
+            ("tests/it.rs", "#[test]\nfn case() { demo::real(); }\n"),
+            ("examples/show.rs", "fn main() { demo::real(); }\n"),
+        ]);
+        Workspace::load(&tree, &["."]).expect("the demo workspace loads")
+    }
+
+    pub(super) const OVERVIEW: &str = "docs/architecture/overview.md";
+    pub(super) const README: &str = "README.md";
+    pub(super) const TEMPLATE: &str = ".github/PULL_REQUEST_TEMPLATE.md";
+
+    pub(super) const LAYERS: &str = "docs/architecture/layers.md";
+    pub(super) const DEMO: &str = "docs/capabilities/demo.md";
+    pub(super) const COVERAGE: &str = "work/coverage/default.md";
+    const INDEX: &str = "docs/capabilities/index.md";
+
+    /// The line the generated verification matrix opens with, and the block.
+    pub(super) const MATRIX_BLOCK: &str = "<!-- raf:generated:verification-matrix -->\n\
+         | Item | Kind | Section |\n| --- | --- | --- |\n\
+         | `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |\n\
+         | `demo::test_crate::it::case` | test | [Contract](#contract), [Constraints](#constraints) |\n\
+         <!-- raf:generated:end -->\n";
+
+    /// A delivered capability with an actual test and executable example.
+    fn demo_page() -> String {
+        format!(
+            "---\ntype: Capability\nid: cap:demo\ntitle: Demo\n\
+             description: The demo.\nstate: delivered\n\
+             depends: []\nbindings:\n  code:\n    - demo::real\n  tests:\n    - demo::test_crate::it::case\n  examples:\n    - demo::example_crate::show\n---\n\n\
+             # Demo\n\n\
+             ## Purpose\n\n\
+             The demo supplies a callable library entry point for clients that need to confirm the package can be linked without additional configuration or runtime inputs.\n\n\
+             ## Contract\n\n\
+             ### Callable entry\n\
+             <!-- raf:tested-by demo::test_crate::it::case -->\n\
+             Calling the public real function returns normally with the unit value. The integration test invokes that same public entry through the package boundary.\n\n\
+             ## Usage\n\n\
+             Run the bound example `demo::example_crate::show` to call the public entry point from an executable target that depends on the same library package.\n\n\
+             ## Examples\n\n\
+             The `demo::example_crate::show` executable calls real once and then returns normally. It needs no arguments, environment variables, external services, files, or additional setup.\n\n\
+             ## Constraints\n\n\
+             - The entry point returns only unit and accepts no arguments; it provides no computed result or configuration surface, as its public signature and integration caller demonstrate.\n\
+               <!-- raf:tested-by demo::test_crate::it::case -->\n\n\
+             ## Explanation\n\n\
+             An empty library function makes the package boundary explicit while keeping the example independent of host resources. The integration target exercises the public library path directly.\n\n\
+             ## Verification\n\n\
+             The bound integration test calls the public function, and the bound executable demonstrates the corresponding client invocation. Both targets must compile against the declared library package.\n\n\
+             {MATRIX_BLOCK}"
+        )
+    }
+
+    /// A checkout of a few files: two architecture pages, the README and a
+    /// template that link to each other, and a manifest that is not Markdown.
+    pub(super) fn files() -> Vec<(&'static str, String)> {
+        vec![
+            (
+                OVERVIEW,
+                "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
+                 description: How it fits.\n---\n\n# Overview\n\nBody text. See [the layers](layers.md).\n"
+                    .to_string(),
+            ),
+            (
+                LAYERS,
+                "---\ntype: Architecture\nid: arch:layers\ntitle: Layers\n\
+                 description: The layers.\n---\n\n# Layers\n\nSee [the overview](overview.md).\n"
+                    .to_string(),
+            ),
+            (DEMO, demo_page()),
+            (
+                COVERAGE,
+                "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions: []\n---\n"
+                    .to_string(),
+            ),
+            (
+                INDEX,
+                "<!-- raf:generated:catalogue -->\n## Delivered\n\n\
+                 | Capability | Description | Gaps |\n| --- | --- | --- |\n\
+                 | [demo](./demo.md) | The demo. |  |\n<!-- raf:generated:end -->\n"
+                    .to_string(),
+            ),
+            (
+                README,
+                "# Readme\n\nSee [overview](docs/architecture/overview.md).\n".to_string(),
+            ),
+            (
+                TEMPLATE,
+                "# Template\n\nSee [readme](../README.md).\n".to_string(),
+            ),
+        ]
+    }
+
+    /// The checkout of `files` with these tracked symlinks and these tracked
+    /// files that are not Markdown.
+    pub(super) fn checkout(
+        files: &[(&str, String)],
+        symlinks: &[&str],
+        others: &[&str],
+    ) -> Checkout {
+        let markdown: Repo = files
+            .iter()
+            .map(|(path, text)| (PathBuf::from(path), text.clone()))
+            .collect();
+        let mut paths: Vec<PathBuf> = markdown.keys().cloned().collect();
+        paths.extend(others.iter().map(PathBuf::from));
+        paths.extend(symlinks.iter().map(PathBuf::from));
+        Checkout {
+            paths,
+            symlinks: symlinks.iter().map(PathBuf::from).collect(),
+            markdown,
+            diagram_assets: Repo::new(),
+        }
+    }
+
+    /// The checkout of exactly the pages of `repo`.
+    pub(super) fn of_repo(repo: &Repo) -> Checkout {
+        Checkout {
+            paths: repo.keys().cloned().collect(),
+            symlinks: Vec::new(),
+            markdown: repo.clone(),
+            diagram_assets: Repo::new(),
+        }
+    }
+
+    /// The inventory of the pages of `files`: the two architecture pages and
+    /// the delivered capability.
+    pub(super) const INVENTORY: Inventory = Inventory {
+        capabilities: &[("demo", "delivered")],
+        changes: &[],
+        architecture: &["layers", "overview"],
+        records: &["coverage:default"],
+        generated: &[INDEX],
+    };
+
+    /// Every violation of the checkout of `files` with these tracked symlinks
+    /// and these tracked files that are not Markdown.
+    pub(super) fn found(
+        files: &[(&str, String)],
+        symlinks: &[&str],
+        others: &[&str],
+    ) -> Vec<String> {
+        violations(&checkout(files, symlinks, others), &source(), &INVENTORY)
+    }
+
+    /// The files with `from` replaced by `to` in `path`.
+    pub(super) fn mutated(path: &str, from: &str, to: &str) -> Vec<(&'static str, String)> {
+        let mut files = files();
+        let (_, text) = files
+            .iter_mut()
+            .find(|(candidate, _)| *candidate == path)
+            .unwrap_or_else(|| panic!("the checkout has no {path}"));
+        assert!(text.contains(from), "{path} has no `{from}`");
+        *text = text.replacen(from, to, 1);
+        files
+    }
+}
+
+use checkouts::{DEMO, OVERVIEW, README, TEMPLATE, files, found, mutated};
+
+/// The violations that are about `file` and carry the finding kind `kind`.
+fn about(found: &[String], file: &str, kind: &str) -> usize {
+    found
+        .iter()
+        .filter(|line| {
+            line.starts_with(&format!("{file}: ")) && line.contains(&format!("[{kind}]"))
+        })
+        .count()
+}
+
+#[test]
+fn the_checker_accepts_a_valid_checkout() {
+    assert_eq!(found(&files(), &[], &[]), Vec::<String>::new());
+    let verdict = judge(
+        &checkouts::checkout(&files(), &[], &[]),
+        &checkouts::source(),
+    );
+    assert_eq!(verdict.architecture, 2);
+    assert_eq!(verdict.capabilities, 1);
+}
+
+#[test]
+fn a_delivered_capability_holds_a_verification_matrix() {
+    let without = mutated(DEMO, checkouts::MATRIX_BLOCK, "");
+    let found_without = found(&without, &[], &[]);
+    assert_eq!(found_without.len(), 1, "{found_without:#?}");
+    assert!(
+        found_without[0].starts_with(&format!("{DEMO}: "))
+            && found_without[0].contains("verification-matrix"),
+        "{found_without:#?}"
+    );
+    // The marker inside the text of a line is not the block.
+    let quoted = mutated(
+        DEMO,
+        checkouts::MATRIX_BLOCK,
+        "Text `<!-- raf:generated:verification-matrix -->` here.\n",
+    );
+    let found_quoted = found(&quoted, &[], &[]);
+    assert_eq!(
+        found_quoted
+            .iter()
+            .filter(|line| line.contains("verification-matrix"))
+            .count(),
+        1,
+        "{found_quoted:#?}"
+    );
+    // The clean twin passes.
+    assert_eq!(found(&files(), &[], &[]), Vec::<String>::new());
+}
+
+#[test]
+fn the_checker_judges_the_documents_through_the_model() {
+    let broken = mutated(OVERVIEW, "title: Overview", "title: Overview\nextra: 1");
+    let found = found(&broken, &[], &[]);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(about(&found, OVERVIEW, "okf-unknown-key"), 1, "{found:#?}");
+}
+
+#[test]
+fn the_checker_judges_markdown_outside_the_document_directories() {
+    let broken = mutated(TEMPLATE, "../README.md", "../NOPE.md");
+    let found_broken = found(&broken, &[], &[]);
+    assert_eq!(found_broken.len(), 1, "{found_broken:#?}");
+    assert_eq!(about(&found_broken, TEMPLATE, "link-broken"), 1);
+    let split = mutated(README, "[overview](", "[overview](\n");
+    let found_split = found(&split, &[], &[]);
+    assert_eq!(found_split.len(), 1, "{found_split:#?}");
+    assert_eq!(about(&found_split, README, "okf-split-link"), 1);
+}
+
+#[test]
+fn the_checker_judges_links_against_the_tracked_paths_and_symlinks() {
+    let linked = mutated(README, "# Readme\n", "# Readme\n\n![x](docs/alias.svg)\n");
+    // Tracked as a regular file: the link resolves.
+    assert_eq!(
+        found(&linked, &[], &["docs/alias.svg"]),
+        Vec::<String>::new()
+    );
+    // Tracked as a symlink: a link must not lead to it. The symlink itself is
+    // refused too.
+    let as_symlink = found(&linked, &["docs/alias.svg"], &[]);
+    assert_eq!(
+        about(&as_symlink, README, "link-symlink"),
+        1,
+        "{as_symlink:#?}"
+    );
+    assert_eq!(as_symlink.len(), 2, "{as_symlink:#?}");
+    // Not tracked at all: broken, whatever is on disk.
+    let untracked = found(&linked, &[], &[]);
+    assert_eq!(
+        about(&untracked, README, "link-broken"),
+        1,
+        "{untracked:#?}"
+    );
+    assert_eq!(untracked.len(), 1, "{untracked:#?}");
+}
+
+#[test]
+fn rejects_a_tracked_symlink_that_nothing_links_to() {
+    let found = found(&files(), &["NOTES.md"], &[]);
+    assert_eq!(found, ["NOTES.md: a tracked symlink is not allowed"]);
+}
+
+#[test]
+fn rejects_non_markdown_file_in_a_document_directory() {
+    for path in [
+        "docs/capabilities/notes.txt",
+        "docs/capabilities/ALPHA.MD",
+        "docs/architecture/diagram.svg",
+        "work/changes/draft.yaml",
+        "docs/capabilities/sub/data.json",
+        "work/evidence/run.log",
+        "work/assessments/notes.txt",
+        "work/coverage/default.toml",
+    ] {
+        let found = found(&files(), &[], &[path]);
+        assert_eq!(
+            found,
+            [format!(
+                "{path}: only Markdown documents belong in a document directory"
+            )]
+        );
+    }
+    // Markdown, and files elsewhere, are not judged by this rule.
+    let elsewhere = [
+        "docs/brand/logo.svg",
+        "work/README.txt",
+        "Cargo.toml",
+        "crates/tool/src/lib.rs",
+    ];
+    assert_eq!(found(&files(), &[], &elsewhere), Vec::<String>::new());
+}
+
+#[test]
+fn rejects_a_typed_document_outside_the_document_directories() {
+    let page = |frontmatter: &str| format!("---\n{frontmatter}\n---\n\n# Page\n");
+    let typed = |doc_type: &str| page(&format!("type: {doc_type}\nname: x"));
+    let with = |path: &'static str, text: String| {
+        let mut all = files();
+        all.push((path, text));
+        found(&all, &[], &[])
+    };
+    // A page with a document type is told where that type lives.
+    for (path, doc_type, home) in [
+        ("docs/other/stray.md", "a Capability", "docs/capabilities"),
+        ("docs/stray.md", "a Change", "work/changes"),
+        ("work/stray.md", "an Architecture", "docs/architecture"),
+        ("stray.md", "a Capability", "docs/capabilities"),
+        ("work/evidence.md", "an Evidence", "work/evidence"),
+        ("docs/coverage.md", "a Coverage", "work/coverage"),
+        ("docs/review.md", "a Review", "work/reviews"),
+    ] {
+        let name = doc_type.split_once(' ').map_or(doc_type, |(_, name)| name);
+        assert_eq!(
+            with(path, typed(name)),
+            [format!(
+                "{path}: `type`: {doc_type} document belongs directly in {home}"
+            )]
+        );
+    }
+    // Any other frontmatter on such a page is refused as well: an unknown
+    // type, no type, or keys that are no document's.
+
+    for (path, text) in [
+        ("docs/notes.md", page("title: Notes")),
+        ("NOTES.md", typed("Bug")),
+        ("work/notes.md", page("name: Notes\nabout: x")),
+        ("README.md", page("foo: bar")),
+    ] {
+        let mut all = files();
+        all.retain(|(candidate, _)| *candidate != path);
+        all.push((path, text));
+        let found = found(&all, &[], &[]);
+        let diagnostic = found
+            .iter()
+            .find(|line| {
+                line.starts_with(&format!(
+                    "{path}: frontmatter belongs only in the documents of "
+                ))
+            })
+            .unwrap_or_else(|| panic!("{path}: {found:#?}"));
+        assert!(diagnostic.ends_with("; this page is outside them"));
+        for doc_type in DocType::ALL {
+            assert!(
+                diagnostic.contains(doc_type.directory()),
+                "{path}: {diagnostic}"
+            );
+        }
+    }
+    // A page without frontmatter, a page outside `docs/` and `work/` (an issue
+    // template, the typed fixture of a crate) and a typed page in its own
+    // directory are not judged by this rule.
+    let mut all = files();
+    all.push((
+        ".github/ISSUE_TEMPLATE/bug.md",
+        page("name: Bug\nabout: A bug"),
+    ));
+    all.push((
+        "crates/tool/tests/fixtures/capability.md",
+        typed("Capability"),
+    ));
+    assert_eq!(found(&all, &[], &[]), Vec::<String>::new());
+}
+
+// --- capability inventory ---------------------------------------------------
+
+const OVERVIEW_PAGE: &str = "docs/architecture/overview.md";
+const ALPHA: &str = "docs/capabilities/alpha.md";
+const BETA: &str = "docs/capabilities/beta.md";
+const INDEX: &str = "docs/capabilities/index.md";
+
+const FIXTURE_INVENTORY: Inventory = Inventory {
+    capabilities: &[
+        ("alpha", "designed"),
+        ("beta", "considered"),
+        ("gamma", "delivered"),
+    ],
+    changes: &[("alpha", &["alpha"]), ("beta", &["beta"])],
+    architecture: &["overview"],
+    records: &["evidence:bound", "assessment:review", "coverage:default"],
+    generated: &[INDEX],
+};
+
+/// The records of `FIXTURE_INVENTORY`, by path, type and id.
+const FIXTURE_RECORDS: [(&str, &str, &str); 3] = [
+    ("work/evidence/bound.md", "Evidence", "evidence:bound"),
+    (
+        "work/assessments/review.md",
+        "Assessment",
+        "assessment:review",
+    ),
+    ("work/coverage/default.md", "Coverage", "coverage:default"),
+];
+
+/// A document with only the frontmatter the inventory reads.
+fn page(doc_type: &str, id: &str, state: Option<&str>) -> String {
+    let state = state.map_or_else(String::new, |state| format!("state: {state}\n"));
+    format!("---\ntype: {doc_type}\nid: {id}\n{state}---\n\n# Page\n")
+}
+
+/// A change record with only the frontmatter the inventory reads: its id and
+/// the capabilities its `changes` lists.
+fn change_page(slug: &str, capabilities: &[&str]) -> String {
+    let listed: Vec<String> = capabilities
+        .iter()
+        .map(|cap| format!("cap:{cap}"))
+        .collect();
+    format!(
+        "---\ntype: Change\nid: change:{slug}\nchanges: [{}]\n---\n\n# Page\n",
+        listed.join(", ")
+    )
+}
+
+/// A tree whose documents are exactly `FIXTURE_INVENTORY`.
+fn inventory_repo() -> Repo {
+    let mut repo = Repo::new();
+    for (slug, state) in [
+        ("alpha", "designed"),
+        ("beta", "considered"),
+        ("gamma", "delivered"),
+    ] {
+        repo.insert(
+            PathBuf::from(format!("docs/capabilities/{slug}.md")),
+            page("Capability", &format!("cap:{slug}"), Some(state)),
+        );
+        // The delivered capability holds its generated verification matrix.
+        if state == "delivered"
+            && let Some(text) = repo.get_mut(Path::new(&format!("docs/capabilities/{slug}.md")))
+        {
+            text.push_str(checkouts::MATRIX_BLOCK);
+        }
+    }
+    for slug in ["alpha", "beta"] {
+        repo.insert(
+            PathBuf::from(format!("work/changes/{slug}.md")),
+            change_page(slug, &[slug]),
+        );
+    }
+    repo.insert(
+        PathBuf::from(OVERVIEW_PAGE),
+        page("Architecture", "arch:overview", None),
+    );
+    for (path, doc_type, id) in FIXTURE_RECORDS {
+        repo.insert(PathBuf::from(path), page(doc_type, id, None));
+    }
+    repo.insert(
+        PathBuf::from(INDEX),
+        "<!-- raf:generated:catalogue -->\n<!-- raf:generated:end -->\n".to_string(),
+    );
+    repo
+}
+
+/// Every violation of the checkout of exactly the pages of `repo`, judged
+/// against the fixture inventory.
+fn inventory_found(repo: &Repo) -> Vec<String> {
+    violations(
+        &checkouts::of_repo(repo),
+        &checkouts::source(),
+        &FIXTURE_INVENTORY,
+    )
+}
+
+fn assert_hit(violations: &[String], needle: &str) {
+    assert!(
+        violations.iter().any(|v| v.contains(needle)),
+        "expected a violation containing `{needle}`, got: {violations:#?}"
+    );
+}
+
+#[test]
+fn inventory_accepts_a_matching_tree() {
+    // The minimal pages are no valid documents, so the model has findings of
+    // its own; the inventory has none.
+    let found: Vec<String> = inventory_found(&inventory_repo())
+        .into_iter()
+        .filter(|line| line.contains("inventory") || line.contains("the document is missing"))
+        .collect();
+    assert_eq!(found, Vec::<String>::new());
+}
+
+#[test]
+fn inventory_table_has_the_documented_shape() {
+    let slugs: BTreeSet<&str> = INVENTORY.capabilities.iter().map(|(s, _)| *s).collect();
+    assert_eq!(
+        slugs.len(),
+        INVENTORY.capabilities.len(),
+        "each capability is listed once"
+    );
+    assert!(slugs.iter().all(|slug| {
+        DocType::Capability
+            .document_iri(&format!("cap:{slug}"))
+            .is_ok()
+    }));
+    assert!(
+        INVENTORY
+            .capabilities
+            .iter()
+            .all(|(_, state)| raf_okf::State::from_name(state).is_some())
+    );
+    let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();
+    assert_eq!(
+        changes.len(),
+        INVENTORY.changes.len(),
+        "each open change is listed once"
+    );
+    assert!(changes.iter().all(|slug| {
+        DocType::Change
+            .document_iri(&format!("change:{slug}"))
+            .is_ok()
+    }));
+    for (slug, row) in INVENTORY.changes {
+        let unique: BTreeSet<&str> = row.iter().copied().collect();
+        assert_eq!(
+            unique.len(),
+            row.len(),
+            "the row of {slug} lists each capability once"
+        );
+        assert!(
+            unique.is_subset(&slugs),
+            "the row of {slug} lists capabilities of the inventory"
+        );
+    }
+    let mut architecture = INVENTORY.architecture.to_vec();
+    purrdf_lex::walk::try_sort_unstable_by(&mut architecture, |left, right| {
+        Ok::<_, std::convert::Infallible>(left.cmp(right))
+    })
+    .unwrap_or_else(|never| match never {});
+    assert!(architecture.windows(2).all(|pair| pair[0] != pair[1]));
+    assert!(architecture.iter().all(|slug| {
+        DocType::Architecture
+            .document_iri(&format!("arch:{slug}"))
+            .is_ok()
+    }));
+    assert!(
+        INVENTORY.records.windows(2).all(|pair| pair[0] < pair[1]),
+        "the records are listed sorted, each once"
+    );
+    assert!(INVENTORY.records.iter().all(|id| {
+        DocType::ALL
+            .into_iter()
+            .any(|doc_type| doc_type.is_record() && doc_type.document_iri(id).is_ok())
+    }));
+    for doc_type in DocType::ALL
+        .into_iter()
+        .filter(|doc_type| doc_type.singleton().is_some())
+    {
+        let records: Vec<_> = INVENTORY
+            .records
+            .iter()
+            .copied()
+            .filter(|id| id.starts_with(doc_type.id_prefix()))
+            .collect();
+        assert_eq!(
+            records,
+            [format!(
+                "{}{}",
+                doc_type.id_prefix(),
+                doc_type.singleton().unwrap()
+            )]
+        );
+    }
+    assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
+}
+
+#[test]
+fn inventory_rejects_missing_capability_and_change_documents() {
+    let mut repo = inventory_repo();
+    repo.remove(Path::new(BETA));
+    let found = inventory_found(&repo);
+    assert_hit(&found, "docs/capabilities/beta.md: the document is missing");
+    let mut repo = inventory_repo();
+    repo.remove(Path::new("work/changes/alpha.md"));
+    let found = inventory_found(&repo);
+    assert_hit(&found, "work/changes/alpha.md: the document is missing");
+}
+
+#[test]
+fn inventory_rejects_a_change_record_that_lists_other_capabilities() {
+    let mut repo = inventory_repo();
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "gamma"]),
+    );
+    let found = inventory_found(&repo);
+    assert_hit(
+        &found,
+        "work/changes/alpha.md: inventory expects `changes` [cap:alpha], found [cap:alpha, cap:gamma]",
+    );
+}
+
+#[test]
+fn inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice() {
+    // The record and the table agree, so the comparison of the two passes;
+    // the repeat is refused on its own.
+    let mut repo = inventory_repo();
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "alpha"]),
+    );
+    let twice = Inventory {
+        changes: &[("alpha", &["alpha", "alpha"]), ("beta", &["beta"])],
+        ..FIXTURE_INVENTORY
+    };
+    let found = violations(&checkouts::of_repo(&repo), &checkouts::source(), &twice);
+    assert_hit(
+        &found,
+        "work/changes/alpha.md: inventory lists `cap:alpha` twice in the `changes` of the record",
+    );
+    assert!(
+        !found.iter().any(|line| line.contains("inventory expects")),
+        "{found:#?}"
+    );
+    // A row that names a capability the inventory does not have is refused too.
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "omega"]),
+    );
+    let unknown = Inventory {
+        changes: &[("alpha", &["alpha", "omega"]), ("beta", &["beta"])],
+        ..FIXTURE_INVENTORY
+    };
+    let found = violations(&checkouts::of_repo(&repo), &checkouts::source(), &unknown);
+    assert_hit(
+        &found,
+        "work/changes/alpha.md: inventory lists `cap:omega` in the `changes` of the record, and no capability of the inventory has that slug",
+    );
+    // The neighbour, each capability once, has neither.
+    let found = inventory_found(&inventory_repo());
+    assert!(
+        !found
+            .iter()
+            .any(|line| line.contains("twice") || line.contains("no capability of the inventory")),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn an_open_capability_may_be_listed_by_a_record_named_after_another() {
+    // One record lists both open capabilities: the inventory accepts it, and a
+    // record of the table that lists neither leaves both unlisted.
+    let mut repo = inventory_repo();
+    repo.remove(Path::new("work/changes/beta.md"));
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "beta"]),
+    );
+    let shared = Inventory {
+        changes: &[("alpha", &["alpha", "beta"])],
+        ..FIXTURE_INVENTORY
+    };
+    let found: Vec<String> = violations(&checkouts::of_repo(&repo), &checkouts::source(), &shared)
+        .into_iter()
+        .filter(|line| line.contains("inventory") || line.contains("the document is missing"))
+        .collect();
+    assert_eq!(found, Vec::<String>::new());
+    let unlisted = Inventory {
+        changes: &[("alpha", &["gamma"])],
+        ..FIXTURE_INVENTORY
+    };
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["gamma"]),
+    );
+    let found = violations(&checkouts::of_repo(&repo), &checkouts::source(), &unlisted);
+    for slug in ["alpha", "beta"] {
+        assert_hit(
+            &found,
+            &format!(
+                "docs/capabilities/{slug}.md: inventory lists no change record whose `changes` names `cap:{slug}`"
+            ),
+        );
+    }
+}
+
+#[test]
+fn inventory_rejects_missing_architecture_and_index_documents() {
+    let mut repo = inventory_repo();
+    repo.remove(Path::new(OVERVIEW_PAGE));
+    let found = inventory_found(&repo);
+    assert_hit(
+        &found,
+        "docs/architecture/overview.md: the document is missing",
+    );
+    let mut repo = inventory_repo();
+    repo.remove(Path::new(INDEX));
+    let found = inventory_found(&repo);
+    assert_hit(
+        &found,
+        "docs/capabilities/index.md: the document is missing",
+    );
+}
+
+#[test]
+fn inventory_rejects_a_state_change() {
+    let mut repo = inventory_repo();
+    let alpha = repo.get_mut(Path::new(ALPHA)).expect("fixture alpha");
+    *alpha = alpha.replace("state: designed", "state: implementing");
+    let found = inventory_found(&repo);
+    assert_hit(
+        &found,
+        "inventory expects state `designed`, found `implementing`",
+    );
+}
+
+#[test]
+fn inventory_rejects_an_id_change() {
+    let mut repo = inventory_repo();
+    let overview = repo
+        .get_mut(Path::new(OVERVIEW_PAGE))
+        .expect("fixture overview");
+    *overview = overview.replace("arch:overview", "arch:other");
+    let found = inventory_found(&repo);
+    assert_hit(
+        &found,
+        "inventory expects id `arch:overview`, found `arch:other`",
+    );
+}
+
+#[test]
+fn inventory_rejects_a_document_the_table_does_not_list() {
+    let mut repo = inventory_repo();
+    repo.insert(
+        PathBuf::from("docs/capabilities/extra.md"),
+        page("Capability", "cap:extra", Some("designed")),
+    );
+    let found = inventory_found(&repo);
+    assert_hit(
+        &found,
+        "docs/capabilities/extra.md: the document is not in the inventory table",
+    );
+}
+
+#[test]
+fn inventory_rejects_a_missing_or_unlisted_record() {
+    for (path, _, _) in FIXTURE_RECORDS {
+        let mut repo = inventory_repo();
+        repo.remove(Path::new(path));
+        let found = inventory_found(&repo);
+        assert_hit(&found, &format!("{path}: the document is missing"));
+    }
+    let mut repo = inventory_repo();
+    repo.insert(
+        PathBuf::from("work/evidence/extra.md"),
+        page("Evidence", "evidence:extra", None),
+    );
+    let found = inventory_found(&repo);
+    assert_hit(
+        &found,
+        "work/evidence/extra.md: the document is not in the inventory table",
+    );
+    let mut repo = inventory_repo();
+    let coverage = repo
+        .get_mut(Path::new("work/coverage/default.md"))
+        .expect("fixture coverage");
+    *coverage = coverage.replace("coverage:default", "coverage:other");
+    assert_hit(
+        &inventory_found(&repo),
+        "inventory expects id `coverage:default`, found `coverage:other`",
+    );
+}
+
+#[test]
+fn inventory_refuses_a_record_id_of_no_record_type() {
+    let inventory = Inventory {
+        records: &["cap:alpha"],
+        ..FIXTURE_INVENTORY
+    };
+    let found = violations(
+        &checkouts::of_repo(&inventory_repo()),
+        &checkouts::source(),
+        &inventory,
+    );
+    assert_hit(
+        &found,
+        "inventory: `cap:alpha` is not the id of a record type",
+    );
+}
+
+#[test]
+fn inventory_rejects_an_index_the_table_does_not_list() {
+    for path in ["docs/architecture/index.md", "work/changes/index.md"] {
+        let mut repo = inventory_repo();
+        repo.insert(PathBuf::from(path), "# Index\n".to_string());
+        let found = inventory_found(&repo);
+        assert_hit(
+            &found,
+            &format!("{path}: the document is not in the inventory table"),
+        );
+    }
+}
+
+// --- reading files ----------------------------------------------------------
+
+/// A scratch directory removed when dropped, named by process id and a
+/// counter; a directory left by an earlier process of the same id is skipped.
+#[cfg(unix)]
+struct Scratch(purrdf_testkit::TempDir);
+
+#[cfg(unix)]
+impl Scratch {
+    fn new() -> Self {
+        Self(
+            purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR"))
+                .expect("create document fixture"),
+        )
+    }
+}
+
+/// A path that is not a regular file is refused by the inspection that comes
+/// before `open`, not by the check on the opened handle: the device
+/// `/dev/null` and a directory named like a document open without blocking,
+/// so only the text of the refusal tells the two checks apart, and it must be
+/// the pre-open one. That is what keeps a FIFO from being opened, since an
+/// open of a FIFO with no writer blocks. No FIFO is opened here. A symlink is
+/// refused rather than followed, and a regular file is read.
+#[cfg(unix)]
+#[test]
+fn refuses_non_regular_files_instead_of_reading_them() {
+    let scratch = Scratch::new();
+    let dir = scratch.0.path().to_path_buf();
+    std::fs::create_dir(dir.join("folder.md")).expect("directory named like a document");
+    std::fs::write(dir.join("plain.md"), "text").expect("plain file");
+    std::os::unix::fs::symlink(dir.join("plain.md"), dir.join("link.md")).expect("symlink");
+
+    for (root, name) in [(Path::new("/dev"), "null"), (dir.as_path(), "folder.md")] {
+        let outcome = read_regular(root, Path::new(name));
+        assert!(
+            outcome
+                .as_ref()
+                .is_err_and(|e| e.ends_with(&format!("{name} is not a regular file"))),
+            "{name}: {outcome:?}"
+        );
+    }
+    let link = read_regular(&dir, Path::new("link.md"));
+    assert!(
+        link.as_ref().is_err_and(
+            |e| e.contains("link.md") && e.contains("symlinks are not allowed in the tree")
+        ),
+        "{link:?}"
+    );
+    assert_eq!(
+        read_regular(&dir, Path::new("plain.md")),
+        Ok(b"text".to_vec())
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn refuses_a_file_swapped_in_after_inspection() {
+    let scratch = Scratch::new();
+    let dir = scratch.0.path();
+    std::fs::write(dir.join("first.md"), "one").expect("first file");
+    std::fs::write(dir.join("second.md"), "two").expect("second file");
+    let inspected = std::fs::symlink_metadata(dir.join("first.md")).expect("stat first");
+    let opened = std::fs::File::open(dir.join("second.md"))
+        .and_then(|f| f.metadata())
+        .expect("stat second");
+    let verdict = support::check_handle("first.md", &inspected, &opened);
+    assert!(
+        verdict.is_err_and(|e| e.contains("changed while it was being opened")),
+        "a different inode must be refused"
+    );
+    let same = std::fs::File::open(dir.join("first.md"))
+        .and_then(|f| f.metadata())
+        .expect("stat first handle");
+    assert_eq!(support::check_handle("first.md", &inspected, &same), Ok(()));
+}
+
+// --- Usage and Examples are the crate documentation tests --------------------
+
+/// A fenced `rust` block: its info string and its code.
+#[derive(Debug, PartialEq, Eq)]
+struct RustBlock {
+    info: String,
+    code: String,
+}
+
+/// The lines between the fence lines of a block, when a closing fence ends it.
+fn fenced_code(block: &FencedBlock) -> Result<String, String> {
+    if block.is_closed() {
+        Ok(block.content().to_string())
+    } else {
+        Err(format!(
+            "the block at line {} is never closed",
+            block.span().lines.start
+        ))
+    }
+}
+
+/// The `rust` blocks of a Markdown text, in order: all of them, or only those
+/// under the second-level sections named in `within`.
+fn rust_blocks(text: &str, within: Option<&[&str]>) -> Result<Vec<RustBlock>, String> {
+    let body = Body::parse(text).map_err(|e| format!("the text does not parse: {e}"))?;
+    let mut blocks = Vec::new();
+    for fenced in body.fenced_blocks() {
+        let start = fenced.span().bytes.start;
+        let wanted = within.is_none_or(|names| {
+            body.sections().iter().any(|section| {
+                names.contains(&section.heading())
+                    && section.content().bytes.start <= start
+                    && start < section.content().bytes.end
+            })
+        });
+        let info = fenced.info();
+        if wanted && (info == "rust" || info.starts_with("rust,")) {
+            blocks.push(RustBlock {
+                info: info.to_string(),
+                code: fenced_code(fenced)?,
+            });
+        }
+    }
+    Ok(blocks)
+}
+
+/// The crate-level documentation of a library source as Markdown.
+fn crate_docs(library: &str) -> String {
+    let mut docs = String::new();
+    for line in library.lines().filter_map(|l| l.strip_prefix("//!")) {
+        docs.push_str(line.strip_prefix(' ').map_or(line, |rest| rest));
+        docs.push('\n');
+    }
+    docs
+}
+
+/// The 1-based line where two texts first differ; when one is a prefix of the
+/// other, the line after the shorter one.
+fn first_difference(left: &str, right: &str) -> usize {
+    match left.lines().zip(right.lines()).position(|(a, b)| a != b) {
+        Some(at) => at + 1,
+        None => left.lines().count().min(right.lines().count()) + 1,
+    }
+}
+
+/// Why the Usage and Examples blocks of a capability document are not the
+/// leading crate-level documentation tests of its library, or nothing when they
+/// are.
+fn doctest_problems(document: &str, library: &str) -> Result<Vec<String>, String> {
+    let documented = rust_blocks(document, Some(&["Usage", "Examples"]))?;
+    let doctests = rust_blocks(&crate_docs(library), None)?;
+    let mut problems = Vec::new();
+    if documented.is_empty() {
+        problems.push("the document has no `rust` block under Usage or Examples".to_string());
+    }
+    for (index, block) in documented.iter().enumerate() {
+        let number = index + 1;
+        let Some(doctest) = doctests.get(index) else {
+            problems.push(format!("block {number} has no crate doctest to equal"));
+            continue;
+        };
+        if block.info != doctest.info {
+            problems.push(format!(
+                "block {number} is `{}` in the document and `{}` in the crate",
+                block.info, doctest.info
+            ));
+        }
+        if block.code != doctest.code {
+            let line = first_difference(&block.code, &doctest.code);
+            problems.push(format!(
+                "block {number} differs from the crate doctest at line {line} of the block"
+            ));
+        }
+        if block.info == "rust" && block.code.contains("std::fs") {
+            problems.push(format!("block {number} is run and uses `std::fs`"));
+        }
+        if block.info.contains("no_run") && !document.contains("compiled and not run") {
+            problems.push(format!(
+                "block {number} is not run, and the document does not say why"
+            ));
+        }
+    }
+    Ok(problems)
+}
+
+fn tracked_text(root: &Path, path: &str) -> String {
+    let bytes = read_tracked(root, Path::new(path));
+    match decode_text(&bytes) {
+        Some(text) => text.into_owned(),
+        None => panic!("{path} is not text"),
+    }
+}
+
+const DOCTEST_PAIRS: [(&str, &str); 2] = [
+    (
+        "docs/capabilities/okf-profile.md",
+        "crates/raf-okf/src/lib.rs",
+    ),
+    (
+        "docs/capabilities/source-index.md",
+        "crates/raf-source/src/lib.rs",
+    ),
+];
+
+#[test]
+fn usage_and_examples_blocks_are_the_crate_doctests() -> Result<(), String> {
+    let root = gate_root();
+    for (document, library) in DOCTEST_PAIRS {
+        let problems = doctest_problems(
+            &tracked_text(&root, document),
+            &tracked_text(&root, library),
+        )?;
+        assert!(
+            problems.is_empty(),
+            "{document} against {library}: {problems:#?}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn a_block_that_differs_by_one_line_is_reported() -> Result<(), String> {
+    let root = gate_root();
+    for (document, library) in DOCTEST_PAIRS {
+        let document = tracked_text(&root, document);
+        let library = tracked_text(&root, library);
+        let changed = library.replacen("//! use ", "//! use  ", 1);
+        assert_ne!(changed, library);
+        let problems = doctest_problems(&document, &changed)?;
+        assert_eq!(problems.len(), 1, "{problems:#?}");
+        assert!(
+            problems[0].contains("block 1 differs from the crate doctest"),
+            "{problems:#?}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn doctest_comparison_fixtures() -> Result<(), String> {
+    let document = "## Contract\n\n```rust\nignored();\n```\n\n## Usage\n\n```rust\nlet a = 1;\nlet b = 2;\n```\n";
+    let library = "//! Words.\n//!\n//! ```rust\n//! let a = 1;\n//! let b = 2;\n//! ```\n";
+    assert_eq!(doctest_problems(document, library)?, Vec::<String>::new());
+    let one_line = library.replace("let b = 2;", "let b = 3;");
+    assert_eq!(
+        doctest_problems(document, &one_line)?,
+        ["block 1 differs from the crate doctest at line 2 of the block"]
+    );
+    let other_info = library.replace("```rust", "```rust,no_run");
+    assert_eq!(
+        doctest_problems(document, &other_info)?,
+        ["block 1 is `rust` in the document and `rust,no_run` in the crate"]
+    );
+    assert_eq!(
+        doctest_problems(document, "//! No blocks here.\n")?,
+        ["block 1 has no crate doctest to equal"]
+    );
+    assert_eq!(
+        doctest_problems("## Usage\n\nNo block.\n", library)?,
+        ["the document has no `rust` block under Usage or Examples"]
+    );
+    let reads_files = document.replace("let a = 1;", "std::fs::read(\"x\");");
+    let reads_files_library = library.replace("let a = 1;", "std::fs::read(\"x\");");
+    assert_eq!(
+        doctest_problems(&reads_files, &reads_files_library)?,
+        ["block 1 is run and uses `std::fs`"]
+    );
+    let unexplained = document.replace("```rust\nlet a", "```rust,no_run\nlet a");
+    let unexplained_library = library.replace("```rust", "```rust,no_run");
+    assert_eq!(
+        doctest_problems(&unexplained, &unexplained_library)?,
+        ["block 1 is not run, and the document does not say why"]
+    );
+    let explained = format!("{unexplained}\nThe block is compiled and not run.\n");
+    assert_eq!(
+        doctest_problems(&explained, &unexplained_library)?,
+        Vec::<String>::new()
+    );
+    Ok(())
+}
+
+#[test]
+fn a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused() -> Result<(), String> {
+    let library = "//! Words.\n//!\n//! ```rust\n//! let a = 1;\n//! let b = 2;\n//! ```\n";
+    let tilde = "## Usage\n\n~~~rust\nlet a = 1;\nlet b = 2;\n~~~\n";
+    assert_eq!(doctest_problems(tilde, library)?, Vec::<String>::new());
+    // A longer closing fence and trailing spaces still close the block.
+    let longer = "## Usage\n\n~~~rust\nlet a = 1;\nlet b = 2;\n~~~~~ \n";
+    assert_eq!(doctest_problems(longer, library)?, Vec::<String>::new());
+    // A fence of the other character does not close it: the block is open to
+    // the end of the text, which is refused rather than read as complete.
+    let mixed = "## Usage\n\n~~~rust\nlet a = 1;\nlet b = 2;\n```\n";
+    assert_eq!(
+        doctest_problems(mixed, library),
+        Err("the block at line 3 is never closed".to_string())
+    );
+    let open = "## Usage\n\n```rust\nlet a = 1;\nlet b = 2;\n";
+    assert_eq!(
+        doctest_problems(open, library),
+        Err("the block at line 3 is never closed".to_string())
+    );
+    Ok(())
+}

@@ -27,10 +27,10 @@ bindings:
     - raf_census::gate::bounds
   tests:
     - raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures
-    - cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target
-    - cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records
-    - cargo_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target
-    - cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records
+    - cargo_raf_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target
+    - cargo_raf_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records
+    - cargo_raf_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target
+    - cargo_raf_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records
 
     - raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth
     - raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group
@@ -50,9 +50,9 @@ bindings:
     - rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte
     - raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record
     - raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record
-    - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
-    - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
-    - cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
+    - cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
+    - cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
+    - cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets
     - raf_census::test_crate::census_gate::numeric_bounds::numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_movement
   examples:
     - raf_census::example_crate::debt
@@ -98,7 +98,7 @@ excludeTestItems and one excludeDir per name; a record of the complete scope
 states nothing more, so its bytes are those of the complete scope.
 
 ### Growth and shrinking records
-<!-- raf:tested-by raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth,raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group,raf_census::test_crate::debt::resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record,raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record -->
+<!-- raf:tested-by raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth,raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group,raf_census::test_crate::debt::resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record,raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt,cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record -->
 
 New groups, counted supersets and rising copy counts are growth. Missing groups,
 counted strict subsets and falling copy counts are shrinkage. Both fail a check.
@@ -113,7 +113,7 @@ group; a write records the present scope. An absent record takes the present
 scope, so a scope alone never requires a record.
 
 ### Counted site ratchet
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte,raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted,raf_census::test_crate::debt::ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte,raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted,raf_census::test_crate::debt::ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused,cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate -->
 
 A ledger Pattern that states ratcheted true, or a rule that a job names in
 ratchetedRule, does not produce findings. Its hits
@@ -177,7 +177,7 @@ line, enclosing symbol and summary. Numeric growth findings name the file,
 line, byte offset, roles and exact ledger site key.
 
 ### Exclusive writer coordination
-<!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records,cargo_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records -->
+<!-- raf:tested-by raf_census::example_crate::debt,cargo_raf_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_raf_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records,cargo_raf_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target,cargo_raf_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records -->
 
 On native Linux, both writers acquire an exclusive nonblocking kernel lock on
 the retained workspace directory before evaluating policy or reading prior
@@ -196,7 +196,7 @@ capability. Advisory locking does not authenticate arbitrary concurrent director
 mutation or make source contents an immutable snapshot.
 
 ### Adoption and version replacement
-<!-- raf:tested-by raf_census::test_crate::debt::other_versions_can_be_read_but_cannot_be_compared,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,raf_census::example_crate::debt -->
+<!-- raf:tested-by raf_census::test_crate::debt::other_versions_can_be_read_but_cannot_be_compared,cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,raf_census::example_crate::debt -->
 
 A missing record means no debt during checking. An explicit write creates it
 from present debt. A mismatched normal form refuses comparison; the explicit
@@ -206,9 +206,9 @@ visible adoption operations; deleting the record and adopting again is not a
 proof that debt did not grow.
 
 ### One publication path
-<!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::example_crate::debt,raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::example_crate::debt,raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record -->
 
-Gate::write_debt and cargo census debt --write use ordinary evaluation;
+Gate::write_debt and cargo raf-census debt --write use ordinary evaluation;
 Gate::write_debt_locked uses configured locked evaluation. Both Gate writers
 share one ratchet and publication path. Non-debt findings prevent every write. Registered rules or nonempty
 extensions require a repository's registered Gate; the built-in CLI exits 2
@@ -246,7 +246,7 @@ the ordinary debt comparison or publication can succeed.
 
 Supply the same authenticated `LockedPackageRoots` to explicit locked debt evaluation that an ordinary locked check consumes. Registry sources require checksum-authenticated archives and exact configured package associations.
 
-Run cargo census debt --write in a workspace with a native ledger and no required
+Run cargo raf-census debt --write in a workspace with a native ledger and no required
 repository registration. For registered rules/extensions, call Gate::write_debt
 from a repository binary or xtask that installs those implementations. For
 preferred providers, construct the same complete typed source associations used
@@ -264,7 +264,7 @@ the retained workspace directory and create no coordination file.
 For custom policy, construct the registered Gate in the repository's own binary
 or xtask and call its explicit debt writer. The shipped CLI has no package or
 example selector for loading callbacks.
-<!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
+<!-- raf:tested-by raf_census::example_crate::debt,cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 ## Examples
 
@@ -275,7 +275,7 @@ temporary or debt record refuses as missing source and creates none of them.
 A held directory lock refuses a competing writer; releasing it permits the
 same ordinary debt publication. Preexisting temporary files and symlink or
 directory entries remain untouched on refusal.
-<!-- raf:tested-by cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_raf_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records -->
 
 A ratcheted pattern or rule with three hits in two files is adopted as those three
 sites. A fourth hit refuses both checking and writing, inserting lines above a
@@ -287,7 +287,7 @@ growth.
 
 A recorded body group contains demo_a::len, demo_b::len and demo_c::len.
 Removing demo_c leaves a strict subset. The next Gate check reports shrinkage.
-Running cargo census debt --write records the two remaining members and the
+Running cargo raf-census debt --write records the two remaining members and the
 next check passes. Adding a fourth member instead refuses both checking and
 writing; an exact documented distinct sanction or removal resolves it.
 
@@ -308,7 +308,7 @@ reduction to one and refuses growth without replacing prior debt. It uses the
 same ordinary Gate writer. A policy requiring a custom rule or owner validator
 instead refuses with the library writer named in the diagnostic and creates no
 partial record. The debt example covers the configured registered writer.
-<!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::example_crate::debt -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::example_crate::debt -->
 
 
 ## Constraints
@@ -316,7 +316,7 @@ partial record. The debt example covers the configured registered writer.
 - The native CLI cannot supply repository-specific rule or extension callbacks.
   Such policy requires an explicitly configured library Gate. Repository target
   selectors are rejected before any consumer code is built or executed.
-<!-- raf:tested-by cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
 
 - Coordination is advisory between writers locking the same retained directory.
@@ -332,7 +332,7 @@ partial record. The debt example covers the configured registered writer.
   counts, unowned nodes and noncanonical/digest-invalid text refuse. Persistent
   repository debt is written by a binary or xtask; fixture tests write only their
   owned scratch workspaces.
-<!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record -->
 
 - The locked writer owns the first-party disk read and publication root, not
   acquisition of its catalog or dependency source. The caller supplies complete
@@ -343,7 +343,7 @@ partial record. The debt example covers the configured registered writer.
 - Debt publication is an explicit library writer operation. Installing custom
   callbacks on a Gate does not grant the shipped CLI authority to acquire or
   execute those callbacks from repository source.
-<!-- raf:tested-by raf_census::example_crate::debt,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
+<!-- raf:tested-by raf_census::example_crate::debt,cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt -->
 
 ## Explanation
 
@@ -371,7 +371,7 @@ The finalization fixture exercises both atomic creation and replacement with an
 injected synchronization failure; complete records survive, and a replaced
 unowned temporary remains intact with both failure causes retained as typed
 errors. Fixture programs and example consumers are never initiated by RAF.
-<!-- raf:tested-by cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records,raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures -->
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target,cargo_raf_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records,raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures -->
 
 Bound cases cover both ratchet directions, kind changes, counted cfg members,
 canonical formats, shape/digest refusal, version comparison, the grouping
@@ -394,13 +394,13 @@ or execution of an external native implementation.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
-| `cargo_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target` | test | [Contract](#contract), [Examples](#examples) |
-| `cargo_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records` | test | [Contract](#contract), [Examples](#examples) |
-| `cargo_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target` | test | [Contract](#contract) |
-| `cargo_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records` | test | [Contract](#contract) |
-| `cargo_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Constraints](#constraints) |
-| `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_raf_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target` | test | [Contract](#contract), [Examples](#examples) |
+| `cargo_raf_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records` | test | [Contract](#contract), [Examples](#examples) |
+| `cargo_raf_census::test_crate::delivery::embedded_debt_publication_never_creates_a_declared_missing_rust_target` | test | [Contract](#contract) |
+| `cargo_raf_census::test_crate::delivery::embedded_debt_publication_preserves_unowned_entries_and_busy_records` | test | [Contract](#contract) |
+| `cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Constraints](#constraints) |
+| `cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |

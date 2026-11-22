@@ -1,0 +1,100 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+name: Publish to crates.io
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full commit SHA of the release on main
+        required: true
+        type: string
+      version:
+        description: Workspace release version
+        required: true
+        type: string
+      package:
+        description: Publish the full workspace or resume with one missing package
+        required: true
+        default: workspace
+        type: choice
+        options:
+          - workspace
+          - raf-okf
+          - raf-rdf
+          - raf-source
+          - raf-census
+          - raf-workplan
+          - cargo-raf-census
+          - cargo-raf-workplan
+
+concurrency:
+  group: crates-io-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
+        with:
+          toolchain: nightly
+      - name: Check release commit, version and CI
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ inputs.commit }}
+          EXPECTED_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$EXPECTED_COMMIT" != "$GITHUB_SHA" || $(git rev-parse HEAD) != "$GITHUB_SHA" ]]; then
+            echo 'The release commit must match the dispatched main commit.' >&2
+            exit 1
+          fi
+          version=$(cargo metadata --locked --no-deps --format-version 1 |
+            jq -er '[.packages[].version] | unique |
+              if length == 1 then .[0] else error("RAF packages must share one version") end')
+          if [[ "$EXPECTED_VERSION" != "$version" ]]; then
+            echo 'The requested version must match the workspace version.' >&2
+            exit 1
+          fi
+          conclusion=$(gh run list --workflow ci.yaml --branch main --commit "$GITHUB_SHA" \
+            --event push --limit 1 --json conclusion --jq '.[0].conclusion // ""')
+          if [[ "$conclusion" != success ]]; then
+            echo 'The release commit must pass the push CI workflow on main.' >&2
+            exit 1
+          fi
+          printf 'Release %s from commit %s\n' "$version" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Authenticate to crates.io
+        id: registry
+        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.registry.outputs.token }}
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          case "$PACKAGE" in
+            workspace)
+              cargo publish --locked --registry crates-io \
+                -p raf-okf -p raf-rdf -p raf-source -p raf-census -p raf-workplan \
+                -p cargo-raf-census -p cargo-raf-workplan
+              ;;
+            raf-okf|raf-rdf|raf-source|raf-census|raf-workplan|cargo-raf-census|cargo-raf-workplan)
+              cargo publish --locked --registry crates-io --package "$PACKAGE"
+              ;;
+            *)
+              echo 'Select a public RAF package or the full workspace.' >&2
+              exit 1
+              ;;
+          esac

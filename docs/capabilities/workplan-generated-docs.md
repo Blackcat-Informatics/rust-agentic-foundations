@@ -35,8 +35,8 @@ bindings:
     - raf_workplan::test_crate::sync::repository_links::repository_publication_refuses_missing_changed_and_outside_bindings
     - raf_workplan::diagram::publication::tests::a_replaced_output_binding_refuses_before_owned_payloads
     - raf_workplan::test_crate::sync::batch_publication_reserves_inode_capacity_before_staging
-    - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
-    - cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading
+    - cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
+    - cargo_raf_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading
     - raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping
     - raf_workplan::test_crate::complete::completion_rewrites_owned_documents_and_leaves_source_and_git_untouched
     - raf_workplan::test_crate::complete::split_sync_refuses_stale_publication_after_completion_or_reopening
@@ -253,7 +253,7 @@ The mdBook adapter parses each chapter once through bounded native Markdown
 syntax. It projects root paragraphs and protected code/HTML ranges; RAF owns
 the directive spelling, named-view selection and output budgets. Native resource
 refusals preserve their positioned cause and return no transformed book.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_raf_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 Static completion uses this same checked publication writer for its generated
 edits. Existing replacements preserve permissions and break hardlink aliases by
@@ -438,13 +438,13 @@ Opened computes reconciled diagram blocks and asset edits/removals without write
 <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
 
 
-Configure mdBook to invoke `cargo workplan docs mdbook`; standalone references
+Configure mdBook to invoke `cargo raf-workplan docs mdbook`; standalone references
 use `{{#workplan-diagram cap:api#workspace}}`. A native Markdown resource refusal
 names the source position and exhausted resource; split or simplify that chapter
 before retrying. Publish the explorer and static
-artifacts through `cargo workplan docs build standalone --view cap:api#workspace
+artifacts through `cargo raf-workplan docs build standalone --view cap:api#workspace
 --output-dir <existing-directory>`.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_raf_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 Completion validates declared bindings and generated replacements in its
 prospective document view before invoking the same writer.
@@ -487,7 +487,7 @@ capability.
 
 ## Examples
 
-`cargo workplan docs build standalone --view cap:api#workspace --output-dir
+`cargo raf-workplan docs build standalone --view cap:api#workspace --output-dir
 published/site --repository-links` rebases existing authored links to their
 repository files. The output directory must already exist beneath the workspace.
 
@@ -528,7 +528,7 @@ multiline code span, or raw HTML and place a standalone reference after it. The
 quoted bytes survive unchanged; the standalone paragraph expands to the shared
 view. Plain prose at the 1 MiB source ceiling is admitted; a smaller chapter can
 still exceed native storage or work admission and refuse without output.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_raf_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 If a capability document has a hardlink alias, rewriting its generated table
 replaces only the named target. Static completion preserves the alias's original
@@ -565,7 +565,7 @@ parts admit 8 MiB, derived from at most two Unicode scalars per source byte.
 Those parser ceilings are separate from the transformed output budget.
 Unsupported renderers, malformed references and
 unavailable named views refuse before returning transformed content.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 At most 64 views may be declared on a document and 256 across the loaded model.
 Native limits admit up to 10000 statements and up to 30000 terms.
@@ -642,7 +642,7 @@ merges the native block and inline ranges in source order, then advances cursors
 through those ranges as it finds RAF directives. Source text is not reparsed or
 normalized. Native admission covers the whole chapter, including syntax outside
 directives, so its storage or work ceiling can refuse before named-view lookup.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 Generation is limited to what a program can get right. A table that restates the
 bindings is correct by construction, and it cannot drift from the bindings it
@@ -667,7 +667,7 @@ output paths, overview/detail links and a non-root URL prefix. Native identities
 and geometry remain stable, repeated publication is deterministic, cached
 default output remains unchanged and unrelated cumulative files survive.
 Missing and changed authority/destination cases accompany valid neighbors.
-<!-- raf:tested-by raf_workplan::test_crate::sync::repository_links::repository_links_resolve_from_two_depths_without_changing_cached_views,raf_workplan::test_crate::sync::repository_links::repository_publication_refuses_missing_changed_and_outside_bindings,cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
+<!-- raf:tested-by raf_workplan::test_crate::sync::repository_links::repository_links_resolve_from_two_depths_without_changing_cached_views,raf_workplan::test_crate::sync::repository_links::repository_publication_refuses_missing_changed_and_outside_bindings,cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes -->
 
 The descriptor fixture changes only its controlled child process's soft file
 limit. It checks refusal before temporary creation, unchanged original bytes,
@@ -745,8 +745,8 @@ original hardlink relationship while retaining the ignored alias's original byte
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
-| `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `cargo_raf_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints), [Explanation](#explanation) |
+| `cargo_raf_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::diagram::publication::tests::a_replaced_output_binding_refuses_before_owned_payloads` | test | [Constraints](#constraints) |
 | `raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping` | test | [Contract](#contract) |
 | `raf_workplan::example_crate::component_model` | example target | [Examples](#examples) |

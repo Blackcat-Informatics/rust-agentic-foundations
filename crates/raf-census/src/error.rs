@@ -235,7 +235,7 @@ impl fmt::Display for Error {
                 f,
                 "normal_form {declared} is declared but this census implements normal_form \
                  {implemented}; fingerprints are comparable only inside one version, so run \
-                 `cargo census migrate` to move the ledger to normal_form {implemented}"
+                 `cargo raf-census migrate` to move the ledger to normal_form {implemented}"
             ),
             Self::Load(error) => write!(f, "the workspace did not load: {error}"),
             Self::CollectionSpawn(error) => write!(

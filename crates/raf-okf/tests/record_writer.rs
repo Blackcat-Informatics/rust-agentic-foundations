@@ -85,7 +85,7 @@ fn assessment() -> AssessmentRecord {
 
 fn coverage() -> CoverageRecord {
     CoverageRecord::new(
-        vec!["raf-workplan".to_string(), "cargo-workplan".to_string()],
+        vec!["raf-workplan".to_string(), "cargo-raf-workplan".to_string()],
         vec![
             Exclusion::new(
                 ExclusionItem::Prefix("raf_workplan::exec::tests".to_string()),

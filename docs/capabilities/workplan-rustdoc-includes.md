@@ -12,7 +12,7 @@ bindings:
     - raf_workplan::diagram::rustdoc::Context
   tests:
     - raf_workplan::test_crate::rustdoc_fragments::fragments_refuse_private_or_incomplete_bindings_beside_a_public_reference
-    - cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority
+    - cargo_raf_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority
   examples:
     - raf_workplan::example_crate::cargo_documentation
 depends: [cap:source-index, cap:workplan-generated-docs, cap:workplan-cargo-documentation]
@@ -25,14 +25,14 @@ Produce static presentation and public API references suitable for a caller-owne
 ## Contract
 
 The `docs fragment` command exposes the same returned Markdown for exactly one imported library, public receiving module, capability and shared named view. It derives every required code binding from that capability. Source/package identity mismatches and any invalid required reference refuse before fragment output. The complete Markdown goes to stdout and diagnostics remain on stderr; quiet and non-text output refuse before root loading.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
 **Static contract.** `rustdoc::fragment` returns Markdown for an explicit library target, public receiving module, capability and complete required binding selection. Each binding must resolve to one public, documented item in the selected source index. Hidden, private, ambiguous and unresolved references refuse. Imported package and manifest identities must match the selected source target.
 <!-- raf:tested-by raf_workplan::test_crate::rustdoc_fragments::fragments_refuse_private_or_incomplete_bindings_beside_a_public_reference -->
 
 ## Usage
 
-Invoke `cargo workplan docs fragment --package PACKAGE --metadata META --target-directory OUTPUT --view OWNER#NAME --module MODULE --capability CAPABILITY`. `META` is bounded imported format-v1 Cargo metadata, and `OUTPUT` is its explicitly authorized existing target directory. The module can name the crate root or a documented public nested module. The command uses the bounded default static Source load and publishes no file.
+Invoke `cargo raf-workplan docs fragment --package PACKAGE --metadata META --target-directory OUTPUT --view OWNER#NAME --module MODULE --capability CAPABILITY`. `META` is bounded imported format-v1 Cargo metadata, and `OUTPUT` is its explicitly authorized existing target directory. The module can name the crate root or a documented public nested module. The command uses the bounded default static Source load and publishes no file.
 
 The documented data path is illustrated by `raf_workplan::example_crate::cargo_documentation`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
@@ -47,7 +47,7 @@ A public re-export retains its exported spelling. An ambiguous definition with s
 ## Constraints
 
 CLI metadata and static source selection do not establish effective compiler configuration, successful Rustdoc link resolution, archive membership or host assembly. Compiler executables are unnecessary for this data operation. A caller-owned include file and literal source attribute remain separate from the returned Markdown.
-<!-- raf:tested-by cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
+<!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
 - Fragments describe the supplied static source index. They do not establish compiler cfg, generated declarations, macro expansion, successful link resolution or the contents of a later HTML build. At most 4096 API references are admitted.
 <!-- raf:tested-by raf_workplan::test_crate::rustdoc_fragments::fragments_refuse_private_or_incomplete_bindings_beside_a_public_reference -->
@@ -67,7 +67,7 @@ Artifact identity admission is covered by the named fixtures. Public fragment re
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `cargo_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::example_crate::cargo_documentation` | example target | [Usage](#usage) |
 | `raf_workplan::test_crate::rustdoc_fragments::fragments_refuse_private_or_incomplete_bindings_beside_a_public_reference` | test | [Contract](#contract), [Constraints](#constraints) |
 <!-- raf:generated:end -->

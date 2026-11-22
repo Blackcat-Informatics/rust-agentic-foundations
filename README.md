@@ -18,19 +18,19 @@ RAF provides two tools for Rust repositories. **Workplan** checks that the code,
 | Workplan | Bind a guarantee to its implementation and test, generate the catalogue, run the gate in CI, and reconcile a change. [Workplan how-to](WORKPLAN-HOWTO.md) |
 | Census | Inspect a baseline, install a canonical ledger, adopt existing duplication, and catch a new copy. [Census how-to](CENSUS-HOWTO.md) |
 
-The guides pin the CLI and dev-dependency to the same Git revision. The consumer build needs Rust 1.98.1 or newer. RAF uses PurRDF 4 and exact parser requirements for `syn`, `proc-macro2` and `quote`. Check those requirements when adding RAF to an existing dependency graph. [Workspace manifest](Cargo.toml)
+The guides pin the CLI and dev-dependency to the same Git revision. The consumer build needs Rust 1.98.1 or newer. RAF uses PurRDF 5 and exact parser requirements for `syn`, `proc-macro2` and `quote`. Check those requirements when adding RAF to an existing dependency graph. [Workspace manifest](Cargo.toml)
 
 ## Crates
 
 | Crate | Responsibility |
 | --- | --- |
-| `raf-workplan`, `cargo-workplan` | Capability documents, generated blocks, coverage, evidence, assessments, review and change completion. [Workplan commands](docs/capabilities/workplan-cli.md) |
-| `raf-census`, `cargo-census` | Structural fingerprints, policy jobs, detectors, reference scans, migration and counted debt. [Census commands](docs/capabilities/census-cli.md) |
+| `raf-workplan`, `cargo-raf-workplan` | Capability documents, generated blocks, coverage, evidence, assessments, review and change completion. [Workplan commands](docs/capabilities/workplan-cli.md) |
+| `raf-census`, `cargo-raf-census` | Structural fingerprints, policy jobs, detectors, reference scans, migration and counted debt. [Census commands](docs/capabilities/census-cli.md) |
 | `raf-source` | Shared Rust source index for resolving bindings and ledger homes. [Source index](docs/capabilities/source-index.md) |
 | `raf-okf` | Parser, writer and closed profile for the authored documents. [OKF profile](docs/capabilities/okf-profile.md) |
 | `raf-rdf` | Canonical ground RDF 1.2 reports over native PurRDF storage. [Report profile](docs/capabilities/rdf-report-profile.md) |
 
-RAF runs Workplan against its own documents and Census against its workspace and fuzz roots. The linked tests show the additional policies RAF enforces on itself. The catalogue records the delivery state of each capability, including embedded-clone matching and Rustdoc assembly. [Workplan gate](tests/docs_contract.rs) · [Census gate](tests/self_census.rs) · [Capability catalogue](docs/capabilities/index.md)
+RAF runs Workplan against its own documents and Census against its workspace and fuzz roots. The linked tests show the additional policies RAF enforces on itself. The catalogue records the delivery state of each capability, including embedded-clone matching and Rustdoc assembly. [Workplan gate](crates/raf-docs-contract/tests/docs_contract.rs) · [Census gate](tests/self_census.rs) · [Capability catalogue](docs/capabilities/index.md)
 
 ## Development
 

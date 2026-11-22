@@ -39,42 +39,42 @@ allow = ["NCSA"]
 # GB 18030 mapping data under its original ICU and Unicode Inc. agreements.
 # Its package notices govern the additional terms at the pinned source.
 [[licenses.exceptions]]
-crate = "purrdf-lex@=4"
+crate = "purrdf-lex@=5"
 allow = ["Unicode-3.0", "BSD-3-Clause", "Unicode-DFS-2016", "ICU"]
 
 # purrdf-iri ships Unicode IDNA tables with the same redistribution terms.
 # The exception covers only this audited release, not arbitrary dependencies.
 [[licenses.exceptions]]
-crate = "purrdf-iri@=4"
+crate = "purrdf-iri@=5"
 allow = ["Unicode-3.0"]
 
 # The native RDF kernel includes Unicode data under its original terms.
 [[licenses.exceptions]]
-crate = "purrdf-core@=4"
+crate = "purrdf-core@=5"
 allow = ["Unicode-3.0"]
 
 # The terminal bidi predicate comes from this native Unicode text package.
 # Its bundled Unicode tables retain the audited package's original notices.
 [[licenses.exceptions]]
-crate = "purrdf-text@=4"
+crate = "purrdf-text@=5"
 allow = ["Unicode-3.0"]
 
 # The native hash package retains EFF word data under Attribution 4.0.
 # Its bundled EFF notice and license remain controlling for that data.
 [[licenses.exceptions]]
-crate = "purrdf-hash@=4"
+crate = "purrdf-hash@=5"
 allow = ["CC-BY-4.0"]
 
 # The native ECMA matcher retains Unicode 17 property aliases and ranges.
 # The pinned package's data headers and license inventory retain Unicode's notice.
 [[licenses.exceptions]]
-crate = "purrdf-jsonschema@=4"
+crate = "purrdf-jsonschema@=5"
 allow = ["Unicode-3.0"]
 
 # Published test support embeds the JSON Schema specification's meta-schemas.
 # Its bundled BSD notice remains controlling for that data.
 [[licenses.exceptions]]
-crate = "purrdf-testkit@=4"
+crate = "purrdf-testkit@=5"
 allow = ["BSD-3-Clause"]
 
 # Native Git retains Unicode normalization tables under their original notice.

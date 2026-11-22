@@ -3,9 +3,7 @@
 
 //! Shared support for the repository-gate test binaries.
 //!
-//! This module is the single definition site for the list of files the gates
-//! judge. The issue-reference and process-wording patterns are defined once, in
-//! `raf_workplan::refs`, and [`banned_in_line`] calls them.
+//! This module defines the inventory and file reads shared by the gates.
 //!
 //! The file list comes from the git index (`git ls-files -z`), so untracked
 //! scratch files never count. Each path is read under the gate root, which is
@@ -19,12 +17,11 @@ use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// The directory the gates read files from.
-pub(crate) fn gate_root() -> PathBuf {
-    rust_agentic_foundations::gate_root()
-}
+pub use crate::gate_root;
 
-fn package_dir() -> PathBuf {
+/// The working checkout whose index supplies the tracked file inventory.
+#[must_use]
+pub fn checkout_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
@@ -33,10 +30,11 @@ fn package_dir() -> PathBuf {
 /// # Panics
 ///
 /// Panics when `git` cannot run or exits unsuccessfully.
-pub(crate) fn tracked_paths() -> Vec<PathBuf> {
+#[must_use]
+pub fn tracked_paths() -> Vec<PathBuf> {
     let output = Command::new("git")
         .arg("-C")
-        .arg(package_dir())
+        .arg(checkout_root())
         .args(["ls-files", "-z"])
         .output()
         .unwrap_or_else(|e| panic!("cannot run `git ls-files -z`: {e}"));
@@ -69,7 +67,7 @@ pub(crate) fn tracked_paths() -> Vec<PathBuf> {
 /// # Errors
 ///
 /// Returns a description when the handle is not the file that was inspected.
-pub(crate) fn check_handle(
+pub fn check_handle(
     shown: &str,
     before: &fs::Metadata,
     on_handle: &fs::Metadata,
@@ -100,7 +98,7 @@ pub(crate) fn check_handle(
 ///
 /// Returns a description when the path is missing, is a symlink, is not a
 /// regular file, changed while it was opened, or cannot be read.
-pub(crate) fn read_regular(root: &Path, path: &Path) -> Result<Vec<u8>, String> {
+pub fn read_regular(root: &Path, path: &Path) -> Result<Vec<u8>, String> {
     let full = root.join(path);
     let shown = full.display().to_string();
     let before = fs::symlink_metadata(&full).map_err(|e| format!("cannot stat {shown}: {e}"))?;
@@ -130,7 +128,8 @@ pub(crate) fn read_regular(root: &Path, path: &Path) -> Result<Vec<u8>, String> 
 /// Panics when the file is missing, is not a regular file, or is unreadable:
 /// a path the index records but the gate root cannot supply is a failure,
 /// never a skip.
-pub(crate) fn read_tracked(root: &Path, path: &Path) -> Vec<u8> {
+#[must_use]
+pub fn read_tracked(root: &Path, path: &Path) -> Vec<u8> {
     read_regular(root, path).unwrap_or_else(|e| {
         panic!(
             "cannot read tracked file {} under {}: {e}",
@@ -145,7 +144,8 @@ pub(crate) fn read_tracked(root: &Path, path: &Path) -> Vec<u8> {
 /// Only a NUL byte marks a file as binary, which matches `git grep -I`. Any
 /// other file is scanned: invalid UTF-8 (a Latin-1 file, say) is decoded
 /// lossily so a token in it is still found rather than skipped.
-pub(crate) fn decode_text(bytes: &[u8]) -> Option<Cow<'_, str>> {
+#[must_use]
+pub fn decode_text(bytes: &[u8]) -> Option<Cow<'_, str>> {
     if bytes.contains(&0) {
         return None;
     }
