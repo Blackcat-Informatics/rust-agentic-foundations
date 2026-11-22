@@ -259,7 +259,7 @@ fn the_actual_repository_lock_resolves_all_outgoing_edges_and_native_source_prec
         source.repository(),
         "https://github.com/rust-lang/crates.io-index"
     );
-    assert!(native.version().starts_with("4."), "{}", native.version());
+    assert!(native.version().starts_with("5."), "{}", native.version());
     assert!(
         native.checksum().is_some(),
         "a registry row carries its archive checksum"
