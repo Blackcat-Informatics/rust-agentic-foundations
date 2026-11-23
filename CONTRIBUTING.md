@@ -89,8 +89,9 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
   libraries and binaries. A private helper whose only caller is a test can
   fail this check. `make clippy-all` includes test, example, benchmark and fuzz
   targets. The Census gate and `make test` use `make clippy-production` for
-  fresh receipts with the same shipping flags. See the
-  [production lint helper](.githooks/production-clippy).
+  fresh receipts with the same shipping flags. The production lint helper
+  invokes the same trusted `lint-capture` command available to an installed CLI.
+  [Production lint helper](.githooks/production-clippy)
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.
@@ -191,6 +192,31 @@ Use a clean release checkout with a current lockfile. Package the five RAF
 libraries and both command packages. Check that the archives include their
 runtime assets and that their normalized manifests resolve sibling libraries
 from crates.io at the release version.
+
+List the exact dependencies that the public RAF packages impose on a consumer in
+each release's notes. Read the released manifests for the version requirements.
+Explain parser and wire-reader pins alongside the first release that changes
+them.
+
+RAF 0.8.1 carries the following exact requirements into the consumer's lock
+graph when the respective RAF packages are selected.
+
+| Dependency | Requirement | Where it enters the graph |
+| --- | --- | --- |
+| `syn` | `=3.0.8` | Source parsing in Census and Source |
+| `proc-macro2` | `=1.0.107` | Parser spans and tokens in Census, Source and Workplan |
+| `quote` | `=1.0.47` | Native parser token construction in Source |
+| `unicode-ident` | `=1.0.27` | Identifier admission in Source |
+| `capnp` | `=0.28.1` | Cap'n Proto history and reader evidence in Census |
+| `gix` | `=0.90.0` | Native Git access in Source |
+| `imara-diff` | `=0.2.0` | Document history comparison in Workplan |
+
+The source parser pins preserve the implementations used to qualify the
+resource bounds. The `capnp` pin keeps descriptor and canonical payload reads
+on the qualified Rust wire reader and its generated schema. Changing it
+requires rechecking the framing, traversal limits and descriptor fixtures.
+The PurRDF requirements use the `=5` release series. A consumer's manifest
+requirements must resolve jointly with these requirements.
 
 ```sh
 cargo publish --dry-run --locked --workspace \

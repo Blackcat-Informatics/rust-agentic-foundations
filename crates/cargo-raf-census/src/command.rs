@@ -37,6 +37,9 @@ pub(crate) fn run(
     if let Some(result) = pinned_command(args, output) {
         return result;
     }
+    if let Command::LintCapture { out, .. } = &args.command {
+        return Ok(crate::lints::capture(&args.workspace, out, diagnostics)?);
+    }
     if let Some(directory) = &args.reference.unpinned {
         warn_unpinned_reference(directory, diagnostics)?;
     }
@@ -104,6 +107,9 @@ fn run_gate(
         Command::LintInputs => {
             writeln!(output, "{}", crate::lints::inputs(&gate)?.digest()).map_err(stdout)?;
             Ok(0)
+        }
+        Command::LintCapture { .. } => {
+            unreachable!("INVARIANT: trusted lint capture dispatches before Gate registration")
         }
         Command::LintReceipt {
             before,
@@ -795,24 +801,10 @@ pub(crate) fn write_report(
             file: parent.display().to_string(),
             source,
         })?;
-        if parent
-            .components()
-            .any(|component| component.as_os_str() == ".git")
-        {
+        if git_administration(root, &parent)? {
             return Err(refuse(
                 "report destinations cannot enter Git administration",
             ));
-        }
-        for selected in [root, parent.as_path()] {
-            if let Some(repository) = raf_source::git::Repository::discover(selected)
-                .map_err(|error| Error::Options(error.to_string()))?
-                && (parent.starts_with(repository.git_dir())
-                    || parent.starts_with(repository.common_dir()))
-            {
-                return Err(refuse(
-                    "report destinations cannot enter Git administration",
-                ));
-            }
         }
         let destination = parent.join(
             path.file_name()
@@ -835,6 +827,22 @@ pub(crate) fn write_report(
         output.write_all(text.as_bytes()).map_err(stdout)?;
     }
     Ok(())
+}
+
+pub(crate) fn git_administration(root: &Path, parent: &Path) -> Result<bool, Error> {
+    if parent.components().any(|part| part.as_os_str() == ".git") {
+        return Ok(true);
+    }
+    for location in [root, parent] {
+        if let Some(repository) = raf_source::git::Repository::discover(location)
+            .map_err(|source| Error::Options(source.to_string()))?
+            && (parent.starts_with(repository.git_dir())
+                || parent.starts_with(repository.common_dir()))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 pub(crate) fn read(path: &Path, limit: usize) -> Result<String, Error> {

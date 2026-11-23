@@ -30,7 +30,7 @@ bindings:
     - raf_rdf::ImportFailure
     - raf_rdf::Graph::to_text_with_memory
     - raf_rdf::Graph::to_text_bounded
-    - raf_rdf::Builder
+    - raf_rdf::Builder::for_import
     - raf_rdf::Node
     - raf_rdf::Value
     - raf_rdf::Triple
@@ -46,6 +46,7 @@ bindings:
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph
   tests:
+    - raf_census::test_crate::census_gate::reusable_jobs_compose_into_the_native_ledger_without_overriding_policy
     - cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory
     - raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes
     - raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage
@@ -132,6 +133,12 @@ borrowed `Node` only for an asserted subject, and `Node::values` yields borrowed
 native `Value` views. Interning an object or predicate does not create a subject.
 RAF retains no parallel assertion map. A statement repeated across physical
 native representations is refused rather than silently dropped.
+
+`Builder::for_import` chooses an unused construction owner from the supplied
+graphs when assembling normalized assertions. Their local roots and fragments
+belong to the new graph, and absolute IRIs and datatypes retain their existing
+identities, including those that name the ordinary construction namespace.
+<!-- raf:tested-by raf_census::test_crate::census_gate::reusable_jobs_compose_into_the_native_ledger_without_overriding_policy -->
 
 `Node::objects` streams borrowed outgoing objects from the same native subject
 query, including reifier and annotation assertions. It yields each whole object;
@@ -749,6 +756,7 @@ retains its separate semantic and normal-form golden checks.
 | `raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `raf_census::test_crate::census_gate::reusable_jobs_compose_into_the_native_ledger_without_overriding_policy` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name` | test | [Contract](#contract) |

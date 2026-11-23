@@ -93,6 +93,30 @@ impl Builder {
         }
     }
 
+    /// Start an empty builder for importing normalized assertions from graphs.
+    ///
+    /// Pick a construction owner that leaves the inputs' absolute IRIs and
+    /// datatypes foreign. Insert the assertions through the usual profile checks.
+    ///
+    /// # Errors
+    /// Refuses if the native construction owner space is exhausted.
+    pub fn for_import<'a>(graphs: impl IntoIterator<Item = &'a Graph>) -> Result<Self, Error> {
+        let mut occupied = BTreeSet::new();
+        for triple in graphs.into_iter().flat_map(Graph::assertions) {
+            for value in [&triple.subject, &triple.predicate, &triple.object] {
+                term::reserve_construction_owners(value, &mut occupied);
+            }
+        }
+        let mut builder = Self::new();
+        if occupied.contains(CONSTRUCTION_OWNER) {
+            builder.owner = (1..=occupied.len())
+                .map(|ordinal| format!("{CONSTRUCTION_OWNER}:{ordinal}"))
+                .find(|candidate| !occupied.contains(candidate))
+                .ok_or_else(|| Error::Value("import construction owner exhausted".into()))?;
+        }
+        Ok(builder)
+    }
+
     /// Edit a native base without copying its assertions into another graph.
     pub fn from_graph(graph: &Graph) -> Self {
         Self {

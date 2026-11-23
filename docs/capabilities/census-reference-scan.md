@@ -114,10 +114,9 @@ packages, select exact outgoing rows. Missing, ambiguous, incompatible and
 unavailable sources fail with context. Acquisition uses lock files and manifests;
 it does not execute Cargo metadata or download packages, and the Gate's own
 acquisition inspects no shared cache.
-The shipped `cargo raf-census` command acquires only contained path dependencies;
-a registry or Git package is compared only through the locked check, which takes
-its sealed source from the caller. For registry packages the library supplies
-that source itself, as the next section states.
+The structural route acquires contained path dependencies. The shipped command
+also offers the registry route below, which seals archives against the lock
+file. For Git packages, supply the sealed source to the library's locked check.
 
 A `reference` value is an exact package name or a family selector: a
 package-name prefix followed by `-*`, such as `acme-*`, which names every
@@ -177,6 +176,18 @@ for a directory or `ArchiveCache::cargo_home` for `$CARGO_HOME/registry/cache`
 (`$HOME/.cargo` when `CARGO_HOME` is unset). The helper only reads files named
 `NAME-VERSION.crate` below that directory, bounded by the source loader's
 archive budget; it fetches nothing, starts no process and reads nothing outside the workspace besides those archives.
+
+For a build-owned cache, run Cargo from the consumer workspace with a dedicated
+Cargo home. Set `CENSUS_ARCHIVES` for the test or pass the same path to
+`--registry-cache` for the command. Use `ArchiveCache::at` with that directory
+when constructing a `LockedRegistry`.
+
+```sh
+archive_home=$(mktemp -d)
+CARGO_HOME="$archive_home" cargo fetch --locked
+export CENSUS_ARCHIVES="$archive_home/registry/cache"
+```
+
 The lock file is the only authority: of the candidates found in the index
 directories, in sorted order, the first whose bytes equal the checksum the lock
 names is used, and when none does the refusal names every candidate. An archive missing from the cache refuses naming
@@ -188,7 +199,7 @@ authenticated archive manifest declares, and a package without one refuses.
 ### The command-line route
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_raf_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_raf_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry,cargo_raf_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour,cargo_raf_census::test_crate::delivery::a_git_reference_is_refused_by_job_count_fingerprint_and_debt_beside_a_clean_registry_neighbour -->
 
-`cargo raf-census check`, `index`, `reference-matches`, `job`, `count`, `fingerprint` and `debt --write` take `--seal-registry`, `--registry-cache` and `--registry-features` and call `Gate::check_registry` and `Gate::write_debt_registry` with a `LockedRegistry` built from them, so the command and the library route are one path. `--seal-registry` calls `LockedRegistry::seal_reference`: the selectors it names and the ledger's `reference` selectors feed one reference selection, so a sealed package is a reference for the ban as well as sealed. `LockedRegistry::seal` alone seals a package for provider proofs without making it a reference. The command line declares `LockedRegistry::require_declared_features`: the caller states the complete feature set of every sealed package, with `PACKAGE=` for none, and a sealed package without a declaration refuses by name. A feature declaration for a package that is not sealed refuses in the library route too. The host runs a checkout of this repository or an installed `cargo-raf-census` binary built from a pinned commit; see [census-cli](census-cli.md) for the options.
+`cargo raf-census check`, `index`, `reference-matches`, `job`, `count`, `fingerprint` and `debt --write` take `--seal-registry`, `--registry-cache` and `--registry-features` and call `Gate::check_registry` and `Gate::write_debt_registry` with a `LockedRegistry` built from them, so the command and the library route are one path. `--seal-registry` calls `LockedRegistry::seal_reference`: the selectors it names and the ledger's `reference` selectors feed one reference selection, so a sealed package is a reference for the ban as well as sealed. `LockedRegistry::seal` alone seals a package for provider proofs without making it a reference. The command line declares `LockedRegistry::require_declared_features`: the caller states the complete feature set of every sealed package, with `PACKAGE=` for none, and a sealed package without a declaration refuses by name. A feature declaration for a package that is not sealed refuses in the library route too. The host runs a checkout of this repository or the installed crates.io release; see [census-cli](census-cli.md) for the options.
 
 ### Declared reference trees
 <!-- raf:tested-by raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference,raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit,raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,raf_source::test_crate::git_tree::pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds -->
@@ -380,22 +391,19 @@ The pin key `upstream.rev` reads the string `rev` of the `[upstream]` table.
 
 #### A registry dependency, from the consumer's own test
 
-This route needs no sibling checkout, no installed command and no network
-during the check. The consumer's `Cargo.toml` names this repository by commit
-in its dev-dependencies, beside the registry dependency it compares against:
+Use the registry edition of RAF beside the dependency it compares against.
 
 ```toml
 [dependencies]
 hex = "=0.4.3"
 
 [dev-dependencies]
-raf-census = { git = "https://github.com/Blackcat-Informatics/rust-agentic-foundations.git", rev = "COMMIT" }
+raf-census = "=0.8.1"
 ```
 
-Replace `COMMIT` with the full hash of a commit of this repository that holds
-`LockedRegistry`. The consumer holds a `Cargo.lock` that lists `hex` with its
-checksum, a ledger `helpers-ledger.ttl` that names `hex` as the reference and no job, and the archive of `hex 0.4.3` in the
-Cargo registry cache, which `cargo fetch --locked` stores. The ledger is:
+The consumer holds a `Cargo.lock` that lists `hex` with its checksum, the
+`hex 0.4.3` archive fetched by Cargo, and a canonical `helpers-ledger.ttl`
+with `hex` as the reference and an empty job set.
 
 ```turtle
 VERSION "1.2"

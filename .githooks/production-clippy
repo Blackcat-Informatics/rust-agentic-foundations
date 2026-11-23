@@ -24,34 +24,10 @@ fi
 scratch=$(mktemp -d)
 trap 'rm -rf -- "$scratch"' EXIT
 receipt=${RAF_CENSUS_LINT_EVIDENCE:-$scratch/run.ttl}
-if [[ $receipt != /* || -e $receipt || -L $receipt ]]; then
-    echo 'production Clippy needs a fresh absolute receipt path in a build-owned directory' >&2
-    exit 1
+capture=(--workspace "$root" lint-capture --trust-lints --out "$receipt")
+if [[ -n $producer_manifest ]]; then
+    cargo run --quiet --locked --manifest-path "$producer_manifest" -p cargo-raf-census \
+        --bin cargo-raf-census -- "${capture[@]}"
+else
+    cargo-raf-census "${capture[@]}"
 fi
-parent=$(realpath -- "$(dirname -- "$receipt")")
-if [[ $parent == "$root" || $parent == "$root/"* ]]; then
-    echo 'keep the production lint receipt outside the inspected workspace' >&2
-    exit 1
-fi
-census() {
-    if [[ -n $producer_manifest ]]; then
-        cargo run --quiet --locked --manifest-path "$producer_manifest" -p cargo-raf-census --bin cargo-raf-census -- --workspace "$root" "$@"
-    else
-        cargo-raf-census --workspace "$root" "$@"
-    fi
-}
-before=$(census lint-inputs)
-compiler=$(cd "$root" && rustc -vV && cargo clippy --version)
-status=0
-# Cargo's highest-precedence flags source keeps target-specific configuration
-# from adding a test cfg or capping the requested lint levels.
-(cd "$root" && CARGO_ENCODED_RUSTFLAGS='' cargo "${args[@]}") >"$scratch/compiler.log" 2>&1 || status=$?
-cat "$scratch/compiler.log" >&2
-census lint-receipt --before "$before" --compiler "$compiler" --status "$status" \
-    --diagnostics "$scratch/compiler.log" -- "${args[@]}" >"$scratch/run-output.ttl"
-# Exclusive publication in the protected directory, including across filesystems.
-prepared=$(mktemp -- "$parent/.production-clippy.XXXXXXXX")
-trap 'rm -f -- "$prepared"; rm -rf -- "$scratch"' EXIT
-cat "$scratch/run-output.ttl" >"$prepared"
-ln -- "$prepared" "$receipt"
-exit "$status"

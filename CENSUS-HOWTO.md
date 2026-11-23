@@ -7,13 +7,11 @@ Census groups Rust helpers with the same normalized body or forwarding pattern. 
 
 ## Inspect the workspace
 
-On native Linux with Rust 1.98.1 or newer, select a RAF checkout containing this guide. From that checkout, record its commit and install the CLI at that revision. Use the same commit on developer machines, in CI and for the RAF dev-dependency.
+On native Linux with Rust 1.98.1 or newer, install Census from crates.io. Use the same exact RAF version for the command and the dev-dependency on developer machines and in CI.
 
 ```sh
-RAF_CHECKOUT=$(pwd -P)
-RAF_REV=$(git rev-parse HEAD)
-cargo install --locked --git https://github.com/Blackcat-Informatics/rust-agentic-foundations.git \
-  --rev "$RAF_REV" cargo-raf-census
+RAF_VERSION=0.8.1
+cargo install --locked --version "=$RAF_VERSION" cargo-raf-census
 ```
 
 From the consumer workspace, run the self-test and inspect its baseline.
@@ -47,21 +45,32 @@ todo = "deny"
 unimplemented = "deny"
 ```
 
-If the workspace has no lockfile yet, run `cargo generate-lockfile` from its root. Run the production check from the trusted build or hook. In the shell where you selected `RAF_CHECKOUT`, run these commands from the consumer workspace. Use a temporary directory outside the inspected repository.
+If the workspace has no lockfile yet, run `cargo generate-lockfile` from its root. Run the production check from the trusted build or hook with a fresh receipt path outside the inspected repository.
 
 ```sh
 evidence_dir=$(mktemp -d)
 export RAF_CENSUS_LINT_EVIDENCE="$evidence_dir/production.ttl"
-"$RAF_CHECKOUT/.githooks/production-clippy" "$PWD"
+cargo raf-census lint-capture --trust-lints --out "$RAF_CENSUS_LINT_EVIDENCE"
 ```
 
-The helper runs Clippy on the workspace libraries and binaries with the lockfile and required denied lints. A private helper called only from a test can be dead in that build. A passing `--all-targets` result cannot satisfy the check. A dev-dependency used only in tests can remain in `[dev-dependencies]`.
+The command runs Clippy on the workspace libraries and binaries with the lockfile and required denied lints. `--trust-lints` authorizes Cargo to run build scripts and procedural macros with your permissions for that invocation. It provides no sandbox. A private helper called only from a test can be dead in that build. A passing `--all-targets` result cannot satisfy the check. A dev-dependency used only in tests can remain in `[dev-dependencies]`.
 
-Use a fixed checkout and a trusted compiler and build environment. Generate the required lockfile with `cargo generate-lockfile` if it is missing. The receipt covers member manifests, the lockfile, workspace compiler configuration, Clippy configuration from each member up to the workspace root, shipping modules and directly named literal file inclusions. Standalone tests, examples and benches do not supply source roots for the production pass.
+Use a fixed checkout and a trusted compiler and build environment. The command
+calls the installed `rustc` and `cargo-clippy` executables directly. The receipt
+covers member manifests, the lockfile, workspace compiler configuration,
+Clippy configuration from each member up to the workspace root, shipping
+modules and directly named literal file inclusions. Standalone tests, examples
+and benches do not supply source roots for the production pass.
 
 Place literal file inclusions in the consuming source. Census refuses a file-inclusion name in a declarative macro definition or one forwarded as a macro argument because the expansion can resolve the path at another call site. The scan skips directly `#[cfg(test)]`-guarded items and statements where it can prove they are inactive. Inputs to an unknown attribute macro still count because the macro can rewrite a nested declaration. Census also reports first-party build scripts, unverified target feature requirements, renamed or dynamic inclusions, and local configuration that changes the compiler invocation. Keep dependency sources and toolchain fixed when producing and consuming a receipt.
 
-Keep the receipt in the build-owned directory. The CLI accepts its path through the exported variable or `check --lint-evidence /absolute/path/to/production.ttl`. Missing evidence, changed inputs, a weakened manifest or a failed compiler run fails the default check. Repeat the capture with a fresh destination after changing the sources or policy. Use `check --no-production-lints` for an explicitly structural check. Baseline inspection and debt recording need no compiler receipt.
+Keep the receipt in the build-owned directory. The CLI accepts its path through the exported variable or `check --lint-evidence /absolute/path/to/production.ttl`. Missing evidence, changed inputs, a weakened manifest or a failed compiler run fails the default check. Repeat the capture with a fresh destination after changing the sources or policy. Keep the same Cargo target directory, compiler and effective production flags to reuse the warm Clippy artifacts while capturing a fresh receipt. Cargo reports the compiler run time in its diagnostics. Use `check --no-production-lints` for an explicitly structural check. Baseline inspection and debt recording need no compiler receipt.
+
+On the RAF 0.8.1 workspace, one direct invocation of the built command with
+warm artifacts on x86-64 Linux and compiler revision `5df8c02af` took about
+29 seconds to publish a fresh receipt. Cargo reported 3.48 seconds for its
+Clippy step. The full capture includes both source-input checks and the
+receipt write. It excludes building the CLI and fetching archives.
 
 ## Install the ledger
 
@@ -129,26 +138,204 @@ The starter ledger declares no job IDs. For policy beyond structural grouping, a
 
 ## Run the gate from a Rust test
 
-To use the same structural policy from your test suite, add the library to a package at the commit selected above. In a virtual workspace, run this command in the member that owns the integration test. Census discovers the workspace root from the member directory.
+To use the same structural policy from your test suite, add the library at the version selected above. In a virtual workspace, run this command in the member that owns the integration test. Census discovers the workspace root from the member directory.
 
 ```sh
-cargo add --dev raf-census --git https://github.com/Blackcat-Informatics/rust-agentic-foundations.git \
-  --rev "$RAF_REV"
+cargo add --dev "raf-census@=$RAF_VERSION"
 ```
 
 ```rust
 // tests/census.rs
-#[test]
-fn duplicate_helpers_match_the_record() {
+fn checked_gate() -> Result<raf_census::Gate, Box<dyn std::error::Error>> {
     let gate = raf_census::Gate::workspace(env!("CARGO_MANIFEST_DIR"));
     let receipt = std::env::var_os("RAF_CENSUS_LINT_EVIDENCE")
-        .expect("capture the production Clippy run before running this test");
+        .ok_or("capture production Clippy before running this test")?;
     let run = raf_census::ProductionLintRun::read_external(
-        &gate.root().expect("resolve the workspace"),
+        &gate.root()?,
         std::path::Path::new(&receipt),
-    ).expect("read the build-owned production lint result");
-    gate.with_production_lint_run(run).assert_clean();
+    )?;
+    Ok(gate.with_production_lint_run(run))
+}
+
+#[test]
+fn duplicate_helpers_match_the_record() -> Result<(), Box<dyn std::error::Error>> {
+    checked_gate()?.assert_clean();
+    Ok(())
 }
 ```
 
 Resolve the new dependency, commit the updated lockfile and capture fresh production Clippy evidence. Run `cargo test --locked --test census` from the owning package with the receipt in the environment. For a policy with custom rules or required providers, share the gate configuration across the enforcing entry points. RAF's own test shows a locked registry check over the workspace and its separate fuzz root. [RAF's Census gate](tests/self_census.rs) · [CLI reference](docs/capabilities/census-cli.md)
+
+## Prove a preferred provider
+
+A job that requires delegation names one preferred provider. Put the package and the APIs
+the consumer must delegate to in that row. Only the named supplier satisfies
+the proof. For example, a digest job can name `purrdf-hash` with
+`purrdf_hash::hex::encode` as the home and the three APIs used by its
+local adapter below. Set the consumer path to `demo::digest_hex`.
+[Preferred provider contract](docs/capabilities/census-ledger.md)
+
+```rust
+pub fn digest_hex(bytes: &[u8]) -> String {
+    let digest = purrdf_hash::blake3::hash(bytes);
+    purrdf_hash::hex::encode(purrdf_hash::blake3::Hash::as_bytes(&digest))
+}
+```
+
+For `purrdf-hash = "=5"` under `[dependencies]`, prepare a
+[build-owned registry archive directory](docs/capabilities/census-reference-scan.md#registry-dependencies-sealed-by-the-lock-file).
+Set `CENSUS_ARCHIVES` to its `registry/cache` directory. In `tests/census.rs`,
+keep `checked_gate` and replace the structural test with this one.
+`seal` admits the package for provider proof. Declare its complete unified
+features, including defaults and what they imply. This package has none.
+
+```rust
+#[test]
+fn registry_provider_policy_holds() -> Result<(), Box<dyn std::error::Error>> {
+    use raf_census::{ArchiveCache, LockedRegistry};
+
+    let archives = std::env::var_os("CENSUS_ARCHIVES")
+        .ok_or("set CENSUS_ARCHIVES to the build-owned registry/cache")?;
+    let registry = LockedRegistry::new(ArchiveCache::at(archives))
+        .seal("purrdf-hash")
+        .features("purrdf-hash", std::iter::empty::<&str>())
+        .require_declared_features();
+    let report = checked_gate()?.check_registry(&registry)?;
+    assert!(report.is_clean(), "{}", report.findings().join("\n"));
+    Ok(())
+}
+```
+
+For a pinned Git supplier, add `raf-source` at the same RAF version to
+`[dev-dependencies]`. In the example below, the consumer is `demo` at `1.0.0`
+with a normal dependency named `provider` on the Git package `kit` at
+`1.0.0`. Declare its actual URL and full revision in `Cargo.toml` and lock it.
+The job names package `kit` and the actual library API `kit::encode`.
+Its consumer calls that function through the alias `provider::encode`.
+Set `PROVIDER_URL` and `PROVIDER_REVISION` to the URL and full commit in the
+lock row and `PROVIDER_OBJECTS` to an existing local repository holding the
+commit. The test reads its committed objects.
+
+```rust
+#[test]
+fn git_provider_policy_holds() -> Result<(), Box<dyn std::error::Error>> {
+    use raf_source::{
+        CfgAtom, CommittedGitTree, DeclaredCfg, DeclaredConfiguration, DiskTree,
+        LoadOptions, LockedCatalog, LockedEdge, LockedManifest, LockedPackageRoots,
+        LockedSourceKind, LockedTree, RelPath, TargetKind,
+    };
+    use std::path::Path;
+
+    let gate = checked_gate()?;
+    let tree = DiskTree::new(gate.root()?)?;
+    let options = LoadOptions::default();
+    let manifest = RelPath::new("Cargo.toml")?;
+    let catalog = LockedCatalog::load(&tree, &RelPath::new("Cargo.lock")?, &options)?;
+    let app = catalog.packages()
+        .find(|row| row.name() == "demo" && row.version() == "1.0.0" && row.source().is_none())
+        .ok_or("missing local demo row")?;
+    let url = std::env::var("PROVIDER_URL")?;
+    let revision = std::env::var("PROVIDER_REVISION")?;
+    let mut suppliers = catalog.packages().filter(|row| {
+        row.name() == "kit" && row.version() == "1.0.0" && row.source().is_some_and(|source| {
+            source.kind() == LockedSourceKind::Git
+                && source.repository() == url
+                && source.revision() == Some(revision.as_str())
+        })
+    });
+    let kit = suppliers.next().ok_or("missing exact Git provider row")?;
+    assert!(suppliers.next().is_none(), "ambiguous Git provider row");
+    let objects = std::env::var_os("PROVIDER_OBJECTS").ok_or("set PROVIDER_OBJECTS")?;
+    let git = CommittedGitTree::open(&catalog, kit.id(), Path::new(&objects), &options)?;
+    let atoms = [
+        CfgAtom::Name("unix"),
+        CfgAtom::Value("target_arch", "x86_64"),
+        CfgAtom::Value("target_os", "linux"),
+        CfgAtom::Value("target_family", "unix"),
+        CfgAtom::Value("target_endian", "little"),
+        CfgAtom::Value("target_pointer_width", "64"),
+    ];
+    let library = |name: &'static str| DeclaredConfiguration::new(
+        DeclaredCfg::complete("x86_64-unknown-linux-gnu", &atoms),
+        &[], TargetKind::Lib, name,
+    );
+    let edges = [LockedEdge::new("dependencies.provider", None)];
+    let local = [
+        LockedManifest::new(app.id(), manifest.clone(), &edges)
+            .with_configuration(library("demo")),
+    ];
+    let provider = [
+        LockedManifest::new(kit.id(), manifest, &[]).with_configuration(library("kit")),
+    ];
+    let sources = [LockedPackageRoots::new(LockedTree::Git(&git), &provider)];
+    let report = gate.check_locked(&tree, &catalog, &local, &sources)?;
+    assert!(report.is_clean(), "{}", report.findings().join("\n"));
+    Ok(())
+}
+```
+
+The Git example checks two libraries with no features or extra cfg
+requirements on native x86-64 Linux. Use the manifest's actual library names,
+source-relative manifest paths, feature sets and target cfg for a different
+workspace. Pass the entire selected context list to `with_configurations`
+when the policy covers several targets. The gate verifies the lock row and
+the consuming manifest edge and never fetches the commit.
+
+## Share jobs across repositories
+
+A shared Rust dev-dependency or canonical Turtle file can supply one or more
+jobs and their patterns. For example, put the PurRDF digest job above in one
+shared job set. Include its provider and any other owned nodes, and use
+distinct fragments such as `#purrdf/digest` and `#purrdf/digest-provider`.
+Keep scan roots, reference selectors and scope in the consumer's base ledger.
+
+Use the native RDF builder to serialize these assertions as a canonical job
+set. A shared Rust authoring function can take the consumer symbol as an input.
+
+```turtle
+@prefix raf: <https://blackcatinformatics.ca/raf/report/1#> .
+<> a raf:Ledger ; raf:normalForm 1 ; raf:reportForm 6 ;
+   raf:job <#purrdf/digest> .
+<#purrdf/digest> a raf:LedgerJob ; raf:jobId "purrdf-digest" ;
+   raf:summary "Digest and hexadecimal encoding come from PurRDF" ;
+   raf:homeSymbol "purrdf_hash::hex::encode" ; raf:enforced true ;
+   raf:forbiddenFingerprint "rule:hex-table", "rule:std-default-hasher" ;
+   raf:preferredProvider <#purrdf/digest-provider> .
+<#purrdf/digest-provider> a raf:PreferredProvider ;
+   raf:package "purrdf-hash" ; raf:consumer "demo::digest_hex" ;
+   raf:entryPoint "purrdf_hash::blake3::hash",
+                  "purrdf_hash::blake3::Hash::as_bytes",
+                  "purrdf_hash::hex::encode" .
+```
+
+```rust
+use raf_census::Ledger;
+
+fn combined_ledger(base: &str, shared: &str) -> Result<String, raf_census::Error> {
+    let base = Ledger::from_turtle(base)?;
+    let shared = Ledger::from_turtle(shared)?;
+    base.compose_jobs(&[&shared])
+}
+```
+
+Review the canonical output and install it as `helpers-ledger.ttl`. Apply the
+same provider checks to the combined ledger. Gate evaluation reads only that
+file.
+
+## Use the gate in PurRDF
+
+PurRDF can take the registry RAF release as a dev-dependency. Cargo identifies
+the workspace and registry copies of PurRDF as separate packages, even where
+the name and version agree. Keep app dependencies on workspace members and
+use the package and source in the lock row when a proof names a provider.
+[Cargo package identities](https://doc.rust-lang.org/cargo/reference/pkgid-spec.html)
+
+With `multiple-versions = "deny"`, cargo-deny's default
+`multiple-versions-include-dev = false` excludes copies reached only through
+the RAF dev-dependency from the duplicate check. That route needs zero skips.
+If the policy includes dev dependencies, use the actual locked graph to
+identify reported duplicate packages and add a `bans.skip` entry for each
+version to exclude. For example, `purrdf-hash@=5.0.0` selects by name and
+version and matches both copies when both have that version. Keep the advisory,
+license and source checks over the complete graph.
+[cargo-deny bans configuration](https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html)

@@ -293,6 +293,33 @@ local names; the native writer supplies its content-addressed BASE:
    raf:call "std::mem::drop" .
 ~~~
 
+The native writer can also construct these two scoped policies. The macro
+matcher observes shipping calls to `println!`. The path matcher observes the
+exact `log::Log` path, including a matching import. When the path denotes an
+indexed dependency, supply that dependency's reference source. Each job is
+enforced. Run `cargo raf-census debt --write` with the same source options to
+adopt the initial counted sites. A check reports a pending adoption until then.
+
+~~~turtle
+@prefix raf: <https://blackcatinformatics.ca/raf/report/1#> .
+<> a raf:Ledger ; raf:normalForm 1 ; raf:reportForm 6 ;
+   raf:job <#output>, <#logging> ; raf:pattern <#direct-print>, <#alternate-logger> .
+<#output> a raf:LedgerJob ; raf:jobId "output" ;
+   raf:summary "Route output through the approved module" ;
+   raf:homeSymbol "demo::output" ; raf:enforced true ;
+   raf:forbiddenPattern "direct-print" .
+<#direct-print> a raf:Pattern ; raf:patternId "direct-print" ;
+   raf:summary "Direct printing in shipping code" ;
+   raf:macro "println" ; raf:shippingOnly true ; raf:ratcheted true .
+<#logging> a raf:LedgerJob ; raf:jobId "logging" ;
+   raf:summary "Use the approved logging adapter" ;
+   raf:homeSymbol "demo::logging" ; raf:enforced true ;
+   raf:forbiddenPattern "alternate-logger" .
+<#alternate-logger> a raf:Pattern ; raf:patternId "alternate-logger" ;
+   raf:summary "A second logger in shipping code" ;
+   raf:path "log::Log" ; raf:shippingOnly true ; raf:ratcheted true .
+~~~
+
 An equivalent tokens declaration uses raf:tokens "std :: mem :: drop ( $_ )".
 A string declaration can use raf:literalRegex "^http://"; raw and escaped
 ordinary strings are decoded before matching, while byte and C strings are

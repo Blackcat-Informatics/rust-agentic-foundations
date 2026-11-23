@@ -77,6 +77,114 @@ fn assert_verdict(root: &Path, destination: &Path, run: &ProductionLintRun, find
     }
 }
 
+/// Trust and destination admission precede process launch. A completed build
+/// supplies a usable receipt, while overflow and changed inputs publish none.
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "fixture inputs and observations must hold at the point of use"
+)]
+fn installed_capture_requires_trust_and_writes_only_current_bounded_receipts() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let root = scratch.path().join("demo");
+    let tools = scratch.path().join("tools");
+    let cache = scratch.path().join("cache");
+    let observed = scratch.path().join("arguments");
+    let launched = scratch.path().join("launched");
+    fs::create_dir_all(root.join("src")).unwrap();
+    let root = root.canonicalize().unwrap();
+    fs::create_dir_all(&tools).unwrap();
+    fs::write(root.join("Cargo.toml"), MANIFEST).unwrap();
+    fs::write(root.join("Cargo.lock"), "version = 4\n").unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn home() -> u32 { 7 }").unwrap();
+    super::write_ledger(&root, &[]);
+    for (tool, script) in [
+        (
+            "rustc",
+            "#!/bin/sh\nprintf 'started\\n' > \"$RAF_TEST_LAUNCHED\"\nprintf '%s\\n' 'fixture rustc'\n",
+        ),
+        ("cargo-clippy", FIXTURE_CLIPPY),
+    ] {
+        let path = tools.join(tool);
+        fs::write(&path, script).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    let capture = |target: &Path, trust: bool, outcome: &str| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_cargo-raf-census"));
+        command
+            .current_dir(&root)
+            .env_clear()
+            .env("PATH", &tools)
+            .env("CARGO_TARGET_DIR", &cache)
+            .env("CARGO_ALIAS_CLIPPY", "test")
+            .env("CARGO", "unexpected-cargo")
+            .env("RAF_TEST_ARGS", &observed)
+            .env("RAF_TEST_LAUNCHED", &launched)
+            .env("RAF_TEST_OUTCOME", outcome)
+            .arg("lint-capture");
+        if trust {
+            command.arg("--trust-lints");
+        }
+        super::alone(command.arg("--out").arg(target))
+    };
+    let receipt = scratch.path().join("production.ttl");
+    let untrusted = capture(&receipt, false, "clean");
+    assert_eq!(untrusted.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&untrusted.stderr).contains("--trust-lints"));
+    let inside = capture(&root.join("inside.ttl"), true, "clean");
+    assert_eq!(inside.status.code(), Some(1));
+    assert!(!launched.exists() && !receipt.exists());
+
+    let clean = capture(&receipt, true, "clean");
+    assert!(clean.status.success(), "{clean:?}");
+    assert_eq!(clean.stdout, [] as [u8; 0]);
+    let actual = fs::read_to_string(&observed).unwrap();
+    let mut expected = vec![root.to_str().unwrap(), cache.to_str().unwrap()];
+    expected.extend_from_slice(PRODUCTION_CLIPPY_ARGS);
+    assert_eq!(actual.lines().collect::<Vec<_>>(), expected);
+    assert!(check(&root, Some(&receipt), &[]).status.success());
+
+    let failed_path = scratch.path().join("failed.ttl");
+    let failed = capture(&failed_path, true, "failed");
+    assert_eq!(failed.status.code(), Some(23));
+    let failure_check = check(&root, Some(&failed_path), &[]);
+    assert_eq!(failure_check.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&failure_check.stdout).contains("fixture compiler result"));
+
+    for (mode, diagnostic) in [
+        ("overflow", "production output exceeds"),
+        ("changed", "production inputs changed"),
+    ] {
+        let path = scratch.path().join(format!("{mode}.ttl"));
+        let refusal = capture(&path, true, mode);
+        assert_eq!(refusal.status.code(), Some(1), "{refusal:?}");
+        assert!(
+            String::from_utf8_lossy(&refusal.stderr).contains(diagnostic),
+            "{refusal:?}"
+        );
+        assert!(!path.exists());
+    }
+}
+
+const FIXTURE_CLIPPY: &str = r#"#!/bin/sh
+set -eu
+if [ "$2" = --version ]; then
+    printf '%s\n' 'fixture clippy'
+    exit 0
+fi
+test -z "$CARGO_ENCODED_RUSTFLAGS"
+test -z "${CARGO+x}"
+printf '%s\n' "$PWD" "$CARGO_TARGET_DIR" "$@" > "$RAF_TEST_ARGS"
+printf '%s\n' 'fixture compiler result' >&2
+case "$RAF_TEST_OUTCOME" in
+    failed) exit 23 ;;
+    overflow) printf '%1048577s' '' ;;
+    changed) printf '%s\n' 'pub fn home() -> u32 { 8 }' > src/lib.rs ;;
+esac
+"#;
+
 #[test]
 #[expect(
     clippy::unwrap_used,
