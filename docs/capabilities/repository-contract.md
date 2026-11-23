@@ -133,6 +133,7 @@ bindings:
     - raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse
   examples:
     - raf_docs_contract::example_crate::repository_static_documents
+    - rust_agentic_foundations::example_crate::msrv_dependency_audit
     - rust_agentic_foundations::example_crate::prepare_census_archives
     - rust_agentic_foundations::example_crate::repository_gate
 depends: [cap:workplan-document-model, cap:workplan-strict, cap:source-index, cap:census-debt-ratchet]
@@ -170,6 +171,14 @@ dependency policy run for every change, with
 both the root and independent fuzz dependency graphs checked. Aggregate test
 and harness-policy results require their applicable jobs to succeed.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget -->
+
+**Minimum Rust version.** The local merge gate and hosted MSRV job check
+all targets of both locked workspaces with Rust 1.98.1. The dependency audit
+aggregates unused-dependency diagnostics against the compiler's external crate inputs.
+It refuses incomplete inventories and dependencies unused in every target
+of their package that receives them. Dead code and other compiler warnings
+fail their compilation target.
+<!-- raf:tested-by rust_agentic_foundations::example_crate::msrv_dependency_audit -->
 
 **Binding validation.** The production Workplan gate opens the selected repository and indexes its Rust source once. The tracked-document check resolves bindings against that same index while judging its own Markdown, diagram assets, tracked paths and symlink policy. The production check uses the disk tree and the gate's link context. Each check reports its own findings. RAF verifies declarations and static findings without executing consumer tests, examples or doctests. Completion uses a prospective document overlay and owned data writes. Maintainer-controlled RAF checks use explicitly controlled fixtures and never grant inspected source execution authority.
 <!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_workplan_is_clean_and_assessed,cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution -->
@@ -279,7 +288,8 @@ and CI run this Rust gate.
 ## Usage
 
 Install the hooks with `make hooks`. Run `make precommit` to check the staged
-tree. Run `make check` and `make test` to qualify the working tree.
+tree. `make check` runs that staged check and checks the working tree.
+`make test` runs the full workspace suites.
 
 Use `cargo test --locked --package <package>` for one package's ordinary suite.
 Use the static verification command to inspect declared example and test bindings. It never initiates the consumer programs named by those declarations.
@@ -433,6 +443,7 @@ no separate interpretation of the documents or source index.
 | `raf_docs_contract::test_crate::docs_contract::the_checker_judges_the_documents_through_the_model` | test | [Verification](#verification) |
 | `raf_docs_contract::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::history::a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor` | test | [Verification](#verification) |
+| `rust_agentic_foundations::example_crate::msrv_dependency_audit` | example target | [Contract](#contract) |
 | `rust_agentic_foundations::example_crate::prepare_census_archives` | example target | [Verification](#verification) |
 | `rust_agentic_foundations::example_crate::repository_gate` | example target | [Usage](#usage) |
 | `rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |

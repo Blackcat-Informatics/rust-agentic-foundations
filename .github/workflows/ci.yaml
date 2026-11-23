@@ -340,14 +340,8 @@ jobs:
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
         with:
           toolchain: 1.98.1
-      - name: Assert the MSRV toolchain is the one in use
-        run: |
-          rustc --version
-          rustc --version | grep -q '^rustc 1\.98\.1 '
-      - name: Check workspace on MSRV
-        run: cargo check --workspace --all-targets --locked
-      - name: Check the fuzz harness on MSRV
-        run: cargo check --manifest-path fuzz/Cargo.toml --all-targets --locked
+      - name: Check both locked workspaces on MSRV
+        run: make msrv MSRV_RUN=
 
   reuse:
     runs-on: ubuntu-latest

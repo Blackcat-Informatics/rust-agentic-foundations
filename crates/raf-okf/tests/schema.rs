@@ -76,7 +76,7 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
         ),
         (
             DocType::Architecture,
-            "type id title description tags timestamp diagrams model",
+            "type id title description tags timestamp diagrams model supersedes",
         ),
         (
             DocType::Evidence,
@@ -141,6 +141,7 @@ fn each_type_states_its_required_and_optional_keys() {
                 || (doc_type == DocType::Review && spec.key == "findings_ref")
                 || (matches!(doc_type, DocType::Capability | DocType::Architecture)
                     && matches!(spec.key, "diagrams" | "model"))
+                || (doc_type == DocType::Architecture && spec.key == "supersedes")
                 || (doc_type == DocType::Evidence
                     && matches!(
                         spec.key,

@@ -32,6 +32,8 @@ pub enum ValueKind {
     Diagrams,
     /// Closed source-bound component, artifact and scenario declarations.
     Model,
+    /// Named Architecture decision sections and the sections they supersede.
+    Supersedes,
     /// A list of capability identifiers.
     CapabilityIds,
     /// A list of distinct closed code-review kinds.
@@ -144,7 +146,7 @@ const CHANGE: [KeySpec; 10] = [
     required("items", ValueKind::Items),
 ];
 
-const ARCHITECTURE: [KeySpec; 8] = [
+const ARCHITECTURE: [KeySpec; 9] = [
     required("type", ValueKind::DocType),
     required("id", ValueKind::Id),
     required("title", ValueKind::Text),
@@ -153,6 +155,7 @@ const ARCHITECTURE: [KeySpec; 8] = [
     optional("timestamp", ValueKind::Timestamp),
     optional("diagrams", ValueKind::Diagrams),
     optional("model", ValueKind::Model),
+    optional("supersedes", ValueKind::Supersedes),
 ];
 
 /// The record types share `type`, `id` and the two optional keys, and carry

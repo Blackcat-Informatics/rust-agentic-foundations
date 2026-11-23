@@ -42,8 +42,7 @@ fn text_entry(key: &str, text: &str) -> Entry {
     entry(key, Value::Scalar(scalar(text)))
 }
 
-/// The repository root: `RAF_GATE_ROOT` when set (the commit hook points it at
-/// a checkout of the index), otherwise two levels above the crate.
+/// The repository root is `RAF_GATE_ROOT` when set or two levels above the crate.
 fn gate_root() -> PathBuf {
     std::env::var_os("RAF_GATE_ROOT").map_or_else(
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),

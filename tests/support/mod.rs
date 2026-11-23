@@ -7,9 +7,8 @@
 //!
 //! The file list comes from the git index (`git ls-files -z`), so untracked
 //! scratch files never count. Each path is read under the gate root, which is
-//! `RAF_GATE_ROOT` when set and the package directory otherwise. The commit
-//! hook points `RAF_GATE_ROOT` at a checkout of the index, so the gates judge
-//! what the commit records.
+//! `RAF_GATE_ROOT` when set and the package directory otherwise. The merge
+//! gate uses the signed candidate checkout.
 
 use std::borrow::Cow;
 use std::fs;

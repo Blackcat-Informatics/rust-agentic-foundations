@@ -19,7 +19,7 @@ export CARGO_NET_OFFLINE := false
 # The SPDX text of the index that `docs-sync` creates when it is missing.
 DOCS_COPYRIGHT ?= 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 DOCS_LICENCE ?= CC-BY-4.0
-# Tree that `fmt` and `reuse` read (the hook points it at a snapshot of the index).
+# Tree selected by the gate. The staged formatter and lints read a snapshot.
 ROOT ?= .
 # The pinned cargo-fuzz used by the local instrumented gate.
 CARGO_FUZZ_VERSION ?= 0.13.2
@@ -101,12 +101,9 @@ reuse: ## REUSE compliance lint (needs uvx or reuse).
 	$(REUSE) --root '$(ROOT)' lint
 
 msrv: ## cargo check on the MSRV toolchain (1.98.1).
-	@command -v $(firstword $(MSRV_RUN)) >/dev/null 2>&1 || { \
-	  echo "make msrv: required tool '$(firstword $(MSRV_RUN))' not found; install rust-validate, or run with MSRV_RUN= and RUSTUP_TOOLCHAIN=1.98.1" >&2; exit 1; }
-	@v=$$($(MSRV_RUN) rustc --version); case "$$v" in "rustc 1.98.1 "*) ;; *) \
-	  echo "make msrv: expected rustc 1.98.1, got '$$v'; set MSRV_RUN to a command that runs the 1.98.1 toolchain" >&2; exit 1;; esac
-	$(MSRV_RUN) cargo check --workspace --all-targets --locked
-	$(MSRV_RUN) cargo check --manifest-path '$(ROOT)/fuzz/Cargo.toml' --target-dir target --all-targets --locked
+	@if test -n '$(strip $(MSRV_RUN))' && ! command -v $(firstword $(MSRV_RUN)) >/dev/null 2>&1; then \
+	  echo "make msrv: required tool '$(firstword $(MSRV_RUN))' not found; install rust-validate, or run with MSRV_RUN= and RUSTUP_TOOLCHAIN=1.98.1" >&2; exit 1; fi
+	cargo run --locked --example msrv_dependency_audit -p rust-agentic-foundations -- --check '$(ROOT)' $(MSRV_RUN)
 
 fuzz: ## Fuzz harness: fmt, clippy, deny, then a bounded run (needs cargo-fuzz).
 	bash .githooks/check-format '$(ROOT)/fuzz/Cargo.toml'
@@ -125,7 +122,7 @@ fuzz-run: ## Run each instrumented target over its corpus and bounded mutations.
 	  export PATH='$(CURDIR)/fuzz/tools/locked-cargo':"$$PATH" && \
 	  for target in parse-source parse-document load-workspace census-normalize census-report-read; do \
 	    mkdir "$$work/$$target" && \
-	    "$$RAF_FUZZ_CARGO" fuzz run --no-cfg-fuzzing --codegen-units 16 "$$target" "$$work/$$target" "fuzz/corpus/$$target" -- \
+	    cargo-fuzz fuzz run --no-cfg-fuzzing --codegen-units 16 "$$target" "$$work/$$target" "fuzz/corpus/$$target" -- \
 	      -runs=$(FUZZ_RUNS) -seed=$(FUZZ_SEED) -max_len=$(FUZZ_MAX_LEN) \
 	      -rss_limit_mb=$(FUZZ_RSS_LIMIT_MB) -malloc_limit_mb=$(FUZZ_MALLOC_LIMIT_MB) || exit 1; \
 	  done

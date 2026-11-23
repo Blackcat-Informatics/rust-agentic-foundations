@@ -59,6 +59,9 @@ kinds! {
     COVERAGE_LINES_OVER_CEILING = "coverage-lines-over-ceiling";
     ARCHITECTURE_PAGE_UNLINKED = "architecture-page-unlinked";
     DECISION_CONDITIONS_MISSING = "decision-conditions-missing";
+    SUPERSESSION_SOURCE = "supersession-source";
+    SUPERSESSION_TARGET = "supersession-target";
+    SUPERSESSION_CYCLE = "supersession-cycle";
     EXPLANATION_CONDITIONS_MISSING = "explanation-conditions-missing";
     DEPENDS_CYCLE = "depends-cycle";
     PROPOSED_MISSING_CHANGE = "proposed-missing-change";

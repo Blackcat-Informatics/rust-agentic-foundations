@@ -1658,6 +1658,146 @@ pub(crate) fn with_explanation_text(text: &str) -> Repo {
     mutate(GAMMA, OVERVIEW_LINK, &format!("{OVERVIEW_LINK}\n\n{text}"))
 }
 
+const LAYERS: &str = "docs/architecture/layers.md";
+const HISTORY: &str = "docs/architecture/history.md";
+const OVERVIEW_REPLACEMENT: &str = "  order: ['arch:layers#order']";
+
+/// A section chain plus a reverse edge between different sections of the pages.
+pub(crate) fn named_section_supersession() -> Repo {
+    let page = |slug: &str, overrides: &str, body: &str| {
+        format!(
+            "---\ntype: Architecture\nid: arch:{slug}\ntitle: Decision\n\
+             description: A shared design decision.\n{overrides}---\n\n{body}\n\n\
+             ## Conditions to revisit\n\n- A requirement changes.\n"
+        )
+    };
+    let mut repo = valid();
+    repo.insert(
+        OVERVIEW.to_owned(),
+        page(
+            "overview",
+            &format!("supersedes:\n{OVERVIEW_REPLACEMENT}\n"),
+            "# Overview\n\nSee [the layers](layers.md).\n\n## Decision\n\n\
+             ### Order\n\nRead prerequisite sections first.\n\n### Fallback\n\nRead the default.",
+        ),
+    );
+    repo.insert(
+        LAYERS.to_owned(),
+        page(
+            "layers",
+            "supersedes:\n  order: ['arch:history#initial']\n  fallback: ['arch:overview#fallback']\n",
+            "# Layers\n\nSee [the history](history.md).\n\n## Decision\n\n\
+             ### Order\n\nRead layers in order.\n\n### Fallback\n\nRead only admitted defaults.",
+        ),
+    );
+    repo.insert(
+        HISTORY.to_owned(),
+        page(
+            "history",
+            "",
+            "# History\n\n## Decision\n\n### Initial\n\nRead sections in document order.",
+        ),
+    );
+    repo
+}
+
+fn supersession_cases() -> Vec<Case> {
+    let mut cases = Vec::new();
+    for (name, replacement, kind) in [
+        (
+            "supersession-source-unnamed",
+            "  missing: ['arch:layers#order']",
+            "supersession-source",
+        ),
+        (
+            "supersession-target-missing-decision",
+            "  order: ['arch:missing#order']",
+            "supersession-target",
+        ),
+        (
+            "supersession-target-outside-decision",
+            "  order:\n    - 'arch:layers#order'\n    - 'arch:layers#conditions-to-revisit'",
+            "supersession-target",
+        ),
+        (
+            "supersession-target-same-decision",
+            "  order: ['arch:overview#fallback']",
+            "supersession-target",
+        ),
+    ] {
+        let mut repo = named_section_supersession();
+        edit(&mut repo, OVERVIEW, OVERVIEW_REPLACEMENT, replacement);
+        #[expect(
+            clippy::expect_used,
+            reason = "each literal replacement includes the authored declaration line under test"
+        )]
+        let target_line = replacement.lines().next_back().expect("a declaration line");
+        let location = Location::Line(line_of(&repo[OVERVIEW], target_line));
+        cases.push(Case::new(name, repo, kind, OVERVIEW, location));
+    }
+    let mut repeated = named_section_supersession();
+    let repeat = "  initial: ['arch:layers#fallback', 'arch:layers#fallback']";
+    edit(
+        &mut repeated,
+        HISTORY,
+        "description: A shared design decision.\n",
+        &format!("description: A shared design decision.\nsupersedes:\n{repeat}\n"),
+    );
+    edit(
+        &mut repeated,
+        LAYERS,
+        "  order: ['arch:history#initial']\n",
+        "",
+    );
+    let line = Location::Line(line_of(&repeated[HISTORY], repeat));
+    cases.push(Case::new(
+        "supersession-repeated-target",
+        repeated,
+        "okf-duplicate-entry",
+        HISTORY,
+        line,
+    ));
+    let mut ambiguous = named_section_supersession();
+    let ambiguous_target = "  order: ['arch:layers#order-1']";
+    edit(
+        &mut ambiguous,
+        OVERVIEW,
+        OVERVIEW_REPLACEMENT,
+        ambiguous_target,
+    );
+    edit(
+        &mut ambiguous,
+        LAYERS,
+        "### Fallback",
+        "### Order\n\nRead in reverse.\n\n### Order-1\n\nRead the alternate order.\n\n### Fallback",
+    );
+    let line = Location::Line(line_of(&ambiguous[OVERVIEW], ambiguous_target));
+    cases.push(Case::new(
+        "supersession-target-anchor-collision",
+        ambiguous,
+        "supersession-target",
+        OVERVIEW,
+        line,
+    ));
+    let mut cycle = named_section_supersession();
+    let closing = "  initial: ['arch:overview#order']";
+    edit(
+        &mut cycle,
+        HISTORY,
+        "description: A shared design decision.\n",
+        &format!("description: A shared design decision.\nsupersedes:\n{closing}\n"),
+    );
+    let line = Location::Line(line_of(&cycle[HISTORY], closing));
+    cases.push(Case::new(
+        "supersession-section-cycle",
+        cycle,
+        "supersession-cycle",
+        HISTORY,
+        line,
+    ));
+    cases
+}
+
 /// The cases for the rules of current rationale.
 pub(crate) fn rationale_cases() -> Vec<Case> {
     let mut cases = vec![Case::new(
@@ -1711,6 +1851,7 @@ pub(crate) fn rationale_cases() -> Vec<Case> {
         "### Decision\n\nGamma reads the whole input.\n\n### Conditions to revisit\n\n- \n",
         "### Conditions to revisit",
     ));
+    cases.extend(supersession_cases());
     cases
 }
 

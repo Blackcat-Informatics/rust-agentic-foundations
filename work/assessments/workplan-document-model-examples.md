@@ -160,7 +160,7 @@ inputs:
     digest: 21859b0f3099ed421eaccb5b5e785a1a9dc31eab9afed660df652a1f3318dd8d
   - kind: symbol
     name: raf_workplan::graph
-    digest: c26b1dedae4103a7218160acd7ed32b212565cbe62ceb80003dc6c2ca8941f7d
+    digest: 2b3aaf5af06d8d8d653c1de4be8908a551d817ddb32278c8de24c116a210805d
   - kind: symbol
     name: raf_workplan::load::load
     digest: 70cb8296c76cae470a7ae21938b957258940d80865bbbb2929f989633e0a7ac7

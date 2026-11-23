@@ -16,7 +16,7 @@ inputs:
     digest: 7cac22e9543b91cac235842c3885290db9b6c5bb0dec100a3cdeec52786cdebe
   - kind: symbol
     name: raf_okf::Architecture
-    digest: a51ac7d88b375a21b042fa0a917be7adcec29fbc69149cd97e396326dfc425e7
+    digest: 85e217268eaadfb4bdf972ea49d9251645637b8653badf6770b56124782a6f00
   - kind: symbol
     name: raf_okf::ArchitectureModel
     digest: 41c2350248901778fade7d8377982a61a9b724037ac35381cc6e8b1da03efed0
@@ -361,7 +361,7 @@ inputs:
     digest: 246ad2cbcc0ca3ef25d894053abc3e29083eb34a70ee435bfb8d501c69061409
   - kind: symbol
     name: raf_okf::ValueKind
-    digest: b3dc5848225533c4b00bb1bc6905114a060d757eeabea140aac4269e1fa3f904
+    digest: fc9ff3cd5b9f5bb1ce258180f19722958da532517d85147ba297a407fe772627
   - kind: symbol
     name: raf_okf::Violation
     digest: 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
@@ -388,10 +388,13 @@ inputs:
     digest: ce99a84ef23bd98bdb1c2d8d876e5d2e7833a90378d457f1e4b79a20a5f135e0
   - kind: symbol
     name: raf_okf::profile::build
-    digest: 889e998c353762972eeda5270a53fd8ce6dad9426e949a3b162cb46fc5755b88
+    digest: dd74a4c0d0e8d9d72610cc0b0eaeea24e34f726f995830774dbcdd8229771942
   - kind: symbol
     name: raf_okf::profile::check_values
-    digest: 9792ba3662d57f505bd261c774c48a6e21874610b2b6991dd4fbdca419244faf
+    digest: 3a7373bd99162334fbaf252009a6370b2eb52e594d226000bdfdc2ceaf8cc6a5
+  - kind: symbol
+    name: raf_okf::profile::decision
+    digest: b2e614e53c022bcc7552f3d4c9d5ff0aaf07bcf385a2d3e4fd80dd4ca3deb709
   - kind: symbol
     name: raf_okf::profile::diagrams
     digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e
@@ -403,7 +406,7 @@ inputs:
     digest: a43a7ccf80d10e41bd95b392f0803bc2a2385fc73f4d64442df492bb1272ad1a
   - kind: symbol
     name: raf_okf::profile::schema
-    digest: 70ffce45c309bfc39e1f075b1b460c0fdd4d47264fb198b84f385c8265356dda
+    digest: ced475c77ef846af00d365561a983f12c2ca7d455a278e634a23f312dbcbb3f3
   - kind: symbol
     name: raf_okf::validate_timestamp
     digest: 8e4af5743228a98e314aa0b6185402e3a2b68c61602cb3a2eaa49379d41fb516

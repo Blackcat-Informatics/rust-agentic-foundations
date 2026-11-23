@@ -350,6 +350,44 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
     architecture_model_neighbors();
 }
 
+#[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "the valid Architecture fixture must round-trip and recover the same typed decision"
+)]
+fn a_decision_relation_round_trips_the_native_authoring_carrier() {
+    // The carrier preserves the authored mapping, and the profile recovers its typed section pair.
+    let text = ARCHITECTURE.replacen(
+        "---\n\n# Overview",
+        "supersedes:\n  order: ['arch:earlier#layout', 'arch:design#inputs']\n  limits: ['arch:design#limits']\n---\n\n# Overview\n\n## Decision\n\n### Order\n\n### Limits\n",
+        1,
+    );
+    let document = parse(&text);
+    let dataset = document.to_dataset(OVERVIEW_PATH).unwrap();
+    let restored = Document::from_dataset(&dataset, OVERVIEW_PATH).unwrap();
+    assert_eq!(restored, document);
+    let original = clean(&text, OVERVIEW_PATH);
+    let round_trip = clean(&restored.render(), OVERVIEW_PATH);
+    assert_eq!(round_trip, original);
+    let RafDocument::Architecture(page) = round_trip else {
+        panic!("an architecture page");
+    };
+    let [limits, order] = page.supersedes.as_slice() else {
+        panic!("two section replacements");
+    };
+    assert_eq!(limits.section(), "limits");
+    assert_eq!(order.section(), "order");
+    assert_eq!(
+        order
+            .targets()
+            .iter()
+            .map(|target| (target.architecture(), target.section()))
+            .collect::<Vec<_>>(),
+        [("arch:earlier", "layout"), ("arch:design", "inputs")]
+    );
+}
+
 #[expect(
     clippy::panic,
     reason = "the assertion reports the unexpected outcome and terminates the test"
@@ -588,6 +626,10 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ("description", "description: Does alpha.\n"),
             ("diagrams", "diagrams: []\n"),
             ("model", "model:\n  actors: []\n"),
+            (
+                "supersedes",
+                "supersedes:\n  order: ['arch:earlier#layout']\n",
+            ),
         ],
         DocType::Evidence => vec![
             ("type", "type: Evidence\n"),
@@ -772,7 +814,7 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
     // The fixed assignment includes optional capability policy and review
     // references. Shared scope, revision and findings keys occur only once;
     // Review rejects the document keys and the remaining record-only keys.
-    assert_eq!(foreign_seen, 21 + 25 + 27 + 20 + 27 + 29 + 29 + 23);
+    assert_eq!(foreign_seen, 22 + 26 + 27 + 21 + 28 + 30 + 30 + 24);
 }
 
 /// Key findings precede value findings, which retain schema order.
@@ -844,6 +886,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
     match doc_type {
         DocType::Capability => [
             &CHANGE_KEYS[..],
+            &["supersedes"],
             &EVIDENCE_KEYS,
             &COVERAGE_KEYS,
             &DEBT_KEYS,
@@ -852,7 +895,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
         .concat(),
         DocType::Change => [
             &CAPABILITY_KEYS[..],
-            &["diagrams", "model"],
+            &["diagrams", "model", "supersedes"],
             &EVIDENCE_KEYS,
             &COVERAGE_KEYS,
             &DEBT_KEYS,
@@ -873,6 +916,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
             &CAPABILITY_KEYS,
             &["diagrams", "model"],
             &CHANGE_KEYS,
+            &["supersedes"],
             &COVERAGE_KEYS,
             &DEBT_KEYS,
             &REVIEW_KEYS,
@@ -883,6 +927,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
             &CAPABILITY_KEYS,
             &["diagrams", "model"],
             &CHANGE_KEYS,
+            &["supersedes"],
             &EVIDENCE_KEYS[4..],
             &COVERAGE_KEYS,
             &DEBT_KEYS,
@@ -894,6 +939,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
             &CAPABILITY_KEYS,
             &["diagrams", "model"],
             &CHANGE_KEYS,
+            &["supersedes"],
             &EVIDENCE_KEYS,
             &DEBT_KEYS,
             &REVIEW_KEYS,
@@ -904,6 +950,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
             &CAPABILITY_KEYS,
             &["diagrams", "model"],
             &CHANGE_KEYS,
+            &["supersedes"],
             &EVIDENCE_KEYS,
             &COVERAGE_KEYS,
             &REVIEW_KEYS,
@@ -914,6 +961,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
             &CAPABILITY_KEYS,
             &["diagrams", "model"],
             &CHANGE_KEYS,
+            &["supersedes"],
             &EVIDENCE_KEYS[..1],
             &EVIDENCE_KEYS[4..6],
             &EVIDENCE_KEYS[7..],

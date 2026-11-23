@@ -7,6 +7,7 @@
 mod body_rules;
 #[cfg(test)]
 mod cost_tests;
+mod decision;
 mod diagrams;
 mod finite;
 mod header;
@@ -26,6 +27,7 @@ use crate::frontmatter::value::{Entry, ItemValue, Map, Scalar, Value};
 use crate::work::{Work, add};
 
 pub(crate) use body_rules::placeholders;
+pub use decision::{DecisionSectionRef, DecisionSupersession};
 pub use diagrams::{DiagramDeclaration, DiagramGrouping, DiagramKind, DiagramKindError};
 pub use header::HeaderShapeError;
 pub use model::{
@@ -213,6 +215,7 @@ struct Collected {
     review_required: Slot<Vec<ReviewKind>>,
     diagrams: Slot<Vec<DiagramDeclaration>>,
     model: Slot<ArchitectureModel>,
+    supersedes: Slot<Vec<DecisionSupersession>>,
     changes: Option<Vec<String>>,
     /// The valid capability ids of `changes`, even when another entry is not.
     change_ids: Vec<String>,
@@ -368,16 +371,12 @@ fn check_values(
         }
         match spec.value {
             ValueKind::Model => found.model = Slot::from_check(model::check(check, entry)),
+            ValueKind::Supersedes => {
+                found.supersedes = Slot::from_check(decision::check(check, entry));
+            }
             ValueKind::Diagrams => found.diagrams = Slot::from_check(diagrams::check(check, entry)),
             ValueKind::Id => found.id = check_id(check, entry, doc_type, stem),
-            ValueKind::Text => {
-                let text = check_text(check, entry);
-                if key == "title" {
-                    found.title = text;
-                } else {
-                    found.description = text;
-                }
-            }
+            ValueKind::Text => collect_document_text(check, entry, &mut found),
             ValueKind::Tags => found.tags = Slot::from_check(check_tags(check, entry)),
             ValueKind::Timestamp => {
                 found.timestamp = Slot::from_check(check_timestamp(check, entry));
@@ -454,6 +453,15 @@ fn check_values(
     }
     check_record_consistency(check, map, doc_type, &mut found);
     Ok(found)
+}
+
+fn collect_document_text(check: &mut Check<'_>, entry: &Entry, found: &mut Collected) {
+    let text = check_text(check, entry);
+    if entry.key() == "title" {
+        found.title = text;
+    } else {
+        found.description = text;
+    }
 }
 
 fn flag_slot<'a>(
@@ -986,6 +994,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         items,
         diagrams,
         model,
+        supersedes,
         ..
     } = found;
     let (id, slug) = id?;
@@ -1028,6 +1037,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             header,
             diagrams,
             model,
+            supersedes: supersedes.settle().ok()?.unwrap_or_default(),
         })),
         // A record was built above.
         DocType::Evidence

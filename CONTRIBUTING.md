@@ -76,11 +76,13 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
 - **Staged static gate.** Run `make precommit` to check the effective staged
   tree. It requires the installed hooks and checks formatting,
   shipping lints, dependency bans and sources, tracked text, and Markdown links.
-  The commit hooks run repository policy, Workplan and Census tests on the
-  staged snapshot.
+  Both commit hooks run this target. Repository policy, Workplan and Census
+  tests run in the merge and CI gates.
 - **Merge gate.** `make merge-gate` runs `make check` and `make test` in
   order on the exact signed candidate. Supply an absolute `CARGO_TARGET_DIR`
-  outside the repository. The merge tool records the gate's exit status.
+  outside the repository. The [gate declaration](.ghprsq.toml) takes effect
+  from the base commit. The merge tool records the gate's exit status and
+  can reuse a pass for the same tree and command.
   Hosted CI checks compilation, policy and the workspace tests. The local
   gate also builds benchmarks and runs instrumented fuzzing.
 - **Production lint coverage.** `make clippy` checks the locked workspace
@@ -118,6 +120,10 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
   compilation target. The audit finds direct dependencies that none of the
   package's eligible targets use. Install `rust-validate`, or point `MSRV_RUN`
   at a command that runs the 1.98.1 toolchain.
+  The checks deny compiler warnings. Cargo resolves dependencies for the
+  package and supplies them to individual targets. The dependency audit
+  collects the compiler's findings across those targets and fails if every
+  target that receives a dependency leaves it unused.
 - **Fuzz harness.** `make fuzz` checks `fuzz/` (its own cargo-fuzz workspace) with
   fmt, Clippy and `cargo deny`, then runs each of its targets
   (`parse-source`, `parse-document`, `load-workspace`, `census-normalize` and `census-report-read`) over its committed corpus,

@@ -27,7 +27,6 @@ raf-fixtures.workspace = true
 purrdf-core.workspace = true
 purrdf-ed25519.workspace = true
 purrdf-hash.workspace = true
-purrdf-lex.workspace = true
 purrdf-testkit.workspace = true
 syn = { workspace = true, features = ["full", "parsing"] }
 

@@ -28,7 +28,8 @@ GIT_INDEX_FILE="$scratch/tree-index" git checkout-index --all --ignore-skip-work
 git ls-tree --full-tree -rz "$tree" > "$scratch/tracked"
 
 target=$(realpath -m -- "${CARGO_TARGET_DIR:-$top/target}")
-CARGO_TARGET_DIR="$target" cargo run --quiet --locked -p raf-docs-contract \
+CARGO_TARGET_DIR="$target" CARGO_ENCODED_RUSTFLAGS=-Dwarnings \
+    cargo run --quiet --locked -p raf-docs-contract \
     --example repository_static_documents -- "$snapshot" "$scratch/tracked"
 
 if [[ ! -x $snapshot/.githooks/pre-commit || ! -x $snapshot/.githooks/pre-merge-commit ]]; then
