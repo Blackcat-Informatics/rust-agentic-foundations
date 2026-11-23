@@ -140,7 +140,7 @@ The installed command also captures a production lint receipt when the caller ex
 `check` requires the production Cargo lint policy and a current, successful
 Clippy receipt from the calling build by default. Supply the build-owned
 receipt through `--lint-evidence` or `RAF_CENSUS_LINT_EVIDENCE`. The
-selection is `--workspace --lib --bins --locked`. Test-only callers can
+selection is `--workspace --lib --bins --locked --target host-tuple`. Test-only callers can
 therefore leave a production helper unused. `lint-inputs` identifies the
 workspace before the build and `lint-receipt` seals the build's arguments,
 compiler identity, status and diagnostics against the matching inputs.
@@ -150,7 +150,9 @@ the structural ledger and debt checks. See the [consumer guide](../../CENSUS-HOW
 
 `lint-capture --trust-lints --out PATH` invokes Clippy's installed Cargo
 subcommand executable directly with the fixed production arguments from the
-resolved workspace. The trust flag applies only to that
+resolved workspace. It searches Cargo home and `PATH` in Cargo's order.
+`--target host-tuple` gives the host target precedence over Cargo's
+`build.target` setting. The trust flag applies only to that
 invocation and permits build scripts and procedural macros to run with the
 caller's permissions. The command validates a fresh absolute output path
 outside the workspace and Git administration before launching a process.
@@ -159,6 +161,8 @@ reads of the production inputs. It preserves Cargo's target directory for
 cache reuse and applies the production compiler flags. A captured nonzero
 Clippy result with diagnostics produces a failed receipt and returns its status. Changed
 inputs, oversized diagnostics and execution failures refuse publication.
+On oversized diagnostics the command closes the stream and lets the
+Clippy invocation finish before returning the refusal.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::production_lints::installed_capture_requires_trust_and_writes_only_current_bounded_receipts -->
 
 **Cap'n Proto history.** `capnp-history` compares unpacked compiler

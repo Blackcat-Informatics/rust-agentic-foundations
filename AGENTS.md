@@ -217,7 +217,7 @@ tables (a gate fails when they differ).
   `crates/raf-source/src/tree/disk/final_path.rs`, under an item-scoped allow with
   its reason and a `SAFETY` comment.
 - Clippy `all` is denied and `pedantic` warns. The gates deny warnings.
-- `make clippy` selects `--workspace --lib --bins --locked` and
+- `make clippy` selects `--workspace --lib --bins --locked --target host-tuple` and
   denies warnings, unused items, unreachable public items, allow attributes,
   used underscore bindings, needless pass-by-value, trivially copied references
   and redundant clones. The commit hooks apply it to the staged source and

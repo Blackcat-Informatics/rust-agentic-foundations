@@ -37,7 +37,7 @@ inputs:
     digest: 0503ad24db1afab83d45d098775da0f6d1304ee95c9a905293ccd91d1b73bbd5
   - kind: symbol
     name: raf_census::PRODUCTION_CLIPPY_ARGS
-    digest: 3e66378dece710f9cd38e9254f2fefe53f8a30108a45b8050d4ab355c5e05f16
+    digest: cada9bb2eaa7eb61ee8ab541538aea42fac4c9d9e33b737d62611753f9179b1b
   - kind: symbol
     name: raf_census::ProductionInputs
     digest: 8ecd97ce4eb3d52bd3fad486fae568941c157347c614c84df7e59b312b6e2a62

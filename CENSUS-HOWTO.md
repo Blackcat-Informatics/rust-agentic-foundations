@@ -53,7 +53,14 @@ export RAF_CENSUS_LINT_EVIDENCE="$evidence_dir/production.ttl"
 cargo raf-census lint-capture --trust-lints --out "$RAF_CENSUS_LINT_EVIDENCE"
 ```
 
-The command runs Clippy on the workspace libraries and binaries with the lockfile and required denied lints. `--trust-lints` authorizes Cargo to run build scripts and procedural macros with your permissions for that invocation. It provides no sandbox. A private helper called only from a test can be dead in that build. A passing `--all-targets` result cannot satisfy the check. A dev-dependency used only in tests can remain in `[dev-dependencies]`.
+The command runs Clippy on the locked workspace libraries and binaries with
+the required denied lints and `--target host-tuple`. The explicit host
+selection takes precedence over Cargo's `build.target` setting.
+`--trust-lints` authorizes Cargo to run build scripts and procedural macros
+with your permissions for that invocation. It provides no sandbox. A private
+helper called only from a test can be dead in that build. A passing
+`--all-targets` result cannot satisfy the check. A dev-dependency used only
+in tests can remain in `[dev-dependencies]`.
 
 Use a fixed checkout and a trusted compiler and build environment. The command
 calls the installed `rustc` and `cargo-clippy` executables directly. The receipt
@@ -67,10 +74,11 @@ Place literal file inclusions in the consuming source. Census refuses a file-inc
 Keep the receipt in the build-owned directory. The CLI accepts its path through the exported variable or `check --lint-evidence /absolute/path/to/production.ttl`. Missing evidence, changed inputs, a weakened manifest or a failed compiler run fails the default check. Repeat the capture with a fresh destination after changing the sources or policy. Keep the same Cargo target directory, compiler and effective production flags to reuse the warm Clippy artifacts while capturing a fresh receipt. Cargo reports the compiler run time in its diagnostics. Use `check --no-production-lints` for an explicitly structural check. Baseline inspection and debt recording need no compiler receipt.
 
 On the RAF 0.8.1 workspace, one direct invocation of the built command with
-warm artifacts on x86-64 Linux and compiler revision `5df8c02af` took about
-29 seconds to publish a fresh receipt. Cargo reported 3.48 seconds for its
-Clippy step. The full capture includes both source-input checks and the
-receipt write. It excludes building the CLI and fetching archives.
+warm host-target artifacts on x86-64 Linux and compiler revision
+`5df8c02af` took about 17 seconds to publish a fresh receipt. Cargo reported
+3.44 seconds for its Clippy step. The full capture includes both source-input
+checks and the receipt write. It excludes building the CLI and fetching
+archives.
 
 ## Install the ledger
 

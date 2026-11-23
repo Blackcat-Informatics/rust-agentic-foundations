@@ -16,6 +16,8 @@ pub const PRODUCTION_CLIPPY_ARGS: &[&str] = &[
     "--lib",
     "--bins",
     "--locked",
+    "--target",
+    "host-tuple",
     "--",
     "-D",
     "warnings",

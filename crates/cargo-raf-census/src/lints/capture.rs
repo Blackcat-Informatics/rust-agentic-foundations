@@ -7,15 +7,18 @@ use raf_census::{Error, Gate, MAX_LEDGER_BYTES, PRODUCTION_CLIPPY_ARGS, Producti
 use raf_source::{DiskTree, RelPath};
 use rustix::{
     event::{PollFd, PollFlags, poll},
-    fs::{AtFlags, Mode, OFlags, linkat, openat, statat, unlinkat},
+    fs::{AtFlags, Mode, OFlags, RenameFlags, openat, renameat_with, statat, unlinkat},
     io::Errno,
     process::{Pid, WaitId, WaitIdOptions, waitid},
 };
 use std::{
-    fs::File,
+    env, fs,
     io::{self, Read, Write},
-    os::{fd::OwnedFd, unix::net::UnixStream},
-    path::Path,
+    os::{
+        fd::OwnedFd,
+        unix::{fs::PermissionsExt, net::UnixStream},
+    },
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
 };
@@ -37,18 +40,19 @@ pub(crate) fn capture(
         "CLIPPY_ARGS",
         "CLIPPY_CONF_DIR",
     ] {
-        if std::env::var_os(key).is_some_and(|value| !value.is_empty()) {
+        if env::var_os(key).is_some_and(|value| !value.is_empty()) {
             return Err(Error::Options(format!(
                 "production Clippy needs its declared arguments; remove {key} from this invocation"
             )));
         }
     }
     let before = super::inputs_at(&root)?.digest().to_hex();
-    let rustc = version(&root, "rustc", &["-vV"])?;
     // Use Cargo's Clippy subcommand executable directly. Cargo aliases do not
     // get an opportunity to replace the command identified by the receipt.
-    let clippy = version(&root, CLIPPY, &["clippy", "--version"])?;
-    let (status, text) = run(&root, CLIPPY, PRODUCTION_CLIPPY_ARGS)?;
+    let tool = clippy_executable(&root)?;
+    let rustc = version(&root, Path::new("rustc"), &["-vV"])?;
+    let clippy = version(&root, &tool, &["clippy", "--version"])?;
+    let (status, text) = run(&root, &tool, PRODUCTION_CLIPPY_ARGS)?;
     diagnostics
         .write_all(text.as_bytes())
         .map_err(|source| Error::Io {
@@ -67,11 +71,40 @@ pub(crate) fn capture(
     Ok(status)
 }
 
-fn version(root: &Path, tool: &str, arguments: &[&str]) -> Result<String, Error> {
+fn clippy_executable(root: &Path) -> Result<PathBuf, Error> {
+    let path = env::var_os("PATH");
+    let mut directories: Vec<_> = path.iter().flat_map(env::split_paths).collect();
+    let home = env::var_os("CARGO_HOME")
+        .filter(|entry| !entry.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| env::home_dir().map(|home| home.join(".cargo")));
+    if let Some(home) = home {
+        let bin = root.join(home).join("bin");
+        if !directories.contains(&bin) {
+            directories.insert(0, bin);
+        }
+    }
+    directories
+        .iter()
+        .map(|directory| root.join(directory).join(CLIPPY))
+        .find(|candidate| {
+            candidate
+                .metadata()
+                .is_ok_and(|entry| entry.is_file() && entry.permissions().mode() & 0o111 != 0)
+        })
+        .ok_or_else(|| {
+            Error::Options(
+                "install Clippy: no executable cargo-clippy in Cargo home/bin or PATH".into(),
+            )
+        })
+}
+
+fn version(root: &Path, tool: &Path, arguments: &[&str]) -> Result<String, Error> {
     let (status, output) = run(root, tool, arguments)?;
     if status != 0 || output.trim().is_empty() {
         return Err(Error::Options(format!(
-            "{tool} {} did not identify the production compiler (exit {status}): {}",
+            "{} {} did not identify the production compiler (exit {status}): {}",
+            tool.display(),
             arguments.join(" "),
             output.escape_debug()
         )));
@@ -79,9 +112,10 @@ fn version(root: &Path, tool: &str, arguments: &[&str]) -> Result<String, Error>
     Ok(output)
 }
 
-fn run(root: &Path, tool: &str, arguments: &[&str]) -> Result<(u8, String), Error> {
+fn run(root: &Path, tool: &Path, arguments: &[&str]) -> Result<(u8, String), Error> {
+    let name = tool.display().to_string();
     let failure = |source| Error::Io {
-        file: tool.into(),
+        file: name.clone(),
         source,
     };
     let (mut reader, writer) = UnixStream::pair().map_err(failure)?;
@@ -99,7 +133,7 @@ fn run(root: &Path, tool: &str, arguments: &[&str]) -> Result<(u8, String), Erro
         .spawn()
         .map_err(failure)?;
     let Some(pid) = i32::try_from(child.id()).ok().and_then(Pid::from_raw) else {
-        let error = Error::Options(format!("{tool} started with an unrepresentable PID"));
+        let error = Error::Options(format!("{name} started with an unrepresentable PID"));
         return Err(stop(&mut child, error));
     };
     let bytes = thread::scope(|scope| {
@@ -119,7 +153,7 @@ fn run(root: &Path, tool: &str, arguments: &[&str]) -> Result<(u8, String), Erro
             result
         });
         let observer = observer.map_err(|source| stop(&mut child, failure(source)))?;
-        let bytes = collect(&mut reader, &ended, tool).map_err(|error| {
+        let bytes = collect(&mut reader, &ended, &name).map_err(|error| {
             // Close the bounded stream and let the adapter finish its Cargo
             // invocation, including the compiler children it owns.
             drop(reader);
@@ -133,7 +167,7 @@ fn run(root: &Path, tool: &str, arguments: &[&str]) -> Result<(u8, String), Erro
                     .copied()
                     .or_else(|| cause.downcast_ref::<String>().map(String::as_str))
                     .unwrap_or("unknown panic payload");
-                let error = Error::Options(format!("{tool} exit observer failed: {message}"));
+                let error = Error::Options(format!("{name} exit observer failed: {message}"));
                 stop(&mut child, error)
             })?
             .map_err(|source| stop(&mut child, failure(source.into())))?;
@@ -143,7 +177,7 @@ fn run(root: &Path, tool: &str, arguments: &[&str]) -> Result<(u8, String), Erro
     let code = status
         .code()
         .and_then(|code| u8::try_from(code).ok())
-        .ok_or_else(|| Error::Options(format!("{tool} ended without an exit code: {status}")))?;
+        .ok_or_else(|| Error::Options(format!("{name} ended without an exit code: {status}")))?;
     let text = String::from_utf8(bytes).map_err(|source| failure(io::Error::other(source)))?;
     Ok((code, text))
 }
@@ -226,7 +260,7 @@ fn reap(child: &mut Child, original: Error) -> Error {
 
 struct Target {
     tree: DiskTree,
-    directory: File,
+    directory: fs::File,
     name: String,
 }
 
@@ -238,11 +272,15 @@ impl Target {
                 path.display()
             ))
         };
+        let spelling = path.as_os_str().as_encoded_bytes();
+        if !path.is_absolute() || spelling.ends_with(b"/") || spelling.ends_with(b"/.") {
+            return Err(refuse());
+        }
         let (Some(parent), Some(name)) = (path.parent(), path.file_name().and_then(|s| s.to_str()))
         else {
             return Err(refuse());
         };
-        if !path.is_absolute() || name == ".git" || RelPath::new(name).is_err() {
+        if name == ".git" || RelPath::new(name).is_err() {
             return Err(refuse());
         }
         let parent = parent.canonicalize().map_err(|source| Error::Io {
@@ -284,7 +322,7 @@ impl Target {
             file: self.name.clone(),
             source,
         };
-        let mut file = File::from(
+        let mut file = fs::File::from(
             openat(
                 &self.directory,
                 temporary.as_str(),
@@ -297,22 +335,23 @@ impl Target {
             file.write_all(receipt).map_err(failure)?;
             file.sync_all().map_err(failure)?;
             self.verify_directory()?;
-            linkat(
+            renameat_with(
                 &self.directory,
                 temporary.as_str(),
                 &self.directory,
                 self.name.as_str(),
-                AtFlags::empty(),
+                RenameFlags::NOREPLACE,
             )
             .map_err(|source| failure(source.into()))
         })();
-        let cleanup = unlinkat(&self.directory, temporary.as_str(), AtFlags::empty())
-            .map_err(|source| failure(source.into()));
-        match (publish, cleanup) {
-            (Err(primary), Err(cleanup)) => Err(Error::Options(format!(
+        let Err(primary) = publish else {
+            return Ok(());
+        };
+        match unlinkat(&self.directory, temporary.as_str(), AtFlags::empty()) {
+            Err(cleanup) => Err(Error::Options(format!(
                 "{primary}; cannot remove the temporary receipt: {cleanup}"
             ))),
-            (publish, cleanup) => publish.and(cleanup),
+            Ok(()) => Err(primary),
         }
     }
 

@@ -416,14 +416,17 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/01aec1c77a74d3
 <> <https://blackcatinformatics.ca/raf/report/1#root> "." .
 ```
 
-This test isolates the registry-copy rule. The [adoption guide](../../CENSUS-HOWTO.md) shows how to supply the production lint receipt for the complete gate.
+This test uses `raf_census::LockedRegistry` to isolate the registry-copy rule.
+Set `CENSUS_ARCHIVES` to the build-owned cache directory prepared above.
+The [adoption guide](../../CENSUS-HOWTO.md) supplies the production lint receipt for the complete gate.
 
 ```rust
 use raf_census::{ArchiveCache, Gate, LockedRegistry};
 
 #[test]
 fn no_copy_of_a_registry_dependency() {
-    let registry = LockedRegistry::new(ArchiveCache::cargo_home().expect("a Cargo home"))
+    let archives = std::env::var_os("CENSUS_ARCHIVES").expect("the build-owned registry/cache");
+    let registry = LockedRegistry::new(ArchiveCache::at(archives))
         .features("hex", ["alloc", "default", "std"]);
     let report = Gate::workspace(env!("CARGO_MANIFEST_DIR"))
         .without_production_lints()

@@ -3,7 +3,11 @@
 
 use raf_census::{Gate, PRODUCTION_CLIPPY_ARGS, ProductionInputs, ProductionLintRun};
 use raf_source::DiskTree;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 const MANIFEST: &str = r#"
 [workspace]
@@ -90,26 +94,28 @@ fn installed_capture_requires_trust_and_writes_only_current_bounded_receipts() {
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let root = scratch.path().join("demo");
     let tools = scratch.path().join("tools");
+    let cargo_home = scratch.path().join("cargo-home");
+    let cargo_bin = cargo_home.join("bin");
     let cache = scratch.path().join("cache");
     let observed = scratch.path().join("arguments");
     let launched = scratch.path().join("launched");
     fs::create_dir_all(root.join("src")).unwrap();
     let root = root.canonicalize().unwrap();
     fs::create_dir_all(&tools).unwrap();
+    fs::create_dir_all(&cargo_bin).unwrap();
     fs::write(root.join("Cargo.toml"), MANIFEST).unwrap();
     fs::write(root.join("Cargo.lock"), "version = 4\n").unwrap();
     fs::write(root.join("src/lib.rs"), "pub fn home() -> u32 { 7 }").unwrap();
     super::write_ledger(&root, &[]);
     for (tool, script) in [
         (
-            "rustc",
+            tools.join("rustc"),
             "#!/bin/sh\nprintf 'started\\n' > \"$RAF_TEST_LAUNCHED\"\nprintf '%s\\n' 'fixture rustc'\n",
         ),
-        ("cargo-clippy", FIXTURE_CLIPPY),
+        (cargo_bin.join("cargo-clippy"), FIXTURE_CLIPPY),
     ] {
-        let path = tools.join(tool);
-        fs::write(&path, script).unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(&tool, script).unwrap();
+        fs::set_permissions(&tool, fs::Permissions::from_mode(0o700)).unwrap();
     }
     let capture = |target: &Path, trust: bool, outcome: &str| {
         let mut command = Command::new(env!("CARGO_BIN_EXE_cargo-raf-census"));
@@ -117,12 +123,14 @@ fn installed_capture_requires_trust_and_writes_only_current_bounded_receipts() {
             .current_dir(&root)
             .env_clear()
             .env("PATH", &tools)
+            .env("CARGO_HOME", &cargo_home)
             .env("CARGO_TARGET_DIR", &cache)
             .env("CARGO_ALIAS_CLIPPY", "test")
             .env("CARGO", "unexpected-cargo")
             .env("RAF_TEST_ARGS", &observed)
             .env("RAF_TEST_LAUNCHED", &launched)
             .env("RAF_TEST_OUTCOME", outcome)
+            .env("RAF_TEST_RECEIPT", target)
             .arg("lint-capture");
         if trust {
             command.arg("--trust-lints");
@@ -133,8 +141,13 @@ fn installed_capture_requires_trust_and_writes_only_current_bounded_receipts() {
     let untrusted = capture(&receipt, false, "clean");
     assert_eq!(untrusted.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&untrusted.stderr).contains("--trust-lints"));
-    let inside = capture(&root.join("inside.ttl"), true, "clean");
-    assert_eq!(inside.status.code(), Some(1));
+    for invalid in [
+        root.join("inside.ttl"),
+        PathBuf::from(format!("{}/", receipt.display())),
+        receipt.join("."),
+    ] {
+        assert_eq!(capture(&invalid, true, "clean").status.code(), Some(1));
+    }
     assert!(!launched.exists() && !receipt.exists());
 
     let clean = capture(&receipt, true, "clean");
@@ -145,6 +158,10 @@ fn installed_capture_requires_trust_and_writes_only_current_bounded_receipts() {
     expected.extend_from_slice(PRODUCTION_CLIPPY_ARGS);
     assert_eq!(actual.lines().collect::<Vec<_>>(), expected);
     assert!(check(&root, Some(&receipt), &[]).status.success());
+
+    let occupied = scratch.path().join("occupied.ttl");
+    assert_eq!(capture(&occupied, true, "occupied").status.code(), Some(1));
+    assert_eq!(fs::read_to_string(occupied).unwrap(), "competing receipt\n");
 
     let failed_path = scratch.path().join("failed.ttl");
     let failed = capture(&failed_path, true, "failed");
@@ -182,6 +199,7 @@ case "$RAF_TEST_OUTCOME" in
     failed) exit 23 ;;
     overflow) printf '%1048577s' '' ;;
     changed) printf '%s\n' 'pub fn home() -> u32 { 8 }' > src/lib.rs ;;
+    occupied) printf '%s\n' 'competing receipt' > "$RAF_TEST_RECEIPT" ;;
 esac
 "#;
 
@@ -226,19 +244,21 @@ fn default_checks_require_passing_production_evidence_for_the_current_sources_an
     locked_shipping_inputs(&root);
     assert_verdict(&root, &receipt, &clean, None);
     let inputs = ProductionInputs::read(&DiskTree::new(&root).unwrap()).unwrap();
-    let mut other_targets = PRODUCTION_CLIPPY_ARGS.to_vec();
-    other_targets.splice(2..4, ["--all-targets"]);
-    assert!(
-        ProductionLintRun::capture(
-            &inputs.digest().to_hex(),
-            &inputs,
-            &other_targets,
-            "controlled compiler".to_owned(),
-            0,
-            String::new()
-        )
-        .is_err()
-    );
+    for (range, replacement) in [(2..4, "--all-targets"), (6..7, "aarch64-unknown-linux-gnu")] {
+        let mut other_targets = PRODUCTION_CLIPPY_ARGS.to_vec();
+        other_targets.splice(range, [replacement]);
+        assert!(
+            ProductionLintRun::capture(
+                &inputs.digest().to_hex(),
+                &inputs,
+                &other_targets,
+                "controlled compiler".to_owned(),
+                0,
+                String::new()
+            )
+            .is_err()
+        );
+    }
     fs::write(root.join("src/implementation.rs"), "fn helper() {}").unwrap();
     assert_verdict(
         &root,
