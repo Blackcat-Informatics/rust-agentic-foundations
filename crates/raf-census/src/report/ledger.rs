@@ -261,6 +261,56 @@ impl Ledger {
         Self::read(text, Format::NTriples)
     }
 
+    /// Combine reusable job sets into one canonical Turtle ledger.
+    ///
+    /// Each set has the ordinary Ledger header and may add jobs and their
+    /// patterns. The base supplies workspace policy such as roots, scope and
+    /// reference selectors. Import each set with its complete owned job data.
+    ///
+    /// # Errors
+    /// Refuses a set that declares workspace policy, colliding node or
+    /// declaration identities, an invalid combined ledger or oversized output.
+    pub fn compose_jobs(&self, sets: &[&Self]) -> Result<String, Error> {
+        let inputs = std::iter::once(&self.graph).chain(sets.iter().map(|set| &set.graph));
+        let mut graph = Builder::for_import(inputs).map_err(E::Ground)?;
+        for assertion in self.graph.assertions() {
+            graph.insert(assertion).map_err(E::Ground)?;
+        }
+        let header = ["type", "normalForm", "reportForm"].map(shape::property);
+        let additions = ["job", "pattern"].map(shape::property);
+        let mut occupied: BTreeSet<_> = self.graph.nodes().map(|(id, _)| id).collect();
+        for set in sets {
+            for (id, _) in set.graph.nodes() {
+                if occupied.contains(&id) && !id.is_empty() {
+                    return Err(E::Repeated(format!("ledger job set node {id}")).into());
+                }
+                occupied.insert(id);
+            }
+            for assertion in set.graph.assertions() {
+                if assertion.subject.as_iri() == Some("") {
+                    let predicate = assertion.predicate.as_iri().ok_or_else(|| {
+                        E::Value("ledger job set root predicate requires an IRI".into())
+                    })?;
+                    if header.iter().any(|field| field == predicate) {
+                        continue;
+                    }
+                    if !additions.iter().any(|field| field == predicate) {
+                        return Err(E::Value(format!(
+                            "ledger job set root property {predicate}: declare workspace policy in the base ledger"
+                        ))
+                        .into());
+                    }
+                }
+                graph.insert(assertion).map_err(E::Ground)?;
+            }
+        }
+        let ledger = Self::from_graph(graph.finish().map_err(E::Ground)?)?;
+        Ok(ledger
+            .graph
+            .to_text_bounded(Format::Turtle, MAX_LEDGER_BYTES)
+            .map_err(E::Ground)?)
+    }
+
     /// The authoritative native RDF graph, including extension assertions.
     #[must_use]
     pub fn graph(&self) -> &Graph {

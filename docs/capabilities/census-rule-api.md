@@ -101,6 +101,8 @@ The trusted build reads the workspace with `ProductionInputs::read`. It requires
 `Cargo.lock` and uses `Workspace::load_shipping_members` to select library, binary
 and build-script roots before parsing source. The build
 records `ProductionInputs::digest` before running `PRODUCTION_CLIPPY_ARGS`.
+The arguments select Cargo's host target explicitly, which takes
+precedence over the Cargo `build.target` setting.
 `ProductionLintRun::capture` checks that the arguments and the digest after
 the run match. `ProductionLintRun::to_turtle` and `ProductionLintRun::from_turtle`
 use one canonical receipt and enforce the same serialized byte limit. `ProductionLintRun::read_external` reads that

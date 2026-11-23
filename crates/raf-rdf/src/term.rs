@@ -28,6 +28,26 @@ pub(crate) fn owned_local<'a>(text: &'a str, owner: &str) -> &'a str {
     }
 }
 
+pub(crate) fn reserve_construction_owners(
+    value: &TermValue,
+    occupied: &mut std::collections::BTreeSet<String>,
+) {
+    match value {
+        TermValue::Iri(iri) | TermValue::Literal { datatype: iri, .. }
+            if iri.starts_with(crate::graph::CONSTRUCTION_OWNER) =>
+        {
+            let owner = iri.split_once('#').map_or(iri.as_str(), |(owner, _)| owner);
+            occupied.insert(owner.to_owned());
+        }
+        TermValue::Triple { s, p, o } => {
+            for atom in [s, p, o] {
+                reserve_construction_owners(atom, occupied);
+            }
+        }
+        _ => {}
+    }
+}
+
 #[expect(
     clippy::expect_used,
     reason = "resident progress cannot refuse and the normalization only removes bytes"

@@ -110,6 +110,15 @@ pub(crate) enum Command {
     },
     /// Print the digest of the Cargo inputs for a production-only Clippy run.
     LintInputs,
+    /// Run production Clippy with explicit trust and capture its receipt.
+    LintCapture {
+        /// Permit Cargo to run the workspace's build scripts and procedural macros.
+        #[arg(long, required = true)]
+        trust_lints: bool,
+        /// Fresh absolute path in a build-owned directory outside the workspace.
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Seal a completed external production Clippy run as canonical Turtle.
     LintReceipt {
         /// Digest printed by lint-inputs before the build.

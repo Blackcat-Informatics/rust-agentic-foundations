@@ -13,16 +13,16 @@ inputs:
     digest: 9ad00c1e9220634d4a2b8f4bb1f4d6ac8a000b2a47e0bba5f0d8078638a1fc2e
   - kind: symbol
     name: cargo_raf_census::cli
-    digest: 0f4a28cfb4fcdc315aa04c88f7bda98f601a4a05c1e5775d5775a1c05bdeb378
+    digest: 4300627594b0693d3f22ffa2be668df8a12245fcb2bacc24afcf99b629938247
   - kind: symbol
     name: cargo_raf_census::command
-    digest: 315e3a3e88ade60ad39f6b6a814f226a4cdc7ad8ebb406144b30c3f0dd67e554
+    digest: 8fc4a7d5154baae1be8801d4b006a72b486d372ef3f98aea2251571ed76dd9b4
   - kind: symbol
     name: cargo_raf_census::error
     digest: fa7aa7a709101811082caa31353d45fe8668d69c81f88590bd2b887dff2c23ee
   - kind: symbol
     name: cargo_raf_census::run
-    digest: c7d2efc6878b1a58110bb94c7e02096ad41456836de022aca460d7c974321b3e
+    digest: fdd3e38b79ad9b8a860af3e8586d2b875f58ca9fe4cfec50ea43654c50b5f52d
   - kind: symbol
     name: raf_census::CHECK_PROTOCOL_VERSION
     digest: f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f

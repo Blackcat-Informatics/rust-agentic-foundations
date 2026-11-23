@@ -54,6 +54,9 @@ inputs:
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
   - kind: symbol
+    name: raf_rdf::Builder::for_import
+    digest: d24444b9171f91ad83b410d005727876187c11b9f866090a02fa6d3d4c3781b8
+  - kind: symbol
     name: raf_rdf::CallerFailure
     digest: 4e04f9704ecde4d349dd769cfbb515753a70375a4cf0a04f1db27e45ad731aa7
   - kind: symbol
@@ -97,13 +100,13 @@ inputs:
     digest: 8a1c21bf5d2b16ed72893ae09283a01ddb0af1e798bb379084b5736d49e0b9ae
   - kind: symbol
     name: raf_rdf::graph
-    digest: d4eba31601ebe3504a905fd38307e3fa2afe83c296202fb44e82c5b37f31e326
+    digest: 4da91f228681791a95bd39b8b3eba97658902f60dd8d5d39057323daa83832de
   - kind: symbol
     name: raf_rdf::read
     digest: 1f588d6ccf77423bbd4e52d2be136606aae13ef8dcb8a835c315b603ea74953b
   - kind: symbol
     name: raf_rdf::term
-    digest: 6d30515096ac405b18b67cf0430ed527bd54f6c5f9180121f608544dc3a4bfd6
+    digest: 24c7e042853bc1e9336d6226dc5a232917d59722b3694609a96932aa6edb7aab
   - kind: symbol
     name: raf_rdf::vocab
     digest: 0026d4964ba3d687594782f98f05a89b1cd7e9d29bd10a8a66c51a017a119ab3

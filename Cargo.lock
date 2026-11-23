@@ -140,7 +140,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-raf-census"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "capnp",
  "clap",
@@ -152,12 +152,13 @@ dependencies = [
  "raf-fixtures",
  "raf-rdf",
  "raf-source",
+ "rustix",
  "syn 3.0.8",
 ]
 
 [[package]]
 name = "cargo-raf-workplan"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "clap",
  "purrdf-lex",
@@ -1814,7 +1815,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "raf-census"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "capnp",
  "proc-macro2",
@@ -1836,7 +1837,7 @@ dependencies = [
 
 [[package]]
 name = "raf-docs-contract"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "purrdf-core",
  "purrdf-lex",
@@ -1850,7 +1851,7 @@ dependencies = [
 
 [[package]]
 name = "raf-fixtures"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "purrdf-core",
  "purrdf-deflate",
@@ -1864,7 +1865,7 @@ dependencies = [
 
 [[package]]
 name = "raf-okf"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "cap",
  "purrdf-alloc-probe",
@@ -1879,7 +1880,7 @@ dependencies = [
 
 [[package]]
 name = "raf-rdf"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "purrdf-core",
  "purrdf-deflate",
@@ -1892,7 +1893,7 @@ dependencies = [
 
 [[package]]
 name = "raf-source"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "gix",
  "libc",
@@ -1917,7 +1918,7 @@ dependencies = [
 
 [[package]]
 name = "raf-workplan"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "imara-diff",
  "proc-macro2",
@@ -1996,7 +1997,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rust-agentic-foundations"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "proc-macro2",
  "purrdf-core",

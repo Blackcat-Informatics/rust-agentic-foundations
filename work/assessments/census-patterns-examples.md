@@ -7,7 +7,7 @@ subject: cap:census-patterns#examples
 inputs:
   - kind: section
     name: cap:census-patterns#examples
-    digest: c1f96988f7947cd99e499d48d37656b7998bcf542fa6392d550fec488f5444fb
+    digest: 2363cda8e1b3b69b8f133f1e971c4d728585ae3fbec22ac7ae7531f944699e51
   - kind: symbol
     name: raf_census::Gate::matching_limits
     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc

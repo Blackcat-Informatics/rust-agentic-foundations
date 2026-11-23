@@ -24,8 +24,9 @@ use std::{ffi::OsString, io::Write, process::ExitCode};
 /// Configuration runs only after argument validation. In this mode,
 /// `baseline` validates registrations before rendering the default Census
 /// baseline. The Cap'n Proto persistence, reader admission and reader evidence commands use
-/// pinned Git independently of Gate registration. Use `None::<fn(Gate) -> Gate>`
-/// for the stock command line.
+/// pinned Git independently of Gate registration. Production lint capture
+/// also runs independently of registration and requires explicit trust on
+/// that invocation. Use `None::<fn(Gate) -> Gate>` for the stock command line.
 pub fn run(
     args: impl IntoIterator<Item = OsString>,
     configure: Option<impl FnOnce(Gate) -> Gate>,
