@@ -25,11 +25,11 @@ mod vocabulary;
 use std::collections::BTreeMap;
 
 use raf_census::{
-    Census, CensusOptions, DebtRecord, FileCtx, Fingerprint, Ledger, LedgerExtension,
-    MAX_LEDGER_BYTES, MatchClass, MigrationInput, NORMAL_FORM, Rule, RuleFixtures, RuleHit,
-    migrate_index,
+    Census, CensusOptions, DebtRecord, Error as CensusError, FileCtx, Fingerprint, Ledger,
+    LedgerExtension, MAX_LEDGER_BYTES, MatchClass, MigrationInput, NORMAL_FORM, ReportError, Rule,
+    RuleFixtures, RuleHit, migrate_index,
 };
-use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
+use raf_rdf::{Builder, Error as RdfError, Format, TermValue as Term, Triple, vocab};
 use raf_source::MemoryTree;
 
 const SOURCE: &str = "/// The one implementation.\npub fn home() -> u32 { 7 }\npub use home as alias;\npub fn copy() -> u32 { 7 + 1 }\n";
@@ -388,11 +388,8 @@ fn ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_nei
     put(&mut with_scope, "", "excludeTestItems", Term::boolean(true));
     assert!(matches!(
         load_base(with_scope).compose_jobs(&[&set]),
-        Err(raf_census::Error::Report(raf_census::ReportError::Ground(
-            raf_rdf::Error::OutputLimit {
-                max_bytes: MAX_LEDGER_BYTES
-            }
-        )))
+        Err(CensusError::Report(ReportError::Ground(RdfError::OutputLimit { max_bytes })))
+            if max_bytes == MAX_LEDGER_BYTES
     ));
 }
 
@@ -786,7 +783,7 @@ fn reusable_jobs_compose_into_the_native_ledger_without_overriding_policy() {
     let repeated = read(repeated);
     assert!(matches!(
         workspace.compose_jobs(&[&shared, &repeated]),
-        Err(raf_census::Error::Report(raf_census::ReportError::DuplicateJob(id)))
+        Err(CensusError::Report(ReportError::DuplicateJob(id)))
             if id == "number"
     ));
 }
