@@ -13,8 +13,12 @@ if [[ -z $hooks || $(realpath -m -- "$hooks") != "$top/.githooks" ||
     exit 1
 fi
 
-mkdir -p .stage
-scratch=$(mktemp -d "$top/.stage/static-gate.XXXXXXXX")
+# The snapshot is scratch data under the canonical checkout, outside its
+# managed linked worktrees.
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+scratch_root="${common%/*}/.stage"
+mkdir -p "$scratch_root"
+scratch=$(mktemp -d "$scratch_root/static-gate.XXXXXXXX")
 trap 'rm -rf -- "$scratch"' EXIT
 snapshot="$scratch/snapshot"
 mkdir "$snapshot"
@@ -27,9 +31,12 @@ GIT_INDEX_FILE="$scratch/tree-index" git read-tree "$tree"
 GIT_INDEX_FILE="$scratch/tree-index" git checkout-index --all --ignore-skip-worktree-bits --prefix="$snapshot/"
 git ls-tree --full-tree -rz "$tree" > "$scratch/tracked"
 
-# Git exports the commit's index to the hook. The snapshot and its inventory
-# carry those inputs from here, so child tools use their ordinary Git context.
-unset GIT_INDEX_FILE
+# The snapshot and inventory carry the staged inputs. Clear the committing
+# worktree's Git context so tools can resolve the snapshot's directory.
+git_context=$(git rev-parse --local-env-vars)
+while IFS= read -r variable; do
+    unset "$variable"
+done <<< "$git_context"
 target=$(realpath -m -- "${CARGO_TARGET_DIR:-$top/target}")
 CARGO_TARGET_DIR="$target" CARGO_ENCODED_RUSTFLAGS=-Dwarnings \
     cargo run --quiet --locked -p raf-docs-contract \
