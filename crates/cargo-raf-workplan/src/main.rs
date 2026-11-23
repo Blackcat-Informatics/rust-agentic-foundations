@@ -73,6 +73,16 @@ fn run(args: &cli::Args, out: &mut dyn Write, diagnostics: &mut dyn Write) -> Ex
                 Err(error) => fail(&Failure::new(format!("cannot write the documentation fragment: {error}")), diagnostics),
             };
         }
+        Ok(command::Output::CurrentDesign(markdown)) => {
+            let display = raf_workplan::escape::shown_lines(&markdown);
+            return match out.write_all(display.as_bytes()).and_then(|()| out.flush()) {
+                Ok(()) => Exit::Clean,
+                Err(error) => fail(
+                    &Failure::new(format!("cannot write the current design: {error}")),
+                    diagnostics,
+                ),
+            };
+        }
         Ok(command::Output::Mdbook(response)) => {
             return match response.write(out) {
                 Ok(()) => response.exit(),

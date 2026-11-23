@@ -96,7 +96,10 @@ use crate::graph::LinkEnd;
 use crate::work::{Work, add};
 use crate::{Finding, Workplan};
 
+mod current_design;
 mod supersession;
+
+pub use current_design::CurrentDesignError;
 
 /// The heading of a decision.
 const DECISION: &str = "Decision";
