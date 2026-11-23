@@ -76,6 +76,8 @@ pub(in crate::gate) fn functions(
         numeric: None,
         numeric_receiver: None,
         path_uses: None,
+        uncertain_visibility: false,
+        test_visibility: false,
         enum_hits: None,
         impl_blocks: &[],
         owners: super::OwnerCache::default(),
@@ -141,6 +143,8 @@ pub(super) fn collect<'p, 'w>(
         numeric: None,
         numeric_receiver: None,
         path_uses: None,
+        uncertain_visibility: false,
+        test_visibility: false,
         enum_hits: None,
         impl_blocks: &[],
         owners: super::OwnerCache::default(),
@@ -160,6 +164,11 @@ pub(in crate::gate) fn references(
     limits: &mut MatchLimits,
     paths: &mut CrossPackagePaths,
 ) -> Result<(), Error> {
+    let scopes = if paths.demand.is_some() {
+        Scopes::for_visibility_demand()
+    } else {
+        Scopes::default()
+    };
     let mut visitor = Paths {
         compiled: &[],
         receiver_matcher: None,
@@ -168,7 +177,7 @@ pub(in crate::gate) fn references(
         code,
         file,
         limits,
-        scopes: Scopes::default(),
+        scopes,
         found: Vec::new(),
         error: None,
         seen: BTreeSet::new(),
@@ -176,6 +185,8 @@ pub(in crate::gate) fn references(
         numeric: None,
         numeric_receiver: None,
         path_uses: Some(paths),
+        uncertain_visibility: false,
+        test_visibility: false,
         enum_hits: None,
         impl_blocks: &[],
         owners: super::OwnerCache::one_occurrence(),
@@ -217,6 +228,8 @@ pub(in crate::gate) fn enum_inventory<'w>(
         numeric: None,
         numeric_receiver: None,
         path_uses: None,
+        uncertain_visibility: false,
+        test_visibility: false,
         enum_hits: Some(EnumInventory {
             arms: retained.as_deref().map(|&count| (&mut hits, count)),
             usage,
@@ -307,7 +320,10 @@ fn enum_lookup<'a, 'w>(
         owner,
         site,
         label,
-        visibility: Some((workspace, target.package_id)),
+        visibility: Some((
+            workspace,
+            super::VisibilityConsumer::Package(target.package_id),
+        )),
         receiver_workspace: None,
         enum_impl,
     })
@@ -400,14 +416,55 @@ struct Paths<'a, 'p, 'w, 'c> {
     numeric: Option<&'a mut Scan>,
     numeric_receiver: Option<ReceiverMode>,
     path_uses: Option<&'a mut CrossPackagePaths>,
+    uncertain_visibility: bool,
+    test_visibility: bool,
     enum_hits: Option<EnumInventory<'a, 'w>>,
     impl_blocks: &'w [ImplBlock],
     owners: super::OwnerCache<'w>,
 }
 
 impl<'p> Paths<'_, 'p, '_, '_> {
+    fn observes_demand(&self) -> bool {
+        self.path_uses
+            .as_ref()
+            .is_some_and(|paths| paths.demand.is_some())
+    }
+
+    fn visibility_gap(&mut self, method: Option<&str>) {
+        if self.error.is_none()
+            && let Some(paths) = self.path_uses.as_deref_mut()
+        {
+            self.error = paths.coverage_gap(self.file, method, self.limits).err();
+        }
+    }
+
+    fn with_visibility_guard(&mut self, attrs: &[syn::Attribute], visit: impl FnOnce(&mut Self)) {
+        let previous = (self.uncertain_visibility, self.test_visibility);
+        if self.observes_demand() {
+            for attr in attrs {
+                let cfg = attr.path().is_ident("cfg");
+                self.uncertain_visibility |= cfg || attr.path().is_ident("cfg_attr");
+                if cfg && let syn::Meta::List(list) = &attr.meta {
+                    match raf_source::cfg_requires_test(&list.tokens) {
+                        Ok(test) => self.test_visibility |= test,
+                        Err(reason) => {
+                            self.error = Some(Error::Source {
+                                file: self.file.path.to_string(),
+                                line: attr.span().start().line,
+                                reason: format!("write a valid cfg guard: {reason}"),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        visit(self);
+        (self.uncertain_visibility, self.test_visibility) = previous;
+    }
+
     fn excludes_from_inventory(&self, attributes: &[syn::Attribute]) -> bool {
-        self.enum_hits.is_some() && crate::syntax::definitely_excluded(attributes)
+        (self.enum_hits.is_some() || self.observes_demand())
+            && crate::syntax::definitely_excluded(attributes)
     }
 
     fn collect_match_arms(&mut self, node: &syn::ExprMatch) -> Result<(), Error> {
@@ -560,11 +617,13 @@ impl<'p> Paths<'_, 'p, '_, '_> {
         attributes: &[syn::Attribute],
         visit: impl FnOnce(&mut Self),
     ) {
-        if self.enum_hits.is_some() && !crate::syntax::inert_attributes(attributes) {
-            self.without_enum_uses(visit);
-        } else {
-            visit(self);
-        }
+        self.with_visibility_guard(attributes, |this| {
+            if this.enum_hits.is_some() && !crate::syntax::inert_attributes(attributes) {
+                this.without_enum_uses(visit);
+            } else {
+                visit(this);
+            }
+        });
     }
 
     fn visit_enum_assignee(&mut self, expression: &syn::Expr) {
@@ -768,13 +827,14 @@ impl<'p> Paths<'_, 'p, '_, '_> {
                 );
             }
             if let Some(paths) = self.path_uses.as_deref_mut() {
-                let site = Site::at(
+                let mut site = Site::at(
                     self.file,
                     name.span(),
                     Role::Pattern,
                     Namespace::Value,
                     scopes.in_file_module(),
                 );
+                (site.uncertain, site.test) = (self.uncertain_visibility, self.test_visibility);
                 return cross_package_uses(
                     self.workspace,
                     self.code,
@@ -963,7 +1023,10 @@ impl<'p> Paths<'_, 'p, '_, '_> {
     }
 
     fn path(&mut self, path: &syn::Path, role: Role, namespace: Namespace) {
-        if self.error.is_some() {
+        if self.error.is_some()
+            || (self.path_uses.is_none()
+                && !self.compiled.iter().any(|expected| expected.selects(role)))
+        {
             return;
         }
         let Some(first) = path.segments.first() else {
@@ -972,17 +1035,14 @@ impl<'p> Paths<'_, 'p, '_, '_> {
         if self.path_uses.is_some() && first.ident == "Self" {
             return;
         }
-        let site = Site::at(
+        let mut site = Site::at(
             self.file,
             first.ident.span(),
             role,
             namespace,
             self.scopes.in_file_module(),
         );
-        if self.path_uses.is_none() && !self.compiled.iter().any(|expected| expected.selects(role))
-        {
-            return;
-        }
+        (site.uncertain, site.test) = (self.uncertain_visibility, self.test_visibility);
         let owners = self
             .owners
             .get(self.workspace, self.file, site.byte, self.limits);
@@ -1135,6 +1195,10 @@ impl<'p> Paths<'_, 'p, '_, '_> {
         if self.path_uses.is_some() && self.scopes.in_module() {
             return;
         }
+        self.with_visibility_guard(attributes, |this| this.import_paths(absolute, tree));
+    }
+
+    fn import_paths(&mut self, absolute: bool, tree: &syn::UseTree) {
         visit_import_paths(tree, |parts, leaf| {
             let path = syn::Path {
                 leading_colon: absolute.then(syn::token::PathSep::default),
@@ -1300,7 +1364,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
 
     fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
         if !self.excludes_from_inventory(&node.attrs) {
-            syn::visit::visit_stmt_macro(self, node);
+            self.with_visibility_guard(&node.attrs, |this| {
+                syn::visit::visit_stmt_macro(this, node);
+            });
         }
     }
 
@@ -1525,14 +1591,16 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
         if matcher.is_some() && crate::syntax::definitely_excluded(&node.attrs) {
             self.receiver_matcher = None;
         }
-        self.visit_pat(&node.pat);
-        self.with_enum_attributes(&node.attrs, |this| {
-            if let Some(initializer) = &node.init {
-                this.visit_expr(&initializer.expr);
-                if let Some((_, otherwise)) = &initializer.diverge {
-                    this.visit_expr(otherwise);
+        self.with_visibility_guard(&node.attrs, |this| {
+            this.visit_pat(&node.pat);
+            this.with_enum_attributes(&node.attrs, |this| {
+                if let Some(initializer) = &node.init {
+                    this.visit_expr(&initializer.expr);
+                    if let Some((_, otherwise)) = &initializer.diverge {
+                        this.visit_expr(otherwise);
+                    }
                 }
-            }
+            });
         });
         let initializer = self.receiver_matcher.and_then(|_| {
             let initializer = node.init.as_ref()?.expr.as_ref();
@@ -1558,23 +1626,34 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_arm(&mut self, node: &'ast syn::Arm) {
-        if self.enum_hits.is_some() && !crate::syntax::inert_attributes(&node.attrs) {
+        if self.excludes_from_inventory(&node.attrs)
+            || (self.enum_hits.is_some() && !crate::syntax::inert_attributes(&node.attrs))
+        {
             return;
         }
         self.scope(false, std::iter::empty(), |this| {
-            if this.path_uses.is_some() {
-                for attribute in &node.attrs {
-                    this.visit_attribute(attribute);
+            this.with_visibility_guard(&node.attrs, |this| {
+                if this.path_uses.is_some() {
+                    for attribute in &node.attrs {
+                        this.visit_attribute(attribute);
+                    }
                 }
-            }
-            this.arm_pattern(&node.pat);
-            this.visit_expr(&node.body);
+                this.arm_pattern(&node.pat);
+                this.visit_expr(&node.body);
+            });
         });
     }
 
     fn visit_expr(&mut self, node: &'ast syn::Expr) {
         if self.enum_hits.is_none() {
-            syn::visit::visit_expr(self, node);
+            if self.observes_demand() {
+                let attrs = crate::syntax::expression_attributes(node).unwrap_or(&[]);
+                if !self.excludes_from_inventory(attrs) {
+                    self.with_visibility_guard(attrs, |this| syn::visit::visit_expr(this, node));
+                }
+            } else {
+                syn::visit::visit_expr(self, node);
+            }
             return;
         }
         let attributes = crate::syntax::expression_attributes(node).unwrap_or(&[]);
@@ -1665,6 +1744,9 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
+        if self.observes_demand() {
+            self.visibility_gap(Some(&node.method.unraw().to_string()));
+        }
         if self.error.is_none() {
             self.error = self.method_call(node).err();
         }
@@ -1770,6 +1852,14 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_attribute(&mut self, node: &'ast syn::Attribute) {
+        if self.observes_demand()
+            && !crate::syntax::inert_attributes_with(
+                std::slice::from_ref(node),
+                &["cfg", "test", "repr", "non_exhaustive"],
+            )
+        {
+            self.visibility_gap(None);
+        }
         self.path(node.path(), Role::Attribute, Namespace::Macro);
         self.without_enum_uses(|this| syn::visit::visit_attribute(this, node));
     }
@@ -1788,10 +1878,13 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_macro(&mut self, node: &'ast syn::Macro) {
+        self.visibility_gap(None);
         if self.path_uses.is_some() {
             self.type_prefixes(&node.path);
         }
         self.path(&node.path, Role::Macro, Namespace::Macro);
+        let before = self.uncertain_visibility;
+        self.uncertain_visibility = true;
         self.without_enum_uses(|this| {
             // Parsed argument syntax is sufficient for some path policies.
             // Opaque macros cannot establish a shipping enum value use.
@@ -1821,6 +1914,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
             }
             syn::visit::visit_macro(this, node);
         });
+        self.uncertain_visibility = before;
     }
 }
 
@@ -1877,6 +1971,8 @@ pub(in crate::gate) fn numeric_calls(
         numeric: Some(scan),
         numeric_receiver: None,
         path_uses: None,
+        uncertain_visibility: false,
+        test_visibility: false,
         enum_hits: None,
         impl_blocks: &[],
         owners: super::OwnerCache::one_occurrence(),
@@ -2014,7 +2110,7 @@ fn numeric_lookup<'a, 'w>(
         owner: super::PathOwner::Item(owner.id),
         site,
         label: UNCLASSIFIED,
-        visibility: Some((workspace, package)),
+        visibility: Some((workspace, super::VisibilityConsumer::Package(package))),
         receiver_workspace: None,
         enum_impl: None,
     })

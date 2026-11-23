@@ -2707,6 +2707,268 @@ fn visibility_value<'a>(node: raf_rdf::Node<'a>, key: &str) -> &'a str {
         .0
 }
 
+fn write_demand_fixture(root: &Path) {
+    files::write(
+        root,
+        &[
+            (
+                "Cargo.toml",
+                "[workspace]\nresolver='3'\nmembers=['base','bridge','client','test-support']\n",
+            ),
+            (
+                "base/Cargo.toml",
+                "[package]\nname='base'\nversion='0.1.0'\nedition='2024'\n",
+            ),
+            (
+                "base/src/lib.rs",
+                "mod implementation { pub fn shared() {} }\n\
+            pub use implementation::shared as entry;\n\
+            pub fn test_only() {}\n\
+            pub fn same_package() {}\n\
+            pub fn conditional_feature() {}\n\
+            pub fn conditional_alias() {}\n\
+            pub mod exports { pub fn glob_selected() {} pub fn stable_glob() {} }\n\
+            pub fn disabled_only() {}\n\
+            pub fn local_only() {}\n\
+            pub fn local() { local_only(); }\n\
+            pub struct Model;\n\
+            impl Model { pub fn implicit(&self) {} }\n",
+            ),
+            (
+                "base/src/bin/own.rs",
+                "fn main() { base::same_package(); }\n",
+            ),
+            (
+                "bridge/Cargo.toml",
+                "[package]\nname='bridge'\nversion='0.1.0'\nedition='2024'\n\
+            [dependencies]\nbase={path='../base'}\n",
+            ),
+            (
+                "bridge/src/lib.rs",
+                "pub use base::entry as forward;\npub use base::exports;\n",
+            ),
+            (
+                "test-support/Cargo.toml",
+                "[package]\nname='test-support'\nversion='0.1.0'\nedition='2024'\n",
+            ),
+            (
+                "test-support/src/lib.rs",
+                "pub fn guarded() {}\npub fn compound_guarded() {}\npub mod api { pub fn ping() {} }\n",
+            ),
+            (
+                "client/Cargo.toml",
+                "[package]\nname='client'\nversion='0.1.0'\nedition='2024'\n\
+            [dependencies]\nbase={path='../base'}\nbridge={path='../bridge'}\n\
+            [dev-dependencies]\ntest-support={path='../test-support'}\n\
+            [features]\noptional=[]\n",
+            ),
+            (
+                "client/src/lib.rs",
+                "pub fn library() { bridge::forward(); base::Model.implicit(); }\n\
+            pub fn conditional() { #[cfg(test)] use test_support::guarded; }\n\
+            pub fn compound() { #[cfg(all(test, target_os = \"linux\"))] use test_support::compound_guarded; }\n\
+            pub fn mixed_preludes() {\n\
+                drop(());\n\
+                #[cfg(test)] use test_support::api::*;\n\
+                #[cfg(test)] ping();\n\
+            }\n\
+            fn selected() {}\n\
+            mod guarded_module { pub(super) fn glob_selected() {} }\n\
+            pub fn alias() {\n\
+                #[cfg(any())] use base::disabled_only as selected;\n\
+                #[cfg(feature = \"optional\")] use base::conditional_alias as selected; selected();\n\
+                #[cfg(feature = \"optional\")] use base::exports as guarded_module;\n\
+                use guarded_module::*; glob_selected();\n\
+            }\n\
+            pub fn equivalent_globs() {\n\
+                use base::exports::*;\n\
+                #[cfg(feature = \"optional\")] use bridge::exports::*;\n\
+                stable_glob();\n\
+            }\n\
+            #[cfg(any())] fn disabled() { base::disabled_only(); }\n\
+            #[cfg(feature = \"optional\")] mod optional;\n\
+            #[cfg(test)] mod tests { use base::test_only; fn call() { test_only(); } }\n",
+            ),
+            (
+                "client/src/optional.rs",
+                "use base::conditional_feature; pub fn call() { conditional_feature(); }\n",
+            ),
+            ("client/src/main.rs", "fn main() { bridge::forward(); }\n"),
+            (
+                "client/tests/integration.rs",
+                "#[test] fn test() { bridge::forward(); base::test_only(); }\n",
+            ),
+        ],
+    );
+}
+
+/// Keep each consumer's target and test reach visible through a re-export.
+/// Unresolved dot calls and macros remain evidence gaps.
+#[test]
+#[expect(clippy::unwrap_used, reason = "every fixture operation must succeed")]
+fn visibility_demand_distinguishes_shipping_test_and_incomplete_evidence() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    write_demand_fixture(root);
+    let args = ["visibility", "--demand"];
+    let first = run(root, &args);
+    assert!(first.status.success(), "{first:?}");
+    assert_eq!(run(&root.join("client"), &args).stdout, first.stdout);
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&first.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    let shared = demand_declaration(&graph, "base::implementation::shared");
+    assert_eq!(visibility_value(shared, "demand"), "production");
+    let uses: std::collections::BTreeSet<_> = visibility_nodes(&graph, shared, "use")
+        .filter(|row| visibility_value(*row, "consumer") == "client")
+        .map(|row| {
+            (
+                visibility_value(row, "consumerTargetKind"),
+                visibility_value(row, "consumerTarget"),
+                visibility_value(row, "context"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        uses,
+        [
+            ("bin", "client", "production"),
+            ("lib", "client", "production"),
+            ("test", "integration", "test")
+        ]
+        .into()
+    );
+    let only = demand_declaration(&graph, "base::test_only");
+    assert_eq!(visibility_value(only, "demand"), "test-only");
+    assert!(visibility_nodes(&graph, only, "use").any(|row| {
+        visibility_value(row, "consumerTargetKind") == "lib"
+            && visibility_value(row, "context") == "test"
+    }));
+    let same_package = demand_declaration(&graph, "base::same_package");
+    assert_eq!(visibility_value(same_package, "demand"), "production");
+    assert!(visibility_nodes(&graph, same_package, "use").any(|row| {
+        visibility_value(row, "consumer") == "base"
+            && visibility_value(row, "consumerTarget") == "own"
+    }));
+    assert_guarded_demand(&graph);
+    let local = demand_declaration(&graph, "base::local_only");
+    assert_eq!(visibility_value(local, "demand"), "no-known-use");
+    let predicate = format!("{}coverageGap", vocab::REPORT);
+    assert_eq!(local.values(&predicate).count(), 0);
+    let implicit = demand_declaration(&graph, "base::Model::implicit");
+    assert_eq!(visibility_value(implicit, "demand"), "no-known-use");
+    assert_eq!(
+        visibility_value(implicit, "coverageGap"),
+        "implicit-method-resolution"
+    );
+
+    files::write(
+        root,
+        &[(
+            "client/src/main.rs",
+            "macro_rules! use_hidden { () => { base::local_only() }; }\nfn main() { use_hidden!(); }\n",
+        )],
+    );
+    let expanded = run(root, &args);
+    assert!(expanded.status.success(), "{expanded:?}");
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&expanded.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    assert_eq!(
+        visibility_value(
+            demand_declaration(&graph, "base::local_only"),
+            "coverageGap"
+        ),
+        "macro-expansion"
+    );
+    assert_same_package_glob_refuses(root, &args);
+    assert!(!root.join("target").exists());
+}
+
+fn assert_guarded_demand(graph: &raf_rdf::Graph) {
+    for symbol in ["test_support::guarded", "test_support::compound_guarded"] {
+        let guarded = demand_declaration(graph, symbol);
+        assert_eq!(visibility_value(guarded, "demand"), "test-only");
+        assert!(visibility_nodes(graph, guarded, "use").any(|row| {
+            visibility_value(row, "consumerTargetKind") == "lib"
+                && visibility_value(row, "context") == "test"
+        }));
+    }
+    for symbol in [
+        "base::conditional_feature",
+        "base::conditional_alias",
+        "base::exports::glob_selected",
+    ] {
+        let optional = demand_declaration(graph, symbol);
+        assert_eq!(visibility_value(optional, "demand"), "no-known-use");
+        assert_eq!(
+            visibility_value(optional, "coverageGap"),
+            "uncertain-source-context"
+        );
+    }
+    for (symbol, written, context, demand) in [
+        (
+            "base::conditional_alias",
+            "selected",
+            "unknown",
+            "no-known-use",
+        ),
+        (
+            "base::exports::glob_selected",
+            "glob_selected",
+            "unknown",
+            "no-known-use",
+        ),
+        (
+            "base::exports::stable_glob",
+            "stable_glob",
+            "production",
+            "production",
+        ),
+        ("test_support::api::ping", "ping", "test", "test-only"),
+    ] {
+        let alias = demand_declaration(graph, symbol);
+        assert_eq!(visibility_value(alias, "demand"), demand, "{symbol}");
+        assert!(visibility_nodes(graph, alias, "use").any(|row| {
+            visibility_value(row, "context") == context
+                && row
+                    .values(&format!("{}writtenPath", vocab::REPORT))
+                    .any(|path| path.literal().is_some_and(|(text, _)| text == written))
+        }));
+    }
+    let disabled = demand_declaration(graph, "base::disabled_only");
+    assert_eq!(visibility_value(disabled, "demand"), "no-known-use");
+    assert_eq!(visibility_nodes(graph, disabled, "use").count(), 0);
+}
+
+fn assert_same_package_glob_refuses(root: &Path, args: &[&str]) {
+    files::write(
+        root,
+        &[(
+            "base/src/bin/own.rs",
+            "use base::same_package;\nfn main() { use std::io::*; same_package(); }\n",
+        )],
+    );
+    let ambiguous = run(root, args);
+    assert_eq!(ambiguous.status.code(), Some(1));
+    assert_eq!(ambiguous.stdout, b"");
+    assert!(String::from_utf8_lossy(&ambiguous.stderr).contains("unindexed block glob"));
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "the fixture declares the requested public item"
+)]
+fn demand_declaration<'a>(graph: &'a raf_rdf::Graph, symbol: &str) -> raf_rdf::Node<'a> {
+    visibility_nodes(graph, graph.get("").unwrap(), "declaration")
+        .find(|node| visibility_value(*node, "symbol") == symbol)
+        .unwrap()
+}
+
 /// Count distinct definitions and attribute written paths to their owner
 /// library, including a definition reached only through a member re-export.
 #[test]

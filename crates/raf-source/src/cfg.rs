@@ -13,6 +13,24 @@ use syn::parse::Parser as _;
 use syn::punctuated::Punctuated;
 use syn::{Expr, ExprLit, Lit, Meta, Token};
 
+/// Whether the contents of a `cfg(...)` attribute imply a test build.
+///
+/// Use this inside a [`parse_source`](crate::parse_source) visitor with tokens
+/// borrowed from the guarded syntax tree. Predicate parsing and classification
+/// recurse within the depth and stack bounds established for that tree.
+/// # Errors
+/// Refuses malformed syntax or an invalid operator in a configuration predicate.
+pub fn cfg_requires_test(tokens: &proc_macro2::TokenStream) -> Result<bool, String> {
+    parse_predicate(tokens).map(|predicate| predicate.implies_test())
+}
+
+pub(crate) fn parse_predicate(tokens: &proc_macro2::TokenStream) -> Result<CfgExpr, String> {
+    let meta = parse_meta
+        .parse2(tokens.clone())
+        .map_err(|error| error.to_string())?;
+    CfgExpr::from_meta(&meta)
+}
+
 /// A parsed `cfg` predicate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CfgExpr {

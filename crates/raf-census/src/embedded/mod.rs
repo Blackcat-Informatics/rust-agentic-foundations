@@ -19,6 +19,7 @@ mod debt;
 mod discovery;
 mod error;
 mod identity;
+pub(crate) use identity::target_kind;
 mod names;
 mod native_literals;
 mod native_spans;

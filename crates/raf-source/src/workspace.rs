@@ -626,10 +626,24 @@ impl Workspace {
     ) -> Option<impl Iterator<Item = PackageId> + '_> {
         self.target(library)
             .filter(|target| target.kind == TargetKind::Lib)?;
+        self.target_prelude_dependencies(library, false)
+    }
+
+    /// Borrow workspace packages available through a target's extern prelude.
+    /// Include development edges when reading a test context. Aliases may name
+    /// the same package. An unknown target returns `None`.
+    #[must_use]
+    pub fn target_prelude_dependencies(
+        &self,
+        target: TargetId,
+        test: bool,
+    ) -> Option<impl Iterator<Item = PackageId> + '_> {
         Some(
-            self.index.preludes[library.index()]
+            self.index
+                .preludes
+                .get(target.index())?
                 .values()
-                .flat_map(|name| name.roots(false))
+                .flat_map(move |name| name.roots(test))
                 .map(move |module| {
                     self.targets[self.index.modules[module].target.index()].package_id
                 }),

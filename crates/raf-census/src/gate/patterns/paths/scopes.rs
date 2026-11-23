@@ -234,6 +234,7 @@ pub(in crate::gate) struct Expanded {
     pub(in crate::gate) block: bool,
     shadowing: Option<Shadowing>,
     alias_attributes: AliasAttributes,
+    pub(super) guarded_alias: bool,
     first_frame: Option<usize>,
     alias_frame: Option<usize>,
 }
@@ -310,6 +311,7 @@ pub(in crate::gate) struct Scopes {
     pub(super) enums: RefCell<BTreeMap<ItemId, Rc<EnumMembers>>>,
     glob_states: Cell<usize>,
     module_globs: bool,
+    exclude_inactive: bool,
     track_written_receivers: bool,
     read_receiver_imports: Cell<bool>,
     receiver_floor: usize,
@@ -338,6 +340,14 @@ impl Scopes {
     pub(super) fn for_enum_patterns() -> Self {
         Self {
             module_globs: true,
+            exclude_inactive: true,
+            ..Self::default()
+        }
+    }
+
+    pub(super) fn for_visibility_demand() -> Self {
+        Self {
+            exclude_inactive: true,
             ..Self::default()
         }
     }
@@ -356,7 +366,7 @@ impl Scopes {
         let keep_globs =
             (track_globs || self.track_written_receivers) && (!module || self.module_globs);
         let excluded = |attributes: &[syn::Attribute]| {
-            self.module_globs && crate::syntax::definitely_excluded(attributes)
+            self.exclude_inactive && crate::syntax::definitely_excluded(attributes)
         };
         for item in items {
             if excluded(crate::syntax::item_attributes(item)) {
@@ -730,6 +740,7 @@ impl Scopes {
             block: false,
             shadowing: None,
             alias_attributes: AliasAttributes::Inert,
+            guarded_alias: false,
             first_frame: None,
             alias_frame: None,
         };
@@ -780,6 +791,7 @@ impl Scopes {
                 expanded.alias_attributes = AliasAttributes::Uncertain;
                 return Ok(Some(expanded));
             };
+            expanded.guarded_alias |= alias.attributes != AliasAttributes::Inert;
             if alias.path.is_empty() {
                 expanded.shadowing = Some(if block {
                     Shadowing::Block

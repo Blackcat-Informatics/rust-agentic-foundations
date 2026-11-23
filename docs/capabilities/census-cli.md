@@ -34,6 +34,7 @@ bindings:
     - raf_census::capnp_history::persistence::migration::check
     - raf_census::capnp_history::reader_evidence::verify
   tests:
+    - cargo_raf_census::test_crate::delivery::visibility_demand_distinguishes_shipping_test_and_incomplete_evidence
     - cargo_raf_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records
     - cargo_raf_census::test_crate::delivery::init_refuses_source_and_git_administration_destinations
     - cargo_raf_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy
@@ -133,6 +134,11 @@ Expose native duplication and ledger data without building or executing reposito
 The installed command also captures a production lint receipt when the caller explicitly trusts the build.
 
 ## Contract
+
+`visibility --demand` emits the target demand graph using the same worktree,
+format and destination controls as `visibility`. Each use names the Cargo
+target and the original public definition. Coverage gaps remain explicit.
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::visibility_demand_distinguishes_shipping_test_and_incomplete_evidence -->
 
 `init` and `Gate::init_ledger` create `helpers-ledger.ttl` in the discovered workspace root. The canonical Turtle ledger selects the whole workspace under the current normal and report forms with default options and no jobs. Publication requires native Linux directory locking and resolves the workspace sources before writing. A missing source input, a destination inside Git administration, an occupied ledger or temporary path, or a competing lock causes a refusal. Existing policy and debt are preserved. Structural duplicates remain findings until resolved or explicitly adopted.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records,cargo_raf_census::test_crate::delivery::init_refuses_source_and_git_administration_destinations -->
@@ -691,6 +697,9 @@ The executable accepts `job ID`, `count ID`, `fingerprint SYMBOL` and
 
 Run `cargo raf-census visibility` for the [workspace library visibility census](./census-visibility.md).
 
+Add `--demand` to group written visibility evidence by consuming target and
+distinguish production use, test-only use and evidence gaps.
+
 Before `cargo raf-census check`, [capture a production Clippy receipt](../../CENSUS-HOWTO.md#capture-the-production-lint-result) and export its absolute path as `RAF_CENSUS_LINT_EVIDENCE`. Use `cargo raf-census check --no-production-lints` to check structural policy alone.
 
 Select a workspace with `--workspace DIRECTORY`. Use `cargo raf-census check`, `cargo raf-census index`, `cargo raf-census reference-matches`, `cargo raf-census baseline`, `cargo raf-census job ID`, `cargo raf-census count ID` or `cargo raf-census fingerprint SYMBOL`. Use `--max-index-bytes` to limit the complete index or the selected report. Seal registry dependencies with `cargo raf-census check --seal-registry acme-core --registry-features acme-core=default,std` after `cargo fetch --locked`. Require module paths to stay in their package with `cargo raf-census check --require-module-paths-in-package`, and pass the same option to `debt --write`. Compare with a sibling repository at a reviewed commit with `cargo raf-census check --reference-repo ../upstream --reference-commit COMMIT`, or name the commit in a pin file with `--reference-pin-file pins.toml --reference-pin-key upstream.rev`. Run `cargo raf-census self-test` in a consumer gate before `check` to prove the installed census still detects seeded copies; it needs no workspace. A library caller uses `Gate::self_test` and reads `SelfTest::passed`, `SelfTest::cases` and its `Display` text. Help describes native migration and explicit debt options.
@@ -1031,6 +1040,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_raf_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration` | test | [Contract](#contract) |
 | `cargo_raf_census::test_crate::delivery::self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist` | test | [Contract](#contract) |
 | `cargo_raf_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines` | test | [Contract](#contract) |
+| `cargo_raf_census::test_crate::delivery::visibility_demand_distinguishes_shipping_test_and_incomplete_evidence` | test | [Contract](#contract) |
 | `raf_census::capnp_history::tests::deep_group_findings_refuse_as_a_whole_above_the_payload_limit` | test | [Verification](#verification) |
 | `raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse` | test | [Verification](#verification) |
 | `raf_census::capnp_history::tests::required_annotation_refuses_invalid_values_and_undeclared_structs` | test | [Verification](#verification) |

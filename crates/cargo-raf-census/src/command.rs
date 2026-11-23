@@ -100,10 +100,11 @@ fn run_gate(
             )?;
             Ok(0)
         }
-        Command::Visibility { format, out } => {
-            visibility(&gate.root()?, *format, out.as_deref(), output)?;
-            Ok(0)
-        }
+        Command::Visibility {
+            demand,
+            format,
+            out,
+        } => visibility(&gate.root()?, *format, out.as_deref(), *demand, output),
         Command::LintInputs => {
             writeln!(output, "{}", crate::lints::inputs(&gate)?.digest()).map_err(stdout)?;
             Ok(0)
@@ -767,14 +768,20 @@ fn visibility(
     root: &Path,
     format: RdfFormat,
     out: Option<&Path>,
+    demand: bool,
     output: &mut dyn Write,
-) -> Result<(), Error> {
+) -> Result<u8, crate::error::Error> {
     render_tree_report(root, out, output, |tree| {
-        let graph = raf_census::visibility(tree, &RelPath::root())?;
+        let graph = if demand {
+            raf_census::visibility_demand(tree, &RelPath::root())?
+        } else {
+            raf_census::visibility(tree, &RelPath::root())?
+        };
         graph
             .to_text(format.native())
             .map_err(|error| ReportError::Ground(error).into())
-    })
+    })?;
+    Ok(0)
 }
 
 pub(crate) fn write_report(

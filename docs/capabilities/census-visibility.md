@@ -9,14 +9,21 @@ state: delivered
 bindings:
   code:
     - raf_census::visibility
+    - raf_census::visibility_demand
     - raf_census::VisibilityError
+    - raf_source::cfg_requires_test
     - raf_source::Workspace::load_members
     - raf_source::Workspace::library_prelude_dependencies
+    - raf_source::Workspace::target_prelude_dependencies
     - raf_source::CodeResolver::indexed_imports
+    - raf_source::CodeResolver::resolve_test_from_item_at
+    - raf_source::IndexedImport::is_test
+    - raf_source::IndexedImport::is_conditional
     - raf_source::visit_grouped_import
     - cargo_raf_census::command::visibility
   tests:
     - cargo_raf_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers
+    - cargo_raf_census::test_crate::delivery::visibility_demand_distinguishes_shipping_test_and_incomplete_evidence
     - raf_census::gate::patterns::paths::tests::repeated_glob_paths_reuse_work_without_merging_distinct_source_reaches
     - raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches
   examples:
@@ -64,6 +71,36 @@ of export coverage. Count an exported definition once even when multiple root
 paths reach it. The export count includes doc-hidden definitions.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers -->
 
+**Target demand.** `raf_census::visibility_demand` reports each effective
+public definition of a workspace library, including hidden exports. A use
+through a re-export points to the original definition. Each use names a Cargo
+package, target name and kind, and a context. A binary or integration test
+in the defining package is still a separate Rust target.
+
+The `WorkspaceVisibilityDemand` root carries `reportForm` and links to
+`PublicDemand` declarations. Each declaration gives `symbol`, `file`,
+`line`, `startByte`, `kind`, defining `package` and `target`, and `demand`.
+Its `use` links point to `TargetUse` rows with `consumer`, `consumerTarget`,
+`consumerTargetKind`, `context`, and distinct `writtenPath` values.
+
+Demand is `production` when there is a resolved written use in a shipping
+context, `other-nonshipping` when an example or benchmark contributes use
+without production evidence, `test-only` when the observed demand is in
+tests, and `no-known-use` when there is no classified cross-target use.
+Use contexts are `production`, `test`, `other-nonshipping`, and `unknown`.
+An explicit block-local test guard selects the test prelude, including dev
+dependencies. A feature guard on an enclosing module or a block import
+keeps the resolved use conditional, including when a named import supplies
+the prefix of a glob. An equivalent unguarded glob route supplies the same
+definition without that guard. The structural index reflects authored
+source and reaches.
+
+A declaration may have `coverageGap` values for reachable macro expansion,
+a same-named dot call with unresolved receiver identity, or a written path
+in an uncertain source context. A coverage gap can accompany any demand
+value. Keep gap evidence visible when evaluating a visibility change.
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::visibility_demand_distinguishes_shipping_test_and_incomplete_evidence -->
+
 ## Usage
 
 Run `cargo raf-census visibility` at a Cargo workspace or select it with
@@ -74,6 +111,10 @@ the currency of a saved report.
 
 Call `raf_census::visibility` with a Source tree and its workspace root to
 obtain the same graph for direct inspection or rendering.
+
+Use `cargo raf-census visibility --demand` to inspect target-level demand.
+Select the same ways to read the workspace and write the report as for
+`visibility`. Read each declaration's coverage before narrowing visibility.
 
 ## Examples
 
@@ -152,6 +193,7 @@ introduces a binding in one reach refuses.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_raf_census::test_crate::delivery::visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_raf_census::test_crate::delivery::visibility_demand_distinguishes_shipping_test_and_incomplete_evidence` | test | [Contract](#contract) |
 | `raf_census::gate::patterns::paths::tests::repeated_glob_paths_reuse_work_without_merging_distinct_source_reaches` | test | [Explanation](#explanation) |
 | `raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches` | test | [Constraints](#constraints) |
 | `raf_census::visibility` | doctest | [Usage](#usage) |
