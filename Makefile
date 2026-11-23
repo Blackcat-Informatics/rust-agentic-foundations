@@ -40,7 +40,7 @@ FUZZ_MAX_LEN ?= 400000
 # The memory limits of every run, in MiB: the resident set, and one allocation.
 FUZZ_RSS_LIMIT_MB ?= 2048
 FUZZ_MALLOC_LIMIT_MB ?= 512
-.PHONY: help fmt clippy clippy-production test test-release doc deny reuse msrv fuzz fuzz-check fuzz-run licenses issue-refs docs-sync check hooks
+.PHONY: help fmt clippy clippy-production test test-release doc deny reuse msrv fuzz fuzz-check fuzz-run licenses issue-refs docs-sync check merge-gate hooks
 
 help: ## List the targets.
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-12s %s\n", $$1, $$2}'
@@ -81,10 +81,7 @@ reuse: ## REUSE compliance lint (needs uvx or reuse).
 msrv: ## cargo check on the MSRV toolchain (1.98.1).
 	@command -v $(firstword $(MSRV_RUN)) >/dev/null 2>&1 || { \
 	  echo "make msrv: required tool '$(firstword $(MSRV_RUN))' not found; install rust-validate, or run with MSRV_RUN= and RUSTUP_TOOLCHAIN=1.98.1" >&2; exit 1; }
-	@v=$$($(MSRV_RUN) rustc --version); case "$$v" in "rustc 1.98.1 "*) ;; *) \
-	  echo "make msrv: expected rustc 1.98.1, got '$$v'; set MSRV_RUN to a command that runs the 1.98.1 toolchain" >&2; exit 1;; esac
-	$(MSRV_RUN) cargo check --workspace --all-targets --locked
-	$(MSRV_RUN) cargo check --manifest-path '$(ROOT)/fuzz/Cargo.toml' --target-dir target --all-targets --locked
+	cargo run --locked --example msrv_dependency_audit -p rust-agentic-foundations -- --check '$(ROOT)' $(MSRV_RUN)
 
 fuzz: ## Fuzz harness: fmt, clippy, deny, then a bounded run (needs cargo-fuzz).
 	cargo fmt --check --manifest-path '$(ROOT)/fuzz/Cargo.toml'
@@ -127,6 +124,15 @@ check: ## Run every gate, stopping at the first failure.
 	$(MAKE) fuzz
 	$(MAKE) licenses
 	$(MAKE) issue-refs
+
+merge-gate: ## Qualify the exact merge candidate, including the workspace tests.
+	+@common=$$(git rev-parse --path-format=absolute --git-common-dir) && \
+	  target=$$(realpath -m -- "$${CARGO_TARGET_DIR:-$(CURDIR)/target}") && \
+	  case "$$target" in \
+	    "$${common%/*}"|"$${common%/*}/"*) \
+	      echo 'make merge-gate: set CARGO_TARGET_DIR to an absolute directory outside the repository' >&2; exit 1;; \
+	  esac && \
+	  env -u RAF_GATE_ROOT CARGO_TARGET_DIR="$$target" flock /tmp/raf-build.lock $(MAKE) check ROOT='$(CURDIR)'
 
 hooks: ## Use .githooks for this clone (local config only).
 	git config core.hooksPath .githooks
