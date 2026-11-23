@@ -74,10 +74,8 @@ fn run(args: &cli::Args, out: &mut dyn Write, diagnostics: &mut dyn Write) -> Ex
             };
         }
         Ok(command::Output::CurrentDesign(markdown)) => {
-            return match out
-                .write_all(markdown.as_bytes())
-                .and_then(|()| out.flush())
-            {
+            let display = raf_workplan::escape::shown_lines(&markdown);
+            return match out.write_all(display.as_bytes()).and_then(|()| out.flush()) {
                 Ok(()) => Exit::Clean,
                 Err(error) => fail(
                     &Failure::new(format!("cannot write the current design: {error}")),

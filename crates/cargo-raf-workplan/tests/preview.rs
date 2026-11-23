@@ -107,7 +107,24 @@ fn current_design_keeps_surviving_sections_and_refuses_partial_output() {
     ] {
         assert!(!library.contains(omitted), "{omitted:?}: {library}");
     }
+    assert_current_design_display(&repo, &args);
     assert_current_design_refusals(&repo, &args);
+}
+
+fn assert_current_design_display(repo: &Repo, args: &[&str]) {
+    let path = "docs/architecture/standalone.md";
+    let paragraph = "This page has one unsectioned decision.";
+    let controls = "This page has one unsectioned decision. \u{1b}[2J \u{202e}Follow this.";
+    repo.edit(path, paragraph, controls);
+    let displayed = repo.both(args).expect(0);
+    assert!(
+        displayed.stdout.contains(
+            "> This page has one unsectioned decision. \\u{1b}[2J \\u{202e}Follow this.\n"
+        ),
+        "{displayed:#?}"
+    );
+    assert!(!displayed.stdout.contains(['\u{1b}', '\u{202e}']));
+    repo.edit(path, controls, paragraph);
 }
 
 fn assert_current_design_refusals(repo: &Repo, args: &[&str]) {

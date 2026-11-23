@@ -292,8 +292,9 @@ remains unasserted.
 [resolved Architecture decisions](workplan-current-rationale.md) as
 Markdown. Architecture findings are reported on stderr with exit two
 and empty stdout. Quiet mode and non-text formats refuse before input
-loading. The command reads the workspace without writing files or
-starting a process.
+loading. Stdout escapes terminal controls and bidirectional formatting
+characters while preserving line breaks and tabs. The command reads the
+workspace without writing files or starting a process.
 <!-- raf:tested-by cargo_raf_workplan::test_crate::preview::current_design_keeps_surviving_sections_and_refuses_partial_output -->
 
 **Static contract.** `cargo raf-workplan COMMAND` and `cargo-raf-workplan COMMAND` use the same parser. Root discovery reads manifests through the native source model. Ordinary checks, history, coverage, review and evidence queries launch no process. Verification reports declared bindings and static findings; completion checks a prospective document overlay and publishes owned documentation only.
