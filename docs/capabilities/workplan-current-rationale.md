@@ -9,7 +9,10 @@ state: delivered
 bindings:
   code:
     - raf_workplan::rationale
+    - raf_workplan::Workplan::current_design
+    - raf_workplan::CurrentDesignError
   tests:
+    - cargo_raf_workplan::test_crate::preview::current_design_keeps_surviving_sections_and_refuses_partial_output
     - raf_workplan::test_crate::rationale::a_partial_section_chain_can_cross_the_same_pages_in_both_directions
     - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
     - raf_workplan::test_crate::rationale::a_capability_link_to_a_missing_page_or_heading_fails_the_link_check
@@ -84,6 +87,18 @@ run in opposite directions. A chain can replace one named section of a
 decision while its other sections remain independent.
 <!-- raf:tested-by raf_workplan::test_crate::rationale::a_partial_section_chain_can_cross_the_same_pages_in_both_directions,raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
 
+**Resolved view.** `Workplan::current_design` renders the Architecture
+decisions in document and heading order. Every target of a validated
+supersession stays out of the view, including targets of a section that
+has itself been superseded. Independent named sections and unsectioned
+decisions remain. The introductory prose of a named decision accompanies
+its current sections. A wholly superseded Decision block contributes no
+text. The view omits generated blocks and quotes the remaining authored
+Markdown with its original document path, heading anchor and line.
+Read relative links in the cited source page. Architecture findings
+cause a `CurrentDesignError` before the view is returned.
+<!-- raf:tested-by cargo_raf_workplan::test_crate::preview::current_design_keeps_surviving_sections_and_refuses_partial_output -->
+
 **Headings and lists.** The headings are ATX headings: up to three spaces, one to six
 `#` marks, then a space or a tab and the text. A setext heading, text underlined with
 `=` or `-`, is not a heading of these rules, so a decision or a conditions heading
@@ -128,6 +143,10 @@ findings come in the order of the documents' paths and lines.
 ## Usage
 
 The runnable API examples in `raf_workplan::rationale` demonstrate the heading and list rules used to check current architectural reasoning.
+
+Run `cargo raf-workplan docs current-design` to read the resolved
+Architecture decisions together. Use the source locator to find an
+excerpt in its original page.
 
 - A capability author who makes a decision shared with another capability writes the
   decision once in an architecture page and links to it from each Explanation.
@@ -232,6 +251,7 @@ history in their working context.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_raf_workplan::test_crate::preview::current_design_keeps_surviving_sections_and_refuses_partial_output` | test | [Contract](#contract) |
 | `raf_workplan::rationale` | doctest | [Usage](#usage) |
 | `raf_workplan::rationale::tests::a_hundred_thousand_headings_are_each_read_once` | test | [Verification](#verification) |
 | `raf_workplan::rationale::tests::a_line_without_a_marker_or_without_text_is_no_list_item` | test | [Verification](#verification) |

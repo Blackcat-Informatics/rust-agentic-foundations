@@ -8,10 +8,162 @@
 mod support;
 
 use std::fmt::Write as _;
+use std::path::Path;
 
 use support::Repo;
 
 const PROPOSED: &str = "Delta reads streams as they arrive.";
+
+fn decision(repo: &Repo, slug: &str, replacements: &str, body: &str) {
+    repo.put(
+        &format!("docs/architecture/{slug}.md"),
+        &format!(
+            "---\ntype: Architecture\nid: arch:{slug}\ntitle: Design\n\
+             description: A design decision.\n{replacements}---\n\n# Design\n\n{body}\n\n\
+             ## Conditions to revisit\n\n- A governing requirement changes.\n"
+        ),
+    );
+}
+
+/// Active sections travel through the normal CLI with their source identity.
+/// A bad Architecture input cannot produce a partial view.
+#[test]
+#[expect(
+    clippy::expect_used,
+    reason = "the controlled fixture must load and render each expected excerpt"
+)]
+fn current_design_keeps_surviving_sections_and_refuses_partial_output() {
+    let repo = Repo::bare_in(Path::new(env!("CARGO_TARGET_TMPDIR")), "current-design");
+    repo.put(
+        "docs/capabilities/view.md",
+        &support::capability(
+            "view",
+            "considered",
+            ["[]", "[]", "[]"],
+            "[]",
+            &[(
+                "Explanation",
+                "[Current](../architecture/current.md) and [independent](../architecture/standalone.md).",
+            )],
+        ),
+    );
+    decision(
+        &repo,
+        "current",
+        "supersedes:\n  latest: ['arch:middle#intermediate']\n",
+        "[Middle](middle.md).\n\n## Decision\n\n### Latest\n\nRead the latest requirements.",
+    );
+    decision(
+        &repo,
+        "middle",
+        "supersedes:\n  intermediate: ['arch:earliest#initial']\n",
+        "[Earlier](earliest.md).\n\n## Decision\n\n### Intermediate\n\nAn earlier compromise.",
+    );
+    decision(
+        &repo,
+        "earliest",
+        "",
+        "## Decision\n\n### Initial\n\nThe initial assumptions.\n\n### Limits\n\nKeep exact bounds.\n\
+         <!-- raf:generated:diagrams -->\n### Generated heading\nGenerated material.\n\
+         <!-- raf:generated:end -->\nA second paragraph.\n\n#### Application\n\n```text\nBounded example.\n```",
+    );
+    decision(
+        &repo,
+        "standalone",
+        "",
+        "## Decision\n\nThis page has one unsectioned decision.",
+    );
+    let args = ["docs", "current-design"];
+    let before = repo.snapshot();
+    let run = repo.both(&args).expect(0);
+    assert_eq!(run.stderr, "");
+    let opened = raf_workplan::Gate::workspace(repo.root())
+        .open()
+        .expect("the repository");
+    let library = opened
+        .workplan()
+        .current_design()
+        .expect("the complete design");
+    assert_eq!(run.stdout, library);
+    assert_eq!(repo.snapshot(), before, "current-design wrote a file");
+    let mut remaining = library.as_str();
+    for current in [
+        "docs/architecture/current.md#latest` on line 16.",
+        "docs/architecture/earliest.md#limits` on line 16.",
+        "> Keep exact bounds.\n>\n> A second paragraph.",
+        "> #### Application\n",
+        "> ```text\n> Bounded example.\n",
+        "docs/architecture/standalone.md#decision` on line 10.",
+        "> This page has one unsectioned decision.",
+    ] {
+        let (_, after) = remaining.split_once(current).expect(current);
+        remaining = after;
+    }
+    for omitted in [
+        "The initial assumptions.",
+        "An earlier compromise.",
+        "arch:middle",
+        "Generated material.",
+    ] {
+        assert!(!library.contains(omitted), "{omitted:?}: {library}");
+    }
+    assert_current_design_refusals(&repo, &args);
+}
+
+fn assert_current_design_refusals(repo: &Repo, args: &[&str]) {
+    repo.edit(
+        "docs/architecture/current.md",
+        "middle#intermediate",
+        "middle#missing",
+    );
+    let incomplete = repo.both(args).expect(2);
+    assert_eq!(incomplete.stdout, "");
+    assert!(
+        incomplete.stderr.contains("[supersession-target]"),
+        "{incomplete:#?}"
+    );
+
+    repo.edit(
+        "docs/architecture/current.md",
+        "middle#missing",
+        "middle#intermediate",
+    );
+    let standalone = repo.read("docs/architecture/standalone.md");
+    repo.edit(
+        "docs/architecture/standalone.md",
+        "This page has one unsectioned decision.",
+        "> [!PROPOSED change:draft]\n> Draft decision text.",
+    );
+    let proposed = repo.both(args).expect(2);
+    assert_eq!(proposed.stdout, "");
+    assert!(
+        proposed
+            .stderr
+            .contains("[okf-proposed-outside-capability]"),
+        "{proposed:#?}"
+    );
+    repo.put("docs/architecture/standalone.md", &standalone);
+    repo.put("docs/capabilities/standalone.md", &standalone);
+    let misplaced = repo.both(args).expect(2);
+    assert_eq!(misplaced.stdout, "");
+    assert!(
+        misplaced.stderr.contains("docs/capabilities/standalone.md")
+            && misplaced
+                .stderr
+                .contains("move the file directly into docs/architecture"),
+        "{misplaced:#?}"
+    );
+
+    for flags in [&["--format", "turtle"][..], &["--quiet"][..]] {
+        let command: Vec<_> = args.iter().chain(flags).copied().collect();
+        let wrong_carrier = repo.both(&command).expect(2);
+        assert_eq!(wrong_carrier.stdout, "");
+        assert!(
+            wrong_carrier.stderr.contains("emits complete Markdown"),
+            "{wrong_carrier:#?}"
+        );
+    }
+}
 
 #[test]
 fn the_proposed_text_is_printed_and_the_markers_are_not() {

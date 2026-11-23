@@ -22,7 +22,7 @@ inputs:
     digest: fc6f889825cd4dc9c67773864d91fee28253057d4b0aca63595b03cb1c895e43
   - kind: symbol
     name: raf_workplan::Workplan
-    digest: 2a5a787d384e1f1fb552d72c5a3aa463cdacb0ca576a8cad60e519b8139aab0d
+    digest: 79f8a9b57b4d14ecc842e2abdd9bd60341d1f6e2442341b3045e32c7162fe2c8
   - kind: symbol
     name: raf_workplan::Workplan::architecture_models
     digest: 91f15ba332366b1cfa9fae5aed1ae905202912a0728c1b9750fcc86ccedad993

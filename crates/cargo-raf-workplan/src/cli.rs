@@ -446,6 +446,8 @@ pub(crate) enum Change {
 /// The commands under `docs`.
 #[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
 pub(crate) enum Docs {
+    /// Print current Architecture decisions with their authored provenance.
+    CurrentDesign,
     /// Print checked static Markdown for a caller-owned Rustdoc include.
     Fragment(FragmentArgs),
     /// Inspect existing metadata, messages and HTML without building or publishing.
