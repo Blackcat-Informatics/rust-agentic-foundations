@@ -12,6 +12,15 @@ for key in RUSTFLAGS CARGO_ENCODED_RUSTFLAGS CARGO_BUILD_RUSTFLAGS CARGO_BUILD_T
         exit 1
     fi
 done
+args=(clippy --workspace --lib --bins --locked --
+      -D warnings -D unused -D unreachable-pub -D clippy::allow_attributes
+      -D clippy::used_underscore_binding -D clippy::needless_pass_by_value
+      -D clippy::trivially_copy_pass_by_ref -D clippy::redundant_clone)
+if [[ ${3:-} == --check-only ]]; then
+    cd "$root"
+    export CARGO_ENCODED_RUSTFLAGS=''
+    exec cargo "${args[@]}"
+fi
 scratch=$(mktemp -d)
 trap 'rm -rf -- "$scratch"' EXIT
 receipt=${RAF_CENSUS_LINT_EVIDENCE:-$scratch/run.ttl}
@@ -33,10 +42,6 @@ census() {
 }
 before=$(census lint-inputs)
 compiler=$(cd "$root" && rustc -vV && cargo clippy --version)
-args=(clippy --workspace --lib --bins --locked --
-      -D warnings -D unused -D unreachable-pub -D clippy::allow_attributes
-      -D clippy::used_underscore_binding -D clippy::needless_pass_by_value
-      -D clippy::trivially_copy_pass_by_ref -D clippy::redundant_clone)
 status=0
 # Cargo's highest-precedence flags source keeps target-specific configuration
 # from adding a test cfg or capping the requested lint levels.

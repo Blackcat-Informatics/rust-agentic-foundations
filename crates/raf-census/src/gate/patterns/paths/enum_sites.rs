@@ -224,6 +224,10 @@ fn alternatives(
     })
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "the pattern branch explicitly checks that the alternative list contains one case"
+)]
 fn unwrap_pattern(mut pattern: &syn::Pat) -> &syn::Pat {
     loop {
         pattern = match pattern {

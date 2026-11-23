@@ -115,16 +115,22 @@ pub(crate) fn scan<'a, T: Copy>(
         let (Some(first), Some(last)) = (spans.first(), spans.last()) else {
             continue;
         };
-        let leads = text[..first.0].trim().is_empty();
-        let trails = text[last.1..].trim().is_empty();
+        // Every span endpoint comes from a UTF-8 character boundary in this line.
+        let leads = text.split_at(first.0).0.trim().is_empty();
+        let trails = text.split_at(last.1).1.trim().is_empty();
         let mut previous_end: Option<usize> = None;
         for (start, end) in spans {
             let joins_previous = match previous_end {
-                Some(before) => matches!(&text[before..start], " "),
+                Some(before) => start - before == 1 && text.as_bytes().get(before) == Some(&b' '),
                 None => leads && open_end.is_some_and(|prior| prior + 1 == line),
             };
+            #[expect(
+                clippy::string_slice,
+                reason = "word_spans returns only ordered UTF-8 character boundaries of this line"
+            )]
+            let word = &text[start..end];
             words.push(Word {
-                text: &text[start..end],
+                text: word,
                 line,
                 tag,
                 joins_previous,
@@ -178,15 +184,11 @@ fn matches_at<T>(words: &[Word<'_, T>], at: usize, phrase: &str) -> bool {
 /// The byte ranges of the words of a line, leaving out link destinations.
 /// The minimum content of the complete policy counts words as this cuts them.
 pub(crate) fn word_spans(text: &str) -> Vec<(usize, usize)> {
-    let bytes = text.as_bytes();
     let mut spans = Vec::new();
     let mut word: Option<usize> = None;
-    let mut at = 0;
-    while at < text.len() {
-        let Some(c) = text[at..].chars().next() else {
-            break;
-        };
-        let next = at + c.len_utf8();
+    let mut remaining = text.chars();
+    while let Some(c) = remaining.next() {
+        let at = text.len() - remaining.as_str().len() - c.len_utf8();
         add(Work::ScanBytes, c.len_utf8());
         if c.is_alphanumeric() || c == '_' {
             word.get_or_insert(at);
@@ -194,17 +196,15 @@ pub(crate) fn word_spans(text: &str) -> Vec<(usize, usize)> {
             if let Some(start) = word.take() {
                 spans.push((start, at));
             }
-            if c == ']' && bytes.get(next) == Some(&b'(') {
+            let rest = remaining.as_str();
+            if c == ']' && rest.starts_with('(') {
                 // The destination of a link is a path or an address, not
                 // wording: skip to its closing parenthesis.
-                at = text[next..]
-                    .find(')')
-                    .map_or(text.len(), |close| next + close + 1);
-                add(Work::ScanBytes, at - next);
-                continue;
+                let after = rest.split_once(')').map_or("", |(_, after)| after);
+                add(Work::ScanBytes, rest.len() - after.len());
+                remaining = after.chars();
             }
         }
-        at = next;
     }
     if let Some(start) = word {
         spans.push((start, text.len()));

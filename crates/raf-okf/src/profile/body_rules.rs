@@ -207,8 +207,12 @@ fn is_word_char(c: char) -> bool {
 /// True when `token` occurs in `line` as a whole word.
 fn has_word(line: &str, token: &str) -> bool {
     line.match_indices(token).any(|(index, _)| {
-        let before = line[..index].chars().next_back();
-        let after = line[index + token.len()..].chars().next();
+        let before = line
+            .get(..index)
+            .and_then(|prefix| prefix.chars().next_back());
+        let after = line
+            .get(index + token.len()..)
+            .and_then(|suffix| suffix.chars().next());
         !before.is_some_and(is_word_char) && !after.is_some_and(is_word_char)
     })
 }

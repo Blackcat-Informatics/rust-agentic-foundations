@@ -42,8 +42,9 @@ pub fn preprocess(plan: &Workplan<'_>, mut request: Value) -> Result<Value, Diag
     let pair = request
         .as_array_mut()
         .ok_or_else(|| refused("input must be the standard [context, book] array"))?;
-    let [context, mut book] = <[Value; 2]>::try_from(std::mem::take(pair))
-        .map_err(|_| refused("input must contain exactly context and book"))?;
+    let Ok([context, mut book]) = <[Value; 2]>::try_from(std::mem::take(pair)) else {
+        return Err(refused("input must contain exactly context and book"));
+    };
     let context = object(&context, "context")?;
     if context.get("renderer").and_then(Value::as_str) != Some("html") {
         return Err(refused("renderer must be html"));
@@ -160,7 +161,10 @@ fn markdown(
             }
             let paragraph = containing(&spans.paragraphs, &mut paragraph_index, offset)
                 .ok_or_else(|| refused("diagram references require a top-level prose paragraph"))?;
-            if source[paragraph.clone()].trim_end_matches(['\r', '\n']) != original {
+            if source
+                .get(paragraph.clone())
+                .is_none_or(|text| text.trim_end_matches(['\r', '\n']) != original)
+            {
                 return Err(refused(
                     "diagram references must form their own top-level paragraph",
                 ));

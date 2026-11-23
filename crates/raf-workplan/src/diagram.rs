@@ -200,7 +200,7 @@ impl NativeExport {
         }
     }
 
-    fn text(&self, title: &str) -> String {
+    fn text(&self, title: &str) -> Result<String, DiagramError> {
         let mut text = format!("{title}\n");
         for accessible in self
             .base()
@@ -217,7 +217,7 @@ impl NativeExport {
             )
         {
             writeln!(text, "{}: {}", accessible.title, accessible.description)
-                .expect("writing to String cannot fail");
+                .map_err(DiagramError::data)?;
         }
         if let Self::Presented(export) = self {
             if let Some(scenario) = &export.presentation.scenario {
@@ -231,15 +231,14 @@ impl NativeExport {
                         region.order,
                         region.label.full_text
                     )
-                    .expect("writing to String cannot fail");
+                    .map_err(DiagramError::data)?;
                 }
             }
             for interaction in &export.geometry.interactions {
-                writeln!(text, "{}", interaction.label.full_text)
-                    .expect("writing to String cannot fail");
+                writeln!(text, "{}", interaction.label.full_text).map_err(DiagramError::data)?;
             }
         }
-        crate::escape::shown_lines(&text)
+        Ok(crate::escape::shown_lines(&text))
     }
 }
 
@@ -511,10 +510,11 @@ impl DiagramBundle {
             NativeExport::Ordinary(export) => viz::render_export_svg(export, &options)?,
             NativeExport::Presented(export) => viz::render_presented_export_svg(export, &options)?,
         };
-        let mut text = export.text(&title);
+        let mut text = export.text(&title)?;
         if let Some(hash) = full_model_hash {
-            writeln!(text, "Full RDF provenance model hash: {hash}")
-                .expect("writing to String cannot fail");
+            text.push_str("Full RDF provenance model hash: ");
+            text.push_str(hash);
+            text.push('\n');
         }
         let metadata = Object::new()
             .with("schema", "raf-diagram-bundle-1")

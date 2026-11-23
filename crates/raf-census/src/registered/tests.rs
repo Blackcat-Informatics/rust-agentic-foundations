@@ -7,6 +7,13 @@ use raf_rdf::Triple;
 #[path = "../../tests/support/vocabulary.rs"]
 mod vocabulary;
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn response() -> RegisteredCheck {
     RegisteredCheck::build(
         Outcome::Findings,
@@ -16,12 +23,26 @@ fn response() -> RegisteredCheck {
     .unwrap()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn edited(response: &RegisteredCheck, change: impl FnOnce(&mut Builder)) -> String {
     let mut graph = Builder::from_graph(&response.graph);
     change(&mut graph);
     graph.finish().unwrap().to_text(Format::NTriples).unwrap()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn replace(graph: &mut Builder, subject: &str, key: &str, old: Term, new: Option<Term>) {
     assert!(
         graph
@@ -38,6 +59,13 @@ fn replace(graph: &mut Builder, subject: &str, key: &str, old: Term, new: Option
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn native_responses_preserve_order_multiplicity_and_evaluation_errors() {
     use std::ffi::OsString;
     registered_vocabulary_inventory();
@@ -96,6 +124,13 @@ fn native_responses_preserve_order_multiplicity_and_evaluation_errors() {
     assert_eq!(decoded.findings().len(), 0);
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn registered_vocabulary_inventory() {
     let clean = RegisteredCheck::build(Outcome::Clean, std::iter::empty(), None).unwrap();
     let error =
@@ -115,6 +150,13 @@ fn registered_vocabulary_inventory() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors() {
     let receipt = debt_receipt().to_ntriples().unwrap();
     assert!(RegisteredDebtWrite::from_ntriples(&response().to_ntriples().unwrap()).is_err());
@@ -218,6 +260,13 @@ fn protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn membership_ordinals_and_orphans_cannot_drop_findings() {
     let receipt = debt_receipt().to_ntriples().unwrap();
     let text = edit_debt(&receipt, |graph| {
@@ -289,6 +338,13 @@ fn membership_ordinals_and_orphans_cannot_drop_findings() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn canonical_and_size_refusals_do_not_accept_partial_carriers() {
     let debt = debt_receipt().to_ntriples().unwrap();
     assert!(RegisteredDebtWrite::from_ntriples(debt.trim_end_matches('\n')).is_err());
@@ -304,6 +360,13 @@ fn canonical_and_size_refusals_do_not_accept_partial_carriers() {
     assert!(RegisteredCheck::from_ntriples(&text).is_ok());
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn debt_receipt() -> RegisteredDebtWrite {
     RegisteredDebtWrite::from_write(&Ok(crate::DebtWrite {
         path: "census-debt.ttl".into(),
@@ -314,6 +377,13 @@ fn debt_receipt() -> RegisteredDebtWrite {
     .unwrap()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn edit_debt(text: &str, change: impl FnOnce(&mut Builder)) -> String {
     let graph = Graph::from_text(text, Format::NTriples).unwrap();
     let mut builder = Builder::from_graph(&graph);
@@ -323,6 +393,13 @@ fn edit_debt(text: &str, change: impl FnOnce(&mut Builder)) -> String {
 
 /// The site count is optional and positive: absent means none, zero is refused,
 /// and a receipt with no sites states none.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn the_site_count_is_optional_and_positive(receipt: &str) {
     let without = edit_debt(receipt, |graph| {
         replace(graph, "", "siteCount", shape::integer(4), None);

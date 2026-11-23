@@ -169,11 +169,25 @@ fn split_members(content: ParseStream<'_>, members: &mut Vec<UseMember>) -> syn:
 mod tests {
     use super::{Bodiless, Verbatim, item, member};
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn tokens(text: &str) -> proc_macro2::TokenStream {
         text.parse().expect("tokens")
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn a_use_group_splits_into_one_use_per_member() {
         let Some(Verbatim::UseGroup(group)) = item(&tokens(
             "#[cfg(x)] pub use { ::std::fmt::Debug as D, crate::a::{f, g}, };",
@@ -188,6 +202,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn a_bare_group_in_a_use_group_contributes_its_members() {
         let Some(Verbatim::UseGroup(group)) =
             item(&tokens("use { a::f, { ::b::c, { ::d::e } }, {} };"))

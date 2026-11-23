@@ -47,6 +47,10 @@ fn fixture(root: &Path) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn repository_links_resolve_from_two_depths_without_changing_cached_views() {
     let scratch = Scratch::new("repository-navigation");
     let root = scratch.path();
@@ -89,6 +93,10 @@ fn repository_links_resolve_from_two_depths_without_changing_cached_views() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn check_links(root: &Path, directory: &Path, cached: &raf_workplan::diagram::DiagramBundle) {
     let name = cached.view().name();
     let text = fs::read_to_string(directory.join(format!("{name}.json"))).unwrap();
@@ -152,6 +160,10 @@ fn check_links(root: &Path, directory: &Path, cached: &raf_workplan::diagram::Di
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn repository_publication_refuses_missing_changed_and_outside_bindings() {
     let scratch = Scratch::new("repository-navigation-refusals");
     let root = scratch.path();

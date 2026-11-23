@@ -41,6 +41,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn other_versions_are_refused_naming_both_and_the_migration() {
         for declared in [0, 2] {
             let message = check_normal_form(declared)

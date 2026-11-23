@@ -647,6 +647,13 @@ mod tests {
 
     /// A review owns each leaf once, including a first declaration at byte zero.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn review_currency_changes_only_the_edited_definition_and_keeps_container_contracts() {
         let load = |text: &str| {
             raf_source::Workspace::load(

@@ -8,6 +8,14 @@ use crate::embedded::coordinates::Coordinates;
 use crate::embedded::native_spans::fixture::without_work;
 use crate::embedded::resource::Meter;
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 pub(in crate::embedded) fn check() {
     for spelling in [
         "const { 1 }",
@@ -56,6 +64,13 @@ pub(in crate::embedded) fn check() {
     attributed_arm();
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn function(syntax: &syn::File) -> &syn::ItemFn {
     let syn::Item::Fn(function) = &syntax.items[0] else {
         panic!("fixture function")
@@ -63,6 +78,15 @@ fn function(syntax: &syn::File) -> &syn::ItemFn {
     function
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::string_slice,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn statements() {
     let statements = [
         ";",
@@ -114,6 +138,14 @@ fn statements() {
     .unwrap();
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn attributed_arm() {
     let source = "fn owner() { match input { #[allow(unused)] Some(value) => (), } }";
     let path = raf_source::RelPath::new("arm-endpoints.rs").unwrap();

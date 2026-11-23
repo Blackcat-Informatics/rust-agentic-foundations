@@ -133,9 +133,11 @@ impl Tree for Staged<'_> {
         };
         let mut kept = Vec::new();
         for entry in entries {
-            let child = path.join(&entry.name).map_err(|_| TreeError::OutsideRoot {
-                path: format!("{path}/{}", entry.name),
-            })?;
+            let Ok(child) = path.join(&entry.name) else {
+                return Err(TreeError::OutsideRoot {
+                    path: format!("{path}/{}", entry.name),
+                });
+            };
             if !self.absent(&child) {
                 kept.push(entry);
             }
@@ -183,6 +185,13 @@ mod tests {
 
     use super::Staged;
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn path(text: &str) -> RelPath {
         RelPath::new(text).expect("a path")
     }
@@ -196,6 +205,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn the_hidden_file_is_not_read_listed_or_found() {
         let inner = tree();
         let hidden = path("work/changes/a.md");
@@ -224,6 +240,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn every_other_path_is_answered_as_the_inner_tree_does() {
         let inner = tree();
         let hidden = path("work/changes/a.md");
@@ -249,6 +272,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_replaced_file_reads_as_its_new_text_within_the_bound() {
         let inner = tree();
         let hidden = path("work/changes/a.md");

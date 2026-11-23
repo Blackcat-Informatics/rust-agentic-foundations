@@ -25,7 +25,7 @@ purrdf-xsd.workspace = true
 
 [dev-dependencies]
 purrdf-rdf.workspace = true
-cap = "0.1.2"
+cap.workspace = true
 purrdf-alloc-probe.workspace = true
 
 [lints]

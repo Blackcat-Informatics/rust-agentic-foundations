@@ -19,6 +19,7 @@ use purrdf_lex::{
 use raf_source::{DiskTree, EntryKind, FileId, OpenedBytes, RelPath, Tree};
 use std::{
     ffi::OsStr,
+    fmt,
     path::{Path, PathBuf},
     rc::Rc,
 };
@@ -30,6 +31,15 @@ mod tests;
 
 /// An open Cargo target directory shared by artifact admission and publication.
 pub struct DocumentationTarget(Rc<Root>);
+
+impl fmt::Debug for DocumentationTarget {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("DocumentationTarget")
+            .field("path", &self.0.path())
+            .finish_non_exhaustive()
+    }
+}
 
 impl DocumentationTarget {
     /// Retain the identity of an existing canonical target directory.
@@ -354,9 +364,11 @@ fn read_entry(
             )));
         }
     }
-    let relative = reported_path
-        .strip_prefix(&selection.target_directory)
-        .map_err(|_| refused("reported HTML entry is outside Cargo's target directory"))?;
+    let Ok(relative) = reported_path.strip_prefix(&selection.target_directory) else {
+        return Err(refused(
+            "reported HTML entry is outside Cargo's target directory",
+        ));
+    };
     let relative_path = RelPath::new(
         relative
             .to_str()

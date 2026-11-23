@@ -20,6 +20,10 @@ fn manifest(name: &str) -> String {
 
 /// The source workspace of `files`, the manifest of `demo` at the root
 /// unless `files` holds one.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn source(files: &[(&str, &str)]) -> Workspace {
     let mut all: Vec<(String, String)> = files
         .iter()
@@ -82,6 +86,10 @@ fn lines_of(source: &Workspace, code: &[&str], tests: &[&str], record: &str) -> 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn macro_lines_follow_indexed_configuration_instead_of_raw_file_reaches() {
     use raf_source::{CfgAtom, DeclaredCfg, DeclaredConfiguration, LoadOptions, TargetKind};
     let tree = MemoryTree::from([
@@ -150,6 +158,10 @@ fn registered_allocator(attribute: &str) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_bound_test_reaches_its_registered_allocator_and_real_initializer_dependencies() {
     for (attribute, registered) in [
         ("#[global_allocator]", true),
@@ -348,6 +360,11 @@ fn helper() -> u8 {
 ";
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn every_target_is_counted_and_shared_module_units_are_unioned_once() {
     let ws = source(&[
         (
@@ -747,6 +764,10 @@ fn a_cfg_test_module_with_one_bound_and_one_unbound_test_reports_the_unbound_one
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_package_that_no_capability_binds_is_reported_with_its_orphan_helper() {
     let ws = source(&[
         (
@@ -898,6 +919,11 @@ fn excepted(report: &LinesReport) -> Vec<(String, String)> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding()
  {
     let ws = excepted_source();
@@ -1058,6 +1084,10 @@ fn a_ceiling_of_lines_passes_at_its_count_and_fails_one_below_for_each_class() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn missing_or_invalid_coverage_and_unloaded_capabilities_defer_ceiling_judgment() {
     const CAP: &str = "docs/capabilities/lines.md";
     const RECORD: &str = "work/coverage/default.md";
@@ -1119,6 +1149,10 @@ fn missing_or_invalid_coverage_and_unloaded_capabilities_defer_ceiling_judgment(
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_test_lines_to_zero()
 {
     let found = strict_over(&ceilings(&["    lines: 3\n    of: shipping\n"]));
@@ -1138,6 +1172,10 @@ fn a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_t
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_percent_ceiling_compares_whole_numbers_at_its_boundary_and_an_empty_package_passes_it() {
     // Five orphan lines of six counted: 83.3...%.
     let ws = source(&[("src/lib.rs", CEILING_LIB)]);
@@ -1212,6 +1250,10 @@ const EXCEPTED_TABLE: &str = "\
 ";
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_excepted_unit_preserves_ranges_reason_and_the_excepted_table() {
     let ws = source(&[("src/lib.rs", HELPER_LIB)]);
     let record =
@@ -1264,6 +1306,10 @@ fn nested_tree() -> MemoryTree {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not()
  {
     let tree = nested_tree();

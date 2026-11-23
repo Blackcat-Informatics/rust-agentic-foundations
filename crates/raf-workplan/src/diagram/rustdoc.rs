@@ -196,7 +196,7 @@ fn preface(
         escaped(package.manifest.as_str())?,
         escaped(target.root.as_str())?,
     )
-    .expect("writing to String cannot fail");
+    .map_err(DiagramError::data)?;
     match receiving {
         ResolvedContext::CrateRoot { target, text } => {
             let digest = ContentDigest::of(text.as_bytes());
@@ -206,7 +206,7 @@ fn preface(
                 escaped(&target.crate_path)?,
                 escaped(target.root.as_str())?,
             )
-            .expect("writing to String cannot fail");
+            .map_err(DiagramError::data)?;
         }
         ResolvedContext::Module(module) => {
             let digest =
@@ -217,7 +217,7 @@ fn preface(
                 escaped(module.path.as_str())?,
                 escaped(module.file.as_str())?,
             )
-            .expect("writing to String cannot fail");
+            .map_err(DiagramError::data)?;
         }
     }
     writeln!(
@@ -225,7 +225,7 @@ fn preface(
         "Cargo metadata content SHA-256 <code>{}</code>.\n",
         escaped(context.metadata)?
     )
-    .expect("writing to String cannot fail");
+    .map_err(DiagramError::data)?;
     Ok(output)
 }
 
@@ -378,8 +378,7 @@ fn reference(
         escaped(item.file.as_str())?,
         item.name_line,
     )
-    .expect("writing to String cannot fail");
-    Ok(())
+    .map_err(DiagramError::data)
 }
 
 fn disambiguator(kind: SymbolKind) -> Result<&'static str, DiagramError> {

@@ -28,12 +28,12 @@ purrdf-iri.workspace = true
 # string literals their absolute lines.
 proc-macro2 = { workspace = true, features = ["span-locations"] }
 # The workspace walk: packages, targets, the symbol index and the item bodies.
-raf-source = { path = "../raf-source", version = "0.8.0" }
+raf-source.workspace = true
 # Shared RDF 1.2 lexical laws; canonical report goldens pin the term spelling.
 purrdf-lex.workspace = true
 purrdf-jsonschema.workspace = true
 purrdf-xsd.workspace = true
-raf-rdf = { path = "../raf-rdf", version = "0.8.0" }
+raf-rdf.workspace = true
 # One-way foreign ledger import only; the production policy format is native RDF.
 purrdf-toml.workspace = true
 # Native projected terms and indexed subject selection for foreign field ownership.
@@ -43,7 +43,7 @@ purrdf-core.workspace = true
 syn = { workspace = true, features = ["full", "parsing", "printing", "visit"] }
 
 [dev-dependencies]
-raf-fixtures = { path = "../raf-fixtures" }
+raf-fixtures.workspace = true
 purrdf-testkit.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]

@@ -16,11 +16,19 @@ fn load(files: &[(&str, &str)]) -> Result<Workspace, LoadError> {
     Workspace::load(&tree, &["."])
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn lib(text: &str) -> Workspace {
     load(&[("src/lib.rs", text)]).unwrap_or_else(|e| panic!("{e}"))
 }
 
 /// The canonical path a path resolves to.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn path_of(ws: &Workspace, path: &str) -> String {
     ws.resolve(path)
         .unwrap_or_else(|e| panic!("{path}: {e}"))
@@ -52,6 +60,10 @@ fn a_rename_a_nested_group_and_a_plain_use_each_resolve_to_the_definition() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_glob_resolves_with_via_glob_and_the_direct_path_does_not() {
     let ws = lib("pub mod inner { pub fn go() {} }\npub mod outer { pub use super::inner::*; }\n");
     let direct = ws.resolve("demo::inner::go").expect("direct");
@@ -67,6 +79,10 @@ fn a_glob_resolves_with_via_glob_and_the_direct_path_does_not() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn definitions_and_explicit_imports_shadow_globs() {
     let ws = lib("pub mod a { pub fn x() {} pub fn y() {} }\n\
          pub mod b { pub fn x() {} pub fn y() {} }\n\
@@ -93,6 +109,10 @@ fn explicit_imports_shadow_globs_for_the_modules_that_glob_the_importer() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn two_globs_that_bring_in_different_items_are_ambiguous_beside_two_that_bring_in_one() {
     let ws = lib("pub mod a { pub fn x() {} }\npub mod b { pub fn x() {} }\n\
          pub mod both { pub use super::a::*; pub use super::b::*; }\n\
@@ -108,6 +128,10 @@ fn two_globs_that_bring_in_different_items_are_ambiguous_beside_two_that_bring_i
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_mutual_super_glob_resolves_a_real_item_in_both_directions() {
     let ws = lib("pub mod a { pub use super::b::*; pub fn only_a() {} }\n\
          pub mod b { pub use super::a::*; pub fn only_b() {} }\n");
@@ -140,6 +164,10 @@ fn crate_self_and_super_paths_resolve_from_the_module_they_are_written_in() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn super_above_the_crate_root_is_an_error_naming_file_and_line() {
     let error =
         load(&[("src/lib.rs", "pub fn ok() {}\nuse super::missing;\n")]).expect_err("above");
@@ -173,6 +201,10 @@ fn load_in(edition: &str, files: &[(&str, &str)]) -> Result<Workspace, LoadError
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets() {
     let ws = load_in(
         "2021",
@@ -206,6 +238,10 @@ fn extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_tar
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_three_hop_chain_resolves_and_lists_each_hop() {
     let ws = lib("mod a { pub fn real() {} }\n\
          mod b { pub use super::a::real as hop2; }\n\
@@ -316,6 +352,10 @@ fn missing_names_dependency_items_and_macro_generated_items_are_not_found() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn raw_identifiers_resolve_under_both_spellings() {
     let ws = load(&[(
         "src/lib.rs",
@@ -330,6 +370,10 @@ fn raw_identifiers_resolve_under_both_spellings() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap() {
     let hops = 5000;
     let mut forward = String::from("mod origin { pub fn end() {} }\npub use origin::end as h0;\n");
@@ -374,6 +418,10 @@ fn an_invalid_path_is_an_invalid_error_beside_a_valid_one() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_cfg_twin_module_is_one_symbol_and_its_contents_merge() {
     let ws = lib("#[cfg(unix)] pub mod sys { pub fn common() {} }\n\
          #[cfg(windows)] pub mod sys { pub fn common() {} pub fn extra() {} }\n");
@@ -391,6 +439,10 @@ fn a_cfg_twin_module_is_one_symbol_and_its_contents_merge() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn cfg_attr_alternatives_index_every_file_under_the_one_module_path() {
     let ws = load(&[
         (
@@ -456,6 +508,10 @@ fn permutations(items: &[String]) -> Vec<Vec<String>> {
 /// Load every order of `blocks` with each of `variants` among them, at
 /// every position, and assert that `paths` come out the same in each.
 /// Returns that outcome and the number of loads.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn one_outcome_in_every_order(
     blocks: &[&str],
     variants: &[&str],
@@ -572,6 +628,10 @@ fn resolution_does_not_depend_on_the_order_of_the_declarations() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_explicit_import_shadows_the_glob_whether_or_not_the_index_sees_what_it_binds() {
     // `serde::A` is an item of a dependency, which the index cannot see. The
     // explicit import still shadows the glob's `A`, as in rustc, so neither
@@ -632,6 +692,10 @@ fn an_explicit_import_shadows_the_glob_whether_or_not_the_index_sees_what_it_bin
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_import_that_binds_its_name_in_one_name_space_leaves_the_others_to_the_globs() {
     // `use super::m::m;` imports the function `m::m`, and `use super::*;`
     // brings in the module `m`: the import binds the value name space and
@@ -672,6 +736,10 @@ fn not_found_in(ws: &Workspace, path: &str, ns: Namespace) {
 
 /// Load `text` as `demo`'s library, beside a manifest of `edition` with the
 /// tables `extra`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn load_with(edition: &str, extra: &str, text: &str) -> Workspace {
     let manifest = format!("{DEMO}edition = \"{edition}\"\n{extra}");
     let tree: MemoryTree = [("Cargo.toml", manifest.as_str()), ("src/lib.rs", text)]
@@ -681,6 +749,10 @@ fn load_with(edition: &str, extra: &str, text: &str) -> Workspace {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_route_without_a_glob_decides_via_glob_for_an_item_reached_both_ways() {
     let ws = lib("mod a { pub fn f() {} }\nmod m { pub use crate::a::*; pub use crate::a::f; }\n");
     let resolution = ws.resolve("demo::m::f").expect("resolves");
@@ -716,6 +788,10 @@ fn globs_import_only_the_names_the_importer_can_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn use_with_only_self_is_an_error_and_use_path_self_imports_the_module() {
     let error = load(&[("src/lib.rs", "pub fn ok() {}\nuse {self};\n")]).expect_err("no path");
     assert!(
@@ -762,6 +838,10 @@ fn use_with_only_self_is_an_error_and_use_path_self_imports_the_module() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn trait_impls_on_foreign_types_are_keyed_by_the_canonical_trait_path_in_every_spelling() {
     let manifest =
         "[package]\nname = \"demo\"\nedition = \"2021\"\n\n[dependencies]\nserde = \"1\"\n";
@@ -796,6 +876,10 @@ fn trait_impls_on_foreign_types_are_keyed_by_the_canonical_trait_path_in_every_s
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_trait_path_that_cannot_be_made_absolute_is_a_typed_error() {
     for bad in [
         "impl crate::missing::Tr for Vec<u8> {}",
@@ -871,13 +955,26 @@ const SHARED: [(&str, &str); 14] = [
     ("four/tests/it.rs", "pub use p_four::X;\n"),
 ];
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn shared() -> Workspace {
     let tree: MemoryTree = SHARED.into_iter().collect();
     Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"))
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn foreign_impl_members_keep_defining_traits_distinct_under_equal_crate_paths() {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn traits(one_provider: bool) -> Workspace {
         // The index sees the trait, while its method declaration is macro-generated.
         // A local generic argument permits these impls on the foreign Vec type.
@@ -941,6 +1038,10 @@ fn foreign_impl_members_keep_defining_traits_distinct_under_equal_crate_paths() 
 }
 
 /// The file of the definition a path resolves to.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn file_of(ws: &Workspace, resolution: &raf_source::Resolution) -> String {
     ws.item(resolution.sites[0])
         .expect("the site is an item")
@@ -949,6 +1050,11 @@ fn file_of(ws: &Workspace, resolution: &raf_source::Resolution) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named() {
     let ws = shared();
     for path in ["shared::X", "shared"] {
@@ -986,11 +1092,11 @@ fn two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named() 
     assert!(ws.package_ids().any(|id| id == second_package));
     assert_eq!(
         ws.resolve_in_package_id(first_package, "shared::X"),
-        Ok(one.clone())
+        Ok(one)
     );
     assert_eq!(
         ws.resolve_in_package_id(second_package, "shared::X"),
-        Ok(two.clone())
+        Ok(two)
     );
     let smaller = lib("pub struct X;");
     assert!(smaller.package(second_package).is_none());
@@ -1014,6 +1120,10 @@ fn two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_crate_name_in_an_import_is_the_dependency_its_target_declares() {
     let ws = shared();
     // A path dependency names its package's library by the library's name.
@@ -1126,6 +1236,11 @@ const SPLIT: [(&str, &str); 8] = [
 ];
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name() {
     let tree: MemoryTree = SPLIT.into_iter().collect();
     let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
@@ -1216,6 +1331,11 @@ fn a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_n
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_name_bound_to_several_modules_gives_a_trait_key_through_each() {
     let manifest = "[package]\nname = \"demo\"\nedition = \"2021\"\n\n\
                     [dependencies]\nserde = \"1\"\nother = \"1\"\n";
@@ -1279,6 +1399,10 @@ fn with_serde(edition: &str, text: &str) -> Result<Workspace, LoadError> {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle() {
     // The imports, the alias a module imports `Item` through, and the paths
     // through them.
@@ -1335,6 +1459,11 @@ fn a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_ow
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_single_segment_import_of_a_workspace_library_binds_its_crate_root() {
     let tree: MemoryTree = [
         (
@@ -1376,6 +1505,10 @@ fn a_single_segment_import_of_a_workspace_library_binds_its_crate_root() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_use_path_of_edition_2015_starts_at_the_crate_root() {
     let text = "pub mod inner { pub fn go() {} }\n\
                 pub mod user {\n    pub use inner::go;\n    pub use ::inner::go as colon;\n    pub use inner;\n}\n";
@@ -1433,6 +1566,11 @@ fn a_use_path_of_edition_2015_starts_at_the_crate_root() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous() {
     let text = "pub mod local { pub mod serde { pub struct Serialize; } pub fn serde_fn() {} }\n\
                 pub mod values { #[allow(non_snake_case)] pub fn serde() {} }\n\
@@ -1471,6 +1609,10 @@ fn a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous() {
 
 /// A workspace where `demo` (edition 2021) depends on `p-one`, whose library
 /// is `shared`, with `text` as `demo`'s library.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn beside_shared(text: &str) -> Workspace {
     let tree: MemoryTree = [
         ("Cargo.toml", "[workspace]\nmembers = [\"one\", \"demo\"]\n"),
@@ -1495,6 +1637,10 @@ fn beside_shared(text: &str) -> Workspace {
 
 /// The paths a resolution names: its definition, or the ids of an
 /// ambiguity.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn named(ws: &Workspace, path: &str) -> Result<String, Vec<String>> {
     match ws.resolve(path) {
         Ok(resolution) => Ok(resolution.path),
@@ -1507,6 +1653,10 @@ fn named(ws: &Workspace, path: &str) -> Result<String, Vec<String>> {
 }
 
 /// The key of the trait impl on `String` in `ws`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn string_impl_key(ws: &Workspace) -> raf_source::TraitKey {
     let keys: Vec<raf_source::TraitKey> = ws
         .items()
@@ -1531,6 +1681,10 @@ fn every_order(
 }
 
 /// [`every_order`] over the workspace `load` builds around `demo`'s library.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_order_in(
     load: fn(&str) -> Workspace,
     prefix: &str,
@@ -1681,6 +1835,10 @@ fn a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate() {
     let ws = with_serde(
         "2021",
@@ -1706,6 +1864,10 @@ fn a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_no_std_crate_does_not_name_std_without_an_extern_crate_item() {
     let body = "pub mod k { pub mod std { pub mod fmt { pub fn f() {} } } }\n\
                 pub mod user { use crate::k::*; pub use std::fmt; }\n";
@@ -1734,6 +1896,10 @@ fn a_no_std_crate_does_not_name_std_without_an_extern_crate_item() {
 /// A workspace where `demo` (edition 2021) depends on `p-one`, whose library
 /// `shared` has a module `inner::other`, and on `p-two`, whose library is
 /// `other`, with `text` as `demo`'s library.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn beside_two(text: &str) -> Workspace {
     let tree: MemoryTree = [
         (
@@ -1882,6 +2048,10 @@ fn an_import_binds_what_a_name_it_read_gains_later_in_every_order() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_crate_name_an_explicit_import_binds_is_never_read_as_the_crate_in_every_order() {
     // `pub use k::other;` could bind `other` only once the glob of `k` brings
     // it in, and that glob goes through `inn`, whose own path starts at
@@ -1909,6 +2079,10 @@ fn a_crate_name_an_explicit_import_binds_is_never_read_as_the_crate_in_every_ord
 
 /// The answer to `path` in `ns`, or in every name space, with the items of
 /// an ambiguity by path.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn answer(ws: &Workspace, path: &str, ns: Option<Namespace>) -> String {
     let result = match ns {
         Some(ns) => ws.resolve_in(path, ns),
@@ -1929,6 +2103,10 @@ fn answer(ws: &Workspace, path: &str, ns: Option<Namespace>) -> String {
 /// Load every order of `blocks` with `load`, and assert that the answers to
 /// `queries` and the trait keys of the load are the same in each. Returns
 /// them, the keys last, and the number of orders.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn one_answer_in_every_order(
     load: fn(&str) -> Workspace,
     blocks: &[&str],
@@ -2356,6 +2534,10 @@ fn the_rebuilt_globs_read_each_glob_path_in_the_settled_tables_in_every_order() 
 }
 
 /// The key of the one trait impl on `u8` in `ws`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn string_or_u8_key(ws: &Workspace) -> raf_source::TraitKey {
     let keys: Vec<raf_source::TraitKey> = ws
         .items()
@@ -2425,6 +2607,10 @@ fn a_glob_whose_path_turns_out_ambiguous_brings_in_nothing_in_every_order() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_glob_brings_in_what_its_target_binds_later_whatever_its_target_holds_under_its_first_segment()
 {
     // `shared::prelude` binds `shared` only through a cycle of renamed
@@ -2765,6 +2951,10 @@ fn one_answer_in_every_rotation(
 }
 
 /// [`one_answer_in_every_rotation`] loaded with `load`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn one_answer_in_every_rotation_of(
     load: fn(&str) -> Workspace,
     blocks: &[&str],
@@ -3269,6 +3459,10 @@ fn beside_p_one(text: &str) -> Result<Workspace, LoadError> {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do() {
     // syn has no node for a group member that starts with `::`; rustc accepts
     // it, and each member binds as its own `use` would.
@@ -3301,6 +3495,10 @@ fn a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015() {
     let ws = load_in(
         "2015",
@@ -3316,6 +3514,10 @@ fn a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_crate_root_inside_a_group_under_a_path_is_a_syntax_error() {
     // rustc refuses `a::{::b}` too (E0433), and syn does not parse it; the
     // load names the file and line.
@@ -3333,6 +3535,10 @@ fn a_crate_root_inside_a_group_under_a_path_is_a_syntax_error() {
 
 /// What `module` reads `path` as in `ns` when it writes it in a `use`: the
 /// canonical path, or the kind of refusal.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn read_as(ws: &Workspace, module: &str, path: &str, ns: Namespace) -> String {
     match ws.resolve_from_in(module, path, ns) {
         Ok(found) => found.path,
@@ -3355,6 +3561,10 @@ type Read = (&'static str, &'static str, Namespace);
 /// of those modules in every order too, and assert that every reader's
 /// answer to `reads` is the same in each. Returns the answers and the number
 /// of loads.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn reads_in_every_order(
     others: &[&str],
     modules: &[(&str, &[&str])],
@@ -3658,6 +3868,11 @@ fn ambiguous_between(first: &str, second: &str) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_name_two_globs_bring_in_as_different_items_is_ambiguous_to_a_reader_of_one_glob_in_every_order()
  {
     // `m` globs `a` privately and `b` with a glob the readers can access, and
@@ -4605,6 +4820,11 @@ fn a_companion_carried_through_an_independent_glob_chain_remains_ambiguous_in_ev
 /// `modules` may open nested modules, as `mod m { pub mod s`: the
 /// declarations go into the innermost, and each module the header leaves
 /// open is closed after them.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn reads_in_every_order_in(
     edition: &str,
     others: &[&str],

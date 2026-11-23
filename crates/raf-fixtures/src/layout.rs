@@ -14,6 +14,10 @@ pub fn form3(text: &str, format: Format) -> String {
     prior_form(text, format, 3)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn prior_form(text: &str, format: Format, form: i128) -> String {
     let original = Graph::from_text(text, format).unwrap();
     let mut graph = Builder::from_graph(&original);
@@ -35,6 +39,10 @@ fn prior_form(text: &str, format: Format, form: i128) -> String {
 }
 
 /// Assert that a report written in form 3 upgrades to exactly `current`, returning the old text.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 pub fn assert_upgrade(kind: ReportKind, current: &str, format: Format) -> String {
     let old = form3(current, format);
     let input = MigrationInput {

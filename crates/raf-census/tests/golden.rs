@@ -311,6 +311,10 @@ fn the_pinned_version_is_the_implemented_one() {
 
 /// Every way `pinned` fails to be the table of `computed`: a line without a
 /// pin, a pin without a line, a moved value and an id that appears twice.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn pin_problems(computed: &str, pinned: &str) -> Vec<String> {
     let mut problems = Vec::new();
     let mut seen = |text: &str, side: &str| {

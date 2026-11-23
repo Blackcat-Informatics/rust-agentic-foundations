@@ -14,12 +14,21 @@ use raf_census::{
     PASSES, SHIM_MAX_TOKENS, Slice, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
 };
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn page() -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/architecture/normal-form.md");
     fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
 }
 
 /// The lines of the section `heading` (a `## ` title) of `page`.
+#[expect(
+    clippy::panic,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn section<'a>(page: &'a str, heading: &str) -> &'a str {
     let start = page
         .find(&format!("\n## {heading}\n"))
@@ -34,6 +43,10 @@ fn quoted(name: &str) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn the_page_names_every_pass_level_and_the_encoding() {
     let page = page();
     let passes = section(&page, "The passes");
@@ -91,6 +104,11 @@ fn the_page_names_every_threshold_with_its_value() {
 
 /// Every threshold counts the value form, and the code counts the same.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_page_states_that_every_threshold_counts_the_value_form() {
     let page = page();
     let thresholds = section(&page, "Thresholds");

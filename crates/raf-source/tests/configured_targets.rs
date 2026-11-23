@@ -87,6 +87,11 @@ fn load_under(
         |catalog, tree, hints| Workspace::load_locked_sources(catalog, tree, hints, &[], options),
     )
 }
+#[expect(
+    clippy::unwrap_in_result,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn load_with(
     tree: &MemoryTree,
     configs: &[DeclaredConfiguration<'_>],
@@ -123,12 +128,21 @@ fn load_with(
     ];
     load(&catalog, tree, &hints)
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reader(ws: &Workspace, kind: TargetKind) -> raf_source::ItemId {
     ws.items()
         .find(|item| ws.target(item.target).unwrap().kind == kind && item.name == "reader")
         .unwrap()
         .id
 }
+#[expect(
+    clippy::unwrap_in_result,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn query(
     ws: &Workspace,
     owner: raf_source::ItemId,
@@ -144,6 +158,10 @@ fn query(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn all_selected_target_kinds_keep_their_native_and_own_library_routes() {
     for (kind, name, test, dependency) in [
         (TargetKind::Bin, "worker", false, "dependencies"),
@@ -197,6 +215,10 @@ fn all_selected_target_kinds_keep_their_native_and_own_library_routes() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection() {
     let tree = tree("dependencies", false, true);
     let lib = context(TargetKind::Lib, "consumer_library", false);
@@ -227,6 +249,10 @@ fn missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selec
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn shared_files_reuse_only_the_same_actual_syntax_selection() {
     let tree = tree("dependencies", true, false);
     let lib = context(TargetKind::Lib, "consumer_library", false);
@@ -252,6 +278,10 @@ fn shared_files_reuse_only_the_same_actual_syntax_selection() {
 /// target configuration and owns whether an earlier physical file can be reused.
 #[cfg(target_os = "linux")]
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn locked_parallel_parsing_keeps_target_context_and_canonical_alias_refusal() {
     let options = LoadOptions::default();
     let parallel = raf_source::ParallelOptions::default();
@@ -312,6 +342,10 @@ fn locked_parallel_parsing_keeps_target_context_and_canonical_alias_refusal() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn development_edges_require_a_real_development_or_declared_test_context() {
     let tree = tree("dev-dependencies", false, false);
     let lib = context(TargetKind::Lib, "consumer_library", false);
@@ -332,6 +366,10 @@ fn development_edges_require_a_real_development_or_declared_test_context() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn conditional_and_optional_edges_keep_each_targets_actual_activation() {
     let conditional = tree("target.'cfg(custom)'.dependencies", false, false);
     let lib = context(TargetKind::Lib, "consumer_library", false);
@@ -383,6 +421,10 @@ fn conditional_and_optional_edges_keep_each_targets_actual_activation() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn retained_target_lists_and_configuration_queries_spend_the_original_grants() {
     let tree = tree("dev-dependencies", true, false);
     let configs = [
@@ -413,6 +455,10 @@ fn retained_target_lists_and_configuration_queries_spend_the_original_grants() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn configured_syntax_queries_select_the_actual_target_and_preserve_budget_causes() {
     let tree = tree("dependencies", true, false);
     let file = RelPath::new("consumer/shared.rs").unwrap();

@@ -14,6 +14,11 @@ use std::process::ExitCode;
 #[path = "../tests/support/builtin.rs"]
 mod builtin;
 
+#[expect(
+    clippy::print_stderr,
+    clippy::print_stdout,
+    reason = "the executable reports its results through its output and status"
+)]
 fn main() -> ExitCode {
     let output = match std::env::args().nth(1) {
         None => builtin::builtin(),

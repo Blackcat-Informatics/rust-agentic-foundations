@@ -597,15 +597,19 @@ pub(crate) fn is_authored(body: &Body, section: CapabilitySection) -> bool {
     let end = found.content().bytes.end;
     let mut kept = String::with_capacity(text.len());
     let mut at = start;
+    let mut remaining = text;
     for block in body.generated_blocks() {
         let outer = &block.outer().bytes;
         if outer.start < at || outer.end > end {
             continue;
         }
-        kept.push_str(&text[at - start..outer.start - start]);
+        // Section and generated-block endpoints come from the same body.
+        let (before, generated) = remaining.split_at(outer.start - at);
+        kept.push_str(before);
+        remaining = generated.split_at(outer.len()).1;
         at = outer.end;
     }
-    kept.push_str(&text[at - start..]);
+    kept.push_str(remaining);
     !without_comments(&kept).trim().is_empty()
 }
 
@@ -614,12 +618,12 @@ pub(crate) fn is_authored(body: &Body, section: CapabilitySection) -> bool {
 fn without_comments(text: &str) -> String {
     let mut out = String::new();
     let mut rest = text;
-    while let Some(open) = rest.find("<!--") {
-        out.push_str(&rest[..open]);
-        match rest[open + 4..].find("-->") {
-            Some(close) => rest = &rest[open + 4 + close + 3..],
-            None => return out,
-        }
+    while let Some((before, after_open)) = rest.split_once("<!--") {
+        out.push_str(before);
+        let Some((_, after_close)) = after_open.split_once("-->") else {
+            return out;
+        };
+        rest = after_close;
     }
     out.push_str(rest);
     out

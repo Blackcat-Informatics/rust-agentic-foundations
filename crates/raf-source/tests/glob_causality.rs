@@ -8,6 +8,10 @@ mod support;
 use raf_source::{MemoryTree, Namespace, ResolveError, Workspace};
 use support::orders::{ambiguous_between, in_every_order, read_as, resolved_as};
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn load(lib: &str) -> Workspace {
     let tree: MemoryTree = [
         (
@@ -418,6 +422,10 @@ fn a_returning_export_ignores_only_independent_routes_below_its_visibility() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_settled_returning_named_peer_does_not_invent_a_namespace_export() {
     let source = include_str!(
         "../../../fuzz/corpus/rustc-oracle/a_private_forward_keeps_a_namespace_released_by_a_named_cycle_hidden.rs"
@@ -469,6 +477,10 @@ fn a_settled_returning_named_peer_does_not_invent_a_namespace_export() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_forwarded_private_import_preserves_public_peer_namespace_exports() {
     let source = include_str!(
         "../../../fuzz/corpus/rustc-oracle/a_forwarded_private_import_keeps_the_public_namespace_family.rs"
@@ -516,6 +528,10 @@ fn a_forwarded_private_import_preserves_public_peer_namespace_exports() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_private_forwarded_binding_hides_the_same_glob_item() {
     let source = include_str!(
         "../../../fuzz/corpus/rustc-oracle/a_private_forwarded_binding_hides_the_same_glob_item.rs"
@@ -697,6 +713,10 @@ fn private_forwarding_preserves_distinct_glob_ambiguity() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn direct_private_sources_and_missing_public_peers_do_not_export_glob_values() {
     let source = include_str!(
         "../../../fuzz/corpus/rustc-oracle/a_forwarded_private_import_keeps_the_public_namespace_family.rs"
@@ -749,6 +769,10 @@ fn direct_private_sources_and_missing_public_peers_do_not_export_glob_values() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn named_imports_preserve_companions_instead_of_promoting_them_to_independent_routes() {
     for (source, module, path, ty, value) in [
         (
@@ -804,6 +828,10 @@ fn named_imports_preserve_companions_instead_of_promoting_them_to_independent_ro
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_ambiguous_original_import_is_refused_before_oracle_sanitization() {
     for source in [
         include_str!(

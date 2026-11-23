@@ -29,6 +29,10 @@ pub(crate) enum GitObjectKind {
 }
 pub(crate) struct Objects(Scratch);
 impl Default for Objects {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn default() -> Self {
         let scratch = Scratch::new();
         let status = command()
@@ -49,6 +53,10 @@ impl Objects {
     pub(crate) fn path(&self) -> &Path {
         self.0.base()
     }
+    #[expect(
+        clippy::string_slice,
+        reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+    )]
     pub(crate) fn object_path(&self, id: GitObjectId) -> PathBuf {
         let id = id.to_string();
         self.path()
@@ -56,6 +64,10 @@ impl Objects {
             .join(&id[..2])
             .join(&id[2..])
     }
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn insert(&mut self, kind: GitObjectKind, body: Vec<u8>) -> GitObjectId {
         let kind = match kind {
             GitObjectKind::Blob => "blob",

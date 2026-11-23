@@ -5,10 +5,18 @@
 
 use raf_okf::{Body, Document, ErrorKind, ParseError};
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn body(text: &str) -> Body {
     Body::parse(text).unwrap_or_else(|error| panic!("{error} in {text:?}"))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn refused(text: &str) -> ParseError {
     match Body::parse(text) {
         Ok(_) => panic!("expected a refusal for {text:?}"),
@@ -27,13 +35,13 @@ fn a_proposed_block_reports_slug_spans_content_and_section() {
     assert_eq!(first.section(), Some("purpose"));
     assert_eq!(first.content(), "The candidate\ncontract.\n\nMore.");
     assert_eq!(
-        &text[first.span().bytes.clone()],
-        "> [!PROPOSED change:add-alpha]\n> The candidate\n> contract.\n>\n> More.\n"
+        text.get(first.span().bytes.clone()),
+        Some("> [!PROPOSED change:add-alpha]\n> The candidate\n> contract.\n>\n> More.\n")
     );
     assert_eq!(first.span().lines, 5..10);
     assert_eq!(
-        &text[first.marker().bytes.clone()],
-        "> [!PROPOSED change:add-alpha]\n"
+        text.get(first.marker().bytes.clone()),
+        Some("> [!PROPOSED change:add-alpha]\n")
     );
     assert_eq!(first.marker().lines, 5..6);
     assert_eq!(blocks[1].slug(), "beta-two");
@@ -109,14 +117,17 @@ fn generated_blocks_report_kind_outer_and_content_spans() {
     assert_eq!(blocks.len(), 2);
     assert_eq!(blocks[0].kind(), "catalogue");
     assert_eq!(
-        &text[blocks[0].outer().bytes.clone()],
-        "<!-- raf:generated:catalogue -->\n| a |\n| b |\n<!-- raf:generated:end -->\n"
+        text.get(blocks[0].outer().bytes.clone()),
+        Some("<!-- raf:generated:catalogue -->\n| a |\n| b |\n<!-- raf:generated:end -->\n")
     );
-    assert_eq!(&text[blocks[0].content().bytes.clone()], "| a |\n| b |\n");
+    assert_eq!(
+        text.get(blocks[0].content().bytes.clone()),
+        Some("| a |\n| b |\n")
+    );
     assert_eq!(blocks[0].outer().lines, 3..7);
     assert_eq!(blocks[0].content().lines, 4..6);
     assert_eq!(blocks[1].kind(), "other-kind");
-    assert_eq!(&text[blocks[1].content().bytes.clone()], "");
+    assert_eq!(text.get(blocks[1].content().bytes.clone()), Some(""));
     assert_eq!(blocks[1].content().lines, 11..11);
 }
 
@@ -164,6 +175,10 @@ fn each_generated_marker_error_names_its_line() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn marker_errors_in_a_document_carry_whole_text_lines() {
     let text = "---\ntype: Capability\n---\n\n## Contract\n\n> [!proposed change:x]\n";
     let error = Document::parse(text).expect_err("malformed marker");
@@ -176,6 +191,10 @@ fn marker_errors_in_a_document_carry_whole_text_lines() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn document_parse_builds_its_body_through_the_body_model() {
     let text = "---\ntype: Capability\n---\n\n## Contract\n\n[a](b.md)\n";
     let document = Document::parse(text).expect("document");

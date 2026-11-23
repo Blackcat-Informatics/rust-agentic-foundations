@@ -27,6 +27,10 @@ fn create(root: &Path, request: &NewChangeRequest) -> Result<NewChange, NewChang
     on_disk(root, |plan| plan.new_change(root, request))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn created(root: &Path, request: &NewChangeRequest) -> NewChange {
     create(root, request).unwrap_or_else(|e| panic!("`change new` should succeed: {e}"))
 }
@@ -69,6 +73,11 @@ Describe what this change does and why, in a short paragraph.
 ";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean() {
     let scratch = repo("new-keys");
     let root = scratch.path();
@@ -137,6 +146,10 @@ fn new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not() {
     let scratch = repo("new-slug");
     let root = scratch.path();
@@ -175,6 +188,10 @@ fn a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_bad_slug_message_says_what_a_slug_is() {
     let scratch = repo("new-slug-text");
     let error = create(
@@ -188,6 +205,10 @@ fn the_bad_slug_message_says_what_a_slug_is() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_existing_file_is_refused_and_left_byte_identical() {
     let scratch = repo("new-exists");
     let root = scratch.path();
@@ -219,6 +240,10 @@ fn an_existing_file_is_refused_and_left_byte_identical() {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_link_at_the_path_is_an_existing_file_and_is_not_followed() {
     use std::os::unix::fs::symlink;
 
@@ -251,6 +276,10 @@ fn a_link_at_the_path_is_an_existing_file_and_is_not_followed() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_capability_that_does_not_exist_is_refused() {
     let scratch = repo("new-missing");
     let root = scratch.path();
@@ -310,6 +339,10 @@ fn a_capability_that_does_not_exist_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_capability_whose_document_did_not_load_is_named_and_never_skipped() {
     let scratch = repo("new-unloaded");
     let root = scratch.path();
@@ -339,6 +372,10 @@ fn a_capability_whose_document_did_not_load_is_named_and_never_skipped() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_affects_entry_must_name_a_listed_capability_and_one_of_the_seven_sections() {
     let scratch = repo("new-affects");
     let root = scratch.path();
@@ -398,6 +435,10 @@ fn an_affects_entry_must_name_a_listed_capability_and_one_of_the_seven_sections(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn several_capabilities_are_listed_in_the_order_given_without_repeats() {
     let scratch = repo("new-several");
     let root = scratch.path();
@@ -427,6 +468,10 @@ fn several_capabilities_are_listed_in_the_order_given_without_repeats() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_default_affects_is_the_contract_of_each_listed_capability() {
     let scratch = repo("new-default");
     let root = scratch.path();
@@ -455,6 +500,10 @@ fn the_default_affects_is_the_contract_of_each_listed_capability() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn explicit_affects_are_written_as_given_and_impact_reports_them_sorted() {
     let scratch = repo("new-explicit");
     let root = scratch.path();
@@ -497,6 +546,10 @@ fn explicit_affects_are_written_as_given_and_impact_reports_them_sorted() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_slug_that_reads_as_a_tracker_reference_leaves_no_file() {
     // The record is read back through the loader and must have no finding.
     let scratch = repo("new-invalid");
@@ -540,6 +593,11 @@ fn work_changes_is_created_when_the_repository_has_none() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_file_or_a_link_where_work_changes_belongs_is_refused() {
     let scratch = Scratch::new("new-refused-dir");
     let root = scratch.path();
@@ -667,6 +725,10 @@ The record makes generated blocks stale. Stage the record first, since a link to
 
 /// The repository with the opened record and its template in the capability's
 /// Contract. The negative cases restore the previous state as invalid input.
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn with_template_placed(
     tag: &str,
     capability: &str,
@@ -692,6 +754,10 @@ fn with_template_placed(
 }
 
 /// Sync the generated blocks of the repository under `root` to the disk.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn sync_to_disk(root: &Path) {
     let report = on_disk(root, |plan| {
         plan.sync(&SyncOptions::new("2026 Example", "CC-BY-4.0"))
@@ -851,6 +917,10 @@ fn reach_repo(tag: &str) -> Scratch {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn impact_gives_the_capabilities_sections_bindings_dependants_and_linking_sections() {
     let scratch = reach_repo("impact");
     let root = scratch.path();
@@ -936,6 +1006,10 @@ fn impact_gives_the_capabilities_sections_bindings_dependants_and_linking_sectio
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn impact_prints_each_part_in_a_fixed_order() {
     let scratch = reach_repo("impact-text");
     let root = scratch.path();
@@ -986,6 +1060,10 @@ linking sections:
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn impact_of_a_change_that_reaches_nothing_says_none() {
     let scratch = repo("impact-none");
     let root = scratch.path();
@@ -1014,6 +1092,10 @@ linking sections:
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn impact_of_the_repositorys_own_change_lists_what_the_record_says() {
     let scratch = repo("impact-grow");
     let impact = on_disk(scratch.path(), |plan| plan.impact("grow")).expect("impact");
@@ -1030,6 +1112,10 @@ fn impact_of_the_repositorys_own_change_lists_what_the_record_says() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn impact_tells_an_unknown_slug_from_a_record_that_did_not_load() {
     let scratch = reach_repo("impact-lookup");
     let root = scratch.path();
@@ -1070,6 +1156,10 @@ fn impact_tells_an_unknown_slug_from_a_record_that_did_not_load() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn impact_of_a_change_that_just_was_created_reads_the_record_from_the_disk() {
     let scratch = repo("impact-new");
     let root = scratch.path();
@@ -1102,6 +1192,10 @@ const COPYRIGHT_TEXT: &str = "2026 Example Org <dev@example.org>";
 const LICENCE_ID: &str = "CC-BY-4.0";
 
 /// The leading comment lines of the first key of a record.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn leading_comments(text: &str) -> Vec<String> {
     let document = Document::parse(text).expect("reads");
     document.frontmatter().map().entries()[0]
@@ -1111,6 +1205,10 @@ fn leading_comments(text: &str) -> Vec<String> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn both_spdx_fields_open_the_record_with_the_two_comment_lines_of_the_records_of_the_repository() {
     let scratch = repo("new-spdx");
     let root = scratch.path();
@@ -1173,6 +1271,11 @@ fn neither_spdx_field_writes_no_comment_line() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn one_spdx_field_without_the_other_is_an_error_that_names_the_missing_one() {
     let scratch = repo("new-spdx-one");
     let root = scratch.path();
@@ -1205,6 +1308,10 @@ fn one_spdx_field_without_the_other_is_an_error_that_names_the_missing_one() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_spdx_field_that_is_not_one_line_of_text_is_refused_and_nothing_is_written() {
     let scratch = repo("new-spdx-bad");
     let root = scratch.path();
@@ -1311,6 +1418,10 @@ fn the_sync_note_is_there_when_the_target_file_was_already_stale() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn opening_refuses_a_concurrent_lifecycle_publication_without_writes() {
     let scratch = Scratch::new("new-other-writer");
     let root = scratch.path();

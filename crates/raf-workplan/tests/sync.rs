@@ -31,6 +31,11 @@ use support::{AUXILIARY, Repo, demo_files};
 /// Descriptor admission must precede every temporary and target write.
 #[cfg(target_os = "linux")]
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn batch_publication_reserves_inode_capacity_before_staging() {
     use rustix::process::{Resource, getrlimit, setrlimit};
 
@@ -117,6 +122,11 @@ fn batch_publication_reserves_inode_capacity_before_staging() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal() {
     let repo = unsynced();
     let first = sync(&repo).expect("syncs");
@@ -215,6 +225,10 @@ fn syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal() {
         .is_empty()));
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn grouped_detail_names_cannot_alias_declared_views(root: &Path) {
     let original = read(root, ALPHA);
     let before = support::disk::snapshot(root);
@@ -260,6 +274,11 @@ fn grouped_detail_names_cannot_alias_declared_views(root: &Path) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path() {
     authored_model_neighbors();
     let repo = unsynced();
@@ -358,6 +377,10 @@ fn the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path() {
 
 /// The evidence input is not a capability binding: loading the document succeeds
 /// before the diagram queries the globbed input under the caller's allowance.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn coverage_currency_preserves_query_refusals() {
     use raf_source::{Budget, LoadOptions, MemoryTree, ResolveError};
     use raf_workplan::digest::{Digest, SymbolDigestError};
@@ -433,6 +456,11 @@ fn coverage_currency_preserves_query_refusals() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn nothing_is_in_the_report_for_a_repository_that_is_in_sync() {
     assert!(sync(&base()).expect("syncs").is_empty());
     assert_eq!(SyncReport::default(), sync(&base()).expect("syncs"));
@@ -526,6 +554,11 @@ fn nothing_is_in_the_report_for_a_repository_that_is_in_sync() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it() {
     for (path, from, to, unloaded) in [
         (BETA, "state: implementing", "state: finished", "cap:beta"),
@@ -608,6 +641,10 @@ fn generated_checks_are_clean_exactly_when_sync_has_nothing_to_write() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn check_and_sync_agree_after_each_repair() {
     let mut repo = unsynced();
     for _ in 0..2 {
@@ -623,6 +660,10 @@ fn check_and_sync_agree_after_each_repair() {
 struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     fn new(tag: &str) -> Self {
         Self(
             purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR"))
@@ -636,6 +677,11 @@ impl Scratch {
 }
 
 /// Write `repo` and the demo workspace under `root`.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn write_repo(root: &Path, repo: &Repo) {
     let put = |path: &str, text: &str| {
         let target = root.join(path);
@@ -651,11 +697,19 @@ fn write_repo(root: &Path, repo: &Repo) {
     }
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn read(root: &Path, path: &str) -> String {
     fs::read_to_string(root.join(path)).unwrap_or_else(|e| panic!("cannot read {path}: {e}"))
 }
 
 /// Load the documents under `root` from the disk and run `f` on the plan.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn on_disk<R>(root: &Path, f: impl FnOnce(&Workplan<'_>) -> R) -> R {
     let tree =
         DiskTree::new(root).unwrap_or_else(|e| panic!("cannot open {}: {e}", root.display()));
@@ -672,11 +726,20 @@ fn checked(plan: &Workplan<'_>) -> Vec<Finding> {
     plan.check()
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn rel(path: &str) -> RelPath {
     RelPath::new(path).unwrap_or_else(|e| panic!("`{path}` is not a path: {e}"))
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn write_puts_every_edit_on_disk_and_a_second_run_writes_nothing() {
     let scratch = Scratch::new("write");
     write_repo(scratch.path(), &unsynced());
@@ -722,6 +785,11 @@ fn write_puts_every_edit_on_disk_and_a_second_run_writes_nothing() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn write_publishes_the_computed_snapshot_without_comparing_later_authored_edits() {
     for edited in [false, true] {
         let scratch = Scratch::new("snapshot-publication");
@@ -761,6 +829,10 @@ fn write_publishes_the_computed_snapshot_without_comparing_later_authored_edits(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index() {
     let scratch = Scratch::new("refuse");
     write_repo(scratch.path(), &unsynced());
@@ -813,6 +885,10 @@ fn write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index(
 /// writes the same report.
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn write_refuses_a_target_behind_a_directory_link_inside_the_root() {
     for link in ["docs", "docs/capabilities"] {
         let scratch = Scratch::new("in-root-link");
@@ -846,6 +922,10 @@ fn write_refuses_a_target_behind_a_directory_link_inside_the_root() {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn write_keeps_the_permissions_of_the_file_it_replaces() {
     use std::os::unix::fs::PermissionsExt;
     let scratch = Scratch::new("mode");
@@ -859,6 +939,10 @@ fn write_keeps_the_permissions_of_the_file_it_replaces() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn write_creates_the_index_only_where_the_directory_exists() {
     let scratch = Scratch::new("index");
     write_repo(scratch.path(), &unsynced());
@@ -884,6 +968,10 @@ fn serial() -> MutexGuard<'static, ()> {
 }
 
 /// Run the `docs_sync` example with `args`, from the crate directory.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn docs_sync(args: &[&str]) -> Output {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut command = Command::new(cargo);
@@ -910,6 +998,10 @@ fn text(bytes: &[u8]) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run() {
     let _serial = serial();
     let scratch = Scratch::new("example");
@@ -972,6 +1064,11 @@ fn the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments() {
     let _serial = serial();
     let scratch = Scratch::new("example-git");
@@ -1065,6 +1162,11 @@ fn unescape(cell: &str) -> String {
 }
 
 /// The cells of a table row: split on pipes that are not escaped.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn cells(row: &str) -> Vec<String> {
     let inner = row
         .strip_prefix("| ")
@@ -1097,6 +1199,10 @@ fn cells(row: &str) -> Vec<String> {
 }
 
 /// The catalogue rows as `(state, slug, link target, description, gaps)`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn catalogue_rows(index: &str) -> Vec<(String, String, String, String, String)> {
     let mut state = String::new();
     let mut rows = Vec::new();
@@ -1177,6 +1283,10 @@ fn the_roadmap_rows_equal_the_catalogue_rows() {
 }
 
 /// The repository root: `RAF_GATE_ROOT` when set, this repository otherwise.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn repo_root() -> PathBuf {
     let root = std::env::var_os("RAF_GATE_ROOT").map_or_else(
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
@@ -1187,6 +1297,10 @@ fn repo_root() -> PathBuf {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn the_catalogue_of_this_repository_equals_its_roadmap() {
     let root = repo_root();
     let tree = DiskTree::new(&root).unwrap_or_else(|e| panic!("cannot open the tree: {e}"));
@@ -1214,6 +1328,10 @@ fn sync_is_pure(plan: &Workplan<'_>) -> bool {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_created() {
     let _serial = serial();
     let scratch = Scratch::new("example-flags");
@@ -1236,6 +1354,10 @@ fn the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_cre
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_docs_sync_example_opens_the_repository_as_the_gate_does() {
     let _serial = serial();
     // A root that holds no capability document is not a repository to sync:
@@ -1267,6 +1389,11 @@ fn the_docs_sync_example_opens_the_repository_as_the_gate_does() {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn write_changes_no_target_when_a_later_file_cannot_be_written() {
     use std::os::unix::fs::PermissionsExt;
     let scratch = Scratch::new("atomic");
@@ -1313,6 +1440,10 @@ fn write_changes_no_target_when_a_later_file_cannot_be_written() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn write_never_touches_a_file_that_is_already_there_under_a_temporary_name() {
     let scratch = Scratch::new("tmpname");
     write_repo(scratch.path(), &unsynced());
@@ -1328,6 +1459,11 @@ fn write_never_touches_a_file_that_is_already_there_under_a_temporary_name() {
     assert_eq!(read(scratch.path(), ALPHA), base()[ALPHA]);
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn authored_model_neighbors() {
     use component_model::{MODEL, SOURCE, document, with_plan};
     use purrdf_rdf::viz::VizTermValue;
@@ -1396,6 +1532,10 @@ fn authored_model_neighbors() {
     authored_model_refusals(&original, &view);
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn authored_model_refusals(original: &str, view: &NamedDiagramView) {
     use component_model::{MODEL, SOURCE, document, with_plan};
     for (from, to, key) in [
@@ -1472,6 +1612,10 @@ fn authored_model_refusals(original: &str, view: &NamedDiagramView) {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn authored_model_bundle(
     plan: &Workplan<'_>,
     view: &NamedDiagramView,
@@ -1567,6 +1711,10 @@ fn authored_model_bundle(
     )
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn authored_model_provenance(
     bundle: &raf_workplan::diagram::DiagramBundle,
 ) -> &raf_workplan::diagram::DiagramBundle {
@@ -1590,6 +1738,10 @@ fn authored_model_provenance(
     provenance
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn named_dataset_round_trip(dataset: &purrdf_core::RdfDataset) {
     use purrdf_rdf::{
         NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,

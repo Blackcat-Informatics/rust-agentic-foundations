@@ -7,6 +7,10 @@ use raf_source::{MemoryTree, RelPath, discover_root};
 
 const PACKAGE: &str = "[package]\nname='demo'\nversion='0.1.0'\n";
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn found(tree: &MemoryTree, start: &str) -> String {
     discover_root(tree, &RelPath::new(start).unwrap())
         .unwrap()
@@ -33,6 +37,10 @@ fn member_and_virtual_workspace_directories_resolve_without_sources() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn standalone_excluded_and_nested_packages_have_their_own_roots() {
     let tree = MemoryTree::from([
         ("Cargo.toml", "[workspace]\nexclude=['excluded']\n"),
@@ -66,6 +74,10 @@ fn transitive_path_dependencies_are_members() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn explicit_workspace_requires_a_safe_path_and_agreed_membership() {
     let package = "[package]\nname='demo'\nworkspace='..'";
     let tree = MemoryTree::from([
@@ -106,6 +118,10 @@ fn explicit_workspace_requires_a_safe_path_and_agreed_membership() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn malformed_manifests_and_missing_directories_fail_hard() {
     for text in [
         "[workspace",
@@ -123,6 +139,10 @@ fn malformed_manifests_and_missing_directories_fail_hard() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn manifest_size_bound_is_enforced_beside_the_exact_limit() {
     let limit = usize::try_from(raf_source::DEFAULT_MAX_FILE_BYTES).unwrap();
     let mut text = String::from("[workspace]\n#");
@@ -139,6 +159,10 @@ fn manifest_size_bound_is_enforced_beside_the_exact_limit() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn member_and_exclude_lists_accept_4096_entries_and_refuse_one_more() {
     for key in ["members", "exclude"] {
         for (count, accepted) in [(4096, true), (4097, false)] {

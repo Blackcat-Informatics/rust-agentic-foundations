@@ -58,14 +58,15 @@ pub fn discover(directory: &Path) -> Result<PathBuf, RootError> {
         .ancestors()
         .last()
         .ok_or_else(|| RootError::Path(directory.display().to_string()))?;
-    let relative = directory
-        .strip_prefix(boundary)
-        .map_err(|_| RootError::Path(directory.display().to_string()))?;
+    let Ok(relative) = directory.strip_prefix(boundary) else {
+        return Err(RootError::Path(directory.display().to_string()));
+    };
     let text = relative
         .to_str()
         .ok_or_else(|| RootError::Path(relative.display().to_string()))?;
-    let start = RelPath::new(&text.replace(std::path::MAIN_SEPARATOR, "/"))
-        .map_err(|_| RootError::Path(text.to_owned()))?;
+    let Ok(start) = RelPath::new(&text.replace(std::path::MAIN_SEPARATOR, "/")) else {
+        return Err(RootError::Path(text.to_owned()));
+    };
     let tree = DiskTree::new(boundary).map_err(RootError::Tree)?;
     let root = raf_source::discover_root(&tree, &start).map_err(RootError::Source)?;
     Ok(boundary.join(root.as_str()))

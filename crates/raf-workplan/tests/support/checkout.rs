@@ -29,6 +29,10 @@ pub(crate) fn serial() -> MutexGuard<'static, ()> {
 
 /// A directory that holds nothing, which stands in for the home and the
 /// configuration directory of the user while a fixture runs `git`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn empty_home() -> &'static Path {
     static HOME: OnceLock<purrdf_testkit::TempDir> = OnceLock::new();
     HOME.get_or_init(|| {
@@ -74,6 +78,10 @@ pub(crate) fn git_command(dir: &Path) -> Command {
 
 /// Run `git` in `dir` as a fixture step ([`git_command`]) and return standard
 /// output exactly as git wrote it.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn git_exact(dir: &Path, args: &[&str]) -> String {
     let output = git_command(dir).args(args).output().expect("git runs");
     assert!(
@@ -111,6 +119,10 @@ impl Checkout {
     /// As [`Checkout::new`], with the workspace in the directory `below` of the
     /// work tree (`""` for the top, `"services/api"` for two levels down), so
     /// that `git` names its files from a directory above it.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn below(tag: &str, repo: &Repo, below: &str) -> Self {
         let scratch = Scratch::new(tag);
         let top = scratch.path().join("work");

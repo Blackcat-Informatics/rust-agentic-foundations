@@ -714,7 +714,7 @@ fn lex_runs(text: &str, wanted: &BTreeSet<String>) -> Result<Vec<Run>, String> {
     {
         let cut = body.find('\n').unwrap_or(body.len());
         base += cut;
-        body = &body[cut..];
+        body = body.split_at(cut).1;
     }
     let stream = TokenStream::from_str(body).map_err(|error| error.to_string())?;
     let mut runs = Vec::new();
@@ -2066,6 +2066,10 @@ fn judged(plan: &Workplan<'_>, extra: &[Node]) -> Result<LinesReport, String> {
 
 /// Whether the exact line count or percentage is within its ceiling.
 /// Comparing products avoids rounded division, including when no line is counted.
+#[expect(
+    clippy::expect_used,
+    reason = "multiplication by these integral counts leaves the checked decimal scale representable"
+)]
 fn within(orphan: usize, counted: usize, limit: &CeilingLimit) -> bool {
     use purrdf_xsd::exact::{Decimal, Integer};
     let count = |value: usize| Decimal::from_integer(Integer::from(value as u128));
@@ -2074,11 +2078,11 @@ fn within(orphan: usize, counted: usize, limit: &CeilingLimit) -> bool {
         CeilingLimit::Percent(percent) => {
             let left = count(orphan)
                 .try_mul(&Decimal::from(100))
-                .expect("integer product preserves decimal scale");
+                .expect("INVARIANT: multiplying integral counts preserves decimal scale");
             let right = percent
                 .exact()
                 .try_mul(&count(counted))
-                .expect("integer product preserves decimal scale");
+                .expect("INVARIANT: an integral factor preserves the ceiling's decimal scale");
             left <= right
         }
     }

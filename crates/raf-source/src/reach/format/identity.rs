@@ -591,6 +591,13 @@ mod tests {
     use crate::{Budget, LoadErrorKind, LoadOptions, RelPath};
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_propagation_visits_cycles_and_duplicate_edges_once_per_active_source() {
         let meter = Meter::new(&LoadOptions::default());
         let file = RelPath::new("src/lib.rs").expect("path");
@@ -608,6 +615,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_propagation_spill_refuses_without_refunding_the_cumulative_grant() {
         let file = RelPath::new("src/lib.rs").expect("path");
         let run = |limit| {

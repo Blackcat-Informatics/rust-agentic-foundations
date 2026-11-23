@@ -14,6 +14,10 @@ use raf_source::{RelPath, parse_source};
 fuzz_target!(|data: &[u8]| {
     // Source text is UTF-8; bytes that are not are not a candidate file.
     if let Ok(text) = std::str::from_utf8(data) {
+        #[expect(
+            clippy::expect_used,
+            reason = "fuzzing must fail if its fixed relative fixture path is ever rejected"
+        )]
         let file = RelPath::new("fuzz/input.rs").expect("a fixed relative path");
         let outcome = parse_source(&file, text, |tree| tree.items.len());
         drop(outcome);

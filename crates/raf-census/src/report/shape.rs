@@ -96,8 +96,10 @@ pub(super) fn number(node: &Node<'_>, key: &str) -> Result<u128, E> {
     })
 }
 pub(crate) fn count(node: &Node<'_>, key: &str) -> Result<usize, E> {
-    usize::try_from(number(node, key)?)
-        .map_err(|_| E::Value(format!("census:{key}: usize overflow")))
+    let Ok(count) = usize::try_from(number(node, key)?) else {
+        return Err(E::Value(format!("census:{key}: usize overflow")));
+    };
+    Ok(count)
 }
 fn target(value: Value<'_>) -> Result<&str, E> {
     value.iri().ok_or_else(|| E::Value("IRI expected".into()))
@@ -108,14 +110,12 @@ pub(super) fn fp(term: Value<'_>, nf: u32, kind: GroupKind) -> Result<Fingerprin
     let hex = value
         .strip_prefix(&prefix)
         .ok_or_else(|| E::Inconsistent(format!("fingerprint {value}, normalForm {nf}")))?;
-    let name = match kind {
-        GroupKind::Body => "body",
-        GroupKind::Shim => "shim",
-    };
-    let fingerprint = format!("{name}:{hex}")
-        .parse()
-        .map_err(|_| E::Value(value.into()))?;
-    Ok(fingerprint)
+    let digest =
+        purrdf_hash::hex::decode_32_canonical(hex).ok_or_else(|| E::Value(value.into()))?;
+    Ok(match kind {
+        GroupKind::Body => Fingerprint::Body(digest),
+        GroupKind::Shim => Fingerprint::Shim(digest),
+    })
 }
 pub(super) fn member(graph: &Graph, id: &str) -> Result<MemberRow, E> {
     let node = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
@@ -143,10 +143,21 @@ fn members(graph: &Graph, node: &Node<'_>) -> Result<Vec<MemberRow>, E> {
     });
     Ok(rows)
 }
-pub(super) fn nf(graph: &Graph, kind: &str) -> Result<u32, E> {
-    let root = graph
+fn report_root(graph: &Graph) -> Result<Node<'_>, E> {
+    graph
         .get("")
-        .ok_or_else(|| E::Missing("report node <>".into()))?;
+        .ok_or_else(|| E::Missing("report node <>".into()))
+}
+
+fn report_version(root: &Node<'_>, key: &str) -> Result<u32, E> {
+    let Ok(version) = u32::try_from(number(root, key)?) else {
+        return Err(E::Value(format!("{key} exceeds u32")));
+    };
+    Ok(version)
+}
+
+pub(super) fn nf(graph: &Graph, kind: &str) -> Result<u32, E> {
+    let root = report_root(graph)?;
     let found = class(&root)?;
     if found != kind {
         return Err(E::Kind {
@@ -154,10 +165,8 @@ pub(super) fn nf(graph: &Graph, kind: &str) -> Result<u32, E> {
             found: found.into(),
         });
     }
-    let nf = u32::try_from(number(&root, "normalForm")?)
-        .map_err(|_| E::Value("normalForm exceeds u32".into()))?;
-    let form = u32::try_from(number(&root, "reportForm")?)
-        .map_err(|_| E::Value("reportForm exceeds u32".into()))?;
+    let nf = report_version(&root, "normalForm")?;
+    let form = report_version(&root, "reportForm")?;
     if form != vocab::REPORT_FORM {
         return Err(E::Form {
             declared: form,
@@ -414,7 +423,7 @@ pub(super) fn scope(root: &Node<'_>) -> Result<crate::GroupingScope, E> {
 pub(super) fn baseline(graph: &Graph) -> Result<Baseline, E> {
     let nf = nf(graph, "Baseline")?;
     validate(graph, "baseline", nf)?;
-    let root = graph.get("").expect("validated report root");
+    let root = report_root(graph)?;
     let mut report = Baseline {
         normal_form: nf,
         min_tokens: count(&root, "minTokens")?,
@@ -532,7 +541,7 @@ fn index_unit(graph: &Graph, id: &str, node: &Node<'_>, nf: u32) -> Result<Index
 pub(super) fn index(graph: &Graph) -> Result<Index, E> {
     let nf = nf(graph, "Index")?;
     validate(graph, "index", nf)?;
-    let root = graph.get("").expect("validated report root");
+    let root = report_root(graph)?;
     let mut report = Index {
         normal_form: nf,
         scope: scope(&root)?,
@@ -576,9 +585,8 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
                 for v in node.values(&property("match")) {
                     let unit = target(v)?;
                     let m = member(graph, unit)?;
-                    let reifier = graph
-                        .get(&mint::reifier(&job_id, unit))
-                        .expect("validated named reifier");
+                    let reifier_id = mint::reifier(&job_id, unit);
+                    let reifier = graph.get(&reifier_id).ok_or(E::Dangling(reifier_id))?;
                     let class =
                         match target(one(&reifier, "matchClass")?)?.strip_prefix(vocab::CENSUS) {
                             Some("Home") => MatchClass::Home,
@@ -636,6 +644,14 @@ mod tests {
     use super::*;
     use raf_rdf::{Builder, Format, Triple};
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn with_reference_fixture(index: &Graph) -> Graph {
         let tree = reference_fixture::fixture(
             "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+65536 }",
@@ -658,6 +674,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn every_required_shape_property_has_a_missing_and_unknown_neighbor() {
         let baseline = super::super::read::parse(
             include_str!("../../tests/fixtures/reports/baseline.ttl"),

@@ -90,6 +90,13 @@ fn scalar(mut field: field::Builder<'_>, name: &str, ordinal: u16, offset: u32) 
 /// A selected type's active slots, ordinal history and dependency closure
 /// must be complete before it can contribute a clean comparison.
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn invalid_slot_layouts_and_missing_references_refuse() {
     let roots = BTreeSet::from([ROOT]);
     let neighbor = descriptor_bytes(LastField::Independent);
@@ -209,6 +216,13 @@ fn deeply_grouped_descriptor(prefix: &str, slots: u16, outer_ordinal: Option<u16
 /// Reporting many fully qualified changes cannot amplify a compact nested
 /// descriptor into an unbounded retained verdict.
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn deep_group_findings_refuse_as_a_whole_above_the_payload_limit() {
     let roots = BTreeSet::from([ROOT]);
     let check = |slots| {

@@ -265,6 +265,10 @@ fn tracked_readme() -> BTreeSet<RelPath> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_document_is_judged_against_the_supplied_tracked_set() {
     let mut repo = valid();
     repo.insert("extra.md".to_string(), "# Extra\n".to_string());
@@ -321,6 +325,10 @@ impl Tree for Flaky {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_directory_the_walk_cannot_list_is_reported_and_not_skipped() {
     let mut repo = valid();
     let overview = repo.get_mut(OVERVIEW).expect("overview");
@@ -334,6 +342,10 @@ fn a_directory_the_walk_cannot_list_is_reported_and_not_skipped() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_tree_is_walked_only_when_a_relative_link_needs_it() {
     // Without the architecture page and gamma's link to it, the repository
     // has no relative link in a document, so the directory the walk could
@@ -350,6 +362,10 @@ fn the_tree_is_walked_only_when_a_relative_link_needs_it() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn links_inside_documents_are_judged_wherever_the_document_is_valid_or_not() {
     // A capability that breaks a rule of the profile still has its links
     // judged, so one fix does not uncover the next.

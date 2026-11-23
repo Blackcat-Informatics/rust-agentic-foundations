@@ -37,6 +37,10 @@ fn document(heading_bytes: usize, unit: &str) -> (String, usize) {
 
 /// The most the parse held above what was live before it, with the result
 /// still alive at the end.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn peak_of_parse(text: &str) -> usize {
     let window = CurrentThreadWindow::open();
     let body = Body::parse(text).expect("the document is a body");
@@ -66,7 +70,6 @@ fn assert_linear(unit: &str) {
         "a {LONG_HEADING} byte heading over {long_units} units peaked at {peak_long} bytes, \
          against {peak_short} for a 1 byte heading (allowed {allowed})"
     );
-    eprintln!("unit {unit:?}: peak(long) = {peak_long}, peak(short) = {peak_short}");
 }
 
 /// Each synchronous parse is measured on its calling thread; the allocator

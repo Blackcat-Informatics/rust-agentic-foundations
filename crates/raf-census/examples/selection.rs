@@ -152,6 +152,10 @@ pub(crate) fn groups(bodies: &[Body], policy: Policy) -> BTreeMap<(bool, &[Strin
     groups
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn summarize(out: &mut String, corpus: &str, bodies: &[Body], labels: &[(&str, &str, bool)]) {
     let by_id: BTreeMap<&str, &Body> = bodies.iter().map(|body| (body.id.as_str(), body)).collect();
     let corpus_id =
@@ -219,6 +223,10 @@ fn summarize(out: &mut String, corpus: &str, bodies: &[Body], labels: &[(&str, &
     inspect(out, &corpus_id, bodies);
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn distribution(out: &mut String, corpus_id: &str, bodies: &[Body]) {
     let bounds = [0, 4, 6, 8, 12, 16, 20, 24, 30, 40, 64, usize::MAX];
     for pair in bounds.windows(2) {
@@ -231,6 +239,10 @@ fn distribution(out: &mut String, corpus_id: &str, bodies: &[Body]) {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn inspect(out: &mut String, corpus_id: &str, bodies: &[Body]) {
     // Retain concrete default and neighbouring-policy disagreement groups for
     // human inspection. These names are not normal-form fingerprints.
@@ -308,6 +320,15 @@ fn inspect(out: &mut String, corpus_id: &str, bodies: &[Body]) {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn main() -> Result<(), Box<dyn Error>> {
     let registry = fixtures::registry();
     let bodies = registry

@@ -9,6 +9,11 @@ mod workspace_report;
 use raf_source::{LoadError, LoadOptions, MemoryTree, ParallelOptions, Workspace};
 use std::num::NonZeroUsize;
 
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 pub(crate) fn compare(tree: &MemoryTree, serial: &Result<Workspace, LoadError>) {
     let report = serial.as_ref().ok().map(workspace_report::report);
     for workers in [1, 2, 2] {

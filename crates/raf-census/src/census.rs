@@ -274,6 +274,13 @@ mod tests {
     use raf_source::MemoryTree;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units() {
         let tree = MemoryTree::from([
             ("Cargo.toml", "[workspace]\nmembers=['one','two']"),

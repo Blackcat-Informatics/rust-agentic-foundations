@@ -64,6 +64,11 @@ fn claimed(extra: &[(&str, &str)], records: &[&Evidence]) -> Repo {
 // --- the dependency views -----------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_views_list_the_claims_of_a_record_and_the_records_of_a_capability() {
     let bound = Evidence::passing("bound", "[cap:omega]");
     let other = Evidence::passing("other", "[cap:omega]").verdict("fail");
@@ -159,6 +164,11 @@ fn the_views_list_the_claims_of_a_record_and_the_records_of_a_capability() {
     });
 }
 
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn assert_semantic_claims(plan: &Workplan<'_>, evidence: &str) {
     use purrdf_core::{RdfDataset, TermId, TermRef};
     use raf_okf::DocType;
@@ -240,6 +250,10 @@ fn assert_semantic_claims(plan: &Workplan<'_>, evidence: &str) {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_diagram_bundle(plan: &Workplan<'_>, evidence: &str, graph: &purrdf_core::RdfDataset) {
     use purrdf_lex::json::{self, record::FromJson as _};
     use purrdf_rdf::viz::{VizExport, VizRelation, VizTermValue};
@@ -337,6 +351,10 @@ fn assert_diagram_bundle(plan: &Workplan<'_>, evidence: &str, graph: &purrdf_cor
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_record_supports_a_capability_by_its_for_list_without_a_claim() {
     let bound = Evidence::passing("bound", "[cap:omega]");
     with_plan(&claimed(&[], &[&bound]), |plan| {
@@ -364,6 +382,10 @@ fn a_record_supports_a_capability_by_its_for_list_without_a_claim() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound() {
     let mut evidence = Evidence::passing("bound", "[cap:omega]");
     evidence.values = (0..1025)
@@ -453,6 +475,10 @@ fn a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load() {
     let bound = Evidence::passing("bound", "[cap:omega]");
     let clean = claimed(&[("Contract", &claim("bound"))], &[&bound]);

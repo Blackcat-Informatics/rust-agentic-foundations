@@ -5,6 +5,11 @@
 
 use std::process::ExitCode;
 
+#[expect(
+    clippy::print_stderr,
+    clippy::print_stdout,
+    reason = "the executable reports its results through its output and status"
+)]
 pub(crate) fn run(
     name: &str,
     sample: fn() -> Result<String, String>,

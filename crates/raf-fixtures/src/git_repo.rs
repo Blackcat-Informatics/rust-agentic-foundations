@@ -9,6 +9,10 @@ use std::process::{Command, Output};
 
 /// Run Git in `dir` with no user or system configuration, so hooks, signing
 /// and ambient repository selectors cannot affect the fixture.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub fn git(dir: &Path, args: &[&str]) -> String {
     let mut command = Command::new("git");
     for name in [
@@ -49,6 +53,10 @@ pub fn git(dir: &Path, args: &[&str]) -> String {
 }
 
 /// Create a repository at `dir`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub fn init(dir: &Path) {
     std::fs::create_dir_all(dir).expect("repository directory");
     git(dir, &["init", "--quiet"]);
@@ -65,6 +73,10 @@ pub fn commit_all(dir: &Path) -> String {
 }
 
 /// Check that Census refused a committed fixture with the expected diagnostic and no findings.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 pub fn assert_census_refused(output: Output, expected: &str) {
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert!(output.stdout.is_empty(), "{output:?}");

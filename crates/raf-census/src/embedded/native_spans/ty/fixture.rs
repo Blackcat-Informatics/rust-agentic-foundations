@@ -8,6 +8,14 @@ use crate::embedded::coordinates::Coordinates;
 use crate::embedded::native_spans::fixture::without_work;
 use crate::embedded::resource::Meter;
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 pub(in crate::embedded) fn check() {
     for spelling in [
         "[u8; 3]",
@@ -51,6 +59,14 @@ pub(in crate::embedded) fn check() {
     empty_components();
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn arguments() {
     let spelling = "Wrapper<'a, u8, 3, Assoc = u16, VALUE = {2}, Constraint: Trait>";
     let source = format!("type Alias = {spelling};");
@@ -89,6 +105,14 @@ fn arguments() {
     .unwrap();
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn empty_components() {
     // These constructed inputs check empty-emission composition, not parser
     // acceptance of incomplete syntax. All expected positions come from data.

@@ -5,6 +5,11 @@
 
 use raf_source::{MemoryTree, Namespace, Workspace};
 
+#[expect(
+    clippy::expect_used,
+    clippy::print_stdout,
+    reason = "the executable reports its results through its output and status"
+)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source =
         "pub fn selected(){} pub mod child { pub fn selected(){} pub fn reader(){selected();} }";

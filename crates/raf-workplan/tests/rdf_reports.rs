@@ -18,6 +18,10 @@ fn literals<'a>(graph: &'a Graph, property: &str) -> Vec<&'a str> {
         .filter_map(|value| value.literal().map(|(lexical, _)| lexical))
         .collect()
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn both_formats(graph: &Graph) {
     for format in [Format::Turtle, Format::NTriples] {
         let text = graph.to_text(format).unwrap();
@@ -32,6 +36,10 @@ fn both_formats(graph: &Graph) {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn pinned(name: &str, graph: &Graph) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/reports");
     for (suffix, format) in [("ttl", Format::Turtle), ("nt", Format::NTriples)] {
@@ -45,6 +53,10 @@ fn pinned(name: &str, graph: &Graph) {
     assert_eq!(format!("{}\n", triples.join("\n")), oracle);
 }
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn findings_preserve_all_location_variants_and_refuse_unknown_kinds() {
     let source = Workspace::load(
         &MemoryTree::from([
@@ -94,6 +106,10 @@ fn findings_preserve_all_location_variants_and_refuse_unknown_kinds() {
     assert!(report::findings_graph(&invalid).is_err());
 }
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn real_coverage_keeps_packages_gaps_exclusions_and_named_source_provenance() {
     let tree = MemoryTree::from([
         ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\n"),
@@ -141,6 +157,10 @@ fn real_coverage_keeps_packages_gaps_exclusions_and_named_source_provenance() {
     both_formats(&tests);
 }
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unreadable_public_surface_retains_its_structured_failure() {
     let source = Workspace::load(&MemoryTree::from([
         ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\n"),
@@ -158,6 +178,10 @@ fn unreadable_public_surface_retains_its_structured_failure() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unresolved_reexports_keep_declaration_observations_without_claiming_a_definition() {
     let source = Workspace::load(&MemoryTree::from([
         ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n"),

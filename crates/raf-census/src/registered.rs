@@ -217,17 +217,7 @@ impl RegisteredCheck {
     /// # Panics
     /// Panics if the private graph loses its constructor-validated finding shape.
     pub fn findings(&self) -> impl ExactSizeIterator<Item = &str> {
-        (0..self.count).map(|ordinal| {
-            let node = self
-                .graph
-                .get(&finding_id(ordinal))
-                .expect("validated finding sequence");
-            shape::one(&node, "message")
-                .expect("validated message")
-                .literal()
-                .expect("validated string")
-                .0
-        })
+        (0..self.count).map(|ordinal| self.validated_message(&finding_id(ordinal), "message"))
     }
 
     /// The original evaluation error, distinct from ordinary findings.
@@ -236,17 +226,20 @@ impl RegisteredCheck {
     /// Panics if the private graph loses its constructor-validated error shape.
     #[must_use]
     pub fn error_message(&self) -> Option<&str> {
-        if self.outcome != Outcome::Error {
-            return None;
-        }
-        let root = self.graph.get("").expect("validated root");
-        Some(
-            shape::one(&root, "errorMessage")
-                .expect("validated error")
-                .literal()
-                .expect("validated string")
-                .0,
-        )
+        (self.outcome == Outcome::Error).then(|| self.validated_message("", "errorMessage"))
+    }
+
+    #[expect(
+        clippy::expect_used,
+        reason = "both constructors guarantee these message nodes and string properties in the immutable response"
+    )]
+    fn validated_message(&self, id: &str, key: &str) -> &str {
+        let node = self
+            .graph
+            .get(id)
+            .expect("INVARIANT: the registered response contains the validated message node");
+        string_value(node, key)
+            .expect("INVARIANT: the registered response contains the validated string property")
     }
 }
 

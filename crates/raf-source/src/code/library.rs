@@ -60,6 +60,17 @@ pub struct ExternLibrary<'a> {
     test: bool,
 }
 
+impl std::fmt::Debug for ExternLibrary<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExternLibrary")
+            .field("name", &self.name)
+            .field("target", &self.target())
+            .field("route", &self.route_kind())
+            .field("candidate_count", &self.group.scan_len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl ExternLibrary<'_> {
     /// Whether the receipt represents an absolute name or a lexical declaration.
     #[must_use]

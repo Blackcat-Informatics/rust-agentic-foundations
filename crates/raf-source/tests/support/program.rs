@@ -319,6 +319,10 @@ impl Program {
     }
 
     /// The stored form, which [`Program::parse`] reads back.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn to_text(&self) -> String {
         let mut text = String::new();
         if let Some(expect) = &self.expect {
@@ -388,6 +392,10 @@ impl Program {
     /// the type name space, and a function that reads the path as an
     /// expression, which asks the value name space. Neither is an import, and
     /// neither is evaluated.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn render_by_space(&self, probe: usize) -> SplitRendered {
         let path = &self.probes[probe].path;
         let type_text = format!("type __t = {path};");

@@ -20,10 +20,25 @@ fn join(
     super::join(source, facts, original.as_slice(), meter).map(|_| ())
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn collect<'source>(analysis: Analysis<'source>, source: &'source str) -> Analysis<'source> {
     try_collect(analysis, source).unwrap()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_in_result,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn try_collect<'source>(
     mut analysis: Analysis<'source>,
     source: &'source str,
@@ -51,6 +66,13 @@ fn try_collect<'source>(
     Ok(analysis)
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn span(source: &str, snippet: &str) -> Span {
     let start = source.find(snippet).unwrap();
     Span {
@@ -59,6 +81,14 @@ fn span(source: &str, snippet: &str) -> Span {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::string_slice,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn equal(analysis: &Analysis<'_>, left: &str, right: &str) -> bool {
     let views = analysis
         .functions()
@@ -153,6 +183,13 @@ fn original_tokens_verify_an_embedded_renamed_region_and_reject_variable_operato
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn syntax_admission_excludes_opaque_interiors_cross_block_sequences_and_partial_utf8() {
     let source = "#![no_implicit_prelude]\nfn helper(input: i32) { let café = input; { sink(café); } let opaque = wrap!(café);\n/// Local documentation.\nfn local() {}\nsink(café); }";
     let analysis = collect(Analysis::new(10_000_000, 1_000_000), source);
@@ -216,6 +253,13 @@ fn syntax_admission_excludes_opaque_interiors_cross_block_sequences_and_partial_
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn control_markers_keep_their_original_anchors_beside_adjacent_closure_and_return_regions() {
     let source =
         "#![no_implicit_prelude]\nfn helper(input: i32) { let f = ||{return input;}; f() }";
@@ -256,6 +300,14 @@ fn control_markers_keep_their_original_anchors_beside_adjacent_closure_and_retur
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn missing_original_tokens_and_overlapping_or_partial_binding_spans_never_become_witnesses() {
     let source =
         "#![no_implicit_prelude]\nfn helper(input: i32) { let local = input; sink(local); }";

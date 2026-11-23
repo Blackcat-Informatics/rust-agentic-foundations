@@ -138,6 +138,10 @@ pub(crate) fn document(model: &str) -> String {
     )
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn with_plan<R>(
     document: &str,
     source: &str,
@@ -156,6 +160,10 @@ pub(crate) fn with_plan<R>(
     run(&Workplan::load(&docs, &workspace))
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
     with_plan(&document(MODEL), SOURCE, |plan| {
         let view = NamedDiagramView::new(

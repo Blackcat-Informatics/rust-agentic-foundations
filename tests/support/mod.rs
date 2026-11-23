@@ -7,9 +7,8 @@
 //!
 //! The file list comes from the git index (`git ls-files -z`), so untracked
 //! scratch files never count. Each path is read under the gate root, which is
-//! `RAF_GATE_ROOT` when set and the package directory otherwise. The commit
-//! hook points `RAF_GATE_ROOT` at a checkout of the index, so the gates judge
-//! what the commit records.
+//! `RAF_GATE_ROOT` when set and the package directory otherwise. The merge
+//! gate uses the signed candidate checkout.
 
 use std::borrow::Cow;
 use std::fs;
@@ -31,6 +30,10 @@ pub fn checkout_root() -> PathBuf {
 ///
 /// Panics when `git` cannot run or exits unsuccessfully.
 #[must_use]
+#[expect(
+    clippy::panic,
+    reason = "repository tests fail with the original Git launch or index-path error"
+)]
 pub fn tracked_paths() -> Vec<PathBuf> {
     let output = Command::new("git")
         .arg("-C")
@@ -129,6 +132,10 @@ pub fn read_regular(root: &Path, path: &Path) -> Result<Vec<u8>, String> {
 /// a path the index records but the gate root cannot supply is a failure,
 /// never a skip.
 #[must_use]
+#[expect(
+    clippy::panic,
+    reason = "the repository test wrapper fails with tracked path and read-error context"
+)]
 pub fn read_tracked(root: &Path, path: &Path) -> Vec<u8> {
     read_regular(root, path).unwrap_or_else(|e| {
         panic!(

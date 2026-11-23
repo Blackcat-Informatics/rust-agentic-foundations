@@ -46,6 +46,10 @@ impl Dynamic {
         ))
     }
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn observe_with(name: &str, run: Run, found: &mut BTreeSet<String>, dynamic: &[Dynamic]) {
     let stdout = run.stdout;
     let graph = Graph::from_text(&stdout, Format::Turtle).unwrap();
@@ -89,6 +93,11 @@ fn observe_with(name: &str, run: Run, found: &mut BTreeSet<String>, dynamic: &[D
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn golden(
     root: &std::path::Path,
     name: &str,
@@ -117,6 +126,10 @@ fn golden(
     instantiate(&graph, dynamic).to_text(format).unwrap()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn instantiate(graph: &Graph, dynamic: &[Dynamic]) -> Graph {
     let mut builder = Builder::from_graph(graph);
     let mut seen = vec![false; dynamic.len()];
@@ -265,6 +278,10 @@ fn lifecycle(found: &mut BTreeSet<String>) {
     history_snapshot(&dated, found);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn documentation(found: &mut BTreeSet<String>) {
     let repo = Repo::synced("registry-documentation", false);
     let path = "docs/capabilities/alpha.md";
@@ -301,6 +318,10 @@ fn documentation(found: &mut BTreeSet<String>) {
     imported_documentation(found);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn imported_documentation(found: &mut BTreeSet<String>) {
     let repo = Repo::bare("registry-imported-documentation");
     repo.put(
@@ -365,6 +386,10 @@ fn imported_documentation(found: &mut BTreeSet<String>) {
     assert_eq!(support::worktree(&target), artifacts_before);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn history_snapshot(repo: &Repo, found: &mut BTreeSet<String>) {
     let log = repo.git(&["rev-list", "--reverse", "HEAD"]);
     let commits: Vec<_> = log.lines().collect();
@@ -405,6 +430,10 @@ fn history_snapshot(repo: &Repo, found: &mut BTreeSet<String>) {
     observe_with("history", run, found, &dynamic);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn evidence_and_assessments(found: &mut BTreeSet<String>) {
     let repo = Repo::synced("registry-evidence", false);
     let opened = raf_workplan::Gate::workspace(repo.root()).open().unwrap();
@@ -450,6 +479,10 @@ fn evidence_and_assessments(found: &mut BTreeSet<String>) {
     assessments(&repo, found);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assessments(repo: &Repo, found: &mut BTreeSet<String>) {
     observe(
         "context",
@@ -523,6 +556,10 @@ fn assessments(repo: &Repo, found: &mut BTreeSet<String>) {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn line_coverage_and_debt(found: &mut BTreeSet<String>) {
     let record = "ceilings:\n  - crate: demo\n    lines: 10\n    of: shipping\n  - crate: demo\n    percent: 100\n    of: test\n";
     let repo = Repo::strict("registry-lines", &strict::capability(), record);
@@ -566,6 +603,10 @@ fn line_coverage_and_debt(found: &mut BTreeSet<String>) {
 }
 
 /// Exercise each review query projection through its actual CLI consumer.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn review_queries(found: &mut BTreeSet<String>) {
     let repo = Repo::bare("review-query-registry");
     repo.put(
@@ -639,6 +680,10 @@ fn review_queries(found: &mut BTreeSet<String>) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn command_extension_registry_matches_the_documented_terms() {
     let mut found = BTreeSet::new();
     documentation(&mut found);

@@ -372,6 +372,10 @@ fn a_directory_that_cannot_be_listed_is_reported_by_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_tree_that_cannot_be_built_is_a_finding_for_each_directory() {
     // Two keys that name one path make every operation of the tree fail.
     let tree = MemoryTree::from([("docs/a.md", "x"), ("docs//a.md", "y")]);

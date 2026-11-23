@@ -26,7 +26,11 @@ pub(super) fn read(
             let row = owned(graph, &id, "EnumVariantRetention", reached)?;
             let name = required_text(&row, "variantName")?;
             let name = syn::parse_str::<syn::Ident>(&name)
-                .map_err(|_| E::Value(format!("{id}: variantName must be one Rust identifier")))?
+                .map_err(|cause| {
+                    E::Value(format!(
+                        "{id}: variantName must be one Rust identifier: {cause}"
+                    ))
+                })?
                 .unraw()
                 .to_string();
             required_text(&row, "reason")?;

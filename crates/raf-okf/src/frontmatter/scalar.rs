@@ -188,10 +188,11 @@ pub(crate) fn inline_value(
         }
         _ => {
             let rest = cur.rest();
-            let (text, trailing) = match rest.find(" #") {
-                Some(index) => {
-                    let text = rest[..index].trim_end_matches(' ');
-                    (text, Some(rest[text.len()..].to_string()))
+            let (text, trailing) = match rest.split_once(" #") {
+                Some((value, _)) => {
+                    let text = value.trim_end_matches(' ');
+                    let (_, comment) = rest.split_at(text.len());
+                    (text, Some(comment.to_string()))
                 }
                 None => (rest, None),
             };

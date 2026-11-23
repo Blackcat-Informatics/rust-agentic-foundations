@@ -149,6 +149,10 @@ impl LockedSource {
         let (repository, reference, revision) = if kind == LockedSourceKind::Git {
             let suffix = iri.query().map_or(0, |text| text.len() + 1)
                 + iri.fragment().map_or(0, |text| text.len() + 1);
+            #[expect(
+                clippy::string_slice,
+                reason = "native query and fragment spellings plus their ASCII separators form a suffix of the original IRI"
+            )]
             let repository = memory.string(&body[..body.len() - suffix])?;
             let reference = git_reference(iri.query(), memory)?;
             let revision = iri

@@ -46,6 +46,16 @@ impl<'a, 'm> Proof<'a, 'm> {
         }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "a selection or delivered route names a binding in the same source index"
+    )]
+    fn selected_name(&self, module: usize, name: &str) -> &'a str {
+        self.index
+            .bound_name(module, name)
+            .expect("INVARIANT: the indexed binding retains its spelling")
+    }
+
     fn add(&mut self, selected: Selected<'a>) -> Result<(), LoadError> {
         // Comparison costs include identifier text, including an unsuccessful
         // membership test. Native vector growth admits coexisting buffers.
@@ -242,10 +252,7 @@ impl<'a, 'm> Proof<'a, 'm> {
         for id in bound.keys() {
             steps.storage_work(1 + wanted.len())?;
             if wanted.contains(id) {
-                let name = self
-                    .index
-                    .bound_name(module, name)
-                    .expect("a selected binding has a stable spelling");
+                let name = self.selected_name(module, name);
                 self.add(Selected {
                     module,
                     ns,
@@ -354,15 +361,16 @@ impl<'a, 'm> Proof<'a, 'm> {
                     let mut supplies = false;
                     for route in supply {
                         steps.storage_work(1)?;
-                        if route.ns == place.ns
-                            && route.id == place.id
-                            && (place.viewer.is_none()
-                                || self.index.level_covers(
+                        if route.ns == place.ns && route.id == place.id {
+                            if let Some(viewer) = place.viewer
+                                && !self.index.level_covers(
                                     route.level,
-                                    Level::within(place.viewer.expect("a viewer")),
+                                    Level::within(viewer),
                                     &mut |units| steps.storage_work(units),
-                                )?)
-                        {
+                                )?
+                            {
+                                continue;
+                            }
                             supplies = true;
                         }
                     }
@@ -432,10 +440,7 @@ impl<'a, 'm> Proof<'a, 'm> {
             .map_err(|failure| self.failure(failure))?;
         for (target, glob) in routes {
             self.import(glob)?;
-            let name = self
-                .index
-                .bound_name(target, place.name)
-                .expect("a delivered item has a stable spelling");
+            let name = self.selected_name(target, place.name);
             self.add(Selected {
                 module: target,
                 name,
@@ -478,9 +483,13 @@ impl Index {
         if !self.has_late_imports {
             return Ok(());
         }
+        #[expect(
+            clippy::expect_used,
+            reason = "all callers run this proof after loading under their query meter"
+        )]
         let meter = steps
             .query_meter()
-            .expect("semantic determinacy is checked after loading");
+            .expect("INVARIANT: a semantic determinacy query carries its meter");
         let memory = Transient::new(meter);
         let (file, line) = self.module_site(module);
         let steps = Steps::QueryAt {
@@ -556,9 +565,7 @@ impl Index {
         steps: Steps<'_>,
     ) -> Result<(), ResolveError> {
         self.checked_determinacy(module, text, steps, |proof| {
-            let name = self
-                .bound_name(module, name)
-                .expect("a surface binding has a stable spelling");
+            let name = proof.selected_name(module, name);
             for &id in ids {
                 proof.add(Selected {
                     module,

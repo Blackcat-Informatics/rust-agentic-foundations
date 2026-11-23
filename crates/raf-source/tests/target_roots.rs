@@ -13,6 +13,10 @@ use raf_source::{
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn all_kinds() -> Workspace {
     let tree: MemoryTree = [
         ("Cargo.toml", DEMO),
@@ -30,6 +34,11 @@ fn all_kinds() -> Workspace {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn every_target_kind_resolves_at_its_crate_path_as_a_module_item_of_its_root_file() {
     let ws = all_kinds();
     let cases = [
@@ -73,6 +82,10 @@ fn every_target_kind_resolves_at_its_crate_path_as_a_module_item_of_its_root_fil
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_namespace_segments_are_not_items_and_a_first_party_module_of_that_name_collides() {
     let ws = all_kinds();
     for segment in [
@@ -112,6 +125,11 @@ fn the_namespace_segments_are_not_items_and_a_first_party_module_of_that_name_co
 }
 
 /// The file of the one definition `path` resolves to.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn file_of(ws: &Workspace, path: &str) -> String {
     let resolution = ws.resolve(path).unwrap_or_else(|e| panic!("{path}: {e}"));
     assert_eq!(resolution.sites.len(), 1, "{path}");
@@ -119,6 +137,11 @@ fn file_of(ws: &Workspace, path: &str) -> String {
 }
 
 /// The files of the items `path` is ambiguous between, sorted.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn ambiguous_files(ws: &Workspace, path: &str) -> Vec<String> {
     match ws.resolve(path) {
         Err(ResolveError::Ambiguous(ids)) => {
@@ -134,6 +157,10 @@ fn ambiguous_files(ws: &Workspace, path: &str) -> Vec<String> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_lib_module_named_bin_crate_stays_in_the_library() {
     for (segment, file) in [
         ("bin_crate", "src/bin/x.rs"),
@@ -191,6 +218,10 @@ fn a_lib_module_named_bin_crate_stays_in_the_library() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_build_script_main_beside_a_lib_module_build_script_is_ambiguous() {
     // `build.rs` sorts before `src/lib.rs` and `zz/build.rs` after it.
     let named = format!("{DEMO}build = \"zz/build.rs\"\n");
@@ -224,6 +255,10 @@ fn a_build_script_main_beside_a_lib_module_build_script_is_ambiguous() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_explicit_path_bin_beside_a_lib_module_bin_crate_is_ambiguous_in_both_file_orders() {
     // `a/x.rs` sorts before `src/lib.rs` and `tools/x.rs` after it.
     for path in ["a/x.rs", "tools/x.rs"] {
@@ -265,6 +300,10 @@ fn an_explicit_path_bin_beside_a_lib_module_bin_crate_is_ambiguous_in_both_file_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_over_cap_inferred_lib_names_discovery_not_lib_path() {
     let mut options = LoadOptions::default();
     // Every manifest below fits the cap; the library is over it.
@@ -316,6 +355,10 @@ fn an_over_cap_inferred_lib_names_discovery_not_lib_path() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn unreadable_target_roots_name_explicit_paths_or_table_names_and_build_discovery() {
     let mut options = LoadOptions::default();
     options.max_file_bytes = 512;
@@ -381,6 +424,11 @@ fn unreadable_target_roots_name_explicit_paths_or_table_names_and_build_discover
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn this_repository_resolves_a_test_crate_root_and_a_library_root() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let ws = Workspace::load(&DiskTree::new(repository).expect("tree"), &["crates"])
@@ -397,6 +445,11 @@ fn this_repository_resolves_a_test_crate_root_and_a_library_root() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_first_party_module_at_a_binary_crate_path_is_ambiguous_beside_a_binary_that_is_not() {
     let tree: MemoryTree = [
         ("Cargo.toml", DEMO),

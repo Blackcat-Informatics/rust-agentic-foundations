@@ -80,6 +80,10 @@ const TARGETS: &[Selected] = &[
     },
 ];
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn policy(selected: &Selected) -> String {
     let mut policy: Builder = provider_policy("provider", "native_library::api::encode");
     for (subject, key, old) in [
@@ -103,6 +107,11 @@ fn policy(selected: &Selected) -> String {
     policy.finish().unwrap().to_text(Format::Turtle).unwrap()
 }
 
+#[expect(
+    clippy::unwrap_in_result,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn check(
     selected: &Selected,
     dependency: &str,
@@ -195,6 +204,10 @@ fn check(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn every_selected_target_proves_native_calls_through_its_ordinary_library() {
     for selected in TARGETS {
         if selected.kind == TargetKind::BuildScript {
@@ -255,6 +268,10 @@ fn every_selected_target_proves_native_calls_through_its_ordinary_library() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn development_routes_prove_selected_consumers_but_never_their_ordinary_reach() {
     let program = "pub fn run(value:u32)->u32 {renamed::api::encode(value)} fn main() {}";
     for selected in TARGETS {

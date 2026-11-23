@@ -19,10 +19,10 @@ inputs:
     digest: c1a7252fc3f8fd6ba23f5f4e2edfe384d338a6939ebef4f845fc71adbfd4913d
   - kind: symbol
     name: raf_workplan::diagram
-    digest: f251865c2761563681aa2ba8b29c64986dd69ccbddf0658583e39accd6dbe82d
+    digest: 9514fa76221c2d4e595ed803e939711d8c6f07d2d60095a71f0c41dabe31a997
   - kind: symbol
     name: raf_workplan::diagram::publication::publish_repository
-    digest: 0942902b5d134460b2f4e0be0fbbe2574a5e82e6a8f7ab6ef6d36cc2390cfec6
+    digest: 8b5ee82c34b97a473a514834baa8318242b6e8423f72e1a1f094d4513427a8d0
 verdict: accepted
 by: agent
 ---

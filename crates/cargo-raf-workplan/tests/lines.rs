@@ -42,6 +42,10 @@ const ORPHANED: &str = "\
 ";
 
 /// The table the library renders for the repository at `repo`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn library_table(repo: &Repo) -> String {
     let opened = Gate::workspace(repo.root()).open().expect("a repository");
     render::lines_table(&opened.workplan().lines_report())

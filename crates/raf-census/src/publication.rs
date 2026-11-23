@@ -304,6 +304,13 @@ mod tests {
     use std::fs::{self, File};
     use std::io::Write as _;
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn replace_temporary(directory: &File, kind: Kind) {
         unlinkat(directory, kind.temporary(), AtFlags::empty()).unwrap();
         let replacement = File::from(
@@ -319,6 +326,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn published_records_and_unowned_temporaries_survive_typed_finalization_failures() {
         for create in [true, false] {
             let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();

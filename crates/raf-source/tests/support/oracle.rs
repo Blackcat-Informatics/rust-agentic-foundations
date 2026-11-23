@@ -80,10 +80,18 @@ fn hexadecimal_seed(digits: &str) -> Option<u64> {
     Some(u64::from_be_bytes(decoded))
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn fixture(text: &str) -> Program {
     Program::parse(text).expect("a fixture parses")
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn assert_namespace_cycles_have_no_tolerated_determinacy_disagreement() {
     let mut failures = String::new();
     let mut checked = 0;
@@ -115,6 +123,10 @@ pub(crate) fn assert_namespace_cycles_have_no_tolerated_determinacy_disagreement
     assert!(failures.is_empty(), "{failures}");
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn assert_the_oracle_compares_the_import_it_rendered_instead_of_a_fresh_path_read() {
     let source = include_str!(
         "../../../../fuzz/corpus/rustc-oracle/import_cycle_rustc_cannot_determine_through_a_named_import_and_two_globs.rs"
@@ -151,6 +163,10 @@ pub(crate) fn assert_the_oracle_compares_the_import_it_rendered_instead_of_a_fre
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn assert_an_ambiguous_original_import_is_an_order_witness_only_for_its_own_name() {
     let source = include_str!(
         "../../../../fuzz/corpus/rustc-oracle/a_module_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion.rs"
@@ -177,7 +193,7 @@ pub(crate) fn assert_an_ambiguous_original_import_is_an_order_witness_only_for_i
         rustc::space_verdicts(&same_source).expect("the exact same import source")[0].1,
         SpaceVerdict::ImportAmbiguous
     );
-    let mut unrelated_source = reordered.clone();
+    let mut unrelated_source = reordered;
     "crate::m2::B::X".clone_into(&mut unrelated_source.probes[0].path);
     assert!(rustc::space_verdicts(&unrelated_source).is_none());
     let unrelated = fixture(&format!(
@@ -189,6 +205,10 @@ pub(crate) fn assert_an_ambiguous_original_import_is_an_order_witness_only_for_i
     assert!(rustc::space_verdicts(&unrelated_frame).is_none());
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn assert_compiler_order_dependence_does_not_hide_an_unobserved_target_or_resource_refusal()
  {
     let program = fixture(include_str!(
@@ -228,6 +248,10 @@ pub(crate) fn assert_compiler_order_dependence_does_not_hide_an_unobserved_targe
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn assert_resource_failures_cannot_agree_with_compiler_refusal_or_hide_beside_documented_ambiguity()
  {
     let refused = fixture(
@@ -284,6 +308,10 @@ pub(crate) fn assert_resource_failures_cannot_agree_with_compiler_refusal_or_hid
 }
 
 /// The base the environment selects, if it does.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn selected_base() -> Option<u64> {
     std::env::var(SEED_BASE_VARIABLE)
         .ok()
@@ -456,6 +484,10 @@ impl IndexVerdict {
 }
 
 /// The index of a program as a workspace.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn load(source: &str) -> Workspace {
     let manifest = format!(
         "[package]\nname = \"{CRATE}\"\nversion = \"0.1.0\"\nedition = \"{}\"\n",
@@ -837,6 +869,10 @@ fn candidates(ws: &Workspace, probe: &Probe, space: Space) -> String {
 /// The public surface of the library of `ws`, as one comparable text: each
 /// exported path with the item it names and its kind, and each re-export,
 /// or the error that refuses the listing.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn surface(ws: &Workspace) -> String {
     let id = ws
         .target_ids()
@@ -1006,6 +1042,10 @@ fn index_instability(
 
 /// The answers of the index that differ across the orders, for a failure
 /// message.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn describe_unstable(program: &Program, unstable: &Unstable) -> String {
     let what = unstable.probe.map_or_else(
         || "the exported surface".to_owned(),
@@ -1093,7 +1133,7 @@ pub(crate) fn evaluate_in(
     let source = program.render(&all, &BTreeMap::new()).source;
     let Ok(ws) = panic::catch_unwind(AssertUnwindSafe(|| load(&source))) else {
         return Evaluation {
-            program: program.clone(),
+            program,
             valid: true,
             accepted: 0,
             rejected: 0,
@@ -1230,6 +1270,10 @@ fn generated_from(base: u64, total: usize) -> Vec<(String, Program)> {
         .collect()
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn program_count() -> usize {
     match std::env::var(PROGRAMS_VARIABLE) {
         Ok(text) => support::program::number::unsigned(text.trim())
@@ -1239,6 +1283,10 @@ fn program_count() -> usize {
 }
 
 /// Evaluate every program, on as many threads as the machine offers.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn evaluate_all(programs: &[(String, Program)]) -> Vec<Evaluation> {
     let next = AtomicUsize::new(0);
     let results: Mutex<Vec<Option<Evaluation>>> =
@@ -1273,6 +1321,11 @@ fn corpus_dir() -> PathBuf {
 }
 
 /// The committed programs, by file name.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 pub(crate) fn corpus() -> Vec<(String, Program)> {
     let mut names: Vec<String> = fs::read_dir(corpus_dir())
         .expect("the corpus directory exists")
@@ -1315,6 +1368,10 @@ pub(crate) fn describe(program: &Program, divergence: &Divergence) -> String {
 /// renamed after its shape; the
 /// first of each kind of unclassified disagreement is reduced and printed, to
 /// be examined. Run with `RAF_ORACLE_PROGRAMS` set to search further.
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 pub(crate) fn generate_corpus(dir: &Path) {
     let programs = generated_from(BASE, program_count());
     let results = evaluate_all(&programs);
@@ -1351,6 +1408,10 @@ pub(crate) fn generate_corpus(dir: &Path) {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn write_program(dir: &Path, name: &str, program: &Program) -> PathBuf {
     fs::create_dir_all(dir).expect("create the corpus directory");
     let path = dir.join(format!("{name}.rs"));
@@ -1359,6 +1420,10 @@ fn write_program(dir: &Path, name: &str, program: &Program) -> PathBuf {
 }
 
 /// Check exact writer bytes and parsed identities without generating new programs.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn assert_corpus_writer() {
     let (name, program) = corpus()
         .into_iter()

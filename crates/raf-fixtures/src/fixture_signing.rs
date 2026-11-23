@@ -16,6 +16,10 @@ pub fn after_git(args: &[&str], git: impl Fn(&[&str]) -> String) {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn initialize(git: &impl Fn(&[&str]) -> String) {
     let admin = PathBuf::from(git(&["rev-parse", "--absolute-git-dir"]).trim_end_matches('\n'));
     let key = admin.join("raf-fixture-ed25519");

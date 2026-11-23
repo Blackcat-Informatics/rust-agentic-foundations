@@ -86,6 +86,10 @@ fn fs_lines(source: &str) -> Vec<usize> {
     hits
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn rust_sources(directory: &Path, found: &mut Vec<PathBuf>) {
     for entry in fs::read_dir(directory).expect("source directory is readable") {
         let path = entry.expect("directory entry").path();
@@ -104,6 +108,10 @@ fn is_disk_backend(relative: &Path) -> bool {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn only_the_disk_backend_names_the_file_system_module() {
     let source_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut files = Vec::new();

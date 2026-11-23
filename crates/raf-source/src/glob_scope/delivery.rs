@@ -19,6 +19,13 @@ fn retained_rows_tree() -> MemoryTree {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn recorded_name_rows_survive_real_reconstruction_with_new_equal_interned_names() {
     let ws = Workspace::load(&retained_rows_tree(), &["."]).expect("returning names");
     let options = LoadOptions::default();
@@ -87,6 +94,13 @@ fn recorded_name_rows_survive_real_reconstruction_with_new_equal_interned_names(
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn recorded_name_hash_storage_loads_at_exact_item_and_glob_grants_and_refuses_one_less() {
     let tree = retained_rows_tree();
     let ws = Workspace::load(&tree, &["."]).expect("measure actual original grants");
@@ -130,6 +144,13 @@ fn recorded_name_hash_storage_loads_at_exact_item_and_glob_grants_and_refuses_on
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn declaration() -> UseDecl {
     UseDecl {
         module: 0,
@@ -146,6 +167,13 @@ fn declaration() -> UseDecl {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn delta<'m>(meter: &'m Meter, id: usize, payload: bool, decl: &UseDecl) -> Grown<'m> {
     let memory = Transient::new(meter);
     let mut ids = Vec::new();
@@ -172,6 +200,13 @@ fn delta<'m>(meter: &'m Meter, id: usize, payload: bool, decl: &UseDecl) -> Grow
     )
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn assert_released(meter: &Meter) {
     Transient::new(meter)
         .charge(meter.options().max_glob_bytes, &RelPath::root(), None)
@@ -179,6 +214,13 @@ fn assert_released(meter: &Meter) {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn native_delivery_spill_is_lifo_and_failed_push_releases_only_the_incoming_delta() {
     let decl = declaration();
     let meter = Meter::new(&LoadOptions::default());
@@ -247,6 +289,13 @@ fn native_delivery_spill_is_lifo_and_failed_push_releases_only_the_incoming_delt
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn native_delivery_growth_admits_old_and_new_spill_buffers_together() {
     let decl = declaration();
     let meter = Meter::new(&LoadOptions::default());
@@ -302,6 +351,13 @@ fn native_delivery_growth_admits_old_and_new_spill_buffers_together() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn widest_routes_merge_firm_evidence_in_place_and_refuse_before_mutation() {
     let tree: MemoryTree = [
         (
@@ -359,6 +415,13 @@ fn widest_routes_merge_firm_evidence_in_place_and_refuse_before_mutation() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn maximal_public_replacements_avoid_repeat_proofs_while_narrower_ones_are_widened() {
     let source = shapes::ambiguous_hub(8);
     let tree: MemoryTree = [
@@ -428,6 +491,13 @@ fn maximal_public_replacements_avoid_repeat_proofs_while_narrower_ones_are_widen
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn one_returning_carrier_retains_multiple_independently_selected_identities() {
     let source = "pub mod a { pub struct X; }
         pub mod b { pub struct X; }

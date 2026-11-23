@@ -64,6 +64,13 @@ pub(super) mod tests {
 
     static HOST: Mutex<Callbacks> = Mutex::new(Vec::new());
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     pub(super) fn host_callback(file: &RelPath) {
         let name = file.to_string();
         let callback = HOST
@@ -77,6 +84,13 @@ pub(super) mod tests {
         }
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     pub(in crate::parse) fn with_host<R>(
         file: &RelPath,
         callback: fn(),
@@ -93,11 +107,25 @@ pub(super) mod tests {
         result
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     pub(in crate::parse) fn lex_foreign() {
         drop("fn host() {}".parse::<TokenStream>().expect("lexes"));
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_worker_whose_registry_a_host_callback_populated_is_refused_before_it_registers() {
         let file = RelPath::new("src/occupied_registry.rs").expect("path");
         let error = with_host(&file, lex_foreign, || {
@@ -114,6 +142,13 @@ pub(super) mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_worker_with_a_fresh_registry_parses_and_registers_its_source_first() {
         let file = RelPath::new("src/fresh_registry.rs").expect("path");
         let first = with_host(
@@ -130,6 +165,13 @@ pub(super) mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn claiming_a_populated_thread_refuses_and_a_fresh_thread_is_claimed() {
         let file = RelPath::new("src/claim.rs").expect("path");
         std::thread::scope(|scope| {

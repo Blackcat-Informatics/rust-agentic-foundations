@@ -340,6 +340,10 @@ impl Gate {
     /// Panics with the [`GateError`] when the gate cannot look at the
     /// repository; see [`Gate::try_check`].
     #[must_use]
+    #[expect(
+        clippy::panic,
+        reason = "check is the documented panicking interface for consumers that require an available gate"
+    )]
     pub fn check(&self) -> Vec<Finding> {
         match self.try_check() {
             Ok(findings) => findings,

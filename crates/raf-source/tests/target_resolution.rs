@@ -9,6 +9,10 @@ use raf_source::{MemoryTree, ResolveError, Workspace};
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn load(files: &[(&str, &str)]) -> Workspace {
     let mut all = vec![("Cargo.toml", MANIFEST)];
     all.extend_from_slice(files);
@@ -165,6 +169,10 @@ fn a_module_path_that_no_target_holds_is_unknown_whichever_kind_of_target_it_nam
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_support_module_that_two_test_targets_include_resolves_in_each_target_alone() {
     let ws = load(&[
         ("src/lib.rs", ""),
@@ -206,6 +214,10 @@ fn a_support_module_that_two_test_targets_include_resolves_in_each_target_alone(
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_module_of_the_library_at_the_crate_path_of_a_test_target_is_ambiguous_with_it() {
     let ws = load(&[
         (

@@ -8,7 +8,7 @@ use purrdf_core::{
     DatasetMut, GraphMatch, MutableDataset, QuadIds, QuadValues, RdfDataset, RdfDatasetBuilder,
     TermId, TermRef,
 };
-use std::{collections::BTreeSet, sync::Arc};
+use std::{collections::BTreeSet, fmt, sync::Arc};
 
 // Native storage requires absolute IRIs. Only this exact private owner and its
 // fragments are mapped from local API input; external aliases are refused.
@@ -41,6 +41,33 @@ pub struct Node<'a> {
     id: TermId,
 }
 
+impl fmt::Debug for Builder {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("Builder")
+            .field("owner", &self.owner)
+            .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for Value<'_> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("Value")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for Node<'_> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("Node")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
+}
+
 impl Default for Builder {
     fn default() -> Self {
         Self::new()
@@ -52,10 +79,14 @@ impl Builder {
     ///
     /// # Panics
     /// If native validation of an empty dataset violates its invariant.
+    #[expect(
+        clippy::expect_used,
+        reason = "the empty native builder has no terms or records that can violate validation"
+    )]
     pub fn new() -> Self {
         let base = RdfDatasetBuilder::new()
             .freeze()
-            .expect("empty native RDF dataset");
+            .expect("INVARIANT: an empty native RDF dataset is valid");
         Self {
             dataset: MutableDataset::new(base),
             owner: CONSTRUCTION_OWNER.into(),
@@ -371,6 +402,13 @@ mod tests {
     use purrdf_core::RdfLiteral;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn native_physical_statement_overlap_is_refused_without_losing_the_valid_statement() {
         for overlap in [false, true] {
             let mut builder = RdfDatasetBuilder::new();

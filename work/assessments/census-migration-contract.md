@@ -16,7 +16,7 @@ inputs:
     digest: 926e36ecae3b090d9ee9c087235415236204b44d5cb03413538f96ac241eda60
   - kind: symbol
     name: cargo_raf_census::command
-    digest: fbbdb75af56f5bdce2c0744f0bb381b29d5b0c5eaa6f634f2735f6708a129317
+    digest: 5d36b0ea2e7e9efabb1bad723bfe6c23c03ccd97232b18bc32a12f6213adaab6
   - kind: symbol
     name: raf_census::ForeignField
     digest: ebd6fd21ce8d57aa961b445fc5759723901623cfa75ea3b47d088a33eb223e79
@@ -43,7 +43,7 @@ inputs:
     digest: d88de92b0beefbf7e1559f7bbc139e4066bc0292bae5970c6e596d424bc0d599
   - kind: symbol
     name: raf_census::gate::migrate
-    digest: b0509a285c4dab8d06eb01c4a2724aa17db64aa390f2954a5fb11c78ba722c1b
+    digest: a3e2f328626b330ef486e4060a3ac04d2f58511ef6f3b33660611d67f704b609
   - kind: symbol
     name: raf_census::migrate_index
     digest: 81cda6ca66752c2b1fe050b23fb780d1c79f76342e9e02b374c049f19106534a
@@ -52,7 +52,7 @@ inputs:
     digest: 289e55e08375165f0af1f32d88721e53123573b8975a06270bd7cf66dff1f88d
   - kind: symbol
     name: raf_census::migrate_legacy_with_extensions
-    digest: 364e55fe5ffc777b3f1a2d303e09169559b2d39c819c54b4381f9abe45ff23bd
+    digest: b2d539b08f18b7d3f67b939379af3ba493347e24de2cb3f3d9368f74b53d30b6
   - kind: symbol
     name: raf_census::upgrade_report_form
     digest: b186dc8e88fff21b6d0c4a2b81208215910914949ff30fbd6c177242196a2445

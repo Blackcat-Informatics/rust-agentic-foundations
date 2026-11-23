@@ -29,6 +29,10 @@ fn assert_none<T: std::fmt::Debug>(items: impl AsRef<[T]>) {
     assert_eq!(items.len(), 0, "{items:?}");
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn workspace() -> Workspace {
     let tree = MemoryTree::from([
         (
@@ -158,10 +162,18 @@ fn with_plan<T>(repo: &support::Repo, check: impl FnOnce(&Workplan<'_>, &Workspa
     check(&plan, &workspace)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn item(workspace: &Workspace, path: &str) -> ItemId {
     workspace.resolve(path).expect(path).sites[0]
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn paths(workspace: &Workspace, items: &[ItemId]) -> Vec<String> {
     items
         .iter()
@@ -196,6 +208,10 @@ fn the_fixture_loads_with_only_its_two_unresolved_bindings() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_graph_has_every_kind_of_node() {
     use raf_okf::{
         Actor, DocType, Input, InputKind, RecordHeader, ReviewKind, ReviewRecord, ReviewScope,
@@ -307,6 +323,11 @@ fn the_graph_has_every_kind_of_edge() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn bindings_record_what_the_source_index_made_of_each_path() {
     with_plan(&repo(), |plan, workspace| {
         let find = |capability: &str, path: &str| {
@@ -386,6 +407,10 @@ fn links_run_from_the_section_that_holds_them_to_the_section_they_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_link_that_leads_nowhere_in_the_model_is_no_edge() {
     let mut repo = repo();
     let text = repo.get_mut(OVERVIEW).expect("overview");
@@ -442,6 +467,10 @@ fn tests_in(plan: &Workplan<'_>, cap: &str, section: S) -> Vec<String> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn tests_for_a_binding_named_in_two_sections_substantiates_both() {
     with_plan(&repo(), |plan, _| {
         assert_eq!(tests_in(plan, "cap:alpha", S::Usage), [CASE]);
@@ -557,6 +586,10 @@ fn the_queries_are_deterministic() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiate() {
     with_plan(&repo(), |plan, _| {
         // The Examples section names `<CASE>::inner`, `<CASE>_extra` and
@@ -579,6 +612,10 @@ fn baseline_links() -> usize {
 }
 
 /// The repository with `extra` appended to the Constraints text of alpha.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn with_alpha_text(extra: &str) -> support::Repo {
     let mut repo = repo();
     let text = repo.get_mut(ALPHA).expect("alpha");
@@ -620,6 +657,10 @@ fn hostile_duplicate_ids_across_files_load_one_capability_and_report_the_other_f
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn hostile_self_dependency_is_one_cycle_and_one_edge() {
     let mut repo = repo();
     let text = repo.get_mut(ALPHA).expect("alpha");

@@ -15,6 +15,10 @@ fn doc(front: &str) -> String {
     format!("---\n{front}---\n\nbody\n")
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn refused(text: &str) -> ParseError {
     match Document::parse(text) {
         Ok(_) => panic!("expected a refusal for {text:?}"),
@@ -22,6 +26,10 @@ fn refused(text: &str) -> ParseError {
     }
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn accepted(text: &str) -> Document {
     match Document::parse(text) {
         Ok(document) => document,
@@ -30,6 +38,10 @@ fn accepted(text: &str) -> Document {
 }
 
 /// The scalar text of the top-level key `key`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn text_of(document: &Document, key: &str) -> String {
     let entry = document
         .frontmatter()
@@ -329,6 +341,14 @@ fn an_unterminated_quote_and_text_after_a_quote_are_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn flow_list_shape_errors_are_refused() {
     assert_eq!(
         refused(&doc("a: [x, y\n")).kind(),
@@ -453,6 +473,10 @@ fn line_endings_must_agree_within_the_frontmatter() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn numbers_booleans_and_null_are_read_as_strings() {
     let document = accepted(&doc(
         "int: 1\nfloat: 1.5\nhex: 0x1F\nexp: 1e3\nyes: true\nnone: null\ntilde: ~\ninf: .inf\ndate: 2026-01-01\n",
@@ -502,6 +526,10 @@ fn a_text_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused() {
 }
 
 /// Maps nested `levels` deep: level 1 is the top-level mapping.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn nested_maps(levels: usize) -> String {
     let mut front = String::new();
     for level in 1..levels {
@@ -540,6 +568,10 @@ fn nesting_over_thirty_two_levels_is_refused_before_descent() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_hundred_thousand_levels_return_an_error_on_a_small_stack() {
     let run = |front: String| {
         std::thread::Builder::new()
@@ -584,6 +616,14 @@ fn a_billion_laughs_document_is_refused_at_the_first_anchor() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn items_keep_their_maps_and_scalars() {
     let document = accepted(&doc(
         "items:\n  - claim: one\n    outcome: implemented\n  - claim: two\n",
@@ -615,6 +655,14 @@ fn items_keep_their_maps_and_scalars() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn text_that_plain_ok_accepts_is_read_back_plain_in_every_position() {
     let candidates = [
         "word",
@@ -721,6 +769,14 @@ fn unterminated_quotes_are_refused_in_flow_list_item_and_nested_item_positions()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_colon_space_inside_a_flow_list_is_refused() {
     let error = refused(&doc("code: [x, a: b]\n"));
     assert_eq!(error.kind(), &ErrorKind::PlainColonSpace);
@@ -775,6 +831,14 @@ fn stray_and_over_indented_lines_after_a_flow_value_are_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn trailing_comments_are_not_part_of_the_value() {
     let document = accepted(&doc(concat!(
         "quoted: \"a # b\" # c\n",

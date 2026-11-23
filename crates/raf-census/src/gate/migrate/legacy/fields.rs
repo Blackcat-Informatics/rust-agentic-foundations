@@ -6,7 +6,7 @@
 use super::super::UnmappedRow;
 use crate::Error;
 use purrdf_toml::{Document, Kind, Scalar};
-use std::{collections::BTreeMap, rc::Rc};
+use std::{collections::BTreeMap, ops::Range, rc::Rc};
 
 pub(super) struct Fields<'d, 's> {
     pub(super) document: &'d Document<'s>,
@@ -78,9 +78,12 @@ impl<'d, 's> Fields<'d, 's> {
     pub(super) fn integer(&mut self, key: &str) -> Result<Option<u64>, Error> {
         match self.take(key).map(|id| &self.document.nodes()[id].kind) {
             None => Ok(None),
-            Some(Kind::Scalar(Scalar::Integer(value))) => u64::try_from(*value)
-                .map(Some)
-                .map_err(|_| self.bad(key, "a nonnegative integer is required")),
+            Some(Kind::Scalar(Scalar::Integer(value))) => {
+                let Ok(value) = u64::try_from(*value) else {
+                    return Err(self.bad(key, "a nonnegative integer is required"));
+                };
+                Ok(Some(value))
+            }
             _ => Err(self.bad(key, "a nonnegative integer is required")),
         }
     }
@@ -132,7 +135,7 @@ impl<'d, 's> Fields<'d, 's> {
     pub(super) fn original(&self, id: usize) -> Result<String, Error> {
         let node = &self.document.nodes()[id];
         if !matches!(node.kind, Kind::Table(_) | Kind::ArrayOfTables) || node.children.is_empty() {
-            return Ok(self.document.text()[node.span.clone()].into());
+            return Ok(source_spelling(self.document, node.span.clone())?.into());
         }
         // An implicit or header-defined table's first token span is not its value.
         // Account its original descendant occurrences with the shared header index.
@@ -157,7 +160,7 @@ impl<'d, 's> Fields<'d, 's> {
                     let statement = &self.document.statements()[*index];
                     unmapped.push(UnmappedRow {
                         location: format!("{}{}:statement[{index}]", self.at, node.path),
-                        original: self.document.text()[statement.span.clone()].into(),
+                        original: source_spelling(self.document, statement.span.clone())?.into(),
                         reason: "unknown field declaration; no core or declared extension mapping"
                             .into(),
                     });
@@ -172,7 +175,7 @@ impl<'d, 's> Fields<'d, 's> {
             };
             unmapped.push(UnmappedRow {
                 location: format!("{}{}", self.at, node.path),
-                original: self.document.text()[span].into(),
+                original: source_spelling(self.document, span)?.into(),
                 reason: "unknown field or occurrence; no core or declared extension mapping".into(),
             });
             for child in node.children.iter().rev() {
@@ -181,6 +184,18 @@ impl<'d, 's> Fields<'d, 's> {
         }
         Ok(())
     }
+}
+
+pub(super) fn source_spelling<'d>(
+    document: &'d Document<'_>,
+    span: Range<usize>,
+) -> Result<&'d str, Error> {
+    document.text().get(span.clone()).ok_or_else(|| {
+        Error::Options(format!(
+            "foreign ledger has an invalid native TOML span at bytes {}..{}",
+            span.start, span.end
+        ))
+    })
 }
 
 pub(super) fn strings(

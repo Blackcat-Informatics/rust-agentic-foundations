@@ -4,7 +4,10 @@
 //! Borrowed original-source observations from one successful run.
 
 use super::{analysis, pairing};
-use std::ops::{Range, RangeInclusive};
+use std::{
+    fmt,
+    ops::{Range, RangeInclusive},
+};
 
 /// An actual physical function with every indexed owner retained.
 pub struct Function<'run> {
@@ -12,6 +15,17 @@ pub struct Function<'run> {
     file: &'run raf_source::SourceFile,
     owners: &'run [&'run raf_source::Item],
     body: Range<usize>,
+}
+
+impl fmt::Debug for Function<'_> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("Function")
+            .field("file", &self.file.path)
+            .field("owner_count", &self.owners.len())
+            .field("body", &self.body)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'run> Function<'run> {
@@ -59,6 +73,7 @@ impl<'run> Function<'run> {
 }
 
 /// A discovery seed anchored in one actual function's atom sequence.
+#[derive(Debug)]
 pub struct Seed<'run> {
     function: Function<'run>,
     atom: usize,
@@ -77,6 +92,7 @@ impl Seed<'_> {
 }
 
 /// Coarse seed evidence; a matching hash is never a verified clone.
+#[derive(Debug)]
 pub struct Candidate<'run> {
     left: Seed<'run>,
     right: Seed<'run>,
@@ -127,6 +143,7 @@ impl<'run> Candidate<'run> {
 }
 
 /// A complete admitted original-source syntax region.
+#[derive(Debug)]
 pub struct Region<'run> {
     function: Function<'run>,
     site: pairing::Site,
@@ -153,13 +170,25 @@ impl Region<'_> {
         self.site.atom_start..self.site.atom_end
     }
     /// Original source slice; inspected as data only.
+    ///
+    /// # Panics
+    /// Panics if the retained source no longer matches the admitted region.
     #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "region admission verifies both original UTF-8 boundaries before publishing a witness"
+    )]
     pub fn text(&self) -> &str {
-        &self.function.file.text[self.bytes()]
+        self.function
+            .file
+            .text
+            .get(self.bytes())
+            .expect("INVARIANT: admitted region has valid UTF-8 boundaries")
     }
 }
 
 /// A pair established by fresh ordered lexical and binding proof.
+#[derive(Debug)]
 pub struct Witness<'run> {
     left: Region<'run>,
     right: Region<'run>,

@@ -25,12 +25,12 @@ purrdf-xsd.workspace = true
 purrdf-text.workspace = true
 purrdf-markdown.workspace = true
 proc-macro2 = { workspace = true, features = ["span-locations"] }
-raf-okf = { path = "../raf-okf", version = "0.8.0" }
-raf-source = { path = "../raf-source", version = "0.8.0" }
-raf-rdf = { path = "../raf-rdf", version = "0.8.0" }
+raf-okf.workspace = true
+raf-source.workspace = true
+raf-rdf.workspace = true
 
 [dev-dependencies]
-raf-fixtures = { path = "../raf-fixtures" }
+raf-fixtures.workspace = true
 purrdf-testkit.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]

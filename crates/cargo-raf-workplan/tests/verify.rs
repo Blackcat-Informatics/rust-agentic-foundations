@@ -36,6 +36,10 @@ fn fixture() -> Repo {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn verify_prints_static_results_without_git_or_consumer_execution() {
     let repo = fixture();
     let before = repo.snapshot();

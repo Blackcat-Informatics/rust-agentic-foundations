@@ -13,6 +13,14 @@ use raf_rdf::{Builder, Format, Graph, TermValue, vocab};
 use raf_source::{DiskTree, EntryKind, MemoryTree, RelPath, Tree};
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn repository_census_is_clean_and_duplicate_growth_is_refused() {
     let root = rust_agentic_foundations::gate_root();
     let tree = DiskTree::new(&root).expect("open the selected gate snapshot");
@@ -103,6 +111,10 @@ fn repository_census_is_clean_and_duplicate_growth_is_refused() {
 /// A record that states no ratcheted rule is written back with the bytes it was
 /// read from, so counted sites add nothing to an existing record.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_repository_debt_record_round_trips_byte_for_byte() {
     let root = rust_agentic_foundations::gate_root();
     let tree = DiskTree::new(&root).expect("open the selected gate snapshot");
@@ -120,13 +132,17 @@ fn the_repository_debt_record_round_trips_byte_for_byte() {
 /// The repository policy without its job rows: the roots and limits that a
 /// structural check can judge on an in-memory workspace. Rows that name a
 /// preferred provider need the locked evaluation of the real repository.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn structural_policy(policy: &str) -> String {
     let graph = Graph::from_text(policy, Format::Turtle).expect("read the native policy");
     let mut rows = Builder::from_graph(&graph);
     let job = TermValue::iri(format!("{}job", vocab::REPORT));
     for triple in graph.assertions() {
         if triple.subject != TermValue::iri("") || triple.predicate == job {
-            assert!(rows.remove(triple.clone()).expect("remove a job row"));
+            assert!(rows.remove(triple).expect("remove a job row"));
         }
     }
     rows.finish()
@@ -137,6 +153,10 @@ fn structural_policy(policy: &str) -> String {
 
 /// Every UTF-8 file of the gate snapshot that source loading can reach, so a
 /// planted edit changes only an in-memory copy of the real repository.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn snapshot(tree: &DiskTree, directory: &RelPath, files: &mut Vec<(String, String)>) {
     for entry in tree.list(directory).expect("list the gate snapshot") {
         let path = directory.join(&entry.name).expect("join a snapshot path");
@@ -162,6 +182,10 @@ fn snapshot(tree: &DiskTree, directory: &RelPath, files: &mut Vec<(String, Strin
 const DIGEST: &str = "crates/raf-workplan/src/digest.rs";
 
 /// The repository with `edit` applied to the digest module.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn planted(edit: impl FnOnce(String) -> String) -> MemoryTree {
     let disk = DiskTree::new(rust_agentic_foundations::gate_root()).expect("open the snapshot");
     let mut files = Vec::new();
@@ -175,6 +199,14 @@ fn planted(edit: impl FnOnce(String) -> String) -> MemoryTree {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate() {
     // Three competitors beside an accepted thin adapter. None needs a PurRDF
     // import to be found, and an import or a discarded provider call beside
@@ -251,6 +283,10 @@ pub(crate) fn decorative_call_beside_an_initial_state() -> u32 {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_decorative_provider_call_cannot_stand_in_for_the_delegation() {
     let tree = planted(|text| {
         text.replace(

@@ -29,6 +29,10 @@ fn serial() -> MutexGuard<'static, ()> {
 struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn new() -> Self {
         let parent = fs::canonicalize(std::env::temp_dir()).expect("a canonical temporary parent");
         Self(purrdf_testkit::TempDir::new_in(parent).expect("a scratch directory"))
@@ -44,6 +48,10 @@ impl Scratch {
 /// touches the repository of a hook that runs the test. Repository-local hooks and
 /// signing settings remain in force. Returns standard output without its last
 /// line ending.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn git(dir: &Path, args: &[&str]) -> String {
     let mut command = Command::new("git");
     command
@@ -87,12 +95,20 @@ struct Repo {
 
 impl Repo {
     /// A new repository on the branch `main` in `dir`, which is created.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn init(dir: PathBuf) -> Self {
         fs::create_dir_all(&dir).expect("a repository directory");
         git(&dir, &["init", "-q", "-b", "main"]);
         Self { dir }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn put(&self, path: &str, bytes: &[u8]) {
         let target = self.dir.join(path);
         fs::create_dir_all(target.parent().expect("a file has a directory"))
@@ -117,20 +133,36 @@ impl Repo {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn runner_in(dir: &Path) -> Repository {
     Repository::open(dir).expect("native repository")
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn commit(text: &str) -> Commit {
     Commit::new(text).expect("a commit id")
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn path(text: &str) -> SourcePath {
     SourcePath::new(text).expect("a source path")
 }
 
 /// The merge base of `HEAD` of `repo` and the commit `ancestor`, which is the
 /// only way to get a revision to read a file at.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn base_at(repo: &Repo, ancestor: &str) -> MergeBase {
     merge_base(&repo.runner(), &commit(ancestor)).expect("a merge base")
 }
@@ -157,6 +189,10 @@ fn clone_of_origin(scratch: &Scratch) -> (Repo, String) {
 // ------------------------------------------------------------- tracked paths
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_tracked_paths_are_the_index_and_not_the_files_on_disk() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -183,6 +219,10 @@ fn the_tracked_paths_are_the_index_and_not_the_files_on_disk() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_tracked_paths_of_a_subdirectory_are_relative_to_it() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -199,6 +239,10 @@ fn the_tracked_paths_of_a_subdirectory_are_relative_to_it() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_directory_that_is_no_work_tree_has_no_listing_and_a_broken_index_is_an_error() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -243,6 +287,10 @@ fn a_directory_that_is_no_work_tree_has_no_listing_and_a_broken_index_is_an_erro
 // ----------------------------------------------------------- default branch
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_default_branch_of_a_clone_is_the_full_remote_tracking_name() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -257,6 +305,10 @@ fn the_default_branch_of_a_clone_is_the_full_remote_tracking_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_repository_without_origin_head_has_no_default_branch_and_the_fix_is_named() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -306,6 +358,10 @@ fn a_repository_without_origin_head_has_no_default_branch_and_the_fix_is_named()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -331,6 +387,10 @@ fn a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_default_branch_named_like_an_option_is_a_ref_and_never_an_option() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -378,6 +438,10 @@ fn forked(scratch: &Scratch) -> (Repo, String, String) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_merge_base_is_where_the_branch_left_the_default_branch() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -391,6 +455,10 @@ fn the_merge_base_is_where_the_branch_left_the_default_branch() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn histories_with_no_common_ancestor_have_no_merge_base() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -406,6 +474,10 @@ fn histories_with_no_common_ancestor_have_no_merge_base() {
 // ------------------------------------------------------------------ prefix
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_prefix_is_where_the_directory_is_below_the_top_of_its_work_tree() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -448,6 +520,10 @@ fn the_prefix_is_where_the_directory_is_below_the_top_of_its_work_tree() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_linked_work_tree_is_its_own_top() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -470,6 +546,10 @@ fn a_linked_work_tree_is_its_own_top() {
 // ----------------------------------------------------------------- blob_at
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_file_is_read_as_it_was_at_the_merge_base() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -494,6 +574,11 @@ fn a_file_is_read_as_it_was_at_the_merge_base() {
     resolved_historical_files_preserve_admission(&seed, &tip, &base);
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn resolved_historical_files_preserve_admission(repo: &Repo, tip: &str, base: &MergeBase) {
     let resolved = resolve_commit_id(&repo.runner(), &commit(tip)).expect("an explicit commit");
     assert_ne!(resolved.as_str(), base.as_str());
@@ -532,6 +617,10 @@ fn resolved_historical_files_preserve_admission(repo: &Repo, tip: &str, base: &M
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_blob_is_returned_byte_for_byte() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -553,6 +642,10 @@ fn a_blob_is_returned_byte_for_byte() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_blob_over_one_mebibyte_is_an_error_and_exactly_one_mebibyte_is_read() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -578,6 +671,10 @@ fn a_blob_over_one_mebibyte_is_an_error_and_exactly_one_mebibyte_is_read() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_directory_is_an_error_and_not_an_absent_file() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -608,6 +705,10 @@ fn a_directory_is_an_error_and_not_an_absent_file() {
 // --------------------------------------------------------- a linked worktree
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_linked_work_tree_asks_about_its_own_head_and_shares_the_remote_refs() {
     let _lock = serial();
     let scratch = Scratch::new();

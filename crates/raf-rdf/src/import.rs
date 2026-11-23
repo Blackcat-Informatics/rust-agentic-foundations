@@ -59,6 +59,15 @@ where
     }
 }
 
+impl<A: Admission, P: Progress, F: Copy> fmt::Debug for ImportFailure<'_, '_, A, P, F>
+where
+    P::Error: fmt::Display,
+{
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(output, "ImportFailure({self})")
+    }
+}
+
 impl<A: Admission> AdmittedGraph<A> {
     /// Parse and observe a canonical report under fresh original subaccounts.
     /// All supplied subaccounts and progress must charge the same authority.
@@ -69,9 +78,6 @@ impl<A: Admission> AdmittedGraph<A> {
     /// Canonical absolute N-Triples uses the native controlled Turtle grammar,
     /// followed by its own root law and exact N-Triples canonical-byte equality.
     /// This does not admit general N-Triples as equivalent Turtle input.
-    ///
-    /// # Panics
-    /// Panics if a successful native parse omits its promised dataset.
     pub fn import_captured<'input, P: Progress, F: Copy, R>(
         text: &'input str,
         format: Format,
@@ -100,9 +106,14 @@ impl<A: Admission> AdmittedGraph<A> {
         let mut output_account = OwnedAdmission::new(fresh());
         let mut scratch = Memory::new(&mut scratch_account);
         let mut output = Memory::new(&mut output_account);
-        let dataset = parsed
-            .dataset()
-            .expect("successful native parse retains its dataset");
+        let Some(dataset) = parsed.dataset() else {
+            let cause =
+                BuildCause::Profile(Error::Invariant("successful native parse lost its dataset"));
+            return observe(Err(ImportFailure::Profile {
+                cause: &cause,
+                captured: capture.get(),
+            }));
+        };
         let base = match selected_base(&dataset, parsed.document_base_iri(), format, &mut scratch) {
             Ok(base) => base,
             Err(cause) => {
@@ -154,9 +165,11 @@ impl<A: Admission> AdmittedGraph<A> {
                         ControlledError::Native(cause) => BuildCause::Position(cause),
                         ControlledError::Control(cause) => cause.into(),
                     })?;
-                let line = usize::try_from(position.line).map_err(|_| {
-                    BuildCause::Profile(Error::Invariant("native line exceeds usize"))
-                })?;
+                let Ok(line) = usize::try_from(position.line) else {
+                    return Err(BuildCause::Profile(Error::Invariant(
+                        "native line exceeds usize",
+                    )));
+                };
                 return Err(BuildCause::Profile(Error::NotCanonical { line }));
             }
             Ok::<(), BuildCause>(())

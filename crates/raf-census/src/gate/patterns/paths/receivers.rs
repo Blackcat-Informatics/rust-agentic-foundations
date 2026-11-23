@@ -141,11 +141,12 @@ impl ReceiverBinding {
                 Ok(Some(proof)) => proof,
                 Ok(None) => continue,
                 Err(Error::CodePath { source, .. }) => {
-                    ReceiverProof::Refused(Shared::try_new(RefCell::new(Some(source))).map_err(
-                        |_| Error::PatternIndexStorage {
+                    let Ok(refusal) = Shared::try_new(RefCell::new(Some(source))) else {
+                        return Err(Error::PatternIndexStorage {
                             source: StorageError::AllocationFailed,
-                        },
-                    )?)
+                        });
+                    };
+                    ReceiverProof::Refused(refusal)
                 }
                 Err(error) => return Err(error),
             };
@@ -157,6 +158,10 @@ impl ReceiverBinding {
         Ok(Self(reaches))
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the first admitted receiver refusal takes the stored cause and immediately ends the scan"
+    )]
     pub(super) fn matching_owners(
         &self,
         pattern: &Compiled<'_>,

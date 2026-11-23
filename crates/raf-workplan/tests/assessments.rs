@@ -114,6 +114,11 @@ impl Fixture {
         self.scratch.path()
     }
 
+    #[expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     fn sync(&self) {
         let report = on_disk(self.root(), |plan| {
             plan.sync(&SyncOptions::new(
@@ -144,6 +149,10 @@ impl Fixture {
         })
     }
 
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     fn accept(&self, subject: &str) {
         self.assess(subject, AssessmentVerdict::Accepted, Actor::Agent)
             .unwrap_or_else(|error| panic!("{subject} is assessed: {error}"));
@@ -158,6 +167,10 @@ impl Fixture {
     }
 
     /// The assessment lines of `reconcile shape`.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn owed(&self) -> Vec<String> {
         on_disk(self.root(), |plan| {
             let list = plan.reconcile("shape").expect("reconciles");
@@ -181,6 +194,10 @@ fn findings(plan: &Workplan<'_>) -> Vec<Finding> {
 }
 
 /// The inputs that moved, as kind, name and how.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn stale(currency: &Currency) -> Vec<(InputKind, String, InputChange)> {
     match currency {
         Currency::Current => Vec::new(),
@@ -226,6 +243,11 @@ fn a_crate_root_assessment_is_published_reloaded_and_invalidated_by_its_source()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first() {
     let fixture = Fixture::new("[demo::run]", "");
     let before = snapshot(fixture.root());
@@ -352,6 +374,10 @@ fn an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_anoth
     assert_eq!(fixture.owed(), Vec::<String>::new());
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn declaration_currency_neighbors() {
     let fixture = Fixture::new("[demo::run]", "");
     let model = "model:\n  components:\n    - id: service\n      label: Service\n      kind: component\n      responsibility: Run operations\n      bindings:\n        code: [demo::other]\n        tests: [demo::test_crate::it::case]\n        capabilities: [cap:omega, cap:fixture-support]\n";
@@ -418,7 +444,7 @@ fn declaration_currency_neighbors() {
     // record without one above.
     let artifact = ".stage/run/bench.txt";
     put(fixture.root(), artifact, "peak 41\n");
-    let cited = evidence.clone().artifact(artifact, b"peak 41\n");
+    let cited = evidence.artifact(artifact, b"peak 41\n");
     put(fixture.root(), &cited.path(), &cited.text());
     assert_eq!(
         stale(&fixture.currency(CONTRACT)),
@@ -442,6 +468,10 @@ fn declaration_currency_neighbors() {
     assert_eq!(fixture.currency(CONTRACT), Currency::Current);
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn model_input_refusal_neighbors(fixture: &Fixture) {
     let support = "docs/capabilities/fixture-support.md";
     for (path, from, to, missing) in [
@@ -492,6 +522,10 @@ fn model_input_refusal_neighbors(fixture: &Fixture) {
     fixture.accept(CONTRACT);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capability_anchor_currency_neighbors(fixture: &Fixture) {
     use raf_workplan::diagram::{DiagramKind, DiagramScope, NamedDiagramView};
     let view = NamedDiagramView::new(
@@ -864,6 +898,10 @@ fn with_no_bound_symbol_named_every_bound_symbol_is_an_input() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_evidence_record_a_claim_of_the_section_names_is_an_input() {
     let fixture = Fixture::new(
         "[demo::run]",
@@ -924,6 +962,10 @@ fn a_regenerated_block_leaves_the_assessment_of_its_section_current() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_reads() {
     let fixture = Fixture::new(
         "[demo::run, demo::other]",
@@ -980,6 +1022,10 @@ fn the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it() {
     let fixture = Fixture::new("[demo::run]", "");
     for by in Actor::ALL {
@@ -1005,6 +1051,10 @@ fn a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it() {
     let fixture = Fixture::new("[demo::run]", "");
     fixture.accept(CONTRACT);
@@ -1028,6 +1078,10 @@ fn a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment
 // --- refusals and their neighbours ---------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn each_refusal_writes_nothing_and_its_neighbour_records() {
     let fixture = Fixture::new("[demo::run]", "");
     let before = snapshot(fixture.root());
@@ -1111,6 +1165,10 @@ fn each_refusal_writes_nothing_and_its_neighbour_records() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load()
 {
     // The profile refuses a section with nothing but generated blocks, so a
@@ -1144,6 +1202,10 @@ fn a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_
 // --- hostile sizes ---------------------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged() {
     // A Contract near the document bound.
     let line = "The window keeps the values it was given, in order, and no more.\n";
@@ -1214,6 +1276,11 @@ fn a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged() {
 /// file of the section.
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records() {
     let request = AssessmentRequest::new(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent);
     for link in ["work", "work/assessments"] {

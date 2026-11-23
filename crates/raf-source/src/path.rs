@@ -218,6 +218,10 @@ impl RelPath {
 
     /// Materialize a candidate under its original admission account.
     /// Invalid spelling remains the canonical caller's diagnostic responsibility.
+    #[expect(
+        clippy::expect_used,
+        reason = "JoinedText writes borrowed strings to a reserved String, whose formatter cannot fail"
+    )]
     pub(crate) fn join_admitted<S: Admission + ?Sized>(
         &self,
         input: &str,
@@ -243,7 +247,7 @@ impl RelPath {
             let mut text = String::new();
             memory.reserve_string(&mut text, bytes)?;
             write!(&mut text, "{}", JoinedText { base: self, input })
-                .expect("writing validated borrowed segments to String cannot fail");
+                .expect("INVARIANT: writing borrowed segments to String cannot fail");
             let path = Self {
                 text: Arc::from(text.as_str()),
                 authority: self.authority,
@@ -368,7 +372,7 @@ impl RelPath {
         if self.is_root() {
             return None;
         }
-        let text = self.text.rfind('/').map_or("", |index| &self.text[..index]);
+        let text = self.text.rsplit_once('/').map_or("", |(parent, _)| parent);
         Some(Self {
             text: Arc::from(text),
             authority: self.authority,
@@ -391,6 +395,13 @@ mod display_tests {
     use super::RelPath;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn control_characters_in_a_refused_path_are_escaped() {
         let refused = RelPath::new("/a\u{1b}[31m\u{202e}b").expect_err("absolute");
         let text = refused.to_string();

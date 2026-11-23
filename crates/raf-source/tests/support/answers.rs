@@ -73,6 +73,10 @@ pub(crate) fn tree(program: &Program) -> MemoryTree {
 
 /// Load `program` and write every answer of the index to it, one a line,
 /// returning the text and what it held.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn answers(program: &Program) -> (String, Counted) {
     let mut out = String::new();
     let mut counted = Counted {
@@ -133,6 +137,10 @@ pub(crate) fn answers(program: &Program) -> (String, Counted) {
 
 /// The exported surface of the library of `ws`, sorted, and whether it was
 /// refused.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn surface(ws: &Workspace) -> (String, bool) {
     let id = ws
         .target_ids()

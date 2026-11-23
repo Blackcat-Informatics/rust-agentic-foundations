@@ -48,21 +48,17 @@ pub(crate) struct Head {
 #[derive(Debug, Clone, Copy)]
 struct Line<'a> {
     text: &'a str,
+    /// The text after ASCII space indentation.
+    content: &'a str,
     number: usize,
     offset: usize,
     indent: usize,
 }
 
-impl<'a> Line<'a> {
-    /// The text after the indentation.
-    fn content(&self) -> &'a str {
-        &self.text[self.indent..]
-    }
-
+impl Line<'_> {
     /// A blank line or a full-line comment.
     fn is_trivia(&self) -> bool {
-        let content = self.content();
-        content.is_empty() || content.starts_with('#')
+        self.content.is_empty() || self.content.starts_with('#')
     }
 
     /// The error for a failure at byte `index` of the line.
@@ -105,11 +101,23 @@ pub(crate) struct Fences {
     pub(crate) body_start: usize,
 }
 
+impl Fences {
+    /// The body of the text used to locate these fences.
+    #[expect(
+        clippy::string_slice,
+        reason = "the body starts after the closing fence's ASCII newline or at the end of the source"
+    )]
+    pub(crate) fn body<'a>(&self, text: &'a str) -> &'a str {
+        &text[self.body_start..]
+    }
+}
+
 /// Find the opening and closing fence of `text`.
 pub(crate) fn locate_fences(text: &str) -> Result<Fences, ParseError> {
     if text.len() > MAX_TEXT_BYTES {
-        let line = 1 + text[..text.floor_char_boundary(MAX_TEXT_BYTES)]
-            .matches('\n')
+        // An incomplete UTF-8 code point at the limit cannot contain an ASCII newline.
+        let line = text.as_bytes()[..MAX_TEXT_BYTES]
+            .split(|&byte| byte == b'\n')
             .count();
         return Err(ParseError::at_offset(
             ErrorKind::TooLarge {
@@ -120,26 +128,25 @@ pub(crate) fn locate_fences(text: &str) -> Result<Fences, ParseError> {
             MAX_TEXT_BYTES,
         ));
     }
-    let eol = if text.starts_with("---\r\n") {
-        LineEnding::CrLf
-    } else if text.starts_with("---\n") {
-        LineEnding::Lf
+    let (eol, mut rest) = if let Some(rest) = text.strip_prefix("---\r\n") {
+        (LineEnding::CrLf, rest)
+    } else if let Some(rest) = text.strip_prefix("---\n") {
+        (LineEnding::Lf, rest)
     } else if text == "---" {
         return Err(ParseError::at(ErrorKind::UnclosedFence, 1, 1, 0));
     } else {
         return Err(ParseError::at(ErrorKind::MissingFence, 1, 1, 0));
     };
-    let front_start = 3 + eol.as_str().len();
-    let mut position = front_start;
+    let front_start = text.len() - rest.len();
     let mut number = 2;
     loop {
-        let rest = &text[position..];
         if rest.is_empty() {
             return Err(ParseError::at(ErrorKind::UnclosedFence, 1, 1, 0));
         }
-        let (raw, next, had_newline) = match rest.find('\n') {
-            Some(index) => (&rest[..index], position + index + 1, true),
-            None => (rest, text.len(), false),
+        let position = text.len() - rest.len();
+        let (raw, next, had_newline) = match rest.split_once('\n') {
+            Some((raw, next)) => (raw, next, true),
+            None => (rest, "", false),
         };
         let (line, had_cr) = split_cr(raw);
         if line == "---" {
@@ -162,21 +169,24 @@ pub(crate) fn locate_fences(text: &str) -> Result<Fences, ParseError> {
                 fence_start: position,
                 fence_line: number,
                 closing_newline: had_newline,
-                body_start: next,
+                body_start: text.len() - next.len(),
             });
         }
-        position = next;
+        rest = next;
         number += 1;
     }
 }
 
 /// Read the fences and the frontmatter of `text`.
+#[expect(
+    clippy::string_slice,
+    reason = "the frontmatter lies between complete ASCII fence lines found in this text"
+)]
 pub(crate) fn read_head(text: &str) -> Result<Head, ParseError> {
     let fences = locate_fences(text)?;
     let mut reader = Reader {
-        text,
+        rest: &text[fences.front_start..fences.fence_start],
         pos: fences.front_start,
-        end: fences.fence_start,
         number: 2,
         eol: fences.eol,
         peeked: None,
@@ -194,11 +204,10 @@ pub(crate) fn read_head(text: &str) -> Result<Head, ParseError> {
 }
 
 struct Reader<'a> {
-    text: &'a str,
+    /// The unread frontmatter, up to the closing fence.
+    rest: &'a str,
     /// Byte offset of the next unread line.
     pos: usize,
-    /// Byte offset of the closing fence line.
-    end: usize,
     /// Number of the next unread line.
     number: usize,
     eol: LineEnding,
@@ -210,10 +219,9 @@ struct Reader<'a> {
 impl<'a> Reader<'a> {
     /// Read the next raw line of the frontmatter.
     fn read_line(&mut self) -> Result<Option<Line<'a>>, ParseError> {
-        if self.pos >= self.end {
+        if self.rest.is_empty() {
             return Ok(None);
         }
-        let region = &self.text[self.pos..self.end];
         let number = self.number;
         let offset = self.pos;
         let mismatch = |index: usize| {
@@ -224,19 +232,20 @@ impl<'a> Reader<'a> {
                 offset + index,
             )
         };
-        let (raw, advance) = match region.find('\n') {
-            Some(index) => (&region[..index], index + 1),
-            None => return Err(mismatch(region.chars().count())),
+        let Some((raw, rest)) = self.rest.split_once('\n') else {
+            return Err(mismatch(self.rest.chars().count()));
         };
         let (text, had_cr) = split_cr(raw);
         if had_cr != (self.eol == LineEnding::CrLf) {
             return Err(mismatch(text.chars().count()));
         }
+        let content = text.trim_start_matches(' ');
         let line = Line {
             text,
+            content,
             number,
             offset,
-            indent: text.len() - text.trim_start_matches(' ').len(),
+            indent: text.len() - content.len(),
         };
         if let Some((index, _)) = text.char_indices().find(|(_, c)| c.is_control()) {
             return Err(line.error_at(ErrorKind::ControlCharacter, index));
@@ -244,7 +253,8 @@ impl<'a> Reader<'a> {
         if text.ends_with(' ') {
             return Err(line.error_at(ErrorKind::TrailingWhitespace, text.len() - 1));
         }
-        self.pos += advance;
+        self.pos += raw.len() + 1;
+        self.rest = rest;
         self.number += 1;
         Ok(Some(line))
     }
@@ -296,7 +306,7 @@ impl<'a> Reader<'a> {
         if first.indent != 0 {
             return Err(first.error_at(ErrorKind::Indentation, 0));
         }
-        let content = first.content();
+        let content = first.content;
         let dash_item = content == "-" || content.starts_with("- ");
         if dash_item || content.starts_with(['[', '{']) || !content.contains(':') {
             return Err(first.error_at(ErrorKind::NotAMapping, 0));
@@ -398,7 +408,7 @@ impl<'a> Reader<'a> {
                 next.indent,
             ));
         }
-        let content = next.content();
+        let content = next.content;
         if content == "-" || content.starts_with("- ") {
             self.list(key, indent + 2, level + 1).map(Value::List)
         } else {
@@ -420,7 +430,7 @@ impl<'a> Reader<'a> {
             if line.indent > indent {
                 return Err(line.error_at(ErrorKind::Indentation, indent));
             }
-            let content = line.content();
+            let content = line.content;
             if content != "-" && !content.starts_with("- ") {
                 return Err(line.error_at(ErrorKind::ExpectedItem, indent));
             }
@@ -495,8 +505,8 @@ fn looks_like_entry(text: &str) -> bool {
     if key_len == 0 {
         return false;
     }
-    let after = &text[key_len..];
-    after == ":" || after.starts_with(": ")
+    text.get(key_len..)
+        .is_some_and(|after| after == ":" || after.starts_with(": "))
 }
 
 /// Read a key and its colon. Leaves the cursor after the colon.
@@ -517,17 +527,14 @@ fn read_key<'a>(cur: &mut Cursor<'a>) -> Result<&'a str, Fail> {
         return Ok(key);
     }
     // Not a key: name the text before the first colon that would end one.
-    let colon = rest
-        .match_indices(':')
-        .find(|(index, _)| {
-            let after = &rest[index + 1..];
-            after.is_empty() || after.starts_with(' ')
-        })
-        .map(|(index, _)| index);
-    match colon {
-        Some(index) => Err((
+    let invalid_key = rest
+        .split_once(": ")
+        .map(|(key, _)| key)
+        .or_else(|| rest.strip_suffix(':'));
+    match invalid_key {
+        Some(key) => Err((
             ErrorKind::InvalidKey {
-                key: rest[..index].to_string(),
+                key: key.to_string(),
             },
             start,
         )),

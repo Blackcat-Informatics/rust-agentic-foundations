@@ -21,6 +21,14 @@ pub struct SourceTrees<'a> {
     dependencies: &'a [&'a dyn Tree],
 }
 
+impl std::fmt::Debug for SourceTrees<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SourceTrees")
+            .field("dependency_count", &self.dependencies.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl<'a> SourceTrees<'a> {
     /// Borrow source trees without copying or retaining their contents.
     #[must_use]
@@ -172,6 +180,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn scoped_backend_ids_are_refused_before_seen_and_preserve_the_first_cause() {
         let first = MemoryTree::default();
         let bad = TaggedBackend {
@@ -212,6 +228,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn equal_relative_paths_and_backend_keys_remain_separate_sources() {
         let first = MemoryTree::from([("src/lib.rs", "first")]);
         let second = MemoryTree::from([("src/lib.rs", "second")]);
@@ -252,6 +275,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn parent_join_and_real_directory_normalization_keep_the_selected_root() {
         let first = MemoryTree::from([("src/lib.rs", "first")]);
         let second = MemoryTree::from([("src/lib.rs", "second"), ("src/sub/item.rs", "item")]);
@@ -290,6 +320,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn standalone_memory_tree_refuses_another_sources_tag_before_seen_callback() {
         let tree = MemoryTree::from([("src/lib.rs", "source")]);
         let local = RelPath::new("src/lib.rs").expect("path");

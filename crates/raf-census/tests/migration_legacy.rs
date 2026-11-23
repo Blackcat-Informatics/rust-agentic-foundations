@@ -20,6 +20,10 @@ struct ProofAdapter {
 }
 
 impl ForeignLedgerAdapter for ProofAdapter {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn claim(&self, _: &str, field: ForeignField<'_, '_>) -> Option<Result<String, String>> {
         if field.node().key.as_ref()?.decoded != "capacity_proof" {
             return None;
@@ -107,6 +111,10 @@ fn import(ledger: &str, baseline: &str) -> Result<Migration, raf_census::Error> 
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension() {
     for (metadata, forbidden, expected) in [
         (
@@ -174,6 +182,10 @@ fn real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension() {
     claimed_policy_values_keep_complete_native_facts();
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn claimed_policy_values_keep_complete_native_facts() {
     let proof = "{file='src/lib.rs',source='source:original-proof-pin',line=0x2a,authorities=['A','A'],created=1979-05-27T07:32:00Z}";
     let foreign = format!("{ROW}owner='runtime'\ncapacity_proof=[{proof},{proof}]\n");
@@ -260,6 +272,10 @@ fn claimed_policy_values_keep_complete_native_facts() {
     assert!(malformed.contains("capacity_proof") && malformed.contains("must contain rows"));
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_retained_native_facts(
     policy: &Ledger,
     extension: raf_census::LedgerExtensionGraph<'_>,
@@ -299,6 +315,10 @@ fn assert_retained_native_facts(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn variants_and_counted_distinct_rows_keep_their_declared_contract() {
     let ledger = format!(
         "{ROW}[job.forbidden]\nfingerprints=['body:0000000000000001']\n[[job.variant]]\nsymbol='demo::copy'\nfile='src/lib.rs'\ndetector='isomorphic'\ncriterion='layering'\nanchor='demo::home'\nreason='Separate target implementation'\n[[distinct]]\nmembers=['demo::home','demo::copy']\nkind='body'\ncriterion='layering'\nanchor='demo::home'\nreason='Separate targets'\n"
@@ -326,6 +346,10 @@ fn variants_and_counted_distinct_rows_keep_their_declared_contract() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible() {
     let patterns = import(
         &format!("{ROW}[job.forbidden]\npatterns=['foreign-pattern']\n"),
@@ -388,6 +412,10 @@ fn unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visibl
     nested_metadata_remains_visible();
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn nested_metadata_remains_visible() {
     let nested = import(
         &format!("{ROW}mystery={{nested=['repeat','repeat'],empty={{}}}}\n[unrecognized]\nwhen=1979-05-27T07:32:00-07:00\n"),
@@ -437,6 +465,10 @@ fn nested_metadata_remains_visible() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success() {
     let malformed = import("[[job", BASELINE).unwrap_err();
     let mut cause = std::error::Error::source(&malformed);
@@ -482,6 +514,11 @@ fn ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_
 }
 
 #[test]
+#[expect(
+    clippy::string_slice,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn both_foreign_inputs_enforce_size_and_exact_container_depth_bounds() {
     let descending = (0..100_000)
         .rev()

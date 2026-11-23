@@ -513,7 +513,8 @@ impl CodeResolver<'_> {
         if matches!(head, "crate" | "self" | "super") {
             return Ok(true);
         }
-        let head = &path[..path.len() - written.len() + head.len()];
+        // The head ends at the ASCII separator in the original path.
+        let head = path.split_at(path.len() - written.len() + head.len()).0;
         match self
             .index
             .resolve_at(home, head, Some(Namespace::Type), heads, steps)

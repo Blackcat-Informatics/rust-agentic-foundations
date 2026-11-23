@@ -6,10 +6,18 @@
 
 use raf_okf::{Body, Document, ErrorKind, Location, ParseError, Profile, Rule};
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn body(text: &str) -> Body {
     Body::parse(text).unwrap_or_else(|error| panic!("{error} in {text:?}"))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn refused(text: &str) -> ParseError {
     match Body::parse(text) {
         Ok(_) => panic!("expected a refusal for {text:?}"),
@@ -18,6 +26,10 @@ fn refused(text: &str) -> ParseError {
 }
 
 /// The evidence slugs and the statement text of each claim of `text`.
+#[expect(
+    clippy::expect_used,
+    reason = "every claim in the fixture must have a valid statement span"
+)]
 fn claims(text: &str) -> Vec<(Vec<String>, String)> {
     body(text)
         .claims()
@@ -25,7 +37,9 @@ fn claims(text: &str) -> Vec<(Vec<String>, String)> {
         .map(|claim| {
             (
                 claim.evidence().to_vec(),
-                text[claim.statement().bytes.clone()].to_string(),
+                text.get(claim.statement().bytes.clone())
+                    .expect("valid claim statement span")
+                    .to_owned(),
             )
         })
         .collect()
@@ -45,13 +59,13 @@ fn a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it() {
     assert_eq!(claim.line(), 7);
     assert_eq!(claim.marker().lines, 7..8);
     assert_eq!(
-        &text[claim.marker().bytes.clone()],
-        "<!-- raf:claim evidence=memory-bound -->\n"
+        text.get(claim.marker().bytes.clone()),
+        Some("<!-- raf:claim evidence=memory-bound -->\n")
     );
     assert_eq!(claim.statement().lines, 5..7);
     assert_eq!(
-        &text[claim.statement().bytes.clone()],
-        "Parsing a 10 MiB input\nstays under 64 MiB.\n"
+        text.get(claim.statement().bytes.clone()),
+        Some("Parsing a 10 MiB input\nstays under 64 MiB.\n")
     );
     assert_eq!(claim.section(), Some("contract"));
     // The marker is a comment, so it is no prose line.
@@ -225,13 +239,20 @@ fn a_statement_stops_at_a_heading_a_blank_line_or_a_fence() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn claims_in_a_document_carry_whole_text_lines() {
     let text = "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
                 description: How it fits.\n---\n\n# Overview\n\nIt holds.\n<!-- raf:claim evidence=a -->\n";
     let document = Document::parse(text).expect("a document");
     let claim = &document.body().claims()[0];
     assert_eq!(claim.line(), 11);
-    assert_eq!(&text[claim.statement().bytes.clone()], "It holds.\n");
+    assert_eq!(
+        text.get(claim.statement().bytes.clone()),
+        Some("It holds.\n")
+    );
     // Only a capability states claims.
     let found = Profile
         .validate(&document, "docs/architecture/overview.md")
@@ -247,6 +268,10 @@ fn claims_in_a_document_carry_whole_text_lines() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_capability_states_claims_in_its_sections() {
     let sections: String = [
         "Purpose",

@@ -252,7 +252,12 @@ impl<'w> Surface<'w> {
             {
                 continue;
             }
-            let exports = exports_at(source, id, side, &raf_source::ExportOptions::default())?;
+            let exports = exports_at(
+                source,
+                (id, target),
+                side,
+                &raf_source::ExportOptions::default(),
+            )?;
             let mut types = BTreeSet::new();
             for export in &exports.items {
                 let Some(item) = source.item(export.item) else {
@@ -335,13 +340,10 @@ impl<'w> Surface<'w> {
 /// Enumerate the public surface with the same typed refusal for both historical queries.
 pub(super) fn exports_at(
     source: &Workspace,
-    id: raf_source::TargetId,
+    (id, target): (raf_source::TargetId, &raf_source::Target),
     side: Side,
     options: &raf_source::ExportOptions,
 ) -> Result<raf_source::Exports, LifecycleError> {
-    let target = source
-        .target(id)
-        .expect("INVARIANT: target id belongs to this source workspace");
     source
         .exported_items_with(id, options)
         .map_err(|error| LifecycleError::Surface {
@@ -718,9 +720,11 @@ impl<'r> BaseTree<'r> {
                 });
             }
         };
-        let text = String::from_utf8(bytes).map_err(|_| TreeError::NotUtf8 {
-            path: path.to_string(),
-        })?;
+        let Ok(text) = String::from_utf8(bytes) else {
+            return Err(TreeError::NotUtf8 {
+                path: path.to_string(),
+            });
+        };
         self.texts
             .borrow_mut()
             .insert(key.to_string(), text.clone());

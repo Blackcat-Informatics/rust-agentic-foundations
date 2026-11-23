@@ -391,6 +391,10 @@ fn a_generic_list_holds_exactly_the_characters_of_the_pattern() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn each_newtype_is_built_only_by_its_pattern() {
     assert_eq!(Package::new("raf-demo").unwrap().as_str(), "raf-demo");
     assert!(Package::new("-Zunstable-options").is_err());
@@ -411,6 +415,10 @@ fn each_newtype_is_built_only_by_its_pattern() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_refusal_names_the_pattern_and_shows_the_value_safely() {
     let error: PatternError = Filter::new("-Zunstable-options").unwrap_err();
     assert_eq!(error.pattern(), Pattern::Name);

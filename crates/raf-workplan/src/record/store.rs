@@ -90,14 +90,18 @@ impl DiskRecordStore {
     }
 
     fn authority(&mut self) -> io::Result<Rc<Root>> {
-        if self.authority.is_none() {
-            self.authority = Some(Root::open(&self.root)?);
-        }
-        Ok(Rc::clone(
-            self.authority
-                .as_ref()
-                .expect("the checked native authority is open"),
-        ))
+        Self::open_authority(&mut self.authority, &self.root).map(Rc::clone)
+    }
+
+    fn open_authority<'a>(
+        authority: &'a mut Option<Rc<Root>>,
+        root: &Path,
+    ) -> io::Result<&'a Rc<Root>> {
+        let opened = match authority {
+            Some(opened) => opened,
+            empty => empty.insert(Root::open(root)?),
+        };
+        Ok(opened)
     }
 
     fn target(&mut self, path: &RelPath) -> Result<Target, RecordError> {
@@ -165,15 +169,13 @@ impl RecordStore for DiskRecordStore {
     }
 
     fn tree(&mut self) -> Result<&dyn Tree, RecordError> {
-        self.authority().map_err(|source| RecordError::Write {
-            path: self.root.display().to_string(),
-            source,
+        let root = Self::open_authority(&mut self.authority, &self.root).map_err(|source| {
+            RecordError::Write {
+                path: self.root.display().to_string(),
+                source,
+            }
         })?;
-        Ok(self
-            .authority
-            .as_ref()
-            .expect("the checked native reader is open")
-            .tree())
+        Ok(root.tree())
     }
 
     fn create_new(&mut self, path: &RelPath, text: &str) -> Result<(), RecordError> {

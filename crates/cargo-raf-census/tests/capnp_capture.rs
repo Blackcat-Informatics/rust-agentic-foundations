@@ -70,6 +70,10 @@ fn digest(bytes: &[u8]) -> String {
     purrdf_hash::hex::encode(ContentDigest::of(bytes).as_bytes())
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn put(graph: &mut Builder, subject: &str, property: &str, object: TermValue) {
     graph
         .insert(Triple {
@@ -98,6 +102,10 @@ fn publish_capture(
     publish(root, key, descriptor, sources, None)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn publish(
     root: &Path,
     key: &SigningKey,
@@ -151,6 +159,10 @@ fn publish(
     commit_statement(root, graph, key)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn commit_statement(root: &Path, graph: Builder, key: &SigningKey) -> String {
     let capture = graph.finish().unwrap().to_text(Format::NTriples).unwrap();
     fs::write(
@@ -177,6 +189,10 @@ fn row(graph: &mut Builder, id: &str, property: &str, class: &str) {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn history(root: &Path, base: &str, current: &str, key: Option<&SigningKey>) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_cargo-raf-census"));
     command.current_dir(root).args([
@@ -212,6 +228,10 @@ fn history(root: &Path, base: &str, current: &str, key: Option<&SigningKey>) -> 
 
 /// The authenticated search order changes which schema the compiler uses.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_capture_compares_layouts_with_ordered_import_directories() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -282,6 +302,10 @@ fn capnp_capture_compares_layouts_with_ordered_import_directories() {
 
 /// An earlier committed candidate wins even if it is absent from the signed manifest.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -320,6 +344,10 @@ fn capnp_capture_refuses_unrecorded_or_nonregular_earlier_imports() {
 
 /// The signed order is a bounded sequence of distinct committed directory paths.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_capture_refuses_invalid_import_directory_declarations() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -373,6 +401,10 @@ fn capnp_capture_refuses_invalid_import_directory_declarations() {
 /// Both snapshots need a statement from the selected signer over the exact
 /// committed descriptor and source bytes. Working files have no authority.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_capture_authenticates_the_exact_pinned_inputs() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -437,6 +469,10 @@ fn capnp_capture_authenticates_the_exact_pinned_inputs() {
 /// A signed digest set cannot stand in for the compiler's requested file
 /// rows, emitted file nodes, and the names and IDs of every actual import.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_capture_refuses_an_open_compiler_import_set() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -471,6 +507,10 @@ fn capnp_capture_refuses_an_open_compiler_import_set() {
 
 /// A scalar default can depend on a file the compiler omits from its import table.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_capture_reads_literal_dependencies_missing_from_the_request() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -536,6 +576,10 @@ fn capnp_capture_reads_literal_dependencies_missing_from_the_request() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn edited_descriptor(edit: impl FnOnce(code_generator_request::Builder<'_>)) -> Vec<u8> {
     let mut bytes = DESCRIPTOR;
     let source = serialize::read_message_from_flat_slice(&mut bytes, ReaderOptions::new()).unwrap();
@@ -553,6 +597,10 @@ fn edited_descriptor(edit: impl FnOnce(code_generator_request::Builder<'_>)) -> 
 
 /// File nodes and import IDs identify exact requested paths inside the signed schema root.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_capture_refuses_import_identity_mismatch_and_root_escape() {
     const MIDDLE: u64 = 0xe914_47cf_636b_013a;
     const SPARE: u64 = 0xbedd_0c55_85e3_8aff;
@@ -597,6 +645,10 @@ fn capnp_capture_refuses_import_identity_mismatch_and_root_escape() {
 
 /// Capture input limits refuse entire committed blobs before comparison.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_capture_refuses_oversized_inputs() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();

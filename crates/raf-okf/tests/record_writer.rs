@@ -21,6 +21,10 @@ use raf_okf::{
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
 
 /// Read `text` as a document of `path` and validate it.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn read(text: &str, path: &str) -> RafDocument {
     let document = Document::parse(text).unwrap_or_else(|error| panic!("{error}: {text}"));
     Profile
@@ -28,6 +32,10 @@ fn read(text: &str, path: &str) -> RafDocument {
         .unwrap_or_else(|found| panic!("{path} does not validate: {found:#?}\n{text}"))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn number(text: &str) -> Number {
     Number::parse(text).unwrap_or_else(|| panic!("{text} is a number"))
 }
@@ -100,6 +108,10 @@ fn coverage() -> CoverageRecord {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_built_evidence_record_renders_to_a_record_that_reads_back_equal() {
     let record = evidence();
     assert_eq!(record.header.id, "evidence:memory-bound");
@@ -116,6 +128,10 @@ fn a_built_evidence_record_renders_to_a_record_that_reads_back_equal() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_built_assessment_and_coverage_record_read_back_equal() {
     let record = assessment();
     let text = record.to_document().expect("the record writes").render();
@@ -137,6 +153,10 @@ fn a_built_assessment_and_coverage_record_read_back_equal() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn ceilings_and_exceptions_are_written_after_the_exclusions_and_read_back_equal() {
     let number = |text: &str| Number::parse(text).expect("a number");
     let record = CoverageRecord::new(vec!["demo".to_string()], Vec::new())
@@ -179,6 +199,10 @@ fn ceilings_and_exceptions_are_written_after_the_exclusions_and_read_back_equal(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_coverage_record_writes_only_its_closed_policy_independent_keys() {
     let record = CoverageRecord::new(Vec::new(), Vec::new());
     let text = record.to_document().expect("the record writes").render();
@@ -193,6 +217,10 @@ fn a_coverage_record_writes_only_its_closed_policy_independent_keys() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn empty_lists_and_absent_keys_are_written_as_the_profile_reads_them() {
     // An empty scope and an empty exclusion list are `[]`, which opts out
     // visibly.
@@ -237,6 +265,10 @@ fn empty_lists_and_absent_keys_are_written_as_the_profile_reads_them() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_keys_are_written_in_the_order_of_the_key_table() {
     for (doc_type, text) in [
         (
@@ -272,6 +304,14 @@ fn the_keys_are_written_in_the_order_of_the_key_table() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn every_record_fixture_reads_back_equal_after_writing() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     for (name, path) in [
@@ -301,6 +341,10 @@ fn every_record_fixture_reads_back_equal_after_writing() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back() {
     // The constructors do not judge values; the profile does, on the text.
     let mut record = evidence();
@@ -326,6 +370,10 @@ fn a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_value_the_frontmatter_cannot_hold_is_refused_by_the_writer() {
     let mut record = evidence();
     record.command = Some("cargo bench\u{7}".to_string());
@@ -384,6 +432,10 @@ fn debt() -> DebtRecord {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_debt_record_is_written_sorted_and_read_back_equal() {
     let record = debt();
     // The constructor sorts the rows, so equal debts write the same bytes.
@@ -411,6 +463,10 @@ fn a_debt_record_is_written_sorted_and_read_back_equal() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_debt_record_with_no_debt_writes_two_empty_lists() {
     let record = DebtRecord::new(Vec::new(), Vec::new());
     let text = record.to_document().expect("writes").render();
@@ -425,6 +481,10 @@ fn a_debt_record_with_no_debt_writes_two_empty_lists() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_debt_row_the_profile_refuses_is_written_and_refused_when_it_is_read_back() {
     let mut record = debt();
     record.lines.push(DebtLine::new("raf_okf::Body", 3));

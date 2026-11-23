@@ -38,6 +38,13 @@ fn permutations(blocks: &[&str]) -> Vec<Vec<String>> {
 /// What `self::<name>` resolves to in each module of a load of `lib`, for
 /// each name the text holds, in each name space: one line for each, with the
 /// path of the item, or of each item of an ambiguity, or the error.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn every_answer(lib: &str) -> Vec<String> {
     let tree: MemoryTree = [("Cargo.toml", MANIFEST), ("src/lib.rs", lib)]
         .into_iter()
@@ -67,6 +74,13 @@ fn every_answer(lib: &str) -> Vec<String> {
 
 /// An answer as the fixtures print it: the path of the item, or of each item
 /// of an ambiguity, or the error.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn shown(ws: &Workspace, found: Result<crate::Resolution, ResolveError>) -> String {
     match found {
         Ok(found) => format!("ok {}", found.path),
@@ -84,6 +98,13 @@ fn shown(ws: &Workspace, found: Result<crate::Resolution, ResolveError>) -> Stri
 /// What each of `probes`, a module and a path, resolves to in the type name
 /// space in a load of `lib`: the path of the item, or of each item of an
 /// ambiguity, or the error.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn answers(lib: &str, probes: &[(&str, &str)]) -> Vec<String> {
     let tree: MemoryTree = [("Cargo.toml", MANIFEST), ("src/lib.rs", lib)]
         .into_iter()
@@ -242,6 +263,13 @@ fn an_item_its_class_cannot_access_that_arrived_under_a_name_its_view_did_not_ho
 }
 
 /// The module at `path` of the crate of `index`.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn module(index: &Index, path: &str) -> usize {
     index
         .modules
@@ -251,6 +279,13 @@ fn module(index: &Index, path: &str) -> usize {
 }
 
 /// The item at `path`.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn item(index: &Index, path: &str) -> ItemId {
     index
         .items
@@ -261,6 +296,13 @@ fn item(index: &Index, path: &str) -> ItemId {
 }
 
 /// The glob import of `from` that reaches `to`, and `to`.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn glob(index: &Index, from: &str, to: &str) -> (usize, usize) {
     let (from, to) = (module(index, from), module(index, to));
     let glob = index
@@ -290,6 +332,13 @@ fn held(index: &Index, path: &str) -> Vec<(ItemId, bool)> {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_covert_read_is_listed_before_its_names_arrive_so_an_item_its_view_gains_while_they_arrive_reaches_the_module()
  {
     // The tables are built read by read, as the settling builds them while
@@ -347,6 +396,13 @@ struct Built {
 /// Build the tables of the fixture above from `loaded`, read by read, and
 /// check the state before `m` reads `t`. The blocked arrival through `z`
 /// requires an exact reread in `y`, exposing `z` beside `s`; `m` has only `s`.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn built(loaded: &Index, s: ItemId) -> Built {
     let mut index = loaded.clone();
     let meter = Meter::new(&LoadOptions::default());
@@ -403,6 +459,13 @@ fn built(loaded: &Index, s: ItemId) -> Built {
 }
 
 /// Check the scratch boundaries of the real reentrant delivery above.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn assert_delivery_scratch(index: &Index, module: usize, view: usize, glob: usize) {
     let due = |limit| {
         let meter = Meter::new(&LoadOptions {
@@ -514,6 +577,13 @@ fn a_view_made_when_its_module_has_left_the_open_readers_makes_it_open_again_unt
 
 /// Assert that every answer of a load of `lib` is the reference mode's, and
 /// that `module` reads `self::<name>` in the name space `ns` as `expected`.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn as_the_reference_mode(lib: &str, (module, name, ns): (&str, &str, Namespace), expected: &str) {
     let settled = every_answer(lib);
     let exact = reference::exact(|| every_answer(lib));

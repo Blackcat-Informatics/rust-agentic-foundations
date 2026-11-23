@@ -34,9 +34,11 @@ pub(super) fn project(
             )));
         };
         let filename = row.get_filename()?;
-        let filename = filename
-            .to_str()
-            .map_err(|_| layout(format!("selected file {id} requires a UTF-8 filename")))?;
+        let filename = filename.to_str().map_err(|cause| {
+            layout(format!(
+                "selected file {id} requires a UTF-8 filename: {cause}"
+            ))
+        })?;
         let path = canonical_path(filename, false).map_err(|reason| {
             layout(format!(
                 "selected file {id} has an invalid requested filename: {reason}"

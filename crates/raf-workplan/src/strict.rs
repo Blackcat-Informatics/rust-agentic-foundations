@@ -399,18 +399,18 @@ struct ListItem<'t> {
 /// line. A thematic break such as `* * *` opens one too; [`is_thematic_break`]
 /// tells it apart.
 fn list_item(raw: &str) -> Option<ListItem<'_>> {
-    let indent = raw.len() - raw.trim_start_matches(' ').len();
-    let text = &raw[indent..];
-    let width = if text.starts_with(['-', '*', '+']) {
-        1
+    let text = raw.trim_start_matches(' ');
+    let indent = raw.len() - text.len();
+    let (after, width) = if let Some(after) = text.strip_prefix(['-', '*', '+']) {
+        (after, 1)
     } else {
         let digits = text.bytes().take_while(u8::is_ascii_digit).count();
-        if digits == 0 || digits > 9 || !text[digits..].starts_with(['.', ')']) {
+        if !(1..=9).contains(&digits) {
             return None;
         }
-        digits + 1
+        let after = text.get(digits..)?.strip_prefix(['.', ')'])?;
+        (after, digits + 1)
     };
-    let after = &text[width..];
     let content = if after.is_empty() {
         after
     } else {

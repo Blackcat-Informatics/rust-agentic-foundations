@@ -7,10 +7,10 @@ subject: cap:census-rule-api#contract
 inputs:
   - kind: section
     name: cap:census-rule-api#contract
-    digest: 6f49da7f22f775b4beb3d04f8bfb61561ec0be608bc3422764198a3f13387413
+    digest: f43bd8e16959b8db57892adaec3ed14104aa37eb2a7e9e93831bd41f2ad84b69
   - kind: symbol
     name: raf_census::Gate::assert_clean
-    digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25
+    digest: 311c08fb6e81e3c5fab51fa00e901b82571f509110ebf5694df21829a0549107
   - kind: symbol
     name: raf_census::Gate::extensions
     digest: f4325ff16655a45eb8216b2658b9c48879346d2934b729c2f1d4922854c1acf1
@@ -49,7 +49,7 @@ inputs:
     digest: 316d728d03febd818b98f51da58d46e37a5515d246b270226f25b0532faf5e93
   - kind: symbol
     name: raf_census::ProductionLintRun::from_turtle
-    digest: dbfd611f0689f5dba6f8d499b5e5b4e9d45ce7b04119d85e03bdb8af20e177a8
+    digest: 3254c09f44de54e40f201b3112c5a9e1f722d64290a63c410cda6e45f7f9dcec
   - kind: symbol
     name: raf_census::ProductionLintRun::read_external
     digest: 4d72a1017a537ff1d52abf5ffb497e21cc02117ff1a8377c41b406d39d61cb38
@@ -58,7 +58,7 @@ inputs:
     digest: af6c9f264b8fe8d5ba6cf1abfdc4f5d0493cfd7ded0d06213554581f933441d2
   - kind: symbol
     name: raf_census::gate::rules
-    digest: 25a1ce6ed6de9dcc776c326ae9d343656a72d8a00a659fdcf10aed319308e9f7
+    digest: e484f2d8cbadccb223f6584ef8f6d1295a6d2ea7154f0bff927d8705589fe034
   - kind: symbol
     name: raf_census::rule
     digest: cd623ae43036600b4791b82d9442d7f6305472d959d8329aef8eeeeb80d67c3c
@@ -69,8 +69,11 @@ inputs:
     name: raf_source::CargoLintManifest::parse
     digest: '0b3c096375f7f54fd6ce5fab86f204289bbd14ec5eaa1d051ea1577b7676b6a2'
   - kind: symbol
+    name: raf_source::CargoLintManifest::parse_config
+    digest: 155838c214ecd8fe09ddca09839cb160fd6babb3ee7485b017206f0fefadd8f4
+  - kind: symbol
     name: raf_source::CargoLintManifest::production_config_override
-    digest: 337c10d0a4f89fb44f40b414a2b0df9e18afdba936dabf0618f48a6484a1243d
+    digest: dbcb6a9d1b815d0085f440ea7b3e2182db95e6a7a63d227f2f0c0dd023710726
   - kind: symbol
     name: raf_source::CargoLintManifest::setting
     digest: 96759e3fff87df823709d5553186918929e6d0cbee1ab1058e16e1213c27c6d9

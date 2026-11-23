@@ -59,6 +59,10 @@ impl AuthorDate {
 
     /// The day, `YYYY-MM-DD`, as the date writes it in its own zone.
     #[must_use]
+    #[expect(
+        clippy::string_slice,
+        reason = "the strict RFC 3339 parser validates the ten ASCII bytes of the date prefix"
+    )]
     pub fn day(&self) -> &str {
         &self.text[..10]
     }
@@ -94,11 +98,15 @@ impl fmt::Display for AuthorDate {
 /// 1970-01-01T00:00:00Z: the start of a `--since` day, which the history
 /// compares with [`AuthorDate::seconds`]. The pattern of [`Date`] holds its
 /// text to `YYYY-MM-DD` digits.
+#[expect(
+    clippy::expect_used,
+    reason = "Date validates with the same full-date parser and constrains the UTC seconds to a representable range"
+)]
 pub(crate) fn start_of_day(date: &Date) -> i64 {
-    let (year, month, day) =
-        purrdf_xsd::rfc3339::parse_date(date.as_str()).expect("Date retains a validated full-date");
+    let (year, month, day) = purrdf_xsd::rfc3339::parse_date(date.as_str())
+        .expect("INVARIANT: Date retains a validated full date");
     let days = purrdf_xsd::temporal::days_from_civil(i64::from(year), month, day);
-    i64::try_from(days * 86_400).expect("Date is bounded to 1970 through 2099")
+    i64::try_from(days * 86_400).expect("INVARIANT: Date is bounded to 1970 through 2099")
 }
 
 /// One commit of a log: its id, its author date, its subject and, for the
@@ -138,10 +146,17 @@ impl LogEntry {
     }
 }
 
+#[expect(
+    clippy::map_err_ignore,
+    reason = "the history profile reports the refused commit spelling through the existing bounded Git answer"
+)]
+fn history_commit(value: &str, expected: &'static str) -> Result<Commit, GitError> {
+    Commit::new(value).map_err(|_| answer("history", expected, value))
+}
+
 fn row(commit: &NativeCommit, paths: Vec<String>) -> Result<LogEntry, GitError> {
     Ok(LogEntry {
-        commit: Commit::new(&commit.id)
-            .map_err(|_| answer("history", "a full commit identifier", &commit.id))?,
+        commit: history_commit(&commit.id, "a full commit identifier")?,
         date: AuthorDate::parse(&commit.author_date)
             .ok_or_else(|| answer("history", "a strict author date", &commit.author_date))?,
         subject: commit.subject.clone(),
@@ -181,11 +196,10 @@ fn similarity(before: &[u8], after: &[u8]) -> usize {
     let shared: usize = input
         .before
         .iter()
-        .enumerate()
-        .filter(|(index, _)| {
-            !diff.is_removed(u32::try_from(*index).expect("bounded input line count"))
-        })
-        .map(|(_, token)| input.interner[*token].len())
+        // The blob byte bound also bounds the number of lines below u32::MAX.
+        .zip(0_u32..)
+        .filter(|(_, index)| !diff.is_removed(*index))
+        .map(|(token, _)| input.interner[*token].len())
         .sum();
     shared.saturating_mul(100) / before.len().max(after.len())
 }
@@ -252,6 +266,10 @@ fn project_lines(before: &[u8], after: &[u8], range: Range<usize>) -> (bool, Opt
             from.start < range.end && range.start < from.end
         }
     });
+    #[expect(
+        clippy::expect_used,
+        reason = "the history byte bound keeps both hunk lengths within isize"
+    )]
     let boundary = |point: usize, end: bool| {
         let mut offset = 0isize;
         for hunk in &hunks {
@@ -266,9 +284,8 @@ fn project_lines(before: &[u8], after: &[u8], range: Range<usize>) -> (bool, Opt
             if point < from.end {
                 return if end { to.end } else { to.start };
             }
-            // INVARIANT: each input is byte-bounded far below isize::MAX.
-            offset += isize::try_from(to.len()).expect("bounded parent lines")
-                - isize::try_from(from.len()).expect("bounded child lines");
+            offset += isize::try_from(to.len()).expect("INVARIANT: bounded parent lines")
+                - isize::try_from(from.len()).expect("INVARIANT: bounded child lines");
         }
         point.saturating_add_signed(offset)
     };
@@ -627,9 +644,8 @@ pub fn last_change(
                 parent: commit
                     .parents
                     .first()
-                    .map(|id| Commit::new(id))
-                    .transpose()
-                    .map_err(|_| answer("history", "a full parent commit", &commit.id))?,
+                    .map(|id| history_commit(id, "a full parent commit"))
+                    .transpose()?,
             }));
         }
     }
@@ -658,6 +674,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn author_dates_keep_strict_zone_and_day_semantics() {
         let utc = AuthorDate::parse("2026-05-02T10:00:00Z").expect("UTC");
         let east = AuthorDate::parse("2026-05-02T12:00:00+02:00").expect("east");

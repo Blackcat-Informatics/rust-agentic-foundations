@@ -6,6 +6,10 @@
 use raf_census::{NORMAL_FORM, REPORT_FORM};
 use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 pub(crate) fn ledger(reference: &str, home: &str, job: &str) -> String {
     let mut graph = Builder::new();
     let iri = |name| Term::iri(format!("{}{name}", vocab::REPORT));

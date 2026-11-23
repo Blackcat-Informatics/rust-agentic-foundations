@@ -111,7 +111,7 @@ fn upgrade(kind: ReportKind, text: &str, format: Format) -> Result<String, Error
         .into());
     }
     let declared = u32::try_from(shape::count(&root, "reportForm")?)
-        .map_err(|_| E::Value("reportForm: u32 overflow".into()))?;
+        .map_err(|cause| E::Value(format!("reportForm: u32 overflow: {cause}")))?;
     if !matches!(declared, 3..=5) {
         return Err(E::Value(format!(
             "layout conversion requires report form 3, 4 or 5, found {declared}"

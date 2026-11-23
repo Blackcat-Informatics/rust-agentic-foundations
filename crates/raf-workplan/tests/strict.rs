@@ -20,6 +20,10 @@ use support::{Repo, check_in, section, workspace_of};
 /// `record` with a ceiling of the orphan lines of `other`, which these
 /// fixtures leave unbound on purpose, so the line report of the complete policy holds
 /// it apart from the rule a test is about.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn roomy(record: &str) -> String {
     let keys = record
         .strip_suffix("---\n")
@@ -361,6 +365,10 @@ fn a_binding_reached_package_is_enforced_and_an_unreached_one_is_not() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn test_and_example_bindings_each_enforce_the_package_they_reach() {
     let mut files = two_packages();
     let (_, library) = files
@@ -569,6 +577,10 @@ fn on_disk(capability: &str, record: &str) -> Scratch {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_default_gate_judges_the_complete_policy_in_its_opened_workplan() {
     let scratch = on_disk(&fixture::thin("Examples"), "");
     let gate = Gate::workspace(scratch.path()).tracked_paths(Vec::new());
@@ -620,6 +632,10 @@ fn evidence(extra: &str) -> (String, String) {
 }
 
 /// The digest `demo::run` has in the fixture source.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn current_digest() -> String {
     Digest::symbol(&workspace_of(&fixture::source_files()), "demo::run")
         .expect("the fixture source resolves demo::run")
@@ -859,6 +875,10 @@ fn measured_only(found: Vec<Finding>) -> Vec<Finding> {
 }
 
 /// The refusal half of the case above: `repo` requires measured evidence.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn refusal_is_reported_with_its_error(mut repo: Repo) {
     // A refusal by the source index is no mismatch. The input is reached through
     // a glob re-export, which the index resolves under its query allowance: at an
@@ -944,7 +964,7 @@ fn refusal_is_reported_with_its_error(mut repo: Repo) {
             .filter(|(path, _)| !path.ends_with("bench.md"))
             .map(|(path, text)| (path.clone(), text.clone())),
     );
-    failing_only.insert(failed_path.clone(), failed.clone());
+    failing_only.insert(failed_path, failed.clone());
     failing_only.insert(
         "work/evidence/bench-failed-too.md".to_string(),
         failed.replace("evidence:bench-failed", "evidence:bench-failed-too"),

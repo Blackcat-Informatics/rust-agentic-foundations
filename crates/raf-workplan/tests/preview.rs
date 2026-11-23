@@ -118,6 +118,10 @@ fn texts(previews: &[Preview]) -> BTreeMap<&str, &str> {
         .collect()
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn error(repo: &Repo, slug: &str) -> PreviewError {
     match preview(repo, slug) {
         Ok(previews) => panic!("expected an error, got {previews:#?}"),
@@ -126,6 +130,10 @@ fn error(repo: &Repo, slug: &str) -> PreviewError {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_change_with_two_blocks_in_a_capability_reads_reconciled_and_other_blocks_stay() {
     let repo = base();
     let previews = preview(&repo, "grow").expect("previews");
@@ -149,6 +157,10 @@ fn a_change_with_two_blocks_in_a_capability_reads_reconciled_and_other_blocks_st
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn another_change_reconciles_only_its_own_blocks() {
     let repo = base();
     let previews = preview(&repo, "other").expect("previews");
@@ -165,6 +177,10 @@ fn another_change_reconciles_only_its_own_blocks() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_slug_is_taken_with_or_without_the_prefix() {
     let repo = base();
     assert_eq!(
@@ -174,6 +190,10 @@ fn the_slug_is_taken_with_or_without_the_prefix() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn preview_is_deterministic() {
     let repo = base();
     assert_eq!(
@@ -183,6 +203,10 @@ fn preview_is_deterministic() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_crlf_document_keeps_its_line_endings() {
     let mut repo = base();
     repo.insert(
@@ -197,6 +221,10 @@ fn a_crlf_document_keeps_its_line_endings() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_block_at_the_end_of_a_file_without_a_final_break_is_reconciled() {
     let mut repo = base();
     let text = format!("{}\n> [!PROPOSED change:grow]\n> Last words.", repo[GAMMA]);
@@ -209,6 +237,10 @@ fn a_block_at_the_end_of_a_file_without_a_final_break_is_reconciled() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_block_with_no_content_lines_disappears_with_its_marker() {
     let mut repo = base();
     let text = format!("{}\n> [!PROPOSED change:grow]\n\nAfter.\n", repo[GAMMA]);
@@ -221,6 +253,10 @@ fn a_block_with_no_content_lines_disappears_with_its_marker() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_block_in_a_list_item_keeps_its_indentation() {
     let mut repo = base();
     let text = format!(
@@ -239,6 +275,10 @@ fn a_block_in_a_list_item_keeps_its_indentation() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_tab_after_the_quote_marker_is_kept_as_written() {
     let mut repo = base();
     let text = format!(
@@ -257,6 +297,10 @@ fn a_tab_after_the_quote_marker_is_kept_as_written() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line() {
     let mut repo = base();
     let text = format!(
@@ -277,6 +321,10 @@ fn a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_nested_quote_loses_one_level_only() {
     let mut repo = base();
     let text = format!("{}\n> [!PROPOSED change:grow]\n> > inner\n", repo[GAMMA]);
@@ -289,6 +337,10 @@ fn a_nested_quote_loses_one_level_only() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_unknown_slug_names_it_and_lists_the_open_changes() {
     let repo = base();
     match error(&repo, "change:nope") {
@@ -311,6 +363,10 @@ fn an_unknown_slug_names_it_and_lists_the_open_changes() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_change_record_that_did_not_load_says_why() {
     let mut repo = base();
     let text = repo[GROW].replacen("contract_effect: changes", "contract_effect: bogus", 1);
@@ -331,6 +387,10 @@ fn a_change_record_that_did_not_load_says_why() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_listed_capability_that_did_not_load_is_named_never_skipped() {
     let mut repo = base();
     let text = repo[BETA].replacen("state: considered", "state: finished", 1);
@@ -356,6 +416,10 @@ fn a_listed_capability_that_did_not_load_is_named_never_skipped() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_listed_capability_without_a_document_is_an_error() {
     let mut repo = base();
     repo.remove(GAMMA);
@@ -372,6 +436,10 @@ fn a_listed_capability_without_a_document_is_an_error() {
 struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn new() -> Self {
         Self(purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("a scratch directory"))
     }
@@ -380,6 +448,10 @@ impl Scratch {
 /// What is on disk below `dir`: every file and directory by path, with the
 /// bytes of a file and the modification stamp of each, compared as the text of
 /// the stamp's debug form so the comparison needs no clock type.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn snapshot(dir: &Path) -> BTreeMap<PathBuf, (Vec<u8>, String)> {
     let mut out = BTreeMap::new();
     let mut pending = vec![dir.to_path_buf()];
@@ -406,6 +478,10 @@ fn snapshot(dir: &Path) -> BTreeMap<PathBuf, (Vec<u8>, String)> {
 /// Move the modification stamp of every file below `dir` an hour into the
 /// past, so that a later write, even of the same bytes, changes the stamp by
 /// more than the granularity of the file system's clock.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn age(dir: &Path) {
     let mut pending = vec![dir.to_path_buf()];
     while let Some(next) = pending.pop() {
@@ -427,6 +503,10 @@ fn age(dir: &Path) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_disk_fixture_is_byte_identical_afterwards() {
     let scratch = Scratch::new();
     let root = scratch.0.path();
@@ -448,6 +528,10 @@ fn a_disk_fixture_is_byte_identical_afterwards() {
     assert_eq!(before, after);
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn write(root: &Path, path: &str, text: &str) {
     let target = root.join(path);
     fs::create_dir_all(target.parent().expect("parent")).expect("creates");
@@ -455,6 +539,10 @@ fn write(root: &Path, path: &str, text: &str) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_text_outside_blocks_is_unchanged_byte_for_byte() {
     // Strip the replaced blocks from both sides: what remains is equal.
     let repo = base();
@@ -472,6 +560,10 @@ fn the_text_outside_blocks_is_unchanged_byte_for_byte() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_fenced_code_block_in_a_block_of_the_change_is_refused_with_its_line() {
     // The document model ends a block at a fence, so the quote that goes on
     // after it leaves the end of the block ambiguous: fail, never guess.
@@ -491,6 +583,10 @@ fn a_fenced_code_block_in_a_block_of_the_change_is_refused_with_its_line() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_fenced_code_block_in_a_block_of_another_change_is_no_obstacle() {
     let mut repo = base();
     let head = document("gamma", &[], "\n");
@@ -506,6 +602,10 @@ fn a_fenced_code_block_in_a_block_of_another_change_is_no_obstacle() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn adjacent_blocks_of_two_changes_are_told_apart() {
     let mut repo = base();
     let head = document("gamma", &[], "\n");
@@ -542,6 +642,10 @@ fn a_change_is_found_by_its_slug_with_or_without_the_prefix() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_unknown_slug_is_told_apart_from_a_record_that_did_not_load() {
     let repo = base();
     // Unknown: the slug as asked for, without a prefix, and what is open.
@@ -586,6 +690,10 @@ fn an_unknown_slug_is_told_apart_from_a_record_that_did_not_load() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_lookup_and_the_preview_say_the_same_thing_about_a_slug() {
     let mut broken = base();
     let text = broken[GROW].replacen("contract_effect: changes", "contract_effect: bogus", 1);

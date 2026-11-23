@@ -187,6 +187,10 @@ fn a_usage_error_starts_no_process() {
 
 #[test]
 #[cfg(target_os = "linux")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn help_and_version_output_failures_exit_two_beside_successful_output() {
     let _lock = serial();
     let repo = Repo::synced("process-help-output", false);
@@ -409,6 +413,10 @@ fn a_usage_error_of_the_change_commands_starts_no_process() {
 /// A `git` that answers `--version` with `version`, records every call, and
 /// fails any other.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back() {
     let _lock = serial();
     let repo = Repo::synced("process-dispatch", false);
@@ -428,7 +436,7 @@ fn cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back
         ),
     );
     let path = {
-        let mut dirs = vec![bin.clone()];
+        let mut dirs = vec![bin];
         dirs.extend(std::env::split_paths(
             &std::env::var_os("PATH").expect("a PATH"),
         ));

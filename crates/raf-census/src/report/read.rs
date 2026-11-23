@@ -20,6 +20,13 @@ pub(super) fn index(text: &str, format: raf_rdf::Format) -> Result<Index, Error>
 #[cfg(test)]
 mod tests {
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn the_graph_of_each_example_is_its_pinned_triple_set() {
         for (text, native, expected) in [
             (

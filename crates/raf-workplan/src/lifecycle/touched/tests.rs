@@ -15,11 +15,25 @@ use crate::obligation::Touch;
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn path(text: &str) -> RelPath {
     RelPath::new(text).expect("a path")
 }
 
 /// The workspace of one library whose `src/lib.rs` is `lib`.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn workspace(lib: &str) -> Workspace {
     Workspace::load(
         &MemoryTree::from([("Cargo.toml", MANIFEST), ("src/lib.rs", lib)]),
@@ -30,6 +44,14 @@ fn workspace(lib: &str) -> Workspace {
 
 /// The rendered stream of the item `item` of the library `lib`, read as the
 /// rule reads it: the bytes of its span in the source index.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn stream(lib: &str, item: &str) -> String {
     let source = workspace(lib);
     let found = source
@@ -85,6 +107,13 @@ fn whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_c
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only()
  {
     let lib = "pub mod inner {\n    pub fn go() {}\n    fn helper() {}\n}\n#[derive(PartialEq)]\npub struct Frame;\nimpl Frame {\n    pub fn push(&self) {}\n    fn grow(&self) {}\n}\nimpl Clone for Frame {\n    fn clone(&self) -> Self { Frame }\n}\nimpl Eq for Frame {}\npub trait Shape {\n    fn area(&self) -> u32;\n}\nstruct Quiet;\nimpl Clone for Quiet {\n    fn clone(&self) -> Self { Quiet }\n}\n#[doc(hidden)]\npub fn hidden() {}\npub trait Foreign { fn foreign(&self); }\nimpl Foreign for Vec<u8> { fn foreign(&self) {} }\npub(crate) fn narrow() {}\nmacro_rules! make { () => {} }\npub use inner::go as run;\n";
@@ -147,6 +176,14 @@ fn the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_imp
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::string_slice,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error()
  {
     let text = "pub struct W<T>(T);\n#[cfg(any())]\nimpl<T: Clone> W<T> where T: Copy {\n    pub fn get(&self) {}\n}\nmod m {\n    impl super::W<u8> {}\n}\n";
@@ -173,6 +210,13 @@ fn an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn static_surface_comparison_classifies_changes_without_executing_source() {
     let then = workspace(
         "pub mod api { pub fn steady() {} pub fn changed() {} pub fn hidden() {} pub fn removed() {} pub fn left() {} pub fn right() {} pub use left as selected; } #[test] fn check() {}",

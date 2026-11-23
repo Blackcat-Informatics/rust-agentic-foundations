@@ -38,9 +38,10 @@ fuzz_target!(|data: &[u8]| {
         std::hint::black_box(sizes);
         drop(Profile.validate(&document, "docs/capabilities/fuzz-input.md"));
         if let Ok(dataset) = document.to_dataset("docs/capabilities/fuzz-input.md") {
-            assert_eq!(
-                Document::from_dataset(&dataset, "docs/capabilities/fuzz-input.md").unwrap(),
-                document
+            let rebuilt = Document::from_dataset(&dataset, "docs/capabilities/fuzz-input.md");
+            assert!(
+                matches!(&rebuilt, Ok(value) if value == &document),
+                "{rebuilt:?}"
             );
         }
     }

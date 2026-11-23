@@ -3,7 +3,7 @@
 
 //! RAF ownership and claims over the supplied native TOML value projection.
 
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use purrdf_core::{BaseIri, GraphMatch, ir::RdfDataset};
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
@@ -23,6 +23,16 @@ pub struct ForeignField<'d, 's> {
     document: &'d Document<'s>,
     profile: &'d Profile,
     occurrence: usize,
+}
+
+impl fmt::Debug for ForeignField<'_, '_> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("ForeignField")
+            .field("occurrence", &self.occurrence)
+            .field("location", &self.location())
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'d, 's> ForeignField<'d, 's> {

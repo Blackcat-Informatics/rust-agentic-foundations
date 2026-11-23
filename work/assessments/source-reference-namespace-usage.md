@@ -10,7 +10,7 @@ inputs:
     digest: 392b023ef773060ea87d16a03217fda4573246723996291724a411b15ff6f922
   - kind: symbol
     name: raf_source::ReferencePackageRoots
-    digest: d3005c95d0d43ac4f39764ebba865cb80a9800bbffc827b7f3f5bc985c45432b
+    digest: 99263f809dfbce2e885ea5e6ef33b99a8495f11e0f3b442f80d96a1928a80096
   - kind: symbol
     name: raf_source::ReferenceTree
     digest: a0c3d9ff22fcba3a9e0f4f5ec842131d66a80ef525420309c948c94ec047570a

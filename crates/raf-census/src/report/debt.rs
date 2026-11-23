@@ -480,7 +480,10 @@ impl DebtRecord {
     pub(super) fn from_graph(graph: &Graph) -> Result<Self, Error> {
         let nf = shape::nf(graph, "DebtRecord")?;
         shape::validate(graph, "debt", nf)?;
-        let scope = shape::scope(&graph.get("").expect("validated debt root"))?;
+        let root = graph
+            .get("")
+            .ok_or_else(|| E::Missing("debt root".into()))?;
+        let scope = shape::scope(&root)?;
         let mut groups = Vec::new();
         let mut jobs = BTreeMap::new();
         let mut sites = BTreeMap::new();
@@ -495,11 +498,22 @@ impl DebtRecord {
                     };
                     let mut members: BTreeMap<_, _> = node
                         .values(&shape::property("memberSymbol"))
-                        .map(|value| (value.literal().expect("validated string").0.to_owned(), 1))
-                        .collect();
+                        .map(|value| {
+                            value
+                                .literal()
+                                .map(|(symbol, _)| (symbol.to_owned(), 1))
+                                .ok_or_else(|| {
+                                    E::Value(format!("{id}: memberSymbol requires a string"))
+                                })
+                        })
+                        .collect::<Result<_, _>>()?;
                     for value in node.values(&shape::property("multiplicity")) {
-                        let target = value.iri().expect("validated multiplicity reference");
-                        let row = graph.get(target).expect("validated multiplicity node");
+                        let target = value.iri().ok_or_else(|| {
+                            E::Value(format!("{id}: multiplicity requires a local reference"))
+                        })?;
+                        let row = graph
+                            .get(target)
+                            .ok_or_else(|| E::Dangling(target.into()))?;
                         let symbol = shape::string(&row, "symbol")?;
                         let count = shape::count(&row, "copies")?;
                         if target != format!("{id}/multiplicity/{}", mint::part(&symbol))
@@ -549,12 +563,15 @@ impl DebtRecord {
                 _ => return Err(E::Name(id).into()),
             }
         }
-        let ratcheted = graph
-            .get("")
-            .expect("validated debt root")
+        let ratcheted = root
             .values(&shape::property("ratchetedRule"))
-            .map(|value| value.literal().expect("validated string").0.to_owned())
-            .collect::<Vec<_>>();
+            .map(|value| {
+                value
+                    .literal()
+                    .map(|(rule, _)| rule.to_owned())
+                    .ok_or_else(|| E::Value("ratchetedRule requires a string".into()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Self::new(nf, groups, jobs)?
             .scoped(scope)
             .with_ratchet(ratcheted, sites)

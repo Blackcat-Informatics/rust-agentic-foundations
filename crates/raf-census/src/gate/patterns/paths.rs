@@ -900,7 +900,7 @@ impl Lookup<'_, '_> {
             }
             let context = context
                 .as_ref()
-                .expect("INVARIANT: a glob lookup establishes its Source context");
+                .ok_or_else(|| failure(self.label, "block glob lookup has no source context"))?;
             let selected = self.cached_glob_head(
                 scopes,
                 frame,
@@ -1052,7 +1052,7 @@ impl Lookup<'_, '_> {
         }
         let (workspace, _) = self
             .visibility
-            .expect("INVARIANT: enum glob proof has a source workspace");
+            .ok_or_else(|| failure(self.label, "enum glob proof has no source workspace"))?;
         if sites.iter().any(|id| {
             workspace
                 .item(*id)
@@ -1345,7 +1345,7 @@ impl Lookup<'_, '_> {
         let settled = cache
             .contexts
             .get_mut(&key)
-            .expect("INVARIANT: the exact Source context has settled prefixes");
+            .ok_or_else(|| failure(self.label, "block glob context has no settled prefixes"))?;
         if exclusion.is_some() {
             return self.lookup_glob_head(scopes, settled, head, namespace, exclusion, limits);
         }
@@ -1467,7 +1467,7 @@ impl Lookup<'_, '_> {
         };
         let (workspace, _) = self
             .visibility
-            .expect("INVARIANT: enum glob proof has a source workspace");
+            .ok_or_else(|| failure(self.label, "enum glob proof has no source workspace"))?;
         for (id, member) in candidates {
             let item = workspace
                 .item(id)
@@ -1529,7 +1529,12 @@ impl Lookup<'_, '_> {
             .visibility
             .map(|(workspace, _)| workspace)
             .or(self.receiver_workspace)
-            .expect("INVARIANT: indexed block glob lookups have a workspace");
+            .ok_or_else(|| {
+                failure(
+                    self.label,
+                    "indexed block glob lookup has no source workspace",
+                )
+            })?;
         let mut enums = WorkList::new();
         let mut modules = 0;
         for &id in sites {
@@ -1712,9 +1717,12 @@ impl Lookup<'_, '_> {
                     && let Some(route) = self.chain_glob(glob, globs, limits)?
                 {
                     let provider = self.glob_provider(scopes, &route.sites, limits)?;
-                    glob.chained.set((route, provider)).map_err(|_| {
-                        failure(self.label, "block glob prefix already has a settled route")
-                    })?;
+                    if glob.chained.set((route, provider)).is_err() {
+                        return Err(failure(
+                            self.label,
+                            "block glob prefix already has a settled route",
+                        ));
+                    }
                     changed = true;
                 }
             }
@@ -2550,6 +2558,13 @@ mod tests {
     use raf_source::{LoadOptions, MemoryTree, RelPath, Workspace};
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn repeated_glob_paths_reuse_work_without_merging_distinct_source_reaches() {
         // The two reaches use different actual providers of the same head.
         // Repeated calls fit the work grant only with retained declaration work.
@@ -2624,6 +2639,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn ownership_scans_spend_the_grant_once_per_byte_and_bound_retention() {
         let mut source = String::new();
         for index in 0..64 {

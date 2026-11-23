@@ -209,11 +209,16 @@ impl Index {
                 supply.cuts.rows.insert(key.clone(), proof, native)
             })?;
         }
-        Ok(supply
-            .cuts
-            .rows
-            .get(&key)
-            .expect("the exact reader-qualified proof was admitted"))
+        supply.cuts.rows.get(&key).ok_or_else(|| {
+            let decl = &self.uses[self.glob_imports[0]];
+            LoadError::new(
+                &decl.file,
+                Some(decl.line),
+                crate::LoadErrorKind::Internal {
+                    what: "the admitted reader-qualified cut proof was not retained".into(),
+                },
+            )
+        })
     }
 
     fn cut_holding(

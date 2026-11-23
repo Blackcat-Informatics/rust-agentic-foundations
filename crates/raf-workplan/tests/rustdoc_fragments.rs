@@ -14,6 +14,10 @@ use raf_workplan::{
 };
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn fragments_refuse_private_or_incomplete_bindings_beside_a_public_reference() {
     let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
     let root = scratch.path().canonicalize().unwrap();

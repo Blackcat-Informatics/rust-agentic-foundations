@@ -8,6 +8,14 @@ use raf_rdf::{Format, Graph, TermValue, vocab};
 
 type Terms = OrderedTable<String, ()>;
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 pub(crate) fn assert_inventory(header: &str, reports: impl IntoIterator<Item = String>) {
     let document = include_str!("../../../../docs/capabilities/rdf-report-profile.md");
     let table = document
@@ -73,6 +81,13 @@ pub(crate) fn assert_inventory(header: &str, reports: impl IntoIterator<Item = S
     );
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn terms(values: impl IntoIterator<Item = String>) -> Terms {
     let mut table = Terms::default();
     let mut resident = Resident;

@@ -412,7 +412,7 @@ fn read_use(tokens: &[TokenTree], scope: &mut Scope, uncertain: bool, bytes: &mu
     let stream: TokenStream = tokens.iter().cloned().collect();
     let text = stream.to_string();
     *bytes += text.len();
-    let file = RelPath::new("format-import.rs").expect("a fixed relative path");
+    let file = RelPath::root();
     if crate::prescan::prescan(&file, &text, Budget::FileTokens.limit()).is_err() {
         scope.unknown = true;
         return;

@@ -28,7 +28,9 @@ fn with_fuzz_row(root_lock: &str, fuzz_lock: &str) -> Result<String, Box<dyn Err
     let start = fuzz_lock
         .find(marker)
         .ok_or("fuzz/Cargo.lock has no raf-source-fuzz row")?;
-    let stanza = fuzz_lock[start..]
+    let stanza = fuzz_lock
+        .get(start..)
+        .ok_or("fuzz/Cargo.lock row has an invalid UTF-8 boundary")?
         .split("\n\n")
         .next()
         .ok_or("fuzz/Cargo.lock row is empty")?;
@@ -53,7 +55,10 @@ pub(crate) fn registry(tree: &impl Tree) -> Result<LockedRegistry, Box<dyn Error
         &tree.read(&RelPath::new("Cargo.lock")?, u64::MAX)?,
         &tree.read(&RelPath::new("fuzz/Cargo.lock")?, u64::MAX)?,
     )?;
-    Ok(LockedRegistry::new(ArchiveCache::cargo_home()?)
+    let archives = std::env::var_os("RAF_GATE_REGISTRY_CACHE").ok_or(
+        "set RAF_GATE_REGISTRY_CACHE to the directory printed by `make registry-archives`",
+    )?;
+    Ok(LockedRegistry::new(ArchiveCache::at(archives))
         .seal("purrdf-*")
         .with_lock(lock))
 }

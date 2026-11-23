@@ -4,6 +4,10 @@
 //! Native carriers for authoring-codec refusal fixtures.
 
 /// Require native RDF construction to succeed before judging an authoring shape.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 pub(super) fn dataset_rows(
     rows: &[purrdf_core::RdfQuad],
 ) -> std::sync::Arc<purrdf_core::RdfDataset> {

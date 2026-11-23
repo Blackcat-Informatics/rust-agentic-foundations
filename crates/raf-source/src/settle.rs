@@ -216,6 +216,13 @@ impl Bound {
         self.sorted.iter().map(|(id, origin)| (id, origin))
     }
 
+    pub(crate) fn sole(&self) -> Option<(&ItemId, &Origin)> {
+        match self.sorted.as_slice() {
+            [(id, origin)] => Some((id, origin)),
+            _ => None,
+        }
+    }
+
     /// True when [`Bound::offer`] of `id` by `origin` would change the list:
     /// `id` is not bound, `origin` ranks lower than its route, or it makes
     /// the item visible where no route did.
@@ -1017,10 +1024,9 @@ impl Index {
             return Ok(None);
         }
         let read = self.read_lookup(module, peer, name, own, None, steps)?;
-        let Some((bound, _)) = read.as_ref().filter(|(bound, _)| bound.len() == 1) else {
+        let Some((id, origin)) = read.as_ref().and_then(|(bound, _)| bound.sole()) else {
             return Ok(None);
         };
-        let (id, origin) = bound.iter().next().expect("unique peer");
         if origin.companion || !self.origin_visible(origin, module, viewer, steps)? {
             return Ok(None);
         }
@@ -1157,6 +1163,10 @@ impl Index {
         Ok((!kept.is_empty()).then_some(Cow::Owned(kept)))
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "resident lookups use steps without fallible work or storage charges"
+    )]
     pub(crate) fn lookup_in(
         &self,
         module: usize,
@@ -1166,7 +1176,7 @@ impl Index {
         steps: Steps<'_>,
     ) -> Option<(Cow<'_, Bound>, bool)> {
         self.lookup_in_read(module, ns, name, own, steps)
-            .expect("nonretained lookup reserves no import storage")
+            .expect("INVARIANT: a resident lookup reserves no import storage")
     }
 
     pub(crate) fn lookup_in_read(
@@ -1335,9 +1345,13 @@ impl Index {
 
     /// True when a glob of `module` that `importer` can name, when one is
     /// given, is not settled.
+    #[expect(
+        clippy::expect_used,
+        reason = "resident open-glob checks use steps without fallible work or storage charges"
+    )]
     fn open_glob(&self, module: usize, importer: Option<usize>, steps: Steps<'_>) -> bool {
         self.read_open_glob(module, importer, steps)
-            .expect("nonretained open-glob checks reserve no import storage")
+            .expect("INVARIANT: resident open-glob checks reserve no import storage")
     }
 
     fn read_open_glob(
@@ -1348,17 +1362,15 @@ impl Index {
     ) -> Result<bool, Fail> {
         for glob in self.globs_of(module) {
             steps.storage_work(1).map_err(Fail::Storage)?;
-            if !self.glob_closed[*glob]
-                && (importer.is_none()
-                    || self.read_visibility(
-                        &self.uses[*glob].vis,
-                        module,
-                        importer.expect("an importer"),
-                        steps,
-                    )?)
-            {
-                return Ok(true);
+            if self.glob_closed[*glob] {
+                continue;
             }
+            if let Some(importer) = importer
+                && !self.read_visibility(&self.uses[*glob].vis, module, importer, steps)?
+            {
+                continue;
+            }
+            return Ok(true);
         }
         Ok(false)
     }
@@ -1432,6 +1444,10 @@ impl Index {
     /// [`Index::pending_sources`] through the globs of `module` that
     /// `viewer`, when one is given, can name: a glob it cannot access brings
     /// it nothing.
+    #[expect(
+        clippy::expect_used,
+        reason = "resident source traversal uses steps without fallible work or storage charges"
+    )]
     fn pending_sources_for(
         &self,
         module: usize,
@@ -1441,7 +1457,7 @@ impl Index {
         steps: Steps<'_>,
     ) -> Vec<NamePlace> {
         self.read_pending_sources_for(module, name, at, viewer, steps)
-            .expect("nonretained source traversal reserves no import storage")
+            .expect("INVARIANT: resident source traversal reserves no import storage")
     }
 
     fn read_pending_sources_for(
@@ -2176,19 +2192,14 @@ impl Index {
                 }
             }
             for glob in self.globs_of(module) {
-                if !head
-                    && !self.glob_closed[*glob]
-                    && except != Some(*glob)
-                    && (viewer.is_none()
-                        || self
-                            .read_visibility(
-                                &self.uses[*glob].vis,
-                                module,
-                                viewer.expect("a viewer"),
-                                steps,
-                            )
-                            .map_err(storage_failure)?)
-                {
+                if !head && !self.glob_closed[*glob] && except != Some(*glob) {
+                    if let Some(viewer) = viewer
+                        && !self
+                            .read_visibility(&self.uses[*glob].vis, module, viewer, steps)
+                            .map_err(storage_failure)?
+                    {
+                        continue;
+                    }
                     graph.edge(node, node_of[&(*glob, None)], site)?;
                 }
             }
@@ -2511,8 +2522,9 @@ impl Index {
         if imports.is_empty() {
             return Ok(Decided::Done);
         }
-        if imports.len() == 1 {
-            let (position, spaces) = imports.iter().next().expect("one import");
+        if imports.len() == 1
+            && let Some((position, spaces)) = imports.first_key_value()
+        {
             let result =
                 self.decide_one((*position, spaces), &inside, looped, pending, acts, reads)?;
             if result == Decided::Cyclic
@@ -3434,10 +3446,14 @@ impl Index {
             .collect();
         if !delegated.is_empty() {
             let meter = Meter::new(&crate::options::LoadOptions::default());
+            #[expect(
+                clippy::expect_used,
+                reason = "the debug check repeats proof of the already admitted final fallback"
+            )]
             let certificates = self
                 .grounded_cycle_imports(&delegated, &meter, Steps::Load)
-                .expect("a settled fallback proof fits its load budget")
-                .expect("a final glob fallback lost its unique closed rooted answer");
+                .expect("INVARIANT: a settled fallback proof fits its load budget")
+                .expect("INVARIANT: a final glob fallback has one closed rooted answer");
             assert_eq!(certificates.len(), delegated.len());
             for answer in certificates {
                 assert!(self.final_glob_fallback(answer.position, answer.at));
@@ -3445,9 +3461,7 @@ impl Index {
                 let UseKind::Named { name, .. } = &decl.kind else {
                     unreachable!("named import")
                 };
-                let bound = self
-                    .read_globbed(decl.module, name, answer.at, Steps::Load)
-                    .expect("resident fallback");
+                let bound = self.globbed(decl.module, name, answer.at, Steps::Load);
                 assert_eq!(bound.len(), 1);
                 assert!(bound.get(answer.id).is_some());
             }
@@ -3470,9 +3484,13 @@ impl Index {
                 let UseKind::Named { segs, .. } = &import.kind else {
                     continue;
                 };
+                #[expect(
+                    clippy::expect_used,
+                    reason = "Steps::Load performs the resident consistency check without fallible work or storage charges"
+                )]
                 let (walks, _, _) = self
                     .import_paths(position, import, segs, Steps::Load)
-                    .expect("a debug consistency check reserves no import storage");
+                    .expect("INVARIANT: a resident consistency check reserves no import storage");
                 // A held import binds nothing, and its path is still
                 // ambiguous in the settled tables.
                 if self.use_ambiguous[position] {
@@ -3640,15 +3658,11 @@ impl Index {
         meter: &Meter,
         ordinary: bool,
     ) -> Result<(), LoadError> {
-        while !pending.queue.is_empty() {
+        while let Some(&first) = pending.queue.front() {
             // Read one generation and register every waiter before applying
             // any result. Otherwise a same-batch arrival can precede its
             // reader's subscription and hide an initial privacy refusal.
             let memory = pending.memory.child();
-            let first = *pending
-                .queue
-                .front()
-                .expect("a generation has queued imports");
             let decl = &self.uses[first];
             let mut batch = Vec::new();
             let mut admission = NativeAdmission::new(Steps::LoadAt {
@@ -4145,9 +4159,13 @@ impl Index {
     /// into the crates names something in each name space the path could
     /// end in. A walk that failed otherwise binds nothing.
     #[cfg(debug_assertions)]
+    #[expect(
+        clippy::expect_used,
+        reason = "Steps::Load reads resident bindings without fallible work or storage charges"
+    )]
     fn binds(&self, ns: Namespace, walk: Result<Walked, Fail>, len: usize) -> Vec<(ItemId, Hit)> {
         self.read_binds(ns, walk, len, Steps::Load)
-            .expect("nonretained binding reads reserve no import storage")
+            .expect("INVARIANT: resident binding reads reserve no import storage")
     }
 
     pub(crate) fn read_binds(
@@ -5214,6 +5232,13 @@ fn read_components(
 }
 
 #[cfg(test)]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn components(successors: &[Vec<usize>]) -> Vec<Vec<usize>> {
     read_components(successors, Steps::Load).expect("valid resident graph")
 }
@@ -5230,6 +5255,13 @@ mod tests {
     /// The settled index of a workspace of the libraries `shared` and `other`
     /// and the package `demo`, which depends on both, with `text` as
     /// `demo`'s library.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn settled(text: &str) -> Index {
         let tree = MemoryTree::from([
             (
@@ -5264,6 +5296,13 @@ mod tests {
 
     /// Settle `index` once from its definitions with `held` held from the
     /// start, and return what it charged.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn settle_once(index: &mut Index, held: &[bool]) -> usize {
         index.build_scopes();
         index.crates_open = false;
@@ -5274,6 +5313,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn pending_and_blocker_storage_require_the_original_grants() {
         for (source, has_imports) in [
             (
@@ -5343,6 +5389,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant() {
         const GLOBS: usize = 8;
         let mut source = String::from("pub mod d { pub const X:u32=7; }\n");
@@ -5423,6 +5476,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn pending_counts_duplicate_attempts_and_refuses_before_removing_a_queued_import() {
         let index = settled("use shared::inner::other::x as A;");
         for limit in [17, 16] {
@@ -5487,6 +5547,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn a_glob_prefix_bound_in_type_still_waits_for_its_named_import() {
         let mut index =
             settled("mod C {} mod owner { use crate::C; mod consumer { use super::C::*; } }");
@@ -5529,6 +5597,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn retained_import_batches_reserve_previous_results_and_new_reads_together() {
         let mut index = settled("pub use shared::inner as One;\npub use shared::inner as Two;\n");
         index.build_scopes();
@@ -5575,6 +5650,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn excluding_ones_own_named_binding_reserves_the_glob_fallback_too() {
         let index = settled(
             "pub mod a { pub struct T; }\npub mod b { pub use crate::a::*; pub use self::T; }\n",
@@ -5643,6 +5726,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn each_settle_after_the_first_is_charged_what_it_builds_again() {
         // `use inn::*` waits on `inn`, which starts at the crate `shared`, so
         // `pub use other::x` reads the crate `other` before the glob brings
@@ -5675,6 +5765,13 @@ mod tests {
     /// Settle `text` once more from its definitions, with no import held
     /// from the start, and return how many times the imports left were
     /// decided and how many imports were held as ambiguous.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn rounds(text: &str) -> (usize, usize) {
         let mut index = settled(text);
         index.build_scopes();
@@ -5691,6 +5788,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn the_imports_of_a_name_are_found_among_names_that_share_its_first_eight_bytes() {
         // Names that share their first eight bytes, a name that is a prefix
         // of another, and the same names in two modules.
@@ -5730,6 +5834,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_round_that_decides_nothing_more_or_a_settle_too_many_is_reported_in_every_build() {
         let index = settled("mod a { pub struct T; }\nmod b { pub use super::a::T; }\n");
         let done = index.progress();
@@ -5754,6 +5865,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn the_imports_left_are_decided_in_rounds_that_do_not_grow_with_them() {
         // A chain of imports that bind nothing: each waits on the next, and
         // the last names an item that does not exist. No module has globs,
@@ -5826,6 +5944,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn components_come_out_once_each_after_every_component_they_lead_to() {
         // 0 -> 1 -> 2 -> 1 (a cycle), 2 -> 3, 4 -> 0, 5 alone, 6 <-> 7 -> 3.
         let successors = vec![
@@ -5873,6 +5998,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_component_grouping_refuses_one_below_its_live_storage_bound() {
         let graph = [vec![1], vec![0, 2], vec![]];
         let file = RelPath::new("demo/src/lib.rs").expect("path");

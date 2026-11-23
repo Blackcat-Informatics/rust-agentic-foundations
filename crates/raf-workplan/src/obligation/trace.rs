@@ -241,11 +241,25 @@ mod tests {
 
     use super::over_limits;
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn measure(name: &str, value: &str) -> Measure {
         Measure::new(name, Number::parse(value).expect("a number"))
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::string_slice,
+            reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+        )
+    )]
     fn a_value_over_its_limit_is_found_by_its_text_and_not_its_nearest_float() {
         let one_e400 = format!("1{}", "0".repeat(400));
         let two_e400 = format!("2{}", "0".repeat(400));

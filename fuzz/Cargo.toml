@@ -21,14 +21,13 @@ publish = false
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.4"
-raf-okf = { path = "../crates/raf-okf", version = "0.8.0" }
-raf-source = { path = "../crates/raf-source", version = "0.8.0" }
-raf-census = { path = "../crates/raf-census", version = "0.8.0" }
-raf-fixtures = { path = "../crates/raf-fixtures" }
-# Match the root workspace's audited native parser implementation.
-proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
-purrdf-rdf = { version = "=5" }
+libfuzzer-sys.workspace = true
+raf-okf.workspace = true
+raf-source.workspace = true
+raf-census.workspace = true
+raf-fixtures.workspace = true
+proc-macro2.workspace = true
+purrdf-rdf.workspace = true
 
 [[bin]]
 name = "parse-source"
@@ -70,6 +69,16 @@ bench = false
 
 [workspace]
 
+[workspace.dependencies]
+libfuzzer-sys = "0.4"
+raf-okf = { path = "../crates/raf-okf", version = "0.8.0" }
+raf-source = { path = "../crates/raf-source", version = "0.8.0" }
+raf-census = { path = "../crates/raf-census", version = "0.8.0" }
+raf-fixtures = { path = "../crates/raf-fixtures" }
+# Match the root workspace's audited native parser implementation.
+proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
+purrdf-rdf = { version = "=5" }
+
 [workspace.lints.rust]
 # In a library crate every `pub` item is a dead_code lint root, so `pub`
 # silently disables dead-code detection. Declared as workspace lints rather
@@ -79,7 +88,9 @@ unused = { level = "deny", priority = -1 }
 dead_code = "deny"
 unreachable_pub = "deny"
 unused_crate_dependencies = "warn"
+missing_debug_implementations = "warn"
 missing_docs = "deny"
+# The Windows source reader contains one documented final-path operation.
 unsafe_code = "deny"
 unused_qualifications = "warn"
 
@@ -98,3 +109,15 @@ used_underscore_binding = "deny"
 dbg_macro = "deny"
 todo = "deny"
 unimplemented = "deny"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+exit = "warn"
+mem_forget = "warn"
+unwrap_in_result = "warn"
+get_unwrap = "warn"
+string_slice = "warn"
+map_err_ignore = "warn"
+redundant_clone = "warn"

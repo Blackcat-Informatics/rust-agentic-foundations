@@ -6,6 +6,10 @@
 use raf_source::{TargetKind, Workspace};
 use std::fmt::Write as _;
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn report(ws: &Workspace) -> String {
     let mut out = String::new();
     let mut libraries = 0;

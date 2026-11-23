@@ -182,7 +182,11 @@ impl<'o, 'a, O: Admission + ?Sized> Output<'o, 'a, O> {
 impl<O: Admission + ?Sized> fmt::Write for Output<'_, '_, O> {
     fn write_str(&mut self, text: &str) -> fmt::Result {
         self.push_str(text);
-        self.status().map_err(|_| fmt::Error)
+        if self.failed() {
+            Err(fmt::Error)
+        } else {
+            Ok(())
+        }
     }
 }
 

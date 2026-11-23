@@ -58,6 +58,11 @@ fn native_nodes(tokens: proc_macro2::TokenStream) -> usize {
 /// Peak working bytes of the syntax parse alone, with the exact native node
 /// count read before it. The lexer, the token stream and the text are already
 /// live when the window opens, so they are not part of the peak.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn measure(name: &str, class: Class, text: &str) -> Row {
     let path = RelPath::new("src/shape.rs").expect("fixture path");
     let (nodes, peak) = prepare_source(&path, text)
@@ -232,6 +237,14 @@ fn measured() -> Vec<Row> {
 /// byte-dense shape holds by the byte term alone, so the constants carry a real
 /// margin and are not vacuous.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::print_stderr,
+    reason = "this executable reports diagnostics on the caller's standard error"
+)]
 fn syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound() {
     let rows = measured();
     eprintln!("{}", table(&rows));
@@ -271,6 +284,14 @@ fn syntax_tree_peak_storage_stays_within_the_per_node_and_per_byte_bound() {
 /// sits above the 90 percent floor and below its bound: a byte-dense text that is
 /// cheaper than the worst shape still uses at least 90 percent of the bound.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::print_stderr,
+    reason = "this executable reports diagnostics on the caller's standard error"
+)]
 fn a_byte_dense_shape_just_above_the_floor_holds_its_bound() {
     let shape = shapes()
         .into_iter()
@@ -306,6 +327,10 @@ fn syntax_node_bound_is_at_least_two_vec_elements_of_every_counted_enum() {
 
 /// INVARIANT: the bound also covers every Rust source under the crates and tests directories of this repository.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn syntax_tree_storage_bound_covers_every_source_of_this_repository() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut files = Vec::new();
@@ -326,6 +351,10 @@ fn syntax_tree_storage_bound_covers_every_source_of_this_repository() {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn collect(directory: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
     for entry in std::fs::read_dir(directory).expect("directory reads") {
         let path = entry.expect("entry").path();
@@ -342,6 +371,10 @@ fn collect(directory: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
 /// INVARIANT: the retained-tree estimate of the nine-enum walk is available to
 /// callers and names the dominant kind of a statement-dense body.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn syntax_held_names_the_dominant_kind_of_a_statement_dense_body() {
     let path = RelPath::new("src/shape.rs").expect("fixture path");
     let text = format!("fn f() {{ {} }}", ";".repeat(64));

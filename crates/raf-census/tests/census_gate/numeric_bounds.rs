@@ -52,6 +52,10 @@ pub(super) fn vocabulary() -> Builder {
     graph
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn check(source: &str, graph: Builder, record: Option<&str>) -> GateReport {
     let ledger = graph.finish().unwrap().to_text(Format::Turtle).unwrap();
     let mut entries = vec![
@@ -133,6 +137,10 @@ const SOURCE: &str = r#"
 /// Every written occurrence has its own classification, even on the same line.
 /// A spelling look-alike, arithmetic, wrong argument slot or shadow does not qualify.
 #[test]
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn numeric_inventory_classifies_physical_sites_before_jobs() {
     let observed = check(SOURCE, registry(base(), "strict"), None);
     let sites = observed.numeric_bounds();
@@ -221,6 +229,10 @@ fn numeric_inventory_classifies_physical_sites_before_jobs() {
 
 /// Counted roles live independently of their exact ledger keys and job exemptions.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_movement() {
     let graph = || registry(base(), "ratcheted");
     let source =
@@ -288,6 +300,10 @@ fn numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_moveme
 
 /// A registry may authorize only one well-formed classification at each physical key.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn numeric_registry_refuses_duplicate_sites_and_incomplete_justification() {
     let parse = |graph: Builder| {
         Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())
@@ -319,6 +335,10 @@ fn numeric_registry_refuses_duplicate_sites_and_incomplete_justification() {
 
 /// A shared source literal counts once, while named operands retain every proved declaration.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn numeric_size_arguments_require_agreement_at_shared_physical_sites() {
     let ledger = registry(base(), "strict")
         .finish()
@@ -367,6 +387,10 @@ fn numeric_size_arguments_require_agreement_at_shared_physical_sites() {
 
 /// Retained argument slots spend the matching grant even without call hits.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn numeric_inventory_refuses_a_signature_beyond_the_state_grant() {
     let source = "pub fn configure(a: usize, b: usize, c: usize, d: usize, size: usize) {}";
     let check = |source, states| {

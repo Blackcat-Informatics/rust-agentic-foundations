@@ -58,22 +58,22 @@ inputs:
     digest: 8a211c7ec52d3269b07fa74baf161556c991c01a76eb43416eb4b311c3d934f4
   - kind: symbol
     name: raf_workplan::diagram
-    digest: f251865c2761563681aa2ba8b29c64986dd69ccbddf0658583e39accd6dbe82d
+    digest: 9514fa76221c2d4e595ed803e939711d8c6f07d2d60095a71f0c41dabe31a997
   - kind: symbol
     name: raf_workplan::diagram::publication::publish_repository
-    digest: 0942902b5d134460b2f4e0be0fbbe2574a5e82e6a8f7ab6ef6d36cc2390cfec6
+    digest: 8b5ee82c34b97a473a514834baa8318242b6e8423f72e1a1f094d4513427a8d0
   - kind: symbol
     name: raf_workplan::digest::SymbolDigestError::is_query_refusal
     digest: 19bb8b964f46bcc60e08a3f85364f4d49ff116480bde84aa0576a03ae10b2c99
   - kind: symbol
     name: raf_workplan::generated
-    digest: a1c5e21a74e91726005b0ccd81684818f0a59a6959f06677cd1a102b7f0b1873
+    digest: a3961f164c0e1ab67aba0cf73cb2c648e49c03d2c6d6195c2df74d4e236d5866
   - kind: symbol
     name: raf_workplan::generated::END_MARKER
     digest: abb30d947cd162a509ed3671cc9844d7729d0c286bffabf6bdcf0a1c8461d7c9
   - kind: symbol
     name: raf_workplan::publication_io
-    digest: 8a3be0d264d6edc2707cda042f73f79ccce6f23598cb65348664f290b8c166e5
+    digest: 7681d78d88c485d1fc8fbebaa284aa005caa530e373a289b72efd6b9c53d9462
 verdict: accepted
 by: agent
 ---

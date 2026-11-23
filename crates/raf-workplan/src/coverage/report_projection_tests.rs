@@ -26,6 +26,13 @@ fn collect_terms(graph: &raf_rdf::Graph, terms: &mut std::collections::BTreeSet<
     }
 }
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn emitted_application_iris_belong_to_the_documented_registry() {
     use crate::{Workplan, report};
     use raf_okf::Location;
@@ -116,6 +123,13 @@ fn emitted_application_iris_belong_to_the_documented_registry() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn registry_collection_visits_quoted_atoms_and_both_datatype_positions() {
     use raf_rdf::{Builder, Triple, vocab};
     let named = |name: &str| TermValue::iri(format!("{}{name}", vocab::REPORT));
@@ -214,6 +228,13 @@ fn surface_reports() -> Vec<CoverageReport> {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn surface_failure_projection_preserves_optional_paths_and_direction() {
     for (failure, name, path) in [
         (SurfaceFailure::Budget, "budget", None),

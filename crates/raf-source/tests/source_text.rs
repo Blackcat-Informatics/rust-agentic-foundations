@@ -24,12 +24,22 @@ fn load(lib: &str) -> Result<Workspace, LoadError> {
     Workspace::load(&tree, &["."])
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn item<'w>(ws: &'w Workspace, path: &str) -> &'w Item {
     let resolved = ws.resolve(path).unwrap_or_else(|error| panic!("{error}"));
     ws.item(resolved.sites[0]).expect("the item")
 }
 
 /// The text a span covers in the file the workspace holds.
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn covered<'w>(ws: &'w Workspace, item: &Item) -> &'w str {
     let text = ws.source(&item.file).expect("the file's text");
     &text[item.span.start_byte..item.span.end_byte]
@@ -50,6 +60,10 @@ fn check_lines(ws: &Workspace) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn crlf_line_endings_give_the_same_lines_and_spans_as_lf() {
     for newline in ["\n", "\r\n"] {
         let ws = load(&body(newline)).expect("loads");
@@ -58,6 +72,10 @@ fn crlf_line_endings_give_the_same_lines_and_spans_as_lf() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are() {
     for newline in ["\n", "\r\n"] {
         let ws = load(&format!("{BOM}{}", body(newline))).expect("loads with a BOM");
@@ -66,6 +84,10 @@ fn a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_byte_order_mark_on_the_first_line_starts_the_span_of_its_item_after_the_mark() {
     let ws = load(&format!("{BOM}pub fn first() {{}} pub fn second() {{}}\n")).expect("loads");
     let first = item(&ws, "demo::first");
@@ -86,6 +108,10 @@ fn a_byte_order_mark_on_the_first_line_starts_the_span_of_its_item_after_the_mar
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_one_line_item_has_the_half_open_lines_n_to_n_plus_one() {
     let ws = load("// one\npub fn one() {}\npub struct S {\n    x: u8,\n}\n").expect("loads");
     let one = item(&ws, "demo::one");
@@ -99,6 +125,10 @@ fn a_one_line_item_has_the_half_open_lines_n_to_n_plus_one() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line() {
     for text in [
         "fn ok() {}\n\nfn 1 {}\n",
@@ -117,6 +147,10 @@ fn a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file() {
     // The delimiter budget is refused at the 129th open parenthesis, on line 4.
     let nested = format!("{}{}", "(".repeat(129), ")".repeat(129));
@@ -138,6 +172,10 @@ fn a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_module_file_that_is_not_utf8_is_refused_on_disk_naming_the_file() {
     let scratch = support::Scratch::new();
     scratch.dir("root/src");

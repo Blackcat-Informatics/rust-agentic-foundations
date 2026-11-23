@@ -689,8 +689,7 @@ impl Index {
             return Ok(match lookup.as_ref() {
                 // An `extern crate` item of a crate outside the index.
                 Some((bound, _)) => {
-                    if bound.len() == 1 {
-                        let id = bound.keys().next().expect("one bound item");
+                    if let Some((id, _)) = bound.sole() {
                         if self.modules_for(*id).next().is_none() {
                             if let Some(name) = self.extern_names.get(id) {
                                 steps.reserve(name.len()).map_err(Fail::Storage)?;
@@ -840,6 +839,10 @@ impl Index {
     /// the items, with the crate roots that the crate name stands for, when
     /// the name is also a crate of the extern prelude and the glob brings in
     /// something other than that crate.
+    #[expect(
+        clippy::expect_used,
+        reason = "Steps::Load performs this resident lookup without fallible work or storage charges"
+    )]
     pub(crate) fn glob_against_prelude(
         &self,
         from: usize,
@@ -848,7 +851,7 @@ impl Index {
         bound: &crate::settle::Bound,
     ) -> Option<Vec<ItemId>> {
         self.read_glob_against_prelude(from, name, test, bound, Steps::Load)
-            .expect("a nonretained prelude check reserves no import storage")
+            .expect("INVARIANT: a resident prelude check reserves no import storage")
     }
 
     fn read_glob_against_prelude(
@@ -2537,20 +2540,7 @@ impl Index {
         let last_offset = segs.len() - 1;
         for (offset, seg) in segs.iter().enumerate().skip(next) {
             if offset == last_offset {
-                let mut retained = Some(state);
-                for (branch, ns) in Namespace::ALL.into_iter().enumerate() {
-                    let state = if branch + 1 == Namespace::ALL.len() {
-                        retained
-                            .take()
-                            .expect("the final namespace owns the retained prefix")
-                    } else {
-                        Self::fork_walk(
-                            retained
-                                .as_ref()
-                                .expect("earlier namespaces borrow the prefix"),
-                            steps,
-                        )?
-                    };
+                let mut visit = |state, ns| -> Result<(), LoadError> {
                     let mut own = Vec::new();
                     let walked = self.step(
                         state,
@@ -2568,7 +2558,12 @@ impl Index {
                     if let Some(walked) = self.reach_outcome(walked, steps)? {
                         self.take(&walked, tainted, &own, out, steps)?;
                     }
-                }
+                    Ok(())
+                };
+                let [first, second, last] = Namespace::ALL;
+                visit(Self::fork_walk(&state, steps)?, first)?;
+                visit(Self::fork_walk(&state, steps)?, second)?;
+                visit(state, last)?;
                 return Ok(());
             }
             let mut own = Vec::new();
@@ -2729,6 +2724,13 @@ mod tests {
 
     /// Every variant, built so that a new one cannot be left out: the match
     /// names each.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn every_variant() -> Vec<ResolveError> {
         let hostile = || HOSTILE.to_owned();
         let all = vec![
@@ -2816,6 +2818,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate() {
         const SEGMENTS: usize = 50_000;
         let manifest = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
@@ -2825,7 +2834,7 @@ mod tests {
         let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
         let module = format!("demo{}", "::a".repeat(SEGMENTS));
         let (answer, tally) = work::measure(SEGMENTS + 1, || ws.resolve_from(&module, "x"));
-        assert_eq!(answer, Err(ResolveError::UnknownModule(module.clone())));
+        assert_eq!(answer, Err(ResolveError::UnknownModule(module)));
         // Each segment grows the crate path that is looked up once.
         assert_eq!(tally.get(Work::SegmentReads), SEGMENTS + 1);
         let (answer, tally) = work::measure(SEGMENTS + 1, || ws.resolve_from("demo", "x"));
@@ -2834,6 +2843,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times() {
         const SEGMENTS: usize = 50_000;
         let manifest = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
@@ -2857,7 +2874,7 @@ mod tests {
         let reads = 4 * segments;
         let lookups = 2 * segments;
         let (answer, tally) = work::measure(reads, || ws.resolve(&missing));
-        assert_eq!(answer, Err(ResolveError::NotFound(missing.clone())));
+        assert_eq!(answer, Err(ResolveError::NotFound(missing)));
         assert!(tally.get(Work::SegmentReads) > 0);
         assert!(tally.get(Work::SegmentReads) <= reads);
         assert!(tally.get(Work::Lookups) > 0);

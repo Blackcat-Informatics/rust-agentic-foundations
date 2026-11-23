@@ -11,7 +11,6 @@ use purrdf_lex::{
 use purrdf_rdf::projections::{ProjectionError, escape_xml_attribute, escape_xml_text};
 use purrdf_rdf::viz::{VizRelation, VizSceneEdgeKind, VizSemanticRef, VizTermValue};
 use raf_source::RelPath;
-use std::fmt::Write as _;
 
 /// Assemble a complete local documentation bundle without writing to disk.
 ///
@@ -96,8 +95,7 @@ fn refused(reason: &str) -> DiagramError {
 pub fn markdown_fragment(bundle: &DiagramBundle) -> Result<String, ProjectionError> {
     let name = bundle.view().name();
     let mut fragment = image_fragment(bundle, &format!("{name}.svg"))?;
-    write!(fragment, "[Explore this diagram]({name}.html)\n\n")
-        .expect("writing to String cannot fail");
+    fragment.extend(["[Explore this diagram](", name, ".html)\n\n"]);
     Ok(fragment)
 }
 
@@ -152,18 +150,17 @@ fn explorer_page(
         for (label, href) in library_links {
             let label = escape_xml_text(label)?;
             let href = escape_xml_attribute(href)?;
-            write!(html, "<li><a href=\"{href}\">{label}</a></li>")
-                .expect("writing to String cannot fail");
+            html.extend(["<li><a href=\"", &href, "\">", &label, "</a></li>"]);
         }
         html.push_str("</ul></nav>");
     }
     if let Some(overview) = overview {
         let href = escape_xml_attribute(&format!("{overview}.html"))?;
-        write!(
-            html,
-            "<nav aria-label=\"Overview\"><a href=\"{href}\">Overview</a></nav>"
-        )
-        .expect("writing to String cannot fail");
+        html.extend([
+            "<nav aria-label=\"Overview\"><a href=\"",
+            &href,
+            "\">Overview</a></nav>",
+        ]);
     }
     if !bundle.details().is_empty() {
         html.push_str("<nav aria-label=\"Detail views\">");
@@ -171,16 +168,15 @@ fn explorer_page(
             let name = detail.view().name();
             let href = escape_xml_attribute(&format!("{name}.html"))?;
             let label = escape_xml_text(detail.caption())?;
-            write!(html, "<a href=\"{href}\">{label}</a>").expect("writing to String cannot fail");
+            html.extend(["<a href=\"", &href, "\">", &label, "</a>"]);
         }
         html.push_str("</nav>");
     }
-    writeln!(
-        html,
-        "</main><script>{}</script></body></html>",
-        include_str!("explorer.js")
-    )
-    .expect("writing to String cannot fail");
+    html.extend([
+        "</main><script>",
+        include_str!("explorer.js"),
+        "</script></body></html>\n",
+    ]);
     Ok(html)
 }
 

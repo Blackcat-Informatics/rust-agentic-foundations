@@ -16,11 +16,19 @@ use support::Scratch;
 
 const CAP: u64 = 1024;
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn path(text: &str) -> RelPath {
     RelPath::new(text).expect("valid path")
 }
 
 /// `root/` is the tree; `outside/sentinel.rs` is a FIFO that must never be read.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn fixture() -> (Scratch, DiskTree) {
     let scratch = Scratch::new();
     scratch.dir("root");
@@ -35,6 +43,12 @@ fn read(tree: &DiskTree, text: &str) -> Result<String, TreeError> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted() {
     let (scratch, tree) = fixture();
     scratch.link("root/out.rs", scratch.path("outside/sentinel.rs"));
@@ -86,6 +100,10 @@ fn a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_acce
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_symlink_to_a_symlink_that_leaves_the_root_is_refused_beside_a_chain_that_stays() {
     let (scratch, tree) = fixture();
     scratch.link("root/second.rs", scratch.path("outside/sentinel.rs"));
@@ -104,6 +122,10 @@ fn a_symlink_to_a_symlink_that_leaves_the_root_is_refused_beside_a_chain_that_st
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_parent_segment_after_an_outside_directory_symlink_is_resolved_on_disk_and_refused() {
     let (scratch, tree) = fixture();
     // `vendored/..` is `outside`, not the root: the text and the disk disagree.
@@ -133,6 +155,10 @@ fn a_parent_segment_after_an_outside_directory_symlink_is_resolved_on_disk_and_r
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_directory_symlink_loop_ends_with_an_error_and_is_listed_but_never_entered() {
     let (scratch, tree) = fixture();
     scratch.link("root/a", "b");
@@ -177,6 +203,10 @@ fn a_directory_symlink_loop_ends_with_an_error_and_is_listed_but_never_entered()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_fifo_named_as_a_file_is_refused_without_blocking_beside_a_regular_file() {
     let (scratch, _tree) = fixture();
     scratch.fifo("root/pipe.rs");
@@ -197,6 +227,10 @@ fn a_fifo_named_as_a_file_is_refused_without_blocking_beside_a_regular_file() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_directory_named_as_a_file_is_refused() {
     let (scratch, tree) = fixture();
     scratch.dir("root/sub");
@@ -219,6 +253,10 @@ fn a_directory_named_as_a_file_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_missing_root_is_an_error_beside_an_existing_one() {
     let scratch = Scratch::new();
     scratch.dir("root");
@@ -235,6 +273,10 @@ fn a_missing_root_is_an_error_beside_an_existing_one() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there() {
     let (scratch, _tree) = fixture();
     scratch.link("root/to_outside.rs", scratch.path("outside/sentinel.rs"));
@@ -250,6 +292,11 @@ fn a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_root() {
     let (scratch, tree) = fixture();
     scratch.link("root/out.rs", scratch.path("outside/sentinel.rs"));
@@ -275,6 +322,11 @@ fn a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_r
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_file_that_is_not_utf8_is_refused_beside_one_that_is() {
     use std::os::unix::fs::PermissionsExt as _;
 
@@ -337,6 +389,10 @@ fn a_file_that_is_not_utf8_is_refused_beside_one_that_is() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_non_utf8_entry_name_fails_the_listing_beside_a_listing_without_one() {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt as _;
@@ -370,6 +426,10 @@ fn a_non_utf8_entry_name_fails_the_listing_beside_a_listing_without_one() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn entry_kinds_cover_file_directory_symlink_other_and_absent() {
     let (scratch, tree) = fixture();
     scratch.dir("root/sub");
@@ -392,6 +452,10 @@ fn entry_kinds_cover_file_directory_symlink_other_and_absent() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn listings_are_sorted_by_name() {
     let (scratch, tree) = fixture();
     for name in ["m.rs", "B.rs", "a.rs", "z.rs"] {
@@ -419,6 +483,11 @@ fn listings_are_sorted_by_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle() {
     let (scratch, tree) = fixture();
     scratch.link("root/alias.rs", scratch.path("root/real.rs"));
@@ -472,6 +541,11 @@ fn the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen() {
     let (scratch, tree) = fixture();
     scratch.link("root/alias.rs", scratch.path("root/real.rs"));

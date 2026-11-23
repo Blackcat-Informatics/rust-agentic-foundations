@@ -71,12 +71,20 @@ use support::program::Program;
 use support::rustc;
 
 /// Programs written out, for the comparator tests.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn fixture(text: &str) -> Program {
     Program::parse(text).expect("a fixture parses")
 }
 
 #[cfg(target_os = "linux")]
 #[test]
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data() {
     let programs: Vec<_> = corpus().into_iter().chain(generated()).collect();
     let manifest = format!(
@@ -101,6 +109,10 @@ fn serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn compiler_generated_items_have_unexpanded_source_occurrences_instead_of_invented_definitions() {
     const SOURCE: &str = "macro_rules! make { () => { pub struct Generated; } }\n\
                           mod inner { make!(); }\n\
@@ -184,6 +196,14 @@ pub struct A {} impl A { pub const TAG: u32 = 2; }
 ";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes() {
     let programs = generated();
     let total = programs.len();
@@ -286,6 +306,10 @@ fn the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn every_corpus_program_shows_the_divergence_it_records_and_no_other() {
     oracle::assert_namespace_cycles_have_no_tolerated_determinacy_disagreement();
     oracle::assert_the_oracle_compares_the_import_it_rendered_instead_of_a_fresh_path_read();
@@ -433,6 +457,11 @@ fn a_divergence_that_matches_no_class_is_unclassified() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class() {
     let entries = corpus();
     let (name, entry) = entries
@@ -536,6 +565,10 @@ fn an_index_answer_that_changes_with_the_order_is_reported_as_index_order() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too() {
     oracle::assert_an_ambiguous_original_import_is_an_order_witness_only_for_its_own_name();
     oracle::assert_compiler_order_dependence_does_not_hide_an_unobserved_target_or_resource_refusal(
@@ -566,6 +599,10 @@ fn a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else() {
     support::program::assert_item_tags_preserve_unsigned_spelling_and_u32_bounds();
     assert_eq!(parse_seed_base("0xa11ce00"), Ok(0x0a11_ce00));
@@ -611,6 +648,10 @@ fn the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn diagnostic_levels_are_required_beside_a_valid_null_code() {
     use purrdf_lex::json::{self, Value};
     let valid = json::read(r#"{"level":"error","code":null}"#).unwrap();

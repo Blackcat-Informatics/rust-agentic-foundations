@@ -30,7 +30,7 @@ proc-macro2 = { workspace = true, features = ["span-locations"] }
 unicode-ident.workspace = true
 
 [dev-dependencies]
-raf-fixtures = { path = "../raf-fixtures" }
+raf-fixtures.workspace = true
 purrdf-testkit.workspace = true
 purrdf-xsd.workspace = true
 purrdf-alloc-probe.workspace = true
@@ -44,7 +44,7 @@ rustix.workspace = true
 
 # The path the system gives for an open handle (`GetFinalPathNameByHandleW`).
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61.2", default-features = false, features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+windows-sys.workspace = true
 
 [[example]]
 name = "registry_scan"

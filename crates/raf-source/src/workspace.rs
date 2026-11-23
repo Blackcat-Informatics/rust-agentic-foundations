@@ -2049,6 +2049,13 @@ mod tests {
     use crate::tree::MemoryTree;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_package_name_index_keeps_identity_and_enforces_its_exact_grant() {
         let packages: Vec<_> = (0..24)
             .map(|index| Package {
@@ -2082,6 +2089,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error() {
         let tree = MemoryTree::from([
             ("Cargo.toml", "[package]\nname = \"demo\"\n"),

@@ -11,6 +11,7 @@ use purrdf_lex::{
     scan::{ByteClass, byte_run_count, needle_table},
     walk::WorkList,
 };
+use std::num::ParseIntError;
 
 const MAX_COMPARATORS: usize = 32;
 
@@ -38,6 +39,7 @@ const fn cargo_stops(allowed: &[u8]) -> [u8; 256] {
 pub(crate) struct Error {
     offset: usize,
     reason: &'static str,
+    source: Option<ParseIntError>,
 }
 
 impl fmt::Display for Error {
@@ -46,7 +48,13 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.source
+            .as_ref()
+            .map(|source| source as &(dyn std::error::Error + 'static))
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct Version<'a> {
@@ -253,6 +261,7 @@ impl<'a> Cursor<'a> {
         Error {
             offset: self.offset,
             reason,
+            source: None,
         }
     }
 
@@ -295,6 +304,14 @@ impl<'a> Cursor<'a> {
         self.offset += stops.find_first(remaining).unwrap_or(remaining.len());
     }
 
+    #[expect(
+        clippy::string_slice,
+        reason = "the cursor advances over ASCII syntax only, so its saved positions bound UTF-8 text"
+    )]
+    fn scanned(&self, start: usize) -> &'a str {
+        &self.text[start..self.offset]
+    }
+
     fn wildcard(&mut self) -> bool {
         if matches!(self.peek(), Some(b'*' | b'x' | b'X')) {
             self.offset += 1;
@@ -307,16 +324,17 @@ impl<'a> Cursor<'a> {
     fn number(&mut self) -> Result<u64, Error> {
         let start = self.offset;
         self.scan(&NON_DIGIT);
-        let digits = &self.text[start..self.offset];
+        let digits = self.scanned(start);
         if digits.is_empty() {
             return Err(self.error("expected unsigned version component"));
         }
         if digits.len() > 1 && digits.starts_with('0') {
             return Err(self.error("version component has a leading zero"));
         }
-        digits
-            .parse()
-            .map_err(|_| self.error("version component exceeds the maximum unsigned integer"))
+        digits.parse().map_err(|source| Error {
+            source: Some(source),
+            ..self.error("version component exceeds the maximum unsigned integer")
+        })
     }
 
     fn identifier(&mut self, prerelease: bool) -> Result<&'a str, Error> {
@@ -324,7 +342,7 @@ impl<'a> Cursor<'a> {
         loop {
             let segment = self.offset;
             self.scan(&NON_IDENTIFIER);
-            let identifier = &self.text[segment..self.offset];
+            let identifier = self.scanned(segment);
             if identifier.is_empty() {
                 return Err(self.error("expected nonempty version identifier"));
             }
@@ -336,7 +354,7 @@ impl<'a> Cursor<'a> {
                 return Err(self.error("numeric prerelease identifier has a leading zero"));
             }
             if !self.take(b'.') {
-                return Ok(&self.text[start..self.offset]);
+                return Ok(self.scanned(start));
             }
         }
     }

@@ -10,6 +10,10 @@ use raf_source::{DiskTree, MemoryTree, RelPath, Tree, TreeError};
 use support::Scratch;
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn disk_and_memory_trees_agree_on_regular_files() {
     let scratch = Scratch::new();
     let files = [
@@ -53,6 +57,10 @@ fn disk_and_memory_trees_agree_on_regular_files() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_root_that_is_missing_is_not_found_on_every_platform() {
     let scratch = Scratch::new();
     let error = DiskTree::new(scratch.path("absent")).expect_err("missing root");
@@ -61,6 +69,10 @@ fn a_root_that_is_missing_is_not_found_on_every_platform() {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn root_discovery_refuses_directory_aliases_and_unsafe_parent_reductions_beside_real_starts() {
     let scratch = Scratch::new();
     scratch.file("root/workspace/Cargo.toml", "[workspace]\n");
@@ -93,6 +105,10 @@ fn root_discovery_refuses_directory_aliases_and_unsafe_parent_reductions_beside_
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_dangling_manifest_is_refused_without_falling_back_to_its_workspace_ancestor() {
     let scratch = Scratch::new();
     scratch.file(

@@ -510,9 +510,11 @@ impl<'source> Collector<'source, '_, '_> {
                 }
             }
             syn::Pat::Const(pattern) if in_body => {
-                pattern.modifiers.require_empty().map_err(|_| {
-                    Refusal::Unsupported("const pattern modifiers have no admitted profile")
-                })?;
+                if pattern.modifiers.require_empty().is_err() {
+                    return Err(Refusal::Unsupported(
+                        "const pattern modifiers have no admitted profile",
+                    ));
+                }
                 self.boundary_block(
                     pattern.const_token.span,
                     &pattern.block,
@@ -781,9 +783,9 @@ impl<'source> Collector<'source, '_, '_> {
             ),
             _ => return Err(Refusal::Invariant("expression is not a block boundary")),
         };
-        modifiers
-            .require_empty()
-            .map_err(|_| Refusal::Unsupported(refusal))?;
+        if modifiers.require_empty().is_err() {
+            return Err(Refusal::Unsupported(refusal));
+        }
         self.boundary_block(span, block, family, name)
     }
 
@@ -840,9 +842,11 @@ impl<'source> Collector<'source, '_, '_> {
                 "const closures have no admitted capture profile",
             ));
         }
-        node.modifiers
-            .require_empty()
-            .map_err(|_| Refusal::Unsupported("closure modifiers have no admitted profile"))?;
+        if node.modifiers.require_empty().is_err() {
+            return Err(Refusal::Unsupported(
+                "closure modifiers have no admitted profile",
+            ));
+        }
         self.scopes.enter_values()?;
         let family = if node.asyncness.is_some() {
             Family::AsyncClosure

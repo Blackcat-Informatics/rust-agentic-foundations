@@ -36,6 +36,10 @@ fn delivery_capability(state: &str, bindings: [&str; 3]) -> String {
     )
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn complete(checkout: &Checkout) -> Completion {
     Lifecycle::open(checkout.root())
         .unwrap()
@@ -118,6 +122,10 @@ fn completion_waits_for_the_measured_evidence_a_capability_requires() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn completion_rewrites_owned_documents_and_leaves_source_and_git_untouched() {
     let _lock = serial();
     let checkout = fixture("implementing", DONE, BOUND);
@@ -157,6 +165,10 @@ fn completion_rewrites_owned_documents_and_leaves_source_and_git_untouched() {
 /// An implementing capability becomes delivered only when its last owning
 /// record is completed.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn completion_retains_implementing_while_a_second_record_owns_the_capability() {
     let _lock = serial();
     let second = "work/changes/second.md";
@@ -194,6 +206,10 @@ fn completion_retains_implementing_while_a_second_record_owns_the_capability() {
 }
 
 /// Prepare a real split sync report without leaving the active fixture out of sync.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn detached_sync(checkout: &Checkout) -> SyncReport {
     let root = checkout.root();
     let page = read(root, OMEGA);
@@ -217,6 +233,10 @@ fn detached_sync(checkout: &Checkout) -> SyncReport {
     report
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_stale(checkout: &Checkout, report: &SyncReport) {
     let before = snapshot(checkout.root());
     let error = Workplan::write(report, checkout.root())
@@ -233,6 +253,11 @@ fn assert_stale(checkout: &Checkout, report: &SyncReport) {
 /// Split publication cannot write across a native close or reopen, even when
 /// the old report is limited to the catalogue or copied into a manual edit.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn split_sync_refuses_stale_publication_after_completion_or_reopening() {
     let _lock = serial();
     let checkout = fixture("implementing", DONE, BOUND);
@@ -274,6 +299,10 @@ fn split_sync_refuses_stale_publication_after_completion_or_reopening() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn forged_sync_reports_cannot_overwrite_source_or_manifests() {
     let _lock = serial();
     let checkout = fixture("delivered", DONE, BOUND);
@@ -309,6 +338,10 @@ fn forged_sync_reports_cannot_overwrite_source_or_manifests() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does() {
     use raf_okf::{Actor, AssessmentVerdict};
     use support::assessed::assess_on_disk_as;

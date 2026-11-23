@@ -15,6 +15,10 @@ use raf_source::MemoryTree;
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn load(source: &str) -> Census {
     let tree: MemoryTree = [("Cargo.toml", MANIFEST), ("src/lib.rs", source)]
         .into_iter()
@@ -23,6 +27,10 @@ fn load(source: &str) -> Census {
 }
 
 /// A workspace of packages, each with a library of the given source.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn packages(sources: &[(&str, &str)]) -> Census {
     let members: Vec<String> = sources
         .iter()
@@ -173,6 +181,10 @@ impl U {
 ";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders() {
     let census = load(FORWARDERS);
     assert_eq!(census.body_groups().count(), 0);
@@ -215,6 +227,10 @@ fn shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group() {
     let args = |first: &str| {
         let mut text = format!("f({first}");
@@ -245,6 +261,10 @@ fn a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group() {
     assert_eq!(symbols(shims[0]), ["demo::p", "demo::q"]);
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn digits(upper: bool) -> Vec<char> {
     (0..16)
         .map(|n| {
@@ -263,6 +283,10 @@ fn table_units(census: &Census) -> Vec<(&str, TableKind)> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_form_of_a_hex_table_is_reported_in_both_cases() {
     let mut source = String::new();
     for (case, upper) in [("LO", false), ("UP", true)] {
@@ -295,6 +319,10 @@ fn every_form_of_a_hex_table_is_reported_in_both_cases() {
 }
 
 #[test]
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn near_misses_of_a_hex_table_are_not_reported() {
     let lower: String = digits(false).iter().collect();
     let wrong = format!("{}g", &lower[..15]);
@@ -432,6 +460,10 @@ fn a_job_classifies_home_entry_point_variant_and_copies() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_job_that_matches_nothing_has_an_empty_list() {
     let census = load(JOB_SOURCE);
     let none = Job::new("none", "demo::home").forbidding(JobForbidden {
@@ -489,6 +521,10 @@ fn jobs_match_shim_and_table_fingerprints() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_shim_id_matches_the_units_that_group_under_it_and_not_the_excluded_ones() {
     let census = load(FORWARDERS);
     let group = census
@@ -566,6 +602,10 @@ pub fn third(rows: &[u8]) -> Vec<u8> {
 ";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn bodies_that_apply_different_functions_share_no_group_but_renamed_locals_do() {
     let census = load(BY_NAME);
     for symbol in ["demo::first", "demo::second", "demo::third"] {

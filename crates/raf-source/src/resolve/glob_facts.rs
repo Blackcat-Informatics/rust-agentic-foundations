@@ -147,7 +147,7 @@ impl Index {
                         (self.uses[*position].module, *position).cmp(&key),
                     )
                 })
-                .expect("integer comparison cannot fail");
+                .unwrap_or_else(|never| match never {});
                 assert!(
                     !range.is_empty(),
                     "a module glob belongs to the frozen registry"
@@ -286,13 +286,14 @@ impl Index {
             Some(decl.line),
         )?;
         meter.items(bytes, &decl.file, Some(decl.line))?;
-        let facts = Shared::try_new(facts).map_err(|_| {
-            LoadError::new(
+        let Ok(facts) = Shared::try_new(facts) else {
+            // Refusal returns the unallocated facts rather than a separate cause.
+            return Err(LoadError::new(
                 &decl.file,
                 Some(decl.line),
                 crate::LoadErrorKind::Storage(StorageError::AllocationFailed),
-            )
-        })?;
+            ));
+        };
         self.glob_facts.replace(facts);
         Ok(())
     }
@@ -350,7 +351,13 @@ impl Index {
                         scratch.insert(&mut readers, *other, Vec::new())?;
                     }
                     table_work(readers.len(), steps)?;
-                    let row = readers.get_mut(other).expect("the reader row was admitted");
+                    #[expect(
+                        clippy::expect_used,
+                        reason = "the reader row either existed or was admitted before the mutable lookup"
+                    )]
+                    let row = readers
+                        .get_mut(other)
+                        .expect("INVARIANT: the reader row was admitted");
                     scratch.push(row, *glob)?;
                 }
             }
@@ -383,11 +390,15 @@ impl Index {
                 file: &decl.file,
                 line: decl.line,
             };
-            retained.items = Some((
-                retained.items.expect("retained index admission").0,
-                &decl.file,
-                Some(decl.line),
-            ));
+            #[expect(
+                clippy::expect_used,
+                reason = "glob-fact completion is called with retained index admission"
+            )]
+            let meter = retained
+                .items
+                .expect("INVARIANT: the retained index has admission")
+                .0;
+            retained.items = Some((meter, &decl.file, Some(decl.line)));
             table_work(opaque.len(), scratch.steps)?;
             if opaque.get(glob).is_none() {
                 retained.insert(&mut facts.broken, *glob, ())?;

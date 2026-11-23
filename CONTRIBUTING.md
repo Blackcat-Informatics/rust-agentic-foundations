@@ -56,8 +56,9 @@ reassessment after that release. Native Cargo target kinds and the
 stable MSRV and nightly toolchains remain covered.
 
 ```bash
-make check   # fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, licenses, issue-refs
 make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath = .githooks)
+make check   # static checks, all-target lints, compiler, policy and fuzz gates
+make test    # run the workspace behavioral suites with fresh Census evidence
 make help    # list every target
 ```
 
@@ -72,27 +73,24 @@ example. The test is read-only. The example can publish debt on an
 explicit write request. The consumer guides show how to set up each gate
 in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORKPLAN-HOWTO.md)
 
-- **`make check` is the gate.** It stops at the first failure. CI runs the
-  documented compilation, test and policy checks; local `make check` additionally
-  runs optimized instrumented fuzzing. The pre-commit hook runs fmt, reuse
-  and production Clippy on a checkout of the staged index, plus the
-  `repo_gates`, `docs_contract` and `self_census` test binaries over
-  that checkout. The binaries are compiled from the working tree, not the index.
-  A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
-  hook. [Staged gate measurements](docs/staged-gate-cost.md)
-- **Local merge qualification.** `make merge-gate` runs `make check`,
-  which includes `make test`, under the shared build lock. Set an absolute
-  `CARGO_TARGET_DIR` outside the repository if `target` resolves inside it.
-  The [gate declaration](.ghprsq.toml) takes effect from the base commit.
-  The merge tool checks the signed candidate before publication and records
-  the exit status. It can reuse a recorded pass for the same tree and
-  command. Hosted checks are also required.
-- **Production lint coverage.** `make clippy-production` checks the locked
-  workspace libraries and binaries. A private helper whose only caller is a
-  test can fail this check. The staged hook uses the same command on staged
-  sources and manifests. `make test` captures a fresh receipt for Census,
-  and `make check` also runs the all-target Clippy pass. The exact flags are
-  in the [production lint helper](.githooks/production-clippy).
+- **Staged static gate.** Run `make precommit` to check the effective staged
+  tree. It requires the installed hooks and checks formatting,
+  shipping lints, dependency bans and sources, tracked text, and Markdown links.
+  Both commit hooks run this target. Repository policy, Workplan and Census
+  tests run in the merge and CI gates.
+- **Merge gate.** `make merge-gate` runs `make check` and `make test` in
+  order on the exact signed candidate. Supply an absolute `CARGO_TARGET_DIR`
+  outside the repository. The [gate declaration](.ghprsq.toml) takes effect
+  from the base commit. The merge tool records the gate's exit status and
+  can reuse a pass for the same tree and command.
+  Hosted CI checks compilation, policy and the workspace tests. The local
+  gate also builds benchmarks and runs instrumented fuzzing.
+- **Production lint coverage.** `make clippy` checks the locked workspace
+  libraries and binaries. A private helper whose only caller is a test can
+  fail this check. `make clippy-all` includes test, example, benchmark and fuzz
+  targets. The Census gate and `make test` use `make clippy-production` for
+  fresh receipts with the same shipping flags. See the
+  [production lint helper](.githooks/production-clippy).
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.
@@ -117,15 +115,17 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
   to source and asset changes. Licensing and both dependency-policy graphs are
   checked on every run. The native YAML gate rejects an absent or excessive job
   budget, including expression-based values whose bound cannot be established.
-- **MSRV.** `make msrv` runs `cargo check --workspace --all-targets --locked` (and the
-  same on the fuzz manifest) on Rust 1.98.1 through `rust-validate`. Install `rust-validate`, or point `MSRV_RUN`
+- **MSRV.** `make msrv` binds Cargo to Rust 1.98.1 and checks all targets in
+  both locked workspaces. Dead code and other compiler warnings fail their
+  compilation target. The audit finds direct dependencies that none of the
+  package's eligible targets use. Install `rust-validate`, or point `MSRV_RUN`
   at a command that runs the 1.98.1 toolchain.
   The checks deny compiler warnings. Cargo resolves dependencies for the
   package and supplies them to individual targets. The dependency audit
   collects the compiler's findings across those targets and fails if every
   target that receives a dependency leaves it unused.
 - **Fuzz harness.** `make fuzz` checks `fuzz/` (its own cargo-fuzz workspace) with
-  fmt, clippy and an offline `cargo deny`, then runs each of its targets
+  fmt, Clippy and `cargo deny`, then runs each of its targets
   (`parse-source`, `parse-document`, `load-workspace`, `census-normalize` and `census-report-read`) over its committed corpus,
   with inputs of up to 400000 bytes and limits on resident memory and on one
   allocation. It needs `cargo-fuzz` (`cargo install --locked
@@ -142,8 +142,8 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
   platform adapters remain in source without standard validation claims.
 - **REUSE.** `make reuse` runs `uvx reuse@6.2.0 lint`, so it needs `uv` (or set
   `REUSE=reuse` with `reuse` installed). A missing tool is a failure, not a skip.
-- **Supply chain.** `make deny` runs `cargo deny` offline on your machine; CI runs
-  the fetching variant against the live advisory database.
+- **Supply chain.** `make deny` and CI check both locked graphs online.
+  `make precommit` checks dependency bans and sources in both workspaces.
 - **Issue references.** `make issue-refs` fails on issue or pull request numbers and
   development-process wording in any tracked text file. Documents describe the
   system, not the history that produced it. It and `make licenses` run the Rust
@@ -223,11 +223,9 @@ notes.
 
 ## Before you open a pull request
 
-- Run `make check` and make sure it is green.
-- Install the hooks with `make hooks`.
-- `cargo clippy --workspace --all-targets` must be warning-free. The workspace lint
-  table (clippy pedantic; `missing_docs`, `unreachable_pub` and `unsafe_code`
-  denied) is inherited by every crate, and CI denies warnings. Fix lint findings in the code. When a lint exception is necessary, use
+- Install the hooks with `make hooks`. Run `make check` and `make test`.
+- `make clippy-all` must be warning-free. Every crate inherits the workspace
+  lint table. Fix lint findings in the code. When a lint exception is necessary, use
   a tightly scoped `#[expect(..., reason = "...")]`.
 - Every file must carry an SPDX header: `MIT OR Apache-2.0 OR MulanPSL-2.0` for
   code, configuration and templates, and `CC-BY-4.0` for every Markdown document.

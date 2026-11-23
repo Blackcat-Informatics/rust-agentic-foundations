@@ -178,7 +178,13 @@ fn read_configuration(
                 let text = std::str::from_utf8(&bytes).map_err(|e| {
                     Error::Options(format!("{path}: Cargo configuration must be UTF-8: {e}"))
                 })?;
-                if let Some(key) = manifest(&path, text)?.production_config_override() {
+                let configuration = CargoLintManifest::parse_config(text).map_err(|source| {
+                    Error::LintManifest {
+                        file: path.to_string(),
+                        source,
+                    }
+                })?;
+                if let Some(key) = configuration.production_config_override() {
                     return Err(Error::Options(format!(
                         "{path}: {key} can change the production compiler invocation; supply a build configuration with the default production target and lint flags"
                     )));
@@ -429,7 +435,9 @@ impl ProductionLintRun {
         let compiler = shape::string(&root, "compiler")?;
         let status = shape::string(&root, "exitCode")?
             .parse::<u8>()
-            .map_err(|_| Error::Options("invalid production Clippy exit status".into()))?;
+            .map_err(|cause| {
+                Error::Options(format!("invalid production Clippy exit status: {cause}"))
+            })?;
         let diagnostics = shape::string(&root, "diagnostics")?;
         let run = Self {
             inputs,

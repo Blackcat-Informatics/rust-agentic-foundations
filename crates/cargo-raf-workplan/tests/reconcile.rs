@@ -50,6 +50,10 @@ fn calm(tag: &str) -> Repo {
 }
 
 /// The text the library gives for the same repository.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn library(root: &Path, slug: &str) -> String {
     Lifecycle::open(root)
         .expect("the lifecycle opens")
@@ -85,6 +89,10 @@ fn an_empty_list_prints_nothing_and_exits_zero() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers() {
     let repo = calm("reconcile-surface-error");
     repo.separate_cargo_output();
@@ -115,6 +123,11 @@ fn an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn unparseable_merge_base_source_is_an_error_beside_a_readable_base() {
     use raf_workplan::lifecycle::{LifecycleError, Side};
 
@@ -317,6 +330,10 @@ fn quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn rdf_preserves_each_obligation_and_optional_location_in_library_order() {
     let repo = checkout("reconcile-rdf");
     let run = repo

@@ -17,6 +17,10 @@ const BLOCK: &str = "<!-- raf:generated:catalogue -->\n| alpha |\n<!-- raf:gener
 const INDEX_IRI: &str = "https://EXAMPLE.org/索引/%7e?view=1#Navigation";
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn navigation_dataset_preserves_generated_bytes_through_native_formats() {
     use purrdf_rdf::{
         NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
@@ -72,6 +76,14 @@ fn navigation_dataset_preserves_generated_bytes_through_native_formats() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations() {
     use purrdf_core::{RdfLiteral, RdfTerm};
     use raf_okf::DatasetError;
@@ -146,6 +158,10 @@ fn navigation_dataset_refuses_nonclosed_shapes_and_retains_body_locations() {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn index_layer_refusals(rows: &[purrdf_core::RdfQuad]) {
     use raf_okf::DatasetError;
     let mut builder = purrdf_core::RdfDatasetBuilder::new();
@@ -184,6 +200,10 @@ fn index_layer_refusals(rows: &[purrdf_core::RdfQuad]) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn navigation_identity_and_aggregate_text_admission_have_exact_boundaries() {
     use raf_okf::{DatasetError, MAX_TEXT_BYTES};
     use std::error::Error;
@@ -236,6 +256,10 @@ fn navigation_identity_and_aggregate_text_admission_have_exact_boundaries() {
     assert!(index.to_dataset(INDEX_IRI).is_ok());
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn refused(text: &str) -> ParseError {
     match Index::parse(text) {
         Ok(_) => panic!("expected a refusal for {text:?}"),
@@ -244,6 +268,10 @@ fn refused(text: &str) -> ParseError {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_generated_only_index_is_accepted_with_either_header_form() {
     let multi = format!("<!--\n{SPDX_COPY}\n{SPDX_ID}\n-->\n\n{BLOCK}");
     let single = format!("<!-- {SPDX_ID} -->\n{BLOCK}");
@@ -376,6 +404,10 @@ fn an_empty_header_tag_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn document_parse_of_index_text_fails_at_line_one() {
     let text = format!("<!-- {SPDX_ID} -->\n{BLOCK}");
     assert!(Index::parse(&text).is_ok());

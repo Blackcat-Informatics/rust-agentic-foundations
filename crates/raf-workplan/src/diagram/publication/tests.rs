@@ -7,6 +7,13 @@ use super::{Root, publish_files, relative};
 use std::fs;
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn a_replaced_output_binding_refuses_before_owned_payloads() {
     let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
     let directory = scratch.path().join("output");

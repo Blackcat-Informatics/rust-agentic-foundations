@@ -486,11 +486,11 @@ impl Scopes {
         limits: &MatchLimits,
     ) -> Result<(), Error> {
         self.admit_receiver(label, binding.states(), limits)?;
-        self.receiver_states += binding.states();
         let frame = self
             .frames
             .top_mut()
-            .expect("INVARIANT: entered lexical scope");
+            .ok_or_else(|| failure(label, "receiver binding requires an active lexical scope"))?;
+        self.receiver_states += binding.states();
         if let Some(previous) = frame.written_receivers.insert(name, binding) {
             self.receiver_states -= previous.states();
         }
@@ -578,6 +578,10 @@ impl Scopes {
         }))
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the path visitor creates a frame before admitting bindings within it"
+    )]
     pub(in crate::gate) fn bind(
         &mut self,
         pattern: &syn::Pat,
@@ -612,18 +616,26 @@ impl Scopes {
         failure.map_or(Ok(()), Err)
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the method visitor registers the receiver in its entered lexical scope"
+    )]
     pub(in crate::gate) fn receiver(&mut self) {
         self.frames
             .top_mut()
-            .expect("entered lexical scope")
+            .expect("INVARIANT: entered lexical scope")
             .local_values
             .insert("self".into(), true);
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the macro visitor registers the definition in its entered lexical scope"
+    )]
     pub(in crate::gate) fn macro_name(&mut self, name: &syn::Ident) {
         self.frames
             .top_mut()
-            .expect("entered lexical scope")
+            .expect("INVARIANT: entered lexical scope")
             .macros
             .insert(name.unraw().to_string());
     }
@@ -642,8 +654,15 @@ impl Scopes {
         Ok(false)
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the item visitor opens the lexical scope before registering generic parameters"
+    )]
     pub(in crate::gate) fn generics(&mut self, generics: &syn::Generics, self_type: bool) {
-        let frame = self.frames.top_mut().expect("entered lexical scope");
+        let frame = self
+            .frames
+            .top_mut()
+            .expect("INVARIANT: entered lexical scope");
         if self_type {
             frame.generic_types.insert("Self".into());
         }

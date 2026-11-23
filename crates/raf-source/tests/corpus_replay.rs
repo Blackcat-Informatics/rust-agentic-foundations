@@ -37,6 +37,10 @@ fn corpus_file(name: &str) -> PathBuf {
     corpus_dir().join(format!("{name}.rs"))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn text_of(selector: &str) -> String {
     let name = selector
         .strip_prefix(PREFIX)
@@ -54,6 +58,10 @@ fn child_main() {
 }
 
 /// The file names in the corpus directory, sorted.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn names_on_disk() -> Vec<String> {
     let mut names: Vec<String> = fs::read_dir(corpus_dir())
         .expect("the corpus directory exists")
@@ -95,6 +103,10 @@ fn the_shape_table_matches_the_expected_names() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn corpus_files_hold_exactly_the_text_of_their_shapes() {
     for shape in shapes::all() {
         let on_disk = fs::read_to_string(corpus_file(shape.name))
@@ -109,6 +121,10 @@ fn corpus_files_hold_exactly_the_text_of_their_shapes() {
 }
 
 #[test]
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts() {
     let shapes = shapes::all();
     let count = shapes.len();
@@ -126,6 +142,10 @@ fn every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_ab
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_budget() {
     for (at, over, budget) in [
         (
@@ -177,6 +197,10 @@ fn files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_bud
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn evasion_shapes_are_refused_naming_their_budget_beside_their_at_budget_neighbours() {
     for (at, over, budget) in [
         (

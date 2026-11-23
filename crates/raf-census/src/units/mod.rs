@@ -448,6 +448,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span()
      {
         let tokens: proc_macro2::TokenStream = "\n\ncaller".parse().expect("caller tokens");
@@ -481,6 +489,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans()
     {
         let tokens: proc_macro2::TokenStream = "caller".parse().expect("caller tokens");

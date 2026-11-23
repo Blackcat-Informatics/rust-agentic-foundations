@@ -12,6 +12,10 @@ fn keys(doc_type: DocType) -> Vec<&'static str> {
 }
 
 /// The architecture page, from the gate root when it is set.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn architecture_page() -> String {
     let root = std::env::var_os("RAF_GATE_ROOT").map_or_else(
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
@@ -25,6 +29,10 @@ fn architecture_page() -> String {
 type PageRow = (String, String, Vec<(String, bool)>);
 
 /// The rows of the type table of the architecture page.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn page_rows(page: &str) -> Vec<PageRow> {
     let table = page
         .split("| Type | Directory | Keys, in writing order |")
@@ -113,6 +121,10 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn each_type_states_its_required_and_optional_keys() {
     for doc_type in DocType::ALL {
         for spec in doc_type.keys() {

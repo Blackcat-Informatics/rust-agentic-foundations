@@ -107,6 +107,11 @@ const USAGE: [&str; 8] = [
     "work",
 ];
 
+#[expect(
+    clippy::print_stderr,
+    clippy::print_stdout,
+    reason = "the executable reports its results through its output and status"
+)]
 pub(super) fn run() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let outcome = match parse_one(&args) {
@@ -127,6 +132,10 @@ pub(super) fn run() -> ExitCode {
 }
 
 /// Load a written package and demonstrate the registry report's core checks.
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn sample() -> Result<(), Box<dyn Error>> {
     let tree = MemoryTree::from([
         (
@@ -195,6 +204,10 @@ pub(super) fn parse_work(text: &str) -> Result<usize, String> {
 }
 
 /// A number of bytes, with an optional `K`, `M` or `G` suffix.
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 pub(super) fn parse_bytes(text: &str) -> Result<u64, String> {
     let (digits, shift) = match text.as_bytes().last() {
         Some(b'K' | b'k') => (&text[..text.len() - 1], 10),
@@ -370,6 +383,10 @@ impl PartialOrd for Version {
 /// A directory name split into crate name and version: the first `-` after
 /// which a version follows. A crate name never holds a `.`, so the split is
 /// the only one.
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn split_name(dir: &str) -> Option<(&str, Version)> {
     dir.match_indices('-').find_map(|(at, _)| {
         let (name, version) = (&dir[..at], &dir[at + 1..]);
@@ -387,6 +404,10 @@ struct Crate {
 }
 
 /// The newest version of each crate under `registry`, sorted by name.
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn newest(registry: &Path) -> Result<Vec<Crate>, Box<dyn Error>> {
     let mut best: BTreeMap<String, (Version, String)> = BTreeMap::new();
     let entries = std::fs::read_dir(registry)
@@ -472,6 +493,10 @@ pub(super) fn ok_line(items: usize, files: usize, usage: &Usage, misplaced: &[St
 }
 
 /// The variant name at the start of a `Debug` rendering.
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn variant(debug: &str) -> &str {
     let end = debug
         .find(|c: char| !(c.is_alphanumeric() || c == '_'))
@@ -697,6 +722,10 @@ impl Tally {
     }
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn scan(options: &Options) -> Result<(), Box<dyn Error>> {
     let crates = newest(&options.registry)?;
     let exe = std::env::current_exe()?;

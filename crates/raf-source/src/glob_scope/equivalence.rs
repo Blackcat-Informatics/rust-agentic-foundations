@@ -44,6 +44,13 @@ use random::Draw;
 const DEFAULT_PROGRAMS: usize = 64;
 
 /// Select the breadth of the comparison without changing its families or orders.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn selected_programs() -> usize {
     const VARIABLE: &str = "RAF_GLOB_EQUIVALENCE_PROGRAMS";
     let text = match std::env::var(VARIABLE) {
@@ -70,6 +77,14 @@ const ORDER_SEED: u64 = 0x0de2_0001;
 
 /// The programs compared, with their labels: `per_family` of each family,
 /// the seeds `base + 1` to `base + 8` in turn, and the committed corpus.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn programs(per_family: usize) -> Vec<(String, Program)> {
     let mut all = Vec::new();
     for base in BASES {
@@ -258,6 +273,14 @@ fn the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_c
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn an_answer_that_differs_between_the_two_modes_is_reported_with_its_load_and_both_answers() {
     let (label, program) = programs(DEFAULT_PROGRAMS)
         .into_iter()

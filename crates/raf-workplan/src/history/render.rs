@@ -7,6 +7,7 @@
 use super::{Entry, History, Removal, RemovedBinding, Source};
 use crate::escape::shown;
 use crate::generated::{cell, code_span};
+use crate::identifiers::Commit;
 
 /// The digits of an abbreviated commit id.
 const SHORT: usize = 7;
@@ -23,8 +24,12 @@ pub(crate) fn table_code(text: &str) -> String {
     shown(&code_span(text))
 }
 
-fn short(commit: &str) -> &str {
-    &commit[..SHORT.min(commit.len())]
+#[expect(
+    clippy::string_slice,
+    reason = "Commit holds at least forty lowercase hexadecimal ASCII digits"
+)]
+fn short(commit: &Commit) -> &str {
+    &commit.as_str()[..SHORT]
 }
 
 fn source_cell(source: &Source) -> String {
@@ -38,7 +43,7 @@ fn entry_row(entry: &Entry) -> String {
     let sources: Vec<String> = entry.sources().iter().map(source_cell).collect();
     format!(
         "| {} | {} | {} | {} |",
-        short(entry.commit().as_str()),
+        short(entry.commit()),
         entry.date().day(),
         table_cell(entry.subject()),
         sources.join(", ")
@@ -55,12 +60,12 @@ fn removed_row(removed: &RemovedBinding) -> String {
             last_resolved,
         } => format!(
             "| {binding} | {} | {} | {} | {} |",
-            short(commit.as_str()),
+            short(commit),
             date.day(),
             table_cell(subject),
             last_resolved
                 .as_ref()
-                .map_or("none: the first commit", |parent| short(parent.as_str()))
+                .map_or("none: the first commit", short)
         ),
         Removal::NoCommit => format!(
             "| {binding} | none | - | no commit changed how often {} occurs in {} | - |",

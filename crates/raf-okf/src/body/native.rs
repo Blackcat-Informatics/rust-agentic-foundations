@@ -25,6 +25,14 @@ fn overflow() -> SyntaxError {
     }
 }
 
+#[expect(
+    clippy::map_err_ignore,
+    reason = "an out-of-range work limit is reported as the native SizeOverflow storage cause"
+)]
+fn work_limit(work: usize) -> Result<u64, SyntaxError> {
+    u64::try_from(work).map_err(|_| overflow())
+}
+
 /// Native capacity growth admits both old and replacement buffers. The
 /// source bounds every observation population and every mapped input; grants
 /// admit storage, and do not allocate it in advance.
@@ -79,7 +87,7 @@ pub(super) fn limits(n: usize, origin: usize) -> Result<SyntaxLimits, SyntaxErro
     Ok(SyntaxLimits {
         source_bytes: MAX_TEXT_BYTES.checked_sub(origin).ok_or_else(overflow)?,
         auxiliary_bytes,
-        work: u64::try_from(work).map_err(|_| overflow())?,
+        work: work_limit(work)?,
         containers: MAX_BLOCK_NESTING,
         nesting: n.checked_add(2).ok_or_else(overflow)?,
         link_part_bytes: super::link::MAX_LINK_PART,
@@ -104,7 +112,7 @@ pub(crate) fn scalar_prose(text: &str) -> Result<Cow<'_, str>, SyntaxError> {
         CodeSpanLimits {
             source_bytes: text.len(),
             auxiliary_bytes,
-            work: u64::try_from(work).map_err(|_| overflow())?,
+            work: work_limit(work)?,
         },
     )
 }

@@ -52,13 +52,13 @@ inputs:
     digest: a62d5e71640c7ab4187b041f72c1e4ab2dc067f042a98593471eca60aed5b73b
   - kind: symbol
     name: raf_census::gate::read_debt
-    digest: 043bd1e79273fd2194672f8ef5cfaf6301301ebbfec4acc4df539879b9831ce5
+    digest: 36e6eb156f338e4e47f59110e2db42163b1310898dd8e06a56c9c9e3a850b697
   - kind: symbol
     name: raf_census::publication
-    digest: 2189794d4b4b6013dcdc8a3e52587f4e0e1f7be3f29c7ffaadee9ea1f7282eae
+    digest: e1269681b09d9a30b4d409b7cb55c179c5bc73feba47e89b140ff8393b243506
   - kind: symbol
     name: raf_census::report::debt
-    digest: b47ed9bc4b1f1f59a53431f6413cdf341edfc885302c4f6beac37808bcbea28c
+    digest: 0521dc2295afca0eff411a01c70179b2a57731d41700a0d50977f3187a1d8985
 verdict: accepted
 by: agent
 ---

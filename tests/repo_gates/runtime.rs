@@ -121,6 +121,10 @@ impl<'ast> syn::visit::Visit<'ast> for Boundary {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn violations(text: &str) -> Vec<String> {
     let syntax = syn::parse_file(text).expect("boundary input must parse");
     let mut boundary = Boundary::default();
@@ -129,6 +133,10 @@ fn violations(text: &str) -> Vec<String> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn runtime_analysis_libraries_have_no_process_authority() {
     let root = gate_root();
     let mut inspected = 0;
@@ -207,6 +215,10 @@ fn shipped_fixture_dependencies(manifest: &str) -> Result<Vec<String>, String> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies() {
     let root = gate_root();
     let mut inspected = 0;

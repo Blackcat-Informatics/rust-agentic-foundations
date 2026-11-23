@@ -1122,14 +1122,17 @@ impl Judge<'_> {
         while let Some(below) = rest.strip_prefix("super::") {
             rest = below;
         }
-        let head = if rest.len() == relative.len() {
-            &written[..written.len() - relative.len() + first.len()]
+        let head_end = if rest.len() == relative.len() {
+            written.len() - relative.len() + first.len()
         } else {
-            &written[..written.len() - rest.len() - 2]
+            written.len() - rest.len() - 2
         };
+        let (head, suffix) = written
+            .split_at_checked(head_end)
+            .ok_or_else(|| ResolveError::Invalid(written.to_owned()))?;
+        let (prefix, tail) = written.rsplit_once("::").unwrap_or((written, ""));
         let mut paths = Vec::new();
         for module in self.declaring_modules(id, reexport) {
-            let (prefix, tail) = written.rsplit_once("::").unwrap_or((written, ""));
             match self.source.resolve_from(&module, prefix) {
                 Ok(resolved) => paths.push(if tail.is_empty() {
                     resolved.path
@@ -1139,7 +1142,7 @@ impl Judge<'_> {
                 Err(ResolveError::NotFound(_)) if prefix != head => {
                     match self.source.resolve_from(&module, head) {
                         Ok(resolved) => {
-                            paths.push(format!("{}{}", resolved.path, &written[head.len()..]));
+                            paths.push(format!("{}{suffix}", resolved.path));
                         }
                         Err(ResolveError::NotFound(_)) => {}
                         Err(error) => return Err(error),

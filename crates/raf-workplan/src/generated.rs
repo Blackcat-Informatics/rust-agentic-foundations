@@ -355,6 +355,10 @@ fn file(
         }
         let expected = lines_to_text(&render(name, role, inputs), eol);
         let content = &block.content().bytes;
+        #[expect(
+            clippy::string_slice,
+            reason = "the parsed block's content boundaries are physical lines of this body"
+        )]
         let current = &body.text()[content.start - base..content.end - base];
         if current != expected {
             out.repairs.push(Finding::new(

@@ -414,6 +414,16 @@ pub struct ParsedSource {
     pub syntax: syn::File,
 }
 
+impl std::fmt::Debug for ParsedSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ParsedSource")
+            .field("path", &self.path)
+            .field("source_bytes", &self.text.len())
+            .field("top_level_items", &self.syntax.items.len())
+            .finish_non_exhaustive()
+    }
+}
+
 /// Parse an explicit corpus once and give all its syntax trees to one visitor.
 ///
 /// Input order and identities are preserved, including repeated identities.
@@ -532,19 +542,19 @@ fn lex_source(
     let mut resident = Resident;
     let mut memory = Memory::new(&mut resident);
     let mut header = None;
-    let normalized = if let Some(range) = shebang(text) {
+    let normalized = if let Some(shebang) = shebang(text) {
         let error = |source| LoadError::new(file, Some(1), LoadErrorKind::Storage(source));
-        header = Some(memory.string(&text[range.clone()]).map_err(error)?);
+        header = Some(memory.string(shebang.header).map_err(error)?);
         // Padding preserves byte positions and all newlines. There are no
         // syntax positions within the ignored first-line header itself.
         std::borrow::Cow::Owned(
             memory
                 .format(&format_args!(
                     "{}{blank:width$}{}",
-                    &text[..range.start],
-                    &text[range.end..],
+                    shebang.bom,
+                    shebang.remainder,
                     blank = "",
-                    width = range.len()
+                    width = shebang.header.len()
                 ))
                 .map_err(error)?,
         )

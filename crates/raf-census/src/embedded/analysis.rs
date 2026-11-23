@@ -552,7 +552,9 @@ impl<'source> Analysis<'source> {
                 .and_then(|n| n.checked_mul(8))
                 .ok_or(overflow)?
         };
-        let limit = usize::try_from(u32::MAX).map_err(|_| overflow)?;
+        let Ok(limit) = usize::try_from(u32::MAX) else {
+            return Err(overflow);
+        };
         // Each registration also needs one position after its predecessor.
         source
             .checked_add(1)
@@ -704,10 +706,10 @@ impl<'source> Analysis<'source> {
             .checked_add(size_of::<usize>())
             .and_then(|n| n.checked_add(padding))
             .ok_or(overflow)?;
-        let value = Layout::from_size_align(bytes, alignment)
-            .map_err(|_| overflow)?
-            .pad_to_align();
-        Self::rc_block_bytes(value)
+        let Ok(value) = Layout::from_size_align(bytes, alignment) else {
+            return Err(overflow);
+        };
+        Self::rc_block_bytes(value.pad_to_align())
     }
 
     fn rc_block_bytes(value: std::alloc::Layout) -> Result<usize, Refusal> {
@@ -716,14 +718,14 @@ impl<'source> Analysis<'source> {
         let overflow = Refusal::Storage(purrdf_lex::allocation::StorageError::SizeOverflow);
         // RcInner is repr(C, align(2)): two counters, then its value.
         // Compose public layouts without constructing a private-layout surrogate.
-        let counter = Layout::new::<Cell<usize>>();
-        let (counters, _) = counter.extend(counter).map_err(|_| overflow)?;
-        let (block, _) = counters.extend(value).map_err(|_| overflow)?;
-        Ok(block
-            .align_to(2)
-            .map_err(|_| overflow)?
-            .pad_to_align()
-            .size())
+        let counters = Layout::new::<[Cell<usize>; 2]>();
+        let Ok((block, _)) = counters.extend(value) else {
+            return Err(overflow);
+        };
+        let Ok(block) = block.align_to(2) else {
+            return Err(overflow);
+        };
+        Ok(block.pad_to_align().size())
     }
 
     /// Live native Syn error records and strings; Source conversion is separate.
@@ -899,6 +901,18 @@ mod tests {
     use super::super::resource::Grant;
     use super::*;
 
+    #[expect(
+        clippy::unwrap_in_result,
+        clippy::unwrap_used,
+        reason = "the fixture path and syntax are test prerequisites; the result records the production analysis refusal"
+    )]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn collect<'source>(
         mut analysis: Analysis<'source>,
         source: &'source str,
@@ -926,6 +940,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn retained_functions_share_the_original_grant_across_parser_workers() {
         let first = "#![no_implicit_prelude]\nfn one(input: i32) { let x = input + 1; sink(x); }";
         let second = "#![no_implicit_prelude]\nfn two(other: i32) { let y = other + 1; sink(y); }";
@@ -960,6 +981,13 @@ mod tests {
         ));
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn preparation_workspace() -> raf_source::Workspace {
         let probes = format!(
             "fn probes() {{ let _ = -\"{}\"; let _ = c\"\\u{{1f980}}\"; let _ = cr#\"raw🦀\"#; let _ = br#\"raw\"#; }}",
@@ -993,6 +1021,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn source_preparation_grants_precede_parsing_and_survive_until_each_worker_joins() {
         let workspace = preparation_workspace();
         let path = raf_source::RelPath::new("src/lib.rs").expect("fixture path");
@@ -1080,6 +1116,14 @@ mod tests {
         assert_owned_source_diagnostic();
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn assert_string_digits_keep_linear_probe_work(workspace: &raf_source::Workspace) {
         let path = raf_source::RelPath::new("src/probes.rs").expect("fixture path");
         let file = workspace.file(&path).expect("loaded static probe data");
@@ -1145,6 +1189,13 @@ mod tests {
     }
 
     /// A crate whose library is exactly `body`.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn text_workspace(body: &str) -> raf_source::Workspace {
         let tree = raf_source::MemoryTree::from([
             (
@@ -1160,12 +1211,26 @@ mod tests {
     const AMPLE_BYTES: usize = 1 << 30;
     const DENSE_BYTES: usize = 1 << 36;
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn library(workspace: &raf_source::Workspace) -> &raf_source::SourceFile {
         let path = raf_source::RelPath::new("src/lib.rs").expect("fixture path");
         workspace.file(&path).expect("loaded statement source")
     }
 
     /// The exact native node count, the source length and the prepaid bound.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn prepaid_for(file: &raf_source::SourceFile, bound: SyntaxBound) -> (usize, usize) {
         let nodes = raf_source::prepare_source(&file.path, &file.text)
             .expect("guard-admitted fixture")
@@ -1184,6 +1249,14 @@ mod tests {
     /// visitor never sees a tree; the exact peak succeeds, and each joined
     /// worker refunds its envelope so the same account serves another file.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn syntax_tree_grant_is_prepaid_before_the_parser_runs() {
         let workspace = statements_workspace(4096);
         let file = library(&workspace);
@@ -1231,6 +1304,14 @@ mod tests {
     /// refuses as the excess, with its shape, not as a bare work refusal; the
     /// exact work grant succeeds.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn a_syntax_excess_record_refused_by_the_work_grant_reports_the_excess() {
         let workspace = statements_workspace(4096);
         let file = library(&workspace);
@@ -1269,6 +1350,14 @@ mod tests {
     /// be granted the run refuses before any analysis with the shape and the
     /// remedy; a tree within its bound records nothing and charges nothing more.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn embedded_excess_over_the_prepaid_bound_is_detected_charged_or_refused_and_reported() {
         let workspace = statements_workspace(4096);
         let file = library(&workspace);
@@ -1361,6 +1450,13 @@ mod tests {
         assert_byte_dense_neighbours_within_the_bound();
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn assert_byte_dense_neighbours_within_the_bound() {
         // Neighbours over two byte-dense reference inputs, a megabyte of
         // documentation comment and fifteen sixteenths of one beside a sixteenth of string
@@ -1407,6 +1503,14 @@ mod tests {
     /// as a whole, with the remedy and the located shape, and returns no run;
     /// the neighbour at the limit of the complete run succeeds.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn embedded_run_refuses_a_syntax_tree_over_the_memory_limit_with_an_actionable_message() {
         use super::super::{Error, Options, RefusalKind, Run};
         let workspace = statements_workspace(4096);
@@ -1444,6 +1548,14 @@ mod tests {
     /// name, with its file, node count, prepaid and held bytes and dominant kind;
     /// a run whose trees stay within their bound reports none.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn a_syntax_excess_reaches_the_run_result_by_name_and_a_clean_run_reports_none() {
         use super::super::{Options, Run, pairing};
         let workspace = statements_workspace(4096);
@@ -1481,6 +1593,14 @@ mod tests {
         assert_eq!(clean.syntax_excesses().len(), 0);
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn assert_owned_source_diagnostic() {
         let diagnostic = {
             let path = raf_source::RelPath::new("invalid.rs").expect("fixture path");
@@ -1518,6 +1638,14 @@ mod tests {
         ));
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn assert_native_preparation_funding(workspace: &raf_source::Workspace) {
         let path = raf_source::RelPath::new("src/dense.rs").expect("fixture path");
         let dense = workspace
@@ -1574,6 +1702,14 @@ mod tests {
         );
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn assert_numeric_registration_preparation(workspace: &raf_source::Workspace) {
         let path = raf_source::RelPath::new("src/numbers.rs").expect("fixture path");
         let file = workspace.file(&path).expect("loaded numeric module");

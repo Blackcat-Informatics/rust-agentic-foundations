@@ -60,12 +60,24 @@ fn capability_at_the_cap() -> (String, usize) {
     (text, sections)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::unwrap_in_result,
+    reason = "the fixture must parse before the test measures validation violations"
+)]
 fn validate(text: &str, path: &str) -> Result<RafDocument, Vec<raf_okf::Violation>> {
     let document = Document::parse(text).expect("the probe is a document");
     Profile.validate(&document, path)
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_change_with_maximal_affects_and_changes_validates_at_the_cap() {
     let (text, count) = change_at_the_cap();
     assert!(text.len() <= MAX_TEXT_BYTES && text.len() > MAX_TEXT_BYTES - 64);
@@ -79,6 +91,10 @@ fn a_change_with_maximal_affects_and_changes_validates_at_the_cap() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_capability_with_many_sections_and_blocks_is_refused_for_a_duplicated_section_at_the_cap() {
     let (text, sections) = capability_at_the_cap();
     assert!(text.len() <= MAX_TEXT_BYTES && text.len() > MAX_TEXT_BYTES - 16);
@@ -130,6 +146,10 @@ fn evidence_at_the_cap() -> (String, usize) {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_evidence_record_with_maximal_values_and_limits_validates_at_the_cap() {
     let (text, count) = evidence_at_the_cap();
     assert!(text.len() <= MAX_TEXT_BYTES && text.len() > MAX_TEXT_BYTES - 64);

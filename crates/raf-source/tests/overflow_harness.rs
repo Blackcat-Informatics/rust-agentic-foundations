@@ -54,6 +54,14 @@ fn summary(outcome: &Outcome) -> String {
     }
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
+#[expect(
+    clippy::exit,
+    reason = "the child fixture deliberately uses a process status as its test result"
+)]
 fn text_of(selector: &str) -> String {
     match selector {
         "overflow_return" => return_chain(OVERFLOW_LEVELS),
@@ -88,6 +96,11 @@ fn family_text(selector: &str) -> Option<String> {
 
 /// Selected by the parent process; an ordinary run of it does nothing.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn child_main() {
     if selector().as_deref() == Some(OVERFLOW_VISITOR) {
         let file = RelPath::new(&format!("{OVERFLOW_VISITOR}.rs")).expect("path");
@@ -109,6 +122,10 @@ fn refusing_budget(name: &str) -> Budget {
 }
 
 #[test]
+#[expect(
+    clippy::print_stderr,
+    reason = "this executable reports diagnostics on the caller's standard error"
+)]
 fn every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts() {
     let judged: Vec<_> = shapes::composites()
         .into_iter()
@@ -175,6 +192,10 @@ fn a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread() {
     let outcome = run_child("child_main", OVERFLOW_VISITOR);
     let Outcome::Aborted { detail } = &outcome else {
@@ -246,6 +267,10 @@ fn the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failu
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_parse_thread_is_named_after_the_file_and_has_the_stated_stack() {
     assert_eq!(PARSE_STACK_BYTES, 64 * 1024 * 1024);
     let file = RelPath::new("src/deep/named.rs").expect("path");
@@ -258,6 +283,11 @@ fn the_parse_thread_is_named_after_the_file_and_has_the_stated_stack() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_panic_in_the_visitor_is_raised_again_with_its_payload() {
     let file = RelPath::new("src/lib.rs").expect("path");
     let caught = panic::catch_unwind(|| {
@@ -276,6 +306,10 @@ fn a_panic_in_the_visitor_is_raised_again_with_its_payload() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn deep_but_admitted_source_parses_on_the_dedicated_stack_not_the_callers() {
     // 1000 nested returns cost more than half of the caller's 2 MiB test
     // stack in a debug build, so this only passes because the parse runs on

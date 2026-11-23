@@ -16,6 +16,10 @@ const SUBJECT: &str = "cap:alpha#contract";
 const RECORD: &str = "work/assessments/alpha-contract.md";
 
 /// The context of the section as the library writes it.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn library_context(repo: &Repo) -> String {
     let opened = Gate::workspace(repo.root()).open().expect("a repository");
     opened
@@ -207,6 +211,10 @@ fn the_list_shows_each_assessment_current_until_an_input_moves() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes() {
     let repo = Repo::synced("assess-input-kinds", false);
     repo.put(

@@ -18,6 +18,13 @@ use crate::Workplan;
 use crate::work::{Work, measure, measure_kind};
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn the_record_slug_is_the_capability_slug_and_the_section_and_no_two_sections_share_one() {
     let capabilities = [
         "cap:a",
@@ -48,6 +55,13 @@ fn the_record_slug_is_the_capability_slug_and_the_section_and_no_two_sections_sh
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_subject_is_a_capability_and_one_of_the_seven_sections() {
     let id = parse_subject("cap:workplan-reconcile#explanation").expect("a subject");
     assert_eq!(id.capability(), "cap:workplan-reconcile");
@@ -78,6 +92,13 @@ fn a_subject_is_a_capability_and_one_of_the_seven_sections() {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn body(contract: &str) -> Body {
     Body::parse(&format!(
         "# Title\n\n## Purpose\n\nWhy.\n\n## Contract\n{contract}\n## Usage\n\nHow.\n"
@@ -159,6 +180,14 @@ fn document(contract: &str) -> String {
 /// section alike, so a section the profile lets load is never passed over as
 /// generated only, and the two rules cannot drift apart unseen.
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::string_slice,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn authored_text_is_what_the_profile_calls_a_section_that_is_not_empty() {
     let generated = "<!-- raf:generated:relationships -->\n| Relation | Capability |\n<!-- raf:generated:end -->\n";
     let contents = [
@@ -263,6 +292,14 @@ fn a_weak_name_adds_an_input_and_never_ends_the_every_binding_rule() {
 
 /// The checked currency adapter must use the same selected inputs as recording,
 /// while keeping an inability to evaluate an input distinct from a stale input.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn checked_currency_preserves_query_refusals() {
     use raf_okf::{Actor, AssessmentVerdict};
     use raf_source::{Budget, LoadOptions, ResolveError};
@@ -326,6 +363,13 @@ fn checked_currency_preserves_query_refusals() {
 struct Lcg(u64);
 
 impl Lcg {
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn next(&mut self, below: usize) -> usize {
         let value =
             purrdf_hash::mix::lcg64_next(&mut self.0, purrdf_hash::mix::LCG64_MMIX_INCREMENT);
@@ -389,6 +433,13 @@ const LINES: usize = 12_100;
 
 /// A repository with the crate `demo` of `symbols` functions and the
 /// capability `omega`, bound to all of them, whose Contract is `contract`.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn omega(symbols: usize, contract: &str) -> (MemoryTree, Workspace) {
     use std::fmt::Write as _;
 
@@ -474,6 +525,13 @@ fn the_bindings_are_tested_against_the_names_once_to_find_a_strong_one_and_once_
 /// paths its code spans name, and each of the bound symbols is tested once
 /// for how it is named.
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_long_contract_is_read_once_and_its_symbols_are_named_in_one_pass() {
     use std::fmt::Write as _;
 

@@ -15,8 +15,8 @@ use purrdf_lex::{
     walk::WorkList,
 };
 use raf_source::{
-    CodeResolveError, CodeResolver, ItemId, Namespace, RelPath, SourceFile, SymbolKind, TargetId,
-    Workspace,
+    CodeResolveError, CodeResolver, Item, ItemId, Namespace, RelPath, SourceFile, SymbolKind,
+    TargetId, Workspace,
 };
 
 use super::patterns::{
@@ -198,6 +198,18 @@ pub(super) fn check<'a>(
 }
 
 impl<'a> Providers<'a> {
+    fn provider_item(&self, site: ItemId, job: &str) -> Result<&'a Item, Error> {
+        self.workspace.item(site).ok_or_else(|| {
+            failure(
+                job,
+                &format!(
+                    "selected provider source item {} is absent from the workspace",
+                    site.index()
+                ),
+            )
+        })
+    }
+
     fn insert_consumer(
         &mut self,
         owner: ItemId,
@@ -215,7 +227,12 @@ impl<'a> Providers<'a> {
             }
             storage::insert(&mut self.expected, owner, WorkList::new(), &row.job.id)?;
         }
-        let entries = self.expected.get_mut(&owner).expect("inserted consumer");
+        let entries = self.expected.get_mut(&owner).ok_or_else(|| {
+            failure(
+                &row.job.id,
+                "admitted provider consumer is absent from its owner table",
+            )
+        })?;
         if !entries
             .iter()
             .any(|expected| expected.row.job.id == row.job.id)
@@ -280,11 +297,11 @@ impl<'a> Providers<'a> {
         let Some(site) = actual else {
             return Ok(None);
         };
-        let item = self.workspace.item(site).expect("validated provider API");
+        let item = self.provider_item(site, &row.job.id)?;
         let target = self
             .workspace
             .target(item.target)
-            .expect("validated API target");
+            .ok_or_else(|| failure(&row.job.id, "selected provider API has no source target"))?;
         Ok(Some(super::owners::Home {
             source_items: BTreeSet::from([site]),
             path: symbol.to_owned(),
@@ -328,7 +345,7 @@ impl<'a> Providers<'a> {
         }
         let mut proved = OrderedTable::default();
         for (site, ()) in sites.ordered() {
-            let item = self.workspace.item(*site).expect("checked provider home");
+            let item = self.provider_item(*site, &row.job.id)?;
             let reaches = self.workspace.same_source(item);
             charge(&row.job.id, limits, reaches.len() as u64 + 1)?;
             if !reaches.is_empty() && reaches.iter().all(|reach| sites.get(reach).is_some()) {
@@ -341,7 +358,7 @@ impl<'a> Providers<'a> {
     fn files(&self, limits: &mut MatchLimits) -> Result<SourceFiles, Error> {
         let mut files = OrderedTable::default();
         for (owner, row) in self.owners() {
-            let item = self.workspace.item(owner).expect("checked owner");
+            let item = self.provider_item(owner, &row.job.id)?;
             storage::insert(
                 &mut files,
                 (item.target, item.file.clone()),
@@ -456,6 +473,10 @@ fn configured(workspace: &Workspace, site: ItemId, job: &str) -> Result<(), Erro
     Ok(())
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "the provider owner was admitted from this same immutable workspace"
+)]
 fn path_error(
     workspace: &Workspace,
     owner: ItemId,
@@ -463,7 +484,9 @@ fn path_error(
     path: &str,
     source: CodeResolveError,
 ) -> Error {
-    let owner = workspace.item(owner).expect("checked provider owner");
+    let owner = workspace
+        .item(owner)
+        .expect("INVARIANT: the provider owner belongs to the validated workspace");
     Error::ProviderPath {
         job: job.into(),
         file: owner.file.to_string(),
@@ -499,7 +522,7 @@ impl FunctionObserver for Providers<'_> {
         }
         for (owner, row) in self.owners() {
             charge(&row.job.id, limits, attributes.len() as u64 + 1)?;
-            let item = self.workspace.item(owner).expect("checked owner");
+            let item = self.provider_item(owner, &row.job.id)?;
             let applies = match &container {
                 Container::File => true,
                 Container::Item(span) => {

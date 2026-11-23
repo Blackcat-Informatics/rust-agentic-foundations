@@ -16,7 +16,7 @@ inputs:
     digest: 926e36ecae3b090d9ee9c087235415236204b44d5cb03413538f96ac241eda60
   - kind: symbol
     name: cargo_raf_census::command
-    digest: fbbdb75af56f5bdce2c0744f0bb381b29d5b0c5eaa6f634f2735f6708a129317
+    digest: 5d36b0ea2e7e9efabb1bad723bfe6c23c03ccd97232b18bc32a12f6213adaab6
   - kind: symbol
     name: cargo_raf_census::error
     digest: fa7aa7a709101811082caa31353d45fe8668d69c81f88590bd2b887dff2c23ee
@@ -61,7 +61,7 @@ inputs:
     digest: 3807d56c2efb0da756205b73a5b5aebd2f3d9ab969df5644721d7f554374a880
   - kind: symbol
     name: raf_census::capnp_history
-    digest: 75b647a72a2c7fe98caeb333de13046d9a7430d7e8a928a5632c1a7ce57aeb74
+    digest: e4878530f13ec94dea79e4629621f606434ee5721cfa719b6138c7cc3f2c9b66
   - kind: symbol
     name: raf_census::capnp_history::persistence::admission::check
     digest: 7e675e082a6fea8c001bf90aec9f0a25e415b68e2b68c4a20643e90b158eaee6
@@ -76,10 +76,10 @@ inputs:
     digest: 7cac3d238e4d3f80bea5edbe07e4480741c1271cee171b295fb4cf1b7f91a063
   - kind: symbol
     name: raf_census::registered
-    digest: 1c778e25726466d2e2dbece74fb0689f90331c3ac16c3d73d2bec07df97dd9a1
+    digest: 85989340c59837b5f55cb4f46112dd25cb0e1de9d4e552c040ab686ca0e77190
   - kind: symbol
     name: raf_census::selftest
-    digest: 22f4971efcd0f48fbade5d5d190cd7f9113ce8f93cfa857119dd9360cb5f488b
+    digest: 3c6d217d5f84d85c373535d499f0c59bf19c510b3a93f700c89090e7ae276b7e
 verdict: accepted
 by: agent
 ---

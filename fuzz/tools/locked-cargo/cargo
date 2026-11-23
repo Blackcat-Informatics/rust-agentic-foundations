@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# cargo-fuzz launches Cargo by name and does not expose its lock flag.
+set -euo pipefail
+: "${RAF_FUZZ_CARGO:?set the outer Cargo executable in the fuzz gate}"
+case "${1:-}" in
+    build|metadata|run) exec "$RAF_FUZZ_CARGO" "$1" --locked "${@:2}" ;;
+    -V|--version) exec "$RAF_FUZZ_CARGO" "$@" ;;
+    *) echo "fuzz gate: unexpected Cargo command '${1:-}'" >&2; exit 1 ;;
+esac

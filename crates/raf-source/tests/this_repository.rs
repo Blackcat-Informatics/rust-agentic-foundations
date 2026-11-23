@@ -13,6 +13,10 @@ use raf_source::{DiskTree, Namespace, ResolveError, SymbolKind, TargetKind, Vis,
 /// workspace loading hides explicitly selected inactive files; a copied parser
 /// would not protect the public API's native errors and worker lifetime.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_reexported_syn_types_are_the_types_received_by_the_parse_visitor() {
     use raf_source::syn as indexed_syn;
 
@@ -36,6 +40,11 @@ fn the_reexported_syn_types_are_the_types_received_by_the_parse_visitor() {
     lexed_source_keeps_admission_before_syntax();
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn lexed_source_keeps_admission_before_syntax() {
     use raf_source::{LoadErrorKind, RelPath, prepare_source};
     let path = RelPath::new("lexed.rs").expect("fixture path");
@@ -87,6 +96,11 @@ fn native_nodes(tokens: proc_macro2::TokenStream) -> usize {
         .sum()
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn prepared_source_keeps_counts_bound_to_its_input() {
     use raf_source::{Budget, LoadErrorKind, RelPath, prepare_source};
     let path = RelPath::new("prepared.rs").expect("path");
@@ -143,6 +157,10 @@ fn prepared_source_keeps_counts_bound_to_its_input() {
     ));
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn check_tokens(source: &str, original: proc_macro2::TokenStream) {
     for token in original {
         match token {
@@ -167,6 +185,11 @@ fn check_tokens(source: &str, original: proc_macro2::TokenStream) {
     }
 }
 
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn shared_tokens_keep_original_prefix_positions() {
     use raf_source::{Budget, LoadErrorKind, RelPath, parse_source_with_tokens};
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -256,6 +279,11 @@ fn shared_tokens_keep_original_prefix_positions() {
     assert!(!called.load(Ordering::SeqCst));
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn owned_corpus_keeps_admission_and_worker_failures_atomic() {
     use raf_source::{Budget, LoadErrorKind, LoadOptions, ParsedSource, RelPath, parse_sources};
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -345,6 +373,11 @@ fn owned_corpus_keeps_admission_and_worker_failures_atomic() {
 }
 
 /// This repository, loaded with the crates directory as the root.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn this_repository() -> Workspace {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     Workspace::load(&DiskTree::new(repository).expect("tree"), &["crates"])
@@ -352,6 +385,10 @@ fn this_repository() -> Workspace {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn this_repository_loads_from_its_root_with_the_crates_directory_as_the_root() {
     let ws = this_repository();
     let names: Vec<_> = ws.packages().iter().map(|p| p.name.as_str()).collect();
@@ -369,6 +406,11 @@ fn this_repository_loads_from_its_root_with_the_crates_directory_as_the_root() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_module() {
     let ws = this_repository();
     // `body/blocks.rs` sorts before `body/mod.rs`, which declares it.
@@ -387,6 +429,10 @@ fn an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle() {
     let ws = this_repository();
     // `raf-source` re-exports `syn` with `pub use syn;`, a crate outside the
@@ -408,6 +454,11 @@ fn a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_surface_of_each_library_and_binary_of_this_repository_lists_its_public_items() {
     let ws = this_repository();
     let (mut listed, mut binaries) = (0, 0);

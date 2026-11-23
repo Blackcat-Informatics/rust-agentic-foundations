@@ -128,6 +128,16 @@ pub struct ReferenceRequest<'a> {
     registry: Option<RegistryIndex<'a>>,
 }
 
+impl std::fmt::Debug for ReferenceRequest<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ReferenceRequest")
+            .field("owner", &self.owner)
+            .field("dependency_key", &self.declaration.key)
+            .field("registry", &self.registry)
+            .finish_non_exhaustive()
+    }
+}
+
 impl<'a> ReferenceRequest<'a> {
     /// Resolve the written alias, inherited constraints and source against this catalog.
     #[must_use]
@@ -197,6 +207,16 @@ pub struct ReferenceObservation {
     workspace: Workspace,
     identity: LockedBinding,
     checksum: Option<[u8; 32]>,
+}
+
+impl std::fmt::Debug for ReferenceObservation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ReferenceObservation")
+            .field("identity", &self.identity)
+            .field("package_count", &self.workspace.packages().len())
+            .field("checksum", &self.checksum)
+            .finish_non_exhaustive()
+    }
 }
 
 /// The explicit or inherited `[package] version` of discovered package zero,

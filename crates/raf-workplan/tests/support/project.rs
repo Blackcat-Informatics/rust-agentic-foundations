@@ -97,6 +97,10 @@ impl Project {
     }
 
     /// Remove a file.
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn remove(&self, path: &str) {
         std::fs::remove_file(self.root().join(path))
             .unwrap_or_else(|error| panic!("cannot remove {path}: {error}"));
@@ -118,6 +122,11 @@ impl Project {
     }
 
     /// The `docs sync` of the documents as they are: written to the disk.
+    #[expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     pub(crate) fn sync(&self) {
         let opened = Gate::workspace(self.root())
             .open()
@@ -194,6 +203,10 @@ impl Project {
 
     /// The lifecycle of the project as it is now. The open freezes the source
     /// index, so a lifecycle is opened again after each edit.
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn lifecycle(&self) -> Lifecycle {
         Lifecycle::open(self.root()).unwrap_or_else(|error| panic!("the project opens: {error}"))
     }

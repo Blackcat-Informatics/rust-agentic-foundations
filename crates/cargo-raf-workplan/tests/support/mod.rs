@@ -45,6 +45,10 @@ pub(crate) const OPEN_COVERAGE: &str =
 pub(crate) struct Scratch(purrdf_testkit::TempDir, purrdf_testkit::TempDir);
 
 impl Scratch {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn new(tag: &str) -> Self {
         let parent = std::env::temp_dir();
         // A Unix temporary directory may be reached through a link (macOS), and
@@ -55,6 +59,10 @@ impl Scratch {
         Self::in_dir(&parent, tag)
     }
 
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     fn in_dir(parent: &Path, tag: &str) -> Self {
         let directory = || {
             purrdf_testkit::TempDir::new_in(parent)
@@ -216,6 +224,11 @@ impl Repo {
 
     /// Read the actual model and require the capability's persistent identity,
     /// authored path and current state at a lifecycle boundary.
+    #[expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     pub(crate) fn assert_capability(&self, slug: &str, state: &str) {
         let opened = Gate::workspace(self.root())
             .open()
@@ -253,6 +266,11 @@ impl Repo {
     }
 
     /// Write `text` at `path`, creating the directories.
+    #[expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     pub(crate) fn put(&self, path: &str, text: &str) {
         let target = self.root().join(path);
         fs::create_dir_all(target.parent().expect("a parent"))
@@ -261,6 +279,10 @@ impl Repo {
     }
 
     /// The text of the file `path`.
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn read(&self, path: &str) -> String {
         fs::read_to_string(self.root().join(path))
             .unwrap_or_else(|e| panic!("cannot read {path}: {e}"))
@@ -274,6 +296,10 @@ impl Repo {
     }
 
     /// Sync the generated blocks with the library, creating the index.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn sync(&self) {
         let opened = Gate::workspace(self.root()).open().expect("a repository");
         let plan = opened.workplan();
@@ -337,6 +363,10 @@ impl Repo {
     }
 
     /// Put the tree back as a snapshot recorded it.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn restore(&self, snapshot: &BTreeMap<String, Vec<u8>>) {
         for entry in fs::read_dir(self.root()).expect("list the root") {
             let path = entry.expect("an entry").path();
@@ -355,6 +385,10 @@ impl Repo {
         }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn put_bytes(&self, path: &str, bytes: &[u8]) {
         let target = self.root().join(path);
         fs::create_dir_all(target.parent().expect("a parent")).expect("a directory");
@@ -417,6 +451,10 @@ impl Run {
 }
 
 /// `text` with the seconds before each ` s and was killed` written `<t>`.
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn without_run_time(text: &str) -> String {
     const KILLED: &str = " s and was killed";
     let mut out = String::new();
@@ -466,6 +504,10 @@ pub(crate) fn run_in(dir: &Path, shape: Shape, args: &[&str]) -> Run {
 }
 
 /// Run a prepared command to its end.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn finish(command: &mut Command) -> Run {
     let output = command.output().expect("the binary runs");
     Run {
@@ -486,6 +528,10 @@ pub(crate) fn run_both(dir: &Path, args: &[&str]) -> Run {
 }
 
 /// Supply identical file-backed protocol input to both real invocations.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn run_both_with_stdin(dir: &Path, args: &[&str], input: &Path) -> Run {
     let run = |shape| {
         let mut process = command(dir, shape, args);
@@ -501,6 +547,11 @@ pub(crate) fn run_both_with_stdin(dir: &Path, args: &[&str], input: &Path) -> Ru
 /// Every file below `root`: its path with `/` separators and its bytes. A
 /// symbolic link is listed by its target text and is not followed.
 pub(crate) fn snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {
+    #[expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     fn walk(root: &Path, dir: &Path, into: &mut BTreeMap<String, Vec<u8>>) {
         for entry in
             fs::read_dir(dir).unwrap_or_else(|e| panic!("cannot list {}: {e}", dir.display()))
@@ -637,6 +688,10 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
 }
 
 /// [`git`] with these variables set as well, such as the dates of a commit.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn git_with(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> String {
     let mut command = Command::new("git");
     command

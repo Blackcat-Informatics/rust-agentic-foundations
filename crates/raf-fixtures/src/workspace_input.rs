@@ -80,6 +80,14 @@ pub fn exercise(workspace: &Workspace) -> usize {
 /// A seed with items: it must load, and its index must hold items. A build
 /// whose parser lost the positions of what it parses fails here, before any
 /// input is judged.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub fn self_check() {
     let seed = "\0src/lib.rs\npub mod a {\n    pub fn f() {}\n}\npub struct S;\n";
     let tree = tree(seed.as_bytes()).expect("the self-check seed is a tree");

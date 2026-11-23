@@ -86,8 +86,11 @@ fn digest(gram: &[Atom<'_>], meter: &Meter) -> Result<[u8; 32], Refusal> {
 }
 
 fn text(hash: &mut blake3::Hasher, value: &str, meter: &Meter) -> Result<(), Refusal> {
-    let length = u32::try_from(value.len())
-        .map_err(|_| Refusal::Invariant("fragment token exceeds the u32 encoding limit"))?;
+    let Ok(length) = u32::try_from(value.len()) else {
+        return Err(Refusal::Invariant(
+            "fragment token exceeds the u32 encoding limit",
+        ));
+    };
     update(hash, &length.to_le_bytes(), meter)?;
     update(hash, value.as_bytes(), meter)
 }
@@ -113,7 +116,9 @@ fn select(
         let selected = *window
             .iter()
             .min_by_key(|seed| (seed.digest, Reverse(seed.at)))
-            .expect("a complete fixed window is nonempty");
+            .ok_or(Refusal::Invariant(
+                "a complete discovery window must have a minimum",
+            ))?;
         if previous != Some(selected.at) {
             found.push(selected)?;
             previous = Some(selected.at);
@@ -128,6 +133,13 @@ mod tests {
     use crate::embedded::proof::{Declaration, Family, Occurrence, Region, same};
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn rightmost_ties_and_persistent_minima_keep_original_positions_without_duplicate_seeds() {
         let meter = Meter::new(10_000, 10_000);
         let equal = select((0..7).map(|_| Ok([7; 32])), &meter).unwrap();
@@ -151,6 +163,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn an_embedded_renamed_sequence_keeps_a_shared_seed_after_unrelated_prefix_atoms() {
         let source = (0..32)
             .map(|index| Atom {
@@ -197,6 +216,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn colliding_candidate_hashes_do_not_establish_a_binding_correspondence() {
         let left = [Atom {
             joint: false,
@@ -235,6 +261,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn discovery_refuses_exhaustion_and_preserves_the_first_input_cause() {
         let atoms = [Atom {
             joint: false,

@@ -122,7 +122,12 @@ pub(super) fn home<'a>(
     let path = if module {
         resolution.path
     } else {
-        units.values().next().expect("resolved unit").symbol.clone()
+        units
+            .values()
+            .next()
+            .ok_or_else(|| format!("{symbol:?} has no implementation unit"))?
+            .symbol
+            .clone()
     };
     Ok(Home {
         source_items,
@@ -139,6 +144,13 @@ mod tests {
     use raf_source::{LoadOptions, MemoryTree, SourceAuthorityId, SourceTrees, Tree};
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn equal_display_paths_keep_distinct_authorities_and_consumer_scope() {
         let first = MemoryTree::from([
             (
@@ -191,6 +203,13 @@ mod tests {
         assert_eq!(selected.files().len(), 1);
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn pattern_ledger() -> crate::Ledger {
         use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
 
@@ -258,6 +277,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn every_pattern_kind_uses_the_selected_consumer_file_set() {
         let source = |name: &str| {
             format!(

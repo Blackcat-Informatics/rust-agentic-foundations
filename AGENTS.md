@@ -150,18 +150,19 @@ controlled RAF fixtures as data.
 
 ```bash
 make hooks      # use .githooks for this clone; do this once
-make check      # every gate: fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, licenses, issue-refs
+make precommit  # check the effective staged tree
+make check      # static, compiler, dependency, documentation and fuzz checks
+make test       # run the full workspace suites with fresh Census evidence
 make docs-sync  # rewrite the generated documentation blocks; the repair for a stale-block finding
 ```
 
 - **The required gates are the hooks, local merge qualification and CI.**
+  Both commit hooks run `make precommit` on the effective staged tree. It checks
+  formatting, production Clippy, dependency bans and sources, tracked text and
+  Markdown links. Keep warm-cache commits under 60 seconds.
   The merge tool runs `make merge-gate` from the declaration on the base commit.
-  That target takes the shared build lock. The pre-commit hook runs fmt,
-  reuse and production Clippy on a checkout of the staged index, then the `repo_gates`, `docs_contract`
-  and `self_census` test binaries over that checkout. The binaries
-  are compiled from the working tree; only the files they judge come from the index.
-  The pre-merge-commit hook runs the same gates on merge commits. CI runs on every
-  pull request, and every hosted check is green before a merge.
+  That target runs `make check` and `make test` in order on the signed candidate.
+  CI runs on every pull request, and every hosted check is green before a merge.
 - **Never bypass a hook or a gate.** Do not pass a verification-bypass flag, edit a
   hook to pass, or weaken a gate or a lint to get green. Fix the cause. If a change
   cannot pass, it is not committed.
@@ -170,7 +171,8 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
   denied where the gate denies them). `make check` and whole-workspace runs are for
   integration and release work, not for every small change. Do not run by hand what
   the hook is about to run.
-- **A missing tool is a hard failure, not a skip.** `make reuse` needs `uvx` or
+- **A missing tool is a hard failure, not a skip.** `make fmt` needs `jq` and
+  Rustfmt. `make reuse` needs `uvx` or
   `reuse`, `make msrv` needs `rust-validate`, and `make fuzz` needs `cargo-fuzz`
   (`cargo install --locked cargo-fuzz@0.13.2`).
 - **What the root gates check.** `tests/repo_gates.rs` checks licence digests,
@@ -188,8 +190,8 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
   (`Instant`, `SystemTime`, `sleep`, the `*_timeout` calls and their suffixed forms;
   `raf-source` also refuses `std::time`, `Duration` and `elapsed`). The one clock
   reading is `crates/cargo-raf-workplan/src/trusted_docs/clock.rs`, for the documentation
-  watchdog. `clippy.toml` disallows the same calls. Measure with instruction counts
-  (`perf`) or allocation counts, never with wall-clock runs, benchmarks or sleeps.
+  watchdog. `clippy.toml` disallows the same calls. Measure runtime work with instruction
+  counts (`perf`) or allocation counts.
 - **No mutation testing.** Never write or run mutants, mutation sweeps or
   `cargo mutants`. A test's strength is shown by reading its assertion and by the
   focused run.
@@ -199,8 +201,7 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
   dependencies without a version, and `fuzz/deny.toml` matches it apart from one
   crate-scoped exception. `raf-fixtures` is a path-only dev-dependency; a gate
   refuses it outside `[dev-dependencies]` unless the manifest declares
-  `publish = false`. `make deny` runs offline locally, and CI fetches the advisory
-  database.
+  `publish = false`. `make deny` checks both locked workspaces online.
 - **Release-profile tests.** `make test-release` runs the `raf-source` tests in
   release mode, because the stack cost of a nesting level differs between profiles.
   The hosted job for it has its own execution limit.
@@ -216,13 +217,13 @@ tables (a gate fails when they differ).
   `crates/raf-source/src/tree/disk/final_path.rs`, under an item-scoped allow with
   its reason and a `SAFETY` comment.
 - Clippy `all` is denied and `pedantic` warns. The gates deny warnings.
-- `make clippy-production` selects `--workspace --lib --bins --locked` and
+- `make clippy` selects `--workspace --lib --bins --locked` and
   denies warnings, unused items, unreachable public items, allow attributes,
   used underscore bindings, needless pass-by-value, trivially copied references
-  and redundant clones. `make check` runs it through `make test`. The commit
-  and merge hooks apply it to the staged source and manifests. Its compiler
-  receipt supplies the repository's Census test. Keep the separate all-target
-  Clippy pass for test, example and benchmark code.
+  and redundant clones. The commit hooks apply it to the staged source and
+  manifests. The Census target and `make test` run `make clippy-production` to
+  capture the same compiler invocation as a receipt. `make clippy-all` covers
+  tests, examples and benchmarks.
 - Use a narrowly scoped `#[expect(..., reason = "...")]` for a necessary lint
   exception. Keep expectations current as the compiler and source change.
 
@@ -292,8 +293,8 @@ tables (a gate fails when they differ).
 
 ## 7. The capability-document workflow
 
-RAF plans its own work in the workplan format, and `crates/raf-docs-contract/tests/docs_contract.rs` enforces
-it in `cargo test` and in the commit hook.
+RAF plans its own work in the workplan format, and
+`crates/raf-docs-contract/tests/docs_contract.rs` enforces it in the merge and CI gates.
 
 - **Capability documents** live in `docs/capabilities/<slug>.md`, one per
   capability. The frontmatter carries `type`, `id`, `title`, `description`, `state`
@@ -332,7 +333,7 @@ it in `cargo test` and in the commit hook.
   issue or pull request numbers, tracker links, or wording about the development
   process that produced a file (plans, tasks, acceptance criteria, branches).
   Documents describe the system, not its history. `make issue-refs` scans every
-  tracked text file, and the commit hook runs it on the staged index.
+  tracked text file. The commit hooks apply the same text rules to the effective staged tree.
 - **No deferrals.** Work is done now. Scope that leaves a change moves to another
   tracked change, with its own record, before the first one completes. Do not write
   "later", "follow-up" or "out of scope for now" in place of either.
@@ -402,12 +403,9 @@ it in `cargo test` and in the commit hook.
   are named by their exact path.
 - Do not issue a command that could raise a permission prompt, and never resend a
   refused call in another form.
-- **One build at a time.** Serialize every cargo command, test suite and commit (the
-  hook builds) with one lock, for example `flock /tmp/raf-build.lock cargo ...`. Do
-  not work around the cargo wrapper; if a build is slow, wait.
 - **A cargo command names its own tree.** Run it from the worktree it is meant for,
-  or pass that worktree's `--manifest-path`. A result built from another directory
-  is not evidence.
+  or pass that worktree's `--manifest-path`. Use the configured Cargo wrapper.
+  A result built from another directory is not evidence.
 - **An exit status is the tool's own.** Send long output to a log under `.stage/`
   and read the status the tool returned. A status read through a pipe, or a line you
   echoed yourself, proves nothing.

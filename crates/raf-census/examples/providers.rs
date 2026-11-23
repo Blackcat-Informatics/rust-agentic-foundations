@@ -146,6 +146,10 @@ fn check(competitor: bool) -> Result<GateReport, Box<dyn Error>> {
         .check_locked(&tree, &catalog, &manifests, &[])?)
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn main() -> Result<(), Box<dyn Error>> {
     let clean = check(false)?;
     assert!(clean.is_clean(), "{:?}", clean.findings());

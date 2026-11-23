@@ -67,6 +67,10 @@ fn alpha() -> String {
     capability("alpha", "designed", "[cap:beta]", "")
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn parse(text: &str) -> Document {
     Document::parse(text).unwrap_or_else(|error| panic!("{error} in {text:?}"))
 }
@@ -75,6 +79,10 @@ fn validate(text: &str, path: &str) -> Result<RafDocument, Vec<Violation>> {
     Profile.validate(&parse(text), path)
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn violations(text: &str, path: &str) -> Vec<Violation> {
     match validate(text, path) {
         Ok(typed) => panic!("expected violations for {path}, got {typed:?}"),
@@ -82,6 +90,10 @@ fn violations(text: &str, path: &str) -> Vec<Violation> {
     }
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn clean(text: &str, path: &str) -> RafDocument {
     match validate(text, path) {
         Ok(typed) => typed,
@@ -111,6 +123,10 @@ fn mutate(text: &str, from: &str, to: &str) -> String {
     text.replacen(from, to, 1)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn review_with_findings(findings: &str) -> String {
     let (head, _) = REVIEW
         .split_once("findings:\n")
@@ -119,6 +135,10 @@ fn review_with_findings(findings: &str) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn review_finding_status_selects_the_required_and_allowed_keys() {
     // Every invalid row gets the same single profile finding, even when
     // several fields fail and the next authored occurrence is identical.
@@ -203,6 +223,10 @@ fn review_finding_lists_refuse_wrong_shapes_and_count_only_valid_ids() {
 
 /// The two optional capability flags read `true` or `false`, and a neighbouring
 /// invalid shape is refused at its own key.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn capability_flags_read_true_or_false_and_refuse_other_shapes() {
     for flag in ["measured_evidence_required", "review_strict"] {
         for (value, expected) in [
@@ -240,6 +264,10 @@ fn capability_flags_read_true_or_false_and_refuse_other_shapes() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn valid_documents_of_each_type_validate_to_typed_values() {
     review_location_neighbors();
     review_kind_neighbors();
@@ -323,6 +351,11 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "the valid Architecture fixture must round-trip and recover the same typed decision"
+)]
 fn a_decision_relation_round_trips_the_native_authoring_carrier() {
     // The carrier preserves the authored mapping, and the profile recovers its typed section pair.
     let text = ARCHITECTURE.replacen(
@@ -355,6 +388,10 @@ fn a_decision_relation_round_trips_the_native_authoring_carrier() {
     );
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn review_kind_neighbors() {
     // The scalar Review field admits decoded spellings, including quoted ones.
     let quoted = mutate(REVIEW, "kind: design", "kind: \"design\"");
@@ -376,6 +413,14 @@ fn review_kind_neighbors() {
     }
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn architecture_model_neighbors() {
     let model = "model:
   components:
@@ -477,6 +522,10 @@ fn architecture_model_neighbors() {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn architecture_with_actors(count: usize) -> String {
     let mut actors = String::new();
     for index in 0..count {
@@ -507,6 +556,10 @@ fn review_location_neighbors() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_delivered_capability_with_code_and_tests_is_typed_with_its_bindings() {
     let text = capability("gamma", "delivered", "[cap:beta, cap:alpha]", "");
     let RafDocument::Capability(cap) = clean(&text, "docs/capabilities/gamma.md") else {
@@ -1052,6 +1105,10 @@ fn a_document_must_sit_directly_in_the_directory_of_its_type() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name() {
     use raf_okf::{DocumentIdentityError, MAX_TEXT_BYTES};
     for kind in DocType::ALL {
@@ -1154,6 +1211,10 @@ fn a_title_and_a_description_are_non_empty_strings() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_state_is_one_of_the_four() {
     let bad = violations(
         &mutate(&alpha(), "state: designed", "state: done"),
@@ -1191,6 +1252,10 @@ fn a_state_is_one_of_the_four() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list() {
     // Missing and extra binding keys yield one violation at the map.
     let renamed = mutate(&alpha(), "  examples: []\n", "  docs: []\n");
@@ -1233,6 +1298,10 @@ fn bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests() {
     for state in ["designed", "considered"] {
         let text = mutate(
@@ -1414,6 +1483,10 @@ fn affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_chan
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn contract_effect_is_none_or_changes() {
     for (to, found) in [
         ("contract_effect: maybe", "maybe"),
@@ -1441,10 +1514,20 @@ fn contract_effect_is_none_or_changes() {
     assert_eq!(change.contract_effect, ContractEffect::None);
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn with_items(items: &str) -> String {
     let front_end = CHANGE.find("items:\n").expect("items");
     let body_start = CHANGE.find("\n---\n").expect("fence") + 1;
-    format!("{}{items}{}", &CHANGE[..front_end], &CHANGE[body_start..])
+    let front = CHANGE
+        .get(..front_end)
+        .expect("fixture field starts on a character boundary");
+    let body = CHANGE
+        .get(body_start..)
+        .expect("fixture fence starts on a character boundary");
+    format!("{front}{items}{body}")
 }
 
 #[test]
@@ -1525,6 +1608,10 @@ fn items_need_a_claim_known_keys_and_a_known_outcome() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn the_three_outcomes_are_typed() {
     let items = "items:\n  - claim: a\n    outcome: implemented\n  - claim: b\n    outcome: dropped\n  - claim: c\n    outcome: moved:change:other-work\n";
     let RafDocument::Change(change) = clean(&with_items(items), CHANGE_PATH) else {
@@ -1546,6 +1633,10 @@ fn the_three_outcomes_are_typed() {
 /// a scalar are each `ItemReasonEmpty` at `items`, and a placeholder token in it
 /// is reported as in the claim.
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused() {
     let items = "items:\n  - claim: a\n    outcome: dropped\n    reason: \"The window allocates while it fills.\"\n  - claim: b\n    outcome: moved:change:other-work\n    reason: Streaming needs the buffer rework.\n  - claim: c\n    reason: Written before the outcome.\n  - claim: d\n    outcome: implemented\n";
     let RafDocument::Change(change) = clean(&with_items(items), CHANGE_PATH) else {
@@ -1578,6 +1669,10 @@ fn an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_ref
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn tags_are_non_empty_unique_strings_and_a_timestamp_is_rfc_3339() {
     let with = |extra: &str| {
         mutate(
@@ -1781,6 +1876,10 @@ fn an_architecture_body_is_not_empty() {
 const PROPOSED: &str = "> [!PROPOSED change:add-alpha]\n> The candidate contract.\n\n";
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_proposed_block_is_valid_only_inside_a_section_of_a_capability() {
     let beta = capability("beta", "considered", "[]", PROPOSED);
     let RafDocument::Capability(cap) = clean(&beta, "docs/capabilities/beta.md") else {

@@ -224,8 +224,9 @@ pub(super) fn digest(region: &Region<'_>, meter: &Meter) -> Result<[u8; 32], Ref
             })?;
             rank
         };
-        let rank = u32::try_from(rank)
-            .map_err(|_| Refusal::Invariant("fragment binding rank exceeds u32"))?;
+        let Ok(rank) = u32::try_from(rank) else {
+            return Err(Refusal::Invariant("fragment binding rank exceeds u32"));
+        };
         let family = match declaration.family {
             Family::Value => 0,
             Family::Receiver => 1,
@@ -266,8 +267,9 @@ pub(super) fn digest(region: &Region<'_>, meter: &Meter) -> Result<[u8; 32], Ref
 }
 
 fn framed(hash: &mut blake3::Hasher, text: &str, meter: &Meter) -> Result<(), Refusal> {
-    let len = u32::try_from(text.len())
-        .map_err(|_| Refusal::Invariant("fragment key spelling exceeds u32"))?;
+    let Ok(len) = u32::try_from(text.len()) else {
+        return Err(Refusal::Invariant("fragment key spelling exceeds u32"));
+    };
     encode(hash, &len.to_le_bytes(), meter)?;
     encode(hash, text.as_bytes(), meter)
 }

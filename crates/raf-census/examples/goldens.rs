@@ -10,6 +10,10 @@
 #[path = "../tests/support/fixtures.rs"]
 mod fixtures;
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn main() {
     println!("manifest");
     print!("{}", raf_census::manifest());

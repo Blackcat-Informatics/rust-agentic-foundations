@@ -49,6 +49,10 @@ impl std::error::Error for InvalidCaptureKey {}
 impl FromStr for CaptureKey {
     type Err = InvalidCaptureKey;
 
+    #[expect(
+        clippy::map_err_ignore,
+        reason = "the verification-key interface exposes one typed refusal for invalid input"
+    )]
     fn from_str(text: &str) -> Result<Self, Self::Err> {
         let mut bytes = [0; PUBLIC_KEY_LENGTH];
         purrdf_hash::hex::decode_canonical_to_slice(text, &mut bytes)
@@ -160,7 +164,12 @@ pub(super) fn signed_graph(
         .read_bytes(files.signature, SIGNATURE_LENGTH as u64)
         .map_err(CaptureError::Read)?
         .try_into()
-        .map_err(|_| mismatch("capture signature must contain exactly 64 bytes"))?;
+        .map_err(|bytes: Vec<u8>| {
+            mismatch(format!(
+                "capture signature must contain exactly {SIGNATURE_LENGTH} bytes (received {})",
+                bytes.len()
+            ))
+        })?;
     key.0
         .verify_strict(&bytes, &Signature::from_bytes(&signature))
         .map_err(CaptureError::Signature)?;
@@ -349,6 +358,7 @@ impl Capture {
             )));
         }
         let invalid = || unresolved_import(from, name);
+        let invalid_path = |cause: CaptureError| mismatch(format!("{} ({cause})", invalid()));
         let raw = match rooted {
             Some(suffix) => {
                 if let ImportSearch::Ordered(directories) = &self.import_search {
@@ -359,7 +369,7 @@ impl Capture {
             }
             None => join(&from.parent().unwrap_or_else(RelPath::root), name),
         }
-        .map_err(|_| invalid())?;
+        .map_err(invalid_path)?;
         let mut segments = Vec::new();
         for segment in raw.segments() {
             if segment == ".." {
@@ -368,7 +378,7 @@ impl Capture {
                 segments.push(segment);
             }
         }
-        let resolved = canonical_path(&segments.join("/"), false).map_err(|_| invalid())?;
+        let resolved = canonical_path(&segments.join("/"), false).map_err(invalid_path)?;
         if raw != resolved {
             let original = join(&self.root, raw.as_str())?;
             let canonical = join(&self.root, resolved.as_str())?;

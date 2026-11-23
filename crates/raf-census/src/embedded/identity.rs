@@ -386,6 +386,10 @@ pub(super) fn validate_endpoint<'m>(text: &str, meter: &'m Meter) -> Result<(), 
     Ok(())
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "the native percent decoder validates the exact UTF-8 prefix before it becomes an owned string"
+)]
 fn components<'m>(
     text: &str,
     tag: &str,
@@ -414,7 +418,10 @@ fn components<'m>(
             let len = purrdf_lex::percent::decode_in_place(&mut bytes).map_err(Failure::Percent)?;
             bytes.truncate(len);
             // The native decoder has just validated this exact decoded prefix.
-            Ok(String::from_utf8(bytes).expect("native percent decoder validated UTF-8"))
+            Ok(
+                String::from_utf8(bytes)
+                    .expect("INVARIANT: native percent decoder validated UTF-8"),
+            )
         })?;
         let encoded = Text::build(meter, |memory| {
             let encoded = crate::report::mint::part_with_memory(&decoded, memory)?;

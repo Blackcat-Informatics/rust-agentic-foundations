@@ -496,9 +496,11 @@ impl<'a> References<'a> {
                     }
                     memory
                         .push(
-                            by_print
-                                .get_mut(&fingerprint)
-                                .expect("inserted fingerprint"),
+                            by_print.get_mut(&fingerprint).ok_or_else(|| {
+                                Error::Options(
+                                    "reference index lost an admitted fingerprint".into(),
+                                )
+                            })?,
                             unit,
                         )
                         .map_err(storage)?;

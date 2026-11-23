@@ -274,7 +274,7 @@ impl<'p, 's> Snapshot<'p, 's> {
             if !matches!(target.kind, TargetKind::Lib | TargetKind::Bin) {
                 continue;
             }
-            let exports = super::touched::exports_at(source, id, side, &options)?;
+            let exports = super::touched::exports_at(source, (id, target), side, &options)?;
             for export in exports.items {
                 if let Some(item) = source.item(export.item) {
                     add(&export.path, item, true);
@@ -426,6 +426,10 @@ fn owners_by_item(
     Ok(owners)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "the graph's bindings are built from the loaded capabilities of this same Workplan"
+)]
 fn binding_impact(
     plan: &Workplan<'_>,
     binding: &Binding,

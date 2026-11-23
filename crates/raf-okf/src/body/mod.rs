@@ -96,6 +96,10 @@ impl FencedBlock {
     /// assert_eq!(block.content(), "let x = 1;\n");
     /// ```
     #[must_use]
+    #[expect(
+        clippy::string_slice,
+        reason = "the fenced block stores boundaries of native lines in its own shared source"
+    )]
     pub fn content(&self) -> &str {
         &self.text[self.content.clone()]
     }
@@ -163,19 +167,19 @@ impl Body {
     /// no marker, block quotes and list items
     /// nested over 64 levels, or a link destination or title over 4096 bytes.
     pub fn parse(text: &str) -> Result<Self, ParseError> {
-        let origin = match locate_fences(text) {
-            Ok(fences) => Origin::after_fences(&fences),
+        let (body, origin) = match locate_fences(text) {
+            Ok(fences) => (fences.body(text), Origin::after_fences(&fences)),
             Err(error)
                 if matches!(
                     error.kind(),
                     ErrorKind::MissingFence | ErrorKind::UnclosedFence
                 ) =>
             {
-                Origin::START
+                (text, Origin::START)
             }
             Err(error) => return Err(error),
         };
-        Self::parse_at(&text[origin.byte..], origin)
+        Self::parse_at(body, origin)
     }
 
     /// Read the model of a body that starts at `origin` in its whole text.
@@ -275,6 +279,10 @@ impl Body {
     }
 
     /// Original content excluding native comment extents, in whole-text coordinates.
+    #[expect(
+        clippy::string_slice,
+        reason = "callers use body, section or generated block boundaries, and clipping native comment extents preserves those UTF-8 boundaries"
+    )]
     pub(crate) fn without_comments(&self, bytes: std::ops::Range<usize>) -> String {
         let base = self.span.bytes.start;
         let range = bytes.start - base..bytes.end - base;
@@ -429,27 +437,30 @@ impl Body {
         order.sort_by_key(|(span, _)| (span.bytes.start, span.bytes.end));
         let base = self.span.bytes.start;
         let mut text = String::with_capacity(self.text.len());
-        let mut copied = 0;
+        let mut remaining = self.text.as_ref();
         let mut previous_end = base;
         for (span, replacement) in order {
             let (start, end) = (span.bytes.start, span.bytes.end);
             if start > end || start < base || end > self.span.bytes.end {
                 return Err(SpliceError::OutOfBody { start, end });
             }
-            for offset in [start, end] {
-                if !self.text.is_char_boundary(offset - base) {
-                    return Err(SpliceError::NotCharBoundary { offset });
-                }
-            }
-            if start < previous_end {
-                return Err(SpliceError::Overlap { offset: start });
-            }
-            text.push_str(&self.text[copied..start - base]);
+            let from_start = self
+                .text
+                .get(start - base..)
+                .ok_or(SpliceError::NotCharBoundary { offset: start })?;
+            remaining = from_start
+                .get(end - start..)
+                .ok_or(SpliceError::NotCharBoundary { offset: end })?;
+            // Both endpoints are valid UTF-8 boundaries. Only overlap can reverse this range.
+            let unchanged = self
+                .text
+                .get(previous_end - base..start - base)
+                .ok_or(SpliceError::Overlap { offset: start })?;
+            text.push_str(unchanged);
             text.push_str(replacement);
-            copied = end - base;
             previous_end = end;
         }
-        text.push_str(&self.text[copied..]);
+        text.push_str(remaining);
         let rebuilt = Self::parse_at(&text, self.origin).map_err(SpliceError::Reparse)?;
         *self = rebuilt;
         Ok(())

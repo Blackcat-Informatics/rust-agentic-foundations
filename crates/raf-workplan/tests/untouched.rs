@@ -50,6 +50,10 @@ fn with_affects(affects: &[&str], effect: &str) -> Repo {
     )
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn lifecycle(checkout: &Checkout) -> Lifecycle {
     checkout
         .lifecycle()
@@ -57,6 +61,10 @@ fn lifecycle(checkout: &Checkout) -> Lifecycle {
 }
 
 /// The `section-untouched` lines of the reconcile, as `capability section`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn untouched(checkout: &Checkout) -> Vec<String> {
     let list = lifecycle(checkout)
         .reconcile("shape")
@@ -69,6 +77,10 @@ fn untouched(checkout: &Checkout) -> Vec<String> {
         .collect()
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn reconcile_error(checkout: &Checkout) -> LifecycleError {
     lifecycle(checkout)
         .reconcile("shape")
@@ -81,6 +93,10 @@ const USAGE: &str = "cap:omega usage";
 // --- the matrix of the merge base ------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_unchanged_affected_section_is_owed_with_the_line_the_contract_shows() {
     let _lock = serial();
     let checkout = Checkout::new("untouched-unchanged", &base());
@@ -290,6 +306,11 @@ fn on_the_default_branch_itself_every_affected_section_is_owed_and_it_is_not_an_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_linked_work_tree_compares_its_own_head() {
     let _lock = serial();
     let checkout = Checkout::new("untouched-linked", &base());
@@ -349,6 +370,10 @@ fn a_workspace_below_the_top_of_the_repository_is_compared_at_its_prefix() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_prefix_with_a_space_is_an_error_and_a_neighbour_without_one_is_not() {
     let _lock = serial();
     let spaced = Checkout::below("untouched-spaced", &base(), "my dir");
@@ -364,6 +389,10 @@ fn a_prefix_with_a_space_is_an_error_and_a_neighbour_without_one_is_not() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_bare_repository_is_refused_at_the_open() {
     let _lock = serial();
     let scratch = disk::Scratch::new("untouched-bare");
@@ -397,6 +426,10 @@ fn a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_default_branch_named_like_an_option_is_resolved_and_never_reaches_git_as_one() {
     let _lock = serial();
     let checkout = Checkout::new("untouched-option", &base());
@@ -526,6 +559,10 @@ fn a_file_over_one_mebibyte_at_the_merge_base_is_an_error_and_exactly_one_is_rea
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_file_at_the_merge_base_that_does_not_parse_is_an_error_and_not_a_pass() {
     let _lock = serial();
     // A generated block that is never closed does not parse as a body.
@@ -628,6 +665,11 @@ fn contract_effect_none_keeps_usage_and_examples_and_requires_a_default_branch()
     ));
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn without_usage(repo: &Repo) -> Repo {
     let mut cut = repo.clone();
     let text = cut.get_mut(OMEGA).expect("omega");
@@ -657,6 +699,10 @@ fn contract_effect_none_still_reports_the_other_sections() {
 
 // --- the digest -------------------------------------------------------------------
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn body(text: &str) -> Body {
     Body::parse(text).unwrap_or_else(|error| panic!("{error}"))
 }
@@ -751,6 +797,10 @@ fn line_endings_do_not_touch_a_section() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_checkout_with_converted_line_endings_is_untouched_in_every_section() {
     let _lock = serial();
     let checkout = Checkout::new("untouched-crlf", &base());
@@ -762,6 +812,10 @@ fn a_checkout_with_converted_line_endings_is_untouched_in_every_section() {
 // --- nothing is written, and equal input prints equal output -------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn reconcile_writes_nothing_and_prints_the_same_list_twice() {
     let _lock = serial();
     let checkout = Checkout::new("untouched-readonly", &base());

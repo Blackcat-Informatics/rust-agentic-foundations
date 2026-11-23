@@ -28,6 +28,10 @@ pub(crate) struct Scratch {
 }
 
 impl Scratch {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn new() -> Self {
         let owned = purrdf_testkit::TempDir::new_in(std::env::temp_dir())
             .expect("create scratch directory");
@@ -48,6 +52,10 @@ impl Scratch {
     }
 
     /// Create the directory `name` and any parents.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn dir(&self, name: &str) -> PathBuf {
         let path = self.path(name);
         fs::create_dir_all(&path).expect("create directory");
@@ -55,6 +63,10 @@ impl Scratch {
     }
 
     /// Write `text` to `name`, creating parents.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn file(&self, name: &str, text: &str) -> PathBuf {
         let path = self.path(name);
         if let Some(parent) = path.parent() {
@@ -66,6 +78,10 @@ impl Scratch {
 
     /// Make `name` a symlink to `target`.
     #[cfg(unix)]
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn link(&self, name: &str, target: impl AsRef<Path>) -> PathBuf {
         let path = self.path(name);
         if let Some(parent) = path.parent() {
@@ -80,6 +96,10 @@ impl Scratch {
     /// the disk tree is an `O_PATH` reference or an `O_NONBLOCK` open, and the
     /// unit tests of the disk tree check the flags of each.
     #[cfg(unix)]
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn fifo(&self, name: &str) -> PathBuf {
         let path = self.path(name);
         if let Some(parent) = path.parent() {

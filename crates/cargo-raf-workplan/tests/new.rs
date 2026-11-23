@@ -293,6 +293,11 @@ fn a_capability_given_twice_is_listed_once() {
 
 /// The first two lines of the frontmatter comment of the change records of
 /// this repository, which `make reuse` accepts: the copyright and the licence.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn repository_header() -> (String, String, [String; 2]) {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/changes");
     let mut paths: Vec<PathBuf> = fs::read_dir(&directory)
@@ -484,6 +489,10 @@ fn the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale
 }
 
 /// The text of the template a run printed: the marker line and the line after.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn printed_template(run: &Run) -> String {
     let lines: Vec<&str> = run.stdout.lines().collect();
     let at = lines

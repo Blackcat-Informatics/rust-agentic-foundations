@@ -31,6 +31,10 @@ fn bindings_that_name_real_symbols_resolve() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_binding_through_a_re_export_resolves_to_its_definition() {
     assert_clean(&bound_findings("[demo::shown]", CASE, "[demo::shown]"));
     let repo = bound("[demo::shown]", CASE, "[demo::example_crate::show]");
@@ -299,6 +303,10 @@ fn findings_with_lib(lib: &str, code: &str) -> Vec<Finding> {
 }
 
 /// As [`findings_with_lib`], with all three lists given.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn findings_with_lists(lib: &str, code: &str, tests: &str, examples: &str) -> Vec<Finding> {
     let mut files = vec![
         (
@@ -322,6 +330,10 @@ fn findings_with_lists(lib: &str, code: &str, tests: &str, examples: &str) -> Ve
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn the_macro_hint_is_given_only_for_a_macro_at_the_item_level_of_the_parent_module() {
     let lib = "\
 macro_rules! make { ($n:ident) => { pub fn $n() {} }; }
@@ -382,6 +394,10 @@ fn a_macro_in_the_file_of_a_module_is_read_for_the_path_of_that_module() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_library_that_runs_no_documentation_tests_has_no_doctest_examples() {
     let findings = |enabled: bool| {
         let manifest = format!(

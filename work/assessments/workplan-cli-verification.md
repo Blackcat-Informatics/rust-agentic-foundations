@@ -22,7 +22,7 @@ inputs:
     digest: 9eb0b7420a8c58eab1d73ae56908f9a16664cfaf403a7ec5d9009026e418cb62
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli
-    digest: 5f1b7c10327335a45b44de4f7abf7ba5f7508b25e803205c27f3a8b9c519ae42
+    digest: 7b749519ef20cbc21739dcdbf61d90fc3474f5464f3768b0d95e2a2e14531b47
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::Args
     digest: 649759dddccda0c7e5841e149f65daae03b563fa15418790ef75f7beaed67e21
@@ -64,7 +64,7 @@ inputs:
     digest: 090eca158d2abbd8766fe16defda9d378c4ddb60887f385aa0149599af6b976d
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::docs
-    digest: 375a891a07b23cc6c3888447a7734f5c47630bbee7422d13c9b988f961728879
+    digest: b6c008c5e3768a970bed1d884126590fc03bca081c20a99664539299d2be5740
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::docs::fragment
     digest: f42ae753a0b0c062df734916847caa16303d2eed2ab40b356e92dfdacc2ddd96
@@ -88,22 +88,22 @@ inputs:
     digest: 546b131779910080e16acb19b755614ea57f58491833abbbfbc46bb95bc7b87b
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::render
-    digest: 67a744939fb0304aa44d13294e9e0d03c5935da7e5c543cb250275b3876da539
+    digest: 70ff4fcb41b6b79ce9d7022913185ac88548ccfb9689ddfbbdb7006090b1ad18
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::render::Report
     digest: 8b147e38a7431d5d7101de2da8a77303b960795bb9b3acf6edfe0e5d76de4dbc
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph
-    digest: 02c262bd9fc9f8f99932436142226c737d6e97cb37330f9008c516f28278c148
+    digest: 3c4fcd8057f6f530836d57ff77648cf4509e49da9c6f85cc815b9f5dafe88394
   - kind: symbol
     name: raf_workplan::escape
     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25
   - kind: symbol
     name: raf_workplan::root
-    digest: af7231370e24355eb50b43057b8a1f3ceade8a79971efc515a0df0a23652190b
+    digest: b0ec41e81cac6692ae7d865a292ea246d95aaa7d64775f0fedbfe0e6862436d3
   - kind: symbol
     name: raf_workplan::root::discover
-    digest: 9d7ad8657e30c160c446b156d9e9177039240df337d0aad0be3095ab0b8332f2
+    digest: 330209af466f97e54c7b975341cfcd570de09375c7ff92c3437260c562ca25e7
 verdict: accepted
 by: agent
 ---

@@ -85,6 +85,10 @@ fn read_headings(body: &Body, sections: &mut BTreeMap<&str, Endpoint>) {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "profile admission retains the authored entry for every typed replacement"
+)]
 fn declaration<'a>(page: &'a Loaded<Architecture>, section: &str) -> &'a Entry {
     page.profiled()
         .document()
@@ -120,6 +124,10 @@ fn check_page<'a>(
             ));
         }
         let mut targets = Vec::new();
+        #[expect(
+            clippy::expect_used,
+            reason = "profile admission establishes that every typed replacement is an authored list"
+        )]
         let authored = row
             .value()
             .as_list()

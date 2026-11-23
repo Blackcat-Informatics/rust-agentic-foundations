@@ -41,6 +41,10 @@ struct Fixture {
 }
 
 impl Fixture {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn new() -> Self {
         let repo = persistence::repository();
         let root = repo.path();
@@ -78,6 +82,10 @@ impl Fixture {
         })
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn publish(
         &self,
         pairs: &[Pair<'_>],
@@ -155,6 +163,10 @@ impl Fixture {
         commit_statement(self.repo.path(), graph, &self.key)
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn run(&self, evidence: Option<&str>) -> Output {
         let mut command = Command::new(env!("CARGO_BIN_EXE_cargo-raf-census"));
         command.current_dir(self.repo.path()).args([
@@ -199,6 +211,10 @@ struct Pair<'a> {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_migration_admits_committed_pairs_and_preserves_strict_findings() {
     // The base supplies the input, the evidence revision supplies the output,
     // and the strict-history finding survives admission byte for byte.
@@ -232,6 +248,10 @@ fn capnp_migration_admits_committed_pairs_and_preserves_strict_findings() {
 }
 
 #[test]
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn capnp_migration_requires_exact_scope_and_output_validity() {
     // An authenticated statement must affirm validity and cover each input
     // selected by the base policy for this exact comparison.

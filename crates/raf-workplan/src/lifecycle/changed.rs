@@ -157,7 +157,9 @@ fn record_at(
         side: Side::MergeBase,
         reason,
     };
-    let text = String::from_utf8(bytes).map_err(|_| refused("is not UTF-8 text".to_string()))?;
+    let Ok(text) = String::from_utf8(bytes) else {
+        return Err(refused("is not UTF-8 text".to_string()));
+    };
     let document = Document::parse(&text).map_err(|error| refused(error.to_string()))?;
     match Profile.validate(&document, path) {
         Ok(RafDocument::Evidence(record)) => Ok(Some(record)),
@@ -182,6 +184,13 @@ mod tests {
     use super::compare;
     use crate::obligation::{EvidenceChange, OverLimit};
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn measure(name: &str, value: &str) -> Measure {
         Measure::new(name, Number::parse(value).expect("a number"))
     }
@@ -213,6 +222,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::string_slice,
+            reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+        )
+    )]
     fn a_value_over_a_limit_by_less_than_a_float_tells_apart_is_a_change() {
         let one_e400 = format!("1{}", "0".repeat(400));
         let two_e400 = format!("2{}", "0".repeat(400));

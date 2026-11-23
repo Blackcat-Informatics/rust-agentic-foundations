@@ -11,6 +11,13 @@ use super::resource::Refusal;
 use super::{pairing, policy, workspace};
 use raf_source::{MemoryTree, Workspace};
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn load(source: &str, edition: u16) -> Workspace {
     let manifest =
         format!("[package]\nname = \"fixture\"\nversion = \"0.1.0\"\nedition = \"{edition}\"\n");
@@ -26,6 +33,14 @@ fn collect(workspace: &Workspace) -> Result<Analysis<'_>, SourceFailure<'_>> {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn public_collection_refusals_escape_untrusted_paths_and_preserve_their_identity() {
     for name in ["ordinary.rs", "line\n\u{1b}[31m\u{202e}.rs"] {
         let module = format!("#[path = {name:?}] mod input;");
@@ -52,6 +67,14 @@ fn public_collection_refusals_escape_untrusted_paths_and_preserve_their_identity
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn target(facts: &Facts<'_>, source: &str, snippet: &str, opcode: &str) -> usize {
     let token = if opcode == "try" { "?" } else { opcode };
     let at = source.find(snippet).unwrap() + snippet.find(token).unwrap();
@@ -70,6 +93,14 @@ fn target(facts: &Facts<'_>, source: &str, snippet: &str, opcode: &str) -> usize
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::string_slice,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn async_function_block_and_closure_transfers_keep_their_own_future_targets() {
     let source = "#![no_implicit_prelude]\nasync fn helper(input:i32) { let outer = produce(input).await?; let future = async move { let inside = produce(input + 1).await?; return inside; }; let closure = async |x| { let y = produce(x).await?; return y + input; }; let plain = || { return input; }; return outer; }";
     let workspace = load(source, 2024);
@@ -123,6 +154,13 @@ fn async_function_block_and_closure_transfers_keep_their_own_future_targets() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn try_scopes_intercept_question_marks_without_intercepting_return_or_loop_labels() {
     let source = "#![no_implicit_prelude]\n#![feature(try_blocks)]\nfn helper(input:i32) { let result = try { let x = read(input)?; let nested = try { read(x)? }; if flag(x) { return x; } x }; 'outer: loop { let result = try { break 'outer; }; } }";
     let workspace = load(source, 2024);
@@ -162,6 +200,13 @@ fn try_scopes_intercept_question_marks_without_intercepting_return_or_loop_label
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn const_scopes_keep_generic_items_inner_bindings_and_const_function_returns() {
     let source = "#![no_implicit_prelude]\nconst fn helper<const N:usize>(input:usize) { let outer = input; let result = const { let outer = N + 1; let read_local = || outer; let noncapturing = || { return 1; }; outer }; let repeated = [input; N]; let typed: [u8; N + 1] = [0; N + 1]; call::<{ N + 2 }>(); return outer + result; }";
     let workspace = load(source, 2024);
@@ -246,6 +291,13 @@ fn const_scopes_keep_generic_items_inner_bindings_and_const_function_returns() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn constant_capture_and_control_fences_refuse_beside_valid_lexical_neighbours() {
     for (invalid, valid) in [
         (

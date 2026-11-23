@@ -75,6 +75,10 @@ impl fmt::Display for ParallelOptionsError {
 }
 impl Error for ParallelOptionsError {}
 
+#[expect(
+    clippy::map_err_ignore,
+    reason = "an unrepresentable array layout is the scheduler's SizeOverflow refusal"
+)]
 fn fixed_bytes(workers: usize) -> Result<usize, ParallelOptionsError> {
     workers
         .checked_mul(PARSE_STACK_BYTES)
@@ -122,14 +126,18 @@ impl ParallelOptions {
 }
 
 impl Default for ParallelOptions {
+    #[expect(
+        clippy::expect_used,
+        reason = "the constant default worker count and its scheduler grant are valid"
+    )]
     fn default() -> Self {
         // Two fixed control/job slots fit in this constant grant on the primary
         // native target; the constructor remains the single validation path.
         Self::new(
-            NonZeroUsize::new(2).expect("two is nonzero"),
+            NonZeroUsize::new(2).expect("INVARIANT: two workers is nonzero"),
             16 * 1024 * 1024,
         )
-        .expect("two scheduler slots fit in the default ownership grant")
+        .expect("INVARIANT: two scheduler slots fit in the default ownership grant")
     }
 }
 
@@ -250,21 +258,29 @@ impl WorkerInput<'_> {
 }
 
 impl Control {
+    #[expect(
+        clippy::expect_used,
+        reason = "the parser control mutex protects fixed grants and runs no caller code"
+    )]
     fn set(&self, grant: Grant) {
         // No parser or caller code executes while this control lock is held.
         *self
             .grant
             .lock()
-            .expect("fixed parser control operations do not panic") = grant;
+            .expect("INVARIANT: fixed parser control operations do not panic") = grant;
         self.changed.notify_one();
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the parser control mutex guards grant transitions without parser or caller code"
+    )]
     fn wait(&self) -> Option<HeadGrant> {
         // Only fixed state assignments occur under this lock.
         let mut grant = self
             .grant
             .lock()
-            .expect("fixed parser control operations do not panic");
+            .expect("INVARIANT: fixed parser control operations do not panic");
         loop {
             match std::mem::take(&mut *grant) {
                 Grant::Extract(allowance) => return Some(allowance),
@@ -273,7 +289,7 @@ impl Control {
                     grant = self
                         .changed
                         .wait(grant)
-                        .expect("fixed parser control operations do not panic");
+                        .expect("INVARIANT: fixed parser control operations do not panic");
                 }
             }
         }
@@ -353,6 +369,10 @@ impl Resources {
         memory
             .reserve(&mut controls, options.workers.get())
             .map_err(|cause| storage(&RelPath::root(), cause))?;
+        #[expect(
+            clippy::map_err_ignore,
+            reason = "an unrepresentable worker input layout uses the native SizeOverflow storage cause"
+        )]
         let inputs = Layout::array::<WorkerInput<'_>>(options.workers.get())
             .map_err(|_| storage(&RelPath::root(), StorageError::SizeOverflow))?;
         memory
@@ -446,29 +466,41 @@ impl<'scope, 'env> Executor<'scope, 'env> {
         usage
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "fixed scheduler slots bound the live-job count and the validated worker stack total"
+    )]
     fn admitted(state: &mut State<'scope>, task: &Task<'scope>) {
         state.live_jobs = state
             .live_jobs
             .checked_add(1)
-            .expect("admitted jobs fit the fixed slot count");
+            .expect("INVARIANT: admitted jobs fit the fixed slot count");
         state.usage.peak_live_jobs = state.usage.peak_live_jobs.max(state.live_jobs);
         if matches!(task.running, Running::Worker(_)) {
             state.stack_bytes = state
                 .stack_bytes
                 .checked_add(PARSE_STACK_BYTES)
-                .expect("worker stack total was validated before loading");
+                .expect("INVARIANT: worker stack total was validated before loading");
             state.usage.peak_worker_stack_bytes =
                 state.usage.peak_worker_stack_bytes.max(state.stack_bytes);
         }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "joining releases the stack charge previously acquired for this worker"
+    )]
     fn joined(state: &mut State<'scope>) {
         state.stack_bytes = state
             .stack_bytes
             .checked_sub(PARSE_STACK_BYTES)
-            .expect("joined worker retains its requested stack charge");
+            .expect("INVARIANT: each joined worker retained its stack charge");
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "cleanup releases only live tasks and the slot vector admitted by this scheduler"
+    )]
     fn cleanup(&self) {
         let mut state = self.state.borrow_mut();
         // Cancellation has no user callbacks. Join every worker into its fixed
@@ -511,20 +543,28 @@ impl<'scope, 'env> Executor<'scope, 'env> {
             }
             drop(task.path);
             drop(task.id);
-            state.live_jobs = state
-                .live_jobs
-                .checked_sub(1)
-                .expect("discarded job retains its fixed slot charge");
+            Self::released(&mut state);
             self.account
                 .borrow_mut()
                 .with_memory(|memory| memory.release_bytes(bytes))
-                .expect("destroyed parser task must retain its original admitted layout");
+                .expect("INVARIANT: a destroyed parser task retains its original admitted layout");
         }
         let tasks = std::mem::take(&mut state.tasks);
         self.account
             .borrow_mut()
             .with_memory(|memory| memory.release_vec(tasks))
-            .expect("destroyed parser slots must retain their original admitted layout");
+            .expect("INVARIANT: destroyed parser slots retain their original admitted layout");
+    }
+
+    #[expect(
+        clippy::expect_used,
+        reason = "the scheduler releases a live-job count only when consuming or discarding its admitted task"
+    )]
+    fn released(state: &mut State<'scope>) {
+        state.live_jobs = state
+            .live_jobs
+            .checked_sub(1)
+            .expect("INVARIANT: every released job was counted at admission");
     }
 
     fn start(
@@ -711,24 +751,21 @@ impl Parser for Executor<'_, '_> {
             Ok(Err(error)) => (None, None, Some(Running::TreeFailed(error))),
             Err(payload) => (None, None, Some(Running::Panicked(payload))),
         };
-        let extra = text
+        let bytes = text
             .as_ref()
             .map_or(0, String::capacity)
-            .checked_add(id.as_ref().map_or(0, FileId::heap_bytes));
-        if extra.is_none()
-            || self
-                .account
-                .borrow_mut()
-                .with_memory(|memory| {
-                    memory.add_bytes(extra.expect("a representable total has an extra layout"))
-                })
-                .is_err()
-        {
+            .checked_add(id.as_ref().map_or(0, FileId::heap_bytes))
+            .filter(|&bytes| {
+                self.account
+                    .borrow_mut()
+                    .with_memory(|memory| memory.add_bytes(bytes))
+                    .is_ok()
+            });
+        let Some(bytes) = bytes else {
             drop(text);
             drop(id);
             return true;
-        }
-        let bytes = extra.expect("the admitted layout is representable");
+        };
         let PreparedCandidate { path, admission } = prepared;
         let task = Task {
             path,
@@ -757,13 +794,14 @@ impl Parser for Executor<'_, '_> {
     ) -> Result<Parsed, LoadError> {
         let (slot, task, observed) = {
             let mut state = self.state.borrow_mut();
-            if let Some(slot) = state.tasks.iter().position(|task| {
-                task.as_ref()
-                    .is_some_and(|task| task.id.as_ref() == Some(id))
-            }) {
-                let task = state.tasks[slot]
-                    .take()
-                    .expect("the selected task slot is occupied");
+            let admitted = state.tasks.iter_mut().enumerate().find_map(|(slot, task)| {
+                if task.as_ref()?.id.as_ref() == Some(id) {
+                    task.take().map(|task| (slot, task))
+                } else {
+                    None
+                }
+            });
+            if let Some((slot, task)) = admitted {
                 (slot, task, Some(text))
             } else {
                 let task = self.start(
@@ -841,11 +879,7 @@ impl Parser for Executor<'_, '_> {
             .borrow_mut()
             .with_memory(|memory| memory.release_bytes(task.bytes))
             .map_err(|cause| storage(path, cause))?;
-        let mut state = self.state.borrow_mut();
-        state.live_jobs = state
-            .live_jobs
-            .checked_sub(1)
-            .expect("consumed job retains its fixed slot charge");
+        Self::released(&mut self.state.borrow_mut());
         result
     }
 }

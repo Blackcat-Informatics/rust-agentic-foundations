@@ -21,6 +21,10 @@ fn census(scope: GroupingScope) -> Census {
     load(&tree(), scope)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn load(tree: &raf_source::MemoryTree, scope: GroupingScope) -> Census {
     let mut options = CensusOptions::default();
     options.scope = scope;
@@ -81,6 +85,10 @@ fn expected(sets: &[&[&str]]) -> BTreeSet<Vec<String>> {
 /// With no exclusion the census groups every copy, and its reports are byte for
 /// byte the pinned reports of this workspace.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn the_complete_scope_groups_every_copy_and_keeps_its_reports_unchanged() {
     let census = census(GroupingScope::default());
     assert_eq!(
@@ -108,6 +116,10 @@ fn the_complete_scope_groups_every_copy_and_keeps_its_reports_unchanged() {
 /// targets keep their copies, `#[test]` functions included, and the excluded
 /// items stay units for detectors, jobs and the index.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn excluding_test_items_drops_library_test_code_and_keeps_test_targets() {
     let census = census(GroupingScope::default().exclude_test_items(true));
     assert_eq!(
@@ -128,6 +140,11 @@ fn excluding_test_items_drops_library_test_code_and_keeps_test_targets() {
 /// excluded copy is still a unit that a job finds, so it still counts as a
 /// copy toward the job.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn excluding_a_directory_drops_only_library_files_under_it() {
     let scope = GroupingScope::default().exclude_dir("generated").unwrap();
     let census = census(scope);

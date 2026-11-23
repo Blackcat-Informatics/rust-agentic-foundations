@@ -195,12 +195,20 @@ impl RegisteredDebtWrite {
     /// # Panics
     /// Panics if the private constructor-validated graph loses its shape.
     #[must_use]
+    #[expect(
+        clippy::expect_used,
+        clippy::unwrap_in_result,
+        reason = "a constructor-validated error receipt always contains one root and one error string"
+    )]
     pub fn error_message(&self) -> Option<&str> {
         if self.counts.is_some() {
             return None;
         }
-        let root = self.graph.get("").expect("validated receipt root");
-        Some(string_value(root, "errorMessage").expect("validated receipt error"))
+        let root = self
+            .graph
+            .get("")
+            .expect("INVARIANT: validated receipt root");
+        Some(string_value(root, "errorMessage").expect("INVARIANT: validated receipt error"))
     }
 }
 

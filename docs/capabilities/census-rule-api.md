@@ -20,6 +20,7 @@ bindings:
     - raf_census::ProductionLintRun::to_turtle
     - raf_source::CargoLintManifest
     - raf_source::CargoLintManifest::parse
+    - raf_source::CargoLintManifest::parse_config
     - raf_source::CargoLintManifest::inherits
     - raf_source::CargoLintManifest::setting
     - raf_source::CargoLintManifest::production_config_override
@@ -108,8 +109,10 @@ receipt from a build-owned path outside the inspected workspace.
 The manifest reader uses `CargoLintManifest::parse`, `CargoLintManifest::inherits`
 and `CargoLintManifest::setting` to resolve package or workspace levels and
 priorities. A higher-priority Clippy subgroup cannot weaken the required
-`all` group. `CargoLintManifest::production_config_override` identifies
-local Cargo settings that can change the compiler invocation. With both
+`all` group. `CargoLintManifest::parse_config` refuses malformed alias, build,
+environment and target tables with their source location.
+`CargoLintManifest::production_config_override` identifies settings that
+can change the compiler invocation. With both
 configuration filenames present, Cargo and Census select `.cargo/config`.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy -->
 
@@ -438,6 +441,9 @@ The gate makes that a precondition of running the rule, not a review comment.
 The production-lint fixture checks that a missing lockfile and an inclusion
 emitted by a macro refuse a receipt. Changing a directly included file changes
 the input digest. An invalid standalone integration test leaves it unchanged.
+It also checks that an environment array and a scalar target entry are refused.
+An empty effective configuration is accepted beside those refusals.
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy -->
 
 The existing detector Gate case checks required findings with no jobs, valid
 neighboring source, unsupported IDs and home-dependent selection refusals.

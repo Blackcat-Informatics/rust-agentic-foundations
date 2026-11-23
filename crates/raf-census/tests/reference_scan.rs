@@ -18,6 +18,10 @@ mod reference;
 use reference::fixture;
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn path_references_preserve_all_witnesses_with_one_physical_consumer_count() {
     let tree = fixture(
         "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }\npub fn neighbor(value:u32)->u32 { let doubled=value*3; doubled+11 }",
@@ -77,6 +81,10 @@ fn path_references_preserve_all_witnesses_with_one_physical_consumer_count() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn witness_limits_require_complete_evidence(tree: &raf_source::MemoryTree, expected: &Index) {
     use purrdf_jsonschema::ecma::MatchLimits;
     for (limits, cause) in [
@@ -118,6 +126,10 @@ fn witness_limits_require_complete_evidence(tree: &raf_source::MemoryTree, expec
     assert_eq!(complete.census().index(complete.jobs()).unwrap(), *expected);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unitless_references_keep_a_complete_index(tree: &raf_source::MemoryTree) {
     let mut unitless = tree.clone();
     unitless
@@ -154,6 +166,10 @@ fn unitless_references_keep_a_complete_index(tree: &raf_source::MemoryTree) {
     assert_eq!(Index::from_ntriples(&text).unwrap(), index);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn direct_parent_path_keeps_the_same_reference_evidence(
     tree: &raf_source::MemoryTree,
     expected: &Index,
@@ -164,6 +180,10 @@ fn direct_parent_path_keeps_the_same_reference_evidence(
     assert_eq!(report.census().index(report.jobs()).unwrap(), *expected);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reference_names_must_belong_to_the_owning_graph(tree: &raf_source::MemoryTree) {
     let mut missing = tree.clone();
     let path = RelPath::new("helpers-ledger.ttl").unwrap();
@@ -196,6 +216,10 @@ fn reference_names_must_belong_to_the_owning_graph(tree: &raf_source::MemoryTree
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn hardlinked_path_packages_keep_their_own_directory(root: &std::path::Path) {
     let ledger = std::fs::read_to_string(root.join("helpers-ledger.ttl")).unwrap();
     let original = Graph::from_text(&ledger, Format::Turtle).unwrap();
@@ -238,6 +262,10 @@ fn hardlinked_path_packages_keep_their_own_directory(root: &std::path::Path) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reference_shim_matches_keep_every_witness_without_duplicate_copy_counts() {
     let tree = fixture(
         "pub fn shim(value:u32)->u32 { std::convert::identity(value) }",
@@ -261,6 +289,10 @@ fn reference_shim_matches_keep_every_witness_without_duplicate_copy_counts() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn explicit_path_roots_require_the_actual_owning_manifest_locator() {
     let tree = fixture(
         "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
@@ -323,6 +355,10 @@ fn explicit_path_roots_require_the_actual_owning_manifest_locator() {
     hardlinked_path_packages_keep_their_own_directory(root);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reject_unrelated_report_evidence(index: &Index) {
     let valid = index.to_ntriples().unwrap();
     let original = Graph::from_text(&valid, Format::NTriples).unwrap();
@@ -407,6 +443,10 @@ fn reject_unrelated_report_evidence(index: &Index) {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn migrate_historical_reference_provenance(current: &Graph) {
     let header = current
         .assertions()
@@ -452,6 +492,10 @@ fn migrate_historical_reference_provenance(current: &Graph) {
 
 /// A ledger that declares the given `reference` selectors and no job, so no
 /// reference unit has a home.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unhomed_ledger(selectors: &[&str]) -> String {
     use raf_rdf::TermValue as Term;
     let mut ledger = Builder::new();
@@ -495,6 +539,10 @@ fn family_fixture(selectors: &[&str], vendors: &[&str], consumer: &str) -> purrd
 /// As [`family_fixture`] with a chosen member. The member and each vendor are
 /// `name` or `name@version`; the version defaults to 1.0.0, and a name may
 /// occur at two versions.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn workspace_fixture(
     selectors: &[&str],
     member: &str,
@@ -564,6 +612,10 @@ fn workspace_fixture(
 }
 
 /// The packages whose source the reference scan read, as sorted `(name, version)`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn scanned_versions(fixture: &purrdf_testkit::TempDir) -> Vec<(String, String)> {
     let report = fixture_gate(fixture.path().join("ws")).check().unwrap();
     let index = report.census().index(report.jobs()).unwrap();
@@ -591,6 +643,10 @@ fn scanned(fixture: &purrdf_testkit::TempDir) -> Vec<String> {
 /// stay unscanned, a longer name `acme-a-extra` is scanned, and a first-party
 /// member that matches stays a consumer rather than a reference.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn family_selector_scans_every_matching_dependency_but_no_member() {
     let fixture = family_fixture(
         &["acme-*"],
@@ -628,6 +684,10 @@ fn family_selector_scans_every_matching_dependency_but_no_member() {
 /// A package newly added to the lock graph under the family's prefix joins
 /// the scan from the same ledger bytes: the family cannot silently narrow.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn family_selector_follows_lock_growth_without_a_ledger_edit() {
     let three = family_fixture(&["acme-*"], &["acme-a", "acme-b", "acme-c"], "");
     let four = family_fixture(&["acme-*"], &["acme-a", "acme-b", "acme-c", "acme-d"], "");
@@ -642,6 +702,10 @@ fn family_selector_follows_lock_growth_without_a_ledger_edit() {
 /// first-party member alone cannot satisfy a family, and a value with `*`
 /// anywhere but after a prefix and its hyphen is not a selector.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn family_selector_matching_nothing_refuses_naming_the_selector() {
     const EMPTY: &str = "matches no locked dependency package outside the workspace members";
     const MALFORMED: &str = "a family selector is a package-name prefix followed by `-*`";
@@ -668,6 +732,10 @@ fn family_selector_matching_nothing_refuses_naming_the_selector() {
 /// An exact name and a family that both select a package scan it once, with
 /// one source receipt and one witness per matching reference unit.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn exact_and_family_selectors_scan_a_package_once() {
     let copy = "pub fn copy(value:u32)->u32 { let scaled=value*2; scaled+7 }";
     let family = family_fixture(&["acme-*"], &["acme-a", "acme-b"], copy);
@@ -684,6 +752,10 @@ fn exact_and_family_selectors_scan_a_package_once() {
 /// equal to a body in any package of the family is a non-debt
 /// `REFERENCE-COPY` finding, while a changed body stays clean.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unhomed_reference_copy_is_a_hard_finding() {
     let vendors = ["acme-a", "acme-b", "acme-c"];
     let banned = family_fixture(
@@ -736,6 +808,10 @@ fn unhomed_reference_copy_is_a_hard_finding() {
 /// record, written while it was clean, still fails when a copy is introduced,
 /// and the refused write leaves the record byte for byte as it was.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_existing_debt_record_does_not_hold_a_reference_copy() {
     let vendors = ["acme-a", "acme-b", "acme-c"];
     let fixture = family_fixture(
@@ -773,6 +849,10 @@ fn an_existing_debt_record_does_not_hold_a_reference_copy() {
 /// member is a non-debt finding, and only the copy is flagged (the member's
 /// own units are not). A job-less ledger evaluates; it does not refuse.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours() {
     let library = "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } pub fn wrap(value:u32)->u32 { std::convert::identity(value) } }";
     let banned = |consumer: &str| {
@@ -818,6 +898,10 @@ fn unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours() {
 /// source tree is read from its committed objects, never from the working tree,
 /// although the fixture repository keeps its working tree on disk.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn locked_git_reference_copy_is_a_hard_finding() {
     use raf_source::{
         CommittedGitTree, LoadOptions, LockedCatalog, LockedEdge, LockedManifest,
@@ -926,6 +1010,10 @@ fn family_selector_excludes_member_rows_not_every_row_with_a_member_name() {
 /// A family whose name has two reachable non-member versions is ambiguous and
 /// refuses rather than scanning one of them.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn family_selector_refuses_a_name_with_two_reachable_versions() {
     let ambiguous = workspace_fixture(
         &["acme-*"],
@@ -953,6 +1041,10 @@ fn family_selector_refuses_a_name_with_two_reachable_versions() {
 /// or below the threshold, or held only by reference units, is not, and
 /// first-party grouping is untouched.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn large_constants_shared_with_a_reference_cross_the_boundary_by_value() {
     let tree = fixture(
         "pub fn mix(seed:u64)->u64 { seed ^ 0x1_0000u32 as u64 ^ 0xffff ^ 0xABCD_1234_5678 }\npub fn other()->u64 { 0x1_0000 }",
@@ -1005,6 +1097,10 @@ fn large_constants_shared_with_a_reference_cross_the_boundary_by_value() {
 /// one of them also shares with a reference additionally gets a separate
 /// cross-boundary row, and a value only the first-party packages hold gets none.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_rows() {
     let ledger = unhomed_ledger(&["helper"]);
     let tree = raf_source::MemoryTree::from([
@@ -1065,6 +1161,10 @@ fn first_party_shared_constants_stay_in_the_baseline_beside_the_cross_boundary_r
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reject_misplaced_constant_members(encoded: &str) {
     let original = Graph::from_text(encoded, Format::NTriples).unwrap();
     let first_party = format!("{}firstPartyMember", vocab::REPORT);
@@ -1100,6 +1200,10 @@ fn reject_misplaced_constant_members(encoded: &str) {
 /// The writer refuses a constant row whose members stand on the wrong side of
 /// the reference boundary, as the reader does; the same row on its own sides
 /// writes.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reject_writing_misplaced_constant_members(index: &Index) {
     let mut misplaced = index.clone();
     let row = &mut misplaced.reference_constants[0];
@@ -1115,6 +1219,10 @@ fn reject_writing_misplaced_constant_members(index: &Index) {
 /// conversion: with every reference source and unit receipt stripped, a form 3
 /// document that keeps its constant rows refuses, and the same document
 /// without them is refused for its dangling unit receipts instead.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reject_historical_constant_rows_alone(encoded: &str) {
     let property = |name: &str| TermValue::iri(format!("{}{name}", vocab::REPORT));
     let current = Graph::from_text(encoded, Format::NTriples).unwrap();
@@ -1182,6 +1290,10 @@ fn reject_historical_constant_rows_alone(encoded: &str) {
 /// An index with no reference package carries no constant row and no new
 /// property, so its bytes are those of the previous layout.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_index_without_a_reference_has_no_reference_constant_rows() {
     let tree = raf_source::MemoryTree::from([
         ("Cargo.toml", "[workspace]\nmembers=['app']\n"),
@@ -1228,6 +1340,10 @@ fn upstream_repository(dir: &std::path::Path) -> (String, String) {
     (first, head)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn external_report(ws: &std::path::Path, reference: ExternalReference) -> raf_census::GateReport {
     fixture_gate(ws)
         .external_references([reference])
@@ -1241,6 +1357,11 @@ fn external_report(ws: &std::path::Path, reference: ExternalReference) -> raf_ce
 /// checkout: pinning the head finds nothing although the checkout repeats
 /// `extra`.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference() {
     let locked = workspace_fixture(
         &["upstream"],
@@ -1298,6 +1419,11 @@ fn pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference()
 /// that names no commit, one tree declared twice, and a relative location on
 /// an opaque Tree, which has no main checkout to resolve it from.
 #[test]
+#[expect(
+    clippy::string_slice,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit() {
     let fixture = workspace_fixture(&[], "acme-member", &[], EXTERNAL_CONSUMER);
     let repository = fixture.path().join("upstream");
@@ -1383,6 +1509,10 @@ fn pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit() {
 /// worktree's own directory, `../upstream` would name a directory that does
 /// not exist.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree() {
     let fixture = workspace_fixture(&[], "acme-member", &[], EXTERNAL_CONSUMER);
     let (first, _) = upstream_repository(&fixture.path().join("upstream"));
@@ -1431,6 +1561,10 @@ fn linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree() {
 /// carry that label, an unpinned comparison refuses to record debt, where a
 /// pinned one reaches the ordinary findings refusal instead.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unpinned_directory_finds_the_same_copies_and_labels_every_receipt() {
     let fixture = workspace_fixture(&[], "acme-member", &[], EXTERNAL_CONSUMER);
     let repository = fixture.path().join("upstream");
@@ -1492,6 +1626,10 @@ fn unpinned_directory_finds_the_same_copies_and_labels_every_receipt() {
 
 /// The cross-boundary constants of a report as `(value, first-party symbols,
 /// reference symbols)`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn constant_rows(report: &raf_census::GateReport) -> Vec<(u128, Vec<String>, Vec<String>)> {
     let index = report.census().index(report.jobs()).unwrap();
     let symbols = |rows: &[raf_census::MemberRow]| {
@@ -1516,6 +1654,10 @@ fn constant_rows(report: &raf_census::GateReport) -> Vec<(u128, Vec<String>, Vec
 /// reference packages hold it, while a value a first-party unit shares with
 /// one of them does.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_constant_held_only_by_two_reference_packages_has_no_row() {
     let fixture = family_fixture(
         &["acme-*"],
@@ -1554,6 +1696,10 @@ fn a_constant_held_only_by_two_reference_packages_has_no_row() {
 /// An external reference, pinned or unpinned, yields the same cross-boundary
 /// constant rows as the same package selected through the lock graph.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn external_references_report_cross_boundary_constants_like_a_lock_selected_one() {
     const CONSUMER: &str = "pub fn local()->u64 { 0x1_0000u32 as u64 ^ 0xffff }";
     const LIBRARY: &str = "pub fn provided()->u64 { 65_536 ^ 65535 }";
@@ -1612,6 +1758,10 @@ const PROVIDED: &str = "pub fn provided(input:u32)->u32 { let result=input*2; re
 /// directory below the test target area. Returns the consumer tree and the
 /// cache; `archive` is what the cache holds, and the lock names the checksum of
 /// `locked`, the archive that Cargo would have stored.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn registry_consumer(
     selector: &str,
     source: &str,
@@ -1671,6 +1821,10 @@ fn registry_check(
 /// and the cache, is a hard non-debt finding for an exact and a family selector,
 /// and a changed body stays clean.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour() {
     let archive = acme_core(PROVIDED);
     for selector in ["acme-core", "acme-*"] {
@@ -1703,6 +1857,10 @@ fn registry_reference_copy_is_a_hard_finding_beside_a_changed_neighbour() {
 /// An archive absent from the cache, a cached archive that is not the locked
 /// bytes and an oversized one each refuse by name and never pass silently.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn absent_mismatching_and_oversized_registry_archives_refuse() {
     let archive = acme_core(PROVIDED);
     let consumer = "pub fn copy(input:u32)->u32 { let result=input*2; result+8 }";
@@ -1743,6 +1901,11 @@ const COPIED: &str = "pub fn copy(input:u32)->u32 { let result=input*2; result+7
 /// The check of a consumer made of `files`, whose lock lists `acme-core` from
 /// `source` with the checksum of `archive`, with `archive` stored in a cache
 /// directory below the test target area. `extra` is more lock rows.
+#[expect(
+    clippy::unwrap_in_result,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn registry_scenario(
     files: &[(&str, &str)],
     source: &str,
@@ -1772,6 +1935,10 @@ fn registry_scenario(
 /// explicit registry index, beside a package with a build script and a library
 /// whose name the archive's manifest states.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn registry_declarations_are_matched_to_their_own_lock_rows() {
     const APP: &str = "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n";
     let custom = "registry+https://custom.example/index";
@@ -1876,6 +2043,10 @@ fn registry_declarations_are_matched_to_their_own_lock_rows() {
 /// directly depended-on version still refuses by name when its archive is
 /// missing.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_transitive_row_of_the_same_name_is_not_sealed() {
     let archive = acme_core(PROVIDED);
     let lock = format!(
@@ -1917,6 +2088,10 @@ fn a_transitive_row_of_the_same_name_is_not_sealed() {
 /// it refuses naming each candidate. A lock file over the file-size bound is
 /// refused before it is read.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded() {
     let archive = acme_core(PROVIDED);
     let stale = acme_core("pub fn provided() {}");
@@ -1964,6 +2139,10 @@ fn the_cached_archive_is_chosen_by_its_checksum_and_the_lock_read_is_bounded() {
 /// skipped while a later one matches, and when it is the only candidate the
 /// refusal names it.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_agreeing_one() {
     let archive = acme_core(PROVIDED);
     let lock = format!(
@@ -2044,6 +2223,10 @@ fn a_sealed_selector_that_manifest_and_lock_disagree_about_is_refused_beside_an_
 /// same-name row of a custom registry that also satisfies its requirement is
 /// neither sealed nor needs an archive.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_unnamed_declaration_is_bound_to_the_default_registry_only() {
     let archive = acme_core(PROVIDED);
     let lock = format!(
@@ -2078,6 +2261,10 @@ fn an_unnamed_declaration_is_bound_to_the_default_registry_only() {
 /// registry is refused by package, selector, declaration and registry, never
 /// dropped; the same lock with a default-registry row seals clean.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_unnamed_declaration_with_only_a_custom_registry_row_is_refused() {
     let archive = acme_core(PROVIDED);
     let ledger = unhomed_ledger(&[]);
@@ -2122,6 +2309,10 @@ fn an_unnamed_declaration_with_only_a_custom_registry_row_is_refused() {
 /// reference: a ledger that names no reference sees no finding for a copied
 /// body, while the same package added with `seal_reference` is one finding.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn seal_alone_is_not_a_reference_beside_seal_reference() {
     let archive = acme_core(PROVIDED);
     let cache = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
@@ -2158,6 +2349,10 @@ fn seal_alone_is_not_a_reference_beside_seal_reference() {
 /// through the host's disk, and an in-memory Tree of the same files, which has
 /// no host to read it from, refuses naming the Tree.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_outside_path_reference_is_refused_in_memory_beside_the_disk_tree_that_reads_it() {
     let fixture = family_fixture(
         &["acme-a"],
@@ -2194,6 +2389,10 @@ fn an_outside_path_reference_is_refused_in_memory_beside_the_disk_tree_that_read
 /// because the route seals registry archives only and holds no committed
 /// repository for the row. A registry neighbour with a changed body is clean.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_git_reference_is_refused_by_the_registry_route_beside_a_clean_registry_neighbour() {
     let commit = "0123456789abcdef0123456789abcdef01234567";
     let lock = format!(
@@ -2234,6 +2433,10 @@ fn a_git_reference_is_refused_by_the_registry_route_beside_a_clean_registry_neig
 /// locked load finds no checked source for its declaration, so the workspace
 /// does not load. A registry neighbour with a changed body is clean.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_outside_path_reference_is_refused_by_the_registry_route_beside_a_clean_registry_neighbour() {
     let lock = "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['kit']\n[[package]]\nname='kit'\nversion='1.0.0'\n";
     let ledger = unhomed_ledger(&["kit"]);
@@ -2272,6 +2475,10 @@ fn an_outside_path_reference_is_refused_by_the_registry_route_beside_a_clean_reg
 /// missing checked source; a registry consumer on disk with a changed body is
 /// clean.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_outside_path_reference_is_refused_by_the_registry_route_on_disk_beside_a_clean_registry_neighbour()
  {
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
@@ -2340,6 +2547,10 @@ fn an_outside_path_reference_is_refused_by_the_registry_route_on_disk_beside_a_c
 /// Required and variant-only selection can both use the renamed dependency
 /// enum. Its own catch-all stays outside the first-party inventory.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn enum_catch_alls_prove_variants_from_a_selected_dependency() {
     let consumer = r"
         /// An approved consumer boundary.

@@ -26,6 +26,10 @@ fn commit_of(repo: &Repo, subject: &str) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding() {
     let repo = dated("history-table");
     let before = repo.worktree();
@@ -55,6 +59,10 @@ fn a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed
 }
 
 #[test]
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn rdf_preserves_full_history_commits_sources_paths_and_removed_bindings() {
     let repo = dated("history-rdf");
     let text = repo.both(&["history", "cap:alpha"]).expect(0);
@@ -351,6 +359,10 @@ fn review_carriers() -> [(&'static str, &'static str); 3] {
     ]
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn review_carrier_rows(text: &str, media: &str) -> String {
     let dataset = purrdf_rdf::parse_dataset(text.as_bytes(), media, None)
         .expect("native review carrier parses");
@@ -375,6 +387,10 @@ fn review_carrier_rows(text: &str, media: &str) -> String {
     rows.join("\n")
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_module_review_scope(repo: &Repo) {
     repo.run(&[
         "review",
@@ -415,6 +431,11 @@ fn assert_module_review_scope(repo: &Repo) {
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn assert_public_item_scope_order(repo: &Repo) {
     use raf_okf::{DocType, RecordHeader, ReviewKind, ReviewScope};
     let scope = ReviewScope::Items(vec!["demo::stable".into(), "demo::changed".into()]);

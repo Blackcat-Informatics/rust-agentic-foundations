@@ -27,6 +27,10 @@ todo = "deny"
 unimplemented = "deny"
 "#;
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capture(root: &Path, status: u8, message: &str) -> ProductionLintRun {
     let inputs = ProductionInputs::read(&DiskTree::new(root).unwrap()).unwrap();
     ProductionLintRun::capture(
@@ -53,6 +57,10 @@ fn check(root: &Path, receipt: Option<&Path>, options: &[&str]) -> std::process:
     super::alone(&mut command)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_verdict(root: &Path, destination: &Path, run: &ProductionLintRun, finding: Option<&str>) {
     fs::write(destination, run.to_turtle().unwrap()).unwrap();
     let cli = check(root, Some(destination), &[]);
@@ -70,6 +78,10 @@ fn assert_verdict(root: &Path, destination: &Path, run: &ProductionLintRun, find
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn default_checks_require_passing_production_evidence_for_the_current_sources_and_policy() {
     // Both entry points must require a clean verdict for exactly the inspected inputs.
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
@@ -166,6 +178,10 @@ fn default_checks_require_passing_production_evidence_for_the_current_sources_an
     macro_call_site(&root);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn locked_shipping_inputs(root: &Path) {
     let tree = DiskTree::new(root).unwrap();
     let expected = ProductionInputs::read(&tree).unwrap();
@@ -182,6 +198,10 @@ fn locked_shipping_inputs(root: &Path) {
     fs::write(root.join("Cargo.lock"), "version = 4\n").unwrap();
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn macro_call_site(root: &Path) {
     // Rust resolves a macro-emitted inclusion at its call site. A same-named
     // file beside the definition cannot attest the bytes the compiler reads.
@@ -225,6 +245,10 @@ fn macro_call_site(root: &Path) {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn member_configuration(root: &Path, receipt: &Path) {
     // A member can inherit its Clippy thresholds from an intermediate directory.
     let member = root.join("crates/member");
@@ -257,6 +281,10 @@ fn member_configuration(root: &Path, receipt: &Path) {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unverified_inputs(root: &Path, receipt: &Path) {
     fs::write(root.join("Cargo.toml"), MANIFEST).unwrap();
     fs::write(root.join("build.rs"), "fn main() {}").unwrap();
@@ -276,6 +304,17 @@ fn unverified_inputs(root: &Path, receipt: &Path) {
     let tree = DiskTree::new(root).unwrap();
     let error = ProductionInputs::read(&tree).unwrap_err().to_string();
     assert!(error.contains("build.rustflags"), "{error}");
+    for (config, expected) in [
+        ("env = ['RUSTFLAGS']\n", "env must be a table"),
+        (
+            "[target]\ninvalid = false\n",
+            "target configuration must be a table",
+        ),
+    ] {
+        fs::write(root.join(".cargo/config.toml"), config).unwrap();
+        let error = ProductionInputs::read(&tree).unwrap_err().to_string();
+        assert!(error.contains(expected), "{error}");
+    }
     fs::write(root.join(".cargo/config"), "").unwrap();
     let effective = capture(root, 0, "");
     assert_verdict(root, receipt, &effective, None);

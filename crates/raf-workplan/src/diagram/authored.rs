@@ -724,10 +724,9 @@ fn build_bundle(
         navigation,
     )?;
     if let Some(display) = presentation.displays.first_mut() {
-        use std::fmt::Write as _;
         let description = display.description.get_or_insert_with(String::new);
-        write!(description, "\nFull RDF provenance model hash: {full_hash}")
-            .expect("writing to String cannot fail");
+        description.push_str("\nFull RDF provenance model hash: ");
+        description.push_str(&full_hash);
     }
     let mut details = vec![provenance];
     if let Some(id) = selected {

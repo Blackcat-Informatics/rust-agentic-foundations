@@ -16,6 +16,15 @@ pub(crate) struct GraphView<'a> {
     pub(crate) owner: &'a str,
 }
 
+impl std::fmt::Debug for GraphView<'_> {
+    fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        output
+            .debug_struct("GraphView")
+            .field("owner", &self.owner)
+            .finish_non_exhaustive()
+    }
+}
+
 impl<'a> GraphView<'a> {
     pub(crate) fn rows(self) -> impl Iterator<Item = QuadIds> + 'a {
         self.dataset

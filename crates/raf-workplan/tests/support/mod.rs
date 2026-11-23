@@ -75,6 +75,10 @@ pub use unit::helper as unit_helper;
 /// [`DEMO_LIB`], a module in its own file, an integration test with a test
 /// function and a plain one, an example with a documented helper, and an
 /// example the manifest marks `doctest = true`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn demo_workspace() -> Workspace {
     let tree: MemoryTree = demo_files().into_iter().collect();
     match Workspace::load(&tree, &["."]) {
@@ -111,6 +115,10 @@ pub(crate) fn demo_files() -> Vec<(&'static str, &'static str)> {
 }
 
 /// The source workspace of `files`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn workspace_of(files: &[(&'static str, String)]) -> Workspace {
     let tree: MemoryTree = files
         .iter()
@@ -160,6 +168,10 @@ pub(crate) fn without_sync_findings(findings: Vec<Finding>) -> Vec<Finding> {
 }
 
 /// The path `text` as a tree path.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn path_of(text: &str) -> RelPath {
     match RelPath::new(text) {
         Ok(path) => path,
@@ -170,6 +182,10 @@ pub(crate) fn path_of(text: &str) -> RelPath {
 /// Check the Markdown file `path` of `repo` as a file outside the document
 /// directories, against the tracked paths of the repository and the named
 /// symlinks.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn plain_check(repo: &Repo, path: &str, symlinks: &[&str]) -> Vec<Finding> {
     let tree: MemoryTree = repo.iter().collect();
     let context =
@@ -384,6 +400,10 @@ pub(crate) mod fixtures {
     }
 
     /// The valid repository with the first `from` in `path` replaced by `to`.
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn mutate(path: &str, from: &str, to: &str) -> Repo {
         let mut repo = valid();
         let text = repo
@@ -396,6 +416,10 @@ pub(crate) mod fixtures {
 
     /// The valid repository with `gamma` bound as given: the three lists as
     /// the text after `code:`, `tests:` and `examples:`.
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn bound(code: &str, tests: &str, examples: &str) -> Repo {
         let mut repo = mutate(GAMMA, "  code: [demo::real]", &format!("  code: {code}"));
         let text = repo.get_mut(GAMMA).unwrap_or_else(|| panic!("no gamma"));
@@ -486,6 +510,10 @@ pub(crate) fn section(name: &str) -> Location {
 }
 
 /// The 1-based line of the first line of `text` that contains `needle`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn line_of(text: &str, needle: &str) -> usize {
     match text.lines().position(|line| line.contains(needle)) {
         Some(index) => index + 1,

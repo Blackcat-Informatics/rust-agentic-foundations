@@ -68,6 +68,11 @@ const ENUM_USAGE_FIXTURE: &str = r#"
 
 /// Only a resolved shipping expression discharges a variant's use obligation.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn designated_enum_requires_shipping_values_and_current_retentions() {
     let source = ENUM_USAGE_FIXTURE;
     let check = |source: &str, retentions: &[(&str, &str)]| {
@@ -154,6 +159,11 @@ fn designated_enum_requires_shipping_values_and_current_retentions() {
 
 /// Destructuring constructor heads behave as patterns even in assignment syntax.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn enum_assignees_preserve_real_value_expressions_in_places() {
     let source = r"
         enum State { Pair(u8) }
@@ -219,6 +229,12 @@ pub(super) fn enum_policy(retentions: &[(&str, &str)]) -> super::Builder {
 /// The required inventory coexists with numeric bounds, and job policy counts
 /// both arms in the home package.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::string_slice,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
     let id = detector_fixtures::ENUM_MATCH.0;
     let source = r"
@@ -295,6 +311,10 @@ fn enum_catch_alls_share_the_required_forbidden_and_ratcheted_routes() {
 
 /// One shared arm needs enum evidence at each source reach and reports once.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn enum_catch_alls_keep_only_arms_proved_across_shared_reaches() {
     let ledger = base()
         .finish()

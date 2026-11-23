@@ -672,6 +672,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn control_characters_in_a_path_are_escaped() {
         let file = RelPath::new(&format!("src/{HOSTILE_PATH}.rs")).expect("a relative path");
         let text = LoadError::tree(
@@ -695,6 +702,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn every_user_derived_field_of_every_display_is_escaped() {
         let file = RelPath::new("x").expect("a relative path");
         let hostile = || HOSTILE.to_owned();
@@ -798,6 +812,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_spawn_error_displays_the_file_and_carries_its_cause() {
         let file = RelPath::new("src/lib.rs").expect("a plain path");
         let error = LoadError::new(

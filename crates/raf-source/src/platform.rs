@@ -352,10 +352,13 @@ impl<'w> Builder<'w, '_, '_, '_> {
                 self.uncertain |= !item.paths.conditional.is_empty();
                 return self.attrs(&item.attrs);
             }
-            let mut enclosing = body.mods.iter().chain(&body.blocks).filter(|item| {
-                item.inline.is_some() && item.span.start_byte <= start && start < item.span.end_byte
-            });
-            let Some(selected) = enclosing.next() else {
+            let mut enclosing = body
+                .mods
+                .iter()
+                .chain(&body.blocks)
+                .filter(|item| item.span.start_byte <= start && start < item.span.end_byte)
+                .filter_map(|item| item.inline.as_ref().map(|inline| (item, inline)));
+            let Some((selected, inline)) = enclosing.next() else {
                 return Err(LoadError::new(
                     self.file,
                     None,
@@ -375,9 +378,7 @@ impl<'w> Builder<'w, '_, '_, '_> {
             }
             self.uncertain |= !selected.paths.conditional.is_empty();
             self.attrs(&selected.attrs)?;
-            // INVARIANT: the enclosing-module iterator selects only entries
-            // whose immutable inline body is Some; no mutation occurs above.
-            body = selected.inline.as_ref().expect("selected inline module");
+            body = inline;
         }
     }
 }
@@ -542,6 +543,13 @@ mod tests {
     use super::*;
     use crate::MemoryTree;
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn workspace(files: &[(&str, &str)]) -> Workspace {
         let tree: MemoryTree =
             std::iter::once(("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\n"))
@@ -550,6 +558,13 @@ mod tests {
         Workspace::load(&tree, &["."]).unwrap()
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn at<'a>(source: &'a Workspace, path: &str) -> TestPlatformGuard<'a> {
         let item = source
             .items()
@@ -558,16 +573,37 @@ mod tests {
         source.test_platform_guard(item.id).unwrap()
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn linux() -> CompilerPlatform {
         CompilerPlatform::parse("target_os=\"linux\"\ntarget_family=\"unix\"\nunix\n").unwrap()
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn windows() -> CompilerPlatform {
         CompilerPlatform::parse("target_os=\"windows\"\ntarget_family=\"windows\"\nwindows\n")
             .unwrap()
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn platform_guard_reference_storage_uses_the_remaining_item_grant() {
         let tree = MemoryTree::from([
             ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\n"),
@@ -626,6 +662,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn platform_guard_work_exhaustion_is_typed_beside_a_sufficient_neighbor() {
         let source = workspace(&[("src/lib.rs", "#[cfg(windows)]\n#[test]\nfn selected() {}\n")]);
         let item = source
@@ -664,6 +707,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn parent_platform_guards_do_not_filter_the_source_inventory() {
         let source = workspace(&[
             (
@@ -709,6 +759,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion() {
         let source = workspace(&[(
             "src/lib.rs",
@@ -783,6 +841,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn compiler_platform_refuses_incomplete_or_malformed_output() {
         assert!(matches!(
             CompilerPlatform::parse("unix\n"),
@@ -808,6 +873,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn conditional_module_routes_remain_unknown() {
         let source = workspace(&[
             (
@@ -829,6 +901,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn invalid_item_is_an_actionable_error() {
         let source = workspace(&[("src/lib.rs", "#[test] fn plain() {}")]);
         let error = source.test_platform_guard(ItemId(usize::MAX)).unwrap_err();

@@ -8,6 +8,13 @@ use crate::Workplan;
 use raf_source::{MemoryTree, Workspace};
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn verification_returns_static_bindings_without_running_their_bodies() {
     let tree = MemoryTree::from([
         (

@@ -23,10 +23,18 @@ fn load_with(files: &[(&str, &str)], options: &CensusOptions) -> Result<Census, 
     Census::load(&tree(files), &["."], options)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn load(files: &[(&str, &str)]) -> Census {
     load_with(files, &CensusOptions::default()).expect("the workspace loads")
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn unit<'a>(census: &'a Census, symbol: &str) -> &'a Unit {
     census
         .unit(symbol)
@@ -34,6 +42,10 @@ fn unit<'a>(census: &'a Census, symbol: &str) -> &'a Unit {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn self_type_arguments_keep_shim_keys_beside_generic_self_callees() {
     let census = load(&[("src/lib.rs", include_str!("fixtures/self-generics.rs"))]);
     for name in ["kept", "kept_arrow"] {
@@ -96,6 +108,10 @@ pub static ST: &str = \"hello\";
 ";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn each_kind_yields_one_unit_with_every_field() {
     let census = load(&[("src/lib.rs", KINDS)]);
     let mut found = symbols(&census);
@@ -263,6 +279,10 @@ fn a_support_module_shared_by_two_test_binaries_is_one_unit_that_does_not_ship()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn shipping_is_true_when_any_reach_ships_and_the_shipping_path_is_the_symbol() {
     let census = load(&[
         ("src/lib.rs", "mod zed;\n"),
@@ -303,6 +323,10 @@ fn test_code_of_a_shipping_target_does_not_ship() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn file_context_names_package_path_and_shipping() {
     let census = load(&[
         ("src/lib.rs", "pub fn go() {}\n"),
@@ -320,6 +344,10 @@ fn file_context_names_package_path_and_shipping() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn file_context_names_the_target_kinds_that_reach_the_file() {
     let census = load(&[
         ("src/lib.rs", "pub fn go() {}\n"),
@@ -485,6 +513,10 @@ fn body_of(name: &str, count: usize) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten() {
     let source = [9, 10, 19, 20]
         .map(|count| body_of(&format!("f{count}"), count))
@@ -524,6 +556,10 @@ fn padded(head: &str, len: usize) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn max_file_bytes_caps_a_file_and_the_cap_itself_loads() {
     let cap = 600;
     let at_cap = padded("pub fn go() {}\n", cap);
@@ -546,6 +582,10 @@ fn max_file_bytes_caps_a_file_and_the_cap_itself_loads() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn shim_keys_are_absent_for_trait_impl_methods_and_self_forwarders() {
     let census = load(&[(
         "src/lib.rs",
@@ -650,6 +690,10 @@ impl U {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_turbofish_call_is_a_forwarder_and_keeps_its_key_beside_a_twin() {
     let census = load(&[(
         "src/lib.rs",
@@ -763,6 +807,10 @@ fn a_workspace_without_roots_does_not_load() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn this_repositorys_own_crates_load_into_distinct_units() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -785,6 +833,10 @@ fn this_repositorys_own_crates_load_into_distinct_units() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it() {
     let body = |name: &str, noise: &str| {
         format!("pub fn {name}(v: &[u8]) -> u8 {{ if v{noise}.len() > 3 {{ 1 }} else {{ 0 }} }}\n")
@@ -824,6 +876,10 @@ fn deep_type(levels: usize, generics: usize) -> String {
 }
 
 /// Runs `body` on a thread with a stack of 2 MiB, the stack of a test thread.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn on_small_stack<R: Send>(body: impl FnOnce() -> R + Send) -> R {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
@@ -836,6 +892,11 @@ fn on_small_stack<R: Send>(body: impl FnOnce() -> R + Send) -> R {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused() {
     let source = |levels: usize| {
         format!(
@@ -867,6 +928,10 @@ fn a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_deep_constant_type_loads_on_a_small_stack() {
     let source = format!("pub const N: {} = (0,);\n", deep_type(8, 60));
     let census =
@@ -875,6 +940,10 @@ fn a_deep_constant_type_loads_on_a_small_stack() {
     assert_eq!(unit(&census, "demo::N").constants, BTreeSet::from([0]));
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_caller_span_survives(source: &str, succeeds: bool) {
     let tokens: proc_macro2::TokenStream = "\n\ncaller_symbol".parse().expect("caller tokens");
     let span = tokens.into_iter().next().expect("caller token").span();
@@ -914,6 +983,10 @@ fn caller_spans_survive_a_refused_census_load() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn loading_a_tree_with_caller_local_state_needs_no_sync_bound() {
     use raf_source::{Entry, EntryKind, FileId, Opened, RelPath, Tree, TreeError};
 
@@ -952,6 +1025,10 @@ fn loading_a_tree_with_caller_local_state_needs_no_sync_bound() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_held_standalone_tower_keeps_its_forms_and_print_across_census_loads() {
     let options = CensusOptions::default();
     let tower = raf_census::Normalizer::new(&options)
@@ -977,6 +1054,10 @@ fn a_held_standalone_tower_keeps_its_forms_and_print_across_census_loads() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn loading_one_tree_twice_preserves_the_callers_span_storage_and_unit_results() {
     let files = [(
         "src/lib.rs",
@@ -1014,6 +1095,10 @@ fn loading_one_tree_twice_preserves_the_callers_span_storage_and_unit_results() 
 }
 
 /// The observable source-file ordinal, unlike `byte_range` which is file-relative.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn first_file() -> String {
     let tokens: proc_macro2::TokenStream = "fresh".parse().expect("lexes");
     tokens.into_iter().next().expect("one token").span().file()

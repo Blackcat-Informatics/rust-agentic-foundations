@@ -9,6 +9,10 @@ use purrdf_gts::files::{FileEntry, pack_entries_v2};
 
 /// The `.crate` bytes (a gzip-compressed tar) of `name` at `version`, holding
 /// `files` under `name-version/`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub fn crate_archive(name: &str, version: &str, files: &[(&str, &str)]) -> Vec<u8> {
     let entries: Vec<_> = files
         .iter()
@@ -31,6 +35,10 @@ pub fn checksum(archive: &[u8]) -> String {
 }
 
 /// Stores `archive` where Cargo keeps it: `cache/INDEX/NAME-VERSION.crate`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub fn place(cache: &Path, index: &str, name: &str, version: &str, archive: &[u8]) {
     let directory = cache.join(index);
     std::fs::create_dir_all(&directory).expect("the index directory is created");

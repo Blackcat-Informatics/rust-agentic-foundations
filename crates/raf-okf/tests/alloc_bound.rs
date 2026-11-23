@@ -19,6 +19,10 @@ const FIXED_ALLOWANCE: usize = 16 * 1024;
 
 /// Build the text in one allocation, so the peak before the parse is the
 /// input itself.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn billion_laughs(levels: usize) -> String {
     let mut text = String::with_capacity(levels * 40 + 64);
     text.push_str("---\ntype: Capability\nlol0: &lol0 [\"lol\", \"lol\", \"lol\", \"lol\"]\n");
@@ -38,6 +42,10 @@ fn refused_documents_stay_within_eight_times_their_size() {
     large_refused_document_stays_within_the_bound();
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn billion_laughs_fails_fast_within_the_bound() {
     let text = billion_laughs(9);
     let window = CurrentThreadWindow::open();
@@ -63,6 +71,10 @@ fn billion_laughs_fails_fast_within_the_bound() {
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn large_refused_document_stays_within_the_bound() {
     // Many keys, then an alias on the last line: the parse reads every line
     // before the refusal, so memory follows the entries kept so far.

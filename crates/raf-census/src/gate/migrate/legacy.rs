@@ -18,7 +18,7 @@ use super::{Migration, MigrationInput, finish, input};
 use crate::{
     Census, CensusOptions, Error, MAX_LEDGER_BYTES, NORMAL_FORM, REPORT_FORM, ReportError,
 };
-use fields::Fields;
+use fields::{Fields, source_spelling};
 
 /// Import a foreign TOML ledger with its explicitly selected legacy JSON baseline.
 ///
@@ -105,10 +105,10 @@ pub fn migrate_legacy_with_extensions(
         let min_tokens = settings
             .integer("min_tokens")?
             .unwrap_or(crate::DEFAULT_MIN_TOKENS as u64);
-        let mut options = CensusOptions::default().min_tokens(
-            usize::try_from(min_tokens)
-                .map_err(|_| settings.bad("min_tokens", "value exceeds usize"))?,
-        )?;
+        let Ok(min_tokens) = usize::try_from(min_tokens) else {
+            return Err(settings.bad("min_tokens", "value exceeds usize"));
+        };
+        let mut options = CensusOptions::default().min_tokens(min_tokens)?;
         options.max_file_bytes = settings
             .integer("max_file_bytes")?
             .unwrap_or(options.max_file_bytes);
@@ -205,7 +205,7 @@ fn check_depth(document: &Document<'_>) -> Result<(), Error> {
         if matches!(
             node.kind,
             Kind::Scalar(Scalar::Float(Float::Infinity { .. }))
-        ) && !["inf", "+inf", "-inf"].contains(&&document.text()[node.span.clone()])
+        ) && !["inf", "+inf", "-inf"].contains(&source_spelling(document, node.span.clone())?)
         {
             return Err(Error::Options(format!(
                 "foreign floating-point number overflowed at bytes {}..{}",

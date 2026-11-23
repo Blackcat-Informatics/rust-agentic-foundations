@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
+#![forbid(unsafe_code)]
+
 //! Closed, canonical ground RDF 1.2 report profiles.
 //!
 //! Named snapshot subjects, absolute vocabulary IRIs, typed literals and

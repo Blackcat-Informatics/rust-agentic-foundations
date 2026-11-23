@@ -201,7 +201,7 @@ pub(super) fn presentation(
             let (binding, _, _) = super::relation_binding(model, projection, row)?;
             let mut role = "DECLARED".to_owned();
             if let Some(protocol) = &row.protocol {
-                write!(role, "; {protocol}").expect("writing to String cannot fail");
+                write!(role, "; {protocol}").map_err(DiagramError::data)?;
             }
             if let Some(id) = &row.artifact {
                 let artifact = model
@@ -210,8 +210,7 @@ pub(super) fn presentation(
                     .iter()
                     .find(|artifact| artifact.id == *id)
                     .ok_or_else(|| DiagramError::refused(format!("artifact `{id}` is absent")))?;
-                write!(role, "; {}", artifact.artifact_type)
-                    .expect("writing to String cannot fail");
+                write!(role, "; {}", artifact.artifact_type).map_err(DiagramError::data)?;
             }
             presentation.displays.push(VizDisplay {
                 binding,

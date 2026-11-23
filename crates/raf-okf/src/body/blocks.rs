@@ -41,6 +41,17 @@ pub(crate) struct Line {
     pub(crate) list_item: bool,
 }
 
+impl Line {
+    /// The spelling of a native physical line in its original body.
+    #[expect(
+        clippy::string_slice,
+        reason = "native line endpoints are UTF-8 boundaries in that body"
+    )]
+    pub(super) fn text<'a>(&self, body: &'a str) -> &'a str {
+        &body[self.start..self.end]
+    }
+}
+
 /// Project an original byte to its physical line without rescanning text.
 pub(crate) fn line_of(lines: &[Line], byte: usize) -> usize {
     lines
@@ -49,6 +60,10 @@ pub(crate) fn line_of(lines: &[Line], byte: usize) -> usize {
 }
 
 /// The error for a failure at byte offset within a physical line.
+#[expect(
+    clippy::string_slice,
+    reason = "marker columns come from trimming a native physical line or point to its start"
+)]
 pub(crate) fn error_at(
     body: &str,
     lines: &[Line],
@@ -64,6 +79,10 @@ pub(crate) fn error_at(
 }
 
 /// Native spans are offsets into the admitted, at most one MiB input.
+#[expect(
+    clippy::expect_used,
+    reason = "native endpoints come from a borrowed source already admitted within the document bound"
+)]
 pub(super) fn offset(byte: u64) -> usize {
     // INVARIANT: native authoring observations derive every endpoint from its
     // borrowed source; that source already fits usize and the document bound.

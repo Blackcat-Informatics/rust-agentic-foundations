@@ -6,6 +6,13 @@
 use super::*;
 use crate::embedded::coordinates::Coordinates;
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 pub(in crate::embedded) fn without_work<T>(
     source: &str,
     operation: impl FnOnce(&Coordinates<'_, '_>) -> Result<T, Refusal>,
@@ -20,6 +27,13 @@ pub(in crate::embedded) fn without_work<T>(
     assert!(matches!(operation(&coordinates), Err(Refusal::Work { .. })));
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 pub(in crate::embedded) fn check() {
     pattern::fixture::check();
     ty::fixture::check();
@@ -71,6 +85,13 @@ pub(in crate::embedded) fn check() {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn item_anchors() {
     // Original syntax only: these declarations need not type-check, and none
     // of their bodies, foreign declarations or macros are compiled or run.
@@ -140,6 +161,14 @@ fn item_anchors() {
     .unwrap();
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn inner_anchors() {
     let source = "fn owner<'a, T, const N: usize>() { #[allow(unused)] let named = S { #[allow(unused)] value: make(), 0: other(), shorthand }; let bare = make(); }";
     let path = raf_source::RelPath::new("inner-anchors.rs").unwrap();
@@ -218,6 +247,13 @@ fn inner_anchors() {
     .unwrap();
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn declaration(item: &syn::Item, meter: &Meter) -> Result<Ends, Refusal> {
     match item {
         syn::Item::Fn(node) => function(node, meter),

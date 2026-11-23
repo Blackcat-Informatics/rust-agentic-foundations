@@ -159,6 +159,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn zero_min_tokens_is_refused_and_one_is_accepted() {
         let refused = CensusOptions::default()
             .min_tokens(0)
@@ -181,6 +188,13 @@ mod tests {
     /// An excluded directory is matched by exact segment, so only one plain
     /// name can be honoured; a path or a dot name would silently match nothing.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn excluded_directories_are_plain_names_matched_only_above_the_file() {
         for refused in ["", ".", "..", "a/b", "a\\b"] {
             let error = GroupingScope::default()

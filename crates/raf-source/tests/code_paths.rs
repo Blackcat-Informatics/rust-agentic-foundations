@@ -19,6 +19,10 @@ fn tree(edition: &str, source: &str) -> MemoryTree {
     .collect()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn owner(workspace: &Workspace, symbol: &str) -> raf_source::ItemId {
     let resolution = workspace.resolve_in(symbol, Namespace::Value).unwrap();
     assert_eq!(resolution.sites.len(), 1);
@@ -26,6 +30,11 @@ fn owner(workspace: &Workspace, symbol: &str) -> raf_source::ItemId {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn nominal_aliases_distinguish_opaque_reexports_from_broken_local_routes() {
     let check = |source: &str, symbol, outside| {
         let workspace = Workspace::load(&tree("2024", source), &["."]).unwrap();
@@ -175,6 +184,10 @@ fn enum_route_files() -> MemoryTree {
 
 /// A route carries the defining enum through each import's own module.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn enum_member_imports_require_unique_visible_routes() {
     let files = enum_route_files();
     let workspace = Workspace::load(&files, &["."]).unwrap();
@@ -273,6 +286,11 @@ fn enum_member_imports_require_unique_visible_routes() {
     assert_enum_file_reach_routes(&workspace, &code, reader, state);
 }
 
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn assert_enum_file_reach_routes(
     workspace: &Workspace,
     code: &raf_source::CodeResolver<'_>,
@@ -320,6 +338,10 @@ fn assert_enum_file_reach_routes(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn external_library_query_scratch_uses_the_original_native_grants() {
     let files = MemoryTree::from([
         ("Cargo.toml", "[workspace]\nmembers=['consumer','provider']"),
@@ -378,6 +400,10 @@ fn external_library_query_scratch_uses_the_original_native_grants() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn external_library_receipts_keep_actual_names_exports_and_definition_identity() {
     for (dependency, rust_name) in [
         ("renamed={package='provider',path='../provider'}", "renamed"),
@@ -440,6 +466,10 @@ fn external_library_receipts_keep_actual_names_exports_and_definition_identity()
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root() {
     for (source, symbol, ambiguous) in [
         (
@@ -512,6 +542,10 @@ fn library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root()
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn code_associated_calls_prefer_inherent_methods_without_erasing_symbol_inventory() {
     let source = "pub trait Tr{fn run()->u32;} pub struct S; impl Tr for S{fn run()->u32{1}} impl S{pub fn run()->u32{2}} pub struct OnlyTrait; impl Tr for OnlyTrait{fn run()->u32{3}} pub fn reader(){S::run(); OnlyTrait::run();}";
     let workspace = Workspace::load(&tree("2024", source), &["."]).unwrap();
@@ -562,6 +596,10 @@ fn code_associated_calls_prefer_inherent_methods_without_erasing_symbol_inventor
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn alias_members_preserve_definition_chains_cycles_and_original_query_grants() {
     let source = "pub struct State<const N:usize>; impl<const N:usize> State<N>{pub fn read()->usize{N}} pub type A=State<3>; pub type B=A; pub fn reader(){B::read();}";
     let files = tree("2024", source);
@@ -650,6 +688,10 @@ fn alias_members_preserve_definition_chains_cycles_and_original_query_grants() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn inherent_method_applicability_is_local_to_the_selected_signature() {
     for (methods, plain) in [
         ("pub fn run(){} pub fn generic<T>(){}", true),
@@ -701,6 +743,10 @@ fn inherent_method_applicability_is_local_to_the_selected_signature() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn complete_module_paths_return_actual_type_sites_without_becoming_values() {
     let workspace = Workspace::load(
         &tree("2024", "pub mod child { pub fn reader() {} }"),
@@ -741,6 +787,10 @@ fn complete_module_paths_return_actual_type_sites_without_becoming_values() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root() {
     let source =
         "pub fn selected(){} pub mod child { pub fn selected(){} pub fn reader(){selected();} }";
@@ -771,6 +821,10 @@ fn code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root()
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn method_and_trait_members_read_their_defining_module_instead_of_their_symbol_parent() {
     let source = "pub mod types { pub struct S; } pub mod engine { use crate::types::S; pub fn chosen(){} impl S { pub fn reader(){chosen();} } pub trait Tr { fn defaulted(){chosen();} } }";
     let workspace = Workspace::load(&tree("2021", source), &["."]).unwrap();
@@ -806,6 +860,10 @@ fn method_and_trait_members_read_their_defining_module_instead_of_their_symbol_p
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_module_body_reads_itself_while_its_declaration_reads_its_parent() {
     let source = "pub fn chosen(){} pub mod child { pub fn chosen(){} invoke!(chosen); }";
     let workspace = Workspace::load(&tree("2021", source), &["."]).unwrap();
@@ -827,6 +885,11 @@ fn a_module_body_reads_itself_while_its_declaration_reads_its_parent() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn code_context_tables_spend_only_the_original_load_allowance_and_preserve_usage() {
     let files = tree("2021", "pub fn reader(){}");
     let workspace = Workspace::load(&files, &["."]).unwrap();
@@ -863,6 +926,10 @@ fn code_context_tables_spend_only_the_original_load_allowance_and_preserve_usage
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn exported_macros_keep_their_lexical_module_beside_their_crate_root_export() {
     let source = "pub fn selected(){} pub mod inner { pub fn selected(){} #[macro_export] macro_rules! exported {()=>{selected();}} macro_rules! ordinary {()=>{selected();}} }";
     let workspace = Workspace::load(&tree("2021", source), &["."]).unwrap();
@@ -901,6 +968,11 @@ fn exported_macros_keep_their_lexical_module_beside_their_crate_root_export() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn pattern_binding_observations_exclude_names_introduced_by_guard_expressions() {
     let source = "fn reader(value:Option<u8>){match value {Some(bound) if {let leaked=1; leaked==bound} => (), _=>()}}";
     let names = raf_source::parse_source(

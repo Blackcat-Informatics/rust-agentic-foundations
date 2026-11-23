@@ -499,6 +499,13 @@ impl DiskTree {
     /// so a regression that drops the flag fails here and never reaches a
     /// FIFO that would block it.
     #[cfg(all(test, unix))]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn note_open(&self, flags: u32) {
         assert!(
             never_blocks(flags),
@@ -509,6 +516,13 @@ impl DiskTree {
 
     /// The flags of every open recorded so far, oldest first.
     #[cfg(all(test, unix))]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn recorded_opens(&self) -> Vec<u32> {
         self.opens.lock().expect("the open record").clone()
     }
@@ -786,6 +800,10 @@ fn read_capped(source: impl Read, max_bytes: u64, shown: &str) -> Result<Vec<u8>
     Ok(bytes)
 }
 
+#[expect(
+    clippy::map_err_ignore,
+    reason = "the public NotUtf8 refusal identifies the whole file and does not retain its bytes"
+)]
 fn text(bytes: Vec<u8>, path: &RelPath) -> Result<String, TreeError> {
     String::from_utf8(bytes).map_err(|_| TreeError::NotUtf8 {
         path: path.to_string(),

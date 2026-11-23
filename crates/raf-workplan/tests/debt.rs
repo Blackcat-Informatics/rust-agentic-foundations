@@ -24,6 +24,10 @@ use support::disk::{Scratch, changed, put, read, snapshot};
 use support::strict;
 use support::synced::options;
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn memory(root: &Path) -> MemoryTree {
     MemoryTree::try_from_iter(
         snapshot(root)
@@ -33,6 +37,11 @@ fn memory(root: &Path) -> MemoryTree {
     .unwrap()
 }
 
+#[expect(
+    clippy::unwrap_in_result,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn write_memory(tree: &mut MemoryTree) -> Result<raf_workplan::debt::DebtWrite, DebtError> {
     let source = Workspace::load(tree, &["."]).unwrap();
     Workplan::load(tree, &source).write_debt_in(tree, &RecordOptions::new())
@@ -65,11 +74,19 @@ fn repository(tag: &str, capability: &str, library: &str, record: &str) -> Scrat
 }
 
 /// Judge the catalogue link against the fixture's capability path.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn fixture_gate(root: &Path) -> Gate {
     Gate::workspace(root).tracked_paths([RelPath::new(strict::CAPABILITY).unwrap()])
 }
 
 /// Sync the generated blocks, creating the index.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn sync(root: &Path) {
     let opened = fixture_gate(root).open().expect("a repository");
     let report = opened.workplan().sync(&options()).expect("a sync");
@@ -142,6 +159,10 @@ fn two_thin() -> Scratch {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn without_a_record_every_strict_finding_stands_and_the_write_creates_it() {
     let repo = two_thin();
     let root = repo.path();
@@ -202,6 +223,10 @@ fn broken() -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_holds() {
     let repo = repository(
         "debt-kinds",
@@ -270,6 +295,10 @@ fn every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_hold
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_repository_that_passes_has_no_finding_to_hold_and_the_write_records_nothing() {
     let repo = repository(
         "debt-clean",
@@ -290,6 +319,11 @@ fn a_repository_that_passes_has_no_finding_to_hold_and_the_write_records_nothing
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing() {
     let repo = two_thin();
     let root = repo.path();
@@ -327,6 +361,11 @@ fn a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn rewording_a_recorded_constraint_is_growth_beside_its_resolved_old_key() {
     let capability = strict::replaced(
         &strict::capability(),
@@ -396,6 +435,11 @@ fn rewording_a_recorded_constraint_is_growth_beside_its_resolved_old_key() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt() {
     let repo = two_thin();
     let root = repo.path();
@@ -444,6 +488,11 @@ fn a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_d
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched() {
     let repo = two_thin();
     let root = repo.path();
@@ -477,6 +526,11 @@ fn two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_finding_of_the_default_rules_stops_the_write() {
     let repo = two_thin();
     let root = repo.path();
@@ -516,6 +570,10 @@ fn a_finding_of_the_default_rules_stops_the_write() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_default_gate_records_present_debt_without_a_policy_switch() {
     let repo = repository(
         "debt-default",
@@ -677,6 +735,10 @@ fn an_invalid_debt_row_is_refused_without_a_policy_selector() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_invalid_row_holds_nothing_so_the_write_replaces_it() {
     let repo = repository(
         "debt-invalid-replaced",
@@ -759,6 +821,10 @@ fn orphan_repo(tag: &str, functions: &[(&str, usize)], extra: &str) -> Scratch {
     )
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn lines_of(root: &Path) -> Vec<(String, usize)> {
     let opened = fixture_gate(root).open().expect("opens");
     let plan = opened.workplan();
@@ -773,6 +839,10 @@ fn lines_of(root: &Path) -> Vec<(String, usize)> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn orphan_lines_over_a_ceiling_are_held_per_item_as_a_count() {
     let repo = orphan_repo("debt-lines", &[("helper", 1)], "");
     let root = repo.path();
@@ -803,6 +873,11 @@ fn orphan_lines_over_a_ceiling_are_held_per_item_as_a_count() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn an_item_that_holds_more_lines_than_its_row_fails_naming_the_row_and_the_write_refuses() {
     let repo = orphan_repo("debt-lines-grow", &[("helper", 1)], "");
     let root = repo.path();
@@ -830,6 +905,10 @@ fn an_item_that_holds_more_lines_than_its_row_fails_naming_the_row_and_the_write
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_orphan_item_with_no_row_is_growth_in_a_package_judged_by_its_rows() {
     let repo = orphan_repo("debt-lines-new", &[("helper", 1)], "");
     let root = repo.path();
@@ -856,6 +935,10 @@ fn an_orphan_item_with_no_row_is_growth_in_a_package_judged_by_its_rows() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_package_over_a_ceiling_that_the_record_does_not_name_is_growth_not_adoption() {
     // The record exists and holds findings only: the package newly over its
     // ceiling is debt that grew.
@@ -873,6 +956,10 @@ fn a_package_over_a_ceiling_that_the_record_does_not_name_is_growth_not_adoption
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_falling_count_fails_until_the_write_lowers_the_row() {
     let repo = orphan_repo("debt-lines-fall", &[("helper", 1)], "");
     let root = repo.path();
@@ -901,6 +988,10 @@ fn a_falling_count_fails_until_the_write_lowers_the_row() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_item_that_is_gone_is_resolved_and_the_write_drops_its_row() {
     let repo = orphan_repo("debt-lines-gone", &[("helper", 1)], "");
     let root = repo.path();
@@ -920,6 +1011,10 @@ fn an_item_that_is_gone_is_resolved_and_the_write_drops_its_row() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_debt() {
     let repo = orphan_repo("debt-lines-ceiling", &[("helper", 1)], "");
     let root = repo.path();
@@ -957,6 +1052,12 @@ fn a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_d
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given() {
     let repo = two_thin();
     let root = repo.path();
@@ -964,7 +1065,7 @@ fn the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given() {
         .copyright("2026 Example Org <dev@example.org>")
         .licence("CC-BY-4.0");
     let written = fixture_gate(root)
-        .record_options(options.clone())
+        .record_options(options)
         .write_debt()
         .expect("adopts");
     assert_eq!(written.change(), DebtChange::Created);
@@ -1008,6 +1109,10 @@ fn the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given() {
 }
 
 /// The text of the record in a snapshot.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn before_text(snapshot: &BTreeMap<String, Vec<u8>>) -> String {
     String::from_utf8(snapshot[DEBT].clone()).expect("the record is text")
 }
@@ -1048,6 +1153,10 @@ fn the_debt_kinds_are_kinds_of_strict_mode_and_the_ten_rules_that_a_row_can_hold
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_record_is_read_back_as_the_typed_value_the_write_built() {
     let record = DebtRecord::new(Vec::new(), vec![DebtLine::new("demo::helper", 3)]);
     let repo = orphan_repo("debt-typed", &[("helper", 1)], "");
@@ -1062,6 +1171,10 @@ fn the_record_is_read_back_as_the_typed_value_the_write_built() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_default_debt_writer_judges_all_present_findings() {
     let repo = two_thin();
     let root = repo.path();
@@ -1071,6 +1184,10 @@ fn the_default_debt_writer_judges_all_present_findings() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_snapshot_of_every_other_file_is_unchanged_by_a_refused_write() {
     let repo = two_thin();
     let root = repo.path();

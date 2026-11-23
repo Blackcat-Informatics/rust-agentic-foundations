@@ -414,6 +414,10 @@ impl<'a> Frames<'a> {
             return Ok(());
         };
         let operation = (|| {
+            #[expect(
+                clippy::map_err_ignore,
+                reason = "a frontier layout beyond the native size bound uses the native SizeOverflow cause"
+            )]
             let bytes = Layout::array::<Frame<'a>>(self.values.capacity())
                 .map_err(|_| StorageError::SizeOverflow)?
                 .size();
@@ -451,16 +455,20 @@ impl<'a> Frames<'a> {
 }
 
 impl Drop for Frames<'_> {
+    #[expect(
+        clippy::expect_used,
+        reason = "a retained Vec already has a valid layout and releasing that layout reduces its own frontier charge"
+    )]
     fn drop(&mut self) {
         if let Some(parser) = self.parser {
             let values = std::mem::take(&mut self.values);
             let bytes = Layout::array::<Frame<'_>>(values.capacity())
-                .expect("retained frontier capacity has a representable layout")
+                .expect("INVARIANT: retained frontier capacity has a representable layout")
                 .size();
             let mut admission = FrameAdmission { parser, bytes };
             Memory::resume(&mut admission, bytes)
                 .release_vec(values)
-                .expect("destroyed frontier retains its original scheduler grant");
+                .expect("INVARIANT: a destroyed frontier releases its own scheduler grant");
         }
     }
 }

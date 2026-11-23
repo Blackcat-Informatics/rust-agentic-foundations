@@ -53,6 +53,10 @@ fn the_findings_are_those_of_the_library_gate_in_the_same_order() {
 }
 
 /// The message `Gate::assert_clean` panics with, or `None` when it does not.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_clean_message(root: &std::path::Path) -> Option<String> {
     let root = root.to_path_buf();
     let outcome = std::panic::catch_unwind(move || {
@@ -68,6 +72,10 @@ fn assert_clean_message(root: &std::path::Path) -> Option<String> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message() {
     let clean = Repo::synced("check-assert-clean", false);
     assert_eq!(assert_clean_message(clean.root()), None);
@@ -196,6 +204,10 @@ fn a_manifest_that_does_not_parse_exits_two() {
 /// unreadable, and there the premise of the case does not hold.
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_source_file_that_cannot_be_read_exits_two() {
     use std::fs;
     use std::os::unix::fs::PermissionsExt as _;

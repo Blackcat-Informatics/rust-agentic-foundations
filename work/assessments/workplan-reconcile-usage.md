@@ -22,10 +22,10 @@ inputs:
     digest: 6fa2fd1a30b0e36763f3c3ef091f2b758f1b09b169408df5a1d263f5f1ca9c48
   - kind: symbol
     name: raf_workplan::lifecycle::changed
-    digest: 9b63b15bdb3c2e8e1519d4adee37f2e216eff7b571f77e561fce667ef2e6455d
+    digest: 46ec32b21ebe046241dd8565480e87bc6791dca690b9a62667e91decdbe353f4
   - kind: symbol
     name: raf_workplan::lifecycle::untouched
-    digest: c4bcfb2c0638b52dcd66423977bf61207f5fae27cb5ccc2a1acddc416858af40
+    digest: 66ad9ff15cab21f6e7ca94e53f8c625a8c2be53628ec2af2e0245f0fa0b13abe
 verdict: accepted
 by: agent
 ---

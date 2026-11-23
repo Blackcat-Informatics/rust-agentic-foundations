@@ -30,12 +30,10 @@ fn text(graph: &mut Builder, id: &str, key: &str, value_: &str) -> Answer<()> {
     value(graph, id, key, TermValue::simple_literal(value_))
 }
 fn number(graph: &mut Builder, id: &str, key: &str, value_: usize) -> Answer<()> {
-    value(
-        graph,
-        id,
-        key,
-        TermValue::integer(i128::try_from(value_).expect("supported pointer width fits i128")),
-    )
+    let Ok(integer) = i128::try_from(value_) else {
+        return Err(Error::Invariant("report integer exceeds i128"));
+    };
+    value(graph, id, key, TermValue::integer(integer))
 }
 fn boolean(graph: &mut Builder, id: &str, key: &str, value_: bool) -> Answer<()> {
     value(graph, id, key, TermValue::boolean(value_))

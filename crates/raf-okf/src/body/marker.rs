@@ -235,10 +235,11 @@ enum Found {
 /// The family of a comment by its first text after `<!--`, trimmed: `raf:`
 /// in any letter case and then a word other than `generated:`, or `None`.
 fn family_of(text: &str) -> Option<Family> {
-    let word = text
-        .get(..4)
-        .filter(|prefix| prefix.eq_ignore_ascii_case("raf:"))
-        .map(|_| text[4..].to_ascii_lowercase())?;
+    let (prefix, rest) = text.split_at_checked(4)?;
+    if !prefix.eq_ignore_ascii_case("raf:") {
+        return None;
+    }
+    let word = rest.to_ascii_lowercase();
     if word.starts_with("generated:") {
         None
     } else if word.starts_with("claim") {
@@ -251,6 +252,10 @@ fn family_of(text: &str) -> Option<Family> {
 }
 
 /// Classify native comment openings; payload spelling remains RAF policy.
+#[expect(
+    clippy::string_slice,
+    reason = "native line and comment endpoints refer to the same UTF-8 body, and each opening delimiter is four ASCII bytes"
+)]
 fn comment_families(
     body: &str,
     lines: &[Line],
@@ -267,7 +272,7 @@ fn comment_families(
         let family = if payload.trim().is_empty() {
             lines[index + 1..]
                 .iter()
-                .find(|line| !body[line.start..line.end].trim().is_empty())
+                .find(|line| !line.text(body).trim().is_empty())
                 .filter(|line| !line.fenced && line.start < comment.end)
                 .and_then(|line| {
                     family_of(body[line.start..line.end.min(comment.end)].trim_start())
@@ -316,30 +321,26 @@ fn parse_tested_by(trimmed: &str) -> Option<Vec<String>> {
         .strip_suffix(TESTED_BY_CLOSE)?;
     let mut seen = HashSet::new();
     split_entries(list)
-        .into_iter()
         .map(|path| (is_item_path(path) && seen.insert(path)).then(|| path.to_string()))
         .collect()
 }
 
 /// The entries of a comma list, split at each `,` outside a generic argument
 /// list, so that `Pair<A,B>::get` is one entry.
-fn split_entries(list: &str) -> Vec<&str> {
-    let mut entries = Vec::new();
+fn split_entries(list: &str) -> impl Iterator<Item = &str> {
     let mut depth = 0usize;
-    let mut start = 0;
-    for (at, byte) in list.bytes().enumerate() {
-        match byte {
-            b'<' => depth += 1,
-            b'>' => depth = depth.saturating_sub(1),
-            b',' if depth == 0 => {
-                entries.push(&list[start..at]);
-                start = at + 1;
-            }
-            _ => {}
+    list.split(move |c| match c {
+        '<' => {
+            depth += 1;
+            false
         }
-    }
-    entries.push(&list[start..]);
-    entries
+        '>' => {
+            depth = depth.saturating_sub(1);
+            false
+        }
+        ',' => depth == 0,
+        _ => false,
+    })
 }
 
 /// Whether `text` matches `<item-path>`: segments `[A-Za-z_][A-Za-z0-9_]*`
@@ -429,7 +430,7 @@ fn raf_marker(
     section_of: &[Option<Arc<str>>],
     index: usize,
 ) -> Result<Option<Found>, ErrorKind> {
-    let raw = &body[lines[index].start..lines[index].end];
+    let raw = lines[index].text(body);
     // A generated marker starts its line, where the scan reads it; a
     // `raf:generated:` comment anywhere else is text. A marker is one line,
     // so a comment that opens at the end of the line and goes on with a
@@ -592,7 +593,7 @@ pub(crate) fn scan_markers(
         if line.fenced {
             continue;
         }
-        let raw = &body[line.start..line.end];
+        let raw = line.text(body);
         let trimmed = raw.trim();
         let column = raw.len() - raw.trim_start().len();
         let fail = |kind| error_at(body, lines, origin, index, column, kind);
@@ -604,23 +605,24 @@ pub(crate) fn scan_markers(
             let Some(slug) = slug else {
                 return Err(fail(ErrorKind::MalformedProposed));
             };
-            let mut last = index + 1;
-            while last < lines.len()
-                && !lines[last].fenced
-                && body[lines[last].start..lines[last].end]
-                    .trim_start()
-                    .starts_with('>')
-                && !looks_like_proposed(body[lines[last].start..lines[last].end].trim())
-            {
-                last += 1;
-            }
-            let content = (index + 1..last)
-                .map(|at| unquote(&body[lines[at].start..lines[at].end]))
+            let first_quote = index + 1;
+            let quote_lines = lines[first_quote..]
+                .iter()
+                .take_while(|line| {
+                    if line.fenced {
+                        return false;
+                    }
+                    let raw = line.text(body);
+                    raw.trim_start().starts_with('>') && !looks_like_proposed(raw.trim())
+                })
+                .count();
+            let last = first_quote + quote_lines;
+            let content = lines[first_quote..last]
+                .iter()
+                .map(|line| unquote(line.text(body)))
                 .collect::<Vec<_>>()
                 .join("\n");
-            for flag in &mut found.in_proposed[index..last] {
-                *flag = true;
-            }
+            found.in_proposed[index..last].fill(true);
             found.proposed.push(ProposedBlock {
                 slug: slug.to_string(),
                 span: span_of(lines, body.len(), index, last, origin),
@@ -635,9 +637,7 @@ pub(crate) fn scan_markers(
                 .and_then(|rest| rest.strip_suffix(GENERATED_CLOSE));
             match (kind, open.take()) {
                 (Some(GENERATED_END), Some((first, kind))) => {
-                    for flag in &mut found.in_generated[first + 1..index] {
-                        *flag = true;
-                    }
+                    found.in_generated[first + 1..index].fill(true);
                     found.generated.push(GeneratedBlock {
                         kind,
                         outer: span_of(lines, body.len(), first, index + 1, origin),

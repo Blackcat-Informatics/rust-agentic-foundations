@@ -28,6 +28,10 @@ fn load(source: &str) -> Result<Census, raf_census::Error> {
     Census::load(&tree, &["."], &CensusOptions::default())
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "the harness fails when valid source cannot reach the shipped Census implementation"
+)]
 fn exercise(data: &[u8]) {
     SELF_CHECK.call_once(|| {
         let census = load("pub fn check(value: u8) -> u8 { value + 1 }")

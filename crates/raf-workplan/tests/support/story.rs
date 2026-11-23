@@ -24,6 +24,10 @@ pub(crate) const HEADINGS: [&str; 7] = [
 ];
 
 /// The index of the section `name` in [`HEADINGS`].
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn index_of(name: &str) -> usize {
     HEADINGS
         .iter()
@@ -127,6 +131,10 @@ pub(crate) fn proposal(template: &str, text: &str) -> String {
 /// an author writes: each item is a claim and, once it is settled, an outcome.
 /// `written` is the record `change new` wrote, or an earlier version of this
 /// edit.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn author_record(
     written: &str,
     title: &str,
@@ -179,6 +187,11 @@ pub(crate) fn author_record(
 }
 
 /// The text of the section `heading` of a document, without the heading.
+#[expect(
+    clippy::panic,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 pub(crate) fn section_text(document: &str, heading: &str) -> String {
     let parsed = Document::parse(document).unwrap_or_else(|error| panic!("reads: {error}"));
     let body = parsed.body();
@@ -194,6 +207,10 @@ pub(crate) fn section_text(document: &str, heading: &str) -> String {
 
 /// The relative link targets of a document, outside fenced code and code
 /// spans, in order: the text between `](` and `)`.
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 pub(crate) fn links_of(document: &str) -> Vec<String> {
     let mut targets = Vec::new();
     let mut fenced = false;

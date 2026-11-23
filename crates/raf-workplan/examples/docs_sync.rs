@@ -80,6 +80,10 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Args, String> {
     })
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn run() -> Result<ExitCode, Box<dyn Error>> {
     let args = parse(std::env::args().skip(1))?;
     let opened = Gate::workspace(&args.root).open()?;
@@ -108,6 +112,10 @@ fn run() -> Result<ExitCode, Box<dyn Error>> {
     Ok(ExitCode::SUCCESS)
 }
 
+#[expect(
+    clippy::print_stderr,
+    reason = "this executable reports diagnostics on the caller's standard error"
+)]
 fn main() -> ExitCode {
     match run() {
         Ok(code) => code,

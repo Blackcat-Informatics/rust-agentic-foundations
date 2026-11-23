@@ -18,6 +18,10 @@ use super::{Repo, demo_files};
 pub(crate) struct Scratch(TempDir, TempDir);
 
 impl Scratch {
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn new(tag: &str) -> Self {
         let parent = Path::new(env!("CARGO_TARGET_TMPDIR"));
         let directory = || {
@@ -53,6 +57,11 @@ impl Scratch {
 }
 
 /// Write `text` at `path` below `root`, creating the directories.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 pub(crate) fn put(root: &Path, path: &str, text: &str) {
     let target = root.join(path);
     fs::create_dir_all(target.parent().expect("a parent"))
@@ -71,6 +80,10 @@ pub(crate) fn write_repo(root: &Path, repo: &Repo) {
 }
 
 /// The text of the file `path` below `root`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn read(root: &Path, path: &str) -> String {
     fs::read_to_string(root.join(path)).unwrap_or_else(|e| panic!("cannot read {path}: {e}"))
 }
@@ -78,6 +91,11 @@ pub(crate) fn read(root: &Path, path: &str) -> String {
 /// Every file below `root`: its path with `/` separators and its bytes. A
 /// symbolic link is listed by its target text and is not followed.
 pub(crate) fn snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {
+    #[expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     fn walk(root: &Path, dir: &Path, into: &mut BTreeMap<String, Vec<u8>>) {
         for entry in
             fs::read_dir(dir).unwrap_or_else(|e| panic!("cannot list {}: {e}", dir.display()))
@@ -129,6 +147,10 @@ pub(crate) fn changed(
 }
 
 /// Load the documents under `root` from the disk and run `f` on the plan.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn on_disk<R>(root: &Path, f: impl FnOnce(&Workplan<'_>) -> R) -> R {
     let tree =
         DiskTree::new(root).unwrap_or_else(|e| panic!("cannot open {}: {e}", root.display()));

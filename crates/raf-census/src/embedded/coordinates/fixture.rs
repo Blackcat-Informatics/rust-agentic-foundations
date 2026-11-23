@@ -6,6 +6,13 @@
 use super::{Coordinates, Meter, Refusal};
 use proc_macro2::{LineColumn, Span};
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 pub(in crate::embedded) fn check() {
     opaque_ranges();
     let source = "\u{feff}#! données\r\n/// café\nfn r#type() {}\n";
@@ -84,6 +91,14 @@ pub(in crate::embedded) fn check() {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn opaque_ranges() {
     for (source, expected) in [
         (
@@ -122,6 +137,13 @@ fn opaque_ranges() {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn opaque_limits(source: &str, expected: &str, tokens: &proc_macro2::TokenStream) {
     let probe = Meter::new(usize::MAX, usize::MAX);
     let coordinates = Coordinates::new(source, None, &probe).unwrap();
@@ -169,6 +191,13 @@ fn opaque_limits(source: &str, expected: &str, tokens: &proc_macro2::TokenStream
     assert_eq!(reusable.usage(), (initial + 2 * (work - initial), bytes));
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn allocation_neighbors(source: &str, header: Option<&str>) {
     let probe = Meter::new(usize::MAX, usize::MAX);
     drop(Coordinates::new(source, header, &probe).unwrap());

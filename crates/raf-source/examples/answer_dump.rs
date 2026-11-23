@@ -209,6 +209,10 @@ fn dump(sink: &mut Sink) -> Result<(), String> {
 
 /// The answers of every program on `jobs` threads, in order: the text of
 /// each, or its digest.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn answer_all(
     programs: &[(String, Program)],
     jobs: usize,

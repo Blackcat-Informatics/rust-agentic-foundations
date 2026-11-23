@@ -14,6 +14,10 @@ use raf_census::{Level, Tower};
 use selection::{Body, Policy, fixtures, groups};
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn fixture_counts_are_pinned_and_default_selection_matches_production() {
     let registry = fixtures::registry();
     let mut bodies = Vec::new();

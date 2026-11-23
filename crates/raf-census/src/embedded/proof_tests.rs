@@ -45,6 +45,13 @@ fn regions<'a>(
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn renamed_bindings_preserve_repeated_uses_and_distinct_shadowing_declarations() {
     let left = [
         bound(0, Event::Declaration),
@@ -80,6 +87,13 @@ fn renamed_bindings_preserve_repeated_uses_and_distinct_shadowing_declarations()
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn captures_cannot_be_reclassified_as_internal_or_merge_distinct_variables() {
     let left = [bound(0, Event::Use), bound(0, Event::Use)];
     let same_capture = [bound(0, Event::Use), bound(0, Event::Use)];
@@ -98,6 +112,13 @@ fn captures_cannot_be_reclassified_as_internal_or_merge_distinct_variables() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn fixed_names_operators_shorthand_fields_and_control_opcodes_are_retained() {
     for (a, b) in [("external_a", "external_b"), ("+", "-"), ("&", "&~")] {
         let left = [Atom {
@@ -154,6 +175,13 @@ fn fixed_names_operators_shorthand_fields_and_control_opcodes_are_retained() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn missing_declaration_and_untyped_control_opcode_refuse_beside_valid_markers() {
     let declaration_atoms = [bound(0, Event::Declaration)];
     let outside = [declaration(0)];
@@ -198,6 +226,13 @@ fn missing_declaration_and_untyped_control_opcode_refuse_beside_valid_markers() 
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn exact_shared_work_and_storage_grants_succeed_and_one_unit_short_refuses() {
     let atoms = [
         bound(0, Event::Use),

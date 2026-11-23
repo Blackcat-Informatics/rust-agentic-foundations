@@ -11,6 +11,11 @@ use raf_source::{
 const REV_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const REV_B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn load(text: &str, options: &LoadOptions) -> Result<LockedCatalog, LoadError> {
     let tree = MemoryTree::from([("Cargo.lock", text)]);
     LockedCatalog::load(
@@ -41,6 +46,10 @@ fn graph(reference: &str, reverse: bool) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn same_name_version_sources_require_unique_complete_selection_in_either_row_order() {
     let reference = format!("helper 1.0.0 (git+https://example.test/second?rev={REV_B}#{REV_B})");
     for reverse in [false, true] {
@@ -69,6 +78,10 @@ fn same_name_version_sources_require_unique_complete_selection_in_either_row_ord
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn omitted_git_precision_is_not_a_wildcard_beside_the_full_revision() {
     let partial = format!("helper 1.0.0 (git+https://example.test/second?rev={REV_B})");
     let error =
@@ -84,6 +97,10 @@ fn omitted_git_precision_is_not_a_wildcard_beside_the_full_revision() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn encoded_git_references_keep_native_decoded_identity_and_reference_kind() {
     let source = format!("git+https://example.test/helpers?branch=feature%2Ftrees#{REV_A}");
     let catalog = load(
@@ -111,6 +128,10 @@ fn encoded_git_references_keep_native_decoded_identity_and_reference_kind() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn unicode_checksum_refuses_without_panicking_beside_native_ascii_hex() {
     let package = row(
         "helper",
@@ -136,6 +157,10 @@ fn unicode_checksum_refuses_without_panicking_beside_native_ascii_hex() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn native_catalog_storage_and_comparison_work_obey_exact_original_grants() {
     let reference = format!("helper 1.0.0 (git+https://example.test/second?rev={REV_B}#{REV_B})");
     let text = graph(&reference, true);
@@ -161,6 +186,11 @@ fn native_catalog_storage_and_comparison_work_obey_exact_original_grants() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor() {
     let grammar = load("version = ", &LoadOptions::default()).unwrap_err();
     assert!(
@@ -240,6 +270,10 @@ fn malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_actual_repository_lock_resolves_all_outgoing_edges_and_native_source_precision() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let tree = DiskTree::new(&root).expect("actual repository tree");
@@ -274,6 +308,10 @@ fn the_actual_repository_lock_resolves_all_outgoing_edges_and_native_source_prec
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_cargo_version_identities() {
     for version in [
         "0.0.0+00.001",

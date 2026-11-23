@@ -57,11 +57,19 @@ fn debt() -> String {
         .to_string()
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn validate(text: &str, path: &str) -> Result<RafDocument, Vec<Violation>> {
     let document = Document::parse(text).unwrap_or_else(|error| panic!("{error} in {text:?}"));
     Profile.validate(&document, path)
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn clean(text: &str, path: &str) -> RafDocument {
     validate(text, path).unwrap_or_else(|found| panic!("{path} is not clean: {found:#?}"))
 }
@@ -71,6 +79,10 @@ fn key(name: &str) -> Location {
 }
 
 /// Require exactly one violation, at `at`, with exactly `rule`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn assert_only(text: &str, path: &str, at: &Location, rule: &Rule) {
     match validate(text, path) {
         Ok(typed) => panic!("expected {rule:?} for {path}, got {typed:#?}"),
@@ -88,6 +100,10 @@ fn mutate(text: &str, from: &str, to: &str) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_valid_evidence_record_validates_to_its_typed_value() {
     let RafDocument::Evidence(record) = clean(&evidence(), EVIDENCE_PATH) else {
         panic!("an evidence record");
@@ -115,6 +131,10 @@ fn a_valid_evidence_record_validates_to_its_typed_value() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn evidence_from_a_bound_test_has_no_command_and_may_have_no_measures() {
     let text = format!(
         "---\ntype: Evidence\nid: evidence:memory-bound\n\
@@ -140,6 +160,10 @@ fn evidence_from_a_bound_test_has_no_command_and_may_have_no_measures() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_valid_assessment_validates_to_its_typed_value() {
     let RafDocument::Assessment(record) = clean(&assessment(), ASSESSMENT_PATH) else {
         panic!("an assessment");
@@ -169,6 +193,10 @@ fn a_valid_assessment_validates_to_its_typed_value() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly() {
     let RafDocument::Coverage(record) = clean(&coverage(), COVERAGE_PATH) else {
         panic!("a coverage record");
@@ -292,9 +320,13 @@ fn by_is_human_or_agent_and_never_a_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "the ASCII fixture must contain 63 bytes for the too-short case"
+)]
 fn a_digest_is_sixty_four_lowercase_hex_digits() {
     let upper = DIGEST.to_ascii_uppercase();
-    let short = &DIGEST[..63];
+    let short = DIGEST.get(..63).expect("63-digit prefix");
     let long = format!("{DIGEST}0");
     let not_hex = DIGEST.replacen('9', "g", 1);
     for found in [upper.as_str(), short, long.as_str(), not_hex.as_str()] {
@@ -308,8 +340,12 @@ fn a_digest_is_sixty_four_lowercase_hex_digits() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "the ASCII fixture must contain 24 bytes to extend to the SHA-256 width"
+)]
 fn a_revision_is_a_full_commit_id() {
-    let sha256 = format!("{COMMIT}{}", &COMMIT[..24]);
+    let sha256 = format!("{COMMIT}{}", COMMIT.get(..24).expect("24-digit prefix"));
     clean(&mutate(&evidence(), COMMIT, &sha256), EVIDENCE_PATH);
     let upper = COMMIT.to_ascii_uppercase();
     for found in ["b499578", upper.as_str(), "main", "HEAD~1"] {
@@ -388,6 +424,10 @@ fn the_command_key_is_present_exactly_when_the_subject_is_command() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn input_rows_have_exactly_kind_name_and_digest() {
     let extra = mutate(
         &evidence(),
@@ -568,6 +608,10 @@ fn symbol_inputs_accept_crate_roots_and_refuse_malformed_paths() {
 /// empty or `.` segment is refused beside the accepted path, and an assessment
 /// with the kind is refused.
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn artifact_inputs_accept_repository_relative_paths_and_refuse_escapes() {
     let artifact = |name: &str| {
         mutate(
@@ -800,6 +844,10 @@ fn a_passing_record_holds_no_value_above_its_limit() {
 
 /// The texts a floating-point comparison reads as equal or as infinite, each
 /// over its limit, and the neighbours equal to it or just under it.
+#[expect(
+    clippy::expect_used,
+    reason = "the ASCII number fixture must contain the 400-digit neighbour"
+)]
 fn exact() -> [(&'static str, &'static str, &'static str); 4] {
     [
         ("9007199254740993", "9007199254740992", "9007199254740991"),
@@ -807,7 +855,11 @@ fn exact() -> [(&'static str, &'static str, &'static str); 4] {
         ("1.0000000000000000001", "1", "0.9999999999999999999"),
         // `1` and 399 zeros: just under the limit, and infinite as an `f64`
         // like both of the others.
-        (TWO_E400, ONE_E400, &ONE_E400[..400]),
+        (
+            TWO_E400,
+            ONE_E400,
+            ONE_E400.get(..400).expect("400-digit prefix"),
+        ),
     ]
 }
 
@@ -851,6 +903,10 @@ fn a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn numbers_compare_exactly_by_sign_whole_part_and_fraction() {
     use std::cmp::Ordering::{Equal, Greater, Less};
     let n = |text: &str| Number::parse(text).expect("a number");
@@ -964,6 +1020,10 @@ fn an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_exclusion_has_a_reason_with_no_placeholder() {
     // A list of scalars holds no row maps for the shape to check.
     let malformed =
@@ -1037,6 +1097,10 @@ fn coverage_with(extra: &str) -> String {
 }
 
 /// The ceilings and the exceptions of the coverage record `text`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn lines_keys(text: &str) -> (Vec<Ceiling>, Vec<Exception>) {
     match clean(text, COVERAGE_PATH) {
         RafDocument::Coverage(record) => (record.ceilings, record.exceptions),
@@ -1044,6 +1108,10 @@ fn lines_keys(text: &str) -> (Vec<Ceiling>, Vec<Exception>) {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn number(text: &str) -> Number {
     Number::parse(text).expect("a number")
 }
@@ -1092,6 +1160,10 @@ fn a_ceiling_names_a_crate_one_whole_number_of_lines_or_a_percent_and_an_optiona
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_ceiling_of_another_shape_is_refused_with_its_rule() {
     let bad = |problem: &str| Rule::BadCeiling {
         package: "demo".to_string(),
@@ -1193,6 +1265,10 @@ fn a_ceiling_of_another_shape_is_refused_with_its_rule() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn coverage_policy_key_findings_repeat_in_authored_row_order() {
     // Every occurrence has its own focus, even for identical malformed maps.
     for (list, missing) in [("ceilings", "crate"), ("exceptions", "reason")] {
@@ -1260,6 +1336,10 @@ fn an_exception_names_one_item_prefix_file_or_directory_and_its_reason() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule() {
     let bad = |found: &str, problem: &'static str| Rule::BadException {
         found: found.to_string(),
@@ -1485,6 +1565,10 @@ fn a_record_type_is_named_in_the_unknown_type_message() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_visibly() {
     let RafDocument::Debt(record) = clean(&debt(), DEBT_PATH) else {
         panic!("a debt record");
@@ -1508,6 +1592,10 @@ fn a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_vi
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once() {
     // Identical rows report their own keys before the sibling list's shape finding.
     let invalid = concat!(
@@ -1606,6 +1694,10 @@ fn a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once() {
     // A key-invalid row has no value findings. The next row still checks its count.
     let invalid = concat!(
@@ -1765,6 +1857,10 @@ fn measured() -> String {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_record_that_states_units_or_conditions_states_them_for_every_value() {
     let RafDocument::Evidence(record) = clean(&measured(), EVIDENCE_PATH) else {
         panic!("an evidence record");

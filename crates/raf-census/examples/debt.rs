@@ -90,6 +90,10 @@ fn gate(root: &Path) -> Gate {
     registration::rule_gate(root.join("src"))
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn main() -> Result<(), Box<dyn Error>> {
     let scratch = TempDir::new_in(std::env::temp_dir())?;
     let root = scratch.path();

@@ -674,7 +674,10 @@ fn dump_ledger(
         file: root.display().to_string(),
         source,
     })?;
-    let path = RelPath::new(LEDGER_FILE).expect("literal ledger path");
+    let path = RelPath::new(LEDGER_FILE).map_err(|source| Error::Io {
+        file: LEDGER_FILE.into(),
+        source: std::io::Error::new(std::io::ErrorKind::InvalidInput, source),
+    })?;
     let text = tree
         .read(&path, MAX_LEDGER_BYTES as u64)
         .map_err(|source| Error::Tree {
@@ -889,6 +892,13 @@ mod tests {
     /// otherwise. The command binary registers no rules, so a rule on the Gate is the only way
     /// to make a case fail through the same function the command calls.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn self_test_exits_one_with_the_failing_case_and_zero_when_every_case_holds() {
         let mut out = Vec::new();
         let failing =

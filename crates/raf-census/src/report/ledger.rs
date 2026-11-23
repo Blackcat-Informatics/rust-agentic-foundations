@@ -317,7 +317,9 @@ impl Ledger {
     }
 
     pub(super) fn from_graph(graph: Graph) -> Result<Self, Error> {
-        let root = graph.get("").expect("validated root");
+        let root = graph
+            .get("")
+            .ok_or_else(|| E::Missing("ledger root".into()))?;
         fields(&root, "Ledger")?;
         let mut options = CensusOptions::default();
         if let Some(value) = optional_count(&root, "minTokens")? {
@@ -329,7 +331,7 @@ impl Ledger {
             .is_some()
         {
             options.max_file_bytes = u64::try_from(shape::number(&root, "maxFileBytes")?)
-                .map_err(|_| E::Value("ledger maxFileBytes exceeds u64".into()))?;
+                .map_err(|cause| E::Value(format!("ledger maxFileBytes exceeds u64: {cause}")))?;
         }
         options.scope = shape::scope(&root)?;
         let mut roots = strings(&root, "root")?;
