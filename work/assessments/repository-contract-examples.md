@@ -13,7 +13,7 @@ inputs:
     digest: 55568b2214e473f89f19aaa70a81a5aede3b6327d30888525f8b5fe6a48edc6a
   - kind: symbol
     name: rust_agentic_foundations::gate_files
-    digest: 1f7690dba2dd4e057d94bef2624eea97a2ea4c301ae50cb875d25a748f75ea21
+    digest: 2849b4ea190d5738f859a7eaf175dc85ac30098778cc08ed414c1dfa91b9b82a
   - kind: symbol
     name: rust_agentic_foundations::gate_root
     digest: e48e81c50c0cfc26b6c8685788f7ca64c18c5a1f21d9e81da0c90f0db62cba4d
