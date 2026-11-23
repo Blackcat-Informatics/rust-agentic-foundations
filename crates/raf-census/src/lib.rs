@@ -77,7 +77,7 @@ pub use gate::{
     LockedRegistry, MAX_INDEX_BYTES, Migration, MigrationInput, NumericBound,
     PRODUCTION_CLIPPY_ARGS, ProductionInputs, ProductionLintRun, ReferenceRoot,
     SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index, migrate_legacy,
-    migrate_legacy_with_extensions, visibility,
+    migrate_legacy_with_extensions, visibility, visibility_demand,
 };
 pub use group::{Group, GroupKind, HexTable, Member, SharedConstant};
 pub use job::{Job, JobForbidden, JobMatch, JobReport, MatchClass};

@@ -69,6 +69,9 @@ pub(crate) enum Command {
     },
     /// Inventory public workspace library declarations and cross-package uses.
     Visibility {
+        /// Report demand by consuming Cargo target with explicit coverage gaps.
+        #[arg(long)]
+        demand: bool,
         /// Native RDF 1.2 report carrier.
         #[arg(long, value_enum, default_value = "ntriples")]
         format: RdfFormat,

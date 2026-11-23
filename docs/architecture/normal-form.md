@@ -339,7 +339,8 @@ index lists every unit, group and classified job match. Every subject has
 exactly one type.
 
 The visibility census uses a separate `WorkspaceVisibility` root for
-declaration, export and written use evidence. See the
+declaration, export and written use evidence. Target demand uses its own
+`WorkspaceVisibilityDemand` root for consuming targets and coverage gaps. See the
 [workspace library visibility census](../capabilities/census-visibility.md).
 
 Selected JobQuery, CountQuery and FingerprintQuery reports use their own closed

@@ -19,7 +19,7 @@ use purrdf_lex::walk::WorkList;
 use raf_source::{
     CodeResolveError, CodeResolver, ImplBlock, ItemId, Namespace, PackageId, Resolution,
     ResolutionAttempt, ResolveError, SourceAuthorityId, SourceFile, SymbolKind, TargetId,
-    TargetKind, Workspace,
+    TargetKind, TestRole, Workspace,
 };
 use syn::Fields;
 use syn::ext::IdentExt;
@@ -254,6 +254,8 @@ struct Site<'a> {
     namespace: Namespace,
     role: Role,
     file_scope: bool,
+    uncertain: bool,
+    test: bool,
 }
 
 impl<'a> Site<'a> {
@@ -271,6 +273,8 @@ impl<'a> Site<'a> {
             namespace,
             role,
             file_scope,
+            uncertain: false,
+            test: false,
         }
     }
 
@@ -307,6 +311,7 @@ struct GlobLookup {
     conditional_variant: bool,
     variant: Option<VariantMatch>,
     head: Option<GlobBinding>,
+    guarded: bool,
 }
 
 struct ScopedGlob<'a> {
@@ -323,6 +328,15 @@ struct ScopedGlob<'a> {
 type GlobPrefixes<'a> = WorkList<ScopedGlob<'a>, 8>;
 
 impl ScopedGlob<'_> {
+    fn guarded(&self) -> bool {
+        self.declaration.attributes != AliasAttributes::Inert
+            || self.expanded.guarded_alias
+            || self
+                .chained
+                .get()
+                .is_some_and(|(route, _)| route.guarded.get())
+    }
+
     fn prefix(&self) -> &str {
         self.chained
             .get()
@@ -367,6 +381,7 @@ impl ScopedGlob<'_> {
 struct GlobRoute {
     path: String,
     sites: Vec<ItemId>,
+    guarded: Cell<bool>,
 }
 
 #[derive(Clone)]
@@ -564,7 +579,7 @@ impl GlobProvider {
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum ReadingContext {
-    Item(ItemId, String),
+    Item(ItemId, String, bool),
     Impl(raf_source::ImplId),
     File(TargetId, String, bool),
 }
@@ -592,6 +607,7 @@ struct SettledGlob {
     prefix: String,
     provider: Option<GlobProvider>,
     activation_uncertain: bool,
+    guarded: bool,
 }
 
 #[derive(Clone, Default)]
@@ -600,6 +616,7 @@ struct GlobHead {
     opaque: Option<String>,
     conditional_variant: bool,
     ambiguous: bool,
+    guarded: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -652,7 +669,7 @@ struct Lookup<'a, 'w> {
     owner: PathOwner<'a>,
     site: &'a Site<'a>,
     label: &'a str,
-    visibility: Option<(&'a Workspace, PackageId)>,
+    visibility: Option<(&'a Workspace, VisibilityConsumer)>,
     receiver_workspace: Option<&'a Workspace>,
     enum_impl: Option<(&'a str, &'a [ImplBlock])>,
 }
@@ -915,7 +932,7 @@ impl Lookup<'_, '_> {
             gathered.conditional_variant |= selected.conditional_variant;
             gathered.ambiguous |= selected.ambiguous;
             if let Some(binding) = selected.binding {
-                self.merge_glob_binding(&mut gathered, binding, head, limits)?;
+                self.merge_glob_binding(&mut gathered, (binding, selected.guarded), head, limits)?;
             }
             if !read.early && (gathered.binding.is_some() || gathered.ambiguous) {
                 break;
@@ -924,6 +941,7 @@ impl Lookup<'_, '_> {
         let mut glob_lookup = GlobLookup {
             opaque: gathered.opaque,
             conditional_variant: gathered.conditional_variant,
+            guarded: gathered.guarded,
             ..GlobLookup::default()
         };
         if let Some(binding) = gathered.binding {
@@ -1118,6 +1136,9 @@ impl Lookup<'_, '_> {
                 },
                 limits,
             )?;
+            if target.definition.is_some() {
+                glob.guarded = target.guarded || alias.guarded_alias;
+            }
             glob.definition = target.definition;
             glob.opaque = glob.opaque.or(target.opaque);
             glob.conditional_variant |= target.conditional_variant;
@@ -1232,7 +1253,13 @@ impl Lookup<'_, '_> {
                 Some(_) => None,
                 None => self.indexed_in(&text, namespace, true)?,
             };
-            sites.map(|sites| GlobBinding::Item(GlobRoute { path: text, sites }))
+            sites.map(|sites| {
+                GlobBinding::Item(GlobRoute {
+                    path: text,
+                    sites,
+                    guarded: Cell::new(candidate.guarded),
+                })
+            })
         };
         if let Some(enclosing) = enclosing {
             self.compare_import_heads(name, head, &enclosing, glob, limits)?;
@@ -1268,6 +1295,7 @@ impl Lookup<'_, '_> {
                     .reading_module(item, self.site.byte)
                     .map_err(|error| self.error("block glob", error))?
                     .to_owned(),
+                self.site.test,
             ),
             PathOwner::Impl(id) => ReadingContext::Impl(id),
             PathOwner::File(reach) => {
@@ -1327,6 +1355,7 @@ impl Lookup<'_, '_> {
                         prefix,
                         provider: glob.provider().cloned(),
                         activation_uncertain: glob.activation_uncertain,
+                        guarded: glob.guarded(),
                     },
                     0,
                     limits,
@@ -1406,7 +1435,7 @@ impl Lookup<'_, '_> {
                     if let Some(route) = self.glob_member(&glob.prefix, head, namespace, limits)? {
                         self.merge_glob_binding(
                             &mut found,
-                            GlobBinding::Item(route),
+                            (GlobBinding::Item(route), glob.guarded),
                             head,
                             limits,
                         )?;
@@ -1421,7 +1450,13 @@ impl Lookup<'_, '_> {
                     }
                 }
                 Some(provider) => {
-                    self.merge_glob_variant(&mut found, provider, head, namespace, limits)?;
+                    self.merge_glob_variant(
+                        &mut found,
+                        provider,
+                        head,
+                        (namespace, glob.guarded),
+                        limits,
+                    )?;
                 }
                 None => {
                     found.opaque.get_or_insert_with(|| glob.prefix.clone());
@@ -1491,7 +1526,7 @@ impl Lookup<'_, '_> {
                 found,
                 &GlobProvider::Enum(Rc::new(enums)),
                 &member,
-                namespace,
+                (namespace, false),
                 limits,
             )?;
         }
@@ -1503,7 +1538,7 @@ impl Lookup<'_, '_> {
         found: &mut GlobHead,
         provider: &GlobProvider,
         head: &str,
-        namespace: Namespace,
+        (namespace, guarded): (Namespace, bool),
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
         let enum_inventory = enum_evidence(self.label);
@@ -1512,7 +1547,12 @@ impl Lookup<'_, '_> {
                 found.conditional_variant = true;
             }
             VariantLookup::Proven(variant) => {
-                self.merge_glob_binding(found, GlobBinding::Variant(variant), head, limits)?;
+                self.merge_glob_binding(
+                    found,
+                    (GlobBinding::Variant(variant), guarded),
+                    head,
+                    limits,
+                )?;
             }
             VariantLookup::Missing => {}
         }
@@ -1628,21 +1668,45 @@ impl Lookup<'_, '_> {
         if scopes.receiver_lookup() {
             self.propagate_glob_uncertainty(&globs, limits)?;
         }
-        // A later anchored chain can introduce a second candidate in the
-        // declaration scope. Recheck each inferred prefix against that scope.
-        for glob in globs.iter().filter(|glob| glob.relative_prefix().is_some()) {
-            let settled = self.chain_glob(glob, &globs, limits)?;
-            if glob.direct.is_none()
-                && settled.as_ref().map(|route| &route.sites)
-                    != glob.chained.get().map(|(route, _)| &route.sites)
-            {
-                return Err(failure(
-                    self.label,
-                    "chained block glob prefix changes binding as imports resolve",
-                ));
+        self.recheck_glob_routes(&globs, limits)?;
+        Ok(globs)
+    }
+
+    fn recheck_glob_routes(
+        &self,
+        globs: &GlobPrefixes<'_>,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        let demand = matches!(self.visibility, Some((_, VisibilityConsumer::Target(_))));
+        loop {
+            let mut changed = false;
+            for glob in globs.iter().filter(|glob| glob.relative_prefix().is_some()) {
+                let settled = self.chain_glob(glob, globs, limits)?;
+                let previous = glob.chained.get().map(|(route, _)| route);
+                if glob.direct.is_none()
+                    && settled.as_ref().map(|route| &route.sites)
+                        != previous.map(|route| &route.sites)
+                {
+                    return Err(failure(
+                        self.label,
+                        "chained block glob prefix changes binding as imports resolve",
+                    ));
+                }
+                // A later equivalent unguarded route can remove a guard.
+                // Repeat until that proof reaches every dependent prefix.
+                if demand
+                    && let (Some(previous), Some(settled)) = (previous, settled)
+                    && previous.guarded.get()
+                    && !settled.guarded.get()
+                {
+                    previous.guarded.set(false);
+                    changed = true;
+                }
+            }
+            if !changed {
+                return Ok(());
             }
         }
-        Ok(globs)
     }
 
     fn prepare_glob_frame<'s>(
@@ -1802,7 +1866,7 @@ impl Lookup<'_, '_> {
                     {
                         self.merge_glob_binding(
                             &mut selected,
-                            GlobBinding::Item(route),
+                            (GlobBinding::Item(route), candidate.guarded()),
                             head,
                             limits,
                         )?;
@@ -1813,7 +1877,7 @@ impl Lookup<'_, '_> {
                         &mut selected,
                         provider,
                         head,
-                        Namespace::Type,
+                        (Namespace::Type, candidate.guarded()),
                         limits,
                     )?;
                 }
@@ -1834,6 +1898,7 @@ impl Lookup<'_, '_> {
         let GlobBinding::Item(route) = binding else {
             return Ok(None);
         };
+        route.guarded.set(selected.guarded);
         let route = if tail.is_empty() {
             route
         } else {
@@ -1846,7 +1911,11 @@ impl Lookup<'_, '_> {
             let Some(sites) = self.indexed_in(&path, Namespace::Type, true)? else {
                 return Ok(None);
             };
-            GlobRoute { path, sites }
+            GlobRoute {
+                path,
+                sites,
+                guarded: route.guarded,
+            }
         };
         Ok(self
             .proved_glob_types(Namespace::Type, &route.path, &route.sites)?
@@ -1884,7 +1953,7 @@ impl Lookup<'_, '_> {
         head: &str,
         mut sites: impl Iterator<Item = ItemId>,
     ) -> Result<(), Error> {
-        if sites.any(|site| self.cross_package(site)) {
+        if sites.any(|site| self.external_use(site)) {
             return Err(failure(
                 self.label,
                 &format!(
@@ -1910,29 +1979,31 @@ impl Lookup<'_, '_> {
         )?;
         Ok(self
             .indexed_in(&path, namespace, true)?
-            .map(|sites| GlobRoute { path, sites }))
+            .map(|sites| GlobRoute {
+                path,
+                sites,
+                guarded: Cell::new(false),
+            }))
     }
 
-    fn cross_package(&self, id: ItemId) -> bool {
+    fn external_use(&self, id: ItemId) -> bool {
         self.visibility.is_some_and(|(workspace, consumer)| {
             workspace
                 .item(id)
-                .and_then(|item| workspace.target(item.target))
-                .is_some_and(|target| {
-                    target.kind == TargetKind::Lib && target.package_id != consumer
-                })
+                .is_some_and(|item| consumer.counts(workspace, item))
         })
     }
 
     fn merge_glob_binding(
         &self,
         selected: &mut GlobHead,
-        candidate: GlobBinding,
+        (candidate, guarded): (GlobBinding, bool),
         head: &str,
         limits: &mut MatchLimits,
     ) -> Result<(), Error> {
         let Some(previous) = &selected.binding else {
             selected.binding = Some(candidate);
+            selected.guarded = guarded;
             return Ok(());
         };
         let count = previous
@@ -1940,19 +2011,21 @@ impl Lookup<'_, '_> {
             .count()
             .saturating_add(candidate.sites().count());
         charge(self.label, limits, count.try_into().unwrap_or(u64::MAX))?;
-        if !previous.same(&candidate) {
-            if previous
-                .sites()
-                .chain(candidate.sites())
-                .any(|site| self.cross_package(site))
-            {
-                return Err(failure(
-                    self.label,
-                    &format!("written path head {head:?} has competing block glob bindings"),
-                ));
-            }
-            selected.ambiguous = true;
+        if previous.same(&candidate) {
+            selected.guarded &= guarded;
+            return Ok(());
         }
+        if previous
+            .sites()
+            .chain(candidate.sites())
+            .any(|site| self.external_use(site))
+        {
+            return Err(failure(
+                self.label,
+                &format!("written path head {head:?} has competing block glob bindings"),
+            ));
+        }
+        selected.ambiguous = true;
         Ok(())
     }
 
@@ -1963,6 +2036,13 @@ impl Lookup<'_, '_> {
         import: bool,
     ) -> Result<Resolution, CodeResolveError> {
         match self.owner {
+            PathOwner::Item(item) if self.site.test => self.code.resolve_test_from_item_at(
+                item,
+                self.site.byte,
+                written,
+                namespace,
+                import,
+            ),
             PathOwner::Item(item) if import => {
                 self.code
                     .resolve_import_from_item_at(item, self.site.byte, written, namespace)
@@ -2018,9 +2098,33 @@ impl Lookup<'_, '_> {
 
 const VISIBILITY: &str = "visibility";
 
+#[derive(Clone, Copy)]
+pub(in crate::gate) enum VisibilityConsumer {
+    Package(PackageId),
+    Target(TargetId),
+}
+
+impl VisibilityConsumer {
+    fn same(self, workspace: &Workspace, item: &raf_source::Item) -> bool {
+        match self {
+            Self::Package(package) => workspace
+                .target(item.target)
+                .is_some_and(|target| target.package_id == package),
+            Self::Target(target) => item.target == target,
+        }
+    }
+
+    fn counts(self, workspace: &Workspace, item: &raf_source::Item) -> bool {
+        !self.same(workspace, item)
+            && workspace
+                .target(item.target)
+                .is_some_and(|target| target.kind == TargetKind::Lib)
+    }
+}
+
 pub(in crate::gate) fn visibility_resolution(
     workspace: &Workspace,
-    consumer: PackageId,
+    consumer: VisibilityConsumer,
     result: Result<Resolution, CodeResolveError>,
 ) -> Result<Option<Resolution>, CodeResolveError> {
     match result {
@@ -2035,20 +2139,21 @@ pub(in crate::gate) fn visibility_resolution(
         // Inherited associated candidates are outside the public declaration
         // inventory. The independently observed type prefix still has evidence.
         Err(CodeResolveError::Resolve(ResolveError::Ambiguous(items)))
-            if items.iter().all(|&id| {
-                workspace.item(id).is_some_and(|item| {
-                    item.visibility != raf_source::Vis::Public
-                        && matches!(
-                            item.kind,
-                            SymbolKind::InherentMethod
-                                | SymbolKind::TraitImplMethod
-                                | SymbolKind::TraitDefaultMethod
-                                | SymbolKind::TraitRequiredMethod
-                                | SymbolKind::AssocType
-                                | SymbolKind::AssocConst
-                        )
-                })
-            }) =>
+            if matches!(consumer, VisibilityConsumer::Package(_))
+                && items.iter().all(|&id| {
+                    workspace.item(id).is_some_and(|item| {
+                        item.visibility != raf_source::Vis::Public
+                            && matches!(
+                                item.kind,
+                                SymbolKind::InherentMethod
+                                    | SymbolKind::TraitImplMethod
+                                    | SymbolKind::TraitDefaultMethod
+                                    | SymbolKind::TraitRequiredMethod
+                                    | SymbolKind::AssocType
+                                    | SymbolKind::AssocConst
+                            )
+                    })
+                }) =>
         {
             Ok(None)
         }
@@ -2058,7 +2163,7 @@ pub(in crate::gate) fn visibility_resolution(
 
 fn internal_ambiguity(
     workspace: &Workspace,
-    consumer: PackageId,
+    consumer: VisibilityConsumer,
     error: &CodeResolveError,
 ) -> bool {
     let CodeResolveError::Resolve(ResolveError::Ambiguous(items)) = error else {
@@ -2067,35 +2172,104 @@ fn internal_ambiguity(
     items.iter().all(|&id| {
         workspace
             .item(id)
-            .and_then(|item| workspace.target(item.target))
-            .is_some_and(|target| target.package_id == consumer)
+            .is_some_and(|item| consumer.same(workspace, item))
     })
 }
 
-/// Distinct written paths by defining item and consuming package.
+/// One consuming Rust target and the context of a written use.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(in crate::gate) struct UseSite {
+    pub(in crate::gate) target: TargetId,
+    pub(in crate::gate) test: bool,
+    pub(in crate::gate) uncertain: bool,
+}
+
+type Uses<C> = BTreeMap<ItemId, BTreeMap<C, BTreeSet<String>>>;
+
+#[derive(Default)]
+pub(in crate::gate) struct DemandPaths {
+    pub(in crate::gate) by_item: Uses<UseSite>,
+    pub(in crate::gate) macros: BTreeSet<TargetId>,
+    pub(in crate::gate) methods: BTreeMap<String, BTreeSet<TargetId>>,
+}
+
+/// Distinct written paths by defining item and consuming package or target.
 #[derive(Default)]
 pub(in crate::gate) struct CrossPackagePaths {
-    pub(in crate::gate) by_item: BTreeMap<ItemId, BTreeMap<PackageId, BTreeSet<String>>>,
+    pub(in crate::gate) by_item: Uses<PackageId>,
+    pub(in crate::gate) demand: Option<DemandPaths>,
     retained: usize,
 }
 
 impl CrossPackagePaths {
+    pub(in crate::gate) const fn retained(&self) -> usize {
+        self.retained
+    }
+
+    pub(in crate::gate) fn demand() -> Self {
+        Self {
+            demand: Some(DemandPaths::default()),
+            ..Self::default()
+        }
+    }
+
+    pub(in crate::gate) fn consumer(
+        &self,
+        workspace: &Workspace,
+        id: TargetId,
+    ) -> Result<VisibilityConsumer, Error> {
+        if self.demand.is_some() {
+            Ok(VisibilityConsumer::Target(id))
+        } else {
+            let target = workspace
+                .target(id)
+                .ok_or_else(|| failure(VISIBILITY, "written path has no consuming target"))?;
+            Ok(VisibilityConsumer::Package(target.package_id))
+        }
+    }
+
+    fn coverage_gap(
+        &mut self,
+        file: &SourceFile,
+        method: Option<&str>,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        let Some(demand) = self.demand.as_mut() else {
+            return Ok(());
+        };
+        let targets = match method {
+            Some(name) => demand.methods.entry(name.to_owned()).or_default(),
+            None => &mut demand.macros,
+        };
+        for reach in &file.reached {
+            charge(VISIBILITY, limits, 1)?;
+            if !targets.contains(&reach.target) {
+                if self.retained >= limits.states {
+                    return Err(failure(
+                        VISIBILITY,
+                        "visibility evidence state limit exhausted",
+                    ));
+                }
+                targets.insert(reach.target);
+                self.retained += 1;
+            }
+        }
+        Ok(())
+    }
     fn record_occurrence(
         &mut self,
         workspace: &Workspace,
-        consumer: PackageId,
+        consumer: UseSite,
         definition: ItemId,
         written: &str,
         (site, opaque): (&Site<'_>, Option<&str>),
         limits: &MatchLimits,
     ) -> Result<(), Error> {
+        let scope = self.consumer(workspace, consumer.target)?;
         if let Some(opaque) = opaque
             && workspace
                 .item(definition)
-                .and_then(|item| workspace.target(item.target))
-                .is_some_and(|target| {
-                    target.kind == TargetKind::Lib && target.package_id != consumer
-                })
+                .is_some_and(|item| scope.counts(workspace, item))
         {
             return Err(Error::Source {
                 file: site.file.path.to_string(),
@@ -2111,7 +2285,7 @@ impl CrossPackagePaths {
     pub(in crate::gate) fn record(
         &mut self,
         workspace: &Workspace,
-        consumer: PackageId,
+        consumer: UseSite,
         definition: ItemId,
         written: &str,
         limits: &MatchLimits,
@@ -2122,18 +2296,33 @@ impl CrossPackagePaths {
         let target = workspace
             .target(item.target)
             .ok_or_else(|| failure(VISIBILITY, "resolved path has no defining target"))?;
-        if target.kind != TargetKind::Lib
-            || target.package_id == consumer
-            || workspace.same_source(item).is_empty()
-        {
+        if target.kind != TargetKind::Lib || workspace.same_source(item).is_empty() {
             return Ok(());
         }
-        let paths = self
-            .by_item
-            .entry(definition)
-            .or_default()
-            .entry(consumer)
-            .or_default();
+        let paths = if let Some(demand) = self.demand.as_mut() {
+            if item.target == consumer.target {
+                return Ok(());
+            }
+            demand
+                .by_item
+                .entry(definition)
+                .or_default()
+                .entry(consumer)
+                .or_default()
+        } else {
+            let package = workspace
+                .target(consumer.target)
+                .ok_or_else(|| failure(VISIBILITY, "written path has no consuming target"))?
+                .package_id;
+            if target.package_id == package {
+                return Ok(());
+            }
+            self.by_item
+                .entry(definition)
+                .or_default()
+                .entry(package)
+                .or_default()
+        };
         if paths.contains(written) {
             return Ok(());
         }
@@ -2165,11 +2354,13 @@ fn cross_package_uses(
         && written.len() == 1
         && scopes.has_textual_macro(&written[0], limits)?;
     let in_impl = |owner: &&raf_source::Item| blocks.is_empty() || owner.kind != SymbolKind::Mod;
-    let owner_contexts = owners
-        .iter()
-        .copied()
-        .filter(in_impl)
-        .map(|item| (PathOwner::Item(item.id), item.target));
+    let owner_contexts = owners.iter().copied().filter(in_impl).map(|item| {
+        (
+            PathOwner::Item(item.id),
+            item.target,
+            item.test != TestRole::None,
+        )
+    });
     let impl_contexts = blocks
         .iter()
         .filter(|block| {
@@ -2179,7 +2370,13 @@ fn cross_package_uses(
                 .filter(in_impl)
                 .any(|item| item.target == block.target)
         })
-        .map(|block| (PathOwner::Impl(block.id), block.target));
+        .map(|block| {
+            (
+                PathOwner::Impl(block.id),
+                block.target,
+                block.test != TestRole::None,
+            )
+        });
     let file_contexts = site
         .file
         .reached
@@ -2195,13 +2392,10 @@ fn cross_package_uses(
                             .is_ok_and(|module| module == reach.module_path.as_str())
                 })
         })
-        .map(|reach| (PathOwner::File(reach), reach.target));
+        .map(|reach| (PathOwner::File(reach), reach.target, reach.test));
     let mut classified = None;
-    for (owner, target) in owner_contexts.chain(impl_contexts).chain(file_contexts) {
-        let consumer = workspace
-            .target(target)
-            .ok_or_else(|| failure(VISIBILITY, "path occurrence has no consuming target"))?
-            .package_id;
+    for (owner, target, test) in owner_contexts.chain(impl_contexts).chain(file_contexts) {
+        let consumer = paths.consumer(workspace, target)?;
         let lookup = Lookup {
             code,
             owner,
@@ -2211,26 +2405,17 @@ fn cross_package_uses(
             receiver_workspace: None,
             enum_impl: None,
         };
-        let LexicalPath::Accessible(expanded) =
-            lookup.lexical(scopes, &written, absolute, limits)?
-        else {
-            continue;
+        let (expanded, glob) = scopes.with_test_locals(test || site.test, || {
+            lookup.visibility_binding(scopes, &written, absolute, limits)
+        })?;
+        let (definition, guarded) = match glob.definition {
+            Some(definition) => (definition, glob.guarded),
+            None => (
+                lookup.resolve(&raw, expanded.as_ref(), limits)?,
+                expanded.as_ref().is_some_and(|path| path.guarded_alias),
+            ),
         };
-        let glob = lookup.glob_occurrence(scopes, &written, absolute, expanded.as_ref(), limits)?;
-        let definition = match glob.definition {
-            Some(definition) => definition,
-            None => lookup.resolve(&raw, expanded.as_ref(), limits)?,
-        };
-        let actual = match &definition {
-            PathDefinition::Written(actual) | PathDefinition::Expanded(actual) => actual.as_slice(),
-            PathDefinition::Missing | PathDefinition::Unverified(_) => &[],
-        };
-        if textual_macro && actual.iter().any(|&id| lookup.cross_package(id)) {
-            return Err(failure(
-                VISIBILITY,
-                &format!("written macro {raw:?} has competing textual and path-based bindings"),
-            ));
-        }
+        let actual = visible_definitions(&definition, &lookup, &raw, textual_macro)?;
         if site.role == Role::Pattern
             && !classify_pattern(
                 workspace,
@@ -2242,18 +2427,81 @@ fn cross_package_uses(
         {
             continue;
         }
+        let consumer = lookup.use_site(
+            target,
+            test,
+            paths.demand.is_some() && !actual.is_empty(),
+            (&raw, guarded),
+        )?;
+        let provenance = (site, glob.opaque.as_deref());
         for &definition in actual {
             paths.record_occurrence(
-                workspace,
-                consumer,
-                definition,
-                observed,
-                (site, glob.opaque.as_deref()),
-                limits,
+                workspace, consumer, definition, observed, provenance, limits,
             )?;
         }
     }
     Ok(classified.unwrap_or(false))
+}
+
+impl Lookup<'_, '_> {
+    fn visibility_binding(
+        &self,
+        scopes: &Scopes,
+        written: &[String],
+        absolute: bool,
+        limits: &mut MatchLimits,
+    ) -> Result<(Option<Expanded>, GlobLookup), Error> {
+        let expanded = self.visible_expansion(scopes, written, absolute, None, limits)?;
+        let glob = self.glob_occurrence(scopes, written, absolute, expanded.as_ref(), limits)?;
+        Ok((expanded, glob))
+    }
+
+    fn use_site(
+        &self,
+        target: TargetId,
+        test: bool,
+        check_context: bool,
+        (written, guarded): (&str, bool),
+    ) -> Result<UseSite, Error> {
+        Ok(UseSite {
+            target,
+            test: test || self.site.test,
+            uncertain: self.site.uncertain
+                || (check_context && (guarded || self.conditional_visibility_context(written)?)),
+        })
+    }
+
+    fn conditional_visibility_context(&self, written: &str) -> Result<bool, Error> {
+        let result = match self.owner {
+            PathOwner::Item(item) => self
+                .code
+                .has_unconditional_reading_module(item, self.site.byte),
+            PathOwner::File(reach) => self.code.has_unconditional_file_reach(reach),
+            PathOwner::Impl(_) => return Ok(true),
+        };
+        result
+            .map(|unconditional| !unconditional)
+            .map_err(|error| self.error(written, error))
+    }
+}
+
+fn visible_definitions<'a>(
+    definition: &'a PathDefinition<'_>,
+    lookup: &Lookup<'_, '_>,
+    written: &str,
+    textual_macro: bool,
+) -> Result<&'a [ItemId], Error> {
+    let actual = match definition {
+        PathDefinition::Written(actual) | PathDefinition::Expanded(actual) => actual.as_slice(),
+        PathDefinition::Missing | PathDefinition::Unverified(_) => &[],
+    };
+    if textual_macro && actual.iter().any(|&id| lookup.external_use(id)) {
+        return Err(failure(
+            VISIBILITY,
+            &format!("written macro {written:?} has competing textual and path-based bindings"),
+        ));
+    }
+    Ok(actual)
 }
 
 fn classify_pattern(

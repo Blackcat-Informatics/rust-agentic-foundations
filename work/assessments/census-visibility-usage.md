@@ -7,13 +7,13 @@ subject: cap:census-visibility#usage
 inputs:
   - kind: section
     name: cap:census-visibility#usage
-    digest: abe299ff00bf755b7e0ea5d7a99a2e2f851661075b99866295a79a19257abc4a
+    digest: 865befe95a3288dd5a272dbe82ae312cdadce4c5fb67f255206f3a350fd30f88
   - kind: symbol
     name: cargo_raf_census::command::visibility
-    digest: c22b828770bc1bd5f7a7ff8c0948a7f79f3dec1e62e76792075ba0af1a656623
+    digest: 194e2393fe8176980627cbef871f4cd82154ffbe10e1d9ac5063a9e888389742
   - kind: symbol
     name: raf_census::visibility
-    digest: cce68b9e6ba77c509ffde7a734079ab2883d95ff3d4bf7eab73c41d3ad23cfba
+    digest: fdba8e824cce7e735c67843d27f8ecb2aee2c9d59ae22f20c74fe109d8092b44
 verdict: accepted
 by: agent
 ---

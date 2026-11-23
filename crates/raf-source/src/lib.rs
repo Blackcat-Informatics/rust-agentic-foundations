@@ -156,6 +156,7 @@
 mod budget;
 mod cargo_version;
 mod cfg;
+pub use cfg::cfg_requires_test;
 mod configuration;
 pub use configuration::{
     ActiveConfiguration, CfgAtom, CfgSelection, DeclaredCfg, DeclaredConfiguration,

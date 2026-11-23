@@ -29,6 +29,7 @@ struct Frame {
     // Key presence serves syntactic path lookup. The value records whether
     // the binding exists for runtime receiver lookup.
     local_values: BTreeMap<String, bool>,
+    test_local_values: BTreeSet<String>,
     written_receivers: BTreeMap<String, ReceiverBinding>,
     generic_types: BTreeSet<String>,
     settled: RefCell<GlobCache>,
@@ -66,7 +67,13 @@ impl Frame {
         });
     }
 
-    fn local(&self, head: &str, namespace: Namespace, runtime: bool, receiver: bool) -> bool {
+    fn local(
+        &self,
+        head: &str,
+        namespace: Namespace,
+        runtime: bool,
+        (receiver, test): (bool, bool),
+    ) -> bool {
         match namespace {
             Namespace::Type => {
                 self.types.contains(head) || runtime && self.generic_types.contains(head)
@@ -74,10 +81,11 @@ impl Frame {
             Namespace::Value => {
                 self.values.contains(head)
                     || runtime
-                        && self
+                        && (self
                             .local_values
                             .get(head)
                             .is_some_and(|&live| !receiver || live)
+                            || test && self.test_local_values.contains(head))
             }
             Namespace::Macro => self.macros.contains(head),
             _ => unreachable!("syntax classification passes only known namespaces"),
@@ -234,6 +242,7 @@ pub(in crate::gate) struct Expanded {
     pub(in crate::gate) block: bool,
     shadowing: Option<Shadowing>,
     alias_attributes: AliasAttributes,
+    pub(super) guarded_alias: bool,
     first_frame: Option<usize>,
     alias_frame: Option<usize>,
 }
@@ -310,8 +319,10 @@ pub(in crate::gate) struct Scopes {
     pub(super) enums: RefCell<BTreeMap<ItemId, Rc<EnumMembers>>>,
     glob_states: Cell<usize>,
     module_globs: bool,
+    exclude_inactive: bool,
     track_written_receivers: bool,
     read_receiver_imports: Cell<bool>,
+    read_test_locals: Cell<bool>,
     receiver_floor: usize,
     receiver_states: usize,
 }
@@ -328,6 +339,13 @@ enum Answer {
 }
 
 impl Scopes {
+    pub(super) fn with_test_locals<T>(&self, test: bool, query: impl FnOnce() -> T) -> T {
+        let previous = self.read_test_locals.replace(test);
+        let result = query();
+        self.read_test_locals.set(previous);
+        result
+    }
+
     pub(super) fn for_patterns(written_receivers: bool) -> Self {
         Self {
             track_written_receivers: written_receivers,
@@ -338,6 +356,14 @@ impl Scopes {
     pub(super) fn for_enum_patterns() -> Self {
         Self {
             module_globs: true,
+            exclude_inactive: true,
+            ..Self::default()
+        }
+    }
+
+    pub(super) fn for_visibility_demand() -> Self {
+        Self {
+            exclude_inactive: true,
             ..Self::default()
         }
     }
@@ -356,7 +382,7 @@ impl Scopes {
         let keep_globs =
             (track_globs || self.track_written_receivers) && (!module || self.module_globs);
         let excluded = |attributes: &[syn::Attribute]| {
-            self.module_globs && crate::syntax::definitely_excluded(attributes)
+            self.exclude_inactive && crate::syntax::definitely_excluded(attributes)
         };
         for item in items {
             if excluded(crate::syntax::item_attributes(item)) {
@@ -578,14 +604,23 @@ impl Scopes {
         }))
     }
 
-    #[expect(
-        clippy::expect_used,
-        reason = "the path visitor creates a frame before admitting bindings within it"
-    )]
     pub(in crate::gate) fn bind(
         &mut self,
         pattern: &syn::Pat,
         live_binding: bool,
+        include: impl FnMut(&Self, &syn::Ident) -> Result<bool, Error>,
+    ) -> Result<(), Error> {
+        self.bind_context(pattern, (live_binding, false), include)
+    }
+
+    #[expect(
+        clippy::expect_used,
+        reason = "the path visitor creates a frame before admitting bindings within it"
+    )]
+    pub(super) fn bind_context(
+        &mut self,
+        pattern: &syn::Pat,
+        (live_binding, test_only): (bool, bool),
         mut include: impl FnMut(&Self, &syn::Ident) -> Result<bool, Error>,
     ) -> Result<(), Error> {
         let mut failure = None;
@@ -600,7 +635,9 @@ impl Scopes {
                         .top_mut()
                         .expect("INVARIANT: entered lexical scope");
                     let name = name.unraw().to_string();
-                    if live_binding {
+                    if test_only {
+                        frame.test_local_values.insert(name);
+                    } else if live_binding {
                         if let Some(previous) = frame.written_receivers.remove(&name) {
                             self.receiver_states -= previous.states();
                         }
@@ -694,7 +731,15 @@ impl Scopes {
         let namespace = head_namespace(path, namespace);
         for (index, frame) in (0..self.frames.len()).rev().zip(self.frames.iter().rev()) {
             charge("paths", limits, 1)?;
-            if frame.local(head, namespace, true, self.read_receiver_imports.get()) {
+            if frame.local(
+                head,
+                namespace,
+                true,
+                (
+                    self.read_receiver_imports.get(),
+                    self.read_test_locals.get(),
+                ),
+            ) {
                 return Ok(true);
             }
             if frame.module
@@ -730,6 +775,7 @@ impl Scopes {
             block: false,
             shadowing: None,
             alias_attributes: AliasAttributes::Inert,
+            guarded_alias: false,
             first_frame: None,
             alias_frame: None,
         };
@@ -746,7 +792,15 @@ impl Scopes {
                 if index >= frame_limit {
                     continue;
                 }
-                if frame.local(head, namespace, runtime, self.read_receiver_imports.get()) {
+                if frame.local(
+                    head,
+                    namespace,
+                    runtime,
+                    (
+                        self.read_receiver_imports.get(),
+                        self.read_test_locals.get(),
+                    ),
+                ) {
                     expanded.first_frame.get_or_insert(index);
                     expanded.shadowing = Some(if frame.module {
                         Shadowing::Module
@@ -780,6 +834,7 @@ impl Scopes {
                 expanded.alias_attributes = AliasAttributes::Uncertain;
                 return Ok(Some(expanded));
             };
+            expanded.guarded_alias |= alias.attributes != AliasAttributes::Inert;
             if alias.path.is_empty() {
                 expanded.shadowing = Some(if block {
                     Shadowing::Block
