@@ -749,14 +749,15 @@ impl<'p> Paths<'_, 'p, '_, '_> {
 
     fn inputs(&mut self, inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::Token![,]>) {
         for input in inputs {
-            if self.excludes_from_inventory(argument_attributes(input)) {
+            let attributes = argument_attributes(input);
+            if self.excludes_from_inventory(attributes) {
                 continue;
             }
             match input {
                 syn::FnArg::Receiver(_) => self.scopes.receiver(),
-                syn::FnArg::Typed(typed) => {
-                    self.bind_with_receiver(&typed.pat, Some(&typed.ty), None);
-                }
+                syn::FnArg::Typed(typed) => self.with_visibility_guard(attributes, |this| {
+                    this.bind_with_receiver(&typed.pat, Some(&typed.ty), None);
+                }),
             }
         }
     }

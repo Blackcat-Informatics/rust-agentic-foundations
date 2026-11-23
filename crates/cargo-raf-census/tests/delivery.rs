@@ -2734,6 +2734,7 @@ fn write_demand_fixture(root: &Path) {
             pub mod controls {\n\
                 pub fn match_ready() -> bool { true }\n\
                 pub fn shipping() {}\n\
+                pub fn parameter_shipping() {}\n\
                 pub fn overshadowed() {}\n\
                 pub const K: u8 = 0;\n\
                 pub mod chained { pub fn path_use() {} }\n\
@@ -2825,6 +2826,13 @@ const DEMAND_GUARD_SOURCES: &[(&str, &str)] = &[
             shipping();\n\
             #[cfg(test)] shipping();\n\
             #[cfg(test)] let K = 1u8 else { return; };\n\
+        }\n\
+        mod parameter_case {\n\
+            use base::controls::*;\n\
+            pub fn test_parameter(#[cfg(test)] parameter_shipping: fn()) {\n\
+                parameter_shipping();\n\
+                #[cfg(test)] parameter_shipping();\n\
+            }\n\
         }\n\
         pub fn arm_guard() {\n\
             match Some(()) { Some(_) if base::controls::match_ready() => {}, _ => {} }\n\
@@ -2983,6 +2991,12 @@ fn assert_guarded_demand(graph: &raf_rdf::Graph) {
             "production",
         ),
         (
+            "base::controls::parameter_shipping",
+            "parameter_shipping",
+            "production",
+            "production",
+        ),
+        (
             "base::controls::match_ready",
             "base::controls::match_ready",
             "production",
@@ -3010,14 +3024,16 @@ fn assert_guarded_demand(graph: &raf_rdf::Graph) {
                     .any(|path| path.literal().is_some_and(|(text, _)| text == written))
         }));
     }
-    assert!(
-        !visibility_nodes(
-            graph,
-            demand_declaration(graph, "base::controls::shipping"),
-            "use"
-        )
-        .any(|row| visibility_value(row, "context") == "test")
-    );
+    for symbol in [
+        "base::controls::shipping",
+        "base::controls::parameter_shipping",
+    ] {
+        assert!(
+            !visibility_nodes(graph, demand_declaration(graph, symbol), "use")
+                .any(|row| visibility_value(row, "context") == "test"),
+            "{symbol}"
+        );
+    }
     let disabled = demand_declaration(graph, "base::disabled_only");
     assert_eq!(visibility_value(disabled, "demand"), "no-known-use");
     assert_eq!(visibility_nodes(graph, disabled, "use").count(), 0);
